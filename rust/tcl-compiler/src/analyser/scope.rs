@@ -85,6 +85,89 @@ pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'
     Some(cursor)
 }
 
+/// Advance a command-resolution namespace accumulator across one child
+/// scope, per Tcl's command-resolution rule for the scope kinds this
+/// analyser models:
+///
+/// * [`ScopeKind::Namespace`] appends its segment — `ns` accumulates
+///   through every enclosing `namespace eval`, however deeply nested.
+/// * [`ScopeKind::Proc`] / [`ScopeKind::Method`] **reset** to that
+///   definition's own defining namespace (the prefix of its qualified
+///   name) rather than accumulating lexically: a proc resolves its body's
+///   unqualified calls in its own namespace, not necessarily its lexical
+///   nesting (a `proc ::a::b::p {}` declared at the top level still
+///   resolves unqualified calls against `::a::b`). **Exception:** a
+///   `TclOO` method scope ([`Scope::oo_global_resolution`]) resets to
+///   global — the body runs in the object's namespace, and the class's
+///   defining namespace is never searched (tclsh-pinned).
+/// * [`ScopeKind::Uplevel`] (`uplevel #0`) resets to global — the body
+///   runs in the global frame.
+/// * [`ScopeKind::Global`] is a no-op.
+///
+/// Shared by [`Analyser::command_resolution_namespace`] (walks a live
+/// `scope_path: &[usize]` during the analyser's own body walk) and
+/// [`command_resolution_namespace_at`] (walks a fully-built [`Scope`] tree
+/// by byte offset, for post-walk LSP consumers with no `scope_path`) so
+/// the two traversal mechanisms can never disagree on the underlying rule.
+fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
+    match child.kind {
+        ScopeKind::Namespace => join_namespace(ns, &child.name),
+        // A `TclOO` method body executes with the *object's* namespace current
+        // (`::oo::ObjN`, path `::oo::Helpers`) — the class's defining
+        // namespace is never searched, so the static approximation is
+        // global-only resolution (tclsh 8.6.16 / 9.0.4-pinned; see
+        // `Scope::oo_global_resolution`). snit / itcl methods fall through
+        // to the defining-namespace rule below.
+        ScopeKind::Method if child.oo_global_resolution => "::".to_string(),
+        ScopeKind::Proc | ScopeKind::Method => {
+            let qualified = if child.name.starts_with("::") {
+                normalise_qualified_name(&child.name)
+            } else {
+                join_namespace(ns, &child.name)
+            };
+            match qualified.rsplit_once("::") {
+                Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
+                _ => "::".to_string(),
+            }
+        }
+        ScopeKind::Global => ns.to_string(),
+        ScopeKind::Uplevel => "::".to_string(),
+    }
+}
+
+/// Namespace an unqualified command invoked at `byte_offset` resolves
+/// against, per Tcl's command-resolution rule.
+///
+/// The byte-offset-based sibling of [`Analyser::command_resolution_namespace`]
+/// (which walks a live `scope_path` during the analyser's own body walk):
+/// this variant walks a fully-built [`Scope`] tree by byte position, for LSP
+/// providers that only have a finished `AnalysisResult` and a cursor / call-site
+/// offset — no `scope_path`. `tcl-lsp-core`'s find-references / rename /
+/// call-hierarchy namespace gates all resolve through this one function
+/// (via [`advance_command_resolution_namespace`], the shared per-scope-kind
+/// rule) so they can't disagree with each other or with the analyser's own
+/// resolution.
+///
+/// Descends the innermost child scope whose `body_span` contains
+/// `byte_offset` at each level, exactly like `tcl-lsp-core`'s
+/// `scope_chain_at` — a scope with no `body_span` (or one that doesn't
+/// contain the offset) simply isn't descended into.
+#[must_use]
+pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String {
+    let mut ns = "::".to_string();
+    let mut cursor = root;
+    loop {
+        let next = cursor.children.iter().find(|c| {
+            c.body_span
+                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
+        });
+        let Some(child) = next else { break };
+        ns = advance_command_resolution_namespace(&ns, child);
+        cursor = child;
+    }
+    ns
+}
+
 impl Analyser {
     /// Resolve the current scope path to a borrow of the active
     /// [`Scope`] inside [`Self::result`]. Convenience wrapper
@@ -187,54 +270,135 @@ impl Analyser {
     }
 
     /// Compute the scope-resolved qualified name for a command
-    /// invocation at the current walk position.
+    /// invocation at `scope_path`.
     ///
-    /// * Names starting with `::` are already absolute and are
-    ///   returned as-is.
-    /// * Names with embedded `::` but no leading `::` are
-    ///   absolute-from-global by Tcl convention; the helper
-    ///   prepends `::`.
-    /// * Simple names are joined with the nearest enclosing
-    ///   namespace scope: `cmd` inside `namespace eval ::ns`
-    ///   becomes `::ns::cmd`; at the top level it becomes
-    ///   `::cmd`.
+    /// Delegates the "what namespace does an unqualified call here
+    /// resolve against" question to [`Self::command_resolution_namespace`]
+    /// (the same rule [`command_resolution_namespace_at`] applies
+    /// post-walk, so the two can't disagree), then picks the
+    /// most-specific candidate from
+    /// [`crate::naming::bareword_resolution_candidates`] — which already
+    /// encodes Tcl's real "current namespace, then global" two-step rule
+    /// for both bare names and relative names with embedded `::`
+    /// (`inner::p` resolves against the current namespace before falling
+    /// back to global — it is *not* unconditionally global-rooted).  A
+    /// leading-`::` name is already absolute and comes back unchanged.
     ///
     /// Returned strings are intended for matching against
     /// [`super::types::ProcDef::qualified_name`] in references
     /// / document-highlight / rename providers.  The value is
     /// not authoritative for runtime dispatch — it's a
     /// candidate that lets call-site → declaration matching
-    /// resolve relative call shapes.
+    /// resolve relative call shapes.  During the walk this is the
+    /// *local-first* candidate; once the whole file is walked,
+    /// [`Self::finalise_invocation_resolutions`] applies Tcl's
+    /// existence check and demotes the guess to the global
+    /// candidate when the local one names nothing the file (or the
+    /// registry) defines.
     #[must_use]
-    pub fn resolve_command_qualified_name(&self, cmd_name: &str) -> String {
-        if cmd_name.starts_with("::") {
-            return cmd_name.to_string();
-        }
-        if cmd_name.contains("::") {
-            return format!("::{cmd_name}");
-        }
-        // Walk the current scope path up to the nearest
-        // namespace scope and join its `name` with the cmd.
-        // The global scope's name is `"::"` so the simple-name
-        // case at the top level becomes `"::cmd"`.
-        let mut path = self.current_scope_path.clone();
-        loop {
-            let scope =
-                scope_at(&self.result.global_scope, &path).unwrap_or(&self.result.global_scope);
-            if scope.kind == super::types::ScopeKind::Namespace || path.is_empty() {
-                let prefix = scope.name.as_str();
-                return if prefix == "::" {
-                    format!("::{cmd_name}")
-                } else {
-                    format!("{prefix}::{cmd_name}")
-                };
+    pub fn resolve_command_qualified_name(&self, cmd_name: &str, scope_path: &[usize]) -> String {
+        let ns = self.command_resolution_namespace(scope_path);
+        crate::naming::bareword_resolution_candidates(&ns, cmd_name)
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| format!("::{cmd_name}"))
+    }
+
+    /// Post-walk pass: settle each invocation's `resolved_qualified_name`
+    /// with Tcl's real two-step existence rule.
+    ///
+    /// The walk stores the *local-first* candidate (`::ns::inner::p` for an
+    /// `inner::p` call inside `::ns`), but Tcl only dispatches there when
+    /// that command **exists** — otherwise it falls back to the global
+    /// candidate (`::inner::p`).  Existence can't be tested mid-walk: a proc
+    /// body's calls resolve at call time, so a local candidate defined
+    /// *later in the file* still wins (confirmed against tclsh 8.6).  This
+    /// runs after the walk, when `all_procs` / `all_classes` /
+    /// `command_aliases` / `renamed_commands` are complete, and demotes the
+    /// guess to the global candidate when the local one names nothing known
+    /// — a user definition or a registry builtin (`puts` inside a namespace
+    /// resolves to `::puts`, not `::ns::puts`).
+    ///
+    /// When *neither* candidate is known (a cross-file proc), the
+    /// local-first guess is kept: same-file consumers
+    /// (`graphs`, `minify`) find no same-file definition either way, and
+    /// the cross-file reference matchers treat the field as a candidate,
+    /// not ground truth.
+    pub(super) fn finalise_invocation_resolutions(&mut self) {
+        // Populate the per-dialect builtin-name cache before splitting field
+        // borrows below (`builtin_command_names` needs `&mut self`).
+        let _ = self.builtin_command_names();
+        let Some(builtins) = self.builtin_names.as_ref() else {
+            return;
+        };
+        // Recorded `namespace path` declarations, cloned before borrowing
+        // `result` mutably. Entries are passed as written — the shared
+        // candidate builder roots a relative entry against the declaring
+        // namespace (`namespace path inner` inside `::outer` means
+        // `::outer::inner`, never `::inner` — tclsh-pinned; see
+        // `command_resolution_candidates`).
+        let paths = self.namespace_paths.clone();
+        // A builtin renamed away (`rename puts ::a::p`) or deleted
+        // (`rename puts ""` / alias deletion) is no longer callable under
+        // its original name — C raises `invalid command name` — so the
+        // registry name must not count as existing. (User procs keep the
+        // whole-file semantics documented above; this gates only the
+        // builtin clause.)
+        let renamed_away: std::collections::HashSet<String> = self
+            .result
+            .renamed_commands
+            .values()
+            .cloned()
+            .chain(self.deleted_commands.keys().cloned())
+            .collect();
+        let result = &mut self.result;
+        let (procs, classes, aliases, renames) = (
+            &result.all_procs,
+            &result.all_classes,
+            &result.command_aliases,
+            &result.renamed_commands,
+        );
+        let known = |qualified: &str| {
+            procs.contains_key(qualified)
+                || classes.contains_key(qualified)
+                || aliases.contains_key(qualified)
+                || renames.contains_key(qualified)
+                || (builtins.contains(qualified.trim_start_matches(':'))
+                    && !renamed_away.contains(qualified))
+        };
+        for inv in &mut result.command_invocations {
+            // Absolute names are exact; `None` means a background scan that
+            // skipped the scope walk — nothing to settle either way.
+            if inv.name.starts_with("::") {
+                continue;
             }
-            if path.is_empty() {
-                break;
+            let Some(resolved) = inv.resolved_qualified_name.as_deref() else {
+                continue;
+            };
+            // The walk stored the local-first candidate (`{ns}::{name}`);
+            // recover the call namespace and re-run the *shared* resolver
+            // (`resolve_command_with`, the same rule the optimiser, the
+            // uplevel inliner, and the VM dispatch on) now that `known` is
+            // complete — with the namespace's recorded `namespace path`
+            // (empty when none was declared), so a call the path would
+            // catch settles to the path candidate, exactly as it
+            // dispatches at run time.
+            let suffix = format!("::{}", inv.name);
+            let ns = match resolved.strip_suffix(suffix.as_str()) {
+                Some("") => "::",
+                Some(prefix) => prefix,
+                // Not the `{ns}::{name}` shape the walk produces — leave it.
+                None => continue,
+            };
+            let path: &[String] = paths.get(ns).map_or(&[], Vec::as_slice);
+            if let Some(winner) = crate::naming::resolve_command_with(ns, path, &inv.name, &known)
+                && winner != resolved
+            {
+                inv.resolved_qualified_name = Some(winner);
             }
-            path.pop();
+            // No candidate known: keep the local-first guess for cross-file
+            // consumers (the reference matchers treat it as a candidate).
         }
-        format!("::{cmd_name}")
     }
 
     /// Record a constant string assignment for `var_name` in the
@@ -353,40 +517,7 @@ impl Analyser {
             let Some(child) = cursor.children.get(idx) else {
                 break;
             };
-            match child.kind {
-                ScopeKind::Namespace => ns = join_namespace(&ns, &child.name),
-                ScopeKind::Proc => {
-                    // The proc's defining namespace = prefix of its
-                    // (possibly relative) qualified name.
-                    let qualified = if child.name.starts_with("::") {
-                        normalise_qualified_name(&child.name)
-                    } else {
-                        join_namespace(&ns, &child.name)
-                    };
-                    ns = match qualified.rsplit_once("::") {
-                        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
-                        _ => "::".to_string(),
-                    };
-                }
-                // A method body resolves commands in its class's namespace —
-                // the prefix of the method's qualified `class::method` name,
-                // same shape as a proc.
-                ScopeKind::Method => {
-                    let qualified = if child.name.starts_with("::") {
-                        normalise_qualified_name(&child.name)
-                    } else {
-                        join_namespace(&ns, &child.name)
-                    };
-                    ns = match qualified.rsplit_once("::") {
-                        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
-                        _ => "::".to_string(),
-                    };
-                }
-                ScopeKind::Global => {}
-                // `uplevel #0` runs in the global frame, so command
-                // resolution from inside its body is global-rooted.
-                ScopeKind::Uplevel => ns = "::".to_string(),
-            }
+            ns = advance_command_resolution_namespace(&ns, child);
             cursor = child;
         }
         ns
@@ -971,6 +1102,73 @@ mod tests {
         assert_eq!(a.namespace_from_scope_path(&[0, 0]), "::ns1");
     }
 
+    /// The Method-scope namespace rule: a `TclOO` method (flagged) resolves
+    /// globally; a snit/itcl method (unflagged) resolves in the class's
+    /// defining namespace, like a proc.
+    #[test]
+    fn method_scope_namespace_honours_oo_global_resolution() {
+        let flagged = {
+            let mut m = Scope::new(ScopeKind::Method, "::pkg::C::m");
+            m.oo_global_resolution = true;
+            m
+        };
+        assert_eq!(
+            advance_command_resolution_namespace("::pkg", &flagged),
+            "::"
+        );
+        let unflagged = Scope::new(ScopeKind::Method, "::pkg::C::m");
+        assert_eq!(
+            advance_command_resolution_namespace("::pkg", &unflagged),
+            "::pkg::C",
+        );
+    }
+
+    /// tclsh 8.6.16 / 9.0.4-pinned (G1 shape): a bare call in a `TclOO`
+    /// method body dispatches the GLOBAL helper, not the class's
+    /// defining-namespace helper — method bodies run in the object's
+    /// namespace and never search the class's namespace.
+    #[test]
+    fn tcloo_method_call_settles_to_the_global_helper() {
+        let src = "namespace eval ::pkg {\n\
+                       proc helper {} { return PKGHELPER }\n\
+                       oo::class create C { method m {} { helper } }\n\
+                   }\n\
+                   proc ::helper {} { return GLOBALHELPER }\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6");
+        let inv = analysis
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "helper")
+            .expect("method-body helper invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::helper"),
+            "TclOO method bodies resolve bare calls globally (tclsh-pinned)",
+        );
+    }
+
+    /// A builtin renamed away is not callable under its original name
+    /// (tclsh-pinned: C raises `invalid command name`), so settlement must
+    /// not demote a namespace-local guess to the dead builtin name.
+    #[test]
+    fn renamed_away_builtin_no_longer_settles_calls() {
+        let src = "rename puts ::a::p\n\
+                   namespace eval ::ns { puts x }\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6");
+        let inv = analysis
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "puts" && i.resolved_qualified_name.as_deref() != Some("::a::p"))
+            .expect("namespaced puts invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::ns::puts"),
+            "the dead builtin name must not win; the local-first guess stays",
+        );
+    }
+
     fn diag_codes(source: &str, dialect: &str) -> Vec<String> {
         let mut a = Analyser::new();
         a.analyse(source, dialect)
@@ -978,6 +1176,97 @@ mod tests {
             .iter()
             .map(|d| d.code.to_string())
             .collect()
+    }
+
+    // finalise_invocation_resolutions — Tcl's existence-checked two-step
+    // resolution rule, applied post-walk.  Every case below is pinned
+    // against tclsh 8.6 (PR #924 review): the local-first candidate wins
+    // only when that command exists by the end of the file; otherwise the
+    // call falls back to the global candidate.
+
+    /// The `resolved_qualified_name` recorded for the invocation whose raw
+    /// call text is `name`.
+    fn resolved_for(source: &str, name: &str) -> Option<String> {
+        let mut a = Analyser::new();
+        let analysis = a.analyse(source, "tcl8.6");
+        analysis
+            .command_invocations
+            .iter()
+            .find(|inv| inv.name == name)
+            .unwrap_or_else(|| panic!("no `{name}` invocation recorded"))
+            .resolved_qualified_name
+            .clone()
+    }
+
+    #[test]
+    fn relative_qualified_call_falls_back_to_global_when_local_absent() {
+        // tclsh8.6: `inner::p` inside `outer` dispatches ::inner::p when
+        // ::outer::inner::p does not exist.
+        let src = "namespace eval ::inner {}\nproc ::inner::p {} {}\nnamespace eval outer { proc caller {} { inner::p } }\n";
+        assert_eq!(resolved_for(src, "inner::p").as_deref(), Some("::inner::p"));
+    }
+
+    #[test]
+    fn relative_qualified_call_prefers_local_defined_later_in_file() {
+        // tclsh8.6: a proc body's calls resolve at call time, so the local
+        // candidate wins even when its `proc` runs after the caller was
+        // defined — the walk order must not leak into the resolution.
+        let src = concat!(
+            "namespace eval ::inner {}\n",
+            "proc ::inner::p {} {}\n",
+            "namespace eval outer { proc caller {} { inner::p } }\n",
+            "namespace eval outer { namespace eval inner {} ; proc inner::p {} {} }\n",
+        );
+        assert_eq!(
+            resolved_for(src, "inner::p").as_deref(),
+            Some("::outer::inner::p")
+        );
+    }
+
+    #[test]
+    fn bare_call_falls_back_to_global_when_local_absent() {
+        let src = "proc ::g {} {}\nnamespace eval ns2 { proc caller {} { g } }\n";
+        assert_eq!(resolved_for(src, "g").as_deref(), Some("::g"));
+    }
+
+    #[test]
+    fn bare_call_prefers_local_defined_later_in_file() {
+        let src = concat!(
+            "proc ::g {} {}\n",
+            "namespace eval ns2 { proc caller {} { g } }\n",
+            "namespace eval ns2 { proc g {} {} }\n",
+        );
+        assert_eq!(resolved_for(src, "g").as_deref(), Some("::ns2::g"));
+    }
+
+    #[test]
+    fn builtin_call_inside_namespace_resolves_global() {
+        // tclsh8.6: `puts` inside a namespace is the global builtin — the
+        // local-first guess `::ns3::puts` names nothing, so the settled
+        // resolution is `::puts` (as it was before the scope-aware walk).
+        let src = "namespace eval ns3 { proc caller {} { puts hi } }\n";
+        assert_eq!(resolved_for(src, "puts").as_deref(), Some("::puts"));
+    }
+
+    #[test]
+    fn builtin_shadowed_by_local_proc_stays_local() {
+        // tclsh8.6: a namespace-local `puts` shadows the builtin for
+        // unqualified calls from inside that namespace.
+        let src = "namespace eval ns3 { proc puts {msg} {} ; proc caller {} { puts hi } }\n";
+        assert_eq!(resolved_for(src, "puts").as_deref(), Some("::ns3::puts"));
+    }
+
+    #[test]
+    fn unknown_in_both_namespaces_keeps_local_first_guess() {
+        // Neither ::ns4::mystery::call nor ::mystery::call is defined in
+        // this file (a cross-file proc, or a typo W123 reports) — keep the
+        // local-first candidate so cross-file consumers still see the
+        // Tcl-priority guess.
+        let src = "namespace eval ns4 { proc caller {} { mystery::call } }\n";
+        assert_eq!(
+            resolved_for(src, "mystery::call").as_deref(),
+            Some("::ns4::mystery::call")
+        );
     }
 
     #[test]

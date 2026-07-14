@@ -251,8 +251,12 @@ impl Analyser {
         // with the formal parameters and the class's instance variables
         // pre-bound; the `initialise` body walks in the enclosing scope.
         let class_variables = class_def.variables.clone();
+        // `TclOO` method bodies resolve bare commands globally (object-ns
+        // semantics — see `Scope::oo_global_resolution`); snit / itcl
+        // members resolve in the type / class namespace.
+        let oo_global = matches!(grammar.family, tcl_registry::definer::DefinerFamily::TclOo);
         for mb in method_bodies.iter().chain(accessor_bodies.iter()) {
-            self.walk_method_body(&class_variables, class_qualified, scope_path, mb);
+            self.walk_method_body(&class_variables, class_qualified, scope_path, mb, oo_global);
         }
         for (body, tok) in init_bodies {
             self.analyse_body(&body, tok, scope_path);
@@ -273,6 +277,7 @@ impl Analyser {
         class_qualified: &str,
         scope_path: &[usize],
         mb: &CollectedMethodBody,
+        oo_global_resolution: bool,
     ) {
         if mb.body_tok.kind != TokenType::Str {
             return;
@@ -286,6 +291,7 @@ impl Analyser {
             scope_at_mut(&mut self.result.global_scope, scope_path).map(|parent| {
                 let mut child = Scope::new(ScopeKind::Method, method_qn.clone());
                 child.body_span = Some(mb.body_tok.span);
+                child.oo_global_resolution = oo_global_resolution;
                 parent.children.push(child);
                 parent.children.len() - 1
             })
@@ -329,6 +335,7 @@ impl Analyser {
                 body_tok: mb.body_tok,
                 scope_path: method_path,
                 is_method: true,
+                oo_global_resolution,
                 namespace,
                 scope_name: method_qn,
                 params: mb.params.clone(),
@@ -659,7 +666,9 @@ impl Analyser {
 
         // Walk the body in a method scope seeded with the params + seed vars,
         // reusing the TclOO method-body walker (it pre-binds the params and the
-        // supplied vars as never-warn locals, then analyses the body).
+        // supplied vars as never-warn locals, then analyses the body). snit /
+        // itcl members resolve in the type / class namespace, so
+        // `oo_global_resolution` stays false here.
         if let Some(bt) = body_tok {
             let mb = CollectedMethodBody {
                 name,
@@ -668,7 +677,7 @@ impl Analyser {
                 body_tok: bt,
                 params_tok,
             };
-            self.walk_method_body(seed_vars, ctx.class_qualified, ctx.scope_path, &mb);
+            self.walk_method_body(seed_vars, ctx.class_qualified, ctx.scope_path, &mb, false);
         }
     }
 

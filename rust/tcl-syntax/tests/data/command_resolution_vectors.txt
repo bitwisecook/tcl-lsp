@@ -1,0 +1,73 @@
+# Command-resolution conformance vectors — the shared ground truth for
+# every implementation of Tcl's command-name resolution in this repo.
+#
+# Format (pipe-separated; `-` = empty; `#` starts a comment line):
+#   current-namespace | namespace-path (comma-sep) | defined commands (comma-sep) | call text | expected winner
+#
+# The expected winner is the ::-rooted qualified name the call dispatches
+# to, or `-` when Tcl raises `invalid command name`.  Every row is
+# executable Tcl: `tcl_syntax::naming::conformance::vector_script` renders
+# it as a script whose output is the winner (procs return their own
+# qualified name), and the `command_resolution_conformance` test in
+# tcl-syntax runs that script under real tclsh (8.6 / 9.0 — behaviour was
+# pinned on 8.6.16 and 9.0.4, which agree on every row) to keep this file
+# honest.  The same rows drive the pure resolver
+# (`naming::resolve_command_with`), the analyser's post-walk settlement,
+# the bytecode VM's dispatch, and the WASM runtime's namespace tree.
+#
+# C reference: Tcl_FindCommand, generic/tclNamesp.c (Tcl 9.0.4).
+
+# -- absolute names: one candidate, path never consulted -----------------
+:: | - | ::p | ::p | ::p
+::outer | - | ::p,::outer::p | ::p | ::p
+::outer | ::pathns | ::pathns::p | ::p | -
+
+# -- bare names: current namespace, then global --------------------------
+:: | - | ::helper | helper | ::helper
+::ns | - | ::ns::helper,::helper | helper | ::ns::helper
+::ns | - | ::helper | helper | ::helper
+::ns | - | - | helper | -
+# no implicit ancestor walk: ::a::helper is NOT reachable from ::a::b
+::a::b | - | ::a::helper | helper | -
+# deep nesting resolves in its own namespace before global
+::modelTestVerTool::gui | - | ::modelTestVerTool::gui::popUp,::popUp | popUp | ::modelTestVerTool::gui::popUp
+::modelTestVerTool::gui | - | ::popUp | popUp | ::popUp
+
+# -- relative-qualified names (embedded ::): same two-step rule ----------
+::outer | - | ::outer::inner::p,::inner::p | inner::p | ::outer::inner::p
+::outer | - | ::inner::p | inner::p | ::inner::p
+# the qualifier namespace existing does NOT commit resolution: only the
+# command existing does (::outer::inner exists via its own proc `other`)
+::outer | - | ::outer::inner::other,::inner::p | inner::p | ::inner::p
+::outer | - | - | inner::p | -
+::a::b | - | ::a::b::c::d::p | c::d::p | ::a::b::c::d::p
+
+# -- namespace path: slots between current and global --------------------
+::c | ::pathns | ::pathns::helper,::helper | helper | ::pathns::helper
+::c | ::pathns | ::c::helper,::pathns::helper,::helper | helper | ::c::helper
+::c | ::pathns | ::helper | helper | ::helper
+# path entries are searched in order
+::c | ::p1,::p2 | ::p1::helper,::p2::helper | helper | ::p1::helper
+::c | ::p1,::p2 | ::p2::helper | helper | ::p2::helper
+# the path applies to relative-qualified names too
+::d | ::pathq | ::pathq::sub::q,::sub::q | sub::q | ::pathq::sub::q
+::d | ::pathq | ::sub::q | sub::q | ::sub::q
+# ... and its qualifier-namespace-exists-but-command-missing case falls
+# through past the path entry to global
+::d | ::pathq | ::pathq::sub::other,::sub::q | sub::q | ::sub::q
+
+# -- relative path entries are current-namespace-relative ONLY: `inner`
+# from ::outer means ::outer::inner, never ::inner (tclsh 8.6.16 / 9.0.4:
+# `namespace path inner` errors `namespace "inner" not found in "::outer"`
+# when ::outer::inner does not exist, even with ::inner present — no
+# global fallback for namespace names, unlike command names)
+::outer | inner | ::outer::inner::helper,::inner::helper | helper | ::outer::inner::helper
+::a | b::c | ::a::b::c::helper | helper | ::a::b::c::helper
+
+# -- ::tcl::mathfunc is reached by this same rule: expr resolves a function
+# f as the relative name `tcl::mathfunc::f` from the *current* namespace,
+# so ::ns::tcl::mathfunc::f shadows ::tcl::mathfunc::f inside ::ns
+# (tclsh-pinned via `namespace eval ::ns {expr {f(1)}}`; the vector pins
+# the equivalent command-call shape)
+::nsa | - | ::nsa::tcl::mathfunc::pinf,::tcl::mathfunc::pinf | tcl::mathfunc::pinf | ::nsa::tcl::mathfunc::pinf
+::nsb | - | ::tcl::mathfunc::pinf | tcl::mathfunc::pinf | ::tcl::mathfunc::pinf

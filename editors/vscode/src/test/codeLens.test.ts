@@ -111,6 +111,56 @@ suite("Code Lens", () => {
     );
   });
 
+  // Regression for issue #923: the reference-count lens above a proc nested
+  // two `namespace eval` levels deep must count a call embedded in a Tk
+  // `bind` callback script, whether the call is written fully-qualified
+  // (the reported symptom — the lens showed "0 references") or bare (called
+  // from inside the proc's own namespace).
+  test("reference count is correct for procs called from a bind callback in a nested namespace", async () => {
+    const refsUri = getDocUri("issue923NestedNamespace.tcl");
+    await activate(refsUri);
+    const lenses = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeLensProvider", refsUri, 100),
+      (r) => {
+        const ls = r as vscode.CodeLens[] | undefined;
+        if (!ls) return false;
+        const resolvedLines = new Set(
+          ls
+            .filter((l) => l.command && typeof l.command.title === "string")
+            .map((l) => l.range.start.line),
+        );
+        // `proc specAddButtonPopUp923` on line 2, `proc testAddButtonPopUp923`
+        // on line 5.
+        return [2, 5].every((line) => resolvedLines.has(line));
+      },
+      { timeout: 10_000, label: "resolved code lenses for issue #923 fixture" },
+    )) as vscode.CodeLens[] | undefined;
+    assert.ok(lenses, "codeLens result should not be null");
+
+    const titleByLine = new Map<number, string>();
+    for (const lens of lenses) {
+      if (lens.command && typeof lens.command.title === "string") {
+        titleByLine.set(lens.range.start.line, lens.command.title);
+      }
+    }
+
+    // Line 2: called only by its fully-qualified name from inside the
+    // `bind` callback script (line 8) — this is the exact shape the issue
+    // reported as "0 references".
+    assert.strictEqual(
+      titleByLine.get(2),
+      "1 reference",
+      `fully-qualified bind callback call: got "${titleByLine.get(2)}"`,
+    );
+    // Line 5: called only by its bare name from inside the same namespace's
+    // `bind` callback script (line 9).
+    assert.strictEqual(
+      titleByLine.get(5),
+      "1 reference",
+      `bare bind callback call: got "${titleByLine.get(5)}"`,
+    );
+  });
+
   // Regression for issue #864: the reference-count lens above a TclOO method
   // must count external `$obj method` dispatch, not just intra-class calls.
   // `puts [$b get foo]` (with `set b [Bar new]`) is one reference to `get`.

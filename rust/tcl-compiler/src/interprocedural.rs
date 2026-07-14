@@ -350,13 +350,14 @@ pub fn collect_call_by_name_reads(
 // Call-target resolution
 
 /// Resolve a command name to a qualified procedure name if it refers to one
-/// defined in `known`, via [`crate::naming::bareword_resolution_candidates`]
-/// — Tcl's real bareword resolution: an absolute name (`::foo`) is looked up
-/// directly; a relative *dotted* name (`inner::p`) resolves against the
-/// caller's own namespace first, then global; a bare name tries the
-/// caller's namespace then global — exactly two levels, never every
-/// enclosing ancestor namespace (Tcl's own command lookup does not walk
-/// intermediate namespaces absent an explicit `namespace path`).
+/// defined in `known`, via [`crate::naming::resolve_command_with`] — Tcl's
+/// real existence-checked resolution: an absolute name (`::foo`) is looked
+/// up directly; a relative name — bare (`foo`) or dotted (`inner::p`) —
+/// tries the caller's namespace first, then global, dispatching the first
+/// candidate that *exists* in `known`; never every enclosing ancestor
+/// namespace (Tcl's own command lookup does not walk intermediate
+/// namespaces absent an explicit `namespace path`, which whole-unit
+/// summaries do not model).
 ///
 /// Shared with the analyser's identical same-file resolution
 /// (`Analyser::resolve_proc_call`) and the optimiser's
@@ -376,9 +377,7 @@ pub fn resolve_internal_call<S: std::hash::BuildHasher>(
     } else {
         format!("::{}", ns_parts.join("::"))
     };
-    crate::naming::bareword_resolution_candidates(&ns, command)
-        .into_iter()
-        .find(|qname| known.contains(qname.as_str()))
+    crate::naming::resolve_command_with::<&str, _>(&ns, &[], command, |qname| known.contains(qname))
 }
 
 /// Top-level call-target resolver. Convenience wrapper that

@@ -43,10 +43,6 @@ pub fn install(interp: &mut Interp) {
     // `update` is registered by `cmd_event` (the real event loop).
 }
 
-/// Commands that may not be renamed (mirrors Tcl 9's `TclProtectedCommandsList`
-/// spirit without trace machinery — see `rename-alias.md` §3.4).
-const PROTECTED: &[&[u8]] = &[b"return", b"error"];
-
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     let mut m = b"wrong # args: should be \"".to_vec();
     m.extend_from_slice(usage);
@@ -57,19 +53,15 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
 // -- rename ----------------------------------------------------------------
 
 /// `rename oldName newName` — move a command, or delete it when `newName` is the
-/// empty string. Built-in commands on the protected list are refused.
+/// empty string. Any command may be renamed, builtins included — C Tcl has no
+/// protected list here (`rename ::return ::myreturn` succeeds on tclsh
+/// 8.6.16 / 9.0.4).
 fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"rename oldName newName");
     }
     let old = obj_bytes(argv[1]);
     let new = obj_bytes(argv[2]);
-    if PROTECTED.contains(&old.as_slice()) {
-        let mut m = b"can't rename \"".to_vec();
-        m.extend_from_slice(&old);
-        m.extend_from_slice(b"\": built-in command");
-        return interp.set_error(&m);
-    }
     match interp.rename_command(&old, &new) {
         RenameOutcome::Renamed | RenameOutcome::Deleted => {
             interp.set_result_bytes(b"");
@@ -831,16 +823,18 @@ mod tests {
         });
     }
 
+    /// C Tcl has no protected-command list for `rename`: even `return` may
+    /// be renamed and used under its new name (tclsh 8.6.16 / 9.0.4:
+    /// `rename ::return ::myreturn` succeeds).
     #[test]
-    fn rename_protected_is_refused() {
+    fn rename_builtin_return_is_allowed() {
         leak_free(|i| {
-            assert_eq!(i.eval_str(b"rename return ret"), Code::Error);
-            assert_eq!(
-                i.result_bytes(),
-                b"can't rename \"return\": built-in command"
-            );
-            // `return` still works.
-            assert_eq!(i.eval_str(b"return done"), Code::Return);
+            assert_eq!(i.eval_str(b"rename return myreturn"), Code::Ok);
+            assert_eq!(i.eval_str(b"proc p {} { myreturn done }"), Code::Ok);
+            assert_eq!(i.eval_str(b"p"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"done");
+            // Restore for any later tests in this interp.
+            assert_eq!(i.eval_str(b"rename myreturn return"), Code::Ok);
         });
     }
 

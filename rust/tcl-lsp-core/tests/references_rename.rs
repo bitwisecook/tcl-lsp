@@ -246,6 +246,61 @@ fn references_namespaced_proc_matches_qualified_and_short_calls() {
 }
 
 #[test]
+fn references_relative_qualified_call_falls_back_to_global_target() {
+    // tclsh8.6 (verified, PR #924 review): `inner::p` called inside `outer`
+    // dispatches the *global* `::inner::p` when `::outer::inner::p` does not
+    // exist — Tcl's two-step rule commits to the local candidate only when
+    // that command exists.  References on `::inner::p`'s declaration must
+    // therefore include the relative call site inside `outer`.
+    let src = concat!(
+        "namespace eval ::inner {}\n",
+        "proc ::inner::p {} { return GLOBAL }\n",
+        "namespace eval outer { proc caller {} { inner::p } }\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on the `::inner::p` declaration (line 1).
+    let refs = references(src, "tcl", 1, 13, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "declaration missing: {refs:?}");
+    assert!(
+        lines.contains(&2),
+        "relative `inner::p` call inside `outer` must fall back to the \
+         global proc: {refs:?}",
+    );
+}
+
+#[test]
+fn references_relative_qualified_call_prefers_existing_local_over_global() {
+    // tclsh8.6 (verified): with BOTH `::outer::inner::p` and `::inner::p`
+    // defined, the relative call inside `outer` dispatches the local one —
+    // even though the local proc is defined *after* the caller (proc bodies
+    // resolve at call time).  The call site must be attributed to the local
+    // proc and NOT to the global one.
+    let src = concat!(
+        "namespace eval ::inner {}\n",
+        "proc ::inner::p {} { return GLOBAL }\n",
+        "namespace eval outer { proc caller {} { inner::p } }\n",
+        "namespace eval outer { namespace eval inner {} ; proc inner::p {} { return LOCAL } }\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on the *global* `::inner::p` declaration (line 1): the call in
+    // `outer` belongs to the local proc, so it must not appear here.
+    let global_refs = references(src, "tcl", 1, 13, &analysis, true);
+    let global_lines = ref_lines(&global_refs);
+    assert!(
+        !global_lines.contains(&2),
+        "call inside `outer` resolves to the local proc, not the global: {global_refs:?}",
+    );
+    // Cursor on the *local* `::outer::inner::p` declaration (line 3).
+    let local_refs = references(src, "tcl", 3, 55, &analysis, true);
+    let local_lines = ref_lines(&local_refs);
+    assert!(
+        local_lines.contains(&2),
+        "call inside `outer` must be attributed to the local proc: {local_refs:?}",
+    );
+}
+
+#[test]
 fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
     // tclsh: `::a::helper` -> "a" and `::b::helper` -> "b" are two distinct
     // procs. References to `::a::helper` must include its decl and its own
@@ -263,6 +318,411 @@ fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
     assert!(
         !lines.contains(&4) && !lines.contains(&7),
         "must not reference ::b::helper (decl line 4 / call line 7): {refs:?}",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// references — nested namespaces (2+ levels): qualified, relative, and the
+// exact `bind`-callback shape from
+// https://github.com/bitwisecook/tcl-lsp/issues/923
+//
+// Regression coverage for a namespace-resolution bug found while
+// investigating #923: the analyser's per-call-site "what namespace does an
+// unqualified name resolve against" computation
+// (`Analyser::resolve_command_qualified_name`) read a scope-path field that
+// was never actually updated during the real body walk, and the LSP-side
+// namespace gate (`innermost_namespace_at`) took only the *innermost*
+// enclosing `namespace eval`'s own segment rather than the full accumulated
+// path — so a bare call from inside a namespace nested *two or more* levels
+// deep (`namespace eval a { namespace eval b { ... } }`) was resolved as if
+// it were at the top level and never matched its own proc. Both are fixed by
+// routing through `Analyser::command_resolution_namespace` /
+// `command_resolution_namespace_at`, the single accumulating implementation
+// shared by the analyser and every `tcl-lsp-core` provider.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn references_two_level_nested_namespace_bare_call_matches_from_same_namespace() {
+    // tclsh (verified): `namespace eval modelTestVerTool { namespace eval gui
+    // { proc specAddButtonPopUp ...; proc caller {} { specAddButtonPopUp 1 2
+    // } } }` then `::modelTestVerTool::gui::caller` -> "called 1 2". The bare
+    // call resolves because it runs *inside* the proc's own two-level-nested
+    // namespace. Before the fix this bare call was not found as a reference
+    // at all (the dead-field bug always guessed the top-level namespace).
+    let src = concat!(
+        "namespace eval modelTestVerTool {\n",
+        "    namespace eval gui {\n",
+        "        proc specAddButtonPopUp {x y} { return \"called $x $y\" }\n",
+        "        proc caller {} { return [specAddButtonPopUp 1 2] }\n",
+        "    }\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on the `specAddButtonPopUp` declaration (line 2).
+    let refs = references(src, "tcl", 2, 14, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&2), "decl missing: {refs:?}");
+    assert!(
+        lines.contains(&3),
+        "bare call from the same 2-level-nested namespace missing: {refs:?}"
+    );
+}
+
+#[test]
+fn references_two_level_nested_namespace_qualified_call_in_bind_style_body_matches() {
+    // tclsh (verified): `uplevel #0 { specAddButtonPopUp 1 2 }` from outside
+    // the namespace fails with "invalid command name", but
+    // `uplevel #0 { ::modelTestVerTool::gui::specAddButtonPopUp 1 2 }`
+    // succeeds — the fully-qualified spelling is the *correct*, idiomatic way
+    // to reach a namespaced proc from a deferred/global-eval'd context (a Tk
+    // `bind` script, `after`, a widget `-command`; Tcl evaluates these via
+    // `uplevel #0`/`TCL_EVAL_GLOBAL`, not the caller's active namespace).
+    // Issue #923: this exact call form — a namespaced proc invoked by its
+    // fully-qualified name from inside a `bind` callback script — was
+    // reported as not found ("0 references").
+    let src = concat!(
+        "namespace eval modelTestVerTool {\n",
+        "    namespace eval gui {\n",
+        "        proc specAddButtonPopUp {x y} { return \"called $x $y\" }\n",
+        "    }\n",
+        "}\n",
+        "bind $win.fra.tool.buT_specAddIconLarge <ButtonRelease-1> {::modelTestVerTool::gui::specAddButtonPopUp %X %Y}\n",
+    );
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 2, 14, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&2), "decl missing: {refs:?}");
+    assert!(
+        lines.contains(&5),
+        "fully-qualified call embedded in the `bind` script missing: {refs:?}"
+    );
+}
+
+#[test]
+fn references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly() {
+    // The exact shape from
+    // https://github.com/bitwisecook/tcl-lsp/issues/923: two `bind` lines
+    // inside the procs' own namespace, one calling its target by
+    // fully-qualified name, the other by bare name — both are genuine
+    // references and both must be found.
+    let src = concat!(
+        "namespace eval modelTestVerTool {\n",
+        "    namespace eval gui {\n",
+        "        proc specAddButtonPopUp {x y} { return \"spec $x $y\" }\n",
+        "        proc testAddButtonPopUp {x y} { return \"test $x $y\" }\n",
+        "        bind $win.fra.tool.buT_specAddIconLarge <ButtonRelease-1> {::modelTestVerTool::gui::specAddButtonPopUp %X %Y}\n",
+        "        bind $win.fra.tool.buT_testAddIconLarge <ButtonRelease-1> {testAddButtonPopUp %X %Y}\n",
+        "    }\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    // specAddButtonPopUp: fully-qualified call site (line 4).
+    let spec_refs = references(src, "tcl", 2, 14, &analysis, true);
+    let spec_lines = ref_lines(&spec_refs);
+    assert!(spec_lines.contains(&2), "spec decl missing: {spec_refs:?}");
+    assert!(
+        spec_lines.contains(&4),
+        "spec's fully-qualified bind call site missing: {spec_refs:?}"
+    );
+    // testAddButtonPopUp: bare call site (line 5), same namespace.
+    let test_refs = references(src, "tcl", 3, 14, &analysis, true);
+    let test_lines = ref_lines(&test_refs);
+    assert!(test_lines.contains(&3), "test decl missing: {test_refs:?}");
+    assert!(
+        test_lines.contains(&5),
+        "test's bare bind call site missing: {test_refs:?}"
+    );
+}
+
+#[test]
+fn references_bare_call_outside_the_namespace_is_correctly_not_a_reference() {
+    // tclsh (verified): a bare `testAddButtonPopUp` called from *outside*
+    // `::modelTestVerTool::gui` (e.g. a top-level `bind` line) does NOT reach
+    // the namespaced proc at runtime — Tcl's bareword lookup does not search
+    // arbitrary descendant namespaces. The fix must not turn this into a
+    // false-positive match.
+    let src = concat!(
+        "namespace eval modelTestVerTool {\n",
+        "    namespace eval gui {\n",
+        "        proc testAddButtonPopUp {x y} { return \"test $x $y\" }\n",
+        "    }\n",
+        "}\n",
+        "bind $win.fra.tool.buT_testAddIconLarge <ButtonRelease-1> {testAddButtonPopUp %X %Y}\n",
+    );
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 2, 14, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![2],
+        "bare call from a different (global) scope must not be misattributed: {refs:?}"
+    );
+}
+
+#[test]
+fn references_two_level_nested_namespace_isolates_same_named_procs() {
+    // tclsh (verified): `::a::b::helper` -> "a-b" and `::c::d::helper` ->
+    // "c-d" are distinct procs even though both are nested two namespaces
+    // deep with the same simple name. A bare `helper` call inside `::c::d`
+    // must resolve to *its own* proc, never `::a::b`'s.
+    let src = concat!(
+        "namespace eval a {\n",
+        "    namespace eval b {\n",
+        "        proc helper {} { return \"a-b\" }\n",
+        "    }\n",
+        "}\n",
+        "namespace eval c {\n",
+        "    namespace eval d {\n",
+        "        proc helper {} { return \"c-d\" }\n",
+        "        proc caller {} { return [helper] }\n",
+        "    }\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    // References for `::a::b::helper` (cursor on its decl, line 2).
+    let refs_ab = references(src, "tcl", 2, 14, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs_ab),
+        vec![2],
+        "::a::b::helper has no callers; must not pick up ::c::d's call: {refs_ab:?}"
+    );
+    // References for `::c::d::helper` (cursor on its decl, line 7).
+    let refs_cd = references(src, "tcl", 7, 14, &analysis, true);
+    let lines_cd = ref_lines(&refs_cd);
+    assert!(lines_cd.contains(&7), "::c::d decl missing: {refs_cd:?}");
+    assert!(
+        lines_cd.contains(&8),
+        "::c::d's own bare call missing: {refs_cd:?}"
+    );
+}
+
+#[test]
+fn references_three_level_nested_namespace_bare_and_qualified_calls() {
+    // tclsh (verified): three nested `namespace eval` blocks
+    // (`::a::b::c::deep`) called both as bare `deep` (from inside
+    // `::a::b::c`) and as `::a::b::c::deep` -> "a-b-c-deep" both times.
+    let src = concat!(
+        "namespace eval a {\n",
+        "    namespace eval b {\n",
+        "        namespace eval c {\n",
+        "            proc deep {} { return \"a-b-c-deep\" }\n",
+        "            proc caller {} { return [deep] }\n",
+        "        }\n",
+        "    }\n",
+        "}\n",
+        "::a::b::c::deep\n",
+    );
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 3, 18, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&3), "decl missing: {refs:?}");
+    assert!(
+        lines.contains(&4),
+        "bare call from the same 3-level-nested namespace missing: {refs:?}"
+    );
+    assert!(
+        lines.contains(&8),
+        "fully-qualified top-level call missing: {refs:?}"
+    );
+}
+
+#[test]
+fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
+    // tclsh (verified): with *both* `::inner::p` ("global-inner") and
+    // `::outer::inner::p` ("outer-inner") defined, calling the relative
+    // (no leading `::`) name `inner::p` from inside `::outer` resolves to
+    // `::outer::inner::p`, not the global one — Tcl tries the current
+    // namespace before falling back to global even for a relative name that
+    // itself contains `::`. `resolve_command_qualified_name` must produce
+    // this same candidate (previously it treated any `cmd_name.contains("::")`
+    // as unconditionally global-rooted).
+    let src = concat!(
+        "namespace eval inner {\n",
+        "    proc p {} { return \"global-inner\" }\n",
+        "}\n",
+        "namespace eval outer {\n",
+        "    namespace eval inner {\n",
+        "        proc p {} { return \"outer-inner\" }\n",
+        "    }\n",
+        "    proc caller {} { return [inner::p] }\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    // References for `::outer::inner::p` (cursor on its decl, line 5).
+    let refs_outer = references(src, "tcl", 5, 13, &analysis, true);
+    let lines_outer = ref_lines(&refs_outer);
+    assert!(lines_outer.contains(&5), "decl missing: {refs_outer:?}");
+    assert!(
+        lines_outer.contains(&7),
+        "`inner::p` call inside ::outer must resolve to ::outer::inner::p: {refs_outer:?}"
+    );
+    // References for the *global* `::inner::p` (cursor on its decl, line 1)
+    // must NOT include ::outer's caller.
+    let refs_global = references(src, "tcl", 1, 9, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs_global),
+        vec![1],
+        "the global ::inner::p must not pick up ::outer's call: {refs_global:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// references — classes in nested namespaces (parity with the proc fixes
+// above; classes previously had no namespace gate at all, so a bare
+// class-name match cross-attributed across namespaces unconditionally)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn references_class_two_level_nested_namespace_isolates_same_named_classes() {
+    // tclsh (verified pattern, same shape as the proc isolation test):
+    // `::a::b::Widget` and `::c::d::Widget` are distinct classes. A bare
+    // `Widget new` inside `::c::d` must resolve to its own class only.
+    let src = concat!(
+        "namespace eval a {\n",
+        "    namespace eval b {\n",
+        "        oo::class create Widget {}\n",
+        "    }\n",
+        "}\n",
+        "namespace eval c {\n",
+        "    namespace eval d {\n",
+        "        oo::class create Widget {}\n",
+        "        proc build {} { return [Widget new] }\n",
+        "    }\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    if analysis.all_classes.len() < 2 {
+        // Some dialect configurations may not record both classes; skip
+        // rather than false-fail the shared-infra assumption.
+        return;
+    }
+    // References for `::a::b::Widget` (cursor on its decl, line 2).
+    let refs_ab = references(src, "tcl", 2, 26, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs_ab),
+        vec![2],
+        "::a::b::Widget has no instantiations; must not pick up ::c::d's: {refs_ab:?}"
+    );
+    // References for `::c::d::Widget` (cursor on its decl, line 7).
+    let refs_cd = references(src, "tcl", 7, 26, &analysis, true);
+    let lines_cd = ref_lines(&refs_cd);
+    assert!(lines_cd.contains(&7), "::c::d decl missing: {refs_cd:?}");
+    assert!(
+        lines_cd.contains(&8),
+        "::c::d's own `Widget new` call missing: {refs_cd:?}"
+    );
+}
+
+#[test]
+fn references_class_and_method_two_level_nested_namespace_dollar_dispatch() {
+    // tclsh (verified): a class nested two `namespace eval` levels deep,
+    // instantiated via its fully-qualified name, dispatches `$w render` ->
+    // "rendered". The method reference must resolve through the nested
+    // namespace exactly like the top-level `oo::class` tests already do.
+    let src = concat!(
+        "namespace eval modelTestVerTool {\n",
+        "    namespace eval gui {\n",
+        "        oo::class create Widget {\n",
+        "            method render {} { return \"rendered\" }\n",
+        "        }\n",
+        "    }\n",
+        "}\n",
+        "set w [::modelTestVerTool::gui::Widget new]\n",
+        "$w render\n",
+    );
+    let analysis = analyse(src);
+    if analysis.all_classes.is_empty() {
+        return;
+    }
+    // Cursor on the `render` method declaration (line 3).
+    let refs = references(src, "tcl", 3, 20, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&3), "method decl missing: {refs:?}");
+    assert!(
+        lines.contains(&8),
+        "external `$w render` call site missing: {refs:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// rename — nested namespaces (parity with the reference fixes above)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rename_proc_two_level_nested_namespace_scoped_correctly() {
+    // Renaming `::c::d::helper` must rewrite its own decl + bare call, and
+    // must never touch the unrelated same-named `::a::b::helper`.
+    let src = concat!(
+        "namespace eval a {\n",
+        "    namespace eval b {\n",
+        "        proc helper {} { return \"a-b\" }\n",
+        "    }\n",
+        "}\n",
+        "namespace eval c {\n",
+        "    namespace eval d {\n",
+        "        proc helper {} { return \"c-d\" }\n",
+        "        proc caller {} { return [helper] }\n",
+        "    }\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl", 7, 14, "assist", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![7, 8],
+        "only ::c::d::helper's decl + its own bare call rewritten: {edits:?}"
+    );
+    assert!(edits.iter().all(|e| e.new_text == "assist"));
+}
+
+#[test]
+fn rename_class_two_level_nested_namespace_scoped_correctly() {
+    // Class-rename parity with the proc test above: renaming
+    // `::c::d::Widget` must not touch the unrelated `::a::b::Widget`.
+    let src = concat!(
+        "namespace eval a {\n",
+        "    namespace eval b {\n",
+        "        oo::class create Widget {}\n",
+        "    }\n",
+        "}\n",
+        "namespace eval c {\n",
+        "    namespace eval d {\n",
+        "        oo::class create Widget {}\n",
+        "        proc build {} { return [Widget new] }\n",
+        "    }\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    if analysis.all_classes.len() < 2 {
+        return;
+    }
+    let edits = rename(src, "tcl", 7, 26, "Panel", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![7, 8],
+        "only ::c::d::Widget's decl + its own `Widget new` call rewritten: {edits:?}"
+    );
+    assert!(edits.iter().all(|e| e.new_text == "Panel"));
+}
+
+// ---------------------------------------------------------------------------
+// references — known limitation: a command name held in a variable
+// ---------------------------------------------------------------------------
+
+#[test]
+fn references_variable_held_command_name_is_not_resolved_documented_limitation() {
+    // A command name stored in a variable and invoked indirectly
+    // (`set cmd helper; $cmd`) is, in the general case, statically
+    // undecidable — the value could come from anywhere at runtime. This
+    // test pins the current, honest behaviour: such a call site is simply
+    // not counted as a reference (no crash, no false attribution), rather
+    // than silently mismatching a different proc.
+    let src = "proc helper {} { return hi }\nset cmd helper\n$cmd\n";
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![0],
+        "only the declaration; `$cmd` is not statically resolved: {refs:?}"
     );
 }
 

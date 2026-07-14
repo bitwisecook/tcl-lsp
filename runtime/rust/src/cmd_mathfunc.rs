@@ -263,6 +263,42 @@ mod tests {
         });
     }
 
+    /// `expr` resolves a function `f` as the *relative* name
+    /// `tcl::mathfunc::f` from the CURRENT namespace, so a namespace-local
+    /// `::ns::tcl::mathfunc::f` shadows the global function inside `::ns`
+    /// (tclsh 8.6.16 / 9.0.4-pinned; the mathfunc rows in the shared
+    /// conformance vector table pin the command-call shape).
+    #[test]
+    fn namespace_local_mathfunc_shadows_in_expr() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"proc ::tcl::mathfunc::pf {x} { return 10 }"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(b"namespace eval ::nsa::tcl::mathfunc {}"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(b"proc ::nsa::tcl::mathfunc::pf {x} { return 20 }"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(b"namespace eval ::nsa { expr {pf(1)} }"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"20");
+            // From any namespace without a local shadow, global wins.
+            assert_eq!(
+                i.eval_str(b"namespace eval ::nsb { expr {pf(1)} }"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"10");
+            assert_eq!(i.eval_str(b"expr {pf(1)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"10");
+        });
+    }
+
     #[test]
     fn unknown_function_reports_invalid_command() {
         leak_free(|i| {

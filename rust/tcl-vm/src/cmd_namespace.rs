@@ -230,8 +230,31 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         "ensemble" => ns_ensemble(vm, rest),
-        // Accepted no-ops (metadata only, for now).
-        "unknown" => ok(Value::empty()),
+        // `namespace unknown ?handler?` (TIP 181) — get/set the CURRENT
+        // namespace's resolution-miss handler (a command prefix). Handlers
+        // are per-namespace, NOT inherited by children; the global
+        // namespace's handler is the interp-wide default; unset reports
+        // `::unknown` (the default chain). Consulted by the dispatch miss
+        // path before the plain `unknown` proc.
+        "unknown" => match rest {
+            [] => {
+                let h = vm.ns_unknown_get();
+                if h.is_empty() {
+                    ok(Value::string("::unknown"))
+                } else {
+                    ok(Value::list(h))
+                }
+            }
+            [handler] => {
+                let words = match handler.as_list() {
+                    Ok(elems) => elems.to_vec(),
+                    Err(e) => return err(e.message),
+                };
+                vm.ns_unknown_set(words);
+                ok(Value::empty())
+            }
+            _ => err("wrong # args: should be \"namespace unknown ?script?\""),
+        },
         other => err(format!(
             "unknown or ambiguous subcommand \"{other}\": must be \
              children, current, eval, exists, export, parent, qualifiers, or tail"

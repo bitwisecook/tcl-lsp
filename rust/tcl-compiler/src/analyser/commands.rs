@@ -279,7 +279,7 @@ impl Analyser {
         // `file_decls` is identical to a full `analyse` (gated by the
         // `file_decls_corpus` corpus test).
         if !self.structure_only {
-            let resolved = self.resolve_command_qualified_name(cmd_name);
+            let resolved = self.resolve_command_qualified_name(cmd_name, scope_path);
             // Argument count for cross-file arity checking.  A `{*}`-
             // expanded argument makes the runtime count unknown, so record `None`
             // and let arity checking skip conservatively.
@@ -308,7 +308,7 @@ impl Analyser {
                 && let (Some(target_name), Some(target_tok)) =
                     (args.first(), arg_tokens_in.get(1).copied())
             {
-                let resolved = self.resolve_command_qualified_name(target_name);
+                let resolved = self.resolve_command_qualified_name(target_name, scope_path);
                 self.result.command_invocations.push(
                     crate::signature_scan::types::SignatureCommandInvocation {
                         name: target_name.clone(),
@@ -326,13 +326,15 @@ impl Analyser {
             // Walk every argument's source slice for ``[cmd ...]``
             // substitutions and record each nested head as its own
             // ``CommandInvocation``.
-            self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in);
+            self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in, scope_path);
 
             // Record `ArgRole::CommandPrefix` callback heads (`lsort -command
             // myCompare`, `trace add … cb`) as command invocations too, so
             // find-references / rename / call-hierarchy / code-lens / W123 /
             // callback-arity see the callback exactly like a direct call.
-            self.record_command_prefix_invocations(cmd_name, args, arg_tokens, arg_single);
+            self.record_command_prefix_invocations(
+                cmd_name, args, arg_tokens, arg_single, scope_path,
+            );
 
             // Run the per-command syntactic checks on commands nested inside
             // ``[…]`` substitutions — the main walk never descends a
@@ -515,6 +517,7 @@ impl Analyser {
         self.handle_package_command(cmd_name, cmd_tok, args, arg_tokens);
         self.handle_source_command(cmd_name, args, arg_tokens);
         self.handle_namespace_import_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_namespace_path_command(cmd_name, args, scope_path);
         self.handle_tcllib_import_wrapper(cmd_name, cmd_tok, args, scope_path);
         self.handle_auto_path_command(cmd_name, args, arg_tokens);
         self.handle_regex_pattern_capture(cmd_name, args, arg_tokens, scope_path);
@@ -991,6 +994,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         arg_single: &[bool],
+        scope_path: &[usize],
     ) {
         let Some(registry) = self.registry.as_ref() else {
             return;
@@ -1027,7 +1031,7 @@ impl Analyser {
             }
         }
         for inv in invs {
-            let resolved = self.resolve_command_qualified_name(&inv.head);
+            let resolved = self.resolve_command_qualified_name(&inv.head, scope_path);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name: inv.head,
@@ -1059,6 +1063,7 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens_in: &[Token],
+        scope_path: &[usize],
     ) {
         // Which arguments are *expressions*?  A `[...]` inside a braced
         // expr arg is a real invocation (`if {[acl_ok]} …`), but a `[...]`
@@ -1081,7 +1086,7 @@ impl Analyser {
         if let Some(head) = arg_tokens_in.first()
             && head.kind == TokenType::Cmd
         {
-            self.record_invocations_from_cmd_token(*head);
+            self.record_invocations_from_cmd_token(*head, scope_path);
         }
         for (i, arg_tok) in arg_tokens_in.iter().enumerate().skip(1) {
             let arg_start = arg_tok.span.start();
@@ -1091,14 +1096,14 @@ impl Analyser {
                 continue;
             }
             if arg_tok.kind == TokenType::Cmd {
-                self.record_invocations_from_cmd_token(*arg_tok);
+                self.record_invocations_from_cmd_token(*arg_tok, scope_path);
             } else if arg_tok.kind == TokenType::Str {
                 // Braced word: scan its `[...]` substitutions only when it
                 // is an expression argument (substitutions are then active);
                 // a braced data word stays opaque (a non-expr braced word
                 // is never walked as a script).
                 if expr_indices.contains(&(i - 1)) {
-                    self.record_invocations_from_expr_token(*arg_tok);
+                    self.record_invocations_from_expr_token(*arg_tok, scope_path);
                 }
             } else {
                 // `Esc` (bareword / quoted): substitutions are active, so
@@ -1106,7 +1111,7 @@ impl Analyser {
                 // helper can take ``&mut self`` without conflicting with the
                 // source borrow.
                 let arg_src = self.source[arg_start as usize..arg_end].to_string();
-                self.record_invocations_from_word_token(*arg_tok, &arg_src, arg_start);
+                self.record_invocations_from_word_token(*arg_tok, &arg_src, arg_start, scope_path);
             }
         }
     }
@@ -1120,7 +1125,7 @@ impl Analyser {
     /// *first* head of each ``[...]``, dropping ``;``- / newline-
     /// separated commands (`[foo; bar]` → only `foo`); the CST
     /// descent finds them all.
-    fn record_invocations_from_cmd_token(&mut self, arg_tok: Token) {
+    fn record_invocations_from_cmd_token(&mut self, arg_tok: Token, scope_path: &[usize]) {
         let config = self.lexer_config();
         // Collect the inner heads first (this borrows `self.source`
         // through the `SourceMap`); resolve + push afterwards so the
@@ -1142,7 +1147,7 @@ impl Analyser {
             }
             heads
         };
-        self.push_collected_heads(heads);
+        self.push_collected_heads(heads, scope_path);
     }
 
     /// Run the per-command syntactic dispatch
@@ -1417,7 +1422,7 @@ impl Analyser {
     /// expression's own operands are not commands (see
     /// [`collect_expr_substitutions`]).  Skips the over-recording the
     /// generic word scanner would do on a braced *data* word.
-    fn record_invocations_from_expr_token(&mut self, expr_tok: Token) {
+    fn record_invocations_from_expr_token(&mut self, expr_tok: Token, scope_path: &[usize]) {
         let config = self.lexer_config();
         let heads = {
             let sm = SourceMap::new(&self.source);
@@ -1425,7 +1430,7 @@ impl Analyser {
             collect_expr_substitutions(&sm, self.registry.as_ref(), expr_tok, config, &mut heads);
             heads
         };
-        self.push_collected_heads(heads);
+        self.push_collected_heads(heads, scope_path);
     }
 
     /// Resolve each collected `(name, span, argc)` head to a qualified name and
@@ -1433,9 +1438,9 @@ impl Analyser {
     /// statically-known argument count (`None` when `{*}`-expanded), so a wrong-arg
     /// call to a cross-file proc *inside a substitution* (`set x [helper a b c]`)
     /// still draws the cross-file arity error.
-    fn push_collected_heads(&mut self, heads: Vec<CollectedHead>) {
+    fn push_collected_heads(&mut self, heads: Vec<CollectedHead>, scope_path: &[usize]) {
         for (name, range, argc, callback_arity) in heads {
-            let resolved = self.resolve_command_qualified_name(&name);
+            let resolved = self.resolve_command_qualified_name(&name, scope_path);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name,
@@ -1459,6 +1464,7 @@ impl Analyser {
         arg_tok: Token,
         arg_src: &str,
         arg_start: u32,
+        scope_path: &[usize],
     ) {
         let (inner_src, inner_base) = if matches!(arg_tok.kind, TokenType::Str) {
             let inner_off = arg_tok.content_offset as usize;
@@ -1479,7 +1485,7 @@ impl Analyser {
             let abs_start = inner_base + off;
             let abs_end = abs_start
                 + u32::try_from(name.len()).expect("token length fits in u32 for in-memory source");
-            let resolved = self.resolve_command_qualified_name(&name);
+            let resolved = self.resolve_command_qualified_name(&name, scope_path);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name,

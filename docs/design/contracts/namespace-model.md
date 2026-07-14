@@ -1,5 +1,15 @@
 # KCS: Namespace model design
 
+> **Status note (2026-07):** for standard-Tcl **command-name resolution**
+> the implemented, tclsh-pinned contract is
+> [command-resolution.md](command-resolution.md) — one canonical algorithm
+> (`tcl_syntax::naming::resolve_command_with`) shared by the analyser,
+> optimiser, bytecode VM, and WASM runtime, gated by a conformance vector
+> suite. The design below predates that work; its point 1 claim that the
+> LSP "does not track which namespace is active or resolve qualified
+> names" is no longer accurate for command resolution. The dialect-model
+> material (iRules protocol/proc namespaces, EDA) remains current.
+
 ## Problem
 
 The term "namespace" means different things across the dialects this LSP

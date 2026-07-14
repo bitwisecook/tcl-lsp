@@ -2706,6 +2706,14 @@ impl Vm {
                 // braces so a body containing a `\<newline>` line continuation is
                 // re-parsed (and the continuation collapsed) by the target's own
                 // script parsing rather than corrupted by data-style escaping.
+                //
+                // The target resolves in the GLOBAL namespace regardless of the
+                // caller's namespace (C's alias handler invokes with
+                // TCL_EVAL_INVOKE; tclsh-pinned: an alias to relative `tgt`
+                // called from `::ns` dispatches `::tgt` even when `::ns::tgt`
+                // exists) — while the caller's *frame* stays current, so an
+                // alias to `set` still writes the caller's locals (also
+                // pinned). Only the namespace is switched here.
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
                 let script = argv
@@ -2713,7 +2721,10 @@ impl Vm {
                     .map(|v| quote_for_script(&v.to_str()))
                     .collect::<Vec<_>>()
                     .join(" ");
-                match self.eval_source(&script) {
+                self.push_ns(String::new());
+                let evaled = self.eval_source(&script);
+                self.pop_ns();
+                match evaled {
                     Ok(res) if res.code.is_ok() => {
                         f.stack.push(res.result);
                         Ok(None)
@@ -2749,15 +2760,26 @@ impl Vm {
                     Err(res)
                 }
             }
-            // Tcl's `unknown` fallback: an unresolved command name is handed to
-            // the user-defined `unknown` proc as `unknown name arg…` (the basis
-            // for auto-loading, ensembles, and the iRule command mocks). Only
-            // when `unknown` itself is undefined is it a hard error.
-            None if &*name != "unknown" && self.lookup_command("unknown").is_some() => {
-                let mut unknown_words = Vec::with_capacity(words.len() + 1);
-                unknown_words.push(Value::string("unknown"));
-                unknown_words.extend_from_slice(words);
-                self.dispatch_words(f, &unknown_words)
+            // Resolution miss fallback chain: a `namespace unknown` handler
+            // (current namespace's own, else the global namespace's — TIP
+            // 181, not inherited, tclsh-pinned) takes the miss first,
+            // invoked as `handler… name arg…` and guarded against a handler
+            // whose own head is unresolvable; else Tcl's plain `unknown`
+            // proc as `unknown name arg…` (the basis for auto-loading,
+            // ensembles, and the iRule command mocks); else a hard error.
+            None if &*name != "unknown" => {
+                if let Some(handler) = self.ns_unknown_handler() {
+                    let mut handler_words = handler;
+                    handler_words.extend_from_slice(words);
+                    self.with_ns_unknown_guard(|vm| vm.dispatch_words(f, &handler_words))
+                } else if self.lookup_command("unknown").is_some() {
+                    let mut unknown_words = Vec::with_capacity(words.len() + 1);
+                    unknown_words.push(Value::string("unknown"));
+                    unknown_words.extend_from_slice(words);
+                    self.dispatch_words(f, &unknown_words)
+                } else {
+                    Err(err(format!("invalid command name \"{name}\"")))
+                }
             }
             None => Err(err(format!("invalid command name \"{name}\""))),
         }
@@ -2803,6 +2825,8 @@ impl Vm {
                 Err(c) => c,
             },
             Some(Command::Alias(target)) => {
+                // Target resolves in the GLOBAL namespace, caller's frame kept
+                // — see the `dispatch_words` Alias arm for the tclsh pins.
                 let mut full: Vec<Value> = (*target).clone();
                 full.extend_from_slice(argv);
                 let script = full
@@ -2810,7 +2834,10 @@ impl Vm {
                     .map(|v| quote_for_script(&v.to_str()))
                     .collect::<Vec<_>>()
                     .join(" ");
-                match self.eval_source(&script) {
+                self.push_ns(String::new());
+                let evaled = self.eval_source(&script);
+                self.pop_ns();
+                match evaled {
                     Ok(c) => c,
                     Err(e) => err(e.message),
                 }
@@ -2818,12 +2845,23 @@ impl Vm {
             Some(Command::ChildInterp(child)) => self.dispatch_child(&child, argv),
             Some(Command::Ensemble(e)) => self.dispatch_ensemble(name, &e, argv),
             Some(Command::Object(key)) => crate::cmd_oo::oo_dispatch(self, &key, name, argv),
-            // `unknown` fallback (see `dispatch_words`): `unknown name arg…`.
-            None if name != "unknown" && self.lookup_command("unknown").is_some() => {
-                let mut full = Vec::with_capacity(argv.len() + 1);
-                full.push(Value::string(name));
-                full.extend_from_slice(argv);
-                self.invoke_command("unknown", &full)
+            // Miss fallback chain (see `dispatch_words`): `namespace unknown`
+            // handler first, then the plain `unknown` proc, then a hard error.
+            None if name != "unknown" => {
+                if let Some(handler) = self.ns_unknown_handler() {
+                    let mut handler_words = handler;
+                    handler_words.push(Value::string(name));
+                    handler_words.extend_from_slice(argv);
+                    let head = handler_words[0].to_str().to_string();
+                    self.with_ns_unknown_guard(|vm| vm.invoke_command(&head, &handler_words[1..]))
+                } else if self.lookup_command("unknown").is_some() {
+                    let mut full = Vec::with_capacity(argv.len() + 1);
+                    full.push(Value::string(name));
+                    full.extend_from_slice(argv);
+                    self.invoke_command("unknown", &full)
+                } else {
+                    err(format!("invalid command name \"{name}\""))
+                }
             }
             None => err(format!("invalid command name \"{name}\"")),
         }

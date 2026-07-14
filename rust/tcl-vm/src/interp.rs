@@ -205,6 +205,17 @@ pub struct Vm {
     /// the global one during command lookup. Absent / empty = the default
     /// (current → global only).
     ns_paths: HashMap<String, Vec<String>>,
+    /// Per-namespace `namespace unknown` handlers (TIP 181): canonical
+    /// namespace name → the handler command prefix. Consulted on a
+    /// resolution miss for the *current* namespace, then the global
+    /// namespace's handler (the interp default), then the plain `unknown`
+    /// proc. NOT inherited by child namespaces (tclsh 8.6.16 /
+    /// 9.0.4-pinned). Absent / empty = use the default chain.
+    ns_unknowns: HashMap<String, Vec<Value>>,
+    /// Reentrancy guard: non-zero while a `namespace unknown` handler itself
+    /// is being dispatched, so a handler whose own head is unresolvable falls
+    /// through to a hard `invalid command name` instead of recursing.
+    ns_unknown_depth: u32,
     /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
     /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
     /// `&self` but mints a handle on first sight. Bidirectional: `find_command`
@@ -460,6 +471,8 @@ impl Vm {
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             ns_paths: HashMap::new(),
+            ns_unknowns: HashMap::new(),
+            ns_unknown_depth: 0,
             cmd_arena: RefCell::new(CmdArena::default()),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
@@ -764,25 +777,14 @@ impl Vm {
         self.commands.insert(key.to_owned(), cmd);
     }
 
-    /// The canonical table key `name` resolves to (honouring the current
-    /// namespace, like [`Self::lookup_command`]), if such a command exists.
-    fn command_key(&self, name: &str) -> Option<String> {
-        if let Some(abs) = name.strip_prefix("::") {
-            return self.commands.contains_key(abs).then(|| abs.to_owned());
-        }
-        let cur = self.current_ns();
-        if !cur.is_empty() {
-            let q = format!("{cur}::{name}");
-            if self.commands.contains_key(&q) {
-                return Some(q);
-            }
-        }
-        self.commands.contains_key(name).then(|| name.to_owned())
-    }
-
     /// Resolve and remove the command `name`, returning it (for `rename`).
+    /// Resolution is the full shared rule — current namespace, `namespace
+    /// path`, then global — matching C's `TclRenameCommand`, which finds the
+    /// source with `Tcl_FindCommand` (tclsh-pinned: `rename viap viap2`
+    /// inside a namespace whose path reaches `::pr::viap` moves that
+    /// command).
     pub(crate) fn take_command(&mut self, name: &str) -> Option<Command> {
-        let key = self.command_key(name)?;
+        let key = self.resolve_command_fqn(self.current_ns(), name)?;
         self.imported_commands.remove(&key);
         self.commands.remove(&key)
     }
@@ -1497,30 +1499,8 @@ impl Vm {
     }
 
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
-        if let Some(abs) = name.strip_prefix("::") {
-            return self.commands.get(abs).cloned();
-        }
-        let cur = self.current_ns();
-        if !cur.is_empty()
-            && let Some(c) = self.commands.get(&format!("{cur}::{name}"))
-        {
-            return Some(c.clone());
-        }
-        // `namespace path`: consult the current namespace's resolution path
-        // (in order) before falling back to the global namespace.
-        if let Some(path) = self.ns_paths.get(cur) {
-            for p in path {
-                let key = if p.is_empty() {
-                    name.to_string()
-                } else {
-                    format!("{p}::{name}")
-                };
-                if let Some(c) = self.commands.get(&key) {
-                    return Some(c.clone());
-                }
-            }
-        }
-        self.commands.get(name).cloned()
+        self.resolve_command_fqn(self.current_ns(), name)
+            .and_then(|key| self.commands.get(&key).cloned())
     }
 
     /// Get the current namespace's command resolution path (`namespace path`)
@@ -1537,6 +1517,50 @@ impl Vm {
     pub(crate) fn ns_path_set(&mut self, path: Vec<String>) {
         let cur = self.current_ns().to_string();
         self.ns_paths.insert(cur, path);
+    }
+
+    /// The current namespace's `namespace unknown` handler prefix, or empty
+    /// when unset (the caller reports the `::unknown` default).
+    pub(crate) fn ns_unknown_get(&self) -> Vec<Value> {
+        self.ns_unknowns
+            .get(self.current_ns())
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Set (non-empty) or reset (empty) the current namespace's
+    /// `namespace unknown` handler prefix.
+    pub(crate) fn ns_unknown_set(&mut self, handler: Vec<Value>) {
+        let cur = self.current_ns().to_string();
+        if handler.is_empty() {
+            self.ns_unknowns.remove(&cur);
+        } else {
+            self.ns_unknowns.insert(cur, handler);
+        }
+    }
+
+    /// The `namespace unknown` handler a resolution miss in the current
+    /// namespace falls back to: the current namespace's own handler, else
+    /// the global namespace's (the interp default — TIP 181; handlers are
+    /// NOT inherited from parent namespaces, tclsh-pinned). `None` when
+    /// neither is set (callers then try the plain `unknown` proc) or while
+    /// a handler is already being dispatched (reentrancy guard).
+    pub(crate) fn ns_unknown_handler(&self) -> Option<Vec<Value>> {
+        if self.ns_unknown_depth > 0 {
+            return None;
+        }
+        self.ns_unknowns
+            .get(self.current_ns())
+            .or_else(|| self.ns_unknowns.get(""))
+            .cloned()
+    }
+
+    /// Run `f` with the `namespace unknown` reentrancy guard held.
+    pub(crate) fn with_ns_unknown_guard<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.ns_unknown_depth += 1;
+        let out = f(self);
+        self.ns_unknown_depth -= 1;
+        out
     }
 
     /// The current namespace (canonical, no leading `::`; `""` = global).
@@ -1567,21 +1591,30 @@ impl Vm {
             .unwrap_or_default()
     }
 
-    /// Resolve `name` from namespace `cxt` to its command's canonical key (the
-    /// `commands` map key — a qualified name without the leading `::`), mirroring
-    /// [`lookup_command`](Self::lookup_command)'s order: an absolute `::name`
-    /// directly, else `cxt::name`, else the global `name`. `None` if unresolved.
+    /// Resolve `name` from namespace `cxt` to its command's canonical key
+    /// (the `commands` map key — a qualified name without the leading `::`),
+    /// via the shared C-Tcl resolution rule
+    /// ([`tcl_syntax::naming::resolve_command_with`]): an absolute `::name`
+    /// directly, else `cxt`'s candidate, then each of `cxt`'s
+    /// `namespace path` entries in order, then global — dispatching the
+    /// first that **exists**.  [`lookup_command`](Self::lookup_command) is
+    /// this plus the command fetch, so the two can never disagree.
+    /// `None` if unresolved.
     pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
-        if let Some(abs) = name.strip_prefix("::") {
-            return self.commands.contains_key(abs).then(|| abs.to_string());
-        }
-        if !cxt.is_empty() {
-            let qualified = format!("{cxt}::{name}");
-            if self.commands.contains_key(&qualified) {
-                return Some(qualified);
-            }
-        }
-        self.commands.contains_key(name).then(|| name.to_string())
+        // `ns_paths` entries are stored in the VM's canonical form — always
+        // absolute, no leading `::` (rooted at set time by `canon_ns`).
+        // Root them before handing to the shared resolver, whose unrooted
+        // entries mean *current-namespace-relative* (the Tcl source form —
+        // tclsh-pinned; see `command_resolution_candidates`).
+        let rooted: Vec<String> = self
+            .ns_paths
+            .get(cxt)
+            .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect());
+        tcl_syntax::naming::resolve_command_with(cxt, &rooted, name, |candidate| {
+            self.commands
+                .contains_key(candidate.trim_start_matches(':'))
+        })
+        .map(|winner| winner.trim_start_matches(':').to_string())
     }
 
     /// Intern an absolute command FQN to a stable, dense raw `CommandId`, minting
@@ -3066,19 +3099,6 @@ impl Vm {
         }
         let cmd = Command::Proc(Rc::new(proc));
         self.register_command(&key, cmd);
-    }
-
-    /// Dispatch a *builtin* command by name (no proc activation). Returns `None`
-    /// for a proc or unknown command. Used by `expr` math-function calls.
-    pub(crate) fn dispatch_builtin(
-        &mut self,
-        name: &str,
-        argv: &[Value],
-    ) -> Option<Completion<Value>> {
-        match self.lookup_command(name) {
-            Some(Command::Builtin(f)) => Some(f(self, argv)),
-            _ => None,
-        }
     }
 
     /// Parse and evaluate a Tcl expression string against this VM.

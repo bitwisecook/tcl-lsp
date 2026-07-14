@@ -99,30 +99,41 @@ pub(crate) fn proc_reference_spans(
         .collect()
 }
 
-/// Whether a single call site `inv` references the proc `proc_def` (whose
-/// lookup key is `qname`).
+/// Whether a single call site `inv` references a named proc/class
+/// definition — simple name `def_name`, fully-qualified name
+/// `def_qualified` (whose lookup key is `qname`).
 ///
-/// This is the **single** matching rule shared by Find-All-References
-/// ([`proc_reference_spans`]) and Rename (`rename::rename_proc`), so the two
-/// can never disagree — a rename that rewrote a call the reference finder does
-/// not report would corrupt a *different* same-named proc.
+/// This is the **single** matching rule behind every proc/class-oriented
+/// consumer: Find-All-References ([`proc_reference_spans`],
+/// [`class_reference_spans`]), the code-lens reference count
+/// (`code_lens::code_lenses`), Rename (`rename::rename_proc`,
+/// `rename::rename_class`), and Call Hierarchy
+/// (`call_hierarchy::invocation_targets`) all resolve through this one
+/// function (via [`invocation_references_proc`] / [`invocation_references_class`])
+/// so none of them can disagree about whether a given call site is a
+/// reference — a rename that rewrote a call the reference finder does not
+/// report would corrupt a *different* same-named definition, and a
+/// call-hierarchy edge that disagreed with the reference count would be a
+/// visible inconsistency in the same editor session.
 ///
 /// A bare simple-name call (`helper`) counts only when it resolves to this
-/// proc, or — since the analyser resolves a namespace-internal call to the
-/// global guess (`::helper`) — when it sits in this proc's own namespace;
-/// that namespace gate keeps `helper` inside `namespace eval b` from matching
-/// `::a::helper`. Qualified spellings and a resolved-qualified-name hit always
-/// count. Comparisons ignore the leading `::`.
+/// definition, or — since the analyser resolves a namespace-internal call to
+/// the global guess (`::helper`) — when it sits in this definition's own
+/// namespace; that namespace gate keeps `helper` inside `namespace eval b`
+/// from matching `::a::helper`. Qualified spellings and a
+/// resolved-qualified-name hit always count. Comparisons ignore the leading
+/// `::`.
 #[must_use]
-pub(crate) fn invocation_references_proc(
+pub(crate) fn invocation_references_named(
     analysis: &AnalysisResult,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     qname: &str,
-    proc_def: &tcl_compiler::analyser::ProcDef,
+    def_name: &str,
+    def_qualified: &str,
 ) -> bool {
     let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
-    let target_q = proc_def.qualified_name.trim_start_matches("::");
-    // The proc's own namespace (`a::helper` → `a`; top-level → ``).
+    let target_q = def_qualified.trim_start_matches("::");
+    // The definition's own namespace (`a::helper` → `a`; top-level → ``).
     let target_ns = target_q.rsplit_once("::").map_or("", |(ns, _)| ns);
     let resolved_norm = inv
         .resolved_qualified_name
@@ -130,13 +141,74 @@ pub(crate) fn invocation_references_proc(
         .map(|r| r.trim_start_matches("::"));
     let call_ns =
         crate::definition::innermost_namespace_at(&analysis.global_scope, inv.range.start());
-    let simple_ok = inv.name == proc_def.name
-        && resolved_norm.is_none_or(|r| r == target_q || r == proc_def.name)
+    let simple_ok = inv.name == def_name
+        && resolved_norm.is_none_or(|r| r == target_q || r == def_name)
         && call_ns == target_ns;
-    simple_ok
-        || inv.name == proc_def.qualified_name
-        || inv.name == qname_no_prefix
-        || resolved_norm == Some(target_q)
+    if simple_ok || inv.name == def_qualified || resolved_norm == Some(target_q) {
+        return true;
+    }
+    // Fallback tail-match: the call is spelled without a leading `::` but its
+    // text otherwise equals this definition's qualified name (`ns::foo`
+    // matching `::ns::foo` when called from *outside* `ns` — `resolved_norm`
+    // can't help there since it's rooted at the call's own namespace, not
+    // `ns`'s). Real Tcl commits to the first candidate that exists rather
+    // than falling through to a same-tail alternative, so this only counts
+    // when the call's own higher-priority resolution guess (`resolved_norm`,
+    // current-namespace-first) doesn't already name a *different* real
+    // proc/class — i.e. that candidate doesn't exist, so resolution
+    // legitimately reaches this one instead. When `resolved_norm` is `None`
+    // (a background-scanned, unfocused document — the analyser skips the
+    // scope walk there), there's no resolution info to shadow it with, so
+    // the tail-match applies unconditionally.
+    if inv.name == qname_no_prefix {
+        let shadowed_by_other = resolved_norm.is_some_and(|r| {
+            r != target_q
+                && (analysis
+                    .all_procs
+                    .keys()
+                    .any(|k| k.trim_start_matches("::") == r)
+                    || analysis
+                        .all_classes
+                        .keys()
+                        .any(|k| k.trim_start_matches("::") == r))
+        });
+        return !shadowed_by_other;
+    }
+    false
+}
+
+/// [`invocation_references_named`] specialised for a [`ProcDef`](tcl_compiler::analyser::ProcDef).
+#[must_use]
+pub(crate) fn invocation_references_proc(
+    analysis: &AnalysisResult,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    qname: &str,
+    proc_def: &tcl_compiler::analyser::ProcDef,
+) -> bool {
+    invocation_references_named(
+        analysis,
+        inv,
+        qname,
+        &proc_def.name,
+        &proc_def.qualified_name,
+    )
+}
+
+/// [`invocation_references_named`] specialised for a [`ClassDef`](tcl_compiler::analyser::ClassDef).
+#[must_use]
+pub(crate) fn invocation_references_class(
+    analysis: &AnalysisResult,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    qname: &str,
+    class_def: &tcl_compiler::analyser::ClassDef,
+) -> bool {
+    invocation_references_named(
+        analysis,
+        inv,
+        qname,
+        &class_def.name,
+        &class_def.qualified_name,
+    )
 }
 
 /// Compute the locations of every reference to the symbol at
@@ -238,49 +310,75 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     Some(out)
 }
 
+/// Byte spans of every call site the namespace-aware class resolver
+/// attributes to `class_def` (whose `all_classes` map key is `qname`),
+/// excluding the declaration.
+///
+/// The class analogue of [`proc_reference_spans`] — shared by
+/// [`class_references`] (Find All References) and the code-lens class
+/// reference count so the two can never disagree.
+#[must_use]
+pub(crate) fn class_reference_spans(
+    analysis: &AnalysisResult,
+    qname: &str,
+    class_def: &tcl_compiler::analyser::ClassDef,
+) -> Vec<tcl_lexer::Span> {
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|inv| invocation_references_class(analysis, inv, qname, class_def))
+        .map(|inv| inv.range)
+        .collect()
+}
+
 /// Build references for a class name at the cursor (constructor invocations
-/// plus `superclass`/`mixin` usages across every class body).
+/// plus `superclass`/`mixin` usages across every class body).  Prefers the
+/// class whose declaration name span covers the cursor (so `Widget` at the
+/// `::b::Widget` decl resolves to *that* namespace's class, not a same-named
+/// one in another namespace — mirroring [`proc_references`]); else the first
+/// class matching the word.
 fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     let RefCtx {
         source,
         line_index,
+        line,
+        character,
         analysis,
         include_declaration,
         ..
     } = *ctx;
-    for class_def in analysis.all_classes.values() {
-        if class_def.name == word
-            || class_def.qualified_name == word
-            || class_def.qualified_name == format!("::{word}")
-        {
-            let simple = class_def.name.clone();
-            let qualified = class_def.qualified_name.clone();
-            let mut out = Vec::new();
-            if include_declaration {
-                out.push(span_to_range(source, line_index, class_def.name_span));
+    let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
+    let (qname, class_def) = analysis
+        .all_classes
+        .iter()
+        .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
+        .or_else(|| {
+            analysis.all_classes.iter().find(|(qname, c)| {
+                c.name == word || qname.as_str() == word || *qname == &format!("::{word}")
+            })
+        })?;
+    let simple = class_def.name.clone();
+    let qualified = class_def.qualified_name.clone();
+    let mut out = Vec::new();
+    if include_declaration {
+        out.push(span_to_range(source, line_index, class_def.name_span));
+    }
+    for span in class_reference_spans(analysis, qname, class_def) {
+        out.push(span_to_range(source, line_index, span));
+    }
+    // `superclass <C>` / `mixin <C>` usages across every class body
+    // are references to the class too.
+    let matches_name =
+        |n: &str| n == simple || n == qualified || format!("::{n}") == qualified || n == word;
+    for other in analysis.all_classes.values() {
+        for (name, span) in other.superclass_refs.iter().chain(other.mixin_refs.iter()) {
+            if matches_name(name) {
+                out.push(span_to_range(source, line_index, *span));
             }
-            for inv in &analysis.command_invocations {
-                if inv.name == simple || inv.name == qualified {
-                    out.push(span_to_range(source, line_index, inv.range));
-                }
-            }
-            // `superclass <C>` / `mixin <C>` usages across every class body
-            // are references to the class too.
-            let matches_name = |n: &str| {
-                n == simple || n == qualified || format!("::{n}") == qualified || n == word
-            };
-            for other in analysis.all_classes.values() {
-                for (name, span) in other.superclass_refs.iter().chain(other.mixin_refs.iter()) {
-                    if matches_name(name) {
-                        out.push(span_to_range(source, line_index, *span));
-                    }
-                }
-            }
-            dedup_ranges(&mut out);
-            return Some(out);
         }
     }
-    None
+    dedup_ranges(&mut out);
+    Some(out)
 }
 
 /// Build references for a proc name at the cursor.  Prefers the proc whose
@@ -945,11 +1043,18 @@ pub fn document_highlights(
         return Vec::new();
     };
 
-    for class_def in analysis.all_classes.values() {
-        if class_def.name == word
-            || class_def.qualified_name == word
-            || class_def.qualified_name == format!("::{word}")
-        {
+    {
+        let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+        let class_match = analysis
+            .all_classes
+            .iter()
+            .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
+            .or_else(|| {
+                analysis.all_classes.iter().find(|(qname, c)| {
+                    c.name == word || qname.as_str() == word || *qname == &format!("::{word}")
+                })
+            });
+        if let Some((qname, class_def)) = class_match {
             let mut out = Vec::new();
             // Non-variable symbols (procs / classes / methods) highlight as
             // `Text` for both declaration and uses — only variables carry the
@@ -958,13 +1063,11 @@ pub fn document_highlights(
                 span_to_range(source, &line_index, class_def.name_span),
                 HighlightKind::Text,
             ));
-            for inv in &analysis.command_invocations {
-                if inv.name == class_def.name || inv.name == class_def.qualified_name {
-                    out.push((
-                        span_to_range(source, &line_index, inv.range),
-                        HighlightKind::Text,
-                    ));
-                }
+            for span in class_reference_spans(analysis, qname, class_def) {
+                out.push((
+                    span_to_range(source, &line_index, span),
+                    HighlightKind::Text,
+                ));
             }
             return dedup_kinded(out);
         }

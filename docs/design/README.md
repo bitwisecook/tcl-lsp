@@ -363,6 +363,9 @@ are its rules, and what are the failure modes". One contract per file.
   event orchestrator and TMM simulation.
 - [namespace-model.md](contracts/namespace-model.md) — unified
   namespace model across dialects.
+- [command-resolution.md](contracts/command-resolution.md) — the one
+  C-Tcl command-name resolution algorithm, its consumers, and the
+  tclsh-pinned conformance vector gates.
 - [irule4005-racy-static-cross-event.md](contracts/irule4005-racy-static-cross-event.md)
   — IRULE4005 racy `static::` cross-event contract.
 - [dialect-detection.md](contracts/dialect-detection.md) — dialect

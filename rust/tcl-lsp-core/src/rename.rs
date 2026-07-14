@@ -339,7 +339,15 @@ pub fn rename(
     ) {
         return edits;
     }
-    if let Some(edits) = rename_class(source, &word, new_name, analysis, registry, &line_index) {
+    if let Some(edits) = rename_class(
+        source,
+        &word,
+        def_byte,
+        new_name,
+        analysis,
+        registry,
+        &line_index,
+    ) {
         return edits;
     }
     // `$obj method` external call site — when the cursor sits
@@ -719,48 +727,59 @@ fn rename_proc(
 
 /// Class-rename path — `oo::class create ClassName`
 /// declaration plus every `ClassName new` / `ClassName create
-/// instance` invocation head.  Same shape as [`rename_proc`]
-/// minus the resolved-qualified-name matching (the analyser
-/// doesn't populate that for class invocations today).
+/// instance` invocation head.  Same shape as [`rename_proc`]:
+/// prefers the class whose declaration name span covers the cursor (so
+/// renaming from a same-named class's own decl in another namespace
+/// resolves to *that* class, not the first one found), else the first
+/// class matching the word.
 fn rename_class(
     source: &str,
     word: &str,
+    cursor_off: u32,
     new_name: &str,
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
-    let (qname, class_def) = analysis.all_classes.iter().find(|(qname, c)| {
-        c.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
-    })?;
+    let (qname, class_def) = analysis
+        .all_classes
+        .iter()
+        .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
+        .or_else(|| {
+            analysis.all_classes.iter().find(|(qname, c)| {
+                c.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
+            })
+        })?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
         return Some(Vec::new());
     }
-    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
     let namespace_prefix = namespace_prefix_of(&class_def.qualified_name);
-    let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
-    // The class's own namespace, for gating bare-simple-name call sites so a
-    // `ClassName new` in a *different* namespace is not rewritten
-    // (RUST_ISSUE_035). Class invocations carry no resolved-qualified-name, so
-    // the enclosing-namespace check is the only available gate.
-    let target_ns = class_def
-        .qualified_name
-        .trim_start_matches("::")
-        .rsplit_once("::")
-        .map_or("", |(ns, _)| ns);
+    let (new_qualified, qualified_decl) = qualified_and_decl_text(namespace_prefix, new_name);
+    // The declaration rewrite follows the *form the source wrote* — a class
+    // declared short inside a `namespace eval` (`oo::class create Widget`)
+    // stays short (`Panel`), one declared qualified
+    // (`oo::class create ::ns::Widget`) stays qualified. Mirrors
+    // `rename_proc`'s identical `decl_was_qualified` handling.
+    let decl_was_qualified = source
+        .get(class_def.name_span.start() as usize..class_def.name_span.end() as usize)
+        .is_some_and(|t| t.contains("::"));
+    let new_decl_text = if decl_was_qualified {
+        qualified_decl
+    } else {
+        new_name.to_owned()
+    };
     let mut edits = vec![TextEdit {
         range: span_to_range(source, line_index, class_def.name_span),
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
-        let call_ns =
-            crate::definition::innermost_namespace_at(&analysis.global_scope, inv.range.start());
-        let matches = (inv.name == class_def.name && call_ns == target_ns)
-            || inv.name == class_def.qualified_name
-            || inv.name == qname_no_prefix;
-        if !matches {
+        // Use the *same* invocation-matching rule as Find-All-References so a
+        // rename never rewrites a call the reference finder wouldn't report —
+        // in particular the namespace gate that keeps a bare `ClassName new`
+        // call in a *different* namespace from being rewritten (RUST_ISSUE_035).
+        if !crate::references::invocation_references_class(analysis, inv, qname, class_def) {
             continue;
         }
         // Skip an invocation whose range contains the class

@@ -372,16 +372,6 @@ fn namespace_of(qname: &str) -> String {
     "::".to_string()
 }
 
-fn resolve_call_target(command: &str, caller_ns: &str) -> String {
-    if command.starts_with("::") {
-        return command.to_string();
-    }
-    if caller_ns == "::" {
-        return format!("::{command}");
-    }
-    format!("{caller_ns}::{command}")
-}
-
 fn rewrite_script_in_place(
     script: &mut Script,
     candidates: &HashMap<String, PassthroughShape>,
@@ -441,10 +431,13 @@ fn try_inline_callsite(
         _ => return None,
     };
 
-    let target = resolve_call_target(command, namespace);
-    let shape = candidates
-        .get(&target)
-        .or_else(|| candidates.get(&format!("::{command}")))?;
+    // Tcl's two-step existence-checked resolution (current namespace, then
+    // global) against the candidate map — the shared rule, so this inliner
+    // can't drift from the analyser / optimiser / VM.
+    let target = crate::naming::resolve_command_with::<&str, _>(namespace, &[], command, |q| {
+        candidates.contains_key(q)
+    })?;
+    let shape = &candidates[&target];
 
     match shape {
         PassthroughShape::Static { body } => {
