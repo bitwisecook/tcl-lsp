@@ -95,7 +95,9 @@ fn clock_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-#[cfg(test)]
+// Module-gated on the tower: the sole test (and so the `leak_free`/`run`
+// helpers) needs `expr` for its numeric asserts.
+#[cfg(all(test, have_tommath))]
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};

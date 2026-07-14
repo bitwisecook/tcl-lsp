@@ -522,6 +522,8 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `wrong # args: no script following "<token>" argument` (C's `missingScript`).
+/// Tower-gated with its only callers (`if`'s clause scan).
+#[cfg(have_tommath)]
 fn no_script_following(interp: &mut Interp, token: &[u8]) -> Code {
     let mut m = b"wrong # args: no script following \"".to_vec();
     m.extend_from_slice(token);
@@ -953,6 +955,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: the continue/break cases branch via `if`.
+    #[cfg(have_tommath)]
     #[test]
     fn lmap_collects_results() {
         leak_free(|i| {

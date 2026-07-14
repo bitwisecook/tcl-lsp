@@ -725,6 +725,7 @@ pub struct InterpState {
     /// The `expr rand()`/`srand()` PRNG seed (C's `iPtr->randSeed`); `None`
     /// until first seeded (lazily from a nondeterministic source on first
     /// `rand()`, or explicitly by `srand()`). Kept in `[1, 2^31-2]`.
+    #[cfg(have_tommath)]
     rand_seed: Cell<Option<i64>>,
     /// The TIP 348 error stack (`info errorstack` / the options-dict
     /// `-errorstack`): a flat list of element *values* built bottom-up as an
@@ -756,6 +757,7 @@ pub struct InterpState {
     limits: RefCell<LimitSet>,
     /// Free-running counter that throttles wall-clock polling for the `time`
     /// limit (see [`Interp::limit_check_tick`]).
+    #[cfg(have_tommath)]
     limit_tick: Cell<u32>,
     /// `interp debug -frame` — the TIP 280 frame-debug switch. A one-way latch
     /// (once on, stays on), seeded from `env(TCL_INTERP_DEBUG_FRAME)` at create.
@@ -971,6 +973,7 @@ impl Interp {
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
             coros: RefCell::new(std::collections::BTreeMap::new()),
             ensemble_rewrite: RefCell::new(None),
+            #[cfg(have_tommath)]
             rand_seed: Cell::new(None),
             error_stack: RefCell::new(Vec::new()),
             reset_error_stack: Cell::new(true),
@@ -978,6 +981,7 @@ impl Interp {
             result: Cell::new(result),
             cmd_arena: RefCell::new(CmdArena::default()),
             limits: RefCell::new(LimitSet::default()),
+            #[cfg(have_tommath)]
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
         }));
@@ -3853,6 +3857,7 @@ impl Interp {
     /// source line) so command substitutions inside an `if`/`while`/`for`
     /// expression report their file-absolute line (TIP 280). Returns the previous
     /// `line_base` to hand back to [`restore_line_base`](Self::restore_line_base).
+    #[cfg(have_tommath)]
     pub(crate) fn push_cond_line_base(&self, line: u32) -> Option<u32> {
         self.cmd_frames.borrow_mut().last_mut().map(|top| {
             let old = top.line_base;
@@ -3862,6 +3867,7 @@ impl Interp {
     }
 
     /// Restore a `line_base` saved by [`push_cond_line_base`](Self::push_cond_line_base).
+    #[cfg(have_tommath)]
     pub(crate) fn restore_line_base(&self, old: u32) {
         if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
             top.line_base = old;
@@ -4528,6 +4534,7 @@ impl Interp {
     /// `expr srand(n)`: reset the PRNG seed to `n` (C's `ExprSrandFunc` — mask
     /// to 31 bits, avoid the LCG's two fixed points), then return the first
     /// `rand()` of the new sequence.
+    #[cfg(have_tommath)]
     pub(crate) fn srand(&self, n: i64) -> f64 {
         let mut seed = n & 0x7FFF_FFFF;
         if seed == 0 || seed == 0x7FFF_FFFF {
@@ -4540,6 +4547,7 @@ impl Interp {
     /// `expr rand()`: advance the Park–Miller minimal-standard LCG and return a
     /// double in `(0, 1)` (C's `ExprRandFunc`). Seeds nondeterministically on
     /// first use if `srand` hasn't run.
+    #[cfg(have_tommath)]
     pub(crate) fn rand_next(&self) -> f64 {
         // Constants from `ExprRandFunc`: IA=16807, IM=2^31-1, IQ=127773, IR=2836.
         const RAND_IA: i64 = 16807;
@@ -5201,6 +5209,7 @@ impl Interp {
 
     /// Whether this interp's `time` limit has elapsed (an absolute wall-clock
     /// deadline). `false` when no time limit is set.
+    #[cfg(have_tommath)]
     pub(crate) fn time_limit_exceeded(&self) -> bool {
         match self.limits.borrow().time_value {
             Some((secs, millis)) => {
@@ -5213,6 +5222,7 @@ impl Interp {
 
     /// Whether a `time` limit is configured at all — the cheap guard the loop
     /// commands check before paying for a wall-clock read.
+    #[cfg(have_tommath)]
     pub(crate) fn has_time_limit(&self) -> bool {
         self.limits.borrow().time_value.is_some()
     }
@@ -5222,6 +5232,7 @@ impl Interp {
     /// its `Code`. Called from the loop commands (`while`/`for`) each iteration
     /// so an unbounded loop under `interp limit $i time` terminates. A guarded
     /// no-op when no time limit is set.
+    #[cfg(have_tommath)]
     pub(crate) fn limit_check_tick(&mut self) -> Option<Code> {
         if !self.has_time_limit() {
             return None;
@@ -5949,6 +5960,7 @@ impl Interp {
 
     /// `subst` — substitute variables / commands / backslashes in `src` per
     /// `flags`, propagating errors (an unset variable or a failing `[...]`).
+    #[cfg(have_tommath)]
     pub(crate) fn do_subst(
         &mut self,
         src: &[u8],

@@ -609,6 +609,8 @@ mod tests {
 
     /// `eval`/`uplevel`/`foreach` add a `("<cmd>" body line N)` frame; inline
     /// `if`/`while`/`for`/`switch` do not (tclsh 9.0).
+    // Needs the numeric tower: the inline-`if` frame case dispatches `if`.
+    #[cfg(have_tommath)]
     #[test]
     fn body_frame_commands() {
         leak_free(|i| {

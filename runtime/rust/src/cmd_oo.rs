@@ -6839,6 +6839,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: `$obj eval` runs `expr`.
+    #[cfg(have_tommath)]
     #[test]
     fn object_builtin_variable_varname_eval() {
         leak_free(|i| {
@@ -7204,6 +7206,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: method bodies compute via `expr`.
+    #[cfg(have_tommath)]
     #[test]
     fn private_method_scope_and_unknown_listing() {
         leak_free(|i| {
@@ -7442,6 +7446,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: `forward` targets `::tcl::mathop::+`.
+    #[cfg(have_tommath)]
     #[test]
     fn objdefine_forward_mixin_unexport_copy() {
         leak_free(|i| {

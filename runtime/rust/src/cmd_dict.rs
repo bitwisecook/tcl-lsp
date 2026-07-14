@@ -1140,6 +1140,8 @@ mod tests {
         assert_eq!(b, b"key \"z\" not known in dictionary");
     }
 
+    // Needs the numeric tower: the filter scripts test via `expr`.
+    #[cfg(have_tommath)]
     #[test]
     fn filter_key_value_via_shared_core() {
         // `key`/`value` globs now come from `tcl_cmd_core::dict`.

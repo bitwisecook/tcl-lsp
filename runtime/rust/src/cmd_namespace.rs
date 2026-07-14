@@ -1339,6 +1339,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: the linked var is bumped via `expr`.
+    #[cfg(have_tommath)]
     #[test]
     fn namespace_upvar_links_local_to_ns_var() {
         leak_free(|i| {

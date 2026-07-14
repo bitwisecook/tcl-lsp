@@ -701,6 +701,8 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
+    // Needs the numeric tower: the child's `dbl` proc computes via `expr`.
+    #[cfg(have_tommath)]
     #[test]
     fn child_interpreters() {
         // `interp create`/`eval`/`exists`/`children`/`delete` + the child as a
@@ -736,6 +738,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: alias targets are `expr`-backed (`padd`) and `::tcl::mathop::*`.
+    #[cfg(have_tommath)]
     #[test]
     fn cross_interp_aliases() {
         // A child alias delegating to a parent command (both syntaxes), and
@@ -765,6 +769,8 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: the `-safe` hidden-list assert compares via `expr`.
+    #[cfg(have_tommath)]
     #[test]
     fn hidden_commands_and_safe() {
         // `interp hide`/`expose`/`invokehidden` + `interp create -safe`.
