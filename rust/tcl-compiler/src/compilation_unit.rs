@@ -1195,6 +1195,23 @@ impl CompilationUnit {
         std::iter::once(&self.top_level).chain(procs)
     }
 
+    /// Instance-variable names in scope for the named function when it is a
+    /// `TclOO`/snit *method* body (class-level `variable` declarations plus
+    /// the method's own) — the alias-shaped names the shimmer thunking pass
+    /// abstains on (their writes escape to the object, so the local SSA
+    /// version chain is not the whole story).  `None` for procs and the top
+    /// level.
+    #[must_use]
+    pub fn method_instance_vars(
+        &self,
+        function_name: &str,
+    ) -> Option<&std::collections::HashSet<String>> {
+        self.ir_module
+            .methods
+            .get(function_name)
+            .map(|m| &m.instance_vars)
+    }
+
     /// Like [`Self::functions`] but skips the functions the complexity guard
     /// excluded from deep analysis (oversized bodies). Per-proc diagnostic and
     /// optimiser passes iterate this so a guarded body — whose `ssa` and

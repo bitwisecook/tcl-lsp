@@ -365,6 +365,10 @@ struct ThunkCtx<'a> {
     /// excluded from S102 entirely, since their conflated version chain
     /// mixes independent elements under one phi.
     array_syms: &'a HashSet<Symbol>,
+    /// Names declared as scope aliases in this function (`global` /
+    /// `variable` / `upvar` / `namespace upvar`) — the intra-iteration
+    /// path abstains on them (alias-unsoundness, FP-SH-02/15).
+    scope_aliases: &'a HashSet<String>,
 }
 
 /// Decide whether a loop-header phi genuinely thunks (oscillates between
@@ -513,7 +517,10 @@ fn classify_thunking_phi(
 /// `Shimmered`-header path applies via [`loop_self_referential`].  Empty
 /// initialiser versions and destructure-foreach blocks are already excluded
 /// by [`per_loop_body_types`]; array-element symbols were excluded by the
-/// caller.
+/// caller.  Scope-aliased variables (`global` / `variable` / `upvar`
+/// declarations — [`ThunkCtx::scope_aliases`]) abstain: their SSA version
+/// chain does not correspond to a single local slot, the same
+/// alias-unsoundness rationale the FP-SH-02/15 guards established.
 fn classify_intra_iteration_thunk(
     ctx: &ThunkCtx<'_>,
     phi: &Phi,
@@ -522,6 +529,9 @@ fn classify_intra_iteration_thunk(
 ) -> Option<ThunkingWarning> {
     let body_types = per_loop.get(&phi.name)?;
     if body_types.len() < 2 {
+        return None;
+    }
+    if ctx.scope_aliases.contains(ctx.ssa.var_name(phi.name)) {
         return None;
     }
     if !loop_self_referential(ctx.ssa, this_loop, phi.name) {
@@ -578,6 +588,7 @@ pub(crate) fn find_thunking_warnings(
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<BlockId>,
+    extra_scope_aliases: Option<&HashSet<String>>,
 ) -> Vec<ThunkingWarning> {
     let loop_blocks = loop_body_blocks(cfg);
     let succs = build_successors(cfg);
@@ -589,6 +600,14 @@ pub(crate) fn find_thunking_warnings(
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
     let array_syms = array_element_symbols(cfg, ssa);
+    // Alias-shaped names: explicit `global`/`variable`/`upvar` declarations
+    // in this body, plus the caller-supplied implicit set (a method's
+    // class-declared instance variables, which never appear as statements
+    // in the method's own CFG).
+    let mut scope_aliases = crate::optimiser::elimination::scan_scope_aliases(cfg);
+    if let Some(extra) = extra_scope_aliases {
+        scope_aliases.extend(extra.iter().cloned());
+    }
 
     let ctx = ThunkCtx {
         cfg,
@@ -599,6 +618,7 @@ pub(crate) fn find_thunking_warnings(
         def_map: &def_map,
         destructure: &destructure,
         array_syms: &array_syms,
+        scope_aliases: &scope_aliases,
     };
 
     for block_id in cfg_order(cfg) {
@@ -654,7 +674,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(w.is_empty(), "unexpected thunking warnings: {w:?}");
     }
 
@@ -669,7 +695,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(w.is_empty(), "sibling loops must not thunk: {w:?}");
     }
 
@@ -683,7 +715,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(w.is_empty(), "accumulator promotion must not thunk: {w:?}");
     }
 
@@ -699,7 +737,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::g").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert_eq!(w.len(), 1, "intra-iteration oscillation must thunk: {w:?}");
         assert_eq!(w[0].variable, "acc");
         assert_eq!(w[0].code, tcl_core_types::DiagCode::S102);
@@ -717,7 +761,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::h").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(
             w.is_empty(),
             "fresh-per-pass variable must not thunk: {w:?}"
@@ -734,7 +784,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::k").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(w.is_empty(), "uniform self-reference must not thunk: {w:?}");
     }
 
@@ -743,7 +799,13 @@ mod tests {
     fn thunking_empty_source() {
         let cu = CompilationUnit::build_for("", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(w.is_empty());
     }
 
@@ -752,7 +814,13 @@ mod tests {
     fn no_thunking_for_no_loop_variables() {
         let cu = CompilationUnit::build_for("while {1} { puts \"hello\" }", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(w.is_empty(), "unexpected thunking: {w:?}");
     }
 
@@ -770,7 +838,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         let has_thunking = w
             .iter()
             .any(|tw| tw.variable == "x" && tw.code == DiagCode::S102);
@@ -791,7 +865,13 @@ mod tests {
                     set x [string range $x 0 end] } }";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert_eq!(w.len(), 1, "expected exactly one S102 warning: {w:?}");
         let while_pos = u32::try_from(src.find("while").unwrap()).unwrap();
         assert!(
@@ -818,7 +898,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(
             w.iter().any(|tw| tw.variable == "x"),
             "expected S102 for the self-referential branchy oscillation, got: {w:?}"
@@ -840,7 +926,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(
             w.is_empty(),
             "non-self-referential branchy reset must not thunk: {w:?}"
@@ -861,7 +953,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(
             w.is_empty(),
             "array-element writes must not be conflated into an S102 report: {w:?}"
@@ -884,7 +982,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(w.is_empty(), "traced variable must not thunk: {w:?}");
     }
 
@@ -903,7 +1007,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(
             w.iter().any(|tw| tw.variable == "x"),
             "numeric/string oscillation seeded by an Int entry must fire S102: {w:?}"
@@ -921,7 +1031,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            None,
+        );
         assert!(
             w.iter().any(|tw| tw.variable == "x"),
             "untraced control must still fire S102: {w:?}"

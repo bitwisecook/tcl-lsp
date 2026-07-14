@@ -865,7 +865,7 @@ matching time on crafted input."
         arg_tokens: &[tcl_lexer::Token],
         cmd_tok: tcl_lexer::Token,
     ) {
-        let mut hits: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        let mut hits: Vec<W127Hit> = Vec::new();
         if let Some(registry) = self.registry.as_ref() {
             let Some(spec) = registry.get(cmd_name) else {
                 return;
@@ -914,13 +914,13 @@ matching time on crafted input."
                 }
             }
         }
-        for (message, span) in hits {
+        for hit in hits {
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W127,
-                span,
-                message,
+                span: hit.span,
+                message: hit.message,
                 severity: Severity::Warning,
-                fixes: Vec::new(),
+                fixes: hit.fixes,
             });
         }
     }
@@ -938,7 +938,7 @@ matching time on crafted input."
         arg_tokens: &[tcl_lexer::Token],
         cmd_tok: tcl_lexer::Token,
     ) {
-        let mut hits: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        let mut hits: Vec<W127Hit> = Vec::new();
         if let Some(registry) = self.registry.as_ref() {
             let Some(spec) = registry.get(cmd_name) else {
                 return;
@@ -970,30 +970,30 @@ matching time on crafted input."
                         {
                             continue;
                         }
-                        let allowed_list = allowed
-                            .iter()
-                            .map(|av| av.value)
-                            .collect::<Vec<_>>()
-                            .join(", ");
+                        let allowed_names: Vec<&str> = allowed.iter().map(|av| av.value).collect();
+                        let allowed_list = allowed_names.join(", ");
                         let span = arg_tokens.get(vi).map_or(cmd_tok.span, |t| t.span);
-                        hits.push((
-                            format!(
-                                "Invalid value '{value}' for option '{arg}' on '{cmd_name}'; expected one of: {allowed_list}"
-                            ),
+                        let mut message = format!(
+                            "Invalid value '{value}' for option '{arg}' on '{cmd_name}'; expected one of: {allowed_list}"
+                        );
+                        let fixes = w127_suggestion_fix(value, &allowed_names, span, &mut message);
+                        hits.push(W127Hit {
+                            message,
                             span,
-                        ));
+                            fixes,
+                        });
                     }
                 }
                 i += 1 + vals.len();
             }
         }
-        for (message, span) in hits {
+        for hit in hits {
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W127,
-                span,
-                message,
+                span: hit.span,
+                message: hit.message,
                 severity: Severity::Warning,
-                fixes: Vec::new(),
+                fixes: hit.fixes,
             });
         }
     }
@@ -1191,7 +1191,7 @@ fn w127_closed_hit(
     accept_prefix: bool,
     opt_names: &std::collections::HashSet<&str>,
     display_name: &str,
-) -> Option<(String, tcl_lexer::Span)> {
+) -> Option<W127Hit> {
     if allowed.is_empty() || value.contains('$') || value.contains('[') || opt_names.contains(value)
     {
         return None;
@@ -1211,10 +1211,50 @@ fn w127_closed_hit(
         return None;
     }
     let allowed_list = allowed.join(", ");
-    Some((
-        format!("Invalid value '{value}' for '{display_name}'; expected one of: {allowed_list}"),
+    let mut message =
+        format!("Invalid value '{value}' for '{display_name}'; expected one of: {allowed_list}");
+    let fixes = w127_suggestion_fix(value, allowed, span, &mut message);
+    Some(W127Hit {
+        message,
         span,
-    ))
+        fixes,
+    })
+}
+
+/// One W127 finding: the message, its anchor, and the "did you mean…?"
+/// replace fix (empty when no allowed value is close enough).
+struct W127Hit {
+    message: String,
+    span: tcl_lexer::Span,
+    fixes: Vec<crate::analyser::types::CodeFix>,
+}
+
+/// Append a "; did you mean 'X'?" suffix to `message` and build the
+/// replace fix when one allowed value sits within the length-scaled edit
+/// budget of `value`.  The allowed set is already in the message, so a
+/// missing suggestion loses nothing.
+fn w127_suggestion_fix(
+    value: &str,
+    allowed: &[&str],
+    span: tcl_lexer::Span,
+    message: &mut String,
+) -> Vec<crate::analyser::types::CodeFix> {
+    let suggestions = crate::text::suggest_similar(
+        value,
+        allowed.iter().copied(),
+        1,
+        crate::text::scaled_max_distance(value),
+    );
+    let Some(best) = suggestions.first() else {
+        return Vec::new();
+    };
+    use std::fmt::Write as _;
+    let _ = write!(message, "; did you mean '{best}'?");
+    vec![crate::analyser::types::CodeFix {
+        span,
+        new_text: (*best).to_string(),
+        description: format!("Replace with '{best}'"),
+    }]
 }
 
 /// True when the **source** slice `raw` (backslashes intact) carries a

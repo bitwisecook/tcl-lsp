@@ -95,7 +95,7 @@ fn compiler_check_memo_matches_uncached_graphops() {
         return;
     };
     let db = TclDatabase::default();
-    let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
+    let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
     let got = compiler_check_diagnostics(&db, file, default_config(&db));
     let registry = db.registry(dialect);
     let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
@@ -125,7 +125,7 @@ fn compiler_check_memo_matches_uncached_init() {
         return;
     };
     let db = TclDatabase::default();
-    let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
+    let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
     let got = compiler_check_diagnostics(&db, file, default_config(&db));
     let registry = db.registry(dialect);
     let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
@@ -167,7 +167,7 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
         if src.is_empty() || src.len() > 400_000 {
             continue;
         }
-        let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
+        let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
         let got = compiler_check_diagnostics(&db, file, default_config(&db));
         let registry = db.registry(dialect);
         let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
@@ -260,7 +260,7 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
         }
         let mut db = TclDatabase::default();
         let registry = db.registry(dialect);
-        let file = SourceFile::new(&db, base.clone(), dialect.to_owned());
+        let file = SourceFile::new(&db, base.clone(), dialect.to_owned(), None);
 
         for _ in 0..8 {
             let blanks = (next() as usize) % 4; // offset shift above the real procs

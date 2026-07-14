@@ -138,6 +138,14 @@ pub struct PendingUserCallArity {
     /// bound already exceeds the max; matches the identical convention
     /// in the registry-command arity check.
     pub positional_any_expand: bool,
+    /// Widened source span of each argument word (closer included), so the
+    /// flush — which only then knows the resolved arity's `max` — can
+    /// anchor E003 on the surplus run and target the removal fix.  Empty
+    /// when the call has a `{*}` expansion (the surplus run is ambiguous).
+    pub arg_spans: Vec<Span>,
+    /// Widened end of the command-head word: the removal fix's deletion
+    /// start when every positional argument is surplus (`max == 0`).
+    pub head_end: u32,
 }
 
 /// Which `TclOO` instantiation form introduced a [`PendingCtorArity`] —

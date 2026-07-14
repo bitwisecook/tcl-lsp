@@ -60,27 +60,49 @@ struct ArityWords<'a> {
 /// [`Analyser::check_simple_arity`]'s original inline formula exactly;
 /// shared here so [`Analyser::queue_user_call_arity_candidate`] doesn't
 /// reimplement it.
-/// The tight E003 highlight: the span covering the run of *surplus*
-/// positional arguments, from the first argument past the command's `max`
-/// up to the last argument. `positional_start` is the index of the first
-/// positional word (after any leading option flags), `max` the command's
-/// maximum positional count. Returns `None` — so [`arity_verdict`] falls
-/// back to the whole-command span — when the positional region contains a
-/// `{*}` expansion (which makes "the first surplus word" ambiguous) or the
-/// index arithmetic can't land on a real token.
+/// The tight E003 anchor: the span covering the run of *surplus*
+/// positional arguments (from the first argument past the command's `max`
+/// up to the last argument), plus where a "remove surplus arguments" fix
+/// should start deleting — the end of the last *kept* word, so the fix
+/// also removes the separating whitespace.
+pub(super) struct ExcessArgs {
+    /// Span of the surplus argument run (diagnostic anchor).
+    pub span: tcl_lexer::Span,
+    /// Deletion start for the removal fix (end of the preceding word).
+    pub delete_from: u32,
+}
+
+/// Compute the [`ExcessArgs`] anchor. `positional_start` is the index of
+/// the first positional word (after any leading option flags), `max` the
+/// command's maximum positional count, `fallback_delete_from` the widened
+/// end of whatever word precedes the first positional (the command head or
+/// subcommand word) for the `max == 0` case. Returns `None` — so
+/// [`arity_verdict`] falls back to the whole-command span — when the
+/// positional region contains a `{*}` expansion (which makes "the first
+/// surplus word" ambiguous) or the index arithmetic can't land on a real
+/// token.
 fn excess_positional_span(
     arg_tokens: &[tcl_lexer::Token],
     arg_expand: &[bool],
     positional_start: usize,
     max: usize,
-) -> Option<tcl_lexer::Span> {
+    source: &str,
+    fallback_delete_from: u32,
+) -> Option<ExcessArgs> {
     if (positional_start..arg_tokens.len()).any(|i| arg_expand.get(i).copied().unwrap_or(false)) {
         return None;
     }
     let first_excess = positional_start.checked_add(max)?;
     let first = arg_tokens.get(first_excess)?;
     let last = arg_tokens.last()?;
-    Some(tcl_lexer::Span::new(first.span.start(), last.span.end()))
+    let delete_from = match first_excess.checked_sub(1).and_then(|i| arg_tokens.get(i)) {
+        Some(prev) => widen_token_end(*prev, source),
+        None => fallback_delete_from,
+    };
+    Some(ExcessArgs {
+        span: tcl_lexer::Span::new(first.span.start(), widen_token_end(*last, source)),
+        delete_from,
+    })
 }
 
 fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usize, bool) {
@@ -114,7 +136,12 @@ fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {
         _ => return tok.span.end(),
     };
     let end = tok.span.end();
-    if tcl_lexer::SourceMap::new(source).token_text(tok).is_empty() {
+    // Empty content (`{}` / `[]` / `""`) — the span's end already sits past
+    // the closer.  Detected arithmetically (content start reaching the end)
+    // rather than by slicing the source, so a token whose span outruns the
+    // supplied text (unit tests drive the walk with detached tokens) never
+    // panics.
+    if tok.span.start() + u32::from(tok.content_offset) >= end {
         return end;
     }
     if source.as_bytes().get(end as usize) == Some(&closer) {
@@ -170,7 +197,7 @@ pub(super) fn arity_verdict(
     nargs_min: usize,
     positional_any_expand: bool,
     span: tcl_lexer::Span,
-    excess_span: Option<tcl_lexer::Span>,
+    excess: Option<ExcessArgs>,
 ) -> Option<crate::analyser::types::Diagnostic> {
     let min = usize::from(arity.min);
     let max = usize::from(arity.max);
@@ -195,18 +222,30 @@ pub(super) fn arity_verdict(
             fixes: Vec::new(),
         })
     } else if !arity.is_unlimited() && nargs_min > max {
+        // Highlight only the surplus arguments when the caller could
+        // isolate them (the whole command otherwise), and offer to delete
+        // exactly that run (plus the separating whitespace). E002/E005 keep
+        // the whole-command anchor: a too-few or wrong-shape count has no
+        // specific surplus word to point at.
+        let (e003_span, fixes) = match &excess {
+            Some(ex) => (
+                ex.span,
+                vec![crate::analyser::types::CodeFix {
+                    span: tcl_lexer::Span::new(ex.delete_from, ex.span.end()),
+                    new_text: String::new(),
+                    description: "Remove surplus argument(s)".to_string(),
+                }],
+            ),
+            None => (span, Vec::new()),
+        };
         Some(crate::analyser::types::Diagnostic {
             code: DiagCode::E003,
-            // Highlight only the surplus arguments when the caller could
-            // isolate them (the whole command otherwise). E002/E005 keep the
-            // whole-command anchor: a too-few or wrong-shape count has no
-            // specific surplus word to point at.
-            span: excess_span.unwrap_or(span),
+            span: e003_span,
             message: format!(
                 "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
             ),
             severity: Severity::Error,
-            fixes: Vec::new(),
+            fixes,
         })
     } else if !positional_any_expand
         && arity.step != 0
@@ -1040,11 +1079,13 @@ impl Analyser {
         // A class / alias / ensemble / stub match suppresses regardless
         // of definition order; a *proc* match additionally honours
         // `enforce_order` (in-order/reachability gate).
-        let excess_span = excess_positional_span(
+        let excess = excess_positional_span(
             arg_tokens,
             arg_expand,
             positional_start,
             usize::from(sig.arity.max),
+            &self.source,
+            widen_token_end(cmd_tok, &self.source),
         );
         if let Some(diag) = arity_verdict(
             display_name,
@@ -1052,7 +1093,7 @@ impl Analyser {
             nargs_min,
             positional_any_expand,
             full_span,
-            excess_span,
+            excess,
         ) {
             self.pending_arity
                 .push((resolution_name.to_string(), ns, enforce_order, diag));
@@ -1104,14 +1145,21 @@ impl Analyser {
         };
         // Positional args (and so the surplus run) start after the lambda
         // literal at index 1.
-        let excess_span = excess_positional_span(arg_tokens, arg_expand, 1, usize::from(arity.max));
+        let excess = excess_positional_span(
+            arg_tokens,
+            arg_expand,
+            1,
+            usize::from(arity.max),
+            &self.source,
+            widen_token_end(cmd_tok, &self.source),
+        );
         if let Some(diag) = arity_verdict(
             "apply",
             arity,
             nargs_min,
             positional_any_expand,
             full_span,
-            excess_span,
+            excess,
         ) {
             let ns = self.command_resolution_namespace(scope_path);
             let enforce_order = !self.scope_path_in_proc_body(scope_path);
@@ -1223,13 +1271,31 @@ impl Analyser {
             let Some(arity) = self.resolve_indirect_call_target(&cand, &facts.proc_offsets) else {
                 continue;
             };
+            // The surplus-run anchor: only computable now that the resolved
+            // arity's `max` is known. `arg_spans` is empty under `{*}`
+            // expansion, so `.get(max)` naturally abstains there.
+            let excess = (!arity.is_unlimited())
+                .then(|| {
+                    let max = usize::from(arity.max);
+                    let first = cand.arg_spans.get(max)?;
+                    let last = cand.arg_spans.last()?;
+                    let delete_from = match max.checked_sub(1).and_then(|i| cand.arg_spans.get(i)) {
+                        Some(prev) => prev.end(),
+                        None => cand.head_end,
+                    };
+                    Some(ExcessArgs {
+                        span: tcl_lexer::Span::new(first.start(), last.end()),
+                        delete_from,
+                    })
+                })
+                .flatten();
             if let Some(diag) = arity_verdict(
                 &cand.cmd_name,
                 arity,
                 cand.nargs_min,
                 cand.positional_any_expand,
                 cand.full_span,
-                None,
+                excess,
             ) {
                 self.result.diagnostics.push(diag);
             }
@@ -1525,6 +1591,16 @@ impl Analyser {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
             None => cmd_tok.span,
         };
+        // Argument-word spans for the flush-time E003 surplus anchor —
+        // omitted under `{*}` expansion, where the surplus run is ambiguous.
+        let arg_spans: Vec<tcl_lexer::Span> = if positional_any_expand {
+            Vec::new()
+        } else {
+            arg_tokens
+                .iter()
+                .map(|t| widened_word_span(*t, &self.source))
+                .collect()
+        };
         self.pending_user_call_arity.push(PendingUserCallArity {
             cmd_name: cmd_name.to_string(),
             ns: self.command_resolution_namespace(scope_path),
@@ -1533,6 +1609,8 @@ impl Analyser {
             full_span,
             nargs_min,
             positional_any_expand,
+            arg_spans,
+            head_end: widen_token_end(cmd_tok, &self.source),
         });
     }
 

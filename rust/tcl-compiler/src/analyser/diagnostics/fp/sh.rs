@@ -882,13 +882,18 @@ oo::class create C {
     );
 }
 
-/// FP-SH-15: a proc parameter's entry type is unknown (the caller can pass
-/// anything) — `propagate_types` forces a live-in (SSA version 0) to
-/// OVERDEFINED, so a loop that oscillates a plain positional parameter must
-/// not fire S102. Mirrors [`fp_sh_02_variable_alias_no_shimmer`]'s aliasing
-/// rationale, but for an ordinary (unaliased) parameter.
+/// TP (formerly FP-SH-15): a plain positional parameter oscillated by the
+/// loop body IS thunking — the per-iteration cost (`expr` re-parses the
+/// string arm; `string range` re-stringifies the int arm) is invariant of
+/// what the caller passed in, so the unknown (OVERDEFINED) *entry* type is
+/// no reason to abstain.  The old guard encoded the header-phi path's
+/// evidence limitation; the intra-iteration path proves the cost from the
+/// body's own defs, exactly as the unaliased-local sibling
+/// ([`fp_sh_15_unaliased_method_local_still_fires`]) always expected.  A
+/// genuinely aliased variable (`global` / `variable` / `upvar`) still
+/// abstains — see [`fp_sh_15_tcloo_instance_variable_no_s102`].
 #[test]
-fn fp_sh_15_parameter_seeded_oscillation_no_s102() {
+fn tp_sh_15_parameter_seeded_oscillation_fires_s102() {
     let src = "\
 proc f {p} {
     while {1} {
@@ -897,10 +902,10 @@ proc f {p} {
     }
 }
 ";
-    let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S102"),
-        "FP-SH-15: parameter-seeded oscillation must not fire S102; got {got:?}"
+        fires(src, D, "S102"),
+        "a parameter oscillated by the body thunks per iteration; got {:?}",
+        codes(src, D)
     );
 }
 
