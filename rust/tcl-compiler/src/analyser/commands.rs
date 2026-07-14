@@ -1546,20 +1546,35 @@ impl Analyser {
         // defined name (`Greeter`) all draw W123 as unknown commands, even
         // though W002 already reported the dialect-gated definer once.  The
         // generic collector skips these bodies (`definition_handler_owns_body`)
-        // so members are never also dispatched as plain commands.
-        if self.handle_proc_command(&cmd_name, args, arg_tokens, scope_path) {
-            return;
+        // so members are never also dispatched as plain commands.  The
+        // dispatch mirrors the top-level chain exactly: the stamped `Proc` /
+        // `OoDefine` hooks first (the handlers no longer name-guard
+        // themselves), then the grammar-driven definer trio only on the
+        // hookless path.
+        {
+            use tcl_registry::hooks::AnalyserHookId as Hook;
+            match self.resolve_analyser_hook(&cmd_name, args) {
+                Some(Hook::Proc) => {
+                    if self.handle_proc_command(args, arg_tokens, scope_path) {
+                        return;
+                    }
+                }
+                Some(Hook::OoDefine) => {
+                    if self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path) {
+                        return;
+                    }
+                }
+                None => {
+                    if self.handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path)
+                    {
+                        return;
+                    }
+                }
+                Some(_) => {}
+            }
         }
-        if self.handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-        if self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-        if self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-        self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path);
     }
 
     /// The `[…]` substitution fragment tokens of a (possibly compound)

@@ -75,6 +75,12 @@ const MATRIX: &[Case] = &[
         note: "variable set but never read",
     },
     Case {
+        code: "W128",
+        fire: "oo::class create Animal {}\nAnimal destroy\nAnimal new\n",
+        silent: "oo::class create Animal {}\nset a [Animal new]\nputs $a\n",
+        note: "class destroyed, later dispatch falls through to unknown",
+    },
+    Case {
         code: "W218",
         fire: "proc p {args extra} {\n    puts $extra\n}\np a b\n",
         silent: "proc p {extra args} {\n    puts $extra\n}\np a b\n",
@@ -228,6 +234,10 @@ fn w211_fires_on_defect() {
     assert_fires(case_for("W211"));
 }
 #[test]
+fn w128_fires_on_defect() {
+    assert_fires(case_for("W128"));
+}
+#[test]
 fn w218_fires_on_defect() {
     assert_fires(case_for("W218"));
 }
@@ -281,6 +291,10 @@ fn w110_silent_on_corrected_form() {
 #[test]
 fn w211_silent_on_corrected_form() {
     assert_silent(case_for("W211"));
+}
+#[test]
+fn w128_silent_on_clean_class_use() {
+    assert_silent(case_for("W128"));
 }
 #[test]
 fn w218_silent_on_corrected_form() {
