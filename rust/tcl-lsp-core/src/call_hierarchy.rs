@@ -82,10 +82,23 @@ pub fn prepare(
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            return vec![item_for_proc(source, proc_def, qname, &line_index)];
-        }
+    // Prefer the proc whose declaration name span covers the cursor (so a
+    // same-named proc in another namespace's own decl resolves to *that*
+    // proc, not whichever `all_procs` entry hashes first — mirrors
+    // `references::proc_references` / `rename::rename_proc`); else the
+    // first proc matching the word.
+    let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let proc_match = analysis
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
+        .or_else(|| {
+            analysis.all_procs.iter().find(|(qname, p)| {
+                p.name == word || *qname == &word || *qname == &format!("::{word}")
+            })
+        });
+    if let Some((qname, proc_def)) = proc_match {
+        return vec![item_for_proc(source, proc_def, qname, &line_index)];
     }
     // Class-method fallback — cursor inside a class body on a
     // method / classmethod name.
@@ -316,21 +329,20 @@ fn enclosing_proc<'a>(
 }
 
 /// `true` when `inv` (a command invocation) targets `proc_def`.
-/// Mirrors the matching logic in [`crate::references`] /
-/// [`crate::rename`].
+///
+/// Delegates to [`crate::references::invocation_references_proc`] — the one
+/// shared matching rule behind Find-All-References, the code-lens count,
+/// and Rename — so Call Hierarchy can never disagree with them about
+/// whether a given call site is a reference (in particular the namespace
+/// gate that keeps a bare call in a different namespace from cross-matching
+/// a same-named proc, `RUST_ISSUE_035`).
 fn invocation_targets(
+    analysis: &AnalysisResult,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     proc_def: &ProcDef,
     qname: &str,
 ) -> bool {
-    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
-    inv.name == proc_def.name
-        || inv.name == proc_def.qualified_name
-        || inv.name == qname_no_prefix
-        || inv
-            .resolved_qualified_name
-            .as_deref()
-            .is_some_and(|r| r == proc_def.qualified_name)
+    crate::references::invocation_references_proc(analysis, inv, qname, proc_def)
 }
 
 /// One incoming-call entry: the caller proc plus the spans at
@@ -400,7 +412,7 @@ pub fn unresolved_outgoing_calls(
             if analysis
                 .all_procs
                 .iter()
-                .any(|(qname, proc_def)| invocation_targets(inv, proc_def, qname))
+                .any(|(qname, proc_def)| invocation_targets(analysis, inv, proc_def, qname))
             {
                 continue;
             }
@@ -515,17 +527,23 @@ pub fn incoming_calls_for_target(
     target_name_span: Option<tcl_lexer::Span>,
 ) -> Vec<IncomingCall> {
     let line_index = LineIndex::new(source);
-    let qname_no_prefix = target_qualified
-        .strip_prefix("::")
-        .unwrap_or(target_qualified);
     let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
     for inv in &analysis.command_invocations {
-        let matches = inv.name == target_simple
-            || inv.name == target_qualified
-            || inv.name == qname_no_prefix
-            || inv.resolved_qualified_name.as_deref() == Some(target_qualified);
-        if !matches {
+        // Delegate to the shared matching rule (`invocation_references_proc`
+        // takes a `ProcDef`; this caller may not have one — cross-document
+        // callers are gathered from a target the calling document never
+        // defines — so route through the string-keyed core directly). This
+        // adds the namespace gate a bare simple-name match needs: without
+        // it, a bare call in one namespace falsely credited *any* same-named
+        // proc anywhere as an incoming caller.
+        if !crate::references::invocation_references_named(
+            analysis,
+            inv,
+            target_qualified,
+            target_simple,
+            target_qualified,
+        ) {
             continue;
         }
         // Skip the proc's own declaration site in this document.
@@ -597,7 +615,7 @@ pub fn outgoing_calls(
         }
         // Find the user-proc this invocation targets, if any.
         for (qname, proc_def) in &analysis.all_procs {
-            if invocation_targets(inv, proc_def, qname) {
+            if invocation_targets(analysis, inv, proc_def, qname) {
                 let inv_range = span_to_range(source, &line_index, inv.range);
                 let entry = by_target.entry(qname.clone()).or_insert_with(|| {
                     (
@@ -987,5 +1005,61 @@ mod tests {
         let calls = incoming_calls_for_target(src, &analysis, "helper", "helper", None);
         assert_eq!(calls.len(), 1, "{calls:?}");
         assert_eq!(calls[0].from.name, "c");
+    }
+
+    // nested namespaces — `invocation_targets` delegates to
+    // `references::invocation_references_proc`; regression coverage for the
+    // namespace-accumulation bug fixed alongside issue #923 (bareword calls
+    // inside a namespace nested 2+ levels deep were previously invisible to
+    // Call Hierarchy, same root cause as the reference-finding bug).
+
+    #[test]
+    fn incoming_calls_finds_bare_call_from_two_level_nested_namespace() {
+        let src = concat!(
+            "namespace eval a {\n",
+            "    namespace eval b {\n",
+            "        proc target {} {}\n",
+            "        proc caller {} { target }\n",
+            "    }\n",
+            "}\n",
+        );
+        let analysis = analyse(src);
+        // Cursor on `target`'s declaration (line 2).
+        let items = prepare(src, 2, 14, &analysis);
+        assert_eq!(items.len(), 1, "{items:?}");
+        let incoming = incoming_calls(src, "tcl", &items[0], &analysis);
+        assert_eq!(incoming.len(), 1, "{incoming:?}");
+        assert_eq!(incoming[0].from.name, "caller");
+    }
+
+    #[test]
+    fn incoming_calls_two_level_nested_namespace_does_not_leak_across_namespaces() {
+        let src = concat!(
+            "namespace eval a {\n",
+            "    namespace eval b {\n",
+            "        proc helper {} {}\n",
+            "    }\n",
+            "}\n",
+            "namespace eval c {\n",
+            "    namespace eval d {\n",
+            "        proc helper {} {}\n",
+            "        proc caller {} { helper }\n",
+            "    }\n",
+            "}\n",
+        );
+        let analysis = analyse(src);
+        // `::a::b::helper` has no callers.
+        let items_ab = prepare(src, 2, 14, &analysis);
+        assert_eq!(items_ab.len(), 1, "{items_ab:?}");
+        assert!(
+            incoming_calls(src, "tcl", &items_ab[0], &analysis).is_empty(),
+            "::a::b::helper must not pick up ::c::d's caller"
+        );
+        // `::c::d::helper` has exactly one (its own).
+        let items_cd = prepare(src, 7, 14, &analysis);
+        assert_eq!(items_cd.len(), 1, "{items_cd:?}");
+        let incoming_cd = incoming_calls(src, "tcl", &items_cd[0], &analysis);
+        assert_eq!(incoming_cd.len(), 1, "{incoming_cd:?}");
+        assert_eq!(incoming_cd[0].from.name, "caller");
     }
 }

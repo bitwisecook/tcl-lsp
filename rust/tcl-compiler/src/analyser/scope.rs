@@ -85,6 +85,79 @@ pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'
     Some(cursor)
 }
 
+/// Advance a command-resolution namespace accumulator across one child
+/// scope, per Tcl's command-resolution rule for the scope kinds this
+/// analyser models:
+///
+/// * [`ScopeKind::Namespace`] appends its segment — `ns` accumulates
+///   through every enclosing `namespace eval`, however deeply nested.
+/// * [`ScopeKind::Proc`] / [`ScopeKind::Method`] **reset** to that
+///   definition's own defining namespace (the prefix of its qualified
+///   name) rather than accumulating lexically: a proc resolves its body's
+///   unqualified calls in its own namespace, not necessarily its lexical
+///   nesting (a `proc ::a::b::p {}` declared at the top level still
+///   resolves unqualified calls against `::a::b`).
+/// * [`ScopeKind::Uplevel`] (`uplevel #0`) resets to global — the body
+///   runs in the global frame.
+/// * [`ScopeKind::Global`] is a no-op.
+///
+/// Shared by [`Analyser::command_resolution_namespace`] (walks a live
+/// `scope_path: &[usize]` during the analyser's own body walk) and
+/// [`command_resolution_namespace_at`] (walks a fully-built [`Scope`] tree
+/// by byte offset, for post-walk LSP consumers with no `scope_path`) so
+/// the two traversal mechanisms can never disagree on the underlying rule.
+fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
+    match child.kind {
+        ScopeKind::Namespace => join_namespace(ns, &child.name),
+        ScopeKind::Proc | ScopeKind::Method => {
+            let qualified = if child.name.starts_with("::") {
+                normalise_qualified_name(&child.name)
+            } else {
+                join_namespace(ns, &child.name)
+            };
+            match qualified.rsplit_once("::") {
+                Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
+                _ => "::".to_string(),
+            }
+        }
+        ScopeKind::Global => ns.to_string(),
+        ScopeKind::Uplevel => "::".to_string(),
+    }
+}
+
+/// Namespace an unqualified command invoked at `byte_offset` resolves
+/// against, per Tcl's command-resolution rule.
+///
+/// The byte-offset-based sibling of [`Analyser::command_resolution_namespace`]
+/// (which walks a live `scope_path` during the analyser's own body walk):
+/// this variant walks a fully-built [`Scope`] tree by byte position, for LSP
+/// providers that only have a finished `AnalysisResult` and a cursor / call-site
+/// offset — no `scope_path`. `tcl-lsp-core`'s find-references / rename /
+/// call-hierarchy namespace gates all resolve through this one function
+/// (via [`advance_command_resolution_namespace`], the shared per-scope-kind
+/// rule) so they can't disagree with each other or with the analyser's own
+/// resolution.
+///
+/// Descends the innermost child scope whose `body_span` contains
+/// `byte_offset` at each level, exactly like `tcl-lsp-core`'s
+/// `scope_chain_at` — a scope with no `body_span` (or one that doesn't
+/// contain the offset) simply isn't descended into.
+#[must_use]
+pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String {
+    let mut ns = "::".to_string();
+    let mut cursor = root;
+    loop {
+        let next = cursor.children.iter().find(|c| {
+            c.body_span
+                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
+        });
+        let Some(child) = next else { break };
+        ns = advance_command_resolution_namespace(&ns, child);
+        cursor = child;
+    }
+    ns
+}
+
 impl Analyser {
     /// Resolve the current scope path to a borrow of the active
     /// [`Scope`] inside [`Self::result`]. Convenience wrapper
@@ -187,17 +260,19 @@ impl Analyser {
     }
 
     /// Compute the scope-resolved qualified name for a command
-    /// invocation at the current walk position.
+    /// invocation at `scope_path`.
     ///
-    /// * Names starting with `::` are already absolute and are
-    ///   returned as-is.
-    /// * Names with embedded `::` but no leading `::` are
-    ///   absolute-from-global by Tcl convention; the helper
-    ///   prepends `::`.
-    /// * Simple names are joined with the nearest enclosing
-    ///   namespace scope: `cmd` inside `namespace eval ::ns`
-    ///   becomes `::ns::cmd`; at the top level it becomes
-    ///   `::cmd`.
+    /// Delegates the "what namespace does an unqualified call here
+    /// resolve against" question to [`Self::command_resolution_namespace`]
+    /// (the same rule [`command_resolution_namespace_at`] applies
+    /// post-walk, so the two can't disagree), then picks the
+    /// most-specific candidate from
+    /// [`crate::naming::bareword_resolution_candidates`] — which already
+    /// encodes Tcl's real "current namespace, then global" two-step rule
+    /// for both bare names and relative names with embedded `::`
+    /// (`inner::p` resolves against the current namespace before falling
+    /// back to global — it is *not* unconditionally global-rooted).  A
+    /// leading-`::` name is already absolute and comes back unchanged.
     ///
     /// Returned strings are intended for matching against
     /// [`super::types::ProcDef::qualified_name`] in references
@@ -206,35 +281,12 @@ impl Analyser {
     /// candidate that lets call-site → declaration matching
     /// resolve relative call shapes.
     #[must_use]
-    pub fn resolve_command_qualified_name(&self, cmd_name: &str) -> String {
-        if cmd_name.starts_with("::") {
-            return cmd_name.to_string();
-        }
-        if cmd_name.contains("::") {
-            return format!("::{cmd_name}");
-        }
-        // Walk the current scope path up to the nearest
-        // namespace scope and join its `name` with the cmd.
-        // The global scope's name is `"::"` so the simple-name
-        // case at the top level becomes `"::cmd"`.
-        let mut path = self.current_scope_path.clone();
-        loop {
-            let scope =
-                scope_at(&self.result.global_scope, &path).unwrap_or(&self.result.global_scope);
-            if scope.kind == super::types::ScopeKind::Namespace || path.is_empty() {
-                let prefix = scope.name.as_str();
-                return if prefix == "::" {
-                    format!("::{cmd_name}")
-                } else {
-                    format!("{prefix}::{cmd_name}")
-                };
-            }
-            if path.is_empty() {
-                break;
-            }
-            path.pop();
-        }
-        format!("::{cmd_name}")
+    pub fn resolve_command_qualified_name(&self, cmd_name: &str, scope_path: &[usize]) -> String {
+        let ns = self.command_resolution_namespace(scope_path);
+        crate::naming::bareword_resolution_candidates(&ns, cmd_name)
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| format!("::{cmd_name}"))
     }
 
     /// Record a constant string assignment for `var_name` in the
@@ -353,40 +405,7 @@ impl Analyser {
             let Some(child) = cursor.children.get(idx) else {
                 break;
             };
-            match child.kind {
-                ScopeKind::Namespace => ns = join_namespace(&ns, &child.name),
-                ScopeKind::Proc => {
-                    // The proc's defining namespace = prefix of its
-                    // (possibly relative) qualified name.
-                    let qualified = if child.name.starts_with("::") {
-                        normalise_qualified_name(&child.name)
-                    } else {
-                        join_namespace(&ns, &child.name)
-                    };
-                    ns = match qualified.rsplit_once("::") {
-                        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
-                        _ => "::".to_string(),
-                    };
-                }
-                // A method body resolves commands in its class's namespace —
-                // the prefix of the method's qualified `class::method` name,
-                // same shape as a proc.
-                ScopeKind::Method => {
-                    let qualified = if child.name.starts_with("::") {
-                        normalise_qualified_name(&child.name)
-                    } else {
-                        join_namespace(&ns, &child.name)
-                    };
-                    ns = match qualified.rsplit_once("::") {
-                        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
-                        _ => "::".to_string(),
-                    };
-                }
-                ScopeKind::Global => {}
-                // `uplevel #0` runs in the global frame, so command
-                // resolution from inside its body is global-rooted.
-                ScopeKind::Uplevel => ns = "::".to_string(),
-            }
+            ns = advance_command_resolution_namespace(&ns, child);
             cursor = child;
         }
         ns

@@ -75,6 +75,34 @@ fn proc_in_namespace() {
 }
 
 #[test]
+fn proc_in_two_level_nested_namespace_via_qualified_call() {
+    // Issue #923: go-to-definition on a fully-qualified call to a proc
+    // nested two `namespace eval` levels deep must land on its own decl.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval modelTestVerTool {\n    namespace eval gui {\n        proc specAddButtonPopUp {x y} { return \"$x $y\" }\n    }\n}\n::modelTestVerTool::gui::specAddButtonPopUp 1 2\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.definition(&uri, 5, 30);
+    let locs = locations(&result);
+    assert!(!locs.is_empty(), "{result:?}");
+    assert_eq!(start_line(&locs[0]), 2);
+}
+
+#[test]
+fn proc_definition_disambiguates_same_named_procs_in_two_level_nested_namespaces() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval a {\n    namespace eval b {\n        proc helper {} { return 1 }\n    }\n}\nnamespace eval c {\n    namespace eval d {\n        proc helper {} { return 2 }\n    }\n}\n";
+    lsp.open_ready(&uri, src);
+    let locs_ab = locations(&lsp.definition(&uri, 2, 14));
+    assert!(!locs_ab.is_empty(), "{locs_ab:?}");
+    assert_eq!(start_line(&locs_ab[0]), 2, "must resolve to ::a::b::helper");
+    let locs_cd = locations(&lsp.definition(&uri, 7, 14));
+    assert!(!locs_cd.is_empty(), "{locs_cd:?}");
+    assert_eq!(start_line(&locs_cd[0]), 7, "must resolve to ::c::d::helper");
+}
+
+#[test]
 fn recursive_call_navigates_to_definition() {
     // Mirrors editors/vscode/src/test/definition.test.ts.
     let mut lsp = Lsp::tcl();

@@ -155,25 +155,42 @@ pub fn definition(
     {
         return vec![span_to_range(source, &line_index, span)];
     }
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            return vec![span_to_range(source, &line_index, proc_def.name_span)];
-        }
+    // Prefer the proc/class whose own declaration name span covers the
+    // cursor (so a same-named proc/class in another namespace's own decl
+    // resolves to *that* one, not whichever `all_procs`/`all_classes` entry
+    // hashes first — mirrors `references::proc_references` /
+    // `references::class_references` / `rename::rename_proc` /
+    // `rename::rename_class`); else the first entry matching the word.
+    let cursor_offset = byte_offset_at(&line_index, source, line, character);
+    let proc_match = analysis
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() <= cursor_offset && cursor_offset < p.name_span.end())
+        .or_else(|| {
+            analysis.all_procs.iter().find(|(qname, p)| {
+                p.name == word || *qname == &word || *qname == &format!("::{word}")
+            })
+        });
+    if let Some((_, proc_def)) = proc_match {
+        return vec![span_to_range(source, &line_index, proc_def.name_span)];
     }
-    for class_def in analysis.all_classes.values() {
-        if class_def.name == word
-            || class_def.qualified_name == word
-            || class_def.qualified_name == format!("::{word}")
-        {
-            return vec![span_to_range(source, &line_index, class_def.name_span)];
-        }
+    let class_match = analysis
+        .all_classes
+        .iter()
+        .find(|(_, c)| c.name_span.start() <= cursor_offset && cursor_offset < c.name_span.end())
+        .or_else(|| {
+            analysis.all_classes.iter().find(|(qname, c)| {
+                c.name == word || *qname == &word || *qname == &format!("::{word}")
+            })
+        });
+    if let Some((_, class_def)) = class_match {
+        return vec![span_to_range(source, &line_index, class_def.name_span)];
     }
     // Class-member lookup — when the cursor sits inside a
     // class body, walk that class's methods / properties /
     // constructors / destructor for a name match.  Covers
     // `my method` calls inside the body plus bare member
     // references.
-    let cursor_offset = byte_offset_at(&line_index, source, line, character);
     if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
@@ -637,22 +654,29 @@ pub(crate) fn lexical_namespace_chain(
     chain
 }
 
-/// Name of the innermost `namespace eval` scope whose body contains
-/// `byte_offset` (without the leading `::`), or `""` at global scope.  Used to
+/// Namespace an unqualified command invoked at `byte_offset` resolves
+/// against (without the leading `::`), or `""` at global scope.  Used to
 /// attribute an unqualified call to the proc in its own namespace when the
 /// analyser's resolution falls back to the global guess.
+///
+/// Thin wrapper over [`tcl_compiler::analyser::command_resolution_namespace_at`]
+/// — the single canonical implementation of Tcl's command-resolution
+/// namespace rule, shared with the analyser's own `resolved_qualified_name`
+/// computation (`Analyser::command_resolution_namespace`) so the two can
+/// never disagree.  Correctly accumulates through every enclosing
+/// `namespace eval` (however deeply nested — a bare, non-accumulating
+/// "just the innermost segment" reading previously misidentified a 2+-level
+/// nested namespace, e.g. `::a::b` read back as just `b`) and resets to a
+/// proc's/method's own defining namespace inside its body, even when that
+/// proc was declared with a fully-qualified name with no enclosing
+/// `namespace eval` at all.
 pub(crate) fn innermost_namespace_at(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
 ) -> String {
-    use tcl_compiler::analyser::ScopeKind;
-    let mut ns = String::new();
-    for sc in scope_chain_at(scope, byte_offset) {
-        if sc.kind == ScopeKind::Namespace {
-            ns = sc.name.trim_start_matches("::").to_string();
-        }
-    }
-    ns
+    tcl_compiler::analyser::command_resolution_namespace_at(scope, byte_offset)
+        .trim_start_matches("::")
+        .to_string()
 }
 
 /// Fully-qualified `::ns::var` form for a var stored in a namespace / global
@@ -770,6 +794,82 @@ mod tests {
         // The proc name span is on line 0 starting at column 5.
         assert_eq!(locs[0].start_line, 0);
         assert_eq!(locs[0].start_character, 5);
+    }
+
+    #[test]
+    fn jump_to_proc_definition_in_two_level_nested_namespace_via_qualified_call() {
+        // Issue #923: go-to-definition on a fully-qualified call to a proc
+        // nested two `namespace eval` levels deep must land on its own decl.
+        let src = concat!(
+            "namespace eval modelTestVerTool {\n",
+            "    namespace eval gui {\n",
+            "        proc specAddButtonPopUp {x y} { return \"$x $y\" }\n",
+            "    }\n",
+            "}\n",
+            "::modelTestVerTool::gui::specAddButtonPopUp 1 2\n",
+        );
+        let analysis = analyse(src);
+        // Cursor on the qualified call (line 5).
+        let locs = definition(src, 5, 30, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 2, "should land on the decl");
+    }
+
+    #[test]
+    fn jump_to_proc_definition_disambiguates_same_named_procs_by_cursor() {
+        // Two procs share the simple name `helper` in different two-level
+        // nested namespaces. Go-to-definition from each one's own
+        // declaration (a no-op jump, but exercises the lookup) must resolve
+        // to *that* proc, not whichever `all_procs` entry a HashMap happens
+        // to iterate first.
+        let src = concat!(
+            "namespace eval a {\n",
+            "    namespace eval b {\n",
+            "        proc helper {} { return \"a-b\" }\n",
+            "    }\n",
+            "}\n",
+            "namespace eval c {\n",
+            "    namespace eval d {\n",
+            "        proc helper {} { return \"c-d\" }\n",
+            "    }\n",
+            "}\n",
+        );
+        let analysis = analyse(src);
+        // Cursor on ::a::b::helper's own decl (line 2).
+        let locs_ab = definition(src, 2, 14, &analysis);
+        assert_eq!(locs_ab.len(), 1, "{locs_ab:?}");
+        assert_eq!(locs_ab[0].start_line, 2, "must resolve to ::a::b::helper");
+        // Cursor on ::c::d::helper's own decl (line 7).
+        let locs_cd = definition(src, 7, 14, &analysis);
+        assert_eq!(locs_cd.len(), 1, "{locs_cd:?}");
+        assert_eq!(locs_cd[0].start_line, 7, "must resolve to ::c::d::helper");
+    }
+
+    #[test]
+    fn jump_to_class_definition_disambiguates_same_named_classes_by_cursor() {
+        // Class analogue of the proc test above.
+        let src = concat!(
+            "namespace eval a {\n",
+            "    namespace eval b {\n",
+            "        oo::class create Widget {}\n",
+            "    }\n",
+            "}\n",
+            "namespace eval c {\n",
+            "    namespace eval d {\n",
+            "        oo::class create Widget {}\n",
+            "    }\n",
+            "}\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.len() < 2 {
+            return;
+        }
+        let locs_ab = definition(src, 2, 26, &analysis);
+        assert_eq!(locs_ab.len(), 1, "{locs_ab:?}");
+        assert_eq!(locs_ab[0].start_line, 2, "must resolve to ::a::b::Widget");
+        let locs_cd = definition(src, 7, 26, &analysis);
+        assert_eq!(locs_cd.len(), 1, "{locs_cd:?}");
+        assert_eq!(locs_cd[0].start_line, 7, "must resolve to ::c::d::Widget");
     }
 
     #[test]

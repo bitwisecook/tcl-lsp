@@ -91,6 +91,93 @@ fn qualified_calls_do_not_cross_namespace() {
     assert!(!lines.contains(&9), "{lines:?}");
 }
 
+// -- Issue #923: fully-qualified / relative names in namespaces nested
+// two or more levels deep. Regression coverage over the full JSON-RPC
+// protocol (not just the tcl-lsp-core unit-test harness) for a bug where a
+// bareword call from inside a namespace nested 2+ levels deep was resolved
+// as if it were at the top level and never matched its own proc.
+
+#[test]
+fn find_qualified_proc_call_in_two_level_nested_namespace() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval modelTestVerTool {\n    namespace eval gui {\n        proc specAddButtonPopUp {x y} { return \"$x $y\" }\n    }\n}\n::modelTestVerTool::gui::specAddButtonPopUp 1 2\n";
+    lsp.open_ready(&uri, src);
+    let lines = start_lines(&lsp.references(&uri, 2, 14, true));
+    assert!(lines.contains(&2), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&5),
+        "fully-qualified call missing: {lines:?}"
+    );
+}
+
+#[test]
+fn find_bare_proc_call_from_inside_two_level_nested_namespace() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval modelTestVerTool {\n    namespace eval gui {\n        proc specAddButtonPopUp {x y} { return \"$x $y\" }\n        proc caller {} { return [specAddButtonPopUp 1 2] }\n    }\n}\n";
+    lsp.open_ready(&uri, src);
+    let lines = start_lines(&lsp.references(&uri, 2, 14, true));
+    assert!(lines.contains(&2), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&3),
+        "bare call from the same 2-level-nested namespace missing: {lines:?}"
+    );
+}
+
+#[test]
+fn issue_923_bind_callback_qualified_and_bare_both_resolve() {
+    // The exact shape from
+    // https://github.com/bitwisecook/tcl-lsp/issues/923: a proc called from
+    // a Tk `bind` callback script by its fully-qualified name (reported as
+    // "0 references"), alongside a sibling called by bare name from the
+    // same namespace.
+    let src = concat!(
+        "namespace eval modelTestVerTool {\n",
+        "    namespace eval gui {\n",
+        "        proc specAddButtonPopUp {x y} { return \"spec $x $y\" }\n",
+        "        proc testAddButtonPopUp {x y} { return \"test $x $y\" }\n",
+        "        bind $win.fra.tool.buT_specAddIconLarge <ButtonRelease-1> {::modelTestVerTool::gui::specAddButtonPopUp %X %Y}\n",
+        "        bind $win.fra.tool.buT_testAddIconLarge <ButtonRelease-1> {testAddButtonPopUp %X %Y}\n",
+        "    }\n",
+        "}\n",
+    );
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, src);
+    let spec_lines = start_lines(&lsp.references(&uri, 2, 14, true));
+    assert!(spec_lines.contains(&2), "spec decl missing: {spec_lines:?}");
+    assert!(
+        spec_lines.contains(&4),
+        "spec's fully-qualified bind call site missing: {spec_lines:?}"
+    );
+    let test_lines = start_lines(&lsp.references(&uri, 3, 14, true));
+    assert!(test_lines.contains(&3), "test decl missing: {test_lines:?}");
+    assert!(
+        test_lines.contains(&5),
+        "test's bare bind call site missing: {test_lines:?}"
+    );
+}
+
+#[test]
+fn qualified_calls_do_not_cross_two_level_nested_namespace() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval a {\n    namespace eval b {\n        proc helper {} { return 1 }\n    }\n}\nnamespace eval c {\n    namespace eval d {\n        proc helper {} { return 2 }\n        proc caller {} { return [helper] }\n    }\n}\n";
+    lsp.open_ready(&uri, src);
+    // ::a::b::helper has no callers.
+    let lines_ab = start_lines(&lsp.references(&uri, 2, 14, true));
+    assert_eq!(
+        lines_ab,
+        [2].into_iter().collect(),
+        "::a::b::helper must not pick up ::c::d's call: {lines_ab:?}"
+    );
+    // ::c::d::helper is called once, by its own sibling.
+    let lines_cd = start_lines(&lsp.references(&uri, 7, 14, true));
+    assert!(lines_cd.contains(&7), "{lines_cd:?}");
+    assert!(lines_cd.contains(&8), "{lines_cd:?}");
+}
+
 // -- TestVariableReferences ----------------------------------------------
 
 #[test]

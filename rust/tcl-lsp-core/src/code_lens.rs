@@ -254,18 +254,15 @@ fn count_class_references(
     class_def: &tcl_compiler::analyser::ClassDef,
     analysis: &AnalysisResult,
 ) -> usize {
-    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
-    analysis
-        .command_invocations
-        .iter()
-        .filter(|inv| {
-            inv.name == class_def.name
-                || inv.name == class_def.qualified_name
-                || inv.name == qname_no_prefix
-        })
-        .filter(|inv| {
-            !(inv.range.start() <= class_def.name_span.start()
-                && class_def.name_span.end() <= inv.range.end())
+    // Derive the count from the *same* namespace-aware matching the peek
+    // (Find All References) uses — `references::class_reference_spans` — so
+    // the lens title and the peek can never drift (mirrors the proc lens's
+    // `proc_reference_spans` reuse above).
+    crate::references::class_reference_spans(analysis, qname, class_def)
+        .into_iter()
+        .filter(|span| {
+            !(span.start() <= class_def.name_span.start()
+                && class_def.name_span.end() <= span.end())
         })
         .count()
 }

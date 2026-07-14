@@ -131,6 +131,21 @@ fn rename_namespaced_proc_preserves_qualifier() {
 }
 
 #[test]
+fn rename_proc_in_two_level_nested_namespace_does_not_leak_across_namespaces() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval a {\n    namespace eval b {\n        proc helper {} { return 1 }\n    }\n}\nnamespace eval c {\n    namespace eval d {\n        proc helper {} { return 2 }\n        proc caller {} { return [helper] }\n    }\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 7, 14, "assist");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    // Only ::c::d::helper's decl + its own bare call rewritten (2 edits),
+    // never ::a::b::helper (RUST_ISSUE_035-style leak across namespaces).
+    assert_eq!(for_uri.len(), 2, "{for_uri:?}");
+    assert!(for_uri.iter().all(|e| e["newText"] == "assist"));
+}
+
+#[test]
 fn rename_from_call_site() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

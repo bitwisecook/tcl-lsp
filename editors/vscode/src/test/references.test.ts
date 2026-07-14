@@ -53,4 +53,61 @@ suite("Find References", () => {
       );
     }
   });
+
+  // Regression for issue #923: a proc nested two `namespace eval` levels
+  // deep, called from a Tk `bind` callback script by its fully-qualified
+  // name, must be found — the reported symptom was that this exact call
+  // shape showed "0 references".
+  test("finds a fully-qualified proc call embedded in a bind callback inside a two-level nested namespace", async () => {
+    const nsUri = getDocUri("issue923NestedNamespace.tcl");
+    await activate(nsUri);
+
+    // Position on "specAddButtonPopUp923" at its definition, line 2:
+    // "        proc specAddButtonPopUp923 {x y} {"
+    const position = new vscode.Position(2, 20);
+
+    const locations = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeReferenceProvider", nsUri, position),
+      (r) => Array.isArray(r) && r.length >= 2,
+      { timeout: 10_000, label: "references for nested-namespace proc" },
+    )) as vscode.Location[];
+
+    assert.ok(locations, "References result should not be null");
+    assert.ok(
+      locations.length >= 2,
+      `Expected declaration + the qualified bind call site, got ${locations.length}`,
+    );
+    // The bind callback with the fully-qualified call is line 8.
+    const lines = locations.map((l) => l.range.start.line);
+    assert.ok(
+      lines.includes(8),
+      `Expected the fully-qualified bind callback call site (line 8) among ${JSON.stringify(lines)}`,
+    );
+  });
+
+  test("finds a bare proc call embedded in a bind callback inside the same nested namespace", async () => {
+    const nsUri = getDocUri("issue923NestedNamespace.tcl");
+    await activate(nsUri);
+
+    // Position on "testAddButtonPopUp923" at its definition, line 5:
+    // "        proc testAddButtonPopUp923 {x y} {"
+    const position = new vscode.Position(5, 20);
+
+    const locations = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeReferenceProvider", nsUri, position),
+      (r) => Array.isArray(r) && r.length >= 2,
+      { timeout: 10_000, label: "references for bare nested-namespace call" },
+    )) as vscode.Location[];
+
+    assert.ok(locations, "References result should not be null");
+    assert.ok(
+      locations.length >= 2,
+      `Expected declaration + the bare bind call site, got ${locations.length}`,
+    );
+    const lines = locations.map((l) => l.range.start.line);
+    assert.ok(
+      lines.includes(9),
+      `Expected the bare bind callback call site (line 9) among ${JSON.stringify(lines)}`,
+    );
+  });
 });
