@@ -819,6 +819,7 @@ fn collect_constant_branches(
 pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     params: &HashSet<&str, S>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Vec<ConstantBranch> {
     let mut out = Vec::new();
     if cfg.blocks.values().any(|b| {
@@ -871,7 +872,7 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     // `::safe::CheckInterp` guard shape (safe.tcl:109).  The scanner also
     // returns `trace` targets, which only widens the skip — conservative,
     // never a false fold.
-    let aliased = crate::optimiser::elimination::scan_scope_aliases(cfg);
+    let aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
             condition,

@@ -106,10 +106,13 @@ pub(super) struct ScanCtx<'r> {
     /// built once by `extract_signatures`.  Empty in `Default`
     /// (used only by focused unit tests).
     pub(super) skip_heads: std::collections::HashSet<String>,
-    /// The command registry, used to resolve `ArgRole::CommandPrefix`
-    /// callback positions + arities so background-scanned files record
-    /// callback heads (`lsort -command cb`) as command invocations.  `None`
-    /// in `Default` (focused unit tests that don't exercise prefixes).
+    /// The command registry: drives the walker's definer dispatch (class
+    /// definers via their `definition_body` grammar family, procedure
+    /// definers via `Traits::DEFINES_PROCEDURE`) and resolves
+    /// `ArgRole::CommandPrefix` callback positions + arities so
+    /// background-scanned files record callback heads (`lsort -command cb`)
+    /// as command invocations.  `None` in `Default` (focused unit tests
+    /// that bypass registry dispatch).
     pub(super) registry: Option<&'r tcl_registry::CommandRegistry>,
 }
 

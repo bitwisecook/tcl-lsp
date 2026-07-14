@@ -19,7 +19,10 @@
 //! Top-level walker for the `signature_scan` module.
 //!
 //! Walks segmented commands and dispatches them to per-command
-//! handlers in [`super::handlers`]. Body recursion into braced
+//! handlers in [`super::handlers`]. Definer commands — the class
+//! systems and `proc` — are dispatched from registry data
+//! ([`dispatch_definer`]: `definition_body` grammar family + traits),
+//! never a hardcoded name list. Body recursion into braced
 //! scripts (proc bodies, namespace-eval bodies, structured-command
 //! branches) lives here too — it must not depend on the IR
 //! lowering pass, which is the whole reason the `signature_scan`
@@ -41,6 +44,8 @@
 use std::collections::HashSet;
 
 use tcl_lexer::{Token, TokenType};
+use tcl_registry::Traits;
+use tcl_registry::definer::DefinerFamily;
 
 use super::command_prefix::command_prefix_invocations;
 use super::ctx::ScanCtx;
@@ -120,7 +125,6 @@ pub(super) fn scan(
         let texts = &cmd.texts;
         let argv = &cmd.argv;
         match head {
-            "proc" => handlers::handle_proc(texts, argv, ns_prefix, ctx),
             "namespace" => {
                 handlers::handle_namespace(
                     texts,
@@ -142,28 +146,9 @@ pub(super) fn scan(
             "try" => handle_try(texts, argv, ns_prefix, known_commands, ctx),
             "lappend" | "set" => handlers::handle_auto_path(texts, argv, &mut ctx.result),
             _ => {
-                // Class-definer heads are registry data, not a name list —
-                // see [`definer_family`].  Every stock `TclOO` metaclass
-                // creates a class via the same `METACLASS create NAME ?BODY?`
-                // interface (`oo::configurable`, `oo::abstract`,
-                // `oo::singleton` included, so a `[Pin new]` on an
-                // `oo::configurable` class is typed as an object like any
-                // other — issue #797); snit types/widgets and `itcl::class`
-                // both take the `DEFINER Name Body` shape, recorded as
-                // classes to type their constructors' receivers.
-                if let Some(family) = definer_family(head, ctx.registry) {
-                    match family {
-                        tcl_registry::definer::DefinerFamily::TclOo => {
-                            handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result);
-                        }
-                        tcl_registry::definer::DefinerFamily::Itcl => {
-                            handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
-                        }
-                        tcl_registry::definer::DefinerFamily::Snit => {
-                            handlers::handle_snit_type(texts, argv, ns_prefix, &mut ctx.result);
-                        }
-                    }
-                } else {
+                // Definer commands (the class systems, `proc`) dispatch on
+                // registry data, never a hardcoded name list.
+                if !dispatch_definer(head, texts, argv, ns_prefix, ctx) {
                     handlers::maybe_handle_import_wrapper(
                         head,
                         texts,
@@ -178,40 +163,62 @@ pub(super) fn scan(
     }
 }
 
-/// Classify `head` as a class-definer via the registry: the spec's
-/// `definition_body` grammar names the class system
-/// ([`tcl_registry::definer::DefinerFamily`]), and for `TclOO` the
-/// [`tcl_registry::Traits::IS_OO_METACLASS`] trait narrows the grammar
-/// carriers to the class *manufacturers* — the same rule the analyser's
-/// `handle_oo_class_command` applies:
+/// Dispatch `head` to a definer handler when its registry spec marks it as a
+/// class or procedure definer, returning whether it was claimed.
 ///
-/// - the trait alone would include `oo::object`, which carries it but
-///   makes *instances*, not classes (no definition body);
-/// - the grammar alone would include `oo::define` / `oo::objdefine`,
-///   which *extend* an existing class named at `args[1]` rather than
-///   creating one.
-///
-/// snit (`snit::type|widget|widgetadaptor`) and itcl (`itcl::class`)
-/// definers carry only the grammar; their families dispatch the
-/// `DEFINER Name Body` handlers.  [`tcl_registry::CommandRegistry::get`]
-/// resolves a leading `::`, so the fully-qualified spelling of every
-/// head keeps working.  `None` when no registry is threaded (focused
-/// unit tests) — class discovery is a registry-driven feature.
-fn definer_family(
+/// Recognition is registry data, never a name list: a spec carrying a
+/// [`tcl_registry::definer::DefinitionBodyGrammar`] dispatches on the
+/// grammar's [`DefinerFamily`] — mirroring the analyser's OO handlers — and a
+/// spec carrying [`Traits::DEFINES_PROCEDURE`] (with no definition body) is a
+/// `proc`-shaped procedure definer, so a new definer of an existing family is
+/// picked up the moment its spec carries the grammar. A `::`-qualified
+/// spelling resolves through [`tcl_registry::CommandRegistry::get`]'s
+/// canonical leading-`::` fallback to the bare name. A `true` return means
+/// the generic import-wrapper / factory-candidate handlers must not run,
+/// matching the former dedicated match arms.
+fn dispatch_definer(
     head: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
-) -> Option<tcl_registry::definer::DefinerFamily> {
-    let spec = registry?.get(head)?;
-    let family = spec.definition_body?.family;
-    match family {
-        tcl_registry::definer::DefinerFamily::TclOo => spec
-            .traits
-            .contains(tcl_registry::Traits::IS_OO_METACLASS)
-            .then_some(family),
-        tcl_registry::definer::DefinerFamily::Snit | tcl_registry::definer::DefinerFamily::Itcl => {
-            Some(family)
-        }
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) -> bool {
+    let Some(spec) = ctx.registry.and_then(|r| r.get(head)) else {
+        return false;
+    };
+    if let Some(grammar) = spec.definition_body {
+        return match grammar.family {
+            // Every stock `TclOO` metaclass creates a class via the same
+            // `METACLASS create NAME ?BODY?` interface — `oo::configurable`
+            // (property-bearing), `oo::abstract`, and `oo::singleton`
+            // included, so a `[Pin new]` on an `oo::configurable` class is
+            // typed as an object like any other (issue #797).
+            DefinerFamily::TclOo if spec.traits.contains(Traits::IS_OO_METACLASS) => {
+                handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result);
+                true
+            }
+            // `oo::define` / `oo::objdefine` share the `TclOO` grammar but
+            // extend an existing class rather than create one.
+            DefinerFamily::TclOo => false,
+            // snit types/widgets create instances via `Name create obj` /
+            // `Name %AUTO%` / a widget's `Name .path`, so record them as
+            // classes to type those constructors' receivers (same shape as
+            // itcl).
+            DefinerFamily::Snit => {
+                handlers::handle_snit_type(texts, argv, ns_prefix, &mut ctx.result);
+                true
+            }
+            DefinerFamily::Itcl => {
+                handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
+                true
+            }
+        };
     }
+    if spec.traits.contains(Traits::DEFINES_PROCEDURE) {
+        handlers::handle_proc(texts, argv, ns_prefix, ctx);
+        return true;
+    }
+    false
 }
 
 /// Record `cmd`'s [`tcl_registry::arg_role::ArgRole::CommandPrefix`] callback
@@ -515,9 +522,19 @@ fn scan_factory_structural(
 mod tests {
     use super::*;
 
+    /// A scan context wired to the shared default registry — definer
+    /// dispatch (class definers, `proc`) is registry-driven, so walker
+    /// tests carry one, matching the production `extract_signatures` path.
+    fn registry_ctx() -> ScanCtx<'static> {
+        ScanCtx {
+            registry: Some(tcl_registry::registry_for_dialect("")),
+            ..ScanCtx::default()
+        }
+    }
+
     #[test]
     fn top_level_proc_emits_invocation_and_record() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "proc foo {} { set x 1 }",
             None,
@@ -541,7 +558,7 @@ mod tests {
 
     #[test]
     fn multiple_handlers_dispatch_correctly() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "package require Tcl 8.6\nsource /abs/path.tcl\nproc bar {} {}",
             None,
@@ -560,7 +577,7 @@ mod tests {
 
     #[test]
     fn namespace_eval_recurses_into_body() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "namespace eval ns { proc inner {} {} }",
             None,
@@ -574,7 +591,7 @@ mod tests {
 
     #[test]
     fn namespace_eval_absolute_rebases_prefix() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "namespace eval outer { namespace eval ::abs { proc foo {} {} } }",
             None,
@@ -589,7 +606,7 @@ mod tests {
 
     #[test]
     fn handle_if_then_else_recurses_both_branches() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "if {$x} { proc thenproc {} {} } else { proc elseproc {} {} }",
             None,
@@ -604,7 +621,7 @@ mod tests {
 
     #[test]
     fn handle_if_elseif_chain_recurses_each_body() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "if {$x} { proc a {} {} } elseif {$y} { proc b {} {} } elseif {$z} { proc c {} {} } else { proc d {} {} }",
             None,
@@ -620,7 +637,7 @@ mod tests {
 
     #[test]
     fn handle_if_explicit_then_keyword() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "if {$x} then { proc thenproc {} {} }",
             None,
@@ -634,7 +651,7 @@ mod tests {
 
     #[test]
     fn handle_catch_braced_body() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "catch { proc inner {} {} } result",
             None,
@@ -648,7 +665,7 @@ mod tests {
 
     #[test]
     fn handle_catch_unbraced_body_skipped() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan("catch $script", None, "", false, &HashSet::new(), &mut ctx);
         // No procs since the body cannot be statically analysed.
         assert!(ctx.result.procs.is_empty());
@@ -656,7 +673,7 @@ mod tests {
 
     #[test]
     fn handle_try_with_finally() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "try { proc tryproc {} {} } finally { proc finallyproc {} {} }",
             None,
@@ -671,7 +688,7 @@ mod tests {
 
     #[test]
     fn handle_try_with_on_handler() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "try { proc tryproc {} {} } on error {res opts} { proc onproc {} {} }",
             None,
@@ -686,7 +703,7 @@ mod tests {
 
     #[test]
     fn handle_try_with_trap_handler() {
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan(
             "try { proc tryproc {} {} } trap {ARITH DIVZERO} {res opts} { proc trapproc {} {} }",
             None,
@@ -737,5 +754,120 @@ mod tests {
         let mut ctx = ScanCtx::default();
         scan_factory_candidates(&body, body_tok, "", &mut ctx);
         assert_eq!(ctx.candidates.len(), 2);
+    }
+
+    #[test]
+    fn class_definer_families_recognised_from_registry() {
+        // TP guard: every previously name-listed class definer still emits a
+        // class record via registry dispatch.
+        for (src, key) in [
+            ("oo::class create A {}", "::A"),
+            ("oo::configurable create B {}", "::B"),
+            ("oo::abstract create C {}", "::C"),
+            ("oo::singleton create D {}", "::D"),
+            ("snit::type E {}", "::E"),
+            ("snit::widget F {}", "::F"),
+            ("snit::widgetadaptor G {}", "::G"),
+            ("itcl::class H { variable x }", "::H"),
+        ] {
+            let mut ctx = registry_ctx();
+            scan(src, None, "", false, &HashSet::new(), &mut ctx);
+            assert!(
+                ctx.result.classes.contains_key(key),
+                "{src} should record class {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn qualified_definer_spellings_resolve_to_the_same_specs() {
+        // The former name list carried a `::`-doubled variant of every
+        // definer; the registry lookup's canonical leading-`::` fallback
+        // covers them instead.
+        for (src, key) in [
+            ("::oo::class create A {}", "::A"),
+            ("::oo::configurable create B {}", "::B"),
+            ("::oo::abstract create C {}", "::C"),
+            ("::oo::singleton create D {}", "::D"),
+            ("::snit::type E {}", "::E"),
+            ("::snit::widget F {}", "::F"),
+            ("::snit::widgetadaptor G {}", "::G"),
+            ("::itcl::class H { variable x }", "::H"),
+        ] {
+            let mut ctx = registry_ctx();
+            scan(src, None, "", false, &HashSet::new(), &mut ctx);
+            assert!(
+                ctx.result.classes.contains_key(key),
+                "{src} should record class {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn qualified_proc_spelling_recognised() {
+        // `::proc` names the same global command as `proc`; canonical
+        // registry resolution recognises it where the former name list
+        // did not.
+        let mut ctx = registry_ctx();
+        scan(
+            "::proc foo {} {}",
+            None,
+            "",
+            false,
+            &HashSet::new(),
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn braced_body_non_definer_not_treated_as_definer() {
+        // FP guard: a non-definer command with a braced trailing body must
+        // record neither a class nor a proc.
+        let mut ctx = registry_ctx();
+        scan(
+            "dict for {k v} $d { puts $k }",
+            None,
+            "",
+            false,
+            &HashSet::new(),
+            &mut ctx,
+        );
+        assert!(ctx.result.classes.is_empty());
+        assert!(ctx.result.procs.is_empty());
+    }
+
+    #[test]
+    fn oo_define_extension_not_a_class_definer() {
+        // FP guard: `oo::define` shares the TclOO definition-body grammar
+        // but extends an existing class — the metaclass-trait gate must
+        // keep it from minting a class named after its target.
+        let mut ctx = registry_ctx();
+        scan(
+            "oo::define Shape { method area {} {} }",
+            None,
+            "",
+            false,
+            &HashSet::new(),
+            &mut ctx,
+        );
+        assert!(ctx.result.classes.is_empty());
+    }
+
+    #[test]
+    fn oo_object_instance_creation_not_a_class_definer() {
+        // FP guard: `oo::object` carries the metaclass trait but no
+        // definition body — `oo::object create obj` makes an instance, not
+        // a class.
+        let mut ctx = registry_ctx();
+        scan(
+            "oo::object create obj",
+            None,
+            "",
+            false,
+            &HashSet::new(),
+            &mut ctx,
+        );
+        assert!(ctx.result.classes.is_empty());
     }
 }

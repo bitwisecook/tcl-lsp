@@ -1662,11 +1662,23 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: Option<&crate::ir::Procedure>,
     ) {
+        // The fold consults the registry's scope-alias roles to skip
+        // out-of-frame-linked locals; a registry-less analyser (focused unit
+        // tests) abstains from the whole fold rather than folding unsoundly.
+        if self.registry.is_none() {
+            return;
+        }
         let params: HashSet<&str> = match ir_proc {
             Some(p) => p.params.iter().map(String::as_str).collect(),
             None => HashSet::new(),
         };
-        for cb in crate::sccp::existence_constant_branches(&fu.cfg, &params) {
+        let branches = {
+            // Scoped borrow: `self.registry` must release before the
+            // `&mut self` diagnostic pushes below.
+            let registry = self.registry.as_ref().expect("checked above");
+            crate::sccp::existence_constant_branches(&fu.cfg, &params, registry)
+        };
+        for cb in branches {
             let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
                 continue;
             };
