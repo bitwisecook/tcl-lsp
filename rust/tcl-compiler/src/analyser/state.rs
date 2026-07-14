@@ -1288,6 +1288,11 @@ impl Analyser {
     /// ordering stay identical across every entry point.
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
         use tcl_registry::CommandRegistry;
+        // Settle every invocation's `resolved_qualified_name` with Tcl's
+        // existence-checked two-step rule now that the walk has recorded
+        // every definition in the file (a local candidate defined later in
+        // the file still wins; an absent one falls back to global).
+        self.finalise_invocation_resolutions();
         let mut diag_registry = CommandRegistry::build_default();
         if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
             diag_registry.load_dialect(d);

@@ -246,6 +246,61 @@ fn references_namespaced_proc_matches_qualified_and_short_calls() {
 }
 
 #[test]
+fn references_relative_qualified_call_falls_back_to_global_target() {
+    // tclsh8.6 (verified, PR #924 review): `inner::p` called inside `outer`
+    // dispatches the *global* `::inner::p` when `::outer::inner::p` does not
+    // exist — Tcl's two-step rule commits to the local candidate only when
+    // that command exists.  References on `::inner::p`'s declaration must
+    // therefore include the relative call site inside `outer`.
+    let src = concat!(
+        "namespace eval ::inner {}\n",
+        "proc ::inner::p {} { return GLOBAL }\n",
+        "namespace eval outer { proc caller {} { inner::p } }\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on the `::inner::p` declaration (line 1).
+    let refs = references(src, "tcl", 1, 13, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "declaration missing: {refs:?}");
+    assert!(
+        lines.contains(&2),
+        "relative `inner::p` call inside `outer` must fall back to the \
+         global proc: {refs:?}",
+    );
+}
+
+#[test]
+fn references_relative_qualified_call_prefers_existing_local_over_global() {
+    // tclsh8.6 (verified): with BOTH `::outer::inner::p` and `::inner::p`
+    // defined, the relative call inside `outer` dispatches the local one —
+    // even though the local proc is defined *after* the caller (proc bodies
+    // resolve at call time).  The call site must be attributed to the local
+    // proc and NOT to the global one.
+    let src = concat!(
+        "namespace eval ::inner {}\n",
+        "proc ::inner::p {} { return GLOBAL }\n",
+        "namespace eval outer { proc caller {} { inner::p } }\n",
+        "namespace eval outer { namespace eval inner {} ; proc inner::p {} { return LOCAL } }\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on the *global* `::inner::p` declaration (line 1): the call in
+    // `outer` belongs to the local proc, so it must not appear here.
+    let global_refs = references(src, "tcl", 1, 13, &analysis, true);
+    let global_lines = ref_lines(&global_refs);
+    assert!(
+        !global_lines.contains(&2),
+        "call inside `outer` resolves to the local proc, not the global: {global_refs:?}",
+    );
+    // Cursor on the *local* `::outer::inner::p` declaration (line 3).
+    let local_refs = references(src, "tcl", 3, 55, &analysis, true);
+    let local_lines = ref_lines(&local_refs);
+    assert!(
+        local_lines.contains(&2),
+        "call inside `outer` must be attributed to the local proc: {local_refs:?}",
+    );
+}
+
+#[test]
 fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
     // tclsh: `::a::helper` -> "a" and `::b::helper` -> "b" are two distinct
     // procs. References to `::a::helper` must include its decl and its own

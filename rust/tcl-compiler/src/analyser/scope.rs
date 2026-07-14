@@ -279,7 +279,12 @@ impl Analyser {
     /// / document-highlight / rename providers.  The value is
     /// not authoritative for runtime dispatch — it's a
     /// candidate that lets call-site → declaration matching
-    /// resolve relative call shapes.
+    /// resolve relative call shapes.  During the walk this is the
+    /// *local-first* candidate; once the whole file is walked,
+    /// [`Self::finalise_invocation_resolutions`] applies Tcl's
+    /// existence check and demotes the guess to the global
+    /// candidate when the local one names nothing the file (or the
+    /// registry) defines.
     #[must_use]
     pub fn resolve_command_qualified_name(&self, cmd_name: &str, scope_path: &[usize]) -> String {
         let ns = self.command_resolution_namespace(scope_path);
@@ -287,6 +292,67 @@ impl Analyser {
             .into_iter()
             .next()
             .unwrap_or_else(|| format!("::{cmd_name}"))
+    }
+
+    /// Post-walk pass: settle each invocation's `resolved_qualified_name`
+    /// with Tcl's real two-step existence rule.
+    ///
+    /// The walk stores the *local-first* candidate (`::ns::inner::p` for an
+    /// `inner::p` call inside `::ns`), but Tcl only dispatches there when
+    /// that command **exists** — otherwise it falls back to the global
+    /// candidate (`::inner::p`).  Existence can't be tested mid-walk: a proc
+    /// body's calls resolve at call time, so a local candidate defined
+    /// *later in the file* still wins (confirmed against tclsh 8.6).  This
+    /// runs after the walk, when `all_procs` / `all_classes` /
+    /// `command_aliases` / `renamed_commands` are complete, and demotes the
+    /// guess to the global candidate when the local one names nothing known
+    /// — a user definition or a registry builtin (`puts` inside a namespace
+    /// resolves to `::puts`, not `::ns::puts`).
+    ///
+    /// When *neither* candidate is known (a cross-file proc), the
+    /// local-first guess is kept: same-file consumers
+    /// (`graphs`, `minify`) find no same-file definition either way, and
+    /// the cross-file reference matchers treat the field as a candidate,
+    /// not ground truth.
+    pub(super) fn finalise_invocation_resolutions(&mut self) {
+        // Populate the per-dialect builtin-name cache before splitting field
+        // borrows below (`builtin_command_names` needs `&mut self`).
+        let _ = self.builtin_command_names();
+        let Some(builtins) = self.builtin_names.as_ref() else {
+            return;
+        };
+        let result = &mut self.result;
+        let (procs, classes, aliases, renames) = (
+            &result.all_procs,
+            &result.all_classes,
+            &result.command_aliases,
+            &result.renamed_commands,
+        );
+        let known = |qualified: &str| {
+            procs.contains_key(qualified)
+                || classes.contains_key(qualified)
+                || aliases.contains_key(qualified)
+                || renames.contains_key(qualified)
+                || builtins.contains(qualified.trim_start_matches(':'))
+        };
+        for inv in &mut result.command_invocations {
+            // Absolute names are exact; `None` means a background scan that
+            // skipped the scope walk — nothing to settle either way.
+            if inv.name.starts_with("::") {
+                continue;
+            }
+            let Some(resolved) = inv.resolved_qualified_name.as_deref() else {
+                continue;
+            };
+            // Mirrors `bareword_resolution_candidates`' global candidate.
+            let global = format!("::{}", inv.name);
+            if resolved == global || known(resolved) {
+                continue;
+            }
+            if known(&global) {
+                inv.resolved_qualified_name = Some(global);
+            }
+        }
     }
 
     /// Record a constant string assignment for `var_name` in the
@@ -997,6 +1063,97 @@ mod tests {
             .iter()
             .map(|d| d.code.to_string())
             .collect()
+    }
+
+    // finalise_invocation_resolutions — Tcl's existence-checked two-step
+    // resolution rule, applied post-walk.  Every case below is pinned
+    // against tclsh 8.6 (PR #924 review): the local-first candidate wins
+    // only when that command exists by the end of the file; otherwise the
+    // call falls back to the global candidate.
+
+    /// The `resolved_qualified_name` recorded for the invocation whose raw
+    /// call text is `name`.
+    fn resolved_for(source: &str, name: &str) -> Option<String> {
+        let mut a = Analyser::new();
+        let analysis = a.analyse(source, "tcl8.6");
+        analysis
+            .command_invocations
+            .iter()
+            .find(|inv| inv.name == name)
+            .unwrap_or_else(|| panic!("no `{name}` invocation recorded"))
+            .resolved_qualified_name
+            .clone()
+    }
+
+    #[test]
+    fn relative_qualified_call_falls_back_to_global_when_local_absent() {
+        // tclsh8.6: `inner::p` inside `outer` dispatches ::inner::p when
+        // ::outer::inner::p does not exist.
+        let src = "namespace eval ::inner {}\nproc ::inner::p {} {}\nnamespace eval outer { proc caller {} { inner::p } }\n";
+        assert_eq!(resolved_for(src, "inner::p").as_deref(), Some("::inner::p"));
+    }
+
+    #[test]
+    fn relative_qualified_call_prefers_local_defined_later_in_file() {
+        // tclsh8.6: a proc body's calls resolve at call time, so the local
+        // candidate wins even when its `proc` runs after the caller was
+        // defined — the walk order must not leak into the resolution.
+        let src = concat!(
+            "namespace eval ::inner {}\n",
+            "proc ::inner::p {} {}\n",
+            "namespace eval outer { proc caller {} { inner::p } }\n",
+            "namespace eval outer { namespace eval inner {} ; proc inner::p {} {} }\n",
+        );
+        assert_eq!(
+            resolved_for(src, "inner::p").as_deref(),
+            Some("::outer::inner::p")
+        );
+    }
+
+    #[test]
+    fn bare_call_falls_back_to_global_when_local_absent() {
+        let src = "proc ::g {} {}\nnamespace eval ns2 { proc caller {} { g } }\n";
+        assert_eq!(resolved_for(src, "g").as_deref(), Some("::g"));
+    }
+
+    #[test]
+    fn bare_call_prefers_local_defined_later_in_file() {
+        let src = concat!(
+            "proc ::g {} {}\n",
+            "namespace eval ns2 { proc caller {} { g } }\n",
+            "namespace eval ns2 { proc g {} {} }\n",
+        );
+        assert_eq!(resolved_for(src, "g").as_deref(), Some("::ns2::g"));
+    }
+
+    #[test]
+    fn builtin_call_inside_namespace_resolves_global() {
+        // tclsh8.6: `puts` inside a namespace is the global builtin — the
+        // local-first guess `::ns3::puts` names nothing, so the settled
+        // resolution is `::puts` (as it was before the scope-aware walk).
+        let src = "namespace eval ns3 { proc caller {} { puts hi } }\n";
+        assert_eq!(resolved_for(src, "puts").as_deref(), Some("::puts"));
+    }
+
+    #[test]
+    fn builtin_shadowed_by_local_proc_stays_local() {
+        // tclsh8.6: a namespace-local `puts` shadows the builtin for
+        // unqualified calls from inside that namespace.
+        let src = "namespace eval ns3 { proc puts {msg} {} ; proc caller {} { puts hi } }\n";
+        assert_eq!(resolved_for(src, "puts").as_deref(), Some("::ns3::puts"));
+    }
+
+    #[test]
+    fn unknown_in_both_namespaces_keeps_local_first_guess() {
+        // Neither ::ns4::mystery::call nor ::mystery::call is defined in
+        // this file (a cross-file proc, or a typo W123 reports) — keep the
+        // local-first candidate so cross-file consumers still see the
+        // Tcl-priority guess.
+        let src = "namespace eval ns4 { proc caller {} { mystery::call } }\n";
+        assert_eq!(
+            resolved_for(src, "mystery::call").as_deref(),
+            Some("::ns4::mystery::call")
+        );
     }
 
     #[test]
