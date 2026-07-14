@@ -339,6 +339,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
 }

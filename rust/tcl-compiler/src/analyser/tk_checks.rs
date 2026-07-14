@@ -66,48 +66,6 @@ pub(super) struct TkGeometryUsage {
     pub sites: Vec<(String, tcl_lexer::Span)>,
 }
 
-/// Tk widget-creation commands (`button`, `label`, … and their `ttk::`
-/// forms).
-const WIDGET_COMMANDS: &[&str] = &[
-    "button",
-    "label",
-    "entry",
-    "text",
-    "frame",
-    "canvas",
-    "listbox",
-    "scrollbar",
-    "menu",
-    "menubutton",
-    "toplevel",
-    "message",
-    "scale",
-    "spinbox",
-    "checkbutton",
-    "radiobutton",
-    "labelframe",
-    "panedwindow",
-    "destroy",
-    "ttk::button",
-    "ttk::label",
-    "ttk::entry",
-    "ttk::frame",
-    "ttk::checkbutton",
-    "ttk::radiobutton",
-    "ttk::scrollbar",
-    "ttk::spinbox",
-    "ttk::scale",
-    "ttk::panedwindow",
-    "ttk::notebook",
-    "ttk::treeview",
-    "ttk::combobox",
-    "ttk::progressbar",
-    "ttk::separator",
-    "ttk::labelframe",
-    "ttk::menubutton",
-    "ttk::sizegrip",
-];
-
 /// Tk geometry-manager commands.
 const GEOMETRY_COMMANDS: &[&str] = &["pack", "grid", "place"];
 
@@ -121,11 +79,6 @@ const GEOMETRY_COMMANDS: &[&str] = &["pack", "grid", "place"];
 pub(super) fn tk_possibly_active(source: &str, dialect: &str) -> bool {
     dialect == "tk"
         || (source.contains("package") && source.contains("require") && source.contains("Tk"))
-}
-
-/// Return `true` if `name` is a Tk widget-creation command.
-fn is_widget_command(name: &str) -> bool {
-    WIDGET_COMMANDS.contains(&name)
 }
 
 /// Return `true` if `name` is a Tk geometry-manager command.
@@ -169,6 +122,22 @@ fn parent_widget_path(widget_path: &str) -> &str {
 }
 
 impl Analyser {
+    /// Return `true` if `name` is a Tk widget-creation command — driven by
+    /// the registry (`creates_instance_at` + `required_package == "Tk"`),
+    /// not a hand-maintained name list: the previous hardcoded
+    /// `WIDGET_COMMANDS` had already drifted from the registry (it named
+    /// `ttk::scrollbar` / `ttk::labelframe`, neither of which has ever had a
+    /// registered spec on this branch), which is exactly the class of bug a
+    /// second source of truth invites (issue #927;
+    /// `docs/design/tk-widget-instance-typing.md`).
+    fn is_widget_command(&self, name: &str) -> bool {
+        self.registry.as_ref().is_some_and(|r| {
+            r.get(name).is_some_and(|s| {
+                s.creates_instance_at.is_some() && s.required_package == Some("Tk")
+            })
+        })
+    }
+
     /// Per-command Tk dispatch.  Tracks widget creation and geometry-manager
     /// usage, *buffering* TK1002 / TK1003 (and recording geometry usage for
     /// the post-walk TK1001 flush) rather than emitting inline — the
@@ -186,7 +155,7 @@ impl Analyser {
             return;
         }
 
-        if is_widget_command(cmd_name)
+        if self.is_widget_command(cmd_name)
             && let Some(path) = args.first()
             && is_widget_path(path)
         {
@@ -408,6 +377,30 @@ mod tests {
         // must still get the checks.
         let src = "package require Tk\nframe .outer.inner";
         assert!(has(src, "tcl8.6", "TK1002"));
+    }
+
+    /// Registry-driven `is_widget_command` (issue #927) must cover every
+    /// registered widget constructor, not just the handful the old
+    /// hardcoded list happened to name — proven here with a `ttk::`
+    /// constructor the old list also named, and a plain-Tk one it did too,
+    /// so this is a coverage check on the *mechanism*, not just a
+    /// re-assertion of the same case `tk1002_fires_for_missing_parent` uses.
+    #[test]
+    fn tk1002_fires_for_ttk_and_listbox_constructors() {
+        assert!(has("ttk::treeview .outer.inner", "tk", "TK1002"));
+        assert!(has("listbox .outer.inner", "tk", "TK1002"));
+    }
+
+    /// A command the registry does not recognise at all must never be
+    /// treated as a widget constructor — this is what made the old
+    /// hardcoded `WIDGET_COMMANDS` list's drift (`ttk::scrollbar` /
+    /// `ttk::labelframe`, neither ever a registered spec on this branch)
+    /// silently harmless rather than a live false-positive risk once new
+    /// checks start trusting `is_widget_command`; the registry-driven
+    /// version simply cannot drift the same way.
+    #[test]
+    fn unknown_command_is_never_treated_as_a_widget_constructor() {
+        assert!(!has("totallyMadeUpCommand .outer.inner", "tk", "TK1002"));
     }
 
     #[test]

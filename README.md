@@ -277,6 +277,14 @@ pair on an unknown command head is highlighted by shape, while negative
 numbers (`-5`), special floats (`-inf`), substitutions (`-$var`), and the `--`
 end-of-options marker are handled per Tcl's conventions.
 
+A Tk/ttk widget's own *instance* command resolves the same way, keyed on the
+widget path rather than an object handle: `ttk::treeview .t` then
+`.t instate {selected} { … }` / `.t tag configure hidden -foreground grey`,
+or `set lb [listbox .l]; $lb curselection`, get precise subcommand, option,
+and arg-value highlighting, hover, and completion, plus unknown-subcommand
+(`W001`) and arity (`E002`/`E003`) diagnostics — for both the bareword form
+and a variable holding the constructor's return value.
+
 ### Diagnostics
 
 Arity errors, unknown subcommands, best-practice violations, and security

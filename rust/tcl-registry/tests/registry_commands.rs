@@ -1470,6 +1470,118 @@ fn report_report_object_class_is_modelled() {
     assert!(jvals.contains(&"center"), "justify values: {jvals:?}");
 }
 
+/// Every Tk/ttk widget constructor names the widget path it creates at
+/// arg 0, so a later `.w <subcommand> …` / `$w <subcommand> …` dispatch can
+/// resolve back to this same spec (issue #927:
+/// `docs/design/tk-widget-instance-typing.md`).
+#[test]
+fn tk_widget_constructors_declare_creates_instance_at() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    let widgets = [
+        // Classic widgets.
+        "button",
+        "canvas",
+        "checkbutton",
+        "entry",
+        "frame",
+        "label",
+        "labelframe",
+        "listbox",
+        "menu",
+        "menubutton",
+        "message",
+        "panedwindow",
+        "radiobutton",
+        "scale",
+        "scrollbar",
+        "spinbox",
+        "text",
+        "toplevel",
+        // Raw ttk widgets.
+        "ttk::button",
+        "ttk::combobox",
+        "ttk::entry",
+        "ttk::frame",
+        "ttk::label",
+        "ttk::notebook",
+        "ttk::progressbar",
+        "ttk::scale",
+        "ttk::separator",
+        "ttk::sizegrip",
+        "ttk::treeview",
+        // ttk_extra widgets.
+        "ttk::checkbutton",
+        "ttk::menubutton",
+        "ttk::panedwindow",
+        "ttk::radiobutton",
+        "ttk::spinbox",
+    ];
+    for name in widgets {
+        let spec = reg
+            .get_for_dialect(name, ds)
+            .unwrap_or_else(|| panic!("{name} registered"));
+        assert_eq!(
+            spec.creates_instance_at,
+            Some(0),
+            "{name} names its widget path at arg 0"
+        );
+    }
+}
+
+/// Widgets with a non-empty `subcommands` table bind a self-referential
+/// `object_class` — the created widget's instance command dispatches
+/// through the *same* `SubCommand` slice as the constructor's own
+/// `subcommands`, so `registry.instance_method` resolves real widget
+/// subcommands with no separate hand-maintained method table (and no
+/// drift between the two — a drift guard, since `instance_methods` and
+/// `subcommands` are asserted to be the literal same slice).
+#[test]
+fn tk_widgets_with_subcommands_self_reference_their_object_class() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    // (widget name, a subcommand it declares, an unrelated widget's
+    // subcommand it must NOT accept).
+    let cases = [
+        ("ttk::treeview", "instate", "curselection"),
+        ("ttk::notebook", "instate", "curselection"),
+        ("listbox", "curselection", "instate"),
+        ("text", "tag", "curselection"),
+        ("canvas", "bind", "curselection"),
+        ("entry", "icursor", "curselection"),
+        ("menu", "add", "curselection"),
+        ("panedwindow", "add", "curselection"),
+        ("spinbox", "icursor", "curselection"),
+    ];
+    for (name, own_sub, foreign_sub) in cases {
+        let spec = reg
+            .get_for_dialect(name, ds)
+            .unwrap_or_else(|| panic!("{name} registered"));
+        assert!(
+            !spec.subcommands.is_empty(),
+            "{name} expected to have a non-empty subcommand table"
+        );
+        let class = spec
+            .object_class
+            .unwrap_or_else(|| panic!("{name} has a self-referential object class"));
+        assert_eq!(
+            class.class_name, name,
+            "{name}'s object class is self-referential"
+        );
+        assert!(
+            std::ptr::eq(class.instance_methods, spec.subcommands),
+            "{name}'s instance_methods must be the literal same slice as its \
+             own subcommands — any other pairing risks the two drifting apart"
+        );
+        assert!(
+            reg.instance_method(name, own_sub).is_some(),
+            "{name} instance dispatch resolves its own subcommand `{own_sub}`"
+        );
+        assert!(
+            reg.instance_method(name, foreign_sub).is_none(),
+            "{name} instance dispatch must not accept `{foreign_sub}` from an unrelated widget"
+        );
+    }
+}
+
 /// Every `::report::*` command has a dedicated, hover-bearing spec.
 #[test]
 fn report_namespace_commands_have_specs() {

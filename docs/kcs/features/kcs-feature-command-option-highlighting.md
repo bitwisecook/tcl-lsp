@@ -92,11 +92,25 @@ There are two layers, most-precise first:
    known snit-family class whose first argument is not a `typemethod` (so a
    `set x [Type info …]` type-command call is not mistaken for a construction).
 
+   **A Tk/ttk widget's own instance command** (`.t instate …`, `$w tag
+   configure …`, `$listbox curselection`) resolves the same way, keyed on
+   the *path* rather than a `TclOO`/tcllib object identity: a widget
+   constructor (`ttk::treeview .t`, `listbox .l`) is registry data
+   (`CommandSpec::creates_instance_at` + a self-referential `object_class`
+   whose `instance_methods` is the literal same slice as the constructor's
+   own `subcommands` — no separate hand-maintained method table), so both
+   the bareword form (`.t instate …`, reusing the literal path text) and the
+   `$var`-captured return-value form (`set lb [listbox .l]; $lb
+   curselection`) resolve their subcommands, options, and arg values
+   precisely, the same as any other object method (issue #927).
+
    **Not resolved (correctly abstains, never mis-highlights):** a bareword
-   named-object dispatch (`Foo create obj; obj method`, where the *object command*
-   itself is the head), `$hull` (usually a Tk widget, not a user class), and Tk
-   widget-path dispatch — their method word stays a plain string rather than a
-   guessed callable. The receiver's class is found from a handle typed by
+   named-object dispatch onto a *user*-defined `TclOO` class (`Foo create
+   obj; obj method`, where the *object command* itself is the head — the
+   registry-modelled shape above, including Tk widgets, does resolve; a
+   user class does not), and `$hull` (a Tk widget reference snit's own
+   `installhull` populates internally, not a literal constructor call this
+   feature's provenance scan can see). The receiver's class is found from a handle typed by
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue
@@ -149,6 +163,20 @@ still highlighted by the object-method / generic passes above.
 - `rust/tcl-compiler/src/object_types.rs` — object-handle → class provenance
 - `rust/tcl-registry/src/spec.rs` — `ObjectClassSpec`
 - `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — the ticklecharts pack
+- `rust/tcl-registry/src/commands/tk/*.rs` — every widget-constructor
+  `CommandSpec` sets `creates_instance_at`; the 9 with a real subcommand
+  table (`ttk__treeview.rs`, `ttk__notebook.rs`, `listbox.rs`, `text.rs`,
+  `canvas.rs`, `entry.rs`, `menu.rs`, `panedwindow.rs`, `spinbox.rs`)
+  additionally set a self-referential `object_class`
+- `rust/tcl-compiler/src/analyser/commands.rs` — `record_registry_factory_instance`
+  (registry-driven `instance_classes`/`created_instance_commands` binding,
+  covers both Tk widgets and tcllib factories), `bind_registry_instance_class`
+  (collision-safe insertion)
+- `rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs` — the
+  widget-instance W001/E002/E003 diagnostic (`docs/design/tk-widget-instance-typing.md`)
+- `rust/tcl-lsp-core/src/hover.rs` — `obj_method_hover_text`'s registry fallback
+- `rust/tcl-lsp-core/src/completion.rs` — `method_completions`,
+  `registry_method_completions`
 
 ## Failure modes
 
@@ -157,15 +185,23 @@ still highlighted by the object-method / generic passes above.
 - snit/itcl **`$self` / `$this` self-calls**, **named-constructor** objects
   (`set o [foo create x]`), **installed components** (`install ax using Ax`), and
   **bare-constructor components** (`set c [Type inst]`) all resolve, but `$hull`
-  (usually a Tk widget) and a **bareword named-object** command (`Foo create
-  obj; obj method`) are not yet provenance-tracked — they use the generic
-  fallback (`experiments/tcloo_diag/RESULTS.md`).
+  (a Tk widget snit's own `installhull` sets internally) and a **bareword
+  named-object** command onto a *user*-defined class (`Foo create obj; obj
+  method`) are not yet provenance-tracked — they use the generic fallback
+  (`experiments/tcloo_diag/RESULTS.md`).
 - A receiver whose class is only bound in *another file* (a cross-file instance
   variable, global, or parameter) is not tracked: object provenance is computed
   per file, so only the workspace class *hierarchy* crosses files today, not the
-  handle/collection provenance maps.
-- A Tk **widget-path** dispatch (`$win.c configure …`) is not an object handle
-  and is highlighted by shape only.
+  handle/collection provenance maps. This applies to Tk widget paths too.
+- A Tk widget path built dynamically rather than passed through a literal
+  constructor call — `set w .t; ttk::treeview $w; $w instate …` (the path
+  lives in a variable *before* the constructor runs, rather than being
+  captured from it) — is not tracked: the provenance scan looks for a
+  literal `widgetCmd .path` constructor statement or a `set var [widgetCmd
+  .path]` return-value capture, not an arbitrary string later fed into a
+  constructor call. Renaming a widget's instance command (`rename .t
+  .oldT`) also breaks the association, since it is keyed on the name
+  observed at creation time.
 - A negative-number argument that a command genuinely treats as a value is
   correctly *not* highlighted as an option — by design.
 
@@ -191,11 +227,30 @@ still highlighted by the object-method / generic passes above.
 - `rust/tcl-compiler/src/lowering/mod.rs` — `lowers_oo_configurable_class_body`
 - `rust/tcl-compiler/src/type_infer.rs` — `dict_of_objects_retrieval_types_element`,
   `list_of_objects_lindex_types_element`, `heterogeneous_object_collection_drops_element_class`
-- `rust/tcl-compiler/src/object_types.rs` — `scalar_handle_from_constructor`
+- `rust/tcl-compiler/src/object_types.rs` — `scalar_handle_from_constructor`,
+  `bareword_widget_path_is_a_handle`, `var_captured_widget_path_is_a_handle`
 - `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — `chart_factory_and_methods_resolve`
+- `rust/tcl-registry/tests/registry_commands.rs` —
+  `tk_widget_constructors_declare_creates_instance_at`,
+  `tk_widgets_with_subcommands_self_reference_their_object_class`
+- `rust/tcl-compiler/src/analyser/commands.rs` —
+  `bareword_widget_constructor_binds_instance_class`,
+  `var_captured_widget_constructor_binds_instance_class`,
+  `simple_widget_without_subcommands_still_binds_instance_class`
+- `rust/tcl-lsp-core/src/hover.rs` — `obj_method_hover_fires_for_bareword_widget`,
+  `obj_method_hover_fires_for_var_captured_widget`
+- `rust/tcl-lsp-core/src/completion.rs` — `widget_bareword_completion_offers_subcommands`,
+  `widget_var_captured_completion_offers_subcommands`,
+  `bareword_completion_does_not_leak_unrelated_variable_class`
+- `rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs` — 11 tests
+  covering W001/E002/E003 firing and abstention, including
+  `abstains_when_receiver_is_ambiguous_across_procs` and
+  `resolves_when_widget_created_after_the_proc_that_uses_it_is_defined`
 
 ## Discoverability
 
 - [KCS feature index](README.md)
 - [Command registry](../../../docs/design/compiler/command-registry.md)
 - [Semantic tokens](kcs-feature-semantic-tokens.md)
+- [TclOO object-type tracking — design](../../design/tcloo-object-typing.md)
+- [Tk widget instance-command typing — design](../../design/tk-widget-instance-typing.md)

@@ -111,6 +111,7 @@ mod usage;
 mod validity;
 mod var_command;
 pub(in crate::analyser) mod version_gate;
+pub(in crate::analyser) mod widget_command;
 
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.

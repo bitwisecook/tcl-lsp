@@ -108,6 +108,7 @@ fn checkbutton() -> CommandSpec {
         warn_missing_import: false,
         options: CHECKBUTTON_OPTS,
         side_effects: SIDE_EFFECTS,
+        creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
 }
@@ -176,6 +177,7 @@ fn menubutton() -> CommandSpec {
         warn_missing_import: false,
         options: MENUBUTTON_OPTS,
         side_effects: SIDE_EFFECTS,
+        creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
 }
@@ -256,6 +258,7 @@ fn panedwindow() -> CommandSpec {
         warn_missing_import: false,
         options: PANEDWINDOW_OPTS,
         side_effects: SIDE_EFFECTS,
+        creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
 }
@@ -330,6 +333,7 @@ fn radiobutton() -> CommandSpec {
         warn_missing_import: false,
         options: RADIOBUTTON_OPTS,
         side_effects: SIDE_EFFECTS,
+        creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
 }
@@ -428,6 +432,7 @@ fn spinbox() -> CommandSpec {
         warn_missing_import: false,
         options: SPINBOX_OPTS,
         side_effects: SIDE_EFFECTS,
+        creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
 }

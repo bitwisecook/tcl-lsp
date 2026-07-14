@@ -426,6 +426,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "menu pathName ?option value ...?",
 }];
 
+/// `menu`'s instance command dispatches through the same subcommand
+/// table as its own constructor spec (see
+/// `docs/design/tk-widget-instance-typing.md`).
+static MENU_CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "menu",
+    instance_methods: SUBCOMMANDS,
+    superclasses: &[],
+    allow_unknown_methods: false,
+};
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "menu",
@@ -445,6 +455,8 @@ pub fn spec() -> CommandSpec {
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
+        object_class: Some(&MENU_CLASS),
+        creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
 }
