@@ -2339,13 +2339,18 @@ fn ordering_compare_on_strings_has_no_s100() {
 }
 
 #[test]
-fn ordering_compare_string_vs_numeric_literal_fires_s100() {
-    // TP control: `$s <= 5` forces the numeric path, coercing the String
-    // operand to int — a genuine shimmer, so S100 fires.
+fn ordering_compare_string_vs_numeric_literal_stays_silent() {
+    // FP guard: a numeric literal on one side does NOT force the other
+    // operand onto the numeric path — C Tcl probes each operand's OWN value
+    // (`GetNumberFromObj` per operand), and "hello" cannot parse, so the
+    // comparison string-compares and `s` keeps its `string` intrep
+    // (tclsh-verified; see FP-SH-20's addendum). The old "TP control"
+    // asserting S100 here locked in a refuted claim.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "set s [string trim hello]\nexpr {$s <= 5}\n");
-    assert!(has_code(&diags, "S100"), "expected S100: {diags:?}");
+    assert!(!has_code(&diags, "S100"), "unexpected S100: {diags:?}");
+    assert!(!has_code(&diags, "S101"), "unexpected S101: {diags:?}");
 }
 
 #[test]
