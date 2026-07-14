@@ -480,19 +480,50 @@ Use braces: {{ \u{2026} }}"
             if tok.kind == tcl_lexer::TokenType::Esc && slice.contains('\n') {
                 continue;
             }
+            // Comment regions of a braced script argument (any brace depth).
+            // Comments are prose: outside strict mode only the invisible /
+            // direction-altering trojan-source set can mislead review there,
+            // so an em-dash or smart quote in a comment is not a finding.
+            // Strict mode (ASCII-only F5 platforms) keeps flagging comment
+            // bytes too — the platform constraint applies to the whole file.
+            let comments = if tok.kind == tcl_lexer::TokenType::Str && mode != NonAsciiMode::Strict
+            {
+                // The token slice starts at the opening `{` (and stops short
+                // of the closer), so lex the *content* past `content_offset`
+                // and shift the regions back into slice coordinates.
+                let coff = usize::from(tok.content_offset);
+                slice.get(coff..).map_or_else(Vec::new, |content| {
+                    comment_regions_recursive(content)
+                        .into_iter()
+                        .map(|r| r.start + coff..r.end + coff)
+                        .collect()
+                })
+            } else {
+                Vec::new()
+            };
             let mut flagged_here = false;
             for (rel, ch) in slice.char_indices() {
                 if is_standard_ascii(ch) {
                     continue;
                 }
+                if comments.iter().any(|r| r.contains(&rel)) && !is_review_hazard_unicode(ch) {
+                    continue;
+                }
                 let fix = auto_fix_for(ch).or_else(|| confusable_to_ascii(ch));
                 let is_confusable = fix.is_some();
                 // Mode-dependent filtering (strict flags everything):
-                //  * confusables — only confusables / auto-fix artifacts;
+                //  * confusables — confusables / auto-fix artifacts, plus
+                //    the invisible / direction-altering trojan-source set
+                //    (a bidi override is a review hazard wherever it sits,
+                //    table membership or not);
                 //  * common — those plus any non-benign character
                 //    (control / format / separator / unassigned / …).
                 match mode {
-                    NonAsciiMode::Confusables if !is_confusable => continue,
+                    NonAsciiMode::Confusables
+                        if !is_confusable && !is_review_hazard_unicode(ch) =>
+                    {
+                        continue;
+                    }
                     NonAsciiMode::Common if !is_confusable && is_benign_unicode(ch) => continue,
                     _ => {}
                 }
@@ -1167,6 +1198,58 @@ fn is_standard_ascii(ch: char) -> bool {
 /// W108 "common" mode benign-Unicode test. A character is
 /// *intentional* (not flagged) when its Unicode general category is a
 /// Letter, Number, Mark, Symbol, or Punctuation (any script). Control,
+/// True when `ch` is invisible or direction-altering — the trojan-source
+/// set that can make reviewed text lie about the code it sits next to:
+/// bidi embedding / override / isolate controls and other format
+/// characters (`Cf`), non-ASCII control characters (`Cc`), and the Unicode
+/// line / paragraph separators (`Zl` / `Zp`).  These stay flagged inside
+/// comments (where ordinary non-ASCII prose is fine) and bypass the
+/// confusables-table gate in code.
+pub(super) fn is_review_hazard_unicode(ch: char) -> bool {
+    use unicode_general_category::{GeneralCategory as G, get_general_category};
+    matches!(
+        get_general_category(ch),
+        G::Format | G::Control | G::LineSeparator | G::ParagraphSeparator
+    )
+}
+
+/// Byte ranges of `slice` (a braced script argument's content) covered by
+/// comments, at any brace depth: the comment tokens of the slice's own
+/// lex, plus — recursively — those of every nested braced word, offset
+/// into this slice's coordinates.  A slice that fails to lex contributes
+/// no regions (conservative: everything stays scanned).  A braced plain
+/// string whose content merely *looks* like a comment under-flags — the
+/// acceptable cost of not knowing which braced words are scripts.
+fn comment_regions_recursive(slice: &str) -> Vec<std::ops::Range<usize>> {
+    fn collect(slice: &str, base: usize, out: &mut Vec<std::ops::Range<usize>>) {
+        if !slice.contains('#') {
+            return;
+        }
+        let Ok(tokens) = tcl_lexer::Lexer::new(slice).tokenise_all() else {
+            return;
+        };
+        for tok in &tokens {
+            let start = tok.span.start() as usize;
+            let end = tok.span.end() as usize;
+            match tok.kind {
+                tcl_lexer::TokenType::Comment => out.push(base + start..base + end),
+                tcl_lexer::TokenType::Str => {
+                    // Recurse on the brace *content* — the token span covers
+                    // the opener, which would unbalance a nested lex.
+                    let coff = usize::from(tok.content_offset);
+                    if let Some(inner) = slice.get(start + coff..end) {
+                        collect(inner, base + start + coff, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    collect(slice, 0, &mut out);
+    out
+}
+
 /// format, separator, surrogate, private-use, and unassigned characters
 /// are *not* benign (they almost always indicate encoding/copy-paste
 /// issues) and are flagged.

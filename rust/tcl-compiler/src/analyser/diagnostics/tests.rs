@@ -229,6 +229,85 @@ fn is_benign_unicode_matches_reference() {
 }
 
 #[test]
+fn w108_comment_prose_is_not_flagged() {
+    // FP fix: an em-dash (or any prose non-ASCII) inside a *comment* is
+    // fine — comments are prose. Both a depth-1 body comment and a
+    // depth-2 nested-body comment stay silent in confusables mode.
+    assert!(
+        w108(
+            "proc f {} {\n    # note \u{2014} dash\n    set y 1\n    puts $y\n}\nf\n",
+            "tcl8.6"
+        )
+        .is_empty(),
+        "depth-1 body comment must not flag"
+    );
+    assert!(
+        w108(
+            "proc f {c} {\n    if {$c} {\n        # nested \u{2014} dash\n        puts a\n    }\n}\n",
+            "tcl8.6"
+        )
+        .is_empty(),
+        "depth-2 nested body comment must not flag"
+    );
+}
+
+#[test]
+fn w108_comment_bidi_control_still_flags() {
+    // TP: a bidi override in a comment is the trojan-source attack shape —
+    // it can make the comment (and what follows it) render as different
+    // code than what compiles. Always flagged.
+    let hits = w108(
+        "proc f {} {\n    # ok \u{202e}live\n    set y 1\n    puts $y\n}\nf\n",
+        "tcl8.6",
+    );
+    assert_eq!(
+        hits.len(),
+        1,
+        "bidi override in comment must flag: {hits:?}"
+    );
+    assert_eq!(hits[0].0, 0x202e);
+}
+
+#[test]
+fn w108_code_artifact_beside_comment_still_flags() {
+    // TP control: the comment carve-out must not swallow code findings —
+    // a smart quote in an actual argument still fires.
+    let hits = w108(
+        "proc f {} {\n    # note \u{2014} dash\n    set y \u{201c}hi\u{201d}\n    puts $y\n}\nf\n",
+        "tcl8.6",
+    );
+    let codes: Vec<u32> = hits.iter().map(|(c, _)| *c).collect();
+    assert!(
+        codes.contains(&0x201c) && codes.contains(&0x201d) && !codes.contains(&0x2014),
+        "code artifacts flag, comment prose does not: {codes:?}"
+    );
+}
+
+#[test]
+fn w108_strict_mode_still_flags_comment_prose() {
+    // Strict (ASCII-only F5 platforms): the platform constraint covers
+    // comment bytes too — the em-dash in a `when` body comment stays a
+    // finding under the f5-irules default.
+    let hits = w108(
+        "when HTTP_REQUEST {\n    # bad \u{2014} dash\n    HTTP::respond 200\n}\n",
+        "f5-irules",
+    );
+    assert!(
+        hits.iter().any(|(c, _)| *c == 0x2014),
+        "strict mode keeps flagging comment non-ASCII: {hits:?}"
+    );
+}
+
+#[test]
+fn w108_bidi_control_in_code_flags_in_confusables_mode() {
+    // The trojan-source set bypasses the confusables-table gate in code
+    // too: U+202E has no table entry but is a review hazard anywhere.
+    let hits = w108("set x a\u{202e}b\n", "tcl8.6");
+    assert_eq!(hits.len(), 1, "bidi override in code must flag: {hits:?}");
+    assert_eq!(hits[0].0, 0x202e);
+}
+
+#[test]
 fn w108_off_mode_disables_entirely() {
     use crate::analyser::NonAsciiMode::Off;
     // Even smart quotes / NBSP are silent when W108 is off.
