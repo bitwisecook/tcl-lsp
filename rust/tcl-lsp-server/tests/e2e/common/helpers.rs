@@ -488,6 +488,79 @@ pub fn semantic_token_violations(
     out
 }
 
+/// The `(range, newText)` of every workspace edit carried by code actions
+/// whose `title` satisfies `pred`, in response order. Handles both
+/// `WorkspaceEdit` encodings (`changes` and `documentChanges`), mirroring the
+/// per-file new-text collectors in the code-action suites.
+pub fn action_edits(actions: &Value, pred: impl Fn(&str) -> bool) -> Vec<(Value, String)> {
+    fn push_edit(edit: &Value, out: &mut Vec<(Value, String)>) {
+        if let (Some(rng), Some(text)) = (
+            edit.get("range"),
+            edit.get("newText").and_then(Value::as_str),
+        ) {
+            out.push((rng.clone(), text.to_owned()));
+        }
+    }
+    let mut out = Vec::new();
+    let empty = Vec::new();
+    for action in actions.as_array().unwrap_or(&empty) {
+        let title = action.get("title").and_then(Value::as_str).unwrap_or("");
+        if !pred(title) {
+            continue;
+        }
+        let edit = action.get("edit").cloned().unwrap_or(Value::Null);
+        if let Some(changes) = edit.get("changes").and_then(Value::as_object) {
+            for edits in changes.values() {
+                for e in edits.as_array().unwrap_or(&empty) {
+                    push_edit(e, &mut out);
+                }
+            }
+        }
+        if let Some(doc_changes) = edit.get("documentChanges").and_then(Value::as_array) {
+            for change in doc_changes {
+                for e in change
+                    .get("edits")
+                    .and_then(Value::as_array)
+                    .unwrap_or(&empty)
+                {
+                    push_edit(e, &mut out);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Assert that at least one code action titled exactly `title` carries an
+/// edit that, applied to `source`, produces `expected` — pinning the fix's
+/// range and `newText` jointly by their end-to-end effect. Tolerant of
+/// same-titled actions from other providers: any matching edit satisfies.
+pub fn assert_fix_applies(actions: &Value, source: &str, title: &str, expected: &str) {
+    let edits = action_edits(actions, |t| t == title);
+    assert!(
+        edits
+            .iter()
+            .any(|(rng, new_text)| apply_edit(source, rng, new_text) == expected),
+        "expected a {title:?} fix producing {expected:?}; offered actions: {actions:?}"
+    );
+}
+
+/// Apply a single `(range, newText)` text edit to `source`, returning the
+/// edited document — the strongest form of "the fix produces the right
+/// change". Columns are treated as byte offsets, which matches LSP's UTF-16
+/// units for the ASCII-only fixtures the code-action suites use.
+pub fn apply_edit(source: &str, rng: &Value, new_text: &str) -> String {
+    fn offset(source: &str, pos: &Value) -> usize {
+        let line = usize::try_from(pos["line"].as_u64().unwrap()).unwrap();
+        let character = usize::try_from(pos["character"].as_u64().unwrap()).unwrap();
+        let line_start: usize = source.split_inclusive('\n').take(line).map(str::len).sum();
+        line_start + character
+    }
+    let start = offset(source, &rng["start"]);
+    let end = offset(source, &rng["end"]);
+    format!("{}{}{}", &source[..start], new_text, &source[end..])
+}
+
 /// A result normalised to a list of items (bare value → single-element list;
 /// null → empty).
 fn as_items(result: &Value) -> Vec<Value> {

@@ -938,6 +938,182 @@ fn http_event_plus_ssl_command() {
     assert!(text.contains("HTTP"), "{text:?}");
 }
 
+// Analyser-carried iRules quick fixes, end-to-end: open the iRule, feed the
+// published diagnostic back into `codeAction`, and pin the fix by title plus
+// the *applied* edit (never the message text). The Tcl-dialect analyser
+// fixes (W120/W123/W001/W213/W216/W217) run in `code_actions.rs`; these are
+// the `f5-irules`-only codes.
+
+/// Diagnostics from `diags` carrying `code` (mirrors `code_actions.rs`).
+fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
+    diags
+        .iter()
+        .filter(|d| d.get("code").and_then(Value::as_str) == Some(code))
+        .cloned()
+        .collect()
+}
+
+/// Open `source` as an iRule, then request quickfix-only actions over the
+/// first `code` diagnostic's own range with that diagnostic as context —
+/// panics (showing the full diagnostic set) when the diagnostic is absent.
+fn irule_quickfixes_for_code(lsp: &mut Lsp, source: &str, code: &str) -> Value {
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(&uri, source, "tcl-irule");
+    let matching = with_code(&diags, code);
+    assert!(
+        !matching.is_empty(),
+        "expected a {code} diagnostic to drive the quick fix, got {diags:?}"
+    );
+    let rng = matching[0]["range"].clone();
+    code_actions_only(lsp, &uri, rng, json!(matching), &["quickfix"])
+}
+
+/// IRULE2001: the deprecated 3-arg `matchclass` carries a whole-command
+/// rewrite to `class match`, preserving item / operator / class verbatim
+/// (including the `[HTTP::uri]` substitution and its closing bracket).
+#[test]
+fn irule2001_matchclass_offers_class_match_rewrite() {
+    let mut lsp = Lsp::irules();
+    let src = "when HTTP_REQUEST {\n    matchclass [HTTP::uri] equals my_dg\n}\n";
+    let actions = irule_quickfixes_for_code(&mut lsp, src, "IRULE2001");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace with 'class match'",
+        "when HTTP_REQUEST {\n    class match [HTTP::uri] equals my_dg\n}\n",
+    );
+}
+
+/// IRULE2001: the 2-arg shorthand expands with the default operator, so the
+/// rewrite inserts `equals` between the preserved item and class.
+#[test]
+fn irule2001_two_arg_matchclass_rewrite_inserts_equals() {
+    let mut lsp = Lsp::irules();
+    let src = "when HTTP_REQUEST {\n    matchclass [HTTP::uri] my_dg\n}\n";
+    let actions = irule_quickfixes_for_code(&mut lsp, src, "IRULE2001");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace with 'class match'",
+        "when HTTP_REQUEST {\n    class match [HTTP::uri] equals my_dg\n}\n",
+    );
+}
+
+/// IRULE2001 guard: an ambiguous-arity `matchclass` still warns but offers
+/// no rewrite — forcing one would corrupt the command.
+#[test]
+fn irule2001_ambiguous_arity_offers_no_rewrite() {
+    let mut lsp = Lsp::irules();
+    let src = "when HTTP_REQUEST {\n    matchclass [HTTP::uri]\n}\n";
+    let actions = irule_quickfixes_for_code(&mut lsp, src, "IRULE2001");
+    assert!(
+        !actions
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .any(|a| action_title(a) == "Replace with 'class match'"),
+        "no rewrite for ambiguous arity: {actions:?}"
+    );
+}
+
+/// IRULE5005: a user proc invoked directly inside an event body carries a
+/// fix that rewrites the head to the required `call PROC` form, leaving the
+/// arguments in place.
+#[test]
+fn irule5005_direct_proc_call_offers_call_prefix_fix() {
+    let mut lsp = Lsp::irules();
+    let src = "proc helper {args} { return $args }\nwhen HTTP_REQUEST {\n    helper x y\n}\n";
+    let actions = irule_quickfixes_for_code(&mut lsp, src, "IRULE5005");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Use 'call helper'",
+        "proc helper {args} { return $args }\nwhen HTTP_REQUEST {\n    call helper x y\n}\n",
+    );
+}
+
+/// IRULE5005 FP guard: the `call`-prefixed invocation is the correct form —
+/// no diagnostic and no fix.
+#[test]
+fn irule5005_call_prefixed_invocation_offers_no_fix() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "proc helper {args} { return $args }\nwhen HTTP_REQUEST {\n    call helper x y\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        with_code(&diags, "IRULE5005").is_empty(),
+        "`call helper` is the correct form: {diags:?}"
+    );
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((2, 4), (2, 19)),
+        json!([]),
+        &["quickfix"],
+    );
+    assert!(
+        !actions
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .any(|a| action_title(a).starts_with("Use 'call")),
+        "{actions:?}"
+    );
+}
+
+/// IRULE6001: a `::`-prefixed global write pins the virtual server to one
+/// TMM; the fix replaces the variable word with its `static::` namespace
+/// counterpart.
+#[test]
+fn irule6001_global_write_offers_static_namespace_replacement() {
+    let mut lsp = Lsp::irules();
+    let src = "when HTTP_REQUEST {\n    set ::counter 0\n}\n";
+    let actions = irule_quickfixes_for_code(&mut lsp, src, "IRULE6001");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace '::counter' with 'static::counter'",
+        "when HTTP_REQUEST {\n    set static::counter 0\n}\n",
+    );
+}
+
+/// IRULE6001, `RULE_INIT` implicit-global form: a bare `set` in `RULE_INIT`
+/// is global (`RULE_INIT` runs at global namespace scope), and the fix
+/// likewise rewrites the variable word into the `static::` namespace.
+#[test]
+fn irule6001_rule_init_implicit_global_offers_static_replacement() {
+    let mut lsp = Lsp::irules();
+    let src = "when RULE_INIT {\n    set greeting hi\n}\n";
+    let actions = irule_quickfixes_for_code(&mut lsp, src, "IRULE6001");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace 'greeting' with 'static::greeting'",
+        "when RULE_INIT {\n    set static::greeting hi\n}\n",
+    );
+}
+
+/// IRULE6001, `global NAME` form: the diagnostic fires but carries no
+/// auto-fix — rewriting the import plus every subsequent use is not a
+/// single-edit change, so the analyser attaches none by design.
+#[test]
+fn irule6001_global_import_form_offers_no_fix() {
+    let mut lsp = Lsp::irules();
+    let src = "when HTTP_REQUEST {\n    global counter\n    puts $counter\n}\n";
+    let actions = irule_quickfixes_for_code(&mut lsp, src, "IRULE6001");
+    assert!(
+        !actions
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .any(|a| action_title(a).starts_with("Replace '")),
+        "the global-import form carries no fix: {actions:?}"
+    );
+}
+
 #[test]
 fn existing_matching_directive_comma_format() {
     let mut lsp = Lsp::irules();

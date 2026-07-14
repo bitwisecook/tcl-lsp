@@ -30,6 +30,7 @@
 //! dialect-general — not an iRules-specific check — so its `--`-insertion
 //! fix is exercised here against the plain `tcl` dialect.
 
+use crate::common::helpers::assert_fix_applies;
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
@@ -1016,5 +1017,283 @@ fn test_s100_eq_numeric_offers_no_numeric_comparison_fix() {
             .iter()
             .any(|t| t == "Suppress S100 with a noqa comment"),
         "expected the noqa suppress action to still be offered, got {actions:?}"
+    );
+}
+
+// Analyser-carried quick fixes, end-to-end: each case drives the published
+// diagnostic back into `codeAction` (exactly what an editor does) and pins
+// the fix by title plus the *applied* edit — never the diagnostic message,
+// which is free to be reworded. Covers W120 / W123 / W001 / W213 / W216 /
+// W217; the iRules-only analyser fixes (IRULE2001/5005/6001) run against
+// the dedicated iRules server in `irules.rs`.
+
+/// The quickfix-only actions for `code`, requested over the first such
+/// diagnostic's own range with the published diagnostics as context —
+/// panics (with the full diagnostic set) when the diagnostic is absent.
+fn quickfixes_for_code(lsp: &mut Lsp, uri: &str, diags: &[Value], code: &str) -> Value {
+    let matching = with_code(diags, code);
+    assert!(
+        !matching.is_empty(),
+        "expected a {code} diagnostic to drive the quick fix, got {diags:?}"
+    );
+    let rng = matching[0]["range"].clone();
+    code_actions_only(lsp, uri, rng, json!(matching), &["quickfix"])
+}
+
+/// W120: the missing-`package require` diagnostic carries an insertion fix
+/// that adds the require line at the top of the file (no requires exist yet).
+#[test]
+fn test_w120_offers_insert_package_require_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "canvas .c -width 10\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W120");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Add 'package require Tk'",
+        "package require Tk\ncanvas .c -width 10\n",
+    );
+}
+
+/// W120 FP guard: with the require already present the diagnostic is silent
+/// and no insert fix is offered.
+#[test]
+fn test_w120_no_insert_fix_when_require_present() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "package require Tk\ncanvas .c -width 10\n");
+    assert!(
+        with_code(&diags, "W120").is_empty(),
+        "no W120 with the require present: {diags:?}"
+    );
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 0), (1, 19)),
+        json!([]),
+        &["quickfix"],
+    );
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t == "Add 'package require Tk'"),
+        "{actions:?}"
+    );
+}
+
+/// W123: the unknown-command did-you-mean suggestion carries a replacement
+/// fix covering exactly the misspelt head.
+#[test]
+fn test_w123_offers_did_you_mean_replacement() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "putss hello\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W123");
+    assert_fix_applies(&actions, src, "Replace with 'puts'", "puts hello\n");
+}
+
+/// W123 guard: when no candidate is within the edit-distance budget the
+/// diagnostic still fires but carries no replacement action.
+#[test]
+fn test_w123_no_replacement_without_near_candidate() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "zq9 1 2\n");
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W123");
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.starts_with("Replace with")),
+        "no candidate is within one edit of 'zq9': {actions:?}"
+    );
+}
+
+/// W001: the unknown-subcommand did-you-mean suggestion carries a
+/// replacement fix covering exactly the misspelt subcommand word.
+#[test]
+fn test_w001_offers_subcommand_did_you_mean_replacement() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "string lenght abc\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W001");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace with 'length'",
+        "string length abc\n",
+    );
+}
+
+/// W001 FP guard: a unique-prefix abbreviation is valid ensemble dispatch —
+/// no diagnostic, and no replacement action either.
+#[test]
+fn test_w001_no_action_for_unique_prefix_abbreviation() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "string le abc\n");
+    assert!(
+        with_code(&diags, "W001").is_empty(),
+        "`string le` abbreviates `length`; must not fire W001: {diags:?}"
+    );
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 7), (0, 9)),
+        json!([]),
+        &["quickfix"],
+    );
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.starts_with("Replace with")),
+        "{actions:?}"
+    );
+}
+
+/// W213: `unset` of a possibly-undefined variable carries a fix that splices
+/// ` -nocomplain` in right after the `unset` word.
+#[test]
+fn test_w213_offers_nocomplain_insertion() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc foo {} { unset xs }\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W213");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Add '-nocomplain' to unset",
+        "proc foo {} { unset -nocomplain xs }\n",
+    );
+}
+
+/// W213 FP guard: `-nocomplain` already present — no diagnostic and no
+/// insertion action.
+#[test]
+fn test_w213_no_action_when_nocomplain_present() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc foo {} { unset -nocomplain xs }\n");
+    assert!(
+        with_code(&diags, "W213").is_empty(),
+        "-nocomplain suppresses W213: {diags:?}"
+    );
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((0, 14), (0, 34)),
+        json!([]),
+        &["quickfix"],
+    );
+    assert!(
+        !titles(&actions).iter().any(|t| t.contains("-nocomplain")),
+        "{actions:?}"
+    );
+}
+
+/// W216 pattern 1: value-position `${arr}(x)` parses as scalar `${arr}` plus
+/// literal `(x)`; the fix rewrites the whole word to `$arr(x)`.
+#[test]
+fn test_w216_offers_brace_form_array_replacement() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set arr(x) 1\nputs ${arr}(x)\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W216");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace with `$arr(x)`",
+        "set arr(x) 1\nputs $arr(x)\n",
+    );
+}
+
+/// W216 pattern 2: `${arr($i)}` applies no substitution to `$i` (the brace
+/// form is literal); the fix rewrites to `$arr($i)` so the index substitutes.
+#[test]
+fn test_w216_offers_fix_for_brace_wrapped_index_substitution() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set arr(k) 1\nset i k\nputs ${arr($i)}\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W216");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace with `$arr($i)`",
+        "set arr(k) 1\nset i k\nputs $arr($i)\n",
+    );
+}
+
+/// W216 FP guard: in a variable-name position `${name}(idx)` is the
+/// legitimate indirect-array idiom — no diagnostic and no replacement.
+#[test]
+fn test_w216_no_action_for_indirect_array_name_position() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set token ::http::1\nset ${token}(status) eof\n");
+    assert!(
+        with_code(&diags, "W216").is_empty(),
+        "name-position use is the indirect-array idiom: {diags:?}"
+    );
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 0), (1, 24)),
+        json!([]),
+        &["quickfix"],
+    );
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.starts_with("Replace with `$token")),
+        "{actions:?}"
+    );
+}
+
+/// W217: an `unset` whose options consume every argument unsets nothing; the
+/// fix prepends `--` so the following words become variable names.
+#[test]
+fn test_w217_offers_terminator_insertion() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "unset -nocomplain\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W217");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Insert '--' so the following words are variable names",
+        "unset -- -nocomplain\n",
+    );
+}
+
+/// W217 FP guard: a real variable name follows the option — the call unsets
+/// something, so no diagnostic and no terminator action.
+#[test]
+fn test_w217_no_action_when_a_variable_follows() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x 1\nunset -nocomplain x\n");
+    assert!(
+        with_code(&diags, "W217").is_empty(),
+        "a real variable name is unset: {diags:?}"
+    );
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 0), (1, 19)),
+        json!([]),
+        &["quickfix"],
+    );
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.starts_with("Insert '--'")),
+        "{actions:?}"
     );
 }
