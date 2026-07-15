@@ -426,6 +426,9 @@ impl Analyser {
         }
         self.result.command_aliases.extend(r.command_aliases);
         self.result.renamed_commands.extend(r.renamed_commands);
+        self.result
+            .rename_target_spans
+            .extend(r.rename_target_spans);
         self.result.instance_classes.extend(r.instance_classes);
         self.result
             .created_instance_commands
@@ -811,6 +814,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for x in &mut r.namespace_imports {
         x.range = shift(x.range, d);
+    }
+    for sp in r.rename_target_spans.values_mut() {
+        *sp = shift(*sp, d);
     }
     for x in &mut r.auto_path_entries {
         x.range = shift(x.range, d);

@@ -791,6 +791,12 @@ pub struct AnalysisResult {
     /// [`super::state::Analyser::renamed_commands`] for why a dynamic
     /// rename is deliberately absent here.
     pub renamed_commands: HashMap<String, String>,
+    /// Source span of the `OLD` word of each static `rename OLD NEW`, keyed
+    /// by `new_qname` (the same key as [`Self::renamed_commands`]). `OLD`
+    /// names the command being moved, so it is a reference to it that rename
+    /// rewrites; kept beside the name map rather than in it so the existing
+    /// consumers of `renamed_commands` are untouched.
+    pub rename_target_spans: HashMap<String, Span>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
     /// Recorded `namespace path {…}` declarations, keyed by the declaring

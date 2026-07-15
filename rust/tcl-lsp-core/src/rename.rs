@@ -1068,6 +1068,21 @@ pub fn cross_document_symbol_edits(
             new_text: replacement,
         });
     }
+    // Name-link declarations that reference the command by qualified name —
+    // the `rename OLD NEW` `OLD` word, the `namespace import` pattern.  Each
+    // names the renamed command and must follow it to stay bound; the new
+    // fully-qualified name is always a valid replacement for a qualified
+    // reference.  (The `interp alias` `TARGET` word is already a call site
+    // rewritten above, so it is not among these spans.)  The local imported /
+    // aliased *usages* are deliberately left alone — they name the local
+    // command, which keeps its own name.
+    for (link_uri, span) in index.link_target_spans(qualified_name, current_uri) {
+        edits.push(WorkspaceTextEdit {
+            uri: link_uri,
+            span,
+            new_text: new_qualified.clone(),
+        });
+    }
     // Definition sites (proc + class) in other documents — matched by
     // *qualified* name so a same-simple-name proc in a different namespace is
     // not rewritten (and moved into the target's namespace) (RUST_ISSUE_036).
@@ -1215,6 +1230,39 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(rename(src, "tcl", 0, 6, "x", &analysis, None).is_empty());
+    }
+
+    #[test]
+    fn cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word() {
+        use crate::workspace_index::WorkspaceIndex;
+        // `::mymod::helper` is imported by `::app` and renamed-away in a third
+        // file; renaming the source must rewrite the `namespace import` pattern
+        // and the `rename` OLD word so both stay bound to the new name — but
+        // never the local imported/renamed *usages*.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse("namespace eval ::app {\n    namespace import ::mymod::helper\n}\n");
+        let ren = analyse("rename ::mymod::helper legacy\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+            ("file:///ren.tcl", &ren),
+        ]);
+        let edits =
+            cross_document_symbol_edits("::mymod::helper", "helper2", &index, "file:///mymod.tcl");
+        // The import pattern (app.tcl) and the rename OLD word (ren.tcl) both
+        // become the new fully-qualified name.
+        assert_eq!(edits.len(), 2, "{edits:?}");
+        let app_edit = edits
+            .iter()
+            .find(|e| e.uri == "file:///app.tcl")
+            .expect("import pattern edit");
+        assert_eq!(app_edit.new_text, "::mymod::helper2");
+        let ren_edit = edits
+            .iter()
+            .find(|e| e.uri == "file:///ren.tcl")
+            .expect("rename OLD edit");
+        assert_eq!(ren_edit.new_text, "::mymod::helper2");
     }
 
     #[test]

@@ -3700,7 +3700,11 @@ impl Backend {
                     || analysis.all_classes.contains_key(cand)
                     || index.workspace_command_exists(cand)
             })
-            .cloned()
+            // A candidate that resolves through an `interp alias` / `rename` /
+            // `namespace import` names the linked command locally; follow the
+            // link so the cursor resolves to the command it ultimately runs,
+            // gathering its references with that command's.
+            .map(|cand| index.resolve_command_target(cand))
     }
 
     /// Cross-document references for the proc / class at `pos`:
@@ -3721,11 +3725,15 @@ impl Backend {
         };
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
+            // References follow command name-links: a call reaching the target
+            // through an `interp alias` / `rename` / `namespace import` is a
+            // use of it, as is the word that names it in such a declaration.
             let mut t: Vec<(String, tcl_lexer::Span)> = index
-                .invocations_of(&qualified, uri.as_str())
+                .linked_invocations_of(&qualified, uri.as_str())
                 .into_iter()
                 .map(|i| (i.uri.clone(), i.range))
                 .collect();
+            t.extend(index.link_target_spans(&qualified, uri.as_str()));
             if include_declaration {
                 // Match the declaration sites by *qualified* name — a same
                 // simple name in an unrelated namespace/file is a different
@@ -17124,6 +17132,68 @@ mod tests {
             .cross_document_references(&other, other_src, &analysis, Position::new(0, 32), false)
             .await;
         assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    /// Build a two-file `namespace import` workspace: `::mymod` exports
+    /// `helper`, `::app` imports it and calls a bare `helper`.
+    async fn register_namespace_import_workspace() -> (Backend, Uri, Uri) {
+        let backend = test_backend();
+        let mymod = Uri::from_str("file:///mymod.tcl").unwrap();
+        let app = Uri::from_str("file:///app.tcl").unwrap();
+        register(
+            &backend,
+            &mymod,
+            "namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n",
+        )
+        .await;
+        register(
+            &backend,
+            &app,
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n    proc run {} { helper }\n}\n",
+        )
+        .await;
+        (backend, mymod, app)
+    }
+
+    #[tokio::test]
+    async fn cross_document_references_follow_namespace_import() {
+        // References on `::mymod::helper` must include app.tcl's imported bare
+        // call (reached through the import link) and the `namespace import`
+        // pattern token that names it.
+        let (backend, mymod, app) = register_namespace_import_workspace().await;
+        let mymod_src = "namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n";
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(mymod_src, "tcl8.6").clone()
+        };
+        // Cursor on `helper` in `::mymod`'s declaration (col 32).
+        let refs = backend
+            .cross_document_references(&mymod, mymod_src, &analysis, Position::new(0, 32), false)
+            .await;
+        assert_eq!(refs.len(), 2, "imported call + import pattern: {refs:?}");
+        assert!(refs.iter().all(|l| l.uri == app));
+    }
+
+    #[tokio::test]
+    async fn cross_document_references_from_imported_call_reach_source() {
+        // A cursor on the imported bare `helper` call resolves *through* the
+        // import to `::mymod::helper`, so its references gather with the source
+        // declaration's — go-to-references works from the consumer side too.
+        let (backend, mymod, app) = register_namespace_import_workspace().await;
+        let app_src = "namespace eval ::app {\n    namespace import ::mymod::helper\n    proc run {} { helper }\n}\n";
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(app_src, "tcl8.6").clone()
+        };
+        // Cursor on the imported `helper` call (line 2, col 20), with the
+        // declaration included.
+        let refs = backend
+            .cross_document_references(&app, app_src, &analysis, Position::new(2, 20), true)
+            .await;
+        assert!(
+            refs.iter().any(|l| l.uri == mymod),
+            "imported call should reach the source declaration: {refs:?}",
+        );
     }
 
     #[tokio::test]

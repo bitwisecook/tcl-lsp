@@ -674,7 +674,7 @@ impl Analyser {
             // ``command_binding.rs``'s wildcard-collapse convention for
             // the identical shape.
             Hook::Rename => {
-                if self.handle_rename(args, cmd_tok.span.start()) {
+                if self.handle_rename(args, arg_tokens, cmd_tok.span.start()) {
                     self.result.has_dynamic_providers = true;
                 }
                 false

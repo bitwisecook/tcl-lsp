@@ -341,7 +341,7 @@ impl Analyser {
         // Expose the recorded paths on the result so command-resolution
         // consumers (definition / hover / signature help) can honour a
         // `namespace path` the same way call-site settling does.
-        self.result.namespace_paths = paths.clone();
+        self.result.namespace_paths.clone_from(&paths);
         // A builtin renamed away (`rename puts ::a::p`) or deleted
         // (`rename puts ""` / alias deletion) is no longer callable under
         // its original name — C raises `invalid command name` — so the

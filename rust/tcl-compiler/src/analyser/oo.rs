@@ -268,6 +268,30 @@ impl Analyser {
                 continue;
             }
             apply_oo_subcommand(grammar, &cmd.texts, &cmd.argv, class_def);
+            // A `forward NAME TARGET ?arg…?` member names the command `TARGET`
+            // it delegates to (`TclOO`'s `interp alias`).  Record `TARGET` as a
+            // command invocation so references / go-to-definition / rename see
+            // it the same as a direct call — it resolves in the class's
+            // namespace context, exactly as the forward dispatches at run time.
+            if cmd.texts.first().map(String::as_str) == Some("forward")
+                && let (Some(target), Some(tok)) = (cmd.texts.get(2), cmd.argv.get(2))
+                && !crate::naming::is_dynamic_word(target)
+            {
+                let resolved = self.resolve_command_qualified_name(target, scope_path);
+                self.result.command_invocations.push(
+                    crate::signature_scan::types::SignatureCommandInvocation {
+                        name: target.clone(),
+                        range: tok.span,
+                        resolved_qualified_name: Some(resolved),
+                        resolution_candidates: Vec::new(),
+                        // A forwarded command is invoked with a variable number
+                        // of args appended, so it carries no fixed call arity.
+                        argc: None,
+                        callback_arity: None,
+                        callback_baked_args: 0,
+                    },
+                );
+            }
             if let Some(mb) = collect_method_body(grammar, &cmd.texts, &cmd.argv) {
                 method_bodies.push(mb);
             }

@@ -1733,7 +1733,7 @@ impl Analyser {
     /// command name" afterwards) — there is no `NEW` to map it to.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Rename`].
-    pub fn handle_rename(&mut self, args: &[String], offset: u32) -> bool {
+    pub fn handle_rename(&mut self, args: &[String], arg_tokens: &[Token], offset: u32) -> bool {
         if args.len() != 2 {
             return false;
         }
@@ -1752,6 +1752,13 @@ impl Analyser {
         self.renamed_commands.insert(new.clone(), old.clone());
         self.rename_offsets.insert(new.clone(), offset);
         self.deleted_commands.insert(old.clone(), offset);
+        // `OLD` (`args[0]`, token `arg_tokens[0]`) names the command being
+        // moved — a reference to it that rename rewrites.
+        if let Some(tok) = arg_tokens.first() {
+            self.result
+                .rename_target_spans
+                .insert(new.clone(), tok.span);
+        }
         self.result.renamed_commands.insert(new, old);
         false
     }
@@ -4142,7 +4149,7 @@ mod tests {
     #[test]
     fn handle_rename_records_static_move() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["target".to_string(), "target_orig".to_string()], 42);
+        let dynamic = a.handle_rename(&["target".to_string(), "target_orig".to_string()], &[], 42);
         assert!(!dynamic, "a fully static rename is not dynamic");
         assert_eq!(
             a.renamed_commands.get("::target_orig").map(String::as_str),
@@ -4169,7 +4176,7 @@ mod tests {
         // itself must be recorded as gone (confirmed against tclsh
         // 9.0.4: also "invalid command name" afterwards).
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["target".to_string(), String::new()], 7);
+        let dynamic = a.handle_rename(&["target".to_string(), String::new()], &[], 7);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert_eq!(a.deleted_commands.get("::target"), Some(&7));
@@ -4178,7 +4185,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_old_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], 0);
+        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], &[], 0);
         assert!(dynamic, "rename $x y cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -4187,7 +4194,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_new_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], 0);
+        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], &[], 0);
         assert!(dynamic, "rename x y[z] cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -4196,7 +4203,7 @@ mod tests {
     #[test]
     fn handle_rename_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["onlyone".to_string()], 0);
+        let dynamic = a.handle_rename(&["onlyone".to_string()], &[], 0);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
