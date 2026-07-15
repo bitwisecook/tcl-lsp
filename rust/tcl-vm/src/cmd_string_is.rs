@@ -21,7 +21,7 @@
 //! classification logic (character/value classes, fail-index semantics) lives in
 //! the core; this parses the options and writes the `-failindex` variable.
 
-use tcl_cmd_core::option_table::OptionTable;
+use tcl_cmd_core::prefix::OptionTable;
 use tcl_cmd_core::string_is::{class_check, resolve_class};
 use tcl_runtime_api::Completion;
 

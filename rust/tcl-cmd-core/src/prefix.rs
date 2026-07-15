@@ -18,10 +18,15 @@
 
 //! Unique-prefix table matching — the shared `Tcl_GetIndexFromObjStruct` port.
 //!
-//! One matcher + one error formatter for every option/subcommand table:
-//! `switch`'s option scan, `tcl::prefix match`, the runtimes'
-//! `Tcl_GetIndexFromObj`-style lookups, and ad-hoc option tables (OO property
-//! declarations). Re-derived from `tmp/tcl8.6.14/generic/tclIndexObj.c`
+//! One matcher + one error formatter for every option/subcommand table, with
+//! [`OptionTable`] as the one API: a const-constructible value carrying a
+//! command's names in **C table order**, its error noun (C's `msg`
+//! argument), and its abbreviation mode (`TCL_EXACT` inverted). It is
+//! generic over `AsRef<[u8]>` entries, so a static `&str` table
+//! (`switch`'s option scan), a runtime `String` table (`tcl::prefix
+//! match`), and the runtimes' byte tables (OO property declarations) all
+//! resolve through the same value. Re-derived from
+//! `tmp/tcl8.6.14/generic/tclIndexObj.c`
 //! (unchanged in 9.0.1 but for the TIP-defined `TCL_NULL_OK`, which no
 //! consumer here uses), so the fiddly corners live once:
 //!
@@ -47,9 +52,10 @@
 
 use crate::error::CmdError;
 
-/// Outcome of a [`lookup`] — `Tcl_GetIndexFromObjStruct`'s three-way result.
+/// Outcome of a raw table scan — `Tcl_GetIndexFromObjStruct`'s three-way
+/// result, refined into [`Resolution`] by [`OptionTable::resolve`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Lookup {
+enum Lookup {
     /// Resolved to `table[index]`: an exact match, or the unique abbreviation.
     Found(usize),
     /// No usable match, worded `ambiguous …` — the key abbreviated more than
@@ -64,7 +70,7 @@ pub enum Lookup {
 /// non-empty prefix matches unless `exact` disallows abbreviations. The miss
 /// distinguishes [`Lookup::Ambiguous`] from [`Lookup::None`] exactly as C
 /// words its error (see the module docs for the empty-key subtlety).
-pub fn lookup<T: AsRef<[u8]>>(table: &[T], key: &[u8], exact: bool) -> Lookup {
+fn lookup<T: AsRef<[u8]>>(table: &[T], key: &[u8], exact: bool) -> Lookup {
     let mut abbrev: Option<usize> = None;
     let mut num_abbrev = 0usize;
     for (i, entry) in table.iter().enumerate() {
@@ -163,24 +169,147 @@ pub fn bad_key_message<T: AsRef<[u8]>>(
     m
 }
 
-/// [`bad_key_message`] as the canonical [`CmdError`] (the string-side
-/// counterpart of [`CmdError::bad_choice`], with the enumeration and the
-/// `bad`/`ambiguous` fork built here).
+/// [`OptionTable::resolve`] without a table value: C's rule over a bare
+/// table, for the composing consumers that build their own message around
+/// [`bad_key_message`] (a byte `-message` noun, an `-error {}` early
+/// return). The [`Resolution::Exact`] / [`Resolution::UniquePrefix`] split
+/// refines the raw scan's hit by an equality check, since some consumers
+/// report the two differently.
 #[must_use]
-pub fn lookup_error<T: AsRef<str>>(table: &[T], what: &str, key: &str, miss: Lookup) -> CmdError {
-    let bytes: Vec<&[u8]> = table.iter().map(|s| s.as_ref().as_bytes()).collect();
-    let msg = bad_key_message(
-        &bytes,
-        what.as_bytes(),
-        key.as_bytes(),
-        matches!(miss, Lookup::Ambiguous),
-    );
-    CmdError::new(String::from_utf8(msg).expect("valid UTF-8 message parts"))
+pub fn scan<T: AsRef<[u8]>>(table: &[T], word: &[u8], exact: bool) -> Resolution {
+    match lookup(table, word, exact) {
+        Lookup::Found(i) => {
+            if table[i].as_ref() == word {
+                Resolution::Exact(i)
+            } else {
+                Resolution::UniquePrefix(i)
+            }
+        }
+        Lookup::Ambiguous => Resolution::Ambiguous,
+        Lookup::None => Resolution::NoMatch,
+    }
+}
+
+/// The outcome of resolving a word against an [`OptionTable`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Resolution {
+    /// The word equals `names[index]` exactly.
+    Exact(usize),
+    /// The word is a unique, non-empty prefix of `names[index]` — only
+    /// produced by an abbreviating table.
+    UniquePrefix(usize),
+    /// The word is a prefix of more than one entry and equal to none — only
+    /// produced by an abbreviating table (an exact-only table reports the
+    /// same word as [`Resolution::NoMatch`], which C renders as `bad`, not
+    /// `ambiguous`). The empty word abbreviates every entry, so it lands
+    /// here whenever the table has two or more entries.
+    Ambiguous,
+    /// Nothing matched: no entry starts with the word, the table is
+    /// exact-only, or the word is empty (C never abbreviation-matches the
+    /// empty key).
+    NoMatch,
+}
+
+/// One command's option table: the option words in C table order (the error
+/// message enumerates them in that order), the error noun (C's `msg`
+/// argument — `"option"` for command options, `"operation"` for `trace`
+/// op-lists), and whether abbreviations are accepted (C's `TCL_EXACT` flag
+/// inverted). Generic over the entry type so `&str`, `String`, and byte
+/// tables all resolve identically.
+pub struct OptionTable<'t, T = &'t str> {
+    names: &'t [T],
+    what: &'t str,
+    exact: bool,
+}
+
+impl<'t, T: AsRef<[u8]>> OptionTable<'t, T> {
+    /// A table that accepts unique-prefix abbreviations (a C caller passing
+    /// flags `0`).
+    #[must_use]
+    pub const fn abbreviating(what: &'t str, names: &'t [T]) -> Self {
+        Self {
+            names,
+            what,
+            exact: false,
+        }
+    }
+
+    /// A table that demands exact option names (a C caller passing
+    /// `TCL_EXACT`).
+    #[must_use]
+    pub const fn exact_only(what: &'t str, names: &'t [T]) -> Self {
+        Self {
+            names,
+            what,
+            exact: true,
+        }
+    }
+
+    /// The canonical option names, in table order.
+    #[must_use]
+    pub const fn names(&self) -> &'t [T] {
+        self.names
+    }
+
+    /// Resolve `word` with C's rule ([`scan`]): exact match first; then, if
+    /// the table abbreviates, a unique non-empty prefix; then
+    /// ambiguous/no-match.
+    #[must_use]
+    pub fn resolve(&self, word: &[u8]) -> Resolution {
+        scan(self.names, word, self.exact)
+    }
+
+    /// Resolve `word` to its table index, or the ready-to-report error bytes
+    /// ([`bad_key_message`] — `bad option "-x": must be …` / `ambiguous
+    /// option "-x": must be …`). The word is embedded verbatim, so a
+    /// non-UTF-8 word round-trips byte-exactly through byte-string errors.
+    ///
+    /// # Errors
+    /// The C-shaped message for an unmatched or ambiguous word.
+    pub fn index_of(&self, word: &[u8]) -> Result<usize, Vec<u8>> {
+        match self.resolve(word) {
+            Resolution::Exact(i) | Resolution::UniquePrefix(i) => Ok(i),
+            Resolution::Ambiguous => Err(bad_key_message(
+                self.names,
+                self.what.as_bytes(),
+                word,
+                true,
+            )),
+            Resolution::NoMatch => Err(bad_key_message(
+                self.names,
+                self.what.as_bytes(),
+                word,
+                false,
+            )),
+        }
+    }
+
+    /// [`Self::index_of`] for string words and [`CmdError`] consumers.
+    ///
+    /// # Errors
+    /// The C-shaped message for an unmatched or ambiguous word.
+    pub fn index_of_str(&self, word: &str) -> Result<usize, CmdError> {
+        self.index_of(word.as_bytes())
+            .map_err(|m| CmdError::new(String::from_utf8_lossy(&m).into_owned()))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`bad_key_message`] over `&str` parts, as the tests' [`CmdError`]
+    /// convenience (production consumers go through [`OptionTable`]).
+    fn lookup_error<T: AsRef<str>>(table: &[T], what: &str, key: &str, miss: Lookup) -> CmdError {
+        let bytes: Vec<&[u8]> = table.iter().map(|s| s.as_ref().as_bytes()).collect();
+        let msg = bad_key_message(
+            &bytes,
+            what.as_bytes(),
+            key.as_bytes(),
+            matches!(miss, Lookup::Ambiguous),
+        );
+        CmdError::new(String::from_utf8(msg).expect("valid UTF-8 message parts"))
+    }
 
     const FRUIT: [&str; 3] = ["apple", "apricot", "banana"];
 
@@ -246,5 +375,108 @@ mod tests {
             lookup_error::<&str>(&[], "thing", "foo", Lookup::None).message(),
             r#"bad thing "foo": no valid options"#
         );
+    }
+
+    const TABLE_FRUIT: [&str; 3] = ["apple", "apricot", "banana"];
+    const ABBREV: OptionTable<'static> = OptionTable::abbreviating("option", &TABLE_FRUIT);
+    const EXACT: OptionTable<'static> = OptionTable::exact_only("option", &TABLE_FRUIT);
+
+    #[test]
+    fn abbreviating_matches_exact_then_unique_prefix() {
+        // tclsh (Tcl_GetIndexFromObj, flags 0): exact wins, unique prefix
+        // abbreviates, shared prefixes are ambiguous.
+        assert_eq!(ABBREV.resolve(b"apple"), Resolution::Exact(0));
+        assert_eq!(ABBREV.resolve(b"apr"), Resolution::UniquePrefix(1));
+        assert_eq!(ABBREV.resolve(b"b"), Resolution::UniquePrefix(2));
+        assert_eq!(ABBREV.resolve(b"ap"), Resolution::Ambiguous);
+        assert_eq!(ABBREV.resolve(b"z"), Resolution::NoMatch);
+    }
+
+    #[test]
+    fn exact_beats_a_longer_entry_sharing_the_prefix() {
+        // `{-exact -exactly}`-style tables: the exact hit wins even though the
+        // word also prefixes another entry.
+        let names = ["stop", "stopped"];
+        let t = OptionTable::abbreviating("option", &names);
+        assert_eq!(t.resolve(b"stop"), Resolution::Exact(0));
+        assert_eq!(t.resolve(b"stopp"), Resolution::UniquePrefix(1));
+    }
+
+    #[test]
+    fn exact_only_reports_every_miss_as_bad() {
+        // C's TCL_EXACT: abbreviations — even unique ones — are a *bad*
+        // option, never ambiguous (tclsh: `regexp -al a a` → bad option).
+        assert_eq!(EXACT.resolve(b"apple"), Resolution::Exact(0));
+        assert_eq!(EXACT.resolve(b"apr"), Resolution::NoMatch);
+        assert_eq!(EXACT.resolve(b"ap"), Resolution::NoMatch);
+        assert_eq!(
+            EXACT.index_of(b"ap").unwrap_err(),
+            b"bad option \"ap\": must be apple, apricot, or banana".to_vec()
+        );
+    }
+
+    #[test]
+    fn empty_word_never_abbreviates() {
+        // C: `key[0] == '\0'` forces the error path; the message is
+        // "ambiguous" for 2+ entries (it prefixes them all) and "bad" for a
+        // single-entry table. Probed: `tcl::prefix match {apple apricot
+        // banana} ""` → ambiguous; `tcl::prefix match {apple} ""` → bad;
+        // `lsort "" {a b}` / `trace add "" x` → ambiguous (tclsh 8.6.14).
+        assert_eq!(ABBREV.resolve(b""), Resolution::Ambiguous);
+        let one = ["apple"];
+        let t = OptionTable::abbreviating("option", &one);
+        assert_eq!(t.resolve(b""), Resolution::NoMatch);
+        assert_eq!(
+            t.index_of(b"").unwrap_err(),
+            b"bad option \"\": must be apple".to_vec()
+        );
+    }
+
+    #[test]
+    fn error_messages_match_c_shapes() {
+        // The join: 1 entry plain, 2 without comma, 3+ with the Oxford comma
+        // (tclsh: `bad option "z": must be apple or apricot` for two).
+        assert_eq!(
+            ABBREV.index_of(b"z").unwrap_err(),
+            b"bad option \"z\": must be apple, apricot, or banana".to_vec()
+        );
+        assert_eq!(
+            ABBREV.index_of(b"ap").unwrap_err(),
+            b"ambiguous option \"ap\": must be apple, apricot, or banana".to_vec()
+        );
+        let two = ["apple", "apricot"];
+        let t = OptionTable::abbreviating("option", &two);
+        assert_eq!(
+            t.index_of(b"z").unwrap_err(),
+            b"bad option \"z\": must be apple or apricot".to_vec()
+        );
+        let none: [&str; 0] = [];
+        let t = OptionTable::abbreviating("option", &none);
+        assert_eq!(
+            t.index_of(b"z").unwrap_err(),
+            b"bad option \"z\": no valid options".to_vec()
+        );
+    }
+
+    #[test]
+    fn the_error_noun_is_data() {
+        // `trace` op-lists use "operation" (C's msg argument).
+        let ops = ["array", "read", "unset", "write"];
+        let t = OptionTable::exact_only("operation", &ops);
+        let Err(e) = t.index_of_str("w") else {
+            panic!("`w` must not abbreviate an exact-only table");
+        };
+        assert_eq!(
+            e.message(),
+            "bad operation \"w\": must be array, read, unset, or write"
+        );
+    }
+
+    #[test]
+    fn enumerate_names_join_shapes() {
+        assert_eq!(choice_list::<&str>(&[]), "");
+        assert_eq!(choice_list(&["a"]), "a");
+        assert_eq!(choice_list(&["a", "b"]), "a or b");
+        assert_eq!(choice_list(&["a", "b", "c"]), "a, b, or c");
     }
 }

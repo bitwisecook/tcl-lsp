@@ -27,7 +27,7 @@
 //! variable, and returns the boolean. (tclCmdMZ.c).
 
 use crate::error::CmdError;
-use crate::option_table::OptionTable;
+use crate::prefix::OptionTable;
 
 /// Canonical class names, in the order Tcl lists them in error messages.
 pub const CLASSES: &[&str] = &[

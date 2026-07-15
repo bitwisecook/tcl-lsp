@@ -42,7 +42,7 @@
 
 use tcl_syntax::value::ValueOps;
 
-use crate::option_table::OptionTable;
+use crate::prefix::OptionTable;
 
 // the engine seam
 

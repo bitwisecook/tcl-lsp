@@ -41,7 +41,7 @@ use tcl_syntax::list::split_list;
 use tcl_syntax::value::ValueOps;
 
 use crate::index;
-use crate::option_table::OptionTable;
+use crate::prefix::OptionTable;
 use crate::sort::{self, SortMode};
 
 // C's `switches[]` in `Tcl_LsortObjCmd` (`tclCmdIL.c`), resolved with

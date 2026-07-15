@@ -374,7 +374,7 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
 
 /// Whether `opt` is `-nocase` or an unambiguous prefix of it (`-n`, `-no`, …).
 ///
-/// Deliberately NOT the shared [`crate::option_table`] matcher: C's
+/// Deliberately NOT the shared [`crate::prefix`] matcher: C's
 /// `StringMatchCmd`/`StringMapCmd` hand-roll `(length > 1) && strncmp(string,
 /// "-nocase", length)` instead of calling `Tcl_GetIndexFromObj`, so a lone
 /// `-` is a bad option here (`string match - a b` errors in tclsh) even

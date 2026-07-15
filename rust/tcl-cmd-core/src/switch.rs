@@ -41,7 +41,7 @@ use tcl_syntax::glob::string_case_match;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
-use crate::option_table::OptionTable;
+use crate::prefix::OptionTable;
 use crate::regex::{NO_MATCH, RegMatch, RegexEngine, RegexFlags, decode_utf8};
 
 /// The matching mode (`-exact` is the default).
@@ -364,7 +364,7 @@ where
 }
 
 // the switch-specific error catalogue (option resolution is the shared
-// `crate::option_table` wrapper over `crate::prefix`, so `switch` cannot
+// `crate::prefix` wrapper over `crate::prefix`, so `switch` cannot
 // drift from the other option tables)
 
 fn double_option(arg: &str, found_name: &str) -> CmdError {
@@ -392,7 +392,7 @@ mod tests {
     fn option_table_matches_exact_and_unique_prefix() {
         // Tcl unambiguous-prefix option matching over the shared matcher.
         // OPT_NAMES = -exact -glob -indexvar -matchvar -nocase -regexp --.
-        use crate::option_table::Resolution;
+        use crate::prefix::Resolution;
         assert_eq!(OPTIONS.resolve(b"-exact"), Resolution::Exact(0));
         assert_eq!(OPTIONS.resolve(b"-glob"), Resolution::Exact(1));
         assert_eq!(OPTIONS.resolve(b"-e"), Resolution::UniquePrefix(0));

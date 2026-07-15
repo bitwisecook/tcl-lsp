@@ -70,25 +70,26 @@ never re-derives it.
   (rename re-homing, `proc` namespace derivation) are built on them.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
-- `prefix` — the `Tcl_GetIndexFromObjStruct` port: `lookup`
-  (exact-match wins, unique non-empty prefix, ambiguous-vs-bad
-  distinguished exactly as C words it, including the empty-key rule),
-  `choice_list_bytes` / `choice_list` (the `a`, `a or b`, `a, b, or c`
-  enumeration with C's empty-entry quirks), `bad_key_message` /
-  `lookup_error` (the full `bad option "x": must be …` /
-  `ambiguous …` / `no valid options` texts). Consumers: `switch`
-  option parsing (this crate), the VM's `tcl::prefix match` and
-  `string is` options, the WASM runtime's `index_lookup` /
-  `tcl::prefix match` / OO option tables.
-- `option_table::OptionTable` — the typed, const-constructible wrapper
-  over `prefix` for a command's whole table declaration in one value:
-  names in C table order, the error noun, and the abbreviation mode
-  (`abbreviating` = C flags `0`; `exact_only` = `TCL_EXACT`), with
-  `resolve` refining the hit into exact-vs-unique-prefix. The
-  string-side option words (`switch`, `lsort`, `lsearch`, `regexp`,
-  `regsub`, `trace`, `string is`) resolve through it; byte-generic
-  runtime tables use `prefix` directly. New command modules MUST use
-  one of the two — never a hand-rolled scan.
+- `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
+  `prefix::OptionTable` as the one API: a const-constructible value
+  generic over `AsRef<[u8]>` entries carrying a command's names in C
+  table order, its error noun, and its abbreviation mode
+  (`abbreviating` = C flags `0`; `exact_only` = `TCL_EXACT`).
+  `resolve` applies C's rule (exact-match wins; unique non-empty
+  prefix; ambiguous-vs-bad distinguished exactly as C words it,
+  including the empty-key rule) and `index_of`/`index_of_str` attach
+  the canonical miss message. The composing escape hatches stay
+  public for sites that build their own sentence: `scan` (the
+  noun-free rule), `choice_list_bytes` / `choice_list` (the `a`,
+  `a or b`, `a, b, or c` enumeration with C's empty-entry quirks),
+  and `bad_key_message` (byte nouns — the runtime's `tcl::prefix
+  match` `-message`). Consumers: `switch`/`lsort`/`lsearch`/`regexp`/
+  `regsub`/`trace`/`string is` option words (this crate), the VM's
+  `tcl::prefix match` and `string is`, the WASM runtime's `string`
+  ensemble, `tcl::prefix match`, and OO option tables. New command
+  modules MUST resolve through `OptionTable` (or `scan` +
+  `bad_key_message` where a byte noun or interleaved control flow
+  demands composition) — never a hand-rolled scan.
 - `sort::parse_wide` / `sort::parse_real` — the `-integer` / `-real`
   key parsers (`parse_wide` is the whole-string integer-only shape of
   `tcl_syntax::number`, `i128`-wide; `binary`'s wide parse narrows it

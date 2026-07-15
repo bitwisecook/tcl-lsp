@@ -52,7 +52,7 @@ use tcl_syntax::value::ValueOps;
 use tcl_syntax::list::split_list;
 
 use crate::index;
-use crate::option_table::OptionTable;
+use crate::prefix::OptionTable;
 use crate::regex::{RegexEngine, RegexFlags, decode_utf8};
 use crate::sort::{self, SortMode};
 

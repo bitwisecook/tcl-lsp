@@ -31,7 +31,7 @@
 //! `TraceExecutionObjCmd` option tables (`tclTrace.c`).
 
 use crate::error::CmdError;
-use crate::option_table::{OptionTable, Resolution, enumerate_names};
+use crate::prefix::{OptionTable, Resolution, choice_list};
 
 /// A trace category — selects the valid operations and the error wording.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -77,7 +77,7 @@ pub fn parse_ops(spec: &[u8], kind: TraceKind) -> Result<Vec<&'static str>, CmdE
     if elems.is_empty() {
         return Err(CmdError::new(format!(
             "bad operation list \"\": must be one or more of {}",
-            enumerate_names(valid)
+            choice_list(valid)
         )));
     }
     let mut out = Vec::with_capacity(elems.len());

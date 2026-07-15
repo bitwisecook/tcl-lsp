@@ -29,7 +29,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use tcl_cmd_core::prefix::Lookup;
+use tcl_cmd_core::prefix::Resolution;
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
@@ -122,8 +122,8 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // its `trimleft`/`trimright` prefixes via the exact-match rule.
     let sub = obj_bytes(argv[1]);
     let canonical: &[u8] = match index_lookup(STRING_SUBCOMMANDS, &sub) {
-        Lookup::Found(i) => STRING_SUBCOMMANDS[i],
-        Lookup::None | Lookup::Ambiguous => {
+        Resolution::Exact(i) | Resolution::UniquePrefix(i) => STRING_SUBCOMMANDS[i],
+        Resolution::NoMatch | Resolution::Ambiguous => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(&sub);
             m.extend_from_slice(b"\": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart");
@@ -481,18 +481,18 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while i < opt_end {
         let opt = obj_bytes(argv[i]);
         match index_lookup(PREFIX_MATCH_OPTIONS, &opt) {
-            Lookup::Found(1) => {
+            Resolution::Exact(1) | Resolution::UniquePrefix(1) => {
                 exact = true;
                 i += 1;
             }
-            Lookup::Found(2) => {
+            Resolution::Exact(2) | Resolution::UniquePrefix(2) => {
                 if i + 1 >= opt_end {
                     return interp.set_error(b"missing value for -message");
                 }
                 message = obj_bytes(argv[i + 1]);
                 i += 2;
             }
-            Lookup::Found(_) => {
+            Resolution::Exact(_) | Resolution::UniquePrefix(_) => {
                 if i + 1 >= opt_end {
                     return interp.set_error(b"missing value for -error");
                 }
@@ -508,7 +508,7 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 i += 2;
             }
             bad => {
-                let verb: &[u8] = if matches!(bad, Lookup::Ambiguous) {
+                let verb: &[u8] = if matches!(bad, Resolution::Ambiguous) {
                     b"ambiguous option \""
                 } else {
                     b"bad option \""
@@ -528,9 +528,11 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // The shared `Tcl_GetIndexFromObjStruct` matcher: an exact entry always
     // wins; otherwise a unique prefix (unless `-exact`); an empty string never
     // matches (the old local scan wrongly resolved `""` against a one-entry
-    // table). The miss carries C's bad/ambiguous wording.
-    let miss = match tcl_cmd_core::prefix::lookup(&table, &s, exact) {
-        tcl_cmd_core::prefix::Lookup::Found(i) => {
+    // table). `prefix::scan` (not an `OptionTable`) because the `-message`
+    // noun here is caller bytes and `-error {}` returns between the scan and
+    // the message build.
+    let miss = match tcl_cmd_core::prefix::scan(&table, &s, exact) {
+        Resolution::Exact(i) | Resolution::UniquePrefix(i) => {
             interp.set_result(new_string(&table[i]));
             return Code::Ok;
         }
@@ -551,7 +553,7 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         &table,
         &message,
         &s,
-        matches!(miss, tcl_cmd_core::prefix::Lookup::Ambiguous),
+        matches!(miss, Resolution::Ambiguous),
     );
     interp.set_error(&m)
 }
@@ -1104,8 +1106,8 @@ const IS_OPTIONS: &[&[u8]] = &[b"-strict", b"-failindex"];
 /// abbreviates, but — per C — its miss is worded `ambiguous` when it trivially
 /// prefixes two or more entries (tclsh8.6: `string is "" x` → `ambiguous
 /// class ""…`; the old local matcher said `bad`).
-fn index_lookup(table: &[&[u8]], arg: &[u8]) -> Lookup {
-    tcl_cmd_core::prefix::lookup(table, arg, false)
+fn index_lookup(table: &[&[u8]], arg: &[u8]) -> Resolution {
+    tcl_cmd_core::prefix::scan(table, arg, false)
 }
 
 /// `string is class ?-strict? ?-failindex var? string`. Returns 1/0; with
@@ -1119,9 +1121,11 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let class_arg = obj_bytes(argv[2]);
     let class: &[u8] = match index_lookup(IS_CLASSES, &class_arg) {
-        Lookup::Found(i) => IS_CLASSES[i],
-        Lookup::Ambiguous => return interp.set_error(&class_err(b"ambiguous class", &class_arg)),
-        Lookup::None => return interp.set_error(&class_err(b"bad class", &class_arg)),
+        Resolution::Exact(i) | Resolution::UniquePrefix(i) => IS_CLASSES[i],
+        Resolution::Ambiguous => {
+            return interp.set_error(&class_err(b"ambiguous class", &class_arg))
+        }
+        Resolution::NoMatch => return interp.set_error(&class_err(b"bad class", &class_arg)),
     };
 
     // The last argument is always the string under test; the args between the
@@ -1133,11 +1137,11 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while k < last {
         let opt = obj_bytes(argv[k]);
         match index_lookup(IS_OPTIONS, &opt) {
-            Lookup::Found(0) => {
+            Resolution::Exact(0) | Resolution::UniquePrefix(0) => {
                 strict = true;
                 k += 1;
             }
-            Lookup::Found(_) => {
+            Resolution::Exact(_) | Resolution::UniquePrefix(_) => {
                 if k + 1 >= last {
                     // C names the resolved class here (`string is double …`), not
                     // the generic "class" the arg-count check uses.
@@ -1149,8 +1153,10 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 failvar = Some(obj_bytes(argv[k + 1]));
                 k += 2;
             }
-            Lookup::Ambiguous => return interp.set_error(&option_err(b"ambiguous option", &opt)),
-            Lookup::None => return interp.set_error(&option_err(b"bad option", &opt)),
+            Resolution::Ambiguous => {
+                return interp.set_error(&option_err(b"ambiguous option", &opt))
+            }
+            Resolution::NoMatch => return interp.set_error(&option_err(b"bad option", &opt)),
         }
     }
 
