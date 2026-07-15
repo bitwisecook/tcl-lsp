@@ -2014,11 +2014,34 @@ impl Analyser {
         if self.result.all_classes.contains_key(&qualified) {
             return Some(qualified);
         }
-        self.result
-            .all_classes
-            .values()
-            .find(|c| c.name == name)
-            .map(|c| c.qualified_name.clone())
+        if let Some(c) = self.result.all_classes.values().find(|c| c.name == name) {
+            return Some(c.qualified_name.clone());
+        }
+        // Cross-file: a class defined elsewhere in the workspace (the oracle is
+        // empty for the normal single-file analysis).  Exact / `::`-prefixed
+        // spelling, else a *globally-unique* simple-name (tail) match — the same
+        // abstain-on-ambiguity discipline the local tail match uses, so a name
+        // shared by two workspace namespaces is left unresolved rather than
+        // guessed.
+        if self.workspace_classes.is_empty() {
+            return None;
+        }
+        if self.workspace_classes.contains(name) {
+            return Some(name.to_string());
+        }
+        if self.workspace_classes.contains(&qualified) {
+            return Some(qualified);
+        }
+        let mut tail_hits = self
+            .workspace_classes
+            .iter()
+            .filter(|q| q.rsplit("::").next() == Some(name));
+        if let Some(only) = tail_hits.next()
+            && tail_hits.next().is_none()
+        {
+            return Some(only.clone());
+        }
+        None
     }
 
     /// Parse a `[CLASS new ...]` / `[CLASS create ...]`

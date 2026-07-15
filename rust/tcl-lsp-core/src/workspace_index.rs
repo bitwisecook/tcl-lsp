@@ -775,6 +775,41 @@ impl WorkspaceIndex {
             .is_some_and(|winner| winner.trim_start_matches("::") == target)
     }
 
+    /// The fully-qualified names of every indexed class — the workspace class
+    /// set the cross-file analysis feeds to
+    /// [`tcl_compiler::analyser::Analyser::with_workspace_classes`] so a
+    /// consumer document's `set d [::other::Cls new]` resolves cross-file.
+    #[must_use]
+    pub fn all_class_qnames(&self) -> std::collections::HashSet<String> {
+        self.classes
+            .iter()
+            .map(|c| c.qualified_name.clone())
+            .collect()
+    }
+
+    /// The URIs of documents that invoke (a constructor of) any class in
+    /// `class_qnames` — the *candidate consumer* documents whose `$obj method`
+    /// sites a cross-file method reference must scan.  A call qualifies when any
+    /// of its resolution candidates names one of the classes (leading `::`
+    /// ignored), which catches `Cls new` / `Cls create obj` however the class
+    /// was spelled at the call site.  Bounds the consumer scan to documents that
+    /// actually mention a family class rather than the whole workspace.
+    #[must_use]
+    pub fn documents_invoking_classes(
+        &self,
+        class_qnames: &std::collections::HashSet<&str>,
+    ) -> std::collections::HashSet<String> {
+        self.invocations
+            .iter()
+            .filter(|i| {
+                i.resolution_candidates
+                    .iter()
+                    .any(|c| class_qnames.contains(c.trim_start_matches("::")))
+            })
+            .map(|i| i.uri.clone())
+            .collect()
+    }
+
     /// Whether a proc or class with fully-qualified `qualified_name` (leading
     /// `::` ignored) is defined anywhere in the workspace — the existence oracle
     /// that widens the single-file command resolver to the whole project.

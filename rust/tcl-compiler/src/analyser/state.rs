@@ -347,6 +347,14 @@ pub struct Analyser {
     /// `analyse` (gated by the `file_decls_corpus` corpus test).  Defaults to
     /// `false`; normal `analyse` is unaffected.
     pub structure_only: bool,
+    /// Fully-qualified names of classes defined **elsewhere in the workspace**,
+    /// supplied by the cross-file reference/definition path so instance
+    /// inference can resolve a constructor whose class lives in another file
+    /// (`set d [::other::Cls new]`).  Empty for the normal single-file analysis,
+    /// so diagnostics that rely on `instance_classes` naming a *locally-known*
+    /// class (e.g. method-existence checks) are unaffected — only the opt-in
+    /// cross-file re-analysis populates it.
+    pub workspace_classes: std::collections::HashSet<String>,
     /// When `true` (the per-item shell walk), `handle_proc_command` / OO method
     /// walks record their body for separate analysis (`deferred_bodies`) instead
     /// of recursing into it immediately.  Set only for the shell pass; the
@@ -558,6 +566,7 @@ impl Analyser {
             pending_next_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
+            workspace_classes: std::collections::HashSet::new(),
             defer_proc_bodies: false,
             suppress_w215: false,
             deferred_bodies: Vec::new(),
@@ -597,6 +606,16 @@ impl Analyser {
     #[must_use]
     pub fn structure_only(mut self) -> Self {
         self.structure_only = true;
+        self
+    }
+
+    /// Supply the fully-qualified names of classes defined elsewhere in the
+    /// workspace, so instance inference can resolve a constructor whose class
+    /// lives in another file.  Used by the cross-file method reference /
+    /// definition path; the normal single-file analysis leaves this empty.
+    #[must_use]
+    pub fn with_workspace_classes(mut self, classes: std::collections::HashSet<String>) -> Self {
+        self.workspace_classes = classes;
         self
     }
 

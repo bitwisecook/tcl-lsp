@@ -556,6 +556,28 @@ pub(crate) fn method_references_for_class(
     Some((decl_span, call_spans))
 }
 
+/// The external `$obj method` / bare `objcmd method` call sites for `method`
+/// on instances of `class_q` **within `source`**, independent of whether
+/// `class_q` is *defined* in this document.
+///
+/// The building block for cross-file references from a **pure-consumer**
+/// document — one that only creates and uses instances of a class defined
+/// elsewhere (`set d [::other::Cls new]; $d method`).  Such a document defines
+/// no class body, so [`method_reference_spans_in_document`] /
+/// [`inherited_method_spans_in_document`] (which key off a local class body)
+/// find nothing; this keys off `instance_classes`, which the cross-file
+/// analysis populates from the workspace class set.
+#[must_use]
+pub fn obj_method_call_sites(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    find_obj_method_call_sites(source, dialect, analysis, class_q, method)
+}
+
 /// Reference spans for `method` on `class_q` **within `source`**, for
 /// cross-document aggregation: every `$obj method` / `my method` call site,
 /// plus the declaration when `include_decl`.  Empty when `class_q` does not

@@ -3544,9 +3544,12 @@ impl Backend {
         // call (or a method-name cursor in a class body) whose defining class
         // lives in another file — e.g. an inherited method declared in the
         // base class's own document.  A method call's head is `$obj`, not the
-        // method token, so this is not gated on `on_command_head`.
-        if let Some((class_q, method)) =
-            core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
+        // method token, so this is not gated on `on_command_head`.  Resolved
+        // oracle-aware so a pure-consumer receiver (class defined elsewhere)
+        // still identifies the method.
+        if let Some((class_q, method)) = self
+            .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
+            .await
         {
             let method_defs = self
                 .cross_file_method_definition(uri, &class_q, &method)
@@ -3769,6 +3772,166 @@ impl Backend {
         locations.extend(cross);
         dedup_locations(&mut locations);
         locations
+    }
+
+    /// Analyse `source` with the **workspace class set** supplied to instance
+    /// inference, so a constructor whose class lives in another file
+    /// (`set d [::other::Cls new]`) still records `d`'s class.  Used only by the
+    /// cross-file method reference / definition path; the normal cached
+    /// analysis (which drives diagnostics) leaves the oracle empty.
+    async fn analyse_with_workspace_classes(
+        &self,
+        source: &str,
+        dialect: &str,
+    ) -> tcl_compiler::analyser::AnalysisResult {
+        let workspace_classes = self.workspace_index.read().await.all_class_qnames();
+        let source = source.to_owned();
+        let dialect = dialect.to_owned();
+        tokio::task::spawn_blocking(move || {
+            tcl_compiler::analyser::Analyser::new()
+                .with_workspace_classes(workspace_classes)
+                .analyse(&source, &dialect)
+                .clone()
+        })
+        .await
+        .unwrap_or_default()
+    }
+
+    /// Resolve the `TclOO` method `(class, name)` under the cursor.  Tries the
+    /// cached (single-file) analysis first; if that finds nothing — the common
+    /// pure-consumer case where `$obj`'s class is defined in another file and so
+    /// is invisible to the file-local instance inference — retries against an
+    /// analysis carrying the workspace class oracle.
+    async fn resolve_method_target(
+        &self,
+        source: &str,
+        dialect: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> Option<(String, String)> {
+        if let Some(target) =
+            core_rename::method_rename_target(source, pos.line, pos.character, analysis)
+        {
+            return Some(target);
+        }
+        let oracle = self.analyse_with_workspace_classes(source, dialect).await;
+        core_rename::method_rename_target(source, pos.line, pos.character, &oracle)
+    }
+
+    /// Cross-file references from **pure-consumer** documents: `$obj method`
+    /// sites where `$obj` is an instance of a class in `(seed_class, method)`'s
+    /// override family / inheritor set, in a document that only *uses* the class
+    /// (defines no part of it) and so is invisible to
+    /// [`Self::cross_file_method_references`].
+    ///
+    /// Bounds the scan to documents that construct a family instance (via the
+    /// index's invocation records) plus the current document — whose consumer
+    /// sites the single-document provider also missed — and re-analyses each
+    /// with the workspace class oracle so `instance_classes` resolves the
+    /// cross-file constructor.  Declarations are never here (a consumer declares
+    /// none), so this is independent of `include_declaration`.
+    async fn cross_file_consumer_method_references(
+        &self,
+        current_uri: &Uri,
+        current_source: &str,
+        current_dialect: &str,
+        seed_class: &str,
+        method: &str,
+    ) -> Vec<Location> {
+        // The family + inheritor classes whose instances dispatch `method` to
+        // the family, the workspace class oracle, and the candidate consumer
+        // documents — collected under one index read.
+        let (family, consumer_uris) = {
+            let index = self.workspace_index.read().await;
+            let mut family: Vec<String> = index
+                .method_override_family(seed_class, method)
+                .iter()
+                .map(|wc| wc.qualified_name.clone())
+                .collect();
+            family.extend(
+                index
+                    .method_inheritor_classes(seed_class, method)
+                    .iter()
+                    .map(|wc| wc.qualified_name.clone()),
+            );
+            if family.is_empty() {
+                return Vec::new();
+            }
+            let family_norm: std::collections::HashSet<&str> =
+                family.iter().map(|s| s.trim_start_matches("::")).collect();
+            let consumer_uris = index.documents_invoking_classes(&family_norm);
+            (family, consumer_uris)
+        };
+        let mut out = Vec::new();
+        let mut scanned: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for u in consumer_uris
+            .into_iter()
+            .chain(std::iter::once(current_uri.as_str().to_owned()))
+        {
+            if !scanned.insert(u.clone()) {
+                continue;
+            }
+            let (parsed, source, dialect, line_index, text) = if u == current_uri.as_str() {
+                let li = tcl_lexer::LineIndex::new(current_source);
+                (
+                    current_uri.clone(),
+                    current_source.to_owned(),
+                    current_dialect.to_owned(),
+                    li,
+                    current_source.to_owned(),
+                )
+            } else {
+                let Ok(parsed) = Uri::from_str(&u) else {
+                    continue;
+                };
+                let Some(doc) = self.read_document(&parsed).await else {
+                    continue;
+                };
+                (
+                    parsed,
+                    doc.text.clone(),
+                    doc.dialect.clone(),
+                    doc.line_index.clone(),
+                    doc.text.clone(),
+                )
+            };
+            let analysis = self.analyse_with_workspace_classes(&source, &dialect).await;
+            let family_cl = family.clone();
+            let method_owned = method.to_owned();
+            let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
+                let mut all: Vec<tcl_lexer::Span> = Vec::new();
+                for cq in &family_cl {
+                    all.extend(core_references::obj_method_call_sites(
+                        &source,
+                        &dialect,
+                        &analysis,
+                        cq,
+                        &method_owned,
+                    ));
+                }
+                all
+            })
+            .await
+            .unwrap_or_default();
+            for span in spans {
+                let start = line_index.position_at_utf16(span.start(), &text);
+                let end = line_index.position_at_utf16(span.end(), &text);
+                out.push(Location {
+                    uri: parsed.clone(),
+                    range: Range {
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
+                    },
+                });
+            }
+        }
+        out
     }
 
     /// Cross-file rename of a `TclOO` method across its override family.
@@ -7316,14 +7479,29 @@ impl LanguageServer for Backend {
         // (its declaration inside a class body, or an `$obj method` / `my
         // method` call), gather the method's sites across its override family in
         // sibling documents — the single-document provider above only sees this
-        // file.
-        if let Some((seed_class, method)) =
-            core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
+        // file.  The target is resolved oracle-aware so a pure-consumer cursor
+        // (`$obj`'s class defined in another file) still identifies the method.
+        if let Some((seed_class, method)) = self
+            .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
+            .await
         {
             let method_cross = self
                 .cross_file_method_references(&uri, &seed_class, &method, include_decl)
                 .await;
             locations.extend(method_cross);
+            // Pure-consumer documents (including this one) whose `$obj method`
+            // sites neither the single-document provider nor the family pass
+            // sees without the workspace class oracle.
+            let consumer = self
+                .cross_file_consumer_method_references(
+                    &uri,
+                    &doc.text,
+                    &doc.dialect,
+                    &seed_class,
+                    &method,
+                )
+                .await;
+            locations.extend(consumer);
         }
         dedup_locations(&mut locations);
         if locations.is_empty() {
@@ -17440,6 +17618,94 @@ mod tests {
         // `$d speak` is on line 4; `speak` starts at column 3.
         let defs = backend
             .compute_definition(&dog, Position::new(4, 4))
+            .await
+            .expect("ok");
+        assert_eq!(defs.len(), 1, "{defs:?}");
+        assert_eq!(defs[0].uri, animal);
+        assert_eq!(defs[0].range.start.line, 1, "{defs:?}");
+    }
+
+    /// Register `animal.tcl` (`Animal::speak`) and a pure-consumer `main.tcl`
+    /// that only creates and uses an `Animal` instance — it defines no part of
+    /// the class.
+    async fn register_consumer_workspace() -> (Backend, Uri, Uri) {
+        let backend = test_backend();
+        let animal = Uri::from_str("file:///animal.tcl").unwrap();
+        let main = Uri::from_str("file:///main.tcl").unwrap();
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
+        register(&backend, &main, "set a [Animal new]\n$a speak\n").await;
+        (backend, animal, main)
+    }
+
+    #[tokio::test]
+    async fn references_reach_pure_consumer_document() {
+        // References on `Animal::speak` include the `$a speak` call in the
+        // pure-consumer main.tcl, which defines no part of `Animal` and so is
+        // invisible to the family/inheritor pass — only the workspace class
+        // oracle resolves `a` to `::Animal` there.
+        let (backend, animal, main) = register_consumer_workspace().await;
+        let refs = backend
+            .cross_file_consumer_method_references(
+                &animal,
+                "oo::class create Animal {\n    method speak {} {}\n}\n",
+                "tcl8.6",
+                "::Animal",
+                "speak",
+            )
+            .await;
+        assert!(
+            refs.iter()
+                .any(|l| l.uri == main && l.range.start.line == 1),
+            "`$a speak` in the consumer document missing: {refs:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn references_handler_from_consumer_cursor_finds_family() {
+        // End-to-end: the cursor on `$a speak` in the pure-consumer main.tcl
+        // resolves the method oracle-aware and finds `Animal::speak`'s
+        // declaration in animal.tcl plus its own call site.
+        let (backend, animal, main) = register_consumer_workspace().await;
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: main.clone() },
+                position: Position::new(1, 4), // on `speak` in `$a speak`
+            },
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let refs = backend
+            .references(params)
+            .await
+            .expect("ok")
+            .expect("some references");
+        assert!(
+            refs.iter()
+                .any(|l| l.uri == animal && l.range.start.line == 1),
+            "cross-file declaration `Animal::speak` missing: {refs:?}",
+        );
+        assert!(
+            refs.iter()
+                .any(|l| l.uri == main && l.range.start.line == 1),
+            "consumer call `$a speak` missing: {refs:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn goto_definition_from_consumer_cursor_finds_cross_file_method() {
+        // Go-to-definition on `$a speak` in the pure-consumer main.tcl resolves
+        // `a`'s class cross-file (oracle-aware) and jumps to `Animal::speak`.
+        let (backend, animal, main) = register_consumer_workspace().await;
+        let defs = backend
+            .compute_definition(&main, Position::new(1, 4))
             .await
             .expect("ok");
         assert_eq!(defs.len(), 1, "{defs:?}");
