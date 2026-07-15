@@ -154,6 +154,31 @@ fn definition_bare_call_honours_namespace_path_over_global() {
 }
 
 #[test]
+fn definition_through_tailcall_and_coroutine_command_prefix() {
+    // `tailcall foo` (arg 0) and `coroutine c helper` (arg 1) name a command to
+    // run; declared as command prefixes, go-to-definition on that command
+    // resolves to its `proc`.
+    let src = "proc foo {} {}\nproc bar {} { tailcall foo }\n";
+    let analysis = analyse(src);
+    let line1 = src.lines().nth(1).unwrap();
+    let col = line1.rfind("foo").unwrap() as u32 + 1;
+    let locs = definition(src, 1, col, &analysis);
+    assert_eq!(locs.len(), 1, "tailcall foo: {locs:?}");
+    assert_eq!(locs[0].start_line, 0, "tailcall foo -> proc foo: {locs:?}");
+
+    let src2 = "proc helper {} {}\ncoroutine c helper\n";
+    let analysis2 = analyse(src2);
+    let line1 = src2.lines().nth(1).unwrap();
+    let col = line1.rfind("helper").unwrap() as u32 + 1;
+    let locs2 = definition(src2, 1, col, &analysis2);
+    assert_eq!(locs2.len(), 1, "coroutine helper: {locs2:?}");
+    assert_eq!(
+        locs2[0].start_line, 0,
+        "coroutine c helper -> proc helper: {locs2:?}"
+    );
+}
+
+#[test]
 fn definition_from_proc_definition_resolves_to_itself() {
     // Cursor on the proc name in its own declaration resolves to that same
     // declaration (the name span is the definition site).

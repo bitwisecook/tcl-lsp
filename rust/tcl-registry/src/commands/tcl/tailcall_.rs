@@ -54,6 +54,11 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         codegen_hook: Some(CodegenHookId::Tailcall),
+        // `tailcall command ?arg …?` — arg 0 is the command to become, invoked
+        // with the trailing args appended (a variable count).  Declaring it a
+        // command prefix makes references / go-to-definition / rename see the
+        // proc named in a `tailcall` the same as a direct call.
+        command_prefixes: &[(0, AppendedArity::Unknown)],
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }
