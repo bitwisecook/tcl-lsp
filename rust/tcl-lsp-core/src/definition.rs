@@ -576,43 +576,76 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     None
 }
 
-/// Union of every reference span for the variable whose declaration is
-/// `def_span`, gathered across the whole scope tree.
+/// Every reference span (other than `var_def`'s own declaration) for the
+/// variable `var_def` denotes, gathered across the whole scope tree by
+/// unifying the aliases Tcl treats as one cell:
 ///
-/// A `TclOO` instance variable is pre-bound into every method scope carrying
-/// the *same* `variable v` declaration span, so its reads/writes are spread
-/// across sibling method-body scopes.  Unioning by that shared declaration span
-/// links them into the one cell Tcl stores per object — so Find-References,
-/// Rename, and Document-Highlight on `$v` in one method reach its uses in every
-/// method plus the declaration.
+/// * **Namespace / global aliases** — `global v`, `variable v`, `namespace
+///   upvar ns v local` each record a `link_target` (the qualified cell name);
+///   every alias of that cell, and the namespace-level declaration itself,
+///   shares the target, so their declarations (each spells the name) and uses
+///   all unify.  This is the analyser analogue of Tcl's `VAR_LINK`.
+/// * **`TclOO` instance variables** — pre-bound into every method scope with
+///   the *same* `variable v` declaration span; unioning by that shared span
+///   links the per-method copies into the one per-object cell.
 ///
-/// The caller must only invoke this for a *non-empty* `def_span`: a zero-width
-/// span is the fallback used when a seeded variable has no source declaration
-/// token (a grammar-injected implicit), and several such vars in one body share
-/// it — unioning by an empty span would wrongly merge them.  For an ordinary
-/// variable (unique declaration span) this returns exactly its own references.
+/// A zero-width declaration span (the fallback for a declaration-less
+/// grammar-injected implicit) can't be unioned safely — several such seeds in
+/// one body share it — so that case returns exactly `var_def`'s own
+/// references.  The caller adds `var_def`'s own declaration span itself (when
+/// including the declaration), so it is excluded here.
 #[must_use]
 pub(crate) fn linked_var_reference_spans(
     scope: &tcl_compiler::analyser::Scope,
-    def_span: tcl_lexer::Span,
+    var_def: &tcl_compiler::analyser::VarDef,
 ) -> Vec<tcl_lexer::Span> {
-    fn walk(
-        scope: &tcl_compiler::analyser::Scope,
-        def_span: tcl_lexer::Span,
-        out: &mut Vec<tcl_lexer::Span>,
-    ) {
-        for v in scope.variables.values() {
-            if v.definition_span == def_span {
-                out.extend(v.references.iter().copied());
-            }
+    let mut out = Vec::new();
+    match var_def.link_target.as_deref() {
+        Some(target) => collect_alias_spans(scope, target, var_def.definition_span, &mut out),
+        None if !var_def.definition_span.is_empty() => {
+            collect_shared_span_refs(scope, var_def.definition_span, &mut out);
         }
-        for child in &scope.children {
-            walk(child, def_span, out);
+        None => out.extend(var_def.references.iter().copied()),
+    }
+    out
+}
+
+/// Declarations (other than `own_decl`) and uses of every variable aliasing the
+/// cell `target`.
+fn collect_alias_spans(
+    scope: &tcl_compiler::analyser::Scope,
+    target: &str,
+    own_decl: tcl_lexer::Span,
+    out: &mut Vec<tcl_lexer::Span>,
+) {
+    for v in scope.variables.values() {
+        if v.link_target.as_deref() == Some(target) {
+            if v.definition_span != own_decl {
+                out.push(v.definition_span);
+            }
+            out.extend(v.references.iter().copied());
         }
     }
-    let mut out = Vec::new();
-    walk(scope, def_span, &mut out);
-    out
+    for child in &scope.children {
+        collect_alias_spans(child, target, own_decl, out);
+    }
+}
+
+/// Uses of every variable sharing the declaration span `def_span` (the `TclOO`
+/// instance-variable case).
+fn collect_shared_span_refs(
+    scope: &tcl_compiler::analyser::Scope,
+    def_span: tcl_lexer::Span,
+    out: &mut Vec<tcl_lexer::Span>,
+) {
+    for v in scope.variables.values() {
+        if v.definition_span == def_span {
+            out.extend(v.references.iter().copied());
+        }
+    }
+    for child in &scope.children {
+        collect_shared_span_refs(child, def_span, out);
+    }
 }
 
 /// Resolve the *name* of a variable whose declaration occupies

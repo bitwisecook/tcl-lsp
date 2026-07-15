@@ -304,20 +304,11 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     if include_declaration {
         out.push(span_to_range(source, line_index, var_def.definition_span));
     }
-    // A class instance variable's uses are spread across sibling method bodies
-    // (all seeded from the one `variable v` declaration); union them by that
-    // shared declaration span.  A zero-width span (a declaration-less implicit)
-    // can't be unioned safely, so fall back to this variable's own references.
-    if var_def.definition_span.is_empty() {
-        for r in &var_def.references {
-            out.push(span_to_range(source, line_index, *r));
-        }
-    } else {
-        for r in
-            crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def.definition_span)
-        {
-            out.push(span_to_range(source, line_index, r));
-        }
+    // Unify every alias Tcl treats as one cell — namespace/global aliases
+    // (`global`/`variable`/`namespace upvar`) and a class instance variable's
+    // per-method copies — so the reference set spans them all.
+    for r in crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def) {
+        out.push(span_to_range(source, line_index, r));
     }
     dedup_ranges(&mut out);
     Some(out)
@@ -1037,20 +1028,10 @@ pub fn document_highlights(
             span_to_range(source, &line_index, var_def.definition_span),
             HighlightKind::Write,
         ));
-        // Highlight a class instance variable's uses across every method body
-        // (unioned by the shared `variable v` declaration span); a zero-width
-        // span (a declaration-less implicit) falls back to this var's own uses.
-        if var_def.definition_span.is_empty() {
-            for r in &var_def.references {
-                out.push((span_to_range(source, &line_index, *r), HighlightKind::Read));
-            }
-        } else {
-            for r in crate::definition::linked_var_reference_spans(
-                &analysis.global_scope,
-                var_def.definition_span,
-            ) {
-                out.push((span_to_range(source, &line_index, r), HighlightKind::Read));
-            }
+        // Highlight every alias Tcl treats as one cell (namespace/global
+        // aliases and a class instance variable's per-method copies).
+        for r in crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def) {
+            out.push((span_to_range(source, &line_index, r), HighlightKind::Read));
         }
         return dedup_kinded(out);
     }
@@ -1302,6 +1283,7 @@ mod tests {
                 references: vec![Span::new(13, 14)],
                 warn_if_unused: false,
                 array_indices: std::collections::BTreeSet::new(),
+                link_target: None,
             },
         );
         let a = Result {

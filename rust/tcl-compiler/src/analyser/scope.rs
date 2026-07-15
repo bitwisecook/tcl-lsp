@@ -753,10 +753,25 @@ impl Analyser {
                 references: Vec::new(),
                 warn_if_unused,
                 array_indices: indices,
+                link_target: None,
             };
             scope.variables.insert(base_owned.clone(), var.clone());
             let key = format!("{}::{base_owned}", scope.name);
             self.result.all_variables.insert(key, var);
+        }
+    }
+
+    /// Record that the local `name` in the scope at `scope_path` aliases the
+    /// namespace/global cell `target` (a `global` / `variable` / `namespace
+    /// upvar` binding), so Find-References / Rename can unify every alias of the
+    /// same cell.  A no-op if the variable wasn't defined (call after
+    /// [`Self::define_var`]).
+    pub fn set_var_link_target(&mut self, name: &str, scope_path: &[usize], target: String) {
+        let base = crate::naming::normalise_var_name(name).to_string();
+        if let Some(scope) = scope_at_mut(&mut self.result.global_scope, scope_path)
+            && let Some(v) = scope.variables.get_mut(&base)
+        {
+            v.link_target = Some(target);
         }
     }
 

@@ -272,3 +272,18 @@ fn references_object_variable_unify_across_methods() {
     assert!(lines.contains(&2), "`$n` in get (line 2): {lines:?}");
     assert!(lines.contains(&3), "`incr n` in bump (line 3) must unify: {lines:?}");
 }
+
+/// End-to-end (real server): a namespace variable's `variable` aliases across
+/// procs and its namespace-level declaration unify into one reference set.
+#[test]
+fn references_namespace_variable_unify_across_procs() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ::app {\n    variable count 0\n    proc bump {} { variable count; incr count }\n    proc get {} { variable count; return $count }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
+    let lines = start_lines(&lsp.references(&uri, 3, col, true));
+    assert!(lines.contains(&1), "namespace-level decl (line 1): {lines:?}");
+    assert!(lines.contains(&2), "bump alias+use (line 2): {lines:?}");
+    assert!(lines.contains(&3), "get alias+use (line 3): {lines:?}");
+}

@@ -702,6 +702,12 @@ fn merge_one_var(
         existing.references.extend(v.references);
         existing.warn_if_unused |= v.warn_if_unused;
         existing.array_indices.extend(v.array_indices);
+        // Keep the namespace/global alias link if the body pass discovered one
+        // the shell didn't (a `global`/`variable`/`namespace upvar` in a
+        // deferred proc body).
+        if existing.link_target.is_none() {
+            existing.link_target = v.link_target;
+        }
     } else {
         dst.insert(k, v);
     }

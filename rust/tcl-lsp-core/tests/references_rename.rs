@@ -1423,3 +1423,64 @@ fn object_var_rename_unifies_declaration_and_all_method_uses() {
     // No edit spans the body (the earlier corruption guard still holds).
     assert!(edits.iter().all(|e| e.range.start_line == e.range.end_line), "{edits:?}");
 }
+
+#[test]
+fn namespace_variable_unifies_across_procs() {
+    // `variable count` in two procs plus the namespace-level declaration are
+    // one cell (`::app::count`); Find-References on `$count` must reach them all.
+    let src = "namespace eval ::app {\n    variable count 0\n    proc bump {} { variable count; incr count }\n    proc get {} { variable count; return $count }\n}\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    eprintln!("namespace-variable reference lines = {lines:?}");
+    assert!(lines.contains(&1), "namespace-level `variable count 0` (line 1): {refs:?}");
+    assert!(lines.contains(&2), "`variable count`/`incr count` in bump (line 2): {refs:?}");
+    assert!(lines.contains(&3), "`$count` in get (line 3): {refs:?}");
+}
+
+#[test]
+fn global_variable_unifies_across_procs() {
+    // `global g` in a proc aliases `::g`; the top-level `set g` and another
+    // proc's `global g` are the same cell.
+    let src = "set g 0\nproc a {} { global g; incr g }\nproc b {} { global g; return $g }\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(2).unwrap().find("$g").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 2, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    eprintln!("global-variable reference lines = {lines:?}");
+    assert!(lines.contains(&1), "`global g`/`incr g` in a (line 1): {refs:?}");
+    assert!(lines.contains(&2), "`global g`/`$g` in b (line 2): {refs:?}");
+}
+
+#[test]
+fn namespace_variable_rename_unifies_all_aliases() {
+    // Renaming the namespace variable rewrites its declaration and every
+    // `variable count` alias + use across procs, as one variable.
+    let src = "namespace eval ::app {\n    variable count 0\n    proc bump {} { variable count; incr count }\n    proc get {} { variable count; return $count }\n}\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
+    let edits = rename(src, "tcl8.6", 3, col, "total", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(lines.contains(&1), "namespace decl (line 1) must rename: {edits:?}");
+    assert!(lines.contains(&2), "bump's alias + use (line 2) must rename: {edits:?}");
+    assert!(lines.contains(&3), "get's alias + use (line 3) must rename: {edits:?}");
+    assert!(edits.iter().all(|e| e.new_text.contains("total")), "{edits:?}");
+}
+
+#[test]
+fn namespace_variables_in_different_namespaces_do_not_unify() {
+    // FP guard: `variable count` in ::a and ::b are distinct cells
+    // (`::a::count` vs `::b::count`) and must NOT be unified.
+    let src = "namespace eval ::a {\n    proc p {} { variable count; return $count }\n}\nnamespace eval ::b {\n    proc q {} { variable count; incr count }\n}\n";
+    let analysis = analyse(src);
+    // `$count` in ::a::p (line 1)
+    let col = src.lines().nth(1).unwrap().find("$count").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 1, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "::a's own use (line 1): {refs:?}");
+    assert!(
+        !lines.contains(&4),
+        "::b::count (line 4) is a different cell and must NOT unify: {refs:?}"
+    );
+}

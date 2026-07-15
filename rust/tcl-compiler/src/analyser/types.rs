@@ -295,6 +295,14 @@ pub struct VarDef {
     /// Array element indices observed for this variable (`set arr(name) …`
     /// / `$arr(name)`).  Used by completion to offer `$arr(name)`.
     pub array_indices: std::collections::BTreeSet<String>,
+    /// For a local that aliases a namespace/global cell (`global v`,
+    /// `variable v`, `namespace upvar ns v local`), the qualified name of that
+    /// cell (`::v`, `::ns::v`, …).  Every alias of the same cell — across
+    /// procs, and the namespace-level declaration itself — carries the same
+    /// target, so Find-References / Rename can unify them into one variable
+    /// (the analyser analogue of Tcl's `VAR_LINK`).  `None` for an ordinary
+    /// local or a directly-defined variable.
+    pub link_target: Option<String>,
 }
 
 /// How a proc parameter is used inside the proc body.

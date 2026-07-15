@@ -249,6 +249,7 @@ fn document_highlights_dedup_keeps_write_over_read_on_collision() {
             references: vec![Span::new(13, 14)], // identical span -> collision
             warn_if_unused: false,
             array_indices: std::collections::BTreeSet::new(),
+            link_target: None,
         },
     );
     let analysis = R {

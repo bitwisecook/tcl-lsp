@@ -633,18 +633,12 @@ fn rename_var(
         range: span_to_range(source, line_index, var_def.definition_span),
         new_text: def_new_text,
     });
-    // A class instance variable's uses span every method body (all seeded from
-    // the one `variable v` declaration); rewrite them together by unioning on
-    // the shared declaration span.  A zero-width span (a declaration-less
-    // implicit) can't be unioned, so fall back to this variable's own uses.
-    let ref_spans: Vec<tcl_lexer::Span> = if var_def.definition_span.is_empty() {
-        var_def.references.clone()
-    } else {
-        crate::definition::linked_var_reference_spans(
-            &analysis.global_scope,
-            var_def.definition_span,
-        )
-    };
+    // Rewrite every alias Tcl treats as one cell together — namespace/global
+    // aliases (`global`/`variable`/`namespace upvar`) and a class instance
+    // variable's per-method copies — so a rename never leaves a sibling use or
+    // an aliasing declaration pointing at the old name.
+    let ref_spans =
+        crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def);
     let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
     for r in ref_spans {
         if !seen.insert((r.start(), r.end())) {

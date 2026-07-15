@@ -195,6 +195,15 @@ impl Analyser {
             let local = name.rsplit("::").next().unwrap_or(name);
             if let Some(tok) = arg_tokens.get(i) {
                 self.define_var(local, *tok, scope_path, false, None);
+                // `global v` aliases the global cell `::v`; `global ::ns::v`
+                // aliases `::ns::v` as written.  Record the target so every
+                // `global` alias and the global declaration unify.
+                let target = if name.starts_with("::") {
+                    name.clone()
+                } else {
+                    format!("::{name}")
+                };
+                self.set_var_link_target(local, scope_path, target);
             }
         }
     }
@@ -212,10 +221,22 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         // `variable name ?value? name ?value? ...`
+        // Each `name` aliases the cell `<current-namespace>::<name>`; every
+        // `variable name` across that namespace's procs, plus the namespace
+        // -level declaration, shares that target and so unifies.
+        let ns = self.command_resolution_namespace(scope_path);
+        let ns_prefix = ns.trim_end_matches("::");
         let mut i = 0;
         while i < args.len() {
             if let Some(tok) = arg_tokens.get(i) {
                 self.define_var(&args[i], *tok, scope_path, false, None);
+                let tail = args[i].rsplit("::").next().unwrap_or(&args[i]);
+                let target = if args[i].starts_with("::") {
+                    args[i].clone()
+                } else {
+                    format!("{ns_prefix}::{tail}")
+                };
+                self.set_var_link_target(&args[i], scope_path, target);
             }
             i += if i + 1 < args.len() { 2 } else { 1 };
         }
@@ -1515,9 +1536,22 @@ impl Analyser {
         if args.len() < 4 {
             return;
         }
+        // `namespace upvar nsname otherVar myVar ?otherVar myVar ...?`: `myVar`
+        // (indices 3, 5, …) aliases `nsname::otherVar` (`otherVar` at 2, 4, …).
+        // Resolve a relative `nsname` against the current namespace.
+        let cur = self.command_resolution_namespace(scope_path);
+        let cur_prefix = cur.trim_end_matches("::");
+        let target_ns = if args[1].starts_with("::") {
+            args[1].trim_end_matches("::").to_string()
+        } else {
+            format!("{cur_prefix}::{}", args[1].trim_end_matches("::"))
+        };
         let mut i = 3;
         while i < args.len() && i < arg_tokens.len() {
             self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+            let other = &args[i - 1];
+            let target = format!("{target_ns}::{}", other.rsplit("::").next().unwrap_or(other));
+            self.set_var_link_target(&args[i], scope_path, target);
             i += 2;
         }
     }
