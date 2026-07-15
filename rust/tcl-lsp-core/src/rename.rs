@@ -637,8 +637,7 @@ fn rename_var(
     // aliases (`global`/`variable`/`namespace upvar`) and a class instance
     // variable's per-method copies — so a rename never leaves a sibling use or
     // an aliasing declaration pointing at the old name.
-    let ref_spans =
-        crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def);
+    let ref_spans = crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def);
     let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
     for r in ref_spans {
         if !seen.insert((r.start(), r.end())) {
@@ -748,7 +747,8 @@ fn rename_class(
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
     // rename the wrong same-named class in another namespace).
-    let (qname, class_def) = crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
+    let (qname, class_def) =
+        crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
@@ -1050,7 +1050,6 @@ pub struct WorkspaceTextEdit {
 /// against the target document's source.
 #[must_use]
 pub fn cross_document_symbol_edits(
-    simple_name: &str,
     qualified_name: &str,
     new_name: &str,
     index: &crate::workspace_index::WorkspaceIndex,
@@ -1060,7 +1059,7 @@ pub fn cross_document_symbol_edits(
     let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
     let mut edits = Vec::new();
     // Call sites.
-    for inv in index.invocations_of(simple_name, qualified_name, current_uri) {
+    for inv in index.invocations_of(qualified_name, current_uri) {
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
         edits.push(WorkspaceTextEdit {

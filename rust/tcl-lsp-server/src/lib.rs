@@ -3520,8 +3520,9 @@ impl Backend {
         // false-positive go-to-definition jump.
         let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
         let text = doc.text.clone();
+        let analysis_worker = Arc::clone(&analysis);
         let in_doc = tokio::task::spawn_blocking(move || {
-            core_definition::definition(&text, pos.line, pos.character, &analysis)
+            core_definition::definition(&text, pos.line, pos.character, &analysis_worker)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -3544,7 +3545,8 @@ impl Backend {
         }
         // Cross-document fallback: resolve a proc / class
         // defined in a sibling document via the workspace index.
-        self.cross_document_definition(uri, &doc.text, pos).await
+        self.cross_document_definition(&doc.text, pos, &analysis)
+            .await
     }
 
     /// Resolve the symbol at `pos` against the workspace index
@@ -3554,30 +3556,26 @@ impl Backend {
     /// documents.
     async fn cross_document_definition(
         &self,
-        uri: &Uri,
         source: &str,
         pos: Position,
+        analysis: &AnalysisResult,
     ) -> jsonrpc::Result<Vec<Location>> {
-        // A `$var` reference can't resolve to a cross-document
-        // proc / class.
-        if core_hover::find_var_at_position(source, pos.line, pos.character).is_some() {
-            return Ok(Vec::new());
-        }
-        let Some((word, _, _)) =
-            core_hover::find_word_span_at_position(source, pos.line, pos.character)
-        else {
+        // Resolve the call at the cursor to its single qualified target through
+        // the workspace oracle, then jump to *that* symbol's definition — never
+        // every same-simple-name proc/class across the project, which a bare
+        // name lookup would surface as spurious extra jump targets.
+        let Some(qualified) = self.resolve_workspace_symbol(source, analysis, pos).await else {
             return Ok(Vec::new());
         };
-        // Collect (uri, name_span) targets from the index.
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
             index
-                .proc_definitions(&word, uri.as_str())
+                .proc_definitions_qualified(&qualified, "")
                 .into_iter()
                 .map(|p| (p.uri.clone(), p.name_span))
                 .chain(
                     index
-                        .class_definitions(&word, uri.as_str())
+                        .class_definitions_qualified(&qualified, "")
                         .into_iter()
                         .map(|c| (c.uri.clone(), c.name_span)),
                 )
@@ -3622,56 +3620,57 @@ impl Backend {
         locations
     }
 
-    /// Resolve the proc / class symbol at `pos` (a bare command
-    /// word, not a `$var`) to its `(simple_name,
-    /// qualified_name)`, consulting the current document's
-    /// analysis first and the workspace index second.  Used by
-    /// cross-document references / rename to identify which
-    /// symbol's call sites to gather.
+    /// Resolve the proc / class symbol at `pos` (a bare command word, not a
+    /// `$var`) to its fully-qualified name.  Used by cross-document references /
+    /// rename to identify which symbol's call sites to gather.
+    ///
+    /// Two cursor shapes resolve, both namespace-exact:
+    ///
+    /// 1. On a proc / class **declaration name** in this document — the symbol
+    ///    whose name span covers the cursor.
+    /// 2. On a **command-head call** — the invocation's ordered resolution
+    ///    candidates (caller namespace, each `namespace path` entry, then
+    ///    global) walked in Tcl priority order; the first defined in the current
+    ///    document or anywhere in the workspace is the call's target.  This is
+    ///    the workspace-scoped resolution oracle, replacing a namespace-blind
+    ///    `name == word` scan and an arbitrary same-simple-name sibling pick.
+    ///
+    /// Anything else (a bareword argument, whitespace, a `$var`) resolves to
+    /// nothing, so no coincidental word links to a sibling symbol.
     async fn resolve_workspace_symbol(
         &self,
-        uri: &Uri,
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Option<(String, String)> {
+    ) -> Option<String> {
         if core_hover::find_var_at_position(source, pos.line, pos.character).is_some() {
             return None;
         }
-        let (word, _, _) = core_hover::find_word_span_at_position(source, pos.line, pos.character)?;
-        // Current document: proc, then class.
-        for (qname, proc_def) in &analysis.all_procs {
-            if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-                return Some((proc_def.name.clone(), proc_def.qualified_name.clone()));
-            }
+        let offset = line_col_to_byte_offset(source, pos.line, pos.character)?;
+        let covers =
+            |sp: tcl_lexer::Span| (sp.start() as usize) <= offset && offset < (sp.end() as usize);
+
+        if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
+            return Some(proc_def.qualified_name.clone());
         }
-        for class_def in analysis.all_classes.values() {
-            if class_def.name == word
-                || class_def.qualified_name == word
-                || class_def.qualified_name == format!("::{word}")
-            {
-                return Some((class_def.name.clone(), class_def.qualified_name.clone()));
-            }
+        if let Some(class_def) = analysis.all_classes.values().find(|c| covers(c.name_span)) {
+            return Some(class_def.qualified_name.clone());
         }
-        // Otherwise the symbol may be defined in a sibling
-        // document — resolve its qualified name from the index.
-        // Gate this on the cursor actually sitting on a command
-        // invocation head in *this* document: without it, a
-        // coincidental bareword argument (`puts hello`) would resolve
-        // against any sibling document that happens to define a proc /
-        // class of the same name, producing spurious cross-document
-        // references / rename edits.
-        if !position_is_command_head(source, pos, analysis) {
-            return None;
-        }
+
+        let inv = analysis
+            .command_invocations
+            .iter()
+            .find(|i| covers(i.range))?;
         let index = self.workspace_index.read().await;
-        if let Some(p) = index.proc_definitions(&word, uri.as_str()).first() {
-            return Some((p.name.clone(), p.qualified_name.clone()));
-        }
-        if let Some(c) = index.class_definitions(&word, uri.as_str()).first() {
-            return Some((c.name.clone(), c.qualified_name.clone()));
-        }
-        None
+        inv.resolution_candidates
+            .iter()
+            .find(|cand| {
+                let cand = cand.as_str();
+                analysis.all_procs.contains_key(cand)
+                    || analysis.all_classes.contains_key(cand)
+                    || index.workspace_command_exists(cand)
+            })
+            .cloned()
     }
 
     /// Cross-document references for the proc / class at `pos`:
@@ -3687,24 +3686,24 @@ impl Backend {
         pos: Position,
         include_declaration: bool,
     ) -> Vec<Location> {
-        let Some((simple, qualified)) = self
-            .resolve_workspace_symbol(uri, source, analysis, pos)
-            .await
-        else {
+        let Some(qualified) = self.resolve_workspace_symbol(source, analysis, pos).await else {
             return Vec::new();
         };
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
             let mut t: Vec<(String, tcl_lexer::Span)> = index
-                .invocations_of(&simple, &qualified, uri.as_str())
+                .invocations_of(&qualified, uri.as_str())
                 .into_iter()
                 .map(|i| (i.uri.clone(), i.range))
                 .collect();
             if include_declaration {
-                for p in index.proc_definitions(&simple, uri.as_str()) {
+                // Match the declaration sites by *qualified* name — a same
+                // simple name in an unrelated namespace/file is a different
+                // symbol and must not be surfaced as this one's declaration.
+                for p in index.proc_definitions_qualified(&qualified, uri.as_str()) {
                     t.push((p.uri.clone(), p.name_span));
                 }
-                for c in index.class_definitions(&simple, uri.as_str()) {
+                for c in index.class_definitions_qualified(&qualified, uri.as_str()) {
                     t.push((c.uri.clone(), c.name_span));
                 }
             }
@@ -3888,21 +3887,12 @@ impl Backend {
         new_name: &str,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
     ) {
-        let Some((simple, qualified)) = self
-            .resolve_workspace_symbol(uri, source, analysis, pos)
-            .await
-        else {
+        let Some(qualified) = self.resolve_workspace_symbol(source, analysis, pos).await else {
             return;
         };
         let intents = {
             let index = self.workspace_index.read().await;
-            core_rename::cross_document_symbol_edits(
-                &simple,
-                &qualified,
-                new_name,
-                &index,
-                uri.as_str(),
-            )
+            core_rename::cross_document_symbol_edits(&qualified, new_name, &index, uri.as_str())
         };
         for intent in intents {
             let Ok(parsed) = Uri::from_str(&intent.uri) else {
@@ -15779,7 +15769,7 @@ mod tests {
         );
         // The call site in main.tcl should be indexed too (no
         // current-URI exclusion here).
-        let invs = index.invocations_of("greet", "greet", "");
+        let invs = index.invocations_of("greet", "");
         assert!(
             !invs.is_empty(),
             "expected the unopened main.tcl call site to be indexed",
@@ -16677,6 +16667,93 @@ mod tests {
             .await;
         assert_eq!(cross.len(), 2, "{cross:?}");
         assert!(cross.iter().all(|l| l.uri == consumer));
+    }
+
+    /// Build the three-file #923 workspace: `::mymod::helper`, an unrelated
+    /// `::other::helper`, and an `app.tcl` that reaches `::mymod::helper` via
+    /// `namespace path`.  Returns the backend and the three URIs.
+    async fn register_namespace_path_workspace() -> (Backend, Uri, Uri, Uri) {
+        let backend = test_backend();
+        let mymod = Uri::from_str("file:///mymod.tcl").unwrap();
+        let other = Uri::from_str("file:///other.tcl").unwrap();
+        let app = Uri::from_str("file:///app.tcl").unwrap();
+        register(
+            &backend,
+            &mymod,
+            "namespace eval ::mymod { proc helper {} {} }\n",
+        )
+        .await;
+        register(
+            &backend,
+            &other,
+            "namespace eval ::other { proc helper {} {} }\n",
+        )
+        .await;
+        register(
+            &backend,
+            &app,
+            "namespace eval ::app {\n    namespace path ::mymod\n    proc run {} { helper }\n}\n",
+        )
+        .await;
+        (backend, mymod, other, app)
+    }
+
+    #[tokio::test]
+    async fn cross_document_references_resolve_namespace_path_collision() {
+        // The confirmed #923 trigger: references on `::mymod::helper`'s
+        // declaration must include the bare `helper` call in app.tcl (reached
+        // via `namespace path`), even though `::other` defines the same simple
+        // name and the call's file-local guess settles to `::app::helper`.
+        let (backend, mymod, _other, app) = register_namespace_path_workspace().await;
+        let mymod_src = "namespace eval ::mymod { proc helper {} {} }\n";
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(mymod_src, "tcl8.6").clone()
+        };
+        // Cursor on `helper` in `::mymod`'s declaration (col 30).
+        let refs = backend
+            .cross_document_references(&mymod, mymod_src, &analysis, Position::new(0, 32), false)
+            .await;
+        assert_eq!(refs.len(), 1, "{refs:?}");
+        assert_eq!(refs[0].uri, app);
+    }
+
+    #[tokio::test]
+    async fn cross_document_references_do_not_cross_link_colliding_namespace() {
+        // References on the *unrelated* `::other::helper` must be empty: the
+        // app.tcl call resolves to `::mymod::helper` via the namespace path, so
+        // it is never a reference of `::other::helper`.
+        let (backend, _mymod, other, _app) = register_namespace_path_workspace().await;
+        let other_src = "namespace eval ::other { proc helper {} {} }\n";
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(other_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&other, other_src, &analysis, Position::new(0, 32), false)
+            .await;
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[tokio::test]
+    async fn cross_document_definition_follows_namespace_path_not_collision() {
+        // Go-to-definition on the bare `helper` call in app.tcl jumps to
+        // `::mymod::helper` (reached via `namespace path`), never the same-named
+        // `::other::helper` — the previous simple-name lookup surfaced both.
+        let (backend, mymod, _other, _app) = register_namespace_path_workspace().await;
+        let app_src =
+            "namespace eval ::app {\n    namespace path ::mymod\n    proc run {} { helper }\n}\n";
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(app_src, "tcl8.6").clone()
+        };
+        // Cursor on the `helper` call in `run`'s body (line 2, col 20).
+        let defs = backend
+            .cross_document_definition(app_src, Position::new(2, 20), &analysis)
+            .await
+            .expect("ok");
+        assert_eq!(defs.len(), 1, "{defs:?}");
+        assert_eq!(defs[0].uri, mymod);
     }
 
     #[tokio::test]

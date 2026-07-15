@@ -389,8 +389,12 @@ impl Analyser {
             let ns: String = match resolved.strip_suffix(suffix.as_str()) {
                 Some("") => "::".to_owned(),
                 Some(prefix) => prefix.to_owned(),
-                // Not the `{ns}::{name}` shape the walk produces — leave it.
-                None => continue,
+                // Not the `{ns}::{name}` shape the walk produces (an unusual
+                // spelling); the settled name is then the sole candidate.
+                None => {
+                    inv.resolution_candidates = vec![resolved];
+                    continue;
+                }
             };
             let path: &[String] = paths.get(&ns).map_or(&[], Vec::as_slice);
             // Record the full ordered candidate list so a cross-document
