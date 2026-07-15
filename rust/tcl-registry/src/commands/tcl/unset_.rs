@@ -56,7 +56,7 @@ fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unset",
-        // `FIRE_AND_FORGET_TEARDOWN` (on the subform below where noted): `Tcl_UnsetObjCmd` (tclCmdMZ.c) removes the
+        // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_UnsetObjCmd` (tclCmdMZ.c) removes the
         // variable and errors ("can't unset …: no such variable") when the
         // target is already gone (absent `-nocomplain`) — the property the
         // W302 fire-and-forget suppression (`catch {unset x}`) keys off.

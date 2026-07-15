@@ -515,14 +515,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
-        // `FIRE_AND_FORGET_TEARDOWN` (on the subform below where noted): the `unset` subform removes keys
-        // (`DictUnsetCmd`, tclDictObj.c) — see the `destructive` flag on
-        // the `unset` subcommand.
+        // The `unset` subform removes keys (`DictUnsetCmd`, tclDictObj.c) —
+        // `FIRE_AND_FORGET_TEARDOWN` and the `destructive` flag live on
+        // that subcommand.
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CSE_CANDIDATE
-            | Traits::NEVER_INLINE_BODY
-           ,
+            | Traits::NEVER_INLINE_BODY,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

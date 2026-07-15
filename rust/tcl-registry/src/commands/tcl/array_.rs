@@ -184,13 +184,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "array",
-        // `FIRE_AND_FORGET_TEARDOWN` (on the subform below where noted): the `unset` subform destroys elements or
-        // the whole array (`ArrayUnsetCmd`, tclVar.c) — see the
-        // `destructive` flag on the `unset` subcommand.
-        traits: Traits::NOT_PROC_FACTORY
-            | Traits::BYTE_COMPILED
-            | Traits::WHOLE_ARRAY_ARG
-           ,
+        // The `unset` subform destroys elements or the whole array
+        // (`ArrayUnsetCmd`, tclVar.c) — `FIRE_AND_FORGET_TEARDOWN` and the
+        // `destructive` flag live on that subcommand.
+        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::WHOLE_ARRAY_ARG,
         arity: Arity::at_least(1),
         assigns_variable_at: Some(1),
         inferred_storage_type: Some(StorageType::Array),

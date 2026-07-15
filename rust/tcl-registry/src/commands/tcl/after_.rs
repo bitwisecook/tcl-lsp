@@ -108,7 +108,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
-        // `FIRE_AND_FORGET_TEARDOWN` (on the subform below where noted): the `cancel` subform destroys a scheduled
+        // The `cancel` subform destroys a scheduled
         // handler (`Tcl_AfterObjCmd`, tclTimer.c) — see the `destructive`
         // flag on the `cancel` subcommand.
         traits: Traits::BYTE_COMPILED,
