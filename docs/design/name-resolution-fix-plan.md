@@ -172,8 +172,8 @@ analyser to record a missing **span** first.
 **Stage 3.1 — record missing spans**
 - [ ] Alias target word, `rename OLD NEW` arg spans, `namespace import` pattern span, `forward` target token span.
 
-**Stage 3.2 — path-aware definition/hover (closes M1's assumption gap, issue #5)**
-- [ ] Make `resolve_called_proc`/[`proc_visible_from_namespace`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L728) consume `namespace path` (today they use the path-free variant, so def/hover can jump to an unrelated same-named `::helper`).
+**Stage 3.2 — path-aware definition/hover (closes M1's assumption gap, issue #5)** ✅ **DONE**
+- [x] Exposed the recorded `namespace path` declarations on `AnalysisResult` (`namespace_paths`, populated in `finalise_invocation_resolutions`) and switched `proc_visible_from_namespace` from `bareword_resolution_candidates` to `command_resolution_candidates`, threading the caller namespace's path.  A bare `helper` in a namespace with `namespace path ::mymod` now resolves to `::mymod::helper` (not a same-named global `::helper`) for definition / hover / signature help, agreeing with call-site settling.  Test: `definition_bare_call_honours_namespace_path_over_global`.
 
 **Stage 3.3 — follow the links in refs/rename/call-hierarchy**
 - [ ] Consult `command_aliases`, `renamed_commands`, `namespace_imports`, `forward` targets: a followed link is a reference; rename rewrites the defining-side spans. Ground truth: [`exec.rs:2701`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/exec.rs#L2701) (alias re-resolved from `::`), contract §104-117 (rename/import). **Do not** text-rewrite an import tail — the token follows the source rename.
@@ -181,7 +181,7 @@ analyser to record a missing **span** first.
 
 **Stage 3.4 — command-word arg roles & nested-def homing**
 - [ ] Declare `CommandPrefix` on `tailcall` arg 0 and `coroutine` arg 1 ([`exec.rs:2909 run_tailcall`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/exec.rs#L2909)).
-- [ ] **(D4)** Wire nested `proc`/`oo::class create` definition homing to the existing [`command_resolution_namespace`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/scope.rs) helper instead of `namespace_from_scope_path` (which skips proc scopes) — else a nested def under a qualified-name encloser homes to the wrong FQN and can overwrite a same-named global in `all_procs`.
+- [x] **(D4)** Wired nested `proc` / `oo::class create` homing to `command_resolution_namespace` (a proc body resolves the definition command in the enclosing proc's *defining* namespace) instead of the lexical `namespace_from_scope_path`.  Reproduced the bug (`proc a::outer { proc helper … }` homed `helper` to `::helper`, overwriting the real global), then fixed → homes to `::a::helper`, global preserved.  Test: `nested_def_in_qualified_encloser_does_not_overwrite_global`.
 
 **Depends on:** M1.
 
