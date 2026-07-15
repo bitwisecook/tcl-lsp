@@ -1485,6 +1485,18 @@ pub fn proc_taint_solve<'db>(
                             d.span.end() + body_offset,
                         );
                     }
+                    // A fix's edit span is always a real location on the offset-0
+                    // unit (never the sentinel), so it rebases unconditionally —
+                    // the same parity `compiler_checks::shift` keeps on the
+                    // whole-module path. No per-function check carries fixes
+                    // today, but the first one that gains a quick fix must not
+                    // silently edit at an unrebased offset.
+                    for fix in &mut d.fixes {
+                        fix.span = tcl_lexer::Span::new(
+                            fix.span.start() + body_offset,
+                            fix.span.end() + body_offset,
+                        );
+                    }
                     fn_checks.push(d);
                 }
             }
