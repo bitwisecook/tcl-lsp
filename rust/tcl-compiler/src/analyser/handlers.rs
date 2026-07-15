@@ -3404,6 +3404,41 @@ mod tests {
         );
     }
 
+    /// `namespace inscope ::x { proc foo }` runs the body in `::x`, so `foo`
+    /// homes to `::x::foo` — the same namespace frame as `namespace eval`, not
+    /// the caller's scope.
+    #[test]
+    fn namespace_inscope_runs_the_body_in_the_named_namespace() {
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace inscope ::x { proc foo {} {} }\n", "tcl8.6");
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::x::foo"),
+            "inscope body should home to the named namespace: {keys:?}",
+        );
+        assert!(
+            !r.all_procs.contains_key("::foo"),
+            "the body must not resolve in the caller's global scope: {keys:?}",
+        );
+    }
+
+    /// `namespace code { proc foo }` captures the *current* namespace, so its
+    /// script is analysed in this scope — inside `::x`, `foo` homes to
+    /// `::x::foo`.
+    #[test]
+    fn namespace_code_analyses_the_script_in_the_current_namespace() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::x { namespace code { proc foo {} {} } }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::x::foo"),
+            "namespace code script should analyse in the current namespace: {keys:?}",
+        );
+    }
+
     /// `interp eval {} { proc foo }` targets the *current* interpreter, so
     /// `foo` is the parent's `::foo` (no isolation, no synthetic namespace).
     #[test]

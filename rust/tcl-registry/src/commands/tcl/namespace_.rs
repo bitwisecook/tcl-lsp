@@ -125,6 +125,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace code script",
         pure: true,
         return_type: Some(TclType::String),
+        // The captured script runs in the *current* namespace when the
+        // callback fires, so analyse it in this scope — a `Body` — for its
+        // references / definitions.
+        arg_roles: &[(0, ArgRole::Body)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -235,7 +239,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace inscope namespace script ?arg ...?",
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
         return_type: Some(TclType::String),
-        // Like `eval`, the script runs in the namespace frame.
+        // Like `eval`, the script runs in the namespace frame — the `[subcmd,
+        // namespace, body]` shape is identical, so the same analyser hook
+        // opens the namespace scope and walks the body there (rather than the
+        // caller's scope, where a bare command would resolve wrongly).
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         body_kind: BodyKind::Structural,
         traits: Traits::EVALUATES_CODE,
         ..SubCommand::DEFAULT
