@@ -338,6 +338,10 @@ impl Analyser {
         // `::outer::inner`, never `::inner` — tclsh-pinned; see
         // `command_resolution_candidates`).
         let paths = self.namespace_paths.clone();
+        // Expose the recorded paths on the result so command-resolution
+        // consumers (definition / hover / signature help) can honour a
+        // `namespace path` the same way call-site settling does.
+        self.result.namespace_paths = paths.clone();
         // A builtin renamed away (`rename puts ::a::p`) or deleted
         // (`rename puts ""` / alias deletion) is no longer callable under
         // its original name — C raises `invalid command name` — so the

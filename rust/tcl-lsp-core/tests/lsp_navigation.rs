@@ -135,6 +135,25 @@ fn definition_proc_call_jumps_to_proc_definition() {
 }
 
 #[test]
+fn definition_bare_call_honours_namespace_path_over_global() {
+    // `::helper` at global and `::mymod::helper`; `::app` declares `namespace
+    // path ::mymod`.  A bare `helper` call in `::app` resolves (like C Tcl) to
+    // the path target `::mymod::helper`, not the same-named global `::helper` —
+    // definition must honour the path the way call-site settling does.
+    let src = "proc helper {} { puts global }\nnamespace eval mymod {\n    proc helper {} { puts mymod }\n}\nnamespace eval app {\n    namespace path ::mymod\n    proc run {} { helper }\n}\n";
+    let analysis = analyse(src);
+    // Cursor on the `helper` call inside run's body (line 6).
+    let call = src.lines().nth(6).unwrap();
+    let col = call.find("helper").unwrap() as u32 + 1;
+    let locs = definition(src, 6, col, &analysis);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].start_line, 2,
+        "bare call must resolve via `namespace path` to ::mymod::helper (line 2), not global (line 0): {locs:?}"
+    );
+}
+
+#[test]
 fn definition_from_proc_definition_resolves_to_itself() {
     // Cursor on the proc name in its own declaration resolves to that same
     // declaration (the name span is the definition site).

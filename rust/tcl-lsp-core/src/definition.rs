@@ -819,17 +819,26 @@ pub(crate) fn namespace_context_at(
 }
 
 /// Resolve a written call `word` to the user proc C Tcl's command resolution
-/// would pick (`Tcl_FindCommand`, `tclNamesp.c`): each candidate qualified
-/// name from [`tcl_syntax::naming::bareword_resolution_candidates`] — the
-/// caller's namespace first, then global; an absolute `::`-prefixed word is
-/// exact — looked up in `all_procs`.  `namespace` is the caller's
-/// `::`-prefixed namespace (`"::"` at global scope).
+/// would pick (`Tcl_FindCommand`, `tclNamesp.c`): each candidate qualified name
+/// from [`tcl_syntax::naming::command_resolution_candidates`] — the caller's
+/// namespace, then each `namespace path` entry, then global; an absolute
+/// `::`-prefixed word is exact — looked up in `all_procs`.  `namespace` is the
+/// caller's `::`-prefixed namespace (`"::"` at global scope).
+///
+/// Honouring the caller namespace's recorded `namespace path` (from
+/// `analysis.namespace_paths`) is what lets a bare call reach a proc on the
+/// path before a same-named global — matching how call-site settling already
+/// resolves, so definition / hover / signature help agree with references.
 fn proc_visible_from_namespace<'a>(
     analysis: &'a AnalysisResult,
     namespace: &str,
     word: &str,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
-    tcl_syntax::naming::bareword_resolution_candidates(namespace, word)
+    let path = analysis
+        .namespace_paths
+        .get(namespace)
+        .map_or(&[][..], Vec::as_slice);
+    tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
         .into_iter()
         .find_map(|qname| analysis.all_procs.get(&qname))
 }

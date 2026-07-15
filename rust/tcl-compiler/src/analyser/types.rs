@@ -793,6 +793,12 @@ pub struct AnalysisResult {
     pub renamed_commands: HashMap<String, String>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// Recorded `namespace path {…}` declarations, keyed by the declaring
+    /// namespace's fully-qualified name (`::` for global).  Each entry is the
+    /// path list *as written*; a relative entry roots against the declaring
+    /// namespace.  Consumed by command resolution so a bare call reaches a proc
+    /// on the namespace path before falling through to global.
+    pub namespace_paths: HashMap<String, Vec<String>>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
     pub auto_path_entries: Vec<AutoPathEntry>,
     /// Inline ``# stub: NAME ARGS BODY`` directive captures.
