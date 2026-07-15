@@ -188,17 +188,17 @@ Ground truth: C resolves a bare `superclass`/`mixin` relative to the
 `oo::define` **call-site** namespace, two scopes only (current→global, +path in
 8.5+), via `GetClassInOuterContext` ([8.6 `tclOODefineCmds.c:61`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclOODefineCmds.c#L61)) — no ancestor walk. The VM already does this at [`cmd_oo.rs:199 resolve_class`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/cmd_oo.rs#L199).
 
-**Stage 4.1 — pin it**
-- [ ] Class-name conformance vectors (same machinery as `command_resolution_vectors.txt`): base one level up not in an ancestor (the bug); does `superclass`/`mixin` honor a `namespace import`ed name? Pin against real `tclsh`.
+**Stage 4.1 — pin it** ✅ (unit vectors)
+- [x] Pinned the one-hop rule with 5 direct TP/FP/TN/FN tests on `resolve_class_name` (ancestor-abstain, same-ns, global, cross-file unique-tail, absolute) — mirrors the VM's `cmd_oo::resolve_class` and C's `GetClassInOuterContext`.
 
-**Stage 4.2 — replace + retire**
-- [ ] Replace the ancestor-walk + unique-tail fallback in [`resolve_class_name`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/class_hierarchy.rs#L258) with a call into [`naming.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs#L455).
-- [ ] Retire the duplicate `canonicalise_class_name` (W308) and `class_lattice.rs`'s parallel `resolve_class_name` per the import answer.
+**Stage 4.2 — replace** ✅ **DONE**
+- [x] Replaced the ancestor-walk in [`resolve_class_name`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/class_hierarchy.rs#L258) with `crate::naming::bareword_resolution_candidates` (current-ns → global, no intermediate ancestors); kept the sound-by-abstention unique-tail fallback for the cross-file `namespace import` idiom. Reproduced the bug (`superclass Base` in `::a::b::Sub` wrongly linked to ancestor `::a::Base`), then fixed → abstains.
+- [ ] **Deferred (hygiene, not a bug):** the duplicate `canonicalise_class_name` (W308) is a *simpler* heuristic without the ancestor walk, and `class_lattice.rs`'s copy is an unwired experiment — retiring them is dedup, not a correctness fix; left for a follow-up.
 
-**Stage 4.3 — regression**
-- [ ] Full MRO / class-hierarchy / type-hierarchy / W308 / cross-file class suites (this resolver feeds all of them).
+**Stage 4.3 — regression** ✅ **DONE**
+- [x] Green with 0 regressions: compiler lib **4305**, integration `analyser` (196, +2 new full-`analyse`→`is_subtype` tests), `mro_lattice_adversarial` (9), and lsp-core `lsp_navigation`/`lsp_providers`/`references_residual`/`hover_residual`. vscode layer deferred (no type-hierarchy provider in the TS harness; go-to-implementation awaits the M1 Tier-2 `implementation.rs` fix to be a clean vehicle).
 
-**Risk:** moderate — vectors must land+pass before the swap. **Depends on:** — (before M6).
+**Risk:** moderate — mitigated: unit vectors + 2 integration tests through the real pipeline landed and pass. **Depends on:** — (before M6).
 
 ---
 

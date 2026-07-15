@@ -1766,6 +1766,34 @@ mod tcloo_classes {
         assert_eq!(class(src, "::Dog").superclasses, ["Animal"]);
     }
 
+    /// M4 (integration, full analyse → resolved hierarchy): a bare
+    /// `superclass Base` in a deeply-nested `::a::b::Sub`, where `Base` exists
+    /// only in an *ancestor* namespace (`::a::Base`) and the tail is ambiguous
+    /// (a second `::x::Base`), must NOT resolve — real Tcl errors there.  The
+    /// former ancestor walk manufactured a `Sub ⊂ ::a::Base` edge.
+    #[test]
+    fn class_superclass_no_ancestor_namespace_walk() {
+        let src = "namespace eval ::a {\n    oo::class create Base {}\n}\nnamespace eval ::x {\n    oo::class create Base {}\n}\nnamespace eval ::a::b {\n    oo::class create Sub {\n        superclass Base\n    }\n}\n";
+        let analysis = Analyser::new().analyse(src, D).clone();
+        let h = analysis.class_hierarchy();
+        assert!(
+            !h.is_subtype("::a::b::Sub", "::a::Base"),
+            "must not manufacture an ancestor-namespace inheritance edge"
+        );
+    }
+
+    /// M4 (integration, TP): a base in the class's own namespace resolves, so
+    /// the inheritance edge is real.
+    #[test]
+    fn class_superclass_same_namespace_resolves() {
+        let src = "namespace eval ::a {\n    oo::class create Base {}\n    oo::class create Sub {\n        superclass Base\n    }\n}\n";
+        let analysis = Analyser::new().analyse(src, D).clone();
+        assert!(
+            analysis.class_hierarchy().is_subtype("::a::Sub", "::a::Base"),
+            "a same-namespace superclass must resolve"
+        );
+    }
+
     #[test]
     fn class_variables_and_constructor() {
         let src = "oo::class create Dog {\n    variable name breed\n    constructor {n b} { set name $n; set breed $b }\n}\n";
