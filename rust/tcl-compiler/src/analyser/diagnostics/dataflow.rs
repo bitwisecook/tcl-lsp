@@ -1674,11 +1674,10 @@ file; this call falls through to the 'unknown' handler."
         ir_proc: Option<&crate::ir::Procedure>,
     ) {
         // The fold consults the registry's scope-alias roles to skip
-        // out-of-frame-linked locals; a registry-less analyser (focused unit
-        // tests) abstains from the whole fold rather than folding unsoundly.
-        if self.registry.is_none() {
-            return;
-        }
+        // out-of-frame-linked locals; a registry-less analyser falls back to
+        // the cached default registry (the same convention as
+        // `command_takes_regex_pattern` — direct handler calls in unit
+        // tests), so the alias skip stays sound there too.
         let params: HashSet<&str> = match ir_proc {
             Some(p) => p.params.iter().map(String::as_str).collect(),
             None => HashSet::new(),
@@ -1686,7 +1685,10 @@ file; this call falls through to the 'unknown' handler."
         let branches = {
             // Scoped borrow: `self.registry` must release before the
             // `&mut self` diagnostic pushes below.
-            let registry = self.registry.as_ref().expect("checked above");
+            let registry = self.registry.as_ref().map_or_else(
+                || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+                |r| r,
+            );
             crate::sccp::existence_constant_branches(&fu.cfg, &params, registry)
         };
         for cb in branches {

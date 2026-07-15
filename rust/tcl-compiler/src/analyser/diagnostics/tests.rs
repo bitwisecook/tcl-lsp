@@ -7637,18 +7637,20 @@ fn w312_registry_taint_list_widens_to_console_and_abbreviations() {
 
 #[test]
 fn w302_fire_and_forget_is_registry_destructive_data() {
-    // The suppression reads HAS_DESTRUCTIVE_OPS + SubCommand.destructive
-    // from the registry. `file mkdir` / `file rename` are
-    // registry-declared destructive (W313's set), so their bare-catch
-    // forms now suppress too — an intentional widening from the former
-    // `file delete`-only table.
+    // The suppression reads FIRE_AND_FORGET_TEARDOWN from the registry —
+    // deliberately NOT the wider HAS_DESTRUCTIVE_OPS + SubCommand.destructive
+    // axis (W313's set): `file mkdir` / `file rename` failures are real
+    // errors (permissions, missing source), exactly what W302 asks the
+    // caller to capture, so their bare-catch forms keep the hint. Only the
+    // teardown idioms — where "target already gone" is the expected,
+    // intentionally-ignored failure — suppress.
     assert_eq!(
         sec_codes("proc f {d} { catch {file mkdir $d} }\n", "W302"),
-        0
+        1
     );
     assert_eq!(
         sec_codes("proc f {a b} { catch {file rename $a $b} }\n", "W302"),
-        0
+        1
     );
     // Ensemble subcommand words resolve via the registry's unique-prefix
     // rule, matching C Tcl's `Tcl_GetIndexFromObj` (`file del` works in
