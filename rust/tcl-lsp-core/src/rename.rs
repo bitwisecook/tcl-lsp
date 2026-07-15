@@ -660,20 +660,14 @@ fn rename_proc(
     registry: Option<&CommandRegistry>,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
-    // Prefer the proc whose declaration name span covers the cursor, so renaming
-    // `::b::helper` from its own decl resolves to *that* proc and not a
-    // same-named proc in another namespace (matches `references::references`).
-    // Fall back to the first proc matching the word for call-site / unqualified
-    // cursors that don't sit on a declaration.
-    let (qname, proc_def) = analysis
-        .all_procs
-        .iter()
-        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
-        .or_else(|| {
-            analysis.all_procs.iter().find(|(qname, p)| {
-                p.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
-            })
-        })?;
+    // Resolve the target the same way go-to-definition does: the proc whose
+    // declaration covers the cursor, else C Tcl's namespace-aware call-site
+    // resolution — never a namespace-blind `p.name == word` scan, which let a
+    // rename from a bareword call site pick an arbitrary same-named proc in
+    // another namespace and rewrite the wrong definition (matches
+    // `references::references`).
+    let (qname, proc_def) =
+        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, registry)?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
@@ -741,15 +735,10 @@ fn rename_class(
     registry: Option<&CommandRegistry>,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
-    let (qname, class_def) = analysis
-        .all_classes
-        .iter()
-        .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
-        .or_else(|| {
-            analysis.all_classes.iter().find(|(qname, c)| {
-                c.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
-            })
-        })?;
+    // Declaration under the cursor, else namespace-aware resolution — never a
+    // namespace-blind `c.name == word` scan (which from a call site could
+    // rename the wrong same-named class in another namespace).
+    let (qname, class_def) = crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {

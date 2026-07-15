@@ -127,4 +127,33 @@ suite("Rename Symbol", () => {
     assert.ok(declEdit, "expected the `variable n` declaration (line 1) to be renamed");
     assert.strictEqual(declEdit!.newText, "count");
   });
+
+  // M1: renaming from a bareword call site must target the caller's namespace,
+  // never a same-named proc in an unrelated namespace.
+  test("rename from a call site does not touch a same-named proc in another namespace", async () => {
+    const uri = getDocUri("renameNamespaceCollision.tcl");
+    await activate(uri);
+
+    // `helper` call inside `::a::run` — line 2 (0-based).
+    const pos = new vscode.Position(2, 18);
+
+    const edit = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentRenameProvider",
+      uri,
+      pos,
+      "assist",
+    )) as vscode.WorkspaceEdit | undefined;
+
+    assert.ok(edit, "Rename should return a workspace edit");
+    const docEdits = edit.entries().find(([u]) => u.toString() === uri.toString());
+    assert.ok(docEdits, "Should include edits for the target document");
+    const [, textEdits] = docEdits!;
+    const lines = textEdits.map((te) => te.range.start.line);
+    // ::a::helper decl (line 1) + call (line 2) rename; ::b::helper (line 5) must not.
+    assert.ok(lines.includes(1), `::a::helper decl should rename: ${JSON.stringify(lines)}`);
+    assert.ok(
+      !lines.includes(5),
+      `::b::helper (line 5) must NOT be renamed: ${JSON.stringify(lines)}`,
+    );
+  });
 });

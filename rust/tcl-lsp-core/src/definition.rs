@@ -772,6 +772,63 @@ pub(crate) fn resolve_called_proc<'a>(
     fallback_proc_by_simple_name(analysis, source, word)
 }
 
+/// Resolve the `(all_procs key, ProcDef)` that a proc-oriented editor
+/// operation (rename / references / call-hierarchy) targets at `cursor_off`:
+///
+/// 1. the proc whose declaration name span covers the cursor (a declaration
+///    -site invocation), else
+/// 2. the namespace-aware call-site resolution ([`resolve_called_proc`], C
+///    Tcl's own rule from the caller's namespace).
+///
+/// It never falls back to a namespace-blind `p.name == word` scan — the shape
+/// that let a rename triggered from a bareword call site pick an *arbitrary*
+/// same-named proc in an unrelated namespace (`HashMap` order) and rewrite the
+/// wrong definition while leaving the one under the cursor untouched.  The
+/// returned key equals `ProcDef::qualified_name` (the map is keyed by it).
+pub(crate) fn resolve_proc_target_at<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    cursor_off: u32,
+    word: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> Option<(&'a String, &'a tcl_compiler::analyser::ProcDef)> {
+    if let Some(hit) = analysis
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
+    {
+        return Some(hit);
+    }
+    let ns = namespace_context_at(&analysis.global_scope, cursor_off);
+    let proc_def = resolve_called_proc(analysis, source, &ns, word, registry)?;
+    analysis.all_procs.get_key_value(&proc_def.qualified_name)
+}
+
+/// The class analogue of [`resolve_proc_target_at`]: the `(all_classes key,
+/// ClassDef)` a class-oriented editor operation targets at `cursor_off` — the
+/// class whose declaration name span covers the cursor, else the
+/// namespace-aware candidate resolution (a class name *is* a command name, so
+/// the same `bareword_resolution_candidates` order applies: caller namespace,
+/// then global).  Never a namespace-blind `c.name == word` scan.  The returned
+/// key equals `ClassDef::qualified_name`.
+pub(crate) fn resolve_class_target_at<'a>(
+    analysis: &'a AnalysisResult,
+    cursor_off: u32,
+    word: &str,
+) -> Option<(&'a String, &'a tcl_compiler::analyser::ClassDef)> {
+    if let Some(hit) = analysis
+        .all_classes
+        .iter()
+        .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
+    {
+        return Some(hit);
+    }
+    let ns = namespace_context_at(&analysis.global_scope, cursor_off);
+    tcl_syntax::naming::bareword_resolution_candidates(&ns, word)
+        .into_iter()
+        .find_map(|cand| analysis.all_classes.get_key_value(&cand))
+}
+
 /// Deterministic replacement for the old first-`HashMap`-hit tail match: of
 /// every proc whose simple name equals `word`, prefer one defined in this
 /// document ([`name_token_in_document`]), then the lexicographically

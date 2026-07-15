@@ -359,3 +359,30 @@ fn definition_uplevel_zero_var_resolves_global() {
         "must NOT go to the proc-local `set g 99` (line 2); got {result:?}"
     );
 }
+
+// -- M1: rename from a call site targets the caller's namespace --
+
+/// End-to-end: renaming from the `helper` call site inside `::a::run` renames
+/// `::a::helper` and its call, never the same-named `::b::helper`.
+#[test]
+fn rename_from_callsite_does_not_touch_same_named_proc_in_other_namespace() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 1: ::a::helper decl; line 2: the `helper` call; line 5: ::b::helper decl
+    let src = "namespace eval ::a {\n    proc helper {} { return 1 }\n    proc run {} { helper }\n}\nnamespace eval ::b {\n    proc helper {} { return 2 }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(2).unwrap().find("{ helper }").unwrap() as u32 + 2;
+    let result = lsp.rename(&uri, 2, col, "assist");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<u64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_u64())
+        .collect();
+    assert!(lines.contains(&1), "::a::helper decl (line 1) must rename: {for_uri:?}");
+    assert!(lines.contains(&2), "the call (line 2) must rename: {for_uri:?}");
+    assert!(
+        !lines.contains(&5),
+        "must NOT rename ::b::helper (line 5): {for_uri:?}"
+    );
+}

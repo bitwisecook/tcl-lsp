@@ -348,15 +348,11 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
         ..
     } = *ctx;
     let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
-    let (qname, class_def) = analysis
-        .all_classes
-        .iter()
-        .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
-        .or_else(|| {
-            analysis.all_classes.iter().find(|(qname, c)| {
-                c.name == word || qname.as_str() == word || *qname == &format!("::{word}")
-            })
-        })?;
+    // Declaration under the cursor, else namespace-aware resolution — never a
+    // namespace-blind `c.name == word` scan (which from a call site could
+    // surface an unrelated same-named class's reference set).
+    let (qname, class_def) =
+        crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
     let simple = class_def.name.clone();
     let qualified = class_def.qualified_name.clone();
     let mut out = Vec::new();
@@ -396,16 +392,11 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
         ..
     } = *ctx;
     let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
-    let proc_match = analysis
-        .all_procs
-        .iter()
-        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
-        .or_else(|| {
-            analysis.all_procs.iter().find(|(qn, p)| {
-                p.name == word || qn.as_str() == word || *qn == &format!("::{word}")
-            })
-        });
-    let (qname, proc_def) = proc_match?;
+    // Declaration under the cursor, else C Tcl's namespace-aware call-site
+    // resolution — never a namespace-blind `p.name == word` scan (which from a
+    // call site could surface an unrelated same-named proc's reference set).
+    let (qname, proc_def) =
+        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, None)?;
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));

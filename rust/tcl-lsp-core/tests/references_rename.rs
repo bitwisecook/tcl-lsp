@@ -1323,3 +1323,70 @@ fn d2_non_uplevel_proc_local_still_resolves_locally() {
         "plain proc-body `$g` must resolve to the proc-local on line 2; got {refs:?}"
     );
 }
+
+// ===================================================================
+// M1 — target selection: rename / references triggered from a bareword
+// CALL SITE must resolve namespace-aware (the proc/class C Tcl would
+// dispatch), never a namespace-blind `name == word` scan that picks an
+// arbitrary same-named symbol in another namespace.
+// ===================================================================
+
+/// Two same-named procs in disjoint namespaces; `::a::run` calls `helper`.
+const M1_PROC_SRC: &str = "namespace eval ::a {\n    proc helper {} { return 1 }\n    proc run {} { helper }\n}\nnamespace eval ::b {\n    proc helper {} { return 2 }\n}\n";
+
+/// TP + FP: renaming from the `helper` call site inside `::a::run` renames
+/// `::a::helper` (decl line 1 + call line 2) and NEVER `::b::helper` (line 5).
+#[test]
+fn m1_proc_rename_from_callsite_targets_caller_namespace() {
+    let analysis = analyse(M1_PROC_SRC);
+    let col = M1_PROC_SRC.lines().nth(2).unwrap().find("{ helper }").unwrap() as u32 + 2;
+    let edits = rename(M1_PROC_SRC, "tcl8.6", 2, col, "assist", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(lines.contains(&1), "::a::helper decl (line 1) must rename: {edits:?}");
+    assert!(lines.contains(&2), "the call (line 2) must rename: {edits:?}");
+    assert!(
+        !lines.contains(&5),
+        "must NOT rename ::b::helper (line 5): {edits:?}"
+    );
+}
+
+/// TP + FP: Find-References from the same call site returns `::a::helper`'s
+/// set (decl + call), never `::b::helper`.
+#[test]
+fn m1_proc_references_from_callsite_targets_caller_namespace() {
+    let analysis = analyse(M1_PROC_SRC);
+    let col = M1_PROC_SRC.lines().nth(2).unwrap().find("{ helper }").unwrap() as u32 + 2;
+    let refs = references(M1_PROC_SRC, "tcl", 2, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "decl line 1 expected: {refs:?}");
+    assert!(lines.contains(&2), "call line 2 expected: {refs:?}");
+    assert!(!lines.contains(&5), "must NOT include ::b::helper (line 5): {refs:?}");
+}
+
+/// TN: a single unambiguous proc still renames correctly from its call site.
+#[test]
+fn m1_proc_rename_unambiguous_callsite_unaffected() {
+    let src = "proc greet {} { return hi }\ngreet\ngreet\n";
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl8.6", 1, 0, "welcome", &analysis, None);
+    assert!(edits.len() >= 3, "decl + 2 calls: {edits:?}");
+    assert!(edits.iter().all(|e| e.new_text == "welcome"));
+}
+
+/// Two same-named classes in disjoint namespaces; `::a::mk` constructs
+/// `Widget`.  Renaming from that constructor call targets `::a::Widget`,
+/// never `::b::Widget`.
+#[test]
+fn m1_class_rename_from_callsite_targets_caller_namespace() {
+    let src = "namespace eval ::a {\n    oo::class create Widget {}\n    proc mk {} { Widget new }\n}\nnamespace eval ::b {\n    oo::class create Widget {}\n}\n";
+    let analysis = analyse(src);
+    // cursor on `Widget` in `Widget new` inside ::a::mk (line 2)
+    let col = src.lines().nth(2).unwrap().find("Widget new").unwrap() as u32 + 1;
+    let edits = rename(src, "tcl8.6", 2, col, "Panel", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(lines.contains(&1), "::a::Widget decl (line 1) must rename: {edits:?}");
+    assert!(
+        !lines.contains(&5),
+        "must NOT rename ::b::Widget (line 5): {edits:?}"
+    );
+}
