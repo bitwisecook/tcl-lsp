@@ -295,6 +295,7 @@ fn expand_script(
                         Ok(IfClause {
                             condition: c.condition.clone(),
                             condition_span: c.condition_span,
+                            condition_base: c.condition_base,
                             body: expand_script(&c.body, profile, needs_pkt)?,
                             body_span: c.body_span,
                         })

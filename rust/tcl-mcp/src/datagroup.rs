@@ -35,6 +35,7 @@ use tcl_compiler::segmenter::segment_commands_with_offset;
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::refactor::{extract_to_datagroup, walk_commands};
 use tcl_registry::registry_for_dialect;
+use tcl_syntax::switch_body::parse_braced_pairs;
 
 const DIALECT: &str = "f5-irules";
 
@@ -390,78 +391,6 @@ fn confidence_for(shape: &str) -> &'static str {
     } else {
         "medium"
     }
-}
-
-// ── switch body tokeniser ─────────────────────────────────────────────
-
-/// Split a braced switch body into whitespace/brace/quote-delimited tokens.
-fn tokenise_switch_body(text: &str) -> Vec<String> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut tokens = Vec::new();
-    let mut i = 0;
-    while i < n {
-        while i < n && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
-        }
-        if i >= n {
-            break;
-        }
-        match bytes[i] {
-            b'{' => {
-                let start = i;
-                let mut depth = 1;
-                i += 1;
-                while i < n && depth > 0 {
-                    match bytes[i] {
-                        b'{' => depth += 1,
-                        b'}' => depth -= 1,
-                        _ => {}
-                    }
-                    i += 1;
-                }
-                tokens.push(text[start..i].to_owned());
-            }
-            b'"' => {
-                let start = i;
-                i += 1;
-                while i < n && bytes[i] != b'"' {
-                    if bytes[i] == b'\\' {
-                        i += 1;
-                    }
-                    i += 1;
-                }
-                if i < n {
-                    i += 1;
-                }
-                tokens.push(text[start..i].to_owned());
-            }
-            _ => {
-                let start = i;
-                while i < n && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}') {
-                    i += 1;
-                }
-                tokens.push(text[start..i].to_owned());
-            }
-        }
-    }
-    tokens
-}
-
-/// Parse a single-word braced switch body into `(pattern, body)` pairs.
-fn parse_braced_pairs(text: &str) -> Vec<(String, String)> {
-    let mut text = text.trim();
-    if text.len() >= 2 && text.starts_with('{') && text.ends_with('}') {
-        text = text[1..text.len() - 1].trim();
-    }
-    let tokens = tokenise_switch_body(text);
-    let mut pairs = Vec::new();
-    let mut i = 0;
-    while i + 1 < tokens.len() {
-        pairs.push((tokens[i].clone(), tokens[i + 1].clone()));
-        i += 2;
-    }
-    pairs
 }
 
 // ── Pattern analysis ──────────────────────────────────────────────────

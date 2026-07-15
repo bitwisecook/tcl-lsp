@@ -1275,12 +1275,14 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
     }
 }
 
-/// Variable names that are the bare write-target of a mutating command
-/// (`incr` / `append` / `lappend`). The analyser records these as
-/// definitions, not reads, so [`AnalysisResult`]'s `VarDef.references`
-/// (reads only) never includes the target argument. The name compaction
-/// excludes them so it cannot rename the `set` / `$var` sites while leaving
-/// the `incr var` target untouched (which would corrupt the program).
+/// Variable names that are the bare write-target of a read-modify-write
+/// command (`incr` / `append` / `lappend` / `lset` — the registry's
+/// `rmw_first_arg_variable` set; a whole-value `set` is rename-safe). The
+/// analyser records these as definitions, not reads, so
+/// [`AnalysisResult`]'s `VarDef.references` (reads only) never includes the
+/// target argument. The name compaction excludes them so it cannot rename
+/// the `set` / `$var` sites while leaving the `incr var` target untouched
+/// (which would corrupt the program).
 fn rmw_target_var_names(source: &str, registry: &CommandRegistry) -> FxHashSet<String> {
     let cu = CompilationUnit::build_for(source, registry, false);
     let mut names = FxHashSet::default();
@@ -1294,7 +1296,7 @@ fn rmw_target_var_names(source: &str, registry: &CommandRegistry) -> FxHashSet<S
                         names.insert(name.clone());
                     }
                     Statement::Call { command, defs, .. }
-                        if matches!(command.as_str(), "append" | "lappend") =>
+                        if registry.rmw_first_arg_variable(command) =>
                     {
                         names.extend(defs.iter().cloned());
                     }
@@ -1308,9 +1310,16 @@ fn rmw_target_var_names(source: &str, registry: &CommandRegistry) -> FxHashSet<S
 
 // Aggressive-tier aliasing (command / argument / string-literal)
 
-/// Control-flow keywords that must stay literal (body/expr index
-/// detection checks them by value).
-const CONTROL_FLOW_KEYWORDS: &[&str] = &["else", "elseif", "then", "on", "trap", "finally"];
+/// Whether `word` is a clause word an `if`/`try` grammar matches by literal
+/// value, so it must stay literal — aliasing it to `$var` would break the
+/// clause parsing (body/expr index detection checks these by value).  The
+/// set is the registry's clause-keyword vocabulary: the highlighted clause
+/// keywords (`else` / `elseif` / `on` / `trap` / `finally`) plus the
+/// non-highlighted clause noise word (`then`).
+fn is_clause_keyword(word: &str) -> bool {
+    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&word)
+        || tcl_registry::traits::CLAUSE_NOISE_KEYWORDS.contains(&word)
+}
 
 /// Every compacted short name across the symbol map, so aggressive
 /// aliases avoid colliding with a (possibly proc-local) compacted
@@ -1478,7 +1487,7 @@ fn alias_repeated_arguments(
             let val = sm.token_text(*tok);
             if val.len() < 3
                 || val.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';'])
-                || CONTROL_FLOW_KEYWORDS.contains(&val)
+                || is_clause_keyword(val)
             {
                 continue;
             }

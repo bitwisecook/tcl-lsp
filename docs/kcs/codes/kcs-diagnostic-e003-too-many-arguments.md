@@ -23,7 +23,13 @@ This check is not limited to builtin commands: it also applies to same-file `pro
 
 ## Symptoms
 
-- A red squiggle appears under the extra arguments, with the message "too many arguments for 'incr'".
+- A red squiggle appears under the extra arguments, with a message like "Too
+  many arguments for 'incr': expected at most 2, got 3 — usage: incr varName
+  ?increment?".
+- The " — usage: …" tail quotes the command's synopsis when the analyser has
+  a registry signature for the command; calls to your own `proc`s, TclOO
+  methods, and `apply` lambdas keep the count-only message — see the note on
+  the [E002 page](kcs-diagnostic-e002-too-few-arguments.md#symptoms).
 - The same squiggle can appear on a call to a `proc` you defined earlier in the file, an `interp alias`, a `rename`d command, or a `$obj method` call — not just builtin commands.
 
 ## Example that triggers it

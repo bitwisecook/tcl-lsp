@@ -269,6 +269,7 @@ fn terminator_dict(
             true_target,
             false_target,
             span,
+            ..
         }) => json!({
             "type": "branch",
             "condition": preview(&render_expr(condition), 80),
@@ -428,7 +429,7 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
             "inLoop": w.in_loop,
         }));
     }
-    for w in find_thunking_warnings_for_cu(&result.unit) {
+    for w in find_thunking_warnings_for_cu(&result.unit, registry) {
         out.push(json!({
             "code": w.code.as_str(),
             "message": w.message,
@@ -1437,7 +1438,7 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
         .sum();
 
     let shimmer = find_shimmer_warnings_for_cu(&result.unit, registry).len()
-        + find_thunking_warnings_for_cu(&result.unit).len()
+        + find_thunking_warnings_for_cu(&result.unit, registry).len()
         + find_byte_array_warnings_for_cu(&result.unit, registry).len();
     let mut gvn = find_redundancies_for_cu(&result.unit, registry, dialect);
     gvn.extend(find_partial_redundancies_for_cu(
@@ -1642,7 +1643,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
             priority: if sev == "error" { 1 } else { 2 },
         });
     }
-    for w in find_thunking_warnings_for_cu(&result.unit) {
+    for w in find_thunking_warnings_for_cu(&result.unit, registry) {
         let sev = shimmer_severity(w.code.as_str());
         anns.push(Ann {
             span: w.span,

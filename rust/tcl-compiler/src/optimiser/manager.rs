@@ -202,7 +202,7 @@ pub fn finalise_optimisations(
     // body) can keep that `$b` reference in the emitted output, so the def is not
     // actually dead. Drop any def-elimination whose target variable still appears
     // in another surviving optimisation's replacement text.
-    drop_def_elims_resurrected_by_replacements(&cu.source, &mut selected);
+    drop_def_elims_resurrected_by_replacements(&cu.source, registry, &mut selected);
     // Re-canonicalise: `couple_propagated_const_dead_stores` appends its O109
     // removals in `cu.procedures` / `cu.methods` HashMap-iteration order, which
     // differs run-to-run and — critically — between the offset-0 per-procedure
@@ -215,14 +215,15 @@ pub fn finalise_optimisations(
     selected
 }
 
-/// The variable a `set` / `incr` / `append` / `lappend` / `lset` statement
+/// The variable a first-arg-writing statement (`set` / `incr` / `append` /
+/// `lappend` / `lset` — the registry's `writes_first_arg_variable` set)
 /// writes, parsed from its source text (`set b 0` → `b`); base name only (an
 /// array element's `(key)` suffix is dropped). `None` for any other shape or a
 /// non-literal (substituted) target name.
-fn elim_target_var(span_text: &str) -> Option<String> {
+fn elim_target_var(span_text: &str, registry: &CommandRegistry) -> Option<String> {
     let mut words = span_text.split_whitespace();
     let cmd = words.next()?;
-    if !matches!(cmd, "set" | "incr" | "append" | "lappend" | "lset") {
+    if !registry.writes_first_arg_variable(cmd) {
         return None;
     }
     let name = words.next()?;
@@ -234,7 +235,11 @@ fn elim_target_var(span_text: &str) -> Option<String> {
 /// appears as `$var` / `${var}` in another *surviving* optimisation's
 /// replacement — the SSA judged the def dead, but a surviving textual rewrite
 /// resurrected a reference to it (FP-OPT-08).
-fn drop_def_elims_resurrected_by_replacements(source: &str, selected: &mut Vec<Optimisation>) {
+fn drop_def_elims_resurrected_by_replacements(
+    source: &str,
+    registry: &CommandRegistry,
+    selected: &mut Vec<Optimisation>,
+) {
     let elims: Vec<(usize, String)> = selected
         .iter()
         .enumerate()
@@ -242,7 +247,7 @@ fn drop_def_elims_resurrected_by_replacements(source: &str, selected: &mut Vec<O
         .filter_map(|(i, o)| {
             let s = o.span.start() as usize;
             let e = (o.span.end() as usize).min(source.len());
-            let var = elim_target_var(source.get(s..e)?)?;
+            let var = elim_target_var(source.get(s..e)?, registry)?;
             Some((i, var))
         })
         .collect();
@@ -474,7 +479,7 @@ fn couple_const_dead_stores_in_function(
         source,
         selected,
         def_count,
-        scope_aliases: super::elimination::scan_scope_aliases(&fu.cfg),
+        scope_aliases: super::elimination::scan_scope_aliases(&fu.cfg, registry),
         rmw_hidden: super::elimination::collect_rmw_hidden_reads(fu, registry),
     };
 

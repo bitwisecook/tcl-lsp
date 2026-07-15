@@ -669,8 +669,12 @@ fn extra_chars_after_close_quote_is_catchable() {
 fn subst_backslash_escapes_handle_multibyte_and_hex() {
     assert_eq!(run("subst {\\é}").1, "é");
     assert_eq!(run("subst {\\x41}").1, "A");
-    // `\` then newline then leading whitespace collapses to a single space.
+    // Tcl 9 caps `\x` at two hex digits: the rest is literal text.
+    assert_eq!(run("subst {\\x41BC}").1, "ABC");
+    // `\` then newline then leading whitespace collapses to a single space —
+    // for a CRLF line ending too.
     assert_eq!(run("subst \"a\\\n   b\"").1, "a b");
+    assert_eq!(run("subst \"a\\\r\n   b\"").1, "a b");
 }
 
 /// `info level` runs through the shared Family-B core

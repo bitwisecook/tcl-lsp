@@ -581,6 +581,27 @@ fn regexp_shared_features() {
         msg.starts_with("bad option \"-bogus\": must be -all, -about"),
         "got: {msg}"
     );
+    // Options are exact-only (C's TCL_EXACT): even a unique prefix is a bad
+    // option. tclsh: `regexp -no a A x` errors identically; only tclsh's
+    // compiled no-match-var fast path (`regexp -no a A`) abbreviates
+    // `-nocase`, and the VM implements the runtime semantics everywhere
+    // (S4.2, TclCompileRegexpCmd).
+    let (ok, msg, _) = run("regexp -no {a} A x");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad option \"-no\": must be -all, -about, -indices, -inline, \
+         -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --"
+    );
+    // regsub is exact-only in every context (tclsh compiles only a literal
+    // `-all`); the enumeration is tclsh9.0's table (which has `-command`).
+    let (ok, msg, _) = run("regsub -no {a} A b");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad option \"-no\": must be -all, -command, -expanded, -line, \
+         -linestop, -lineanchor, -nocase, -start, or --"
+    );
 }
 
 #[test]
@@ -668,6 +689,27 @@ fn variable_traces() {
     assert_eq!(
         msg,
         "bad option \"bogus\": must be execution, command, or variable"
+    );
+    // The type word abbreviates (Tcl_GetIndexFromObj, flags 0): tclsh accepts
+    // `trace add var …`, and the empty word prefixes all three types, so it
+    // is *ambiguous* — not bad (probed tclsh 8.6.14; S4.2).
+    out_eq(
+        "trace add var x write cb\nputs [trace info variable x]\n",
+        "{write cb}\n",
+    );
+    let (ok, msg, _) = run("trace add {} n o c");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "ambiguous option \"\": must be execution, command, or variable"
+    );
+    // An op word, by contrast, may NOT abbreviate (C resolves op-list elements
+    // with TCL_EXACT): tclsh rejects `w` for `write`.
+    let (ok, msg, _) = run("trace add variable v w {}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad operation \"w\": must be array, read, unset, or write"
     );
 }
 

@@ -194,6 +194,7 @@ fn if_else_diamond_emits_conditional_jump() {
         true_target: then,
         false_target: els,
         span: None,
+        condition_base: None,
     });
     cfg.blocks
         .get_mut(&then)
@@ -261,6 +262,7 @@ fn if_const_true_dead_branch_eliminated() {
         true_target: then,
         false_target: els,
         span: None,
+        condition_base: None,
     });
     cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
         target: end,
@@ -314,6 +316,7 @@ fn switch_dispatch_emits_jump_table() {
             true_target: tt,
             false_target: ft,
             span: None,
+            condition_base: None,
         }
     }
 
@@ -549,6 +552,7 @@ fn foreach_emits_native_opcodes() {
         true_target: body,
         false_target: end,
         span: None,
+        condition_base: None,
     });
     cfg.blocks
         .get_mut(&body)
@@ -643,6 +647,7 @@ fn complex_foreach_body_emits_step_at_end() {
         true_target: body,
         false_target: end,
         span: None,
+        condition_base: None,
     });
 
     // Complex body: empty, branch terminator
@@ -656,6 +661,7 @@ fn complex_foreach_body_emits_step_at_end() {
         true_target: then,
         false_target: if_end,
         span: None,
+        condition_base: None,
     });
 
     // if_then_1: a break statement
@@ -758,6 +764,7 @@ fn while_in_proc_emits_start_cmd() {
         true_target: body,
         false_target: end,
         span: None,
+        condition_base: None,
     });
     cfg.blocks
         .get_mut(&body)

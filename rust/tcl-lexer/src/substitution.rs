@@ -450,15 +450,18 @@ mod tests {
 
 /// The byte index one past the backslash escape starting at `text[i] == '\'`.
 ///
-/// The *span* of an escape, for consumers that highlight it rather than
-/// evaluate it.  Widths match [`backslash_subst`] exactly — `\xNN` (1–2 hex),
-/// `\uNNNN` (1–4 hex), `\UNNNNNNNN` (1–8 hex), `\NNN` (1–3 octal), else the
+/// The *span* of an escape, for consumers that highlight or decode it one
+/// escape at a time.  Widths match [`backslash_subst`] exactly — `\xNN` (1–2
+/// hex), `\uNNNN` (1–4 hex), `\UNNNNNNNN` (1–8 hex), `\NNN` (1–3 octal), the
+/// `\<newline>` line continuation (LF, CR, or CRLF plus the run of spaces/tabs
+/// it absorbs, per `TclParseBackslash`'s backslash-newline rule), else the
 /// backslash plus one full character.
 ///
-/// It lives beside the evaluator because it *is* the same rule.  Three separate
-/// hand-rolled copies had drifted — one consumed unbounded hex digits, one never
-/// recognised `\U`, one assumed every escape was two bytes — so `\x41` was
-/// tokenised as an escape `\x` plus a string `41`.  The digits belong to the
+/// It lives beside the evaluator because it *is* the same rule.  Separate
+/// hand-rolled copies had drifted — one consumed unbounded hex digits, one
+/// never recognised `\U`, one assumed every escape was two bytes, one missed
+/// the CRLF continuation — so `\x41` was tokenised as an escape `\x` plus a
+/// string `41`.  The digits (and the continuation's whitespace) belong to the
 /// escape.
 ///
 /// The escaped character may be multi-byte (`\é`, `\你`, `\€`), so the fallback
@@ -485,6 +488,20 @@ pub fn backslash_escape_end(text: &str, i: usize) -> usize {
         Some(b'0'..=b'7') => {
             let mut j = i + 2;
             while j < b.len() && j < i + 4 && matches!(b[j], b'0'..=b'7') {
+                j += 1;
+            }
+            j
+        }
+        Some(&nl @ (b'\n' | b'\r')) => {
+            // Line continuation: the newline (a `\r` pairs with a following
+            // `\n` as one CRLF) and the run of spaces/tabs after it are all
+            // part of the escape — [`backslash_subst`] collapses the whole
+            // span to a single space, mirroring `TclParseBackslash`.
+            let mut j = i + 2;
+            if nl == b'\r' && b.get(j) == Some(&b'\n') {
+                j += 1;
+            }
+            while matches!(b.get(j), Some(b' ' | b'\t')) {
                 j += 1;
             }
             j
@@ -525,6 +542,20 @@ mod escape_end_tests {
             assert!(src.is_char_boundary(end), "sliced inside a char: {src:?}");
             assert_eq!(end, src.len());
         }
+    }
+
+    #[test]
+    fn continuation_spans_newline_and_following_whitespace() {
+        // `\<LF>` / `\<CR>` / `\<CRLF>` absorb the following spaces/tabs — the
+        // extent covers exactly what `backslash_subst` collapses to one space
+        // (`TclParseBackslash`'s backslash-newline rule).
+        assert_eq!(backslash_escape_end("\\\n   x", 0), 5);
+        assert_eq!(backslash_escape_end("\\\r\n\t x", 0), 5);
+        assert_eq!(backslash_escape_end("\\\rx", 0), 2);
+        assert_eq!(backslash_escape_end("\\\n", 0), 2);
+        // FP guard: an escaped backslash is a 2-byte escape — a newline after
+        // it is content, not part of a continuation.
+        assert_eq!(backslash_escape_end("\\\\\n  x", 0), 2);
     }
 }
 

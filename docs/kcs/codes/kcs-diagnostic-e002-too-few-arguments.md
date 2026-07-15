@@ -23,7 +23,14 @@ This check is not limited to builtin commands: it also applies to same-file `pro
 
 ## Symptoms
 
-- A red squiggle appears under the command, with the message "too few arguments for 'puts'".
+- A red squiggle appears under the command, with a message like "Too few
+  arguments for 'puts': expected at least 1, got 0 — usage: puts ?-nonewline?
+  ?channelId? string".
+- The " — usage: …" tail quotes the command's synopsis so the expected call
+  shape is visible in the message itself. It appears only when the analyser
+  has a registry signature for the command (builtins and known extension
+  commands); calls to your own `proc`s, TclOO methods and constructors, and
+  `apply` lambdas keep the count-only message.
 - The same squiggle can appear on a call to a `proc` you defined earlier in the file, an `interp alias`, a `rename`d command, or a `$obj method` call — not just builtin commands.
 
 ## Example that triggers it

@@ -237,6 +237,17 @@ impl CaseListSpec {
     };
 }
 
+/// Option-flag spellings whose value is a credential on *any* command
+/// (`open $url -password hunter2`), lower-case for case-insensitive
+/// matching.  The generic vocabulary half of the credential-exposure check
+/// (W310): unlike [`CommandSpec::credential_options`] — which names the
+/// per-command flags whose spelling alone is not secret-suggestive
+/// (`http::geturl`'s `-headers`) — these names identify themselves, so they
+/// are matched command-independently and the per-command field only adds to
+/// them.
+pub const DEFAULT_CREDENTIAL_OPTION_NAMES: &[&str] =
+    &["-password", "-pass", "-secret", "-token", "-apikey"];
+
 /// Unified command metadata — the single source of truth.
 ///
 /// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
@@ -596,6 +607,15 @@ pub struct CommandSpec {
     /// surfaced by the deprecation code action. `None` = not deprecated.
     pub deprecated_replacement: Option<&'static str>,
 
+    /// Whether [`Self::deprecated_replacement`] is a drop-in rename: the
+    /// replacement command accepts the deprecated command's argument list
+    /// unchanged, so a quick fix may mechanically swap the command head
+    /// (`client_addr` → `IP::client_addr`). `false` for replacements that
+    /// restructure the arguments (`ip_addr` → `IP::addr … mask …`), change
+    /// the surrounding syntax (`use pool` → `pool`), or are prose
+    /// (`"(removed)"`) — those keep the message-only deprecation warning.
+    pub deprecated_replacement_drop_in: bool,
+
     /// `<proto>::payload` byte-array layout — `Some` when this command's
     /// getter returns raw bytes (a binary source) and its `replace` form is a
     /// byte sink, for the S110 byte-array-corruption check. `None` = not a
@@ -748,6 +768,7 @@ impl CommandSpec {
         xc_translatable: None,
         xc_operation: None,
         deprecated_replacement: None,
+        deprecated_replacement_drop_in: false,
         byte_array_payload: None,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,
@@ -779,6 +800,19 @@ impl CommandSpec {
     #[must_use]
     pub fn subcommand(&self, name: &str) -> Option<&SubCommand> {
         self.subcommands.iter().find(|s| s.name == name)
+    }
+
+    /// The command's primary invocation synopsis — the first non-empty
+    /// [`Self::forms`] entry, falling back to the first non-empty hover
+    /// synopsis line. `None` when the spec declares neither. Used for the
+    /// "usage: …" suffix on arity diagnostics (E002/E003/E005).
+    #[must_use]
+    pub fn primary_synopsis(&self) -> Option<&'static str> {
+        self.forms
+            .iter()
+            .map(|f| f.synopsis)
+            .chain(self.hover.iter().flat_map(|h| h.synopsis.iter().copied()))
+            .find(|s| !s.is_empty())
     }
 
     /// Resolve a subcommand word to its [`SubCommand`], accepting a unique
@@ -1338,6 +1372,17 @@ impl SubCommand {
         sub_subcommands: &[],
         defines_command_at: None,
     };
+
+    /// The subcommand's primary invocation synopsis — its own
+    /// [`Self::synopsis`] when non-empty, falling back to the first
+    /// non-empty hover synopsis line. `None` when neither is declared.
+    /// The subcommand counterpart of [`CommandSpec::primary_synopsis`].
+    #[must_use]
+    pub fn primary_synopsis(&self) -> Option<&'static str> {
+        std::iter::once(self.synopsis)
+            .chain(self.hover.iter().flat_map(|h| h.synopsis.iter().copied()))
+            .find(|s| !s.is_empty())
+    }
 
     /// Run this subcommand's constant folder for `args` under `dialect` —
     /// version-aware [`Self::const_fold_versioned`] first (mapping the dialect

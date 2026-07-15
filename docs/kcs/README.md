@@ -92,6 +92,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-tclpkg-manifest-diagnostics.md](kcs-qa-tclpkg-manifest-diagnostics.md)
   — what the editor checks inside a `tclpkg.tcl` package manifest, and
   why its directives no longer draw "Unknown command" warnings.
+- [kcs-qa-why-w112-w118-have-no-quick-fix.md](kcs-qa-why-w112-w118-have-no-quick-fix.md)
+  — why the trailing-whitespace and line-ending hints stay quick-fix-free:
+  the document formatter is the safe, already-existing fix.
 
 ## How-Tos
 

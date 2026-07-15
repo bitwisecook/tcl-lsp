@@ -69,6 +69,7 @@ fn after_idle_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "cancel",
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(1),
         detail: "Cancel a previously scheduled delayed command.",
         synopsis: "after cancel id",
@@ -107,10 +108,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
-        // `HAS_DESTRUCTIVE_OPS`: the `cancel` subform destroys a scheduled
+        // The `cancel` subform destroys a scheduled
         // handler (`Tcl_AfterObjCmd`, tclTimer.c) — see the `destructive`
         // flag on the `cancel` subcommand.
-        traits: Traits::BYTE_COMPILED | Traits::HAS_DESTRUCTIVE_OPS,
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         arg_role_resolver: Some(after_arg_roles),
         subcommands: SUBCOMMANDS,

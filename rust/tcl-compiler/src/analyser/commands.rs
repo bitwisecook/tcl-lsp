@@ -824,8 +824,8 @@ impl Analyser {
         // TK1001 / TK1002 / TK1003 — Tk-dialect widget + geometry checks
         // (tk dialect only); the TK1001 conflict is flushed post-walk.
         self.emit_tk_checks(cmd_name, args, arg_tokens, cmd_tok);
-        self.emit_w212_name_vs_value(cmd_name, args, arg_tokens);
-        self.emit_w104_append_list(cmd_name, args, arg_tokens);
+        self.emit_w212_name_vs_value(cmd_name, args, arg_tokens, scope_path);
+        self.emit_w104_append_list(cmd_name, args, arg_tokens, arg_expand_in, cmd_tok);
         self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);
         self.emit_w311_encoding_mismatch(cmd_name, args, arg_tokens);
         self.emit_w200_binary_format_modifiers(cmd_name, args, arg_tokens);
@@ -906,13 +906,22 @@ impl Analyser {
             return;
         }
         indices.sort_unstable();
+        // Whether this command concatenates its whole argument tail into one
+        // expression (the registry's `EXPR_CONCATENATES_ARGS` trait — `expr`).
+        // Resolved before the emitters below so the registry borrow ends
+        // ahead of the `&mut self` calls.
+        let concatenates_args = registry.get(cmd_name).is_some_and(|s| {
+            s.traits
+                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+        });
 
         // W100: unbraced expression argument. Runs for every
         // EXPR-role form, including the `expr 1 + 2` multi-word case
         // handled by the early return below.
         self.emit_w100_unbraced_expr(cmd_name, args, arg_tokens);
 
-        // Special-case ``expr ...``: when the user wrote multiple
+        // Special-case the whole-tail expression command
+        // (`concatenates_args` — `expr`): when the user wrote multiple
         // arguments (``expr $a == "x"`` instead of the more common
         // ``expr {$a eq "x"}``), anchor W110 at the full argument
         // token range and parse the joined arguments — the
@@ -924,20 +933,31 @@ impl Analyser {
         // this shape (`emit_w003_dialect_invalid_expr_words`): a gated
         // operator here is always its own standalone word, already at
         // a tight span, with no offset remapping needed.
-        if cmd_name == "expr" && args.len() > 1 && !arg_tokens.is_empty() {
+        if concatenates_args && args.len() > 1 && !arg_tokens.is_empty() {
             let span = tcl_lexer::Span::new(
                 arg_tokens[0].span.start(),
                 arg_tokens[arg_tokens.len() - 1].span.end(),
             );
             let expr_text = args.join(" ");
-            self.emit_w110_string_eq_ne(&expr_text, span);
+            self.emit_w110_string_eq_ne(
+                &expr_text,
+                span,
+                &super::diagnostics::W110Anchor::JoinedWords {
+                    args,
+                    tokens: arg_tokens,
+                },
+            );
             self.emit_w003_dialect_invalid_expr_words(args, arg_tokens, &expr_text);
             return;
         }
 
         for idx in indices {
             if let (Some(text), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) {
-                self.emit_w110_string_eq_ne(text, tok.span);
+                self.emit_w110_string_eq_ne(
+                    text,
+                    tok.span,
+                    &super::diagnostics::W110Anchor::ArgToken(*tok),
+                );
                 // W003 anchors on the argument's inner content (delimiters
                 // stripped via `content_offset`), not the raw token span —
                 // it re-slices `self.source` directly so its operator
@@ -1505,18 +1525,60 @@ impl Analyser {
             }
             _ => {}
         }
-        // A `catch SCRIPT ?resultVar? ?optionsVar?` nested in a `[...]`
-        // substitution (`set out [catch {…} msg]`, `if {[catch {…} e]} …`)
-        // still binds its result/options variables in the enclosing scope, so
-        // record them for `symbols`/completion/hover — var-defs are collected
-        // from substitution commands too.
-        // `warn_if_unused = false`: the binding is a side effect of `catch`,
+        // A variable-binding tail (`catch SCRIPT ?resultVar? ?optionsVar?`)
+        // nested in a `[...]` substitution (`set out [catch {…} msg]`,
+        // `if {[catch {…} e]} …`) still binds its variables in the enclosing
+        // scope, so record them for `symbols`/completion/hover — var-defs are
+        // collected from substitution commands too.  The bound positions come
+        // from the registry's `ArgRole::VarWrite` rows, not a hardcoded
+        // `catch` shape.
+        // `warn_if_unused = false`: the binding is a command side effect,
         // not a "set but never used" target (no W211).
-        if cmd_name == "catch" {
-            for (i, name) in args.iter().enumerate().take(3).skip(1) {
-                if let Some(tok) = arg_tokens.get(i) {
-                    self.define_var(name, *tok, scope_path, false, None);
+        if cmd_name == "catch"
+            && let Some(registry) = self.registry.as_ref()
+        {
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            for i in registry.arg_indices_for_role(&cmd_name, &arg_strs, ArgRole::VarWrite) {
+                if let (Some(name), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
+                    let name = name.clone();
+                    self.define_var(&name, *tok, scope_path, false, None);
                 }
+            }
+        }
+
+        // A definition command (`proc`, a class definer, `oo::define`)
+        // nested inside a substitution — the feature-detection idiom
+        // `if {![catch {oo::configurable create Greeter {…}}]} {…}` — still
+        // defines its procedure/class and walks its body by the definer
+        // grammar, exactly as the top-level dispatch does.  Without this the
+        // definer's member keywords (`property`, `constructor`) and the
+        // defined name (`Greeter`) all draw W123 as unknown commands, even
+        // though W002 already reported the dialect-gated definer once.  The
+        // generic collector skips these bodies (`definition_handler_owns_body`)
+        // so members are never also dispatched as plain commands.  The
+        // dispatch mirrors the top-level chain exactly: the stamped `Proc` /
+        // `OoDefine` hooks first (the handlers no longer name-guard
+        // themselves), then the grammar-driven definer trio only on the
+        // hookless path.
+        // Each handler returns whether it claimed the command; nothing
+        // follows this dispatch, so an unclaimed command simply ends the
+        // substitution walk the same way a claimed one does.
+        {
+            use tcl_registry::hooks::AnalyserHookId as Hook;
+            match self.resolve_analyser_hook(&cmd_name, args) {
+                Some(Hook::Proc) => {
+                    self.handle_proc_command(args, arg_tokens, scope_path);
+                }
+                Some(Hook::OoDefine) => {
+                    self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path);
+                }
+                None => {
+                    let _claimed = self
+                        .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path);
+                }
+                Some(_) => {}
             }
         }
     }
@@ -2107,7 +2169,17 @@ fn record_command_invocations(
         } else {
             None
         };
-        for body in descend_command(registry, sm, name, &args, &arg_tokens, config) {
+        // Definition commands are excluded from the plain-script body
+        // descent for the same reason as `collect_segment_recursive`: their
+        // bodies are definer grammars (member keywords, not commands), and
+        // the real handlers walk them — recording `property`/`constructor`
+        // here would draw spurious W123s.
+        let bodies = if definition_handler_owns_body(registry, name) {
+            Vec::new()
+        } else {
+            descend_command(registry, sm, name, &args, &arg_tokens, config)
+        };
+        for body in bodies {
             if switch_list_idx == Some(body.index) {
                 let elements = super::handlers::parse_switch_body_elements(&body.text, body.token);
                 // Elements alternate pattern, body, pattern, body, … —
@@ -2211,8 +2283,14 @@ fn collect_segment_recursive(
         }
     }
     // Registry-resolved body arguments (`[if {$c} {string index …}]`):
-    // their commands are also invisible to the main walk here.
-    if let Some(registry) = registry {
+    // their commands are also invisible to the main walk here.  Definition
+    // commands are excluded: `dispatch_nested_segment` routes them through
+    // the real proc/definer handlers, which own their body walks — a plain
+    // script descent here would dispatch definer member keywords
+    // (`property`, `constructor`) as unknown commands.
+    if let Some(registry) = registry
+        && !definition_handler_owns_body(registry, seg.name())
+    {
         let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
         let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
         for body in descend_command(registry, sm, seg.name(), &args, &arg_tokens, config) {
@@ -2222,6 +2300,20 @@ fn collect_segment_recursive(
         }
     }
     out.push(seg);
+}
+
+/// Whether the nested dispatch routes `name` through a real definition
+/// handler (`handle_proc_command` / the class-definer handlers), which owns
+/// its body walk — the generic collector must not also descend that body as
+/// a plain script.  Registry-driven: a `definition_body` grammar (class
+/// definers, `oo::define`) or the `DEFINES_PROCEDURE` trait (`proc`).
+fn definition_handler_owns_body(registry: &CommandRegistry, name: &str) -> bool {
+    registry.get(name).is_some_and(|spec| {
+        spec.definition_body.is_some()
+            || spec
+                .traits
+                .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
+    })
 }
 
 /// For the ``switch ?options? string {pattern body …}`` form, the index

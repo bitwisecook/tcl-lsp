@@ -197,6 +197,17 @@ impl Diagnostic {
     }
 
     fn from_path_concat(w: &PathConcatWarning) -> Self {
+        // The `[file join …]` replacement is only built when `w.span` is
+        // the value word's own token range (see
+        // `find_path_concat_warnings`), so lifting it into a same-span
+        // fix replaces exactly the concatenated value.
+        let fixes = w.replacement.as_ref().map_or_else(Vec::new, |r| {
+            vec![CodeFix {
+                span: w.span,
+                new_text: r.clone(),
+                description: "Rewrite with `file join`".to_string(),
+            }]
+        });
         Self {
             span: w.span,
             code: w.code,
@@ -208,19 +219,23 @@ impl Diagnostic {
             },
             message: w.message.clone(),
             replacement: w.replacement.clone(),
-            fixes: Vec::new(),
+            fixes,
         }
     }
 }
 
 // Entry point
 
-/// Absolutise a per-function diagnostic's span by adding the unit's
+/// Absolutise a per-function diagnostic's span — and its fixes' spans,
+/// which live in the same coordinate space — by adding the unit's
 /// `base_offset`.  The per-function checks read spans from `fu.cfg`/`fu.ssa`/
 /// `fu.sccp`, which are relative to that offset (0 for a real-position build,
 /// the body offset for a memoised offset-0 unit, Approach B).
 fn shift(fu: &FunctionUnit, mut d: Diagnostic) -> Diagnostic {
     d.span = fu.abs_span(d.span);
+    for fix in &mut d.fixes {
+        fix.span = fu.abs_span(fix.span);
+    }
     d
 }
 
@@ -380,6 +395,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
         &fu.ssa,
         &fu.types,
         &fu.sccp.executable_blocks,
+        registry,
         instance_vars,
     ) {
         out.push(Diagnostic::from_thunking(&w));
@@ -859,7 +875,8 @@ mod tests {
 
     #[test]
     fn run_all_checks_reports_w201_path_concat() {
-        let cu = CompilationUnit::build_for("set x 42\nset p \"/tmp/$x\"", &registry(), false);
+        let src = "set x 42\nset p \"/tmp/$x\"";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
         let diagnostics = run_all_checks(&cu, &registry(), None);
         let w201 = diagnostics
             .iter()
@@ -872,8 +889,20 @@ mod tests {
             .as_deref()
             .expect("W201 diagnostic should carry a [file join] replacement");
         assert!(
-            replacement.starts_with("[file join ") && replacement.ends_with(']'),
+            replacement.starts_with("[file join /tmp ") && replacement.ends_with(']'),
             "unexpected replacement text: {replacement:?}",
+        );
+        // The replacement is also lifted into a same-span quick fix that
+        // replaces exactly the quoted value word.
+        assert_eq!(w201.fixes.len(), 1, "expected one fix: {:?}", w201.fixes);
+        let fix = &w201.fixes[0];
+        assert_eq!(fix.description, "Rewrite with `file join`");
+        assert_eq!(fix.new_text, replacement);
+        assert_eq!(fix.span, w201.span);
+        assert_eq!(
+            &src[fix.span.start() as usize..fix.span.end() as usize],
+            "\"/tmp/$x\"",
+            "the fix span must cover exactly the value word",
         );
     }
 }

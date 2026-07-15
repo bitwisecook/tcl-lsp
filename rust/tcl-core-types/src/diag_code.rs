@@ -386,12 +386,12 @@ diagnostic_codes! {
     W002 => "W002", diag(Warning, true, "Command is disabled in active dialect profile.");
     W003 => "W003", diag(Warning, true, "Expression operator not available in active dialect.");
     W004 => "W004", diag(Warning, true, "Command option is not available in the active dialect.");
-    W100 => "W100", diag(Warning, true, "Unbraced expression argument — prevents byte-compilation and risks double substitution.");
+    W100 => "W100", diag(Warning, true, "Unbraced expression argument — prevents byte-compilation and risks double substitution. Escalates to Error when the argument provably contains a substitution.");
     W101 => "W101", diag(Security, true, "`eval` with string concatenation — code injection risk.");
     W102 => "W102", diag(Security, true, "`subst` on variable input — code injection risk.");
     W103 => "W103", diag(Security, true, "`open` with pipeline `|` — command injection risk.");
     W104 => "W104", diag(Warning, true, "String concatenation for list building — use `lappend` instead.");
-    W105 => "W105", diag(Warning, true, "Unbraced code block or missing `variable` declaration in `namespace eval`.");
+    W105 => "W105", diag(Warning, true, "Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).");
     W106 => "W106", diag(Warning, true, "Dangerous unbraced `switch` body — risks double substitution.");
     W108 => "W108", diag(Warning, true, "Non-ASCII characters in token content.");
     W110 => "W110", diag(Warning, true, "Use `eq`/`ne` instead of `==`/`!=` for string comparison.");
@@ -429,6 +429,7 @@ diagnostic_codes! {
     W215 => "W215", diag(Variable, true, "Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it).");
     W216 => "W216", diag(Variable, true, "Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index.");
     W217 => "W217", diag(Variable, true, "`unset` unsets nothing — every argument is consumed as an option (`-nocomplain` / `--`); prefix a `-`-named variable with `--`.");
+    W218 => "W218", diag(Variable, true, "`args` in a non-final parameter position is an ordinary parameter — it only collects the rest as the last formal.");
     W220 => "W220", diag(Variable, true, "Dead store — variable set but overwritten before use.");
     W230 => "W230", diag(Warning, true, "Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.");
     W231 => "W231", diag(Warning, true, "Constant list index out of range — lset raises a runtime error.");

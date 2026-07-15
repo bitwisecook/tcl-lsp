@@ -6265,7 +6265,12 @@
     },
     {
       "name": "oo::object",
-      "summary": "root class of the class hierarchy"
+      "summary": "root class of the class hierarchy",
+      "subcommands": [
+        "create",
+        "destroy",
+        "new"
+      ]
     },
     {
       "name": "oo::singleton",

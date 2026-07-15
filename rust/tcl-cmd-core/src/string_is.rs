@@ -27,6 +27,7 @@
 //! variable, and returns the boolean. (tclCmdMZ.c).
 
 use crate::error::CmdError;
+use crate::prefix::OptionTable;
 
 /// Canonical class names, in the order Tcl lists them in error messages.
 pub const CLASSES: &[&str] = &[
@@ -54,43 +55,21 @@ pub const CLASSES: &[&str] = &[
     "xdigit",
 ];
 
-fn oxford(items: &[&str]) -> String {
-    let mut out = String::new();
-    for (i, e) in items.iter().enumerate() {
-        if i > 0 {
-            out.push_str(", ");
-        }
-        if items.len() > 1 && i == items.len() - 1 {
-            out.push_str("or ");
-        }
-        out.push_str(e);
-    }
-    out
-}
-
 /// Cast a character index to `i64` for a fail-index result.
 fn ci(i: usize) -> i64 {
     i64::try_from(i).unwrap_or(i64::MAX)
 }
 
-/// Resolve a (possibly abbreviated) class name; `Err` carries the bad/ambiguous
-/// `CmdError`.
+/// Resolve a (possibly abbreviated) class name via the shared
+/// [`OptionTable`] rule — C's `StringIsCmd` matches its class table with
+/// abbreviations allowed (flags 0), noun `class`. `Err` carries the
+/// bad/ambiguous `CmdError`.
+///
+/// # Errors
+/// `bad class "X"` / `ambiguous class "X"`, enumerating [`CLASSES`].
 pub fn resolve_class(input: &str) -> Result<&'static str, CmdError> {
-    if let Some(&c) = CLASSES.iter().find(|&&c| c == input) {
-        return Ok(c);
-    }
-    let hits: Vec<&&str> = CLASSES.iter().filter(|&&c| c.starts_with(input)).collect();
-    match hits.as_slice() {
-        [one] => Ok(**one),
-        [] => Err(CmdError::new(format!(
-            "bad class \"{input}\": must be {}",
-            oxford(CLASSES)
-        ))),
-        _ => Err(CmdError::new(format!(
-            "ambiguous class \"{input}\": must be {}",
-            oxford(CLASSES)
-        ))),
-    }
+    const TABLE: OptionTable<'static> = OptionTable::abbreviating("class", CLASSES);
+    TABLE.index_of_str(input).map(|i| CLASSES[i])
 }
 
 /// Classify `s` against `class` (canonical), returning `(is_member, fail_index)`.

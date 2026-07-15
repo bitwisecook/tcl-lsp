@@ -60,6 +60,12 @@ pub enum BindingKind {
     Builtin,
     /// A user procedure (`target` = its canonical qname).
     Proc,
+    /// A `TclOO`/snit/itcl class or instance command created by a
+    /// registry-described definer (`target` = its canonical qname).
+    /// Distinct from [`Self::Proc`] so `NAME destroy` — the universal
+    /// object method — is only modelled as a deletion for names that
+    /// actually denote objects.
+    Class,
     /// An `interp alias` (`target` = the alias target name).
     Alias,
     /// Renamed/deleted-away or never-defined → dispatches to `unknown`.
@@ -224,8 +230,88 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
                 state.wildcard = true;
             }
         }
-        None => {}
+        _ => {
+            // Class lifecycle.  A registry-described definer creates a
+            // command (`oo::class create Animal {…}` → `Animal`;
+            // `snit::type Dog {…}` → `Dog`), and `NAME destroy` — the
+            // registry-declared destructive method on `oo::object`'s
+            // universal surface — deletes it again, so a later
+            // `Animal new` falls through to `unknown` (W128).
+            if let Some(created) = definer_created_command(registry, cmd, args) {
+                state.map.insert(
+                    nqn(&created),
+                    Binding {
+                        kind: BindingKind::Class,
+                        target: Some(nqn(&created)),
+                    },
+                );
+                return;
+            }
+            let head = nqn(cmd);
+            let head_binding = binding_in(state, &head, registry);
+            if head_binding.kind == BindingKind::Class {
+                if args
+                    .first()
+                    .is_some_and(|w| oo_destructive_method(registry, w))
+                {
+                    state.map.insert(head, Binding::of(BindingKind::Opaque));
+                } else if args.first().map(String::as_str) == Some("create")
+                    && args.len() >= 2
+                    && !is_dynamic_word(&args[1])
+                {
+                    // `CLASS create NAME` binds the instance command, which
+                    // carries the same object surface (destroyable too).
+                    state.map.insert(
+                        nqn(&args[1]),
+                        Binding {
+                            kind: BindingKind::Class,
+                            target: head_binding.target,
+                        },
+                    );
+                }
+            }
+        }
     }
+}
+
+/// The command a registry-described class definer creates, when this call
+/// is a creation: `METACLASS create NAME …` / `METACLASS createWithNamespace
+/// NAME …` for the `TclOo` family (gated on `IS_OO_METACLASS`, mirroring the
+/// analyser's dual gate), `DEFINER NAME BODY` for snit/itcl.  `None` for
+/// non-definers, `new` (auto-named), or a dynamic name.
+fn definer_created_command(
+    registry: &CommandRegistry,
+    cmd: &str,
+    args: &[String],
+) -> Option<String> {
+    let spec = registry.get(cmd)?;
+    let grammar = spec.definition_body?;
+    let name = match grammar.family {
+        tcl_registry::definer::DefinerFamily::TclOo => {
+            if !spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS) {
+                return None;
+            }
+            if !matches!(
+                args.first().map(String::as_str),
+                Some("create" | "createWithNamespace")
+            ) {
+                return None;
+            }
+            args.get(1)?
+        }
+        _ => args.first()?,
+    };
+    (!name.is_empty() && !is_dynamic_word(name)).then(|| name.clone())
+}
+
+/// Whether `word` is a destructive method on the universal `TclOO` object
+/// surface — the registry's `destructive` flag on `oo::object`'s
+/// subcommands (`destroy`).
+fn oo_destructive_method(registry: &CommandRegistry, word: &str) -> bool {
+    registry
+        .get("oo::object")
+        .and_then(|spec| spec.resolve_subcommand(word))
+        .is_some_and(|sub| sub.destructive)
 }
 
 /// Join predecessor exit states into a block-entry state.
@@ -749,6 +835,82 @@ mod tests {
         assert!(cb.is_original_builtin_at(fu.cfg.entry, 0, "string"));
         assert!(cb.rebound_names().is_empty());
         assert!(!cb.has_wildcard());
+    }
+
+    #[test]
+    fn class_destroy_makes_the_class_command_opaque() {
+        // `Animal destroy` deletes the class command: the binding is Class
+        // before the destroy and Opaque after, so a later `Animal new`
+        // draws W128.  Definer creation and the destructive method are
+        // both registry data (definition_body / oo::object's `destroy`).
+        let (cu, reg) = analyse(
+            "oo::class create Animal {}
+Animal new
+Animal destroy
+Animal new",
+        );
+        let fu = cu.function("::top").unwrap();
+        let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
+        let entry = fu.cfg.entry;
+        assert_eq!(cb.binding_at(entry, 1, "Animal").kind, BindingKind::Class);
+        assert_eq!(
+            cb.binding_at(entry, 3, "Animal").kind,
+            BindingKind::Opaque,
+            "the class command is deleted after `Animal destroy`"
+        );
+        assert!(cb.rebound_names().contains("::Animal"));
+    }
+
+    #[test]
+    fn instance_destroy_makes_the_instance_command_opaque() {
+        // `Animal create fido` binds the instance command; `fido destroy`
+        // deletes it; the class itself stays bound.
+        let (cu, reg) = analyse(
+            "oo::class create Animal {}
+Animal create fido
+fido destroy
+fido bark
+Animal new",
+        );
+        let fu = cu.function("::top").unwrap();
+        let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
+        let entry = fu.cfg.entry;
+        assert_eq!(cb.binding_at(entry, 3, "fido").kind, BindingKind::Opaque);
+        assert_eq!(cb.binding_at(entry, 4, "Animal").kind, BindingKind::Class);
+    }
+
+    #[test]
+    fn destroy_as_ordinary_argument_is_not_a_deletion() {
+        // A proc named `destroy` taking a class name as an ARGUMENT must
+        // not delete anything: the head is the proc, not the class.
+        let (cu, reg) = analyse(
+            "oo::class create Animal {}
+proc destroy {x} { puts $x }
+destroy Animal
+Animal new",
+        );
+        let fu = cu.function("::top").unwrap();
+        let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
+        let entry = fu.cfg.entry;
+        assert_eq!(
+            cb.binding_at(entry, 3, "Animal").kind,
+            BindingKind::Class,
+            "the class survives an unrelated `destroy` call"
+        );
+    }
+
+    #[test]
+    fn snit_type_creation_binds_a_class() {
+        let (cu, reg) = analyse(
+            "snit::type Dog {}
+Dog destroy
+Dog create d",
+        );
+        let fu = cu.function("::top").unwrap();
+        let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
+        let entry = fu.cfg.entry;
+        assert_eq!(cb.binding_at(entry, 1, "Dog").kind, BindingKind::Class);
+        assert_eq!(cb.binding_at(entry, 2, "Dog").kind, BindingKind::Opaque);
     }
 
     #[test]

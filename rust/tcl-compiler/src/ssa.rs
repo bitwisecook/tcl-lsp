@@ -1102,7 +1102,7 @@ fn set_value_reads(
 ) -> BTreeSet<String> {
     let trimmed = value.trim();
     if let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']'))
-        && let Some(expr_arg) =
+        && let Some((expr_arg, _)) =
             crate::lowering_hooks::extract_single_expr_arg(inner, &HashSet::new())
     {
         return vars_in_expr(&crate::parse_expr(&expr_arg, None));
@@ -1887,6 +1887,7 @@ mod tests {
             true_target: t,
             false_target: f,
             span: None,
+            condition_base: None,
         }
     }
 
@@ -2696,6 +2697,7 @@ mod tests {
                     end: 7,
                 }),
             },
+            expr_base: None,
         };
         let uses = uses_of(&stmt, &mut scanner, &reg);
         assert!(uses.contains(&"a".to_string()));

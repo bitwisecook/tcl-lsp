@@ -551,7 +551,7 @@ link or define locally.
 | KCS style guide and templates | `docs/kcs/STYLE.md`, `docs/kcs/templates/` | — |
 | Architecture and pipeline walkthroughs | `docs/design/` | `compiler-architecture.md` |
 | Compiler pass, stage, or analysis internals | `docs/design/compiler/` | `cfg-construction.md` |
-| Module ownership or API contract | `docs/design/contracts/` | `shared-utility-contracts.md` |
+| Module ownership or API contract | `docs/design/contracts/` | `shared-utility-contracts-rust.md` |
 | Design-doc templates | `docs/design/templates/` | `template-contract.md` |
 | Definitions of complex terms | `docs/GLOSSARY.md` | `CFG`, `SSA`, `lattice`, `shimmer` |
 

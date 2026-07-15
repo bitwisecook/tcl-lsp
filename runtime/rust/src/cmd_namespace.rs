@@ -1192,11 +1192,13 @@ mod tests {
             counters::reset();
             {
                 let mut i = Interp::new();
+                let code = i.eval_str(body.as_bytes());
                 assert_eq!(
-                    i.eval_str(body.as_bytes()),
+                    code,
                     Code::Ok,
-                    "vector line {}: runtime errored on script:\n{script}",
+                    "vector line {}: runtime errored on script:\n{script}\nerror: {}",
                     v.line,
+                    String::from_utf8_lossy(&i.result_bytes()),
                 );
                 assert_eq!(i.eval_str(b"set __r"), Code::Ok);
                 let got = String::from_utf8_lossy(&i.result_bytes()).to_string();

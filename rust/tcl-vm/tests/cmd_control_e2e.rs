@@ -899,6 +899,25 @@ fn switch_no_match_returns_empty() {
     );
 }
 
+/// `switch` options abbreviate like tclsh (`Tcl_GetIndexFromObj`, flags 0):
+/// `-gl`/`-e`/`-noc` resolve to their options in both the direct form (the
+/// compiler bails to the runtime for a non-exact option word) and the
+/// runtime-dispatch form. Probed tclsh 8.6.14 (S4.2).
+#[test]
+fn switch_option_abbreviation() {
+    // tclsh: `switch -gl -- abc {a* {concat ia}}` → `ia`.
+    assert_eq!(run("switch -gl -- abc {a* {concat ia}}").1, "ia");
+    // tclsh: `-e` → -exact, `-noc` → -nocase.
+    assert_eq!(
+        run("set s switch; $s -e -- b {a {concat A} b {concat B}}").1,
+        "B",
+    );
+    assert_eq!(
+        run("set s switch; $s -noc -- ABC {abc {concat nc}}").1,
+        "nc"
+    );
+}
+
 /// `switch` error paths: bad option, empty body list, odd pattern/body count
 /// (both brace-list and inline), a trailing `-` with nothing to fall to, and the
 /// misplaced-comment heuristic.
@@ -909,6 +928,13 @@ fn switch_error_paths() {
     assert_eq!(
         run("set s switch; catch {$s -badopt x {a 1}} m; set m").1,
         "bad option \"-badopt\": must be -exact, -glob, -indexvar, -matchvar, \
+         -nocase, -regexp, or --",
+    );
+    // ambiguous option: a lone `-` prefixes every table entry.
+    // tclsh: `ambiguous option "-": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --`
+    assert_eq!(
+        run("set s switch; catch {$s - x {a 1}} m; set m").1,
+        "ambiguous option \"-\": must be -exact, -glob, -indexvar, -matchvar, \
          -nocase, -regexp, or --",
     );
     // empty body list

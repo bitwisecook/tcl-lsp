@@ -41,7 +41,40 @@ use tcl_syntax::list::split_list;
 use tcl_syntax::value::ValueOps;
 
 use crate::index;
+use crate::prefix::OptionTable;
 use crate::sort::{self, SortMode};
+
+// C's `switches[]` in `Tcl_LsortObjCmd` (`tclCmdIL.c`), resolved with
+// abbreviations allowed (flags 0), so `lsort -uniq …`/`lsort -decr …` work
+// like tclsh and a shared prefix (`-d`, `-in`, the empty word) is an
+// ambiguous option.
+const OPT_ASCII: usize = 0;
+const OPT_COMMAND: usize = 1;
+const OPT_DECREASING: usize = 2;
+const OPT_DICTIONARY: usize = 3;
+const OPT_INCREASING: usize = 4;
+const OPT_INDEX: usize = 5;
+const OPT_INDICES: usize = 6;
+const OPT_INTEGER: usize = 7;
+const OPT_NOCASE: usize = 8;
+const OPT_REAL: usize = 9;
+const OPT_STRIDE: usize = 10;
+const OPT_UNIQUE: usize = 11;
+const OPT_NAMES: [&str; 12] = [
+    "-ascii",
+    "-command",
+    "-decreasing",
+    "-dictionary",
+    "-increasing",
+    "-index",
+    "-indices",
+    "-integer",
+    "-nocase",
+    "-real",
+    "-stride",
+    "-unique",
+];
+const OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
 
 /// An `lsort` failure (message-only — `lsort` sets no `errorCode`).
 pub struct LsortError {
@@ -118,24 +151,23 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
     let mut i = 0;
     while i < last {
         let opt = ops.as_bytes(&args[i]);
-        match opt.as_ref() {
-            b"-ascii" => mode = SortMode::Ascii,
-            b"-dictionary" => mode = SortMode::Dictionary,
-            b"-integer" => mode = SortMode::Integer,
-            b"-real" => mode = SortMode::Real,
-            b"-nocase" => nocase = true,
-            b"-increasing" => increasing = true,
-            b"-decreasing" => increasing = false,
-            b"-unique" => unique = true,
-            b"-indices" => indices_out = true,
-            b"-index" => {
+        match OPTIONS.index_of(&opt).map_err(LsortError::msg)? {
+            OPT_ASCII => mode = SortMode::Ascii,
+            OPT_DICTIONARY => mode = SortMode::Dictionary,
+            OPT_INTEGER => mode = SortMode::Integer,
+            OPT_REAL => mode = SortMode::Real,
+            OPT_NOCASE => nocase = true,
+            OPT_INCREASING => increasing = true,
+            OPT_DECREASING => increasing = false,
+            OPT_INDICES => indices_out = true,
+            OPT_INDEX => {
                 if i + 1 >= last {
                     return Err(needs_value(b"-index", b"list index"));
                 }
                 index_path = split_index(&ops.as_bytes(&args[i + 1]))?;
                 i += 1;
             }
-            b"-stride" => {
+            OPT_STRIDE => {
                 if i + 1 >= last {
                     return Err(needs_value(b"-stride", b"stride length"));
                 }
@@ -147,7 +179,7 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
                 }
                 i += 1;
             }
-            b"-command" => {
+            OPT_COMMAND => {
                 if i + 1 >= last {
                     return Err(needs_value(b"-command", b"comparison command"));
                 }
@@ -155,7 +187,8 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
                 cmd_prefix = Some(args[i + 1].clone());
                 i += 1;
             }
-            other => return Err(bad_option(other)),
+            OPT_UNIQUE => unique = true,
+            _ => unreachable!("the option table is closed"),
         }
         i += 1;
     }
@@ -381,17 +414,12 @@ fn split_index(arg: &[u8]) -> Result<Vec<Vec<u8>>, LsortError> {
         .map_err(|e| LsortError::msg(e.message().to_string()))
 }
 
+/// `"-index" option must be followed by list index` — C names the canonical
+/// option even when the user abbreviated it.
 fn needs_value(opt: &[u8], what: &[u8]) -> LsortError {
     let mut m = b"\"".to_vec();
     m.extend_from_slice(opt);
     m.extend_from_slice(b"\" option must be followed by ");
     m.extend_from_slice(what);
-    LsortError::msg(m)
-}
-
-fn bad_option(other: &[u8]) -> LsortError {
-    let mut m = b"bad option \"".to_vec();
-    m.extend_from_slice(other);
-    m.extend_from_slice(b"\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, -stride, or -unique");
     LsortError::msg(m)
 }

@@ -389,10 +389,15 @@ fn catch_body_out_vars(body_word: &str, out: &mut Vec<String>) {
         .strip_prefix('{')
         .and_then(|s| s.strip_suffix('}'))
         .unwrap_or(body_word);
+    // First-arg-writer membership is the registry's
+    // `writes_first_arg_variable` query (cached default registry — the set
+    // is core Tcl in every dialect); over-collection stays safe per the
+    // suppress-only contract above.
+    let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
     for words in tokenise_to_command_words(body) {
-        match words.first().map(String::as_str) {
+        match words.first() {
             // Direct assignment commands write their first argument.
-            Some("set" | "append" | "lappend" | "incr") => {
+            Some(cmd) if registry.writes_first_arg_variable(cmd) => {
                 if let Some(w) = words.get(1) {
                     push_out_var(w, out);
                 }
@@ -596,6 +601,7 @@ mod tests {
                     value: "2".into(),
                 }]),
                 body_span: Span::new(5, 14),
+                condition_base: None,
             }],
             else_body: None,
             else_span: None,

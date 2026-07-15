@@ -148,7 +148,7 @@ impl Analyser {
         // ``catch {<cmd>}`` is the canonical Tcl idiom for "do this if
         // possible, ignore if not".
         if let Some(body) = args.first()
-            && self.catch_body_is_fire_and_forget(body)
+            && catch_body_is_fire_and_forget(body, self.registry.as_ref())
         {
             return;
         }
@@ -892,10 +892,15 @@ or use explicit I/O commands."
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if !matches!(cmd_name, "regexp" | "regsub" | "switch") {
+        let takes_regex_pattern = self.command_takes_regex_pattern(cmd_name);
+        // `switch` stays name-guarded: its patterns are glob by default and
+        // regex only under `-regexp`, so its spec is not `PatternType::Regex`;
+        // the arm scan below is switch-form-specific.
+        if !takes_regex_pattern && cmd_name != "switch" {
             return;
         }
-        let patterns = find_regex_patterns_in_command(cmd_name, args, arg_tokens);
+        let patterns =
+            find_regex_patterns_in_command(takes_regex_pattern, cmd_name, args, arg_tokens);
         if patterns.is_empty() {
             return;
         }
@@ -934,7 +939,7 @@ matching time on crafted input."
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if !matches!(cmd_name, "regexp" | "regsub") {
+        if !self.command_takes_regex_pattern(cmd_name) {
             return;
         }
         let Some(idx) = regexp_pattern_index(args) else {
@@ -1143,8 +1148,9 @@ matching time on crafted input."
     /// **W310.** Emit "hardcoded credential" for a literal secret value.
     /// Two strategies, one diagnostic per command:
     ///
-    /// * **Strategy 1** — a credential-bearing option flag (the defaults
-    ///   `-password` / `-pass` / `-secret` / `-token` / `-apikey`,
+    /// * **Strategy 1** — a credential-bearing option flag (the registry's
+    ///   command-independent
+    ///   [`tcl_registry::spec::DEFAULT_CREDENTIAL_OPTION_NAMES`],
     ///   case-insensitive, unioned with the command's registry
     ///   `credential_options`, e.g. `http::geturl`'s `-headers`) followed
     ///   by a literal value.
@@ -1171,7 +1177,7 @@ matching time on crafted input."
         // Strategy 1: a credential option flag with a literal value.
         for (i, text) in args.iter().enumerate() {
             let lower = text.to_ascii_lowercase();
-            if !DEFAULT_PASSWORD_OPTIONS.contains(&lower.as_str())
+            if !tcl_registry::spec::DEFAULT_CREDENTIAL_OPTION_NAMES.contains(&lower.as_str())
                 && !extra_opts.contains(&lower.as_str())
             {
                 continue;
@@ -1267,60 +1273,54 @@ pub(super) fn has_redos_shape(pattern: &str) -> bool {
     false
 }
 
-impl Analyser {
-    /// True when the body of a `catch` matches the documented
-    /// "fire-and-forget" idiom: a single command whose spec carries
-    /// [`Traits::HAS_DESTRUCTIVE_OPS`] — bare for a non-ensemble builtin
-    /// (`close $h`, `unset var`, `rename foo ""`), or resolved to a
-    /// registry-flagged `destructive` subcommand for an ensemble
-    /// (`after cancel`, `chan close`, `array unset`, `dict unset`,
-    /// `interp delete`, `file delete`, `namespace delete|forget`, …).
-    ///
-    /// Failure when the target is already gone is expected and
-    /// intentionally ignored, so W302's "capture the result" hint is
-    /// noise here.  Conservative: only single-statement bodies match.
-    /// The subcommand word resolves via the registry's ensemble rule
-    /// (exact or unique prefix), matching C Tcl's `Tcl_GetIndexFromObj`
-    /// dispatch — `catch {file del $f}` is the same idiom as the
-    /// unabbreviated spelling.
-    fn catch_body_is_fire_and_forget(&self, body: &str) -> bool {
-        let segs: Vec<_> = crate::segmenter::segment_commands(body)
-            .into_iter()
-            .filter(|c| !c.texts.is_empty())
-            .collect();
-        if segs.len() != 1 {
-            return false;
-        }
-        let Some(head) = segs[0].texts.first() else {
-            return false;
-        };
-        if head.is_empty() {
-            return false;
-        }
-        // A namespaced spelling of a builtin (`::close`, `foo::close`)
-        // suppresses like the bare tail always has — the pre-registry
-        // behaviour this migration preserves.
-        let bare = head
-            .trim_start_matches(':')
-            .rsplit("::")
-            .next()
-            .unwrap_or(head);
-        let Some(spec) = self.registry.as_ref().and_then(|r| r.get(bare)) else {
-            return false;
-        };
-        if !spec.traits.contains(Traits::HAS_DESTRUCTIVE_OPS) {
-            return false;
-        }
-        if spec.subcommands.is_empty() {
-            return true;
-        }
-        match segs[0].texts.get(1) {
-            Some(first_arg) => spec
-                .resolve_subcommand(first_arg)
-                .is_some_and(|sub| sub.destructive),
-            None => false,
-        }
+/// True when the body of a `catch` matches the documented
+/// "fire-and-forget" idiom: a single command whose head is a teardown
+/// builtin (`close $h`, `unset var`, `rename foo ""`) or a teardown
+/// ensemble subcommand (`after cancel`, `chan close`, `array unset`, …).
+/// Membership comes from the registry's
+/// [`tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN`] trait, at both the
+/// command and the resolved-subcommand level.  Conservative: only
+/// single-statement bodies match, and ensemble heads are
+/// subcommand-checked.
+fn catch_body_is_fire_and_forget(
+    body: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
+    let Some(registry) = registry else {
+        return false;
+    };
+    let segs: Vec<_> = crate::segmenter::segment_commands(body)
+        .into_iter()
+        .filter(|c| !c.texts.is_empty())
+        .collect();
+    if segs.len() != 1 {
+        return false;
     }
+    let Some(head) = segs[0].texts.first() else {
+        return false;
+    };
+    if head.is_empty() {
+        return false;
+    }
+    // Resolve a namespace-qualified spelling to its tail, matching the
+    // pre-registry behaviour (`::close` and `myns::close` both counted).
+    let bare = head
+        .trim_start_matches(':')
+        .rsplit("::")
+        .next()
+        .unwrap_or(head);
+    let Some(spec) = registry.get(bare) else {
+        return false;
+    };
+    let teardown = tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN;
+    if spec.traits.contains(teardown) {
+        return true;
+    }
+    segs[0]
+        .texts
+        .get(1)
+        .and_then(|first_arg| spec.resolve_subcommand(first_arg))
+        .is_some_and(|sub| sub.traits.contains(teardown))
 }
 
 /// One W127 closed-value check: return a `(message, span)` hit when the literal
@@ -1432,9 +1432,6 @@ fn raw_has_live_substitution(raw: &str) -> bool {
     false
 }
 
-/// Credential-bearing option flags whose literal values trip W310.
-const DEFAULT_PASSWORD_OPTIONS: [&str; 5] = ["-password", "-pass", "-secret", "-token", "-apikey"];
-
 /// True when `value` is a literal (not a `$var` / `[cmd]` substitution)
 /// — the W310 literal-value gate.
 fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
@@ -1477,13 +1474,14 @@ fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
 }
 
 /// Return `(pattern_text, token)` pairs for every regex pattern
-/// argument in a `regexp` / `regsub` / `switch -regexp` command.
-/// `regexp` / `regsub` contribute
-/// their first positional (option-skipping) argument; `switch -regexp`
+/// argument in a command.  A `PatternType::Regex` command
+/// (`takes_regex_pattern` — `regexp` / `regsub`) contributes
+/// its first positional (option-skipping) argument; `switch -regexp`
 /// contributes every non-`default` pattern arm — inline pairs (form 1)
 /// or a single braced case list (form 2, re-segmented via
 /// [`super::handlers::parse_switch_body_elements`]).
 fn find_regex_patterns_in_command(
+    takes_regex_pattern: bool,
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[tcl_lexer::Token],
@@ -1491,26 +1489,18 @@ fn find_regex_patterns_in_command(
     if args.is_empty() || arg_tokens.is_empty() {
         return Vec::new();
     }
+    if takes_regex_pattern {
+        // Skip leading flags to the pattern argument via the one canonical
+        // regex-command option-skip.
+        let Some(idx) = regexp_pattern_index(args) else {
+            return Vec::new();
+        };
+        return match (args.get(idx), arg_tokens.get(idx)) {
+            (Some(text), Some(tok)) => vec![(text.clone(), *tok)],
+            _ => Vec::new(),
+        };
+    }
     match cmd_name {
-        "regexp" | "regsub" => {
-            // Skip leading flags to the pattern argument (`-start`
-            // consumes its value; `--` ends the option section).
-            let mut idx = 0;
-            while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
-                if args[idx] == "-start" && idx + 1 < args.len() {
-                    idx += 2;
-                } else {
-                    idx += 1;
-                }
-            }
-            if idx < args.len() && args[idx] == "--" {
-                idx += 1;
-            }
-            match (args.get(idx), arg_tokens.get(idx)) {
-                (Some(text), Some(tok)) => vec![(text.clone(), *tok)],
-                _ => Vec::new(),
-            }
-        }
         "switch" => {
             let mut is_regexp = false;
             let mut i = 0;

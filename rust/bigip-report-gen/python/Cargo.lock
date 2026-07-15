@@ -1187,6 +1187,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
  "ureq",
  "x509-parser",
 ]

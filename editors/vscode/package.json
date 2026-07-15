@@ -3692,7 +3692,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W100:** Unbraced expression argument — prevents byte-compilation and risks double substitution.",
+            "markdownDescription": "**W100:** Unbraced expression argument — prevents byte-compilation and risks double substitution. Escalates to Error when the argument provably contains a substitution.",
             "order": 4
           },
           "tclLsp.diagnostics.W104": {
@@ -3706,7 +3706,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W105:** Unbraced code block or missing `variable` declaration in `namespace eval`.",
+            "markdownDescription": "**W105:** Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
             "order": 6
           },
           "tclLsp.diagnostics.W106": {
@@ -3988,12 +3988,19 @@
             "markdownDescription": "**W217:** `unset` unsets nothing — every argument is consumed as an option (`-nocomplain` / `--`); prefix a `-`-named variable with `--`.",
             "order": 7
           },
+          "tclLsp.diagnostics.W218": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W218:** `args` in a non-final parameter position is an ordinary parameter — it only collects the rest as the last formal.",
+            "order": 8
+          },
           "tclLsp.diagnostics.W220": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W220:** Dead store — variable set but overwritten before use.",
-            "order": 8
+            "order": 9
           }
         }
       },
@@ -5040,6 +5047,7 @@
   ],
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "precompile": "make -C ../.. copy-canonical",
     "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run copy-wasm && npm run bundle",
     "copy-canonical": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('src','chat','canonical'),d=p.join('out','chat','canonical');if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))}\"",
     "copy-core-js": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('..','..','rust','tcl-cli','gui','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}\"",

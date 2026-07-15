@@ -819,6 +819,7 @@ fn collect_constant_branches(
 pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     params: &HashSet<&str, S>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Vec<ConstantBranch> {
     let mut out = Vec::new();
     if cfg.blocks.values().any(|b| {
@@ -871,13 +872,14 @@ pub fn existence_constant_branches<S: std::hash::BuildHasher>(
     // `::safe::CheckInterp` guard shape (safe.tcl:109).  The scanner also
     // returns `trace` targets, which only widens the skip — conservative,
     // never a false fold.
-    let aliased = crate::optimiser::elimination::scan_scope_aliases(cfg);
+    let aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
             condition,
             true_target,
             false_target,
             span: Some(span),
+            ..
         }) = &block.terminator
         else {
             continue;
@@ -1405,6 +1407,11 @@ fn resolve_const_string<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     None
 }
 
+// The per-command fold arms below (`list` / `format` / `llength` / `string
+// length` / `expr`) are name-keyed on purpose: each arm IS that command's
+// fold semantics (what a constant call evaluates to), not a membership
+// test a registry trait could answer — the same irreducible-fold rationale
+// as `chain_fold`'s per-command arms.
 fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
@@ -1595,6 +1602,7 @@ mod tests {
             true_target: tt,
             false_target: ft,
             span: None,
+            condition_base: None,
         }
     }
 
@@ -2040,6 +2048,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 expr,
+                expr_base: None,
             },
             uses,
             defs,

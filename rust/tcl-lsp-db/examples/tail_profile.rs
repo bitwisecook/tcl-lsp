@@ -150,7 +150,7 @@ fn main() {
     });
     let t_shimmer = time("shimmer + thunking (per-fn)", 3, || {
         find_shimmer_warnings_for_cu(&cu, &registry).len()
-            + find_thunking_warnings_for_cu(&cu).len()
+            + find_thunking_warnings_for_cu(&cu, &registry).len()
     });
     let t_taint = time("solve_interprocedural_taints (whole-unit)", 3, || {
         solve_interprocedural_taints(&cu, &registry, Some(dialect))

@@ -30,6 +30,8 @@
 
 use std::fmt::Write as _;
 
+use tcl_syntax::list::split_list_lenient;
+
 use crate::live::LiveSession;
 
 /// One captured HTTP request to drive through the simulated flow.
@@ -200,16 +202,16 @@ fn tcl_quote(s: &str) -> String {
 /// Parse the orchestrator's decision log (a Tcl list of `{category action args}`)
 /// into `(category, action, value)` triples.
 fn parse_decisions(list: &str) -> Vec<(String, String, String)> {
-    tcl_list_split(list)
+    split_list_lenient(list)
         .into_iter()
         .filter_map(|entry| {
-            let parts = tcl_list_split(&entry);
+            let parts = split_list_lenient(&entry);
             match parts.as_slice() {
                 [cat, act, rest @ ..] => Some((
-                    cat.clone(),
-                    act.clone(),
+                    cat.to_string(),
+                    act.to_string(),
                     rest.iter()
-                        .map(|v| tcl_list_split(v).join(" "))
+                        .map(|v| split_list_lenient(v).join(" "))
                         .collect::<Vec<_>>()
                         .join(" "),
                 )),
@@ -222,67 +224,17 @@ fn parse_decisions(list: &str) -> Vec<(String, String, String)> {
 /// Parse the captured log list (each entry a `{facility level message …}` Tcl
 /// list) into `" | "`-joined display strings.
 fn parse_log_entries(list: &str) -> Vec<String> {
-    tcl_list_split(list)
+    split_list_lenient(list)
         .into_iter()
         .map(|entry| {
-            let parts = tcl_list_split(&entry);
+            let parts = split_list_lenient(&entry);
             if parts.is_empty() {
-                entry
+                entry.into_owned()
             } else {
                 parts.join(" | ")
             }
         })
         .collect()
-}
-
-/// Split a Tcl list string into its top-level elements, honouring `{…}` braces
-/// and a single level of backslash escaping. Sufficient for the orchestrator's
-/// well-formed decision / log lists.
-fn tcl_list_split(s: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut chars = s.chars().peekable();
-    loop {
-        while matches!(chars.peek(), Some(c) if c.is_whitespace()) {
-            chars.next();
-        }
-        let Some(&c) = chars.peek() else { break };
-        let mut elem = String::new();
-        if c == '{' {
-            chars.next();
-            let mut depth = 1;
-            for ch in chars.by_ref() {
-                match ch {
-                    '{' => depth += 1,
-                    '}' => {
-                        depth -= 1;
-                        if depth == 0 {
-                            break;
-                        }
-                        elem.push(ch);
-                    }
-                    _ => elem.push(ch),
-                }
-            }
-        } else {
-            while let Some(&ch) = chars.peek() {
-                if ch.is_whitespace() {
-                    break;
-                }
-                if ch == '\\' {
-                    chars.next();
-                    if let Some(&esc) = chars.peek() {
-                        elem.push(esc);
-                        chars.next();
-                    }
-                    continue;
-                }
-                elem.push(ch);
-                chars.next();
-            }
-        }
-        out.push(elem);
-    }
-    out
 }
 
 #[cfg(test)]
@@ -314,7 +266,34 @@ mod tests {
     }
 
     #[test]
-    fn tcl_list_split_handles_braces() {
-        assert_eq!(tcl_list_split("a {b c} d"), vec!["a", "b c", "d"]);
+    fn decision_list_split_handles_braces() {
+        // Braced elements group, nested braces stay whole (Tcl list grammar
+        // via `tcl_syntax::list`, not the old ad-hoc splitter).
+        assert_eq!(
+            parse_decisions("{lb pool {web pool}} {http respond {301 moved}}"),
+            vec![
+                ("lb".to_owned(), "pool".to_owned(), "web pool".to_owned()),
+                (
+                    "http".to_owned(),
+                    "respond".to_owned(),
+                    "301 moved".to_owned()
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn log_entry_split_follows_tcl_list_semantics() {
+        // Quoted elements group as one element (the old splitter broke
+        // `"hello world"` at the space)…
+        assert_eq!(
+            parse_log_entries("{info local0. \"hello world\"}"),
+            vec!["info | local0. | hello world"]
+        );
+        // …and backslash escapes decode per Tcl (`\t` is a tab; the old
+        // splitter dropped the backslash and kept a literal `t`).
+        assert_eq!(parse_log_entries(r"{warn a\tb}"), vec!["warn | a\tb"]);
+        // FP guard: braces still group and separate elements stay separate.
+        assert_eq!(parse_log_entries("{err {b c} d}"), vec!["err | b c | d"]);
     }
 }

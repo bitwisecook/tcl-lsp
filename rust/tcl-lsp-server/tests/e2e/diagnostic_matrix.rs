@@ -75,6 +75,18 @@ const MATRIX: &[Case] = &[
         note: "variable set but never read",
     },
     Case {
+        code: "W128",
+        fire: "oo::class create Animal {}\nAnimal destroy\nAnimal new\n",
+        silent: "oo::class create Animal {}\nset a [Animal new]\nputs $a\n",
+        note: "class destroyed, later dispatch falls through to unknown",
+    },
+    Case {
+        code: "W218",
+        fire: "proc p {args extra} {\n    puts $extra\n}\np a b\n",
+        silent: "proc p {extra args} {\n    puts $extra\n}\np a b\n",
+        note: "args in a non-final parameter position is an ordinary parameter",
+    },
+    Case {
         code: "W220",
         fire: "proc p {} {\n    set x 1\n    set x 2\n    return $x\n}\n",
         silent: "proc p {} {\n    set x 1\n    puts $x\n    set x 2\n    return $x\n}\n",
@@ -122,6 +134,24 @@ const MATRIX: &[Case] = &[
         fire: "lmap a b c d\n",
         silent: "lmap x {1 2} {incr x}\n",
         note: "lmap shares foreach's odd/even grammar — an even arg count is wrong # args (registry `stepped` arity, verified vs tclsh 9.0.4)",
+    },
+    Case {
+        code: "W124",
+        fire: "proc foo {} { set ip 192.168.1.999 }\n",
+        silent: "proc foo {} { set ip 192.168.1.1 }\n",
+        note: "an IPv4 octet above 255 is not a valid address literal",
+    },
+    Case {
+        code: "W127",
+        fire: "string is booleanx 1\n",
+        silent: "string is boolean 1\n",
+        note: "`string is` carries a closed class set; a non-member (and no unique prefix) is a runtime `bad class` error",
+    },
+    Case {
+        code: "TK1003",
+        fire: "package require Tk\nbutton .b -comand {puts hi}\n",
+        silent: "package require Tk\nbutton .b -command {puts hi}\n",
+        note: "typo'd widget option; `package require Tk` enables the Tk overlay in a plain .tcl buffer",
     },
 ];
 
@@ -222,6 +252,14 @@ fn w211_fires_on_defect() {
     assert_fires(case_for("W211"));
 }
 #[test]
+fn w128_fires_on_defect() {
+    assert_fires(case_for("W128"));
+}
+#[test]
+fn w218_fires_on_defect() {
+    assert_fires(case_for("W218"));
+}
+#[test]
 fn w220_fires_on_defect() {
     assert_fires(case_for("W220"));
 }
@@ -249,6 +287,22 @@ fn t100_fires_on_defect() {
 fn s102_fires_on_defect() {
     assert_fires(case_for("S102"));
 }
+#[test]
+fn e005_fires_on_defect() {
+    assert_fires(case_for("E005"));
+}
+#[test]
+fn w124_fires_on_defect() {
+    assert_fires(case_for("W124"));
+}
+#[test]
+fn w127_fires_on_defect() {
+    assert_fires(case_for("W127"));
+}
+#[test]
+fn tk1003_fires_on_defect() {
+    assert_fires(case_for("TK1003"));
+}
 
 // -- silent cases --------------------------------------------------------
 
@@ -271,6 +325,14 @@ fn w110_silent_on_corrected_form() {
 #[test]
 fn w211_silent_on_corrected_form() {
     assert_silent(case_for("W211"));
+}
+#[test]
+fn w128_silent_on_clean_class_use() {
+    assert_silent(case_for("W128"));
+}
+#[test]
+fn w218_silent_on_corrected_form() {
+    assert_silent(case_for("W218"));
 }
 #[test]
 fn w220_silent_on_corrected_form() {
@@ -299,6 +361,22 @@ fn t100_silent_on_corrected_form() {
 #[test]
 fn s102_silent_on_corrected_form() {
     assert_silent(case_for("S102"));
+}
+#[test]
+fn e005_silent_on_corrected_form() {
+    assert_silent(case_for("E005"));
+}
+#[test]
+fn w124_silent_on_valid_address() {
+    assert_silent(case_for("W124"));
+}
+#[test]
+fn w127_silent_on_class_member() {
+    assert_silent(case_for("W127"));
+}
+#[test]
+fn tk1003_silent_on_real_option() {
+    assert_silent(case_for("TK1003"));
 }
 
 // -- TestOptimisationMatrix ----------------------------------------------

@@ -42,6 +42,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
         }],
         deprecated_replacement: Some("IP::remote_addr"),
+        deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT
     }
 }

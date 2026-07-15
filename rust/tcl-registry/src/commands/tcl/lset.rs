@@ -65,8 +65,14 @@ const LSET_FLAT_PATH: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lset",
-        // `lset` reads the list's current value before rewriting one element.
-        traits: Traits::FRAME_HASH_BUILTIN.union(Traits::READS_BEFORE_WRITE),
+        // `lset` reads the list's current value before rewriting one element,
+        // and — like `set`/`append`/`lappend`/`incr` — its first argument is
+        // a variable *name*, so it joins the name-first set the write-command
+        // consumers (bounds checks, dead-store cancellation, minifier RMW
+        // protection) query via `FIRST_ARG_VARNAME`.
+        traits: Traits::FRAME_HASH_BUILTIN
+            .union(Traits::READS_BEFORE_WRITE)
+            .union(Traits::FIRST_ARG_VARNAME),
         dialects: None,
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::VarWrite)],

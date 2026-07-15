@@ -462,3 +462,101 @@ fn s102_intra_iteration_oscillation_matrix() {
         "a single-representation accumulator does not thunk: {diags2:?}"
     );
 }
+
+// -- Review 2: tight ranges for S100/S101, W313, W110; I230 fidelity --------
+
+/// The S100 expression-shimmer squiggle sits on the offending operand
+/// (`$x` inside the braced expr), not on the whole `set` statement.
+#[test]
+fn s100_range_is_tight_on_expr_operand() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x \"hello\"\nset y [expr {$x + 1}]\nputs $y\n");
+    let d = find(&diags, "S100").expect("S100 fires for the String operand");
+    // `$x` occupies characters 13..15 of line 1 (`set y [expr {$x + 1}]`).
+    assert_eq!(range_of(d), (1, 13, 1, 15), "range must cover exactly $x");
+}
+
+/// The S101 in-loop expression shimmer anchors the operand inside the loop
+/// body, matching the S100 narrowing.
+#[test]
+fn s101_range_is_tight_on_in_loop_expr_operand() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {l} {\n    foreach x $l {\n        set y [expr {$x + 1}]\n        puts $y\n    }\n}\n",
+    );
+    let d = find(&diags, "S101").expect("S101 fires for the in-loop operand");
+    // `$x` occupies characters 21..23 of line 2 (`        set y [expr {$x + 1}]`).
+    assert_eq!(range_of(d), (2, 21, 2, 23), "range must cover exactly $x");
+}
+
+/// The W313 destructive-file squiggle sits on the dynamic path argument,
+/// not on the whole `file delete` command.
+#[test]
+fn w313_range_is_tight_on_path_argument() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set p [gets stdin]\nfile delete -force $p\n");
+    let d = find(&diags, "W313").expect("W313 fires for the variable path");
+    // `$p` occupies characters 19..21 of line 1 (`file delete -force $p`).
+    assert_eq!(range_of(d), (1, 19, 1, 21), "range must cover exactly $p");
+}
+
+/// The W110 hint anchors on the offending `==` operator itself — and on the
+/// *matched* operator when an earlier `==` is a legitimate numeric compare.
+#[test]
+fn w110_range_is_tight_on_the_matched_operator() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set a 1\nset b 2\nset c x\nif {$a == $b && $c == \"x\"} { puts hi }\n",
+    );
+    let d = find(&diags, "W110").expect("W110 fires for the string compare");
+    // The second `==` occupies characters 19..21 of line 3
+    // (`if {$a == $b && $c == "x"} { puts hi }`).
+    assert_eq!(
+        range_of(d),
+        (3, 19, 3, 21),
+        "range must cover exactly the matched =="
+    );
+}
+
+/// I230 quotes a bare `$n` condition as the source spells it — not the
+/// segmenter's re-braced `${n}` reconstruction.
+#[test]
+fn i230_message_spells_bare_var_like_the_source() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set n 1\nif $n { puts a } else { puts b }\n");
+    let d = find(&diags, "I230").expect("I230 fires for the constant condition");
+    assert!(
+        message_of(d).contains("'$n'") && !message_of(d).contains("${n}"),
+        "message must quote `$n` verbatim: {}",
+        message_of(d)
+    );
+}
+
+/// The in-loop S101 phi merge anchors on the loop-body assignment that
+/// produces the merging type, not the pre-loop initialiser.
+#[test]
+fn s101_phi_merge_anchors_in_loop_not_on_initialiser() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set v 5\nforeach x {a b c} {\n    puts $v\n    if {$x eq \"b\"} { set v \"s\" } else { set v 7 }\n}\n",
+    );
+    let d = diags
+        .iter()
+        .find(|d| code_str(d) == "S101" && d["message"].as_str().unwrap_or("").contains("merges"))
+        .expect("S101 phi merge fires");
+    let (line, _, _, _) = range_of(d);
+    assert!(
+        line >= 1,
+        "the merge anchor must sit inside the loop (line >= 1), got {:?}",
+        range_of(d)
+    );
+}

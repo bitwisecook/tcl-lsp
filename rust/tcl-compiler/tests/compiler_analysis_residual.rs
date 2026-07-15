@@ -137,7 +137,7 @@ fn module_for(source: &str) -> Module {
 
 /// Run the whole-module inline transform.
 fn inlined(source: &str) -> Module {
-    inline_module(module_for(source))
+    inline_module(module_for(source), &reg())
 }
 
 /// Count statement-position calls to `command` across the module top level.
@@ -1234,7 +1234,7 @@ fn inline_idempotent_on_clean_module() {
     // (inline_module's early-return when the inlinable map is empty).
     let src = "proc ::p {a} { upvar 1 $a v; set v 1 }\np x";
     let once = inlined(src);
-    let twice = inline_module(once.clone());
+    let twice = inline_module(once.clone(), &reg());
     assert_eq!(once, twice, "no inlinable site → unchanged module");
 }
 

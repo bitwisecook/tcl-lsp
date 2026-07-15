@@ -114,6 +114,8 @@ for historical reference.
 - [W214 — unused proc parameter](kcs-diagnostic-w214-unused-proc-parameter.md)
 - [W215 — variable name unreachable via $-substitution](kcs-diagnostic-w215-variable-name-unreachable-via-substitution.md)
 - [W216 — broken brace-form array element reference](kcs-diagnostic-w216-broken-brace-array-element-reference.md)
+- [W217 — unset unsets nothing](kcs-diagnostic-w217-unset-unsets-nothing.md)
+- [W218 — args in a non-final parameter position](kcs-diagnostic-w218-args-not-final-parameter.md)
 - [W220 — dead store](kcs-diagnostic-w220-dead-store.md)
 
 ## Hints (H-codes)

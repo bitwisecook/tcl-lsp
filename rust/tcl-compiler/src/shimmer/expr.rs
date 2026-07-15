@@ -86,13 +86,24 @@ pub(crate) fn find_expr_shimmers(
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
             match &ss.statement {
-                Statement::AssignExpr { expr, span, .. }
-                | Statement::ExprEval { expr, span, .. } => {
+                Statement::AssignExpr {
+                    expr,
+                    span,
+                    expr_base,
+                    ..
+                }
+                | Statement::ExprEval {
+                    expr,
+                    span,
+                    expr_base,
+                    ..
+                } => {
                     let mut ctx = ExprShimmerCtx {
                         uses: &ss.uses,
                         types,
                         ssa,
                         stmt_span: *span,
+                        expr_base: *expr_base,
                         in_loop,
                         seen: &mut seen,
                         out: &mut out,
@@ -106,7 +117,10 @@ pub(crate) fn find_expr_shimmers(
         // 2. Branch terminator condition (if/while/for predicate).
         if let Some(block) = cfg.blocks.get(&block_id)
             && let Some(Terminator::Branch {
-                condition, span, ..
+                condition,
+                span,
+                condition_base,
+                ..
             }) = &block.terminator
         {
             let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
@@ -117,6 +131,7 @@ pub(crate) fn find_expr_shimmers(
                 types,
                 ssa,
                 stmt_span: branch_span,
+                expr_base: *condition_base,
                 in_loop,
                 seen: &mut seen,
                 out: &mut out,
@@ -138,9 +153,30 @@ struct ExprShimmerCtx<'a> {
     types: &'a HashMap<ValueKey, TypeLattice>,
     ssa: &'a SsaFunction,
     stmt_span: Span,
+    /// Absolute source offset of the expression text's first byte, when it
+    /// is a verbatim source slice (see [`crate::ir::IfClause::condition_base`]).
+    /// Maps AST leaf offsets to absolute operand spans; `None` falls back to
+    /// anchoring at `stmt_span`.
+    expr_base: Option<u32>,
     in_loop: bool,
     seen: &'a mut HashSet<(Span, String)>,
     out: &'a mut Vec<ShimmerWarning>,
+}
+
+impl ExprShimmerCtx<'_> {
+    /// The span a shimmer on `node` anchors to: the operand's own source
+    /// range when the expression text is verbatim-anchored (the leaf's
+    /// offsets shifted by `expr_base`), else the whole statement.  Leaf
+    /// `end` offsets are *inclusive* (the expr lexer's convention), so the
+    /// exclusive span end is `end + 1`.
+    fn operand_span(&self, node: &ExprNode) -> Span {
+        if let (Some(base), ExprNode::Var { start, end, .. }) = (self.expr_base, node)
+            && end >= start
+        {
+            return Span::new(base + *start, base + *end + 1);
+        }
+        self.stmt_span
+    }
 }
 
 fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
@@ -319,7 +355,7 @@ fn check_numeric_operand(
             NumericContext::Boolean => (TclType::Boolean, "boolean context"),
         };
         ctx.out.push(ShimmerWarning {
-            span: ctx.stmt_span,
+            span: ctx.operand_span(node),
             variable: base.to_owned(),
             from_type: current,
             to_type,
@@ -449,7 +485,7 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
         }
         let numeric_op = numeric_equivalent(op);
         ctx.out.push(ShimmerWarning {
-            span: ctx.stmt_span,
+            span: ctx.operand_span(node),
             variable: base.to_owned(),
             from_type: current,
             to_type: TclType::String,
@@ -736,6 +772,115 @@ mod tests {
         assert!(
             has_shimmer,
             "expected bytearray-in-arithmetic shimmer, got: {w:?}"
+        );
+    }
+
+    /// TP (range precision): the warning span is the offending operand
+    /// itself (`$x` inside the braced expr), not the whole statement.
+    #[test]
+    fn expr_shimmer_span_narrows_to_operand_assign_expr() {
+        let src = "set x \"hello\"\nset y [expr {$x + 1}]";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let s = w
+            .iter()
+            .find(|sw| sw.variable == "x")
+            .unwrap_or_else(|| panic!("expected shimmer for x, got: {w:?}"));
+        let expected = src.rfind("$x").unwrap();
+        assert_eq!(
+            (s.span.start() as usize, s.span.end() as usize),
+            (expected, expected + 2),
+            "span must cover exactly the `$x` operand, got {:?} in {src:?}",
+            s.span
+        );
+    }
+
+    /// TP (range precision): a branch-condition shimmer anchors at the
+    /// operand inside the braced `if` condition.
+    #[test]
+    fn expr_shimmer_span_narrows_to_operand_in_branch_condition() {
+        let src = "set x 42\nif {$x eq \"42\"} { set y 1 }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let s = w
+            .iter()
+            .find(|sw| sw.variable == "x")
+            .unwrap_or_else(|| panic!("expected shimmer for x, got: {w:?}"));
+        let expected = src.rfind("$x").unwrap();
+        assert_eq!(
+            (s.span.start() as usize, s.span.end() as usize),
+            (expected, expected + 2),
+            "span must cover exactly the `$x` operand, got {:?} in {src:?}",
+            s.span
+        );
+    }
+
+    /// TP (range precision): the narrowed span works inside a proc body too
+    /// (offset-0 memo + rebase must not lose the expression anchor).
+    #[test]
+    fn expr_shimmer_span_narrows_to_operand_inside_proc() {
+        let src = "proc f {} {\n  set x \"hello\"\n  set y [expr {$x * 2}]\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let s = w
+            .iter()
+            .find(|sw| sw.variable == "x")
+            .unwrap_or_else(|| panic!("expected shimmer for x, got: {w:?}"));
+        // The unit's spans are unit-relative; recover absolutes via abs_span.
+        let abs = fu.abs_span(s.span);
+        let expected = src.rfind("$x").unwrap();
+        assert_eq!(
+            (abs.start() as usize, abs.end() as usize),
+            (expected, expected + 2),
+            "span must cover exactly the `$x` operand, got {abs:?} in {src:?}"
+        );
+    }
+
+    /// Fallback (no verbatim anchor): a *quoted* condition is reconstructed
+    /// from multiple tokens, so no `condition_base` exists — the warning
+    /// still fires, anchored at the condition span (which contains the
+    /// operand), never a bogus narrowed range.
+    #[test]
+    fn expr_shimmer_span_falls_back_without_verbatim_anchor() {
+        let src = "set x 42\nif \"$x eq 42\" { set y 1 }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        // The quoted form substitutes before parsing, so the shimmer may or
+        // may not fire; when it does, the span must contain the whole
+        // fallback range and be non-degenerate.
+        for s in w.iter().filter(|sw| sw.variable == "x") {
+            assert!(
+                s.span.end() > s.span.start(),
+                "fallback span must be non-degenerate: {s:?}"
+            );
+            let slice = &src[s.span.start() as usize..s.span.end() as usize];
+            assert!(
+                slice.contains("$x"),
+                "fallback span must still contain the operand, got {slice:?}"
+            );
+        }
+    }
+
+    /// TN (dedup + narrowing): with the span narrowed to the operand, the
+    /// per-statement dedup still emits one warning for `$x + $x`, anchored
+    /// at the *first* occurrence.
+    #[test]
+    fn expr_shimmer_narrowed_span_dedups_to_first_operand() {
+        let src = "set x \"hi\"\nset y [expr {$x + $x}]";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let xs: Vec<_> = w.iter().filter(|sw| sw.variable == "x").collect();
+        assert_eq!(xs.len(), 1, "one warning per statement+var: {xs:?}");
+        let first = src.find("{$x").unwrap() + 1;
+        assert_eq!(
+            (xs[0].span.start() as usize, xs[0].span.end() as usize),
+            (first, first + 2),
+            "dedup keeps the first operand's span"
         );
     }
 

@@ -99,7 +99,7 @@ fn walk_statement(
     procedures: &Procedures,
 ) {
     match stmt {
-        Statement::ExprEval { span, expr } => {
+        Statement::ExprEval { span, expr, .. } => {
             try_rewrite_expr(ctx, *span, expr, procedures);
         }
         Statement::AssignExpr {

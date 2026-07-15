@@ -21,15 +21,16 @@ String concatenation is fragile and does not handle special characters (spaces, 
 
 ## Symptoms
 
-- A yellow squiggle appears under the concatenation, with the message "string concatenation used to build a list".
+- A yellow squiggle appears under the space-padded value, with the message "append with space-separated values looks like list construction".
+- For the simple shape below, a quick fix titled "Rewrite with `lappend`" is offered.
 
 ## Example that triggers it
 
 ```tcl
-set mylist "$mylist $newitem"
+append mylist " $newitem"
 ```
 
-The analyser reports **`W104`** on the string concatenation.
+The analyser reports **`W104`** on the space-padded value.
 
 ## Fix
 
@@ -38,6 +39,8 @@ lappend mylist $newitem
 ```
 
 Use `lappend` or `list` to build lists so that special characters are properly quoted.
+
+The quick fix rewrites the whole command, and is offered only for the mechanical shape: `append var " piece"` — one quoted value, one leading pad space, and one piece free of spaces, braces, quotes, brackets, backslashes, and semicolons. On a non-empty list the rewrite is byte-for-byte equivalent; on the first append it also drops the stray leading separator, which is almost always the intent. A trailing pad (`append msg "item "`), several value words, or extra padding stay message-only — those shapes have no unambiguous `lappend` mapping.
 
 ## How to suppress
 

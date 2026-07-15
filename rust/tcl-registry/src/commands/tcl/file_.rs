@@ -97,6 +97,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // tighter `>= 1` bound held only for 8.4/8.5, and the registry has no
         // dialect-split arity to express that exception (RUST_ISSUE_084).
         name: "delete",
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(0),
         detail: "Removes the file or directory specified by each pathname argument.",
         synopsis: "file delete ?-force? ?--? ?pathname ...?",

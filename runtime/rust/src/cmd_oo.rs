@@ -687,9 +687,10 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
 /// the exact name, else the unique candidate it prefixes, else `None` — the
 /// shared `Tcl_GetIndexFromObjStruct` matcher.
 fn prefix_match<'a>(arg: &[u8], cands: &'a [&'a [u8]]) -> Option<&'a [u8]> {
-    match tcl_cmd_core::prefix::lookup(cands, arg, false) {
-        tcl_cmd_core::prefix::Lookup::Found(i) => Some(cands[i]),
-        _ => None,
+    use tcl_cmd_core::prefix::Resolution;
+    match tcl_cmd_core::prefix::scan(cands, arg, false) {
+        Resolution::Exact(i) | Resolution::UniquePrefix(i) => Some(cands[i]),
+        Resolution::Ambiguous | Resolution::NoMatch => None,
     }
 }
 

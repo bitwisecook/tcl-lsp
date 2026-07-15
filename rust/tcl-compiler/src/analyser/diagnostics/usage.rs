@@ -97,6 +97,10 @@ impl Analyser {
         if !trimmed.contains(char::is_whitespace) && !has_substitution {
             return;
         }
+        // Deliberate severity escalation (documented in the DiagCode
+        // catalogue): a provable substitution in an unbraced block is a
+        // double-substitution bug waiting to run, not just style — the
+        // W-family code stays, the severity is Error.
         let severity = if has_substitution {
             super::types::Severity::Error
         } else {
@@ -156,7 +160,14 @@ Use braces: {{ \u{2026} }}"
         }
         indices.sort_unstable();
 
-        let is_expr = cmd_name == "expr";
+        // Whether this command concatenates its whole argument tail into
+        // one expression (the registry's `EXPR_CONCATENATES_ARGS` trait —
+        // `expr`), so W100 anchors at the full tail span rather than one
+        // argument.
+        let is_expr = registry.get(cmd_name).is_some_and(|s| {
+            s.traits
+                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+        });
         let dialect = self.dialect.clone();
         // The whole-`expr` argument span (used when the command is
         // `expr`, whose expression is the remaining words).
@@ -233,6 +244,10 @@ Use braces: {{ \u{2026} }}"
         text: &str,
         has_sub: bool,
     ) {
+        // Deliberate severity escalation (documented in the DiagCode
+        // catalogue): an unbraced expression that provably substitutes is
+        // evaluated twice at runtime — a correctness/injection risk, not
+        // just a byte-compilation loss.
         let severity = if has_sub {
             super::types::Severity::Error
         } else {
@@ -480,19 +495,50 @@ Use braces: {{ \u{2026} }}"
             if tok.kind == tcl_lexer::TokenType::Esc && slice.contains('\n') {
                 continue;
             }
+            // Comment regions of a braced script argument (any brace depth).
+            // Comments are prose: outside strict mode only the invisible /
+            // direction-altering trojan-source set can mislead review there,
+            // so an em-dash or smart quote in a comment is not a finding.
+            // Strict mode (ASCII-only F5 platforms) keeps flagging comment
+            // bytes too — the platform constraint applies to the whole file.
+            let comments = if tok.kind == tcl_lexer::TokenType::Str && mode != NonAsciiMode::Strict
+            {
+                // The token slice starts at the opening `{` (and stops short
+                // of the closer), so lex the *content* past `content_offset`
+                // and shift the regions back into slice coordinates.
+                let coff = usize::from(tok.content_offset);
+                slice.get(coff..).map_or_else(Vec::new, |content| {
+                    comment_regions_recursive(content)
+                        .into_iter()
+                        .map(|r| r.start + coff..r.end + coff)
+                        .collect()
+                })
+            } else {
+                Vec::new()
+            };
             let mut flagged_here = false;
             for (rel, ch) in slice.char_indices() {
                 if is_standard_ascii(ch) {
                     continue;
                 }
+                if comments.iter().any(|r| r.contains(&rel)) && !is_review_hazard_unicode(ch) {
+                    continue;
+                }
                 let fix = auto_fix_for(ch).or_else(|| confusable_to_ascii(ch));
                 let is_confusable = fix.is_some();
                 // Mode-dependent filtering (strict flags everything):
-                //  * confusables — only confusables / auto-fix artifacts;
+                //  * confusables — confusables / auto-fix artifacts, plus
+                //    the invisible / direction-altering trojan-source set
+                //    (a bidi override is a review hazard wherever it sits,
+                //    table membership or not);
                 //  * common — those plus any non-benign character
                 //    (control / format / separator / unassigned / …).
                 match mode {
-                    NonAsciiMode::Confusables if !is_confusable => continue,
+                    NonAsciiMode::Confusables
+                        if !is_confusable && !is_review_hazard_unicode(ch) =>
+                    {
+                        continue;
+                    }
                     NonAsciiMode::Common if !is_confusable && is_benign_unicode(ch) => continue,
                     _ => {}
                 }
@@ -531,11 +577,25 @@ Use braces: {{ \u{2026} }}"
     /// like list construction — fragile if the data contains special
     /// characters.  Fires once (HINT) on the first value argument that
     /// starts or ends with a space.
+    ///
+    /// The two-word leading-space shape — `append var " $item"`, one
+    /// quoted value holding exactly one pad space and one
+    /// whitespace-free piece — carries a whole-command `lappend`
+    /// rewrite fix (the message's own advice made concrete): byte-for-byte
+    /// equivalent on a non-empty proper list, and dropping only the
+    /// stray leading separator on the first append.  Every other shape
+    /// stays message-only: a trailing pad moves the separator to the
+    /// other side, several value words or extra padding have no
+    /// unambiguous element mapping, a braced value is a deliberate
+    /// literal, and a piece with word/list metacharacters would need
+    /// requoting.
     pub(in crate::analyser) fn emit_w104_append_list(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        cmd_tok: tcl_lexer::Token,
     ) {
         if cmd_name != "append" || args.len() < 2 || arg_tokens.len() < 2 {
             return;
@@ -543,6 +603,10 @@ Use braces: {{ \u{2026} }}"
         for (i, text) in args.iter().enumerate().skip(1) {
             if text.starts_with(' ') || text.ends_with(' ') {
                 let tok = arg_tokens.get(i).unwrap_or(&arg_tokens[0]);
+                let fixes = self
+                    .w104_lappend_fix(args, arg_tokens, arg_expand, cmd_tok)
+                    .into_iter()
+                    .collect();
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: DiagCode::W104,
                     span: tok.span,
@@ -551,11 +615,65 @@ Use braces: {{ \u{2026} }}"
                               containing spaces, braces, or backslashes."
                         .to_string(),
                     severity: super::types::Severity::Hint,
-                    fixes: Vec::new(),
+                    fixes,
                 });
                 return;
             }
         }
+    }
+
+    /// The `lappend` rewrite for W104's mechanical shape (see
+    /// [`Self::emit_w104_append_list`]): exactly `append VAR "<sp>PIECE"`
+    /// with no `{*}` expansion, a single pad space, and both the
+    /// variable word and the piece safe to re-paste as bare words.
+    /// The fix spans the whole command — `lappend VAR PIECE`, built
+    /// from the raw source slices so the user's spelling is kept.
+    fn w104_lappend_fix(
+        &self,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        cmd_tok: tcl_lexer::Token,
+    ) -> Option<super::types::CodeFix> {
+        if args.len() != 2 || arg_tokens.len() != 2 || arg_expand.iter().any(|&e| e) {
+            return None;
+        }
+        // Leading-space shape only: `append var "x "` appends the
+        // separator *after* the piece, which `lappend` cannot reproduce.
+        if !args[1].starts_with(' ') || args[1].ends_with(' ') {
+            return None;
+        }
+        // The value word must be a double-quoted word in the source; a
+        // single-fragment quoted token's span end sits on its closing
+        // quote (the inner-end convention), so widen over it.
+        let vstart = arg_tokens[1].span.start() as usize;
+        let mut vend = arg_tokens[1].span.end() as usize;
+        if self.source.as_bytes().get(vend) == Some(&b'"') {
+            vend += 1;
+        }
+        let raw = self.source.get(vstart..vend)?;
+        let inner = raw.strip_prefix('"')?.strip_suffix('"')?;
+        // Exactly one pad space, then one bare-word-safe piece.
+        let piece = inner.strip_prefix(' ')?;
+        if !is_safe_bare_word(piece) {
+            return None;
+        }
+        let name_tok = arg_tokens[0];
+        let name_raw = self
+            .source
+            .get(name_tok.span.start() as usize..name_tok.span.end() as usize)?;
+        if !is_safe_bare_word(name_raw) {
+            return None;
+        }
+        let span = tcl_lexer::Span::new(
+            cmd_tok.span.start(),
+            u32::try_from(vend).unwrap_or(arg_tokens[1].span.end()),
+        );
+        Some(super::types::CodeFix {
+            span,
+            new_text: format!("lappend {name_raw} {piece}"),
+            description: "Rewrite with `lappend`".to_string(),
+        })
     }
 
     /// W106: an unbraced `switch` body undergoes an extra round
@@ -704,12 +822,23 @@ Use braces: {{ \u{2026} }}"
     /// instead uses a `$`-substitution.  `args` / `arg_tokens` exclude
     /// the command name.  Fires when the resolved name-position argument
     /// is a `Var` token.
+    ///
+    /// The "Did you mean…?" suggestion is the de-sigiled name itself
+    /// when that name is defined in the enclosing scope (or nothing
+    /// close is); when it is *undefined* but a close in-scope variable
+    /// sits within the length-scaled edit budget, the suggestion names
+    /// that variable instead — `set counter 1; incr $countr` suggests
+    /// 'counter', not the nonexistent 'countr'.
     pub(in crate::analyser) fn emit_w212_name_vs_value(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        scope_path: &[usize],
     ) {
+        // Lazily materialised: most calls trip no W212, so the scope's
+        // variable set is only collected on the first finding.
+        let mut scope_vars: Option<Vec<String>> = None;
         for idx in self.variable_name_positions(cmd_name, args) {
             let (Some(tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
                 continue;
@@ -745,12 +874,26 @@ Use braces: {{ \u{2026} }}"
                         .filter(|sub| spec.resolve_subcommand(sub).is_some())
                 })
                 .map_or_else(|| cmd_name.to_string(), |sub| format!("{cmd_name} {sub}"));
+            let vars = scope_vars.get_or_insert_with(|| self.scope_variable_names(scope_path));
+            let suggestion = if vars.iter().any(|name| name == bare) {
+                bare
+            } else {
+                crate::text::suggest_similar(
+                    bare,
+                    vars.iter().map(String::as_str),
+                    1,
+                    crate::text::scaled_max_distance_strict(bare),
+                )
+                .first()
+                .copied()
+                .unwrap_or(bare)
+            };
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W212,
                 span: tok.span,
                 message: format!(
                     "'{display_cmd}' expects a variable name, got substitution (${bare}). \
-                     Did you mean '{bare}'?"
+                     Did you mean '{suggestion}'?"
                 ),
                 severity: super::types::Severity::Warning,
                 fixes: Vec::new(),
@@ -886,6 +1029,10 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
     /// expression argument; we scan its source slice for the first
     /// `[`-`expr`-whitespace sequence and anchor the warning at the
     /// nested `[expr … ]`.  One warning per argument (first match only).
+    ///
+    /// When the outer argument is braced and the nested body is one
+    /// braced group, the diagnostic carries an unwrap fix — see
+    /// [`w114_unwrap_fix`] for the exact conditions.
     pub(in crate::analyser) fn emit_w114_redundant_nested_expr(
         &mut self,
         _text: &str,
@@ -904,12 +1051,15 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
             u32::try_from(start + open).unwrap_or(diag_span.start()),
             u32::try_from(start + close + 1).unwrap_or(diag_span.end()),
         );
+        let fixes = w114_unwrap_fix(slice, open, close, nested_span)
+            .into_iter()
+            .collect();
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W114,
             span: nested_span,
             message: "Redundant nested [expr] \u{2014} already in expression context".to_string(),
             severity: super::types::Severity::Warning,
-            fixes: Vec::new(),
+            fixes,
         });
     }
 
@@ -925,33 +1075,46 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
     /// `expr_text` is the post-substitution body of the EXPR-role
     /// argument (already brace-stripped) — the caller is
     /// responsible for joining multi-arg `expr` invocations with
-    /// spaces before calling.  `diag_span` is the source span the
-    /// diagnostic anchors to (the source range of the argument
-    /// token, or the full token range for `expr`).
+    /// spaces before calling.  `diag_span` is the fallback span (the
+    /// source range of the argument token, or the full token range for
+    /// `expr`); the diagnostic anchors on the offending *operator*
+    /// itself when `anchor` lets its offset map back to real source
+    /// bytes.  The code fix always spans the whole argument
+    /// (`diag_span`) — the rewrite replaces the full expression text.
     pub(in crate::analyser) fn emit_w110_string_eq_ne(
         &mut self,
         expr_text: &str,
         diag_span: tcl_lexer::Span,
+        anchor: &W110Anchor<'_>,
     ) {
         // Quick bail-out: no equality operator at all.
         if !expr_text.contains("==") && !expr_text.contains("!=") {
             return;
         }
-        let parsed = crate::parse_expr(expr_text.trim(), Some(self.dialect.as_str()));
+        let trimmed = expr_text.trim();
+        let parsed = crate::parse_expr(trimmed, Some(self.dialect.as_str()));
         // ``ExprNode::Raw`` means the expression was unparseable.
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
-        let matched_ops = find_string_eq_ne_ops(&parsed);
+        let matched_ops = find_string_eq_ne_ops(&parsed, trimmed);
         if matched_ops.is_empty() {
             return;
         }
-        let first_op = matched_ops[0];
+        let (first_op, first_off) = matched_ops[0];
         let (op_text, replacement) = match first_op {
             BinOp::Eq => ("==", "eq"),
             BinOp::Ne => ("!=", "ne"),
             _ => unreachable!("find_string_eq_ne_ops only returns Eq/Ne"),
         };
+        // Anchor the diagnostic on the matched operator when its offset in
+        // the parsed text maps back to verbatim source bytes; the argument
+        // span is the fallback.  Offsets are relative to the *trimmed*
+        // text, so shift by the leading whitespace the trim removed.
+        let trim_off = expr_text.len() - expr_text.trim_start().len();
+        let span = first_off
+            .and_then(|off| self.w110_operator_span(anchor, trim_off + off as usize, op_text))
+            .unwrap_or(diag_span);
         // Only offer the regex-based code fix when every ``==``/
         // ``!=`` in the expression has a string-literal operand;
         // otherwise the blanket rewrite would incorrectly change
@@ -975,12 +1138,73 @@ numeric/string coercion."
         );
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W110,
-            span: diag_span,
+            span,
             message,
             severity: Severity::Hint,
             fixes,
         });
     }
+
+    /// Map a W110 operator offset (within the emitter's `expr_text`) to
+    /// its absolute source span, verifying the source bytes actually spell
+    /// `op_text` there (reconstructed argument texts fail the check →
+    /// `None`, and the caller falls back to the argument span).
+    fn w110_operator_span(
+        &self,
+        anchor: &W110Anchor<'_>,
+        off: usize,
+        op_text: &str,
+    ) -> Option<tcl_lexer::Span> {
+        let candidate = match anchor {
+            // Single argument word: content starts `content_offset` bytes
+            // into the token span.
+            W110Anchor::ArgToken(tok) => {
+                tok.span.start() as usize + usize::from(tok.content_offset) + off
+            }
+            // `expr $a == "x"` multi-word form: `expr_text` is
+            // `args.join(" ")`, so locate which word the offset falls in
+            // and anchor at that word's own token.
+            W110Anchor::JoinedWords { args, tokens } => {
+                let mut cum = 0usize;
+                let mut found = None;
+                for (i, arg) in args.iter().enumerate() {
+                    if off < cum + arg.len() {
+                        found = Some((i, off - cum));
+                        break;
+                    }
+                    cum += arg.len() + 1;
+                }
+                let (word_idx, in_word) = found?;
+                let tok = tokens.get(word_idx)?;
+                tok.span.start() as usize + usize::from(tok.content_offset) + in_word
+            }
+        };
+        // Byte-verify: the span is only trustworthy when the source spells
+        // the operator at the candidate position.
+        if self.source.get(candidate..candidate + op_text.len())? != op_text {
+            return None;
+        }
+        Some(tcl_lexer::Span::new(
+            u32::try_from(candidate).ok()?,
+            u32::try_from(candidate + op_text.len()).ok()?,
+        ))
+    }
+}
+
+/// How [`Analyser::emit_w110_string_eq_ne`] maps an operator offset within
+/// its `expr_text` back to source bytes.
+pub(in crate::analyser) enum W110Anchor<'a> {
+    /// The single EXPR-role argument's own token — `expr_text` is that
+    /// word's (possibly brace-stripped) content.
+    ArgToken(tcl_lexer::Token),
+    /// The joined multi-word `expr $a == "x"` form — `expr_text` is
+    /// `args.join(" ")` over these words/tokens.
+    JoinedWords {
+        /// The argument word texts that were joined.
+        args: &'a [String],
+        /// The words' representative tokens, same order.
+        tokens: &'a [tcl_lexer::Token],
+    },
 }
 
 /// True when `tok` is a `${name}` (brace-form) VAR token.  Bare `$name` spans
@@ -1093,6 +1317,58 @@ fn is_standard_ascii(ch: char) -> bool {
 /// W108 "common" mode benign-Unicode test. A character is
 /// *intentional* (not flagged) when its Unicode general category is a
 /// Letter, Number, Mark, Symbol, or Punctuation (any script). Control,
+/// True when `ch` is invisible or direction-altering — the trojan-source
+/// set that can make reviewed text lie about the code it sits next to:
+/// bidi embedding / override / isolate controls and other format
+/// characters (`Cf`), non-ASCII control characters (`Cc`), and the Unicode
+/// line / paragraph separators (`Zl` / `Zp`).  These stay flagged inside
+/// comments (where ordinary non-ASCII prose is fine) and bypass the
+/// confusables-table gate in code.
+pub(super) fn is_review_hazard_unicode(ch: char) -> bool {
+    use unicode_general_category::{GeneralCategory as G, get_general_category};
+    matches!(
+        get_general_category(ch),
+        G::Format | G::Control | G::LineSeparator | G::ParagraphSeparator
+    )
+}
+
+/// Byte ranges of `slice` (a braced script argument's content) covered by
+/// comments, at any brace depth: the comment tokens of the slice's own
+/// lex, plus — recursively — those of every nested braced word, offset
+/// into this slice's coordinates.  A slice that fails to lex contributes
+/// no regions (conservative: everything stays scanned).  A braced plain
+/// string whose content merely *looks* like a comment under-flags — the
+/// acceptable cost of not knowing which braced words are scripts.
+fn comment_regions_recursive(slice: &str) -> Vec<std::ops::Range<usize>> {
+    fn collect(slice: &str, base: usize, out: &mut Vec<std::ops::Range<usize>>) {
+        if !slice.contains('#') {
+            return;
+        }
+        let Ok(tokens) = tcl_lexer::Lexer::new(slice).tokenise_all() else {
+            return;
+        };
+        for tok in &tokens {
+            let start = tok.span.start() as usize;
+            let end = tok.span.end() as usize;
+            match tok.kind {
+                tcl_lexer::TokenType::Comment => out.push(base + start..base + end),
+                tcl_lexer::TokenType::Str => {
+                    // Recurse on the brace *content* — the token span covers
+                    // the opener, which would unbalance a nested lex.
+                    let coff = usize::from(tok.content_offset);
+                    if let Some(inner) = slice.get(start + coff..end) {
+                        collect(inner, base + start + coff, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    collect(slice, 0, &mut out);
+    out
+}
+
 /// format, separator, surrogate, private-use, and unassigned characters
 /// are *not* benign (they almost always indicate encoding/copy-paste
 /// issues) and are flagged.
@@ -1305,47 +1581,229 @@ pub(super) fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
     None
 }
 
+/// The W114 unwrap fix: replace the nested `[expr {INNER}]` (at
+/// `open..=close` within `outer`, absolute span `span`) with
+/// `(INNER)` — or bare `INNER` when it is a single atom.  `None`
+/// unless every condition for a purely textual inline holds:
+///
+/// * the outer argument is braced (`outer` starts with `{`), so no
+///   Tcl-level substitution reruns over the inlined text;
+/// * the bracket scan really matched (`outer[close]` is `]`);
+/// * the outer expression carries no string-comparison operator
+///   (`eq`/`ne`/`in`/`ni`): a nested `expr` normalises a numeric
+///   result (`[expr {$x}]` yields `7` for `x == "007"`), so unwrapping
+///   could flip a string comparison's verdict;
+/// * the nested body is exactly one braced group — an unbraced body
+///   would be re-substituted when inlined.
+fn w114_unwrap_fix(
+    outer: &str,
+    open: usize,
+    close: usize,
+    span: tcl_lexer::Span,
+) -> Option<super::types::CodeFix> {
+    if !outer.starts_with('{') || outer.as_bytes().get(close) != Some(&b']') {
+        return None;
+    }
+    if contains_string_comparison_word(outer) {
+        return None;
+    }
+    // Step over `[`, `\s*`, `expr`, and the following whitespace run to
+    // reach the body region (mirrors `first_nested_expr`'s match).
+    let bytes = outer.as_bytes();
+    let mut body_start = open + 1;
+    while body_start < close && bytes[body_start].is_ascii_whitespace() {
+        body_start += 1;
+    }
+    body_start = body_start.checked_add(4)?; // the `expr` keyword
+    while body_start < close && bytes[body_start].is_ascii_whitespace() {
+        body_start += 1;
+    }
+    let body = outer.get(body_start..close)?.trim();
+    let inner = single_braced_group(body)?.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let new_text = if is_expr_atom(inner) {
+        inner.to_string()
+    } else {
+        format!("({inner})")
+    };
+    Some(super::types::CodeFix {
+        span,
+        new_text,
+        description: "Unwrap the nested `expr`".to_string(),
+    })
+}
+
+/// The content of `body` when it is exactly one `{…}` group — braces
+/// balanced, depth first returning to zero at the final byte.  `None`
+/// otherwise (several groups, unbalanced or quote/escape-skewed braces,
+/// trailing text).
+fn single_braced_group(body: &str) -> Option<&str> {
+    let bytes = body.as_bytes();
+    if body.len() < 2 || bytes[0] != b'{' || bytes[body.len() - 1] != b'}' {
+        return None;
+    }
+    let mut depth = 0i32;
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth < 0 || (depth == 0 && i != body.len() - 1) {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    }
+    (depth == 0).then(|| &body[1..body.len() - 1])
+}
+
+/// True when `text` contains a standalone `eq` / `ne` / `in` / `ni`
+/// word — the expr string-comparison operators whose verdict a nested
+/// `expr`'s numeric normalisation can influence.  Deliberately scans
+/// the whole outer expression (a coarse, conservative over-match).
+fn contains_string_comparison_word(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let is_word_byte = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+    for op in ["eq", "ne", "in", "ni"] {
+        let mut from = 0;
+        while let Some(pos) = text.get(from..).and_then(|t| t.find(op)) {
+            let at = from + pos;
+            let before_ok = at == 0 || !is_word_byte(bytes[at - 1]);
+            let after = at + op.len();
+            let after_ok = after >= bytes.len() || !is_word_byte(bytes[after]);
+            if before_ok && after_ok {
+                return true;
+            }
+            from = at + 1;
+        }
+    }
+    false
+}
+
+/// True when `inner` is a single expr atom — a bare
+/// alphanumeric/`.`/`_` literal (`42`, `3.14`, `0x1f`, `true`) or a
+/// plain `$name` / `${name}` variable reference — so the `(…)`
+/// wrapping of the W114 unwrap fix can be dropped without changing
+/// how the surrounding expression parses.
+fn is_expr_atom(inner: &str) -> bool {
+    let ident = |name: &str| {
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+    };
+    if let Some(name) = inner.strip_prefix('$') {
+        return match name.strip_prefix('{').and_then(|n| n.strip_suffix('}')) {
+            Some(braced) => ident(braced),
+            None => ident(name),
+        };
+    }
+    !inner.is_empty()
+        && inner
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'))
+}
+
+/// True when `text` can be pasted verbatim as one bare Tcl word — no
+/// whitespace and none of the word/list metacharacters that would
+/// change tokenisation (`{`/`}`/`"`/`[`/`]`/`\`/`;`).
+fn is_safe_bare_word(text: &str) -> bool {
+    !text.is_empty()
+        && !text
+            .chars()
+            .any(|c| c.is_whitespace() || matches!(c, '{' | '}' | '"' | '[' | ']' | '\\' | ';'))
+}
+
 /// Walk `node` and collect every `==`/`!=` operator whose at least
-/// one operand is a string literal ([`ExprNode::String`]).
+/// one operand is a string literal ([`ExprNode::String`]), paired with
+/// the operator's byte offset within `text` (the parsed expression
+/// source) when it can be located — `None` when an operand extent is
+/// unavailable (a `Raw` child) or the operator text is not found in the
+/// gap between the operands.
 ///
 /// Comparisons between
 /// two variables (`$x == $y`) are intentionally *not* collected —
 /// the variables may hold integer values, making `==` correct.
-fn find_string_eq_ne_ops(node: &ExprNode) -> Vec<BinOp> {
+fn find_string_eq_ne_ops(node: &ExprNode, text: &str) -> Vec<(BinOp, Option<u32>)> {
     let mut found = Vec::new();
-    walk_string_eq_ne(node, &mut found);
+    walk_string_eq_ne(node, text, &mut found);
     found
 }
 
-fn walk_string_eq_ne(node: &ExprNode, found: &mut Vec<BinOp>) {
+fn walk_string_eq_ne(node: &ExprNode, text: &str, found: &mut Vec<(BinOp, Option<u32>)>) {
     match node {
         ExprNode::Binary { op, left, right } => {
-            walk_string_eq_ne(left, found);
-            walk_string_eq_ne(right, found);
+            walk_string_eq_ne(left, text, found);
+            walk_string_eq_ne(right, text, found);
             if matches!(op, BinOp::Eq | BinOp::Ne)
                 && (matches!(**left, ExprNode::String { .. })
                     || matches!(**right, ExprNode::String { .. }))
             {
-                found.push(*op);
+                found.push((*op, op_offset_between(text, left, right, *op)));
             }
         }
-        ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, found),
+        ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, text, found),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            walk_string_eq_ne(condition, found);
-            walk_string_eq_ne(true_branch, found);
-            walk_string_eq_ne(false_branch, found);
+            walk_string_eq_ne(condition, text, found);
+            walk_string_eq_ne(true_branch, text, found);
+            walk_string_eq_ne(false_branch, text, found);
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                walk_string_eq_ne(arg, found);
+                walk_string_eq_ne(arg, text, found);
             }
         }
         _ => {}
     }
+}
+
+/// The `(start, end)` extent of `node` within its parsed text, from its
+/// leaves' offsets (`end` inclusive — the expr lexer's convention).
+/// `None` when a `Raw` child makes the extent unknowable.
+fn node_extent(node: &ExprNode) -> Option<(u32, u32)> {
+    match node {
+        ExprNode::Literal { start, end, .. }
+        | ExprNode::String { start, end, .. }
+        | ExprNode::Var { start, end, .. }
+        | ExprNode::Command { start, end, .. }
+        | ExprNode::Call { start, end, .. } => Some((*start, *end)),
+        ExprNode::Binary { left, right, .. } => {
+            let (ls, _) = node_extent(left)?;
+            let (_, re) = node_extent(right)?;
+            Some((ls, re))
+        }
+        ExprNode::Unary { operand, .. } => node_extent(operand),
+        ExprNode::Ternary {
+            condition,
+            false_branch,
+            ..
+        } => {
+            let (cs, _) = node_extent(condition)?;
+            let (_, fe) = node_extent(false_branch)?;
+            Some((cs, fe))
+        }
+        ExprNode::Raw { .. } => None,
+    }
+}
+
+/// Byte offset of `op`'s source text within `text`, located in the gap
+/// between the left operand's (inclusive) end and the right operand's
+/// start.  This pins the *matched* operator, not merely the first
+/// occurrence — `$a == $b && $c == "x"` anchors the second `==`.
+fn op_offset_between(text: &str, left: &ExprNode, right: &ExprNode, op: BinOp) -> Option<u32> {
+    let (_, left_end) = node_extent(left)?;
+    let (right_start, _) = node_extent(right)?;
+    let gap_start = (left_end as usize) + 1;
+    let gap = text.get(gap_start..right_start as usize)?;
+    let rel = gap.find(op.as_str())?;
+    u32::try_from(gap_start + rel).ok()
 }
 
 /// Count the total number of `==`/`!=` operators in the expression

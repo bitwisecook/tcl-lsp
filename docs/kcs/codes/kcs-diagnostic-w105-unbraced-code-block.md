@@ -19,6 +19,10 @@ Why does the analyser warn about an unbraced code block or a missing variable in
 
 An unbraced code block is substituted before the command sees it, which can cause unexpected variable resolution, break `namespace eval` scoping, and prevent byte-compilation.
 
+## Why is it sometimes an error?
+
+The warning escalates to **Error** severity when the unbraced code block provably contains a substitution (`$var` or `[cmd]`). An unbraced code block with a substitution is evaluated twice at runtime — once by the Tcl parser and once by the consuming command — which changes behaviour and can execute attacker-controlled text. Without a substitution the finding is style-only and stays a Warning.
+
 ## Symptoms
 
 - A yellow squiggle appears under the code body, with the message "unbraced code block".

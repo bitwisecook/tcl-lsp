@@ -42,6 +42,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Global,
         }],
         deprecated_replacement: Some("URI::decode"),
+        deprecated_replacement_drop_in: true,
         traits: Traits::IS_UNESCAPE,
         ..CommandSpec::DEFAULT
     }

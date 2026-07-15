@@ -32,6 +32,7 @@ pub const fn spec() -> CommandSpec {
             return_value: "",
         }),
         deprecated_replacement: Some("TCP::local_port"),
+        deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT
     }
 }

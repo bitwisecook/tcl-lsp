@@ -86,6 +86,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W215", "variable", "W215: Variable name unreachable via \$-substitution (creata...", true),
         DiagnosticDef("W216", "variable", "W216: Broken brace-form array element reference", true),
         DiagnosticDef("W217", "variable", "W217: unset unsets nothing", true),
+        DiagnosticDef("W218", "variable", "W218: args in a non-final parameter position is an ordinar...", true),
         DiagnosticDef("W220", "variable", "W220: Dead store", true),
         DiagnosticDef("W101", "security", "W101: eval with string concatenation", true),
         DiagnosticDef("W102", "security", "W102: subst on variable input", true),

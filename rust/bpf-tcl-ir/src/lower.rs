@@ -733,6 +733,7 @@ impl Lowerer<'_> {
                 true_target,
                 false_target,
                 span,
+                ..
             }) => {
                 let sp = span.unwrap_or_else(|| Span::empty(0));
                 let cond = self.lower_expr(condition, insts, sp)?;

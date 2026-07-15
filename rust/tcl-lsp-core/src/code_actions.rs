@@ -152,6 +152,51 @@ impl CodeAction {
     }
 }
 
+/// Lift every [`tcl_compiler::analyser::CodeFix`] carried by a
+/// diagnostic into a quick-fix [`CodeAction`] — one action per fix,
+/// with the fix's own `(span, new_text)` as a single-edit workspace
+/// edit.  The title is the fix's `description`, falling back to the
+/// (truncated) diagnostic message when the emitter supplied none.
+///
+/// The analyser (`AnalysisResult.diagnostics`) and the compiler-checks
+/// pass (`run_all_checks`) share one `CodeFix` type, so both
+/// fixes-bearing diagnostic families lift through this helper.
+fn lift_fixes(
+    actions: &mut Vec<CodeAction>,
+    fixes: &[tcl_compiler::analyser::CodeFix],
+    diag_message: &str,
+    source: &str,
+    line_index: &LineIndex,
+) {
+    for fix in fixes {
+        let fix_start = line_index.position_at_utf16(fix.span.start(), source);
+        let fix_end = line_index.position_at_utf16(fix.span.end(), source);
+        let title = if fix.description.is_empty() {
+            // Fall back to the diagnostic's message (truncated) when
+            // the fix didn't carry a description.
+            let trimmed: String = diag_message.chars().take(60).collect();
+            format!("Fix: {trimmed}")
+        } else {
+            fix.description.clone()
+        };
+        actions.push(CodeAction {
+            title,
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: fix_start.line,
+                    start_character: fix_start.character.get(),
+                    end_line: fix_end.line,
+                    end_character: fix_end.character.get(),
+                },
+                new_text: fix.new_text.clone(),
+            }],
+            kind: ActionKind::QuickFix,
+            command: None,
+            data_group_definition: None,
+        });
+    }
+}
+
 /// `refactor.rewrite` — "Brace expr for safety and performance".  Offered
 /// whenever the request range touches a line carrying an unbraced-expr (W100)
 /// diagnostic, which corresponds to the `expr` command at the cursor.
@@ -263,36 +308,15 @@ pub fn code_actions(
         // W213's `Add '-nocomplain' to unset` quick-fix is carried on the
         // diagnostic itself (the analyser knows the exact `unset` keyword span
         // and narrows the diagnostic to the offending variable word), so it is
-        // surfaced by the generic `diag.fixes` loop below rather than
-        // re-derived here from the span.
-        for fix in &diag.fixes {
-            let fix_start = line_index.position_at_utf16(fix.span.start(), source);
-            let fix_end = line_index.position_at_utf16(fix.span.end(), source);
-            let title = if fix.description.is_empty() {
-                // Fall back to the diagnostic's message
-                // (truncated) when the fix didn't carry a
-                // description.
-                let trimmed: String = diag.message.chars().take(60).collect();
-                format!("Fix: {trimmed}")
-            } else {
-                fix.description.clone()
-            };
-            actions.push(CodeAction {
-                title,
-                edits: vec![crate::rename::TextEdit {
-                    range: LspRange {
-                        start_line: fix_start.line,
-                        start_character: fix_start.character.get(),
-                        end_line: fix_end.line,
-                        end_character: fix_end.character.get(),
-                    },
-                    new_text: fix.new_text.clone(),
-                }],
-                kind: ActionKind::QuickFix,
-                command: None,
-                data_group_definition: None,
-            });
-        }
+        // surfaced by the generic `lift_fixes` path rather than re-derived
+        // here from the span.
+        lift_fixes(
+            &mut actions,
+            &diag.fixes,
+            &diag.message,
+            source,
+            &line_index,
+        );
     }
 
     // Range-based refactors / source actions that don't depend on a diagnostic.
@@ -395,18 +419,16 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
 /// "Suppress" action (see [`build_shimmer_noqa_suppress_action`]).
 ///
 /// The analyser-driven [`code_actions`] above only sees
-/// `AnalysisResult.diagnostics`.  The iRules control-flow warnings
-/// (IRULE5002 — unguarded `drop`/`reject`/`discard`; IRULE5004 — `DNS::return`
-/// without a following `return`) are produced by a *separate* pass
-/// (`tcl_compiler::irules_checks::find_unguarded_drop_warnings`, surfaced
-/// through `run_all_checks`) and carry their own insertion `CodeFix`es
-/// (`compiler_checks::Diagnostic::from_irules_check` is the sole constructor
-/// that populates `fixes`), so lifting them here carries no risk of
-/// double-offering an analyser fix.
+/// `AnalysisResult.diagnostics`; the compiler checks surfaced through
+/// `run_all_checks` are a disjoint set, so lifting their fixes here carries no
+/// risk of double-offering an analyser fix.  Several check constructors
+/// populate `fixes` (the iRules control-flow insertions, taint-family
+/// rewrites, and the W201 `file join` rewrite among them) and new ones may
+/// join — this lift is generic over whatever the checks carry, never a
+/// per-constructor special case.
 ///
-/// The caller passes the
-/// `run_all_checks` output (e.g. `CompilerDiagnostics::checks`); for a
-/// non-iRules dialect that list carries no `fixes`-bearing diagnostics.
+/// The caller passes the `run_all_checks` output
+/// (e.g. `CompilerDiagnostics::checks`).
 ///
 /// `disabled` is the resolved per-check toggle set
 /// (`tclLsp.diagnostics.<CODE> = false`).  A check whose code is disabled has
@@ -438,31 +460,13 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
         if !ranges_overlap(diag_range, range) {
             continue;
         }
-        for fix in &diag.fixes {
-            let fix_start = line_index.position_at_utf16(fix.span.start(), source);
-            let fix_end = line_index.position_at_utf16(fix.span.end(), source);
-            let title = if fix.description.is_empty() {
-                let trimmed: String = diag.message.chars().take(60).collect();
-                format!("Fix: {trimmed}")
-            } else {
-                fix.description.clone()
-            };
-            actions.push(CodeAction {
-                title,
-                edits: vec![crate::rename::TextEdit {
-                    range: LspRange {
-                        start_line: fix_start.line,
-                        start_character: fix_start.character.get(),
-                        end_line: fix_end.line,
-                        end_character: fix_end.character.get(),
-                    },
-                    new_text: fix.new_text.clone(),
-                }],
-                kind: ActionKind::QuickFix,
-                command: None,
-                data_group_definition: None,
-            });
-        }
+        lift_fixes(
+            &mut actions,
+            &diag.fixes,
+            &diag.message,
+            source,
+            &line_index,
+        );
         if is_shimmer_family(diag.code)
             && let Some(action) = build_shimmer_noqa_suppress_action(source, diag, &line_index)
         {
@@ -602,7 +606,10 @@ fn package_catalogue(registry: &tcl_registry::CommandRegistry) -> Vec<String> {
 }
 
 /// Rank package names against a symbol's prefix (exact / prefix /
-/// substring), best first, capped at `limit`.
+/// substring), best first, capped at `limit`.  The ranking core is
+/// [`tcl_compiler::text::rank_containment_suggestions`]; this wrapper
+/// only extracts the pre-`::` prefix and applies the two-character
+/// minimum.
 fn rank_package_suggestions(symbol: &str, packages: &[String], limit: usize) -> Vec<String> {
     let prefix = symbol
         .trim()
@@ -613,28 +620,14 @@ fn rank_package_suggestions(symbol: &str, packages: &[String], limit: usize) -> 
     if prefix.len() < 2 {
         return Vec::new();
     }
-    let mut ranked: Vec<(u8, &String)> = packages
-        .iter()
-        .filter_map(|pkg| {
-            let lower = pkg.to_lowercase();
-            let score = if lower == prefix {
-                0
-            } else if lower.starts_with(&prefix) {
-                1
-            } else if lower.contains(&prefix) {
-                2
-            } else {
-                return None;
-            };
-            Some((score, pkg))
-        })
-        .collect();
-    ranked.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(b.1)));
-    ranked
-        .into_iter()
-        .take(limit)
-        .map(|(_, pkg)| pkg.clone())
-        .collect()
+    tcl_compiler::text::rank_containment_suggestions(
+        &prefix,
+        packages.iter().map(String::as_str),
+        limit,
+    )
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
 }
 
 /// Line at which to insert a new `package require` — after a leading
@@ -1091,10 +1084,20 @@ fn extract_inline_actions(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Vec<CodeAction> {
+    // Load the iRules dialect so `when`-body descent and the
+    // `class match` / `class lookup` data-group form resolve.  Loading is
+    // additive — vanilla command resolution is unchanged — so we do it
+    // unconditionally rather than threading the document dialect through
+    // the code-action signature (the data-group transform self-gates on
+    // the registry resolving a `class` form).
+    let mut registry = tcl_registry::CommandRegistry::build_default();
+    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
     let mut out = Vec::new();
     out.extend(extract_proc_action(source, range));
-    out.extend(inline_proc_action(source, range, analysis));
-    out.extend(refactor_engine_actions(source, range, analysis, line_index));
+    out.extend(inline_proc_action(source, range, analysis, &registry));
+    out.extend(refactor_engine_actions(
+        source, range, analysis, line_index, &registry,
+    ));
     out
 }
 
@@ -1111,16 +1114,9 @@ fn refactor_engine_actions(
     range: LspRange,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Vec<CodeAction> {
     use crate::refactor;
-    // Load the iRules dialect so `when`-body descent and the
-    // `class match` / `class lookup` data-group form resolve.  Loading is
-    // additive — vanilla command resolution is unchanged — so we do it
-    // unconditionally rather than threading the document dialect through
-    // the code-action signature (the data-group transform self-gates on
-    // the registry resolving a `class` form).
-    let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
     let mut out = Vec::new();
 
     let cursor = line_index.offset_at_utf16(
@@ -1140,16 +1136,16 @@ fn refactor_engine_actions(
         }
     }
 
-    if let Some(r) = refactor::inline_variable(source, cursor, analysis, &registry, line_index) {
+    if let Some(r) = refactor::inline_variable(source, cursor, analysis, registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::if_to_switch(source, cursor, &registry, line_index) {
+    if let Some(r) = refactor::if_to_switch(source, cursor, registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::switch_to_dict(source, cursor, &registry, line_index) {
+    if let Some(r) = refactor::switch_to_dict(source, cursor, registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::extract_to_datagroup(source, cursor, "", &registry, line_index) {
+    if let Some(r) = refactor::extract_to_datagroup(source, cursor, "", registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
     out
@@ -1416,12 +1412,17 @@ fn substitute_var_refs(body: &str, subs: &[(&str, &str)]) -> String {
 
 /// `refactor.inline` — inline a single-command proc at the call cursor.
 /// Declines branchy / control-flow bodies.
-fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) -> Vec<CodeAction> {
-    // Control-flow / scope keywords whose bodies can't be safely inlined.
-    const UNSAFE: &[&str] = &[
-        "return", "break", "continue", "tailcall", "yield", "uplevel", "upvar", "global",
-        "variable",
-    ];
+fn inline_proc_action(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<CodeAction> {
+    // Frame-sensitive commands (block terminators, control transfers, scope
+    // aliases, barriers — the registry's `is_frame_sensitive` union) whose
+    // bodies can't be safely inlined: moving them out of the proc frame
+    // changes what they return from, break out of, or bind against.
+    let unsafe_heads = registry.frame_sensitive_commands();
     let line = source
         .split('\n')
         .nth(range.start_line as usize)
@@ -1461,7 +1462,7 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
     if body_raw.is_empty()
         || body_raw.contains('\n')
         || body_raw.contains(';')
-        || UNSAFE.iter().any(|kw| {
+        || unsafe_heads.iter().any(|kw| {
             body_raw == *kw
                 || body_raw.starts_with(&format!("{kw} "))
                 || body_raw.contains(&format!("[{kw} "))

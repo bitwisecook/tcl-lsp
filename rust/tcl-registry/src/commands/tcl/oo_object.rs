@@ -30,6 +30,38 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "oo::object method ?arg ...?",
 }];
 
+/// The universal object-method surface every `TclOO` object (class or
+/// instance) exposes.  `destroy` is the registry-declared destructive
+/// method the command-binding lattice consults: `NAME destroy` deletes
+/// the `NAME` command, so later dispatches fall through to `unknown`.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "destroy",
+        arity: Arity::exact(0),
+        detail: "Delete the object (a class's instances are deleted with it) and its command.",
+        synopsis: "obj destroy",
+        destructive: true,
+        return_type: Some(TclType::String),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "new",
+        arity: Arity::at_least(0),
+        detail: "Create a new instance with an auto-generated name.",
+        synopsis: "class new ?arg ...?",
+        return_type: Some(TclType::String),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "create",
+        arity: Arity::at_least(1),
+        detail: "Create a new instance with the given command name.",
+        synopsis: "class create name ?arg ...?",
+        return_type: Some(TclType::String),
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::object",
@@ -37,6 +69,10 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
+        subcommands: SUBCOMMANDS,
+        // Every user method also dispatches through an object command, so
+        // unknown words must stay valid.
+        allow_unknown_subcommands: true,
         hover: Some(HoverSnippet {
             summary: "root class of the class hierarchy",
             synopsis: &["oo::object method ?arg ...?", "oo::object"],

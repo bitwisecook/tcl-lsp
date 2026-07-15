@@ -627,3 +627,153 @@ fn array_element_completion_picks_up_read_only_indices() {
     assert!(ls.contains(&"$arr(name)".to_owned()));
     assert!(ls.contains(&"$arr(role)".to_owned()));
 }
+
+// -- TestFuzzyFallback -----------------------------------------------------
+// The fuzzy fallback only runs when the prefix filter yields nothing, so
+// every test here pairs a typo case with the byte-identity guarantee that
+// prefix responses never change (see `string_to_prefix_list_is_unchanged`).
+
+/// A typo'd command fragment falls back to fuzzy matching: the item keeps the
+/// typed fragment as `filterText` (so client-side subsequence filters don't
+/// hide it) and carries a rank-encoding `sortText`.
+#[test]
+fn fuzzy_command_fallback_offers_lsearch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "lsaerch");
+    let items = by_label(&mut lsp, &uri, 0, 7);
+    let item = items.get("lsearch").expect("lsearch offered for lsaerch");
+    assert_eq!(
+        item.get("filterText").and_then(Value::as_str),
+        Some("lsaerch")
+    );
+    assert_eq!(
+        item.get("sortText").and_then(Value::as_str),
+        Some("F00_lsearch")
+    );
+}
+
+/// One-character fragments never fall back to fuzzy matching.
+#[test]
+fn fuzzy_fallback_skips_one_char_fragment() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "q");
+    assert!(labels(&mut lsp, &uri, 0, 1).is_empty());
+}
+
+/// A typo'd switch word offers the real switch with a replace edit covering
+/// the typed fragment.
+#[test]
+fn fuzzy_switch_fallback_offers_nocase() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "lsort -ncoase");
+    let items = by_label(&mut lsp, &uri, 0, 13);
+    let item = items.get("-nocase").expect("-nocase offered for -ncoase");
+    assert_eq!(
+        item.get("filterText").and_then(Value::as_str),
+        Some("-ncoase")
+    );
+    let edit = item.get("textEdit").expect("replace edit present");
+    let range = edit.get("range").expect("range");
+    assert_eq!(range["start"]["character"].as_u64(), Some(6));
+    assert_eq!(range["end"]["character"].as_u64(), Some(13));
+    assert_eq!(edit.get("newText").and_then(Value::as_str), Some("-nocase"));
+}
+
+/// A typo'd subcommand offers exactly the intended subcommand.
+#[test]
+fn fuzzy_subcommand_fallback_offers_length() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "string lenght");
+    let items = by_label(&mut lsp, &uri, 0, 13);
+    assert_eq!(items.len(), 1, "exactly one item; got {:?}", items.keys());
+    let item = items.get("length").expect("length offered for lenght");
+    assert_eq!(
+        item.get("filterText").and_then(Value::as_str),
+        Some("lenght")
+    );
+}
+
+/// Byte-identity guard: a prefix that matches today keeps its exact response —
+/// no fuzzy padding, no filterText decoration.
+#[test]
+fn string_to_prefix_list_is_unchanged() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "string to");
+    let items = by_label(&mut lsp, &uri, 0, 9);
+    assert_eq!(
+        items.keys().cloned().collect::<Vec<_>>(),
+        vec!["tolower", "totitle", "toupper"],
+        "prefix response must be exactly the to* subcommands"
+    );
+    for (label, item) in &items {
+        assert!(
+            item.get("filterText").is_none(),
+            "{label}: prefix items must not carry filterText"
+        );
+    }
+}
+
+/// A typo'd variable fragment offers the real variable, replacing the whole
+/// `$…` token.
+#[test]
+fn fuzzy_variable_fallback_offers_banana() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set banana 2\nputs $bnaana");
+    let items = by_label(&mut lsp, &uri, 1, 12);
+    let item = items.get("$banana").expect("$banana offered for $bnaana");
+    assert_eq!(
+        item.get("filterText").and_then(Value::as_str),
+        Some("$bnaana")
+    );
+    let edit = item.get("textEdit").expect("replace edit present");
+    assert_eq!(edit["range"]["start"]["character"].as_u64(), Some(5));
+    assert_eq!(edit["range"]["end"]["character"].as_u64(), Some(12));
+    assert_eq!(edit.get("newText").and_then(Value::as_str), Some("$banana"));
+}
+
+/// A typo'd method word on a known instance offers the method via the
+/// response-level fallback…
+#[test]
+fn fuzzy_method_fallback_offers_bark() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "oo::class create Dog {\n    method bark {} { return woof }\n}\nset d [Dog new]\n$d brk";
+    lsp.open_ready(&uri, src);
+    let items = by_label(&mut lsp, &uri, 4, 6);
+    assert!(
+        items.contains_key("bark"),
+        "bark offered for brk; got {:?}",
+        items.keys()
+    );
+}
+
+/// …but never hijacks a fragment that already prefix-matches something in the
+/// assembled response: `xy` still reaches the proc `xyz` fall-through, with no
+/// fuzzy method items and no filterText decoration.
+#[test]
+fn fuzzy_method_fallback_does_not_hijack_prefix_match() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc xyz {} { return 1 }\noo::class create Dog {\n    method bark {} { return woof }\n}\nset d [Dog new]\n$d xy";
+    lsp.open_ready(&uri, src);
+    let items = by_label(&mut lsp, &uri, 5, 5);
+    assert!(
+        items.contains_key("xyz"),
+        "prefix fall-through must survive; got {:?}",
+        items.keys()
+    );
+    assert!(!items.contains_key("bark"), "no fuzzy method items");
+    for (label, item) in &items {
+        assert!(
+            item.get("filterText").is_none(),
+            "{label}: prefix items must not carry filterText"
+        );
+    }
+}

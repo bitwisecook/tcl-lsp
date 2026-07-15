@@ -570,7 +570,11 @@ file; this call falls through to the 'unknown' handler."
             // A variable written by a command (`scan` / `binary scan` /
             // `regexp -> capture`, etc.) or a barrier is a command output the
             // user may legitimately ignore; `IRCall` / `IRBarrier` defs are
-            // skipped.
+            // skipped.  This is deliberate policy, not a gap: a destructuring
+            // writer's surplus output (`binary scan $d H2H* type rest` with
+            // `rest` unread) is how Tcl spells "ignore the remainder" — there
+            // is no `_` placeholder — so flagging it would punish the idiom
+            // (review-2 audit, S5).
             if matches!(
                 stmt,
                 crate::ir::Statement::Call { .. } | crate::ir::Statement::Barrier { .. }
@@ -1037,7 +1041,7 @@ file; this call falls through to the 'unknown' handler."
         entries.sort_by_key(|(_, s)| s.start());
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is read before it is set");
-            if let Some(similar) = find_case_mismatch(&var, defined_vars) {
+            if let Some(similar) = undefined_var_suggestion(&var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -1265,7 +1269,7 @@ file; this call falls through to the 'unknown' handler."
                 }
                 reported.insert(name.clone());
                 let mut message = format!("Variable '{name}' is read before it is set");
-                if let Some(similar) = find_case_mismatch(&name, defined_vars) {
+                if let Some(similar) = undefined_var_suggestion(&name, defined_vars) {
                     let _ = write!(message, "; did you mean '{similar}'?");
                 }
                 self.result.diagnostics.push(super::types::Diagnostic {
@@ -1381,6 +1385,11 @@ file; this call falls through to the 'unknown' handler."
                     continue;
                 };
                 let canon = canonical_command.as_deref().unwrap_or(command);
+                // Name-guarded on purpose (not `pattern_type == Regex`): this
+                // check statically evaluates `regexp`'s no-match result from
+                // its exact positional form (pattern / input after the
+                // options, trailing out-vars), paired with `scan` — per-form
+                // value semantics the registry does not model.
                 let is_regexp = canon == "::regexp" || command == "regexp";
                 let is_scan = canon == "::scan" || command == "scan";
                 if (!is_regexp && !is_scan) || defs.is_empty() {
@@ -1447,7 +1456,7 @@ file; this call falls through to the 'unknown' handler."
                     };
                     reported.insert(name.to_owned());
                     let mut message = format!("Variable '{name}' is read before it is set");
-                    if let Some(similar) = find_case_mismatch(name, defined_vars) {
+                    if let Some(similar) = undefined_var_suggestion(name, defined_vars) {
                         let _ = write!(message, "; did you mean '{similar}'?");
                     }
                     self.result.diagnostics.push(super::types::Diagnostic {
@@ -1503,6 +1512,8 @@ file; this call falls through to the 'unknown' handler."
             .rsplit("::")
             .next()
             .unwrap_or(cmd);
+        // Same name-guard rationale as `emit_provably_unset_w210`: exact
+        // `regexp` / `scan` form semantics, not a generic regex-pattern query.
         let is_regexp = bare == "regexp";
         let is_scan = bare == "scan";
         if !is_regexp && !is_scan {
@@ -1662,11 +1673,25 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: Option<&crate::ir::Procedure>,
     ) {
+        // The fold consults the registry's scope-alias roles to skip
+        // out-of-frame-linked locals; a registry-less analyser falls back to
+        // the cached default registry (the same convention as
+        // `command_takes_regex_pattern` — direct handler calls in unit
+        // tests), so the alias skip stays sound there too.
         let params: HashSet<&str> = match ir_proc {
             Some(p) => p.params.iter().map(String::as_str).collect(),
             None => HashSet::new(),
         };
-        for cb in crate::sccp::existence_constant_branches(&fu.cfg, &params) {
+        let branches = {
+            // Scoped borrow: `self.registry` must release before the
+            // `&mut self` diagnostic pushes below.
+            let registry = self.registry.as_ref().map_or_else(
+                || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+                |r| r,
+            );
+            crate::sccp::existence_constant_branches(&fu.cfg, &params, registry)
+        };
+        for cb in branches {
             let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
                 continue;
             };
@@ -2259,6 +2284,36 @@ fn match_ipv6_candidate(bytes: &[u8], start: usize) -> Option<usize> {
         }
     }
     best
+}
+
+/// The suggestion name for an undefined-variable "; did you mean 'X'?"
+/// suffix (W210): a case-insensitive twin among `defined_vars` wins at
+/// any edit distance ([`find_case_mismatch`] — the established W210/W211/
+/// W220 behaviour), otherwise the closest *other* defined name within
+/// the length-scaled edit budget ([`crate::text::scaled_max_distance`],
+/// so a short typo can't fish an unrelated short name). `None` when
+/// nothing is close — the message then stays suffix-free.
+fn undefined_var_suggestion<'a>(
+    variable: &str,
+    defined_vars: &'a HashSet<String>,
+) -> Option<&'a str> {
+    if let Some(similar) = find_case_mismatch(variable, defined_vars) {
+        return Some(similar);
+    }
+    // The read variable can itself appear in `defined_vars` when it is
+    // assigned later in the function (`puts $x; set x 1`) — never
+    // suggest the typo as its own correction.
+    crate::text::suggest_similar(
+        variable,
+        defined_vars
+            .iter()
+            .map(String::as_str)
+            .filter(|name| *name != variable),
+        1,
+        crate::text::scaled_max_distance_strict(variable),
+    )
+    .first()
+    .copied()
 }
 
 /// Find a defined variable that differs from `variable` only in case.

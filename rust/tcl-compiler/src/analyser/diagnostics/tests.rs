@@ -229,6 +229,252 @@ fn is_benign_unicode_matches_reference() {
 }
 
 #[test]
+fn w108_comment_prose_is_not_flagged() {
+    // FP fix: an em-dash (or any prose non-ASCII) inside a *comment* is
+    // fine — comments are prose. Both a depth-1 body comment and a
+    // depth-2 nested-body comment stay silent in confusables mode.
+    assert!(
+        w108(
+            "proc f {} {\n    # note \u{2014} dash\n    set y 1\n    puts $y\n}\nf\n",
+            "tcl8.6"
+        )
+        .is_empty(),
+        "depth-1 body comment must not flag"
+    );
+    assert!(
+        w108(
+            "proc f {c} {\n    if {$c} {\n        # nested \u{2014} dash\n        puts a\n    }\n}\n",
+            "tcl8.6"
+        )
+        .is_empty(),
+        "depth-2 nested body comment must not flag"
+    );
+}
+
+#[test]
+fn w108_comment_bidi_control_still_flags() {
+    // TP: a bidi override in a comment is the trojan-source attack shape —
+    // it can make the comment (and what follows it) render as different
+    // code than what compiles. Always flagged.
+    let hits = w108(
+        "proc f {} {\n    # ok \u{202e}live\n    set y 1\n    puts $y\n}\nf\n",
+        "tcl8.6",
+    );
+    assert_eq!(
+        hits.len(),
+        1,
+        "bidi override in comment must flag: {hits:?}"
+    );
+    assert_eq!(hits[0].0, 0x202e);
+}
+
+#[test]
+fn w108_code_artifact_beside_comment_still_flags() {
+    // TP control: the comment carve-out must not swallow code findings —
+    // a smart quote in an actual argument still fires.
+    let hits = w108(
+        "proc f {} {\n    # note \u{2014} dash\n    set y \u{201c}hi\u{201d}\n    puts $y\n}\nf\n",
+        "tcl8.6",
+    );
+    let codes: Vec<u32> = hits.iter().map(|(c, _)| *c).collect();
+    assert!(
+        codes.contains(&0x201c) && codes.contains(&0x201d) && !codes.contains(&0x2014),
+        "code artifacts flag, comment prose does not: {codes:?}"
+    );
+}
+
+#[test]
+fn w108_strict_mode_still_flags_comment_prose() {
+    // Strict (ASCII-only F5 platforms): the platform constraint covers
+    // comment bytes too — the em-dash in a `when` body comment stays a
+    // finding under the f5-irules default.
+    let hits = w108(
+        "when HTTP_REQUEST {\n    # bad \u{2014} dash\n    HTTP::respond 200\n}\n",
+        "f5-irules",
+    );
+    assert!(
+        hits.iter().any(|(c, _)| *c == 0x2014),
+        "strict mode keeps flagging comment non-ASCII: {hits:?}"
+    );
+}
+
+#[test]
+fn w108_bidi_control_in_code_flags_in_confusables_mode() {
+    // The trojan-source set bypasses the confusables-table gate in code
+    // too: U+202E has no table entry but is a review hazard anywhere.
+    let hits = w108("set x a\u{202e}b\n", "tcl8.6");
+    assert_eq!(hits.len(), 1, "bidi override in code must flag: {hits:?}");
+    assert_eq!(hits[0].0, 0x202e);
+}
+
+fn codes_for_dialect(src: &str, dialect: &str) -> Vec<String> {
+    let mut a = crate::analyser::Analyser::new();
+    a.analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+#[test]
+fn disabled_definer_nested_in_catch_reports_w002_once_without_cascade() {
+    // The feature-detection idiom: a Tcl 9-only definer probed under 8.6.
+    // W002 reports the availability once; the definer's member keywords
+    // (`property`, `constructor`) and the defined class name must NOT
+    // cascade into W123 — the definer grammar still resolves the body
+    // structurally even though the dialect gate fails.
+    let src = "if {![catch {oo::configurable create Greeter {
+    property greeting
+                   constructor {g} { my configure -greeting $g }
+}}]} { puts ok }
+Greeter new x
+";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert_eq!(
+        codes.iter().filter(|c| *c == "W002").count(),
+        1,
+        "W002 exactly once: {codes:?}"
+    );
+    assert!(
+        !codes.contains(&"W123".to_string()),
+        "no unknown-command cascade for members or the class name: {codes:?}"
+    );
+}
+
+#[test]
+fn proc_nested_in_catch_registers_the_proc() {
+    // `catch {proc p …}` still defines `p` — a later call is not unknown.
+    let src = "if {[catch {proc p {} { return 1 }}]} { puts no }
+p
+";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert!(
+        !codes.contains(&"W123".to_string()),
+        "the nested proc must register: {codes:?}"
+    );
+}
+
+#[test]
+fn plain_script_body_nested_in_catch_still_descends() {
+    // FP guard for the definer carve-out: an ordinary control-flow body
+    // nested in the substitution is still walked, so a genuinely unknown
+    // command inside it keeps its W123.
+    let src = "if {[catch {if {1} { zz9unknowncmd a b }}]} { puts no }
+";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert!(
+        codes.contains(&"W123".to_string()),
+        "unknown command inside a nested plain body still fires: {codes:?}"
+    );
+}
+
+#[test]
+fn enabled_definer_nested_in_catch_is_silent() {
+    // Under a dialect where the definer exists there is no W002 and no
+    // cascade either.
+    let src = "if {![catch {oo::configurable create Greeter {
+    property greeting
+}}]}                { puts ok }
+Greeter new x
+";
+    let codes = codes_for_dialect(src, "tcl9.0");
+    assert!(
+        !codes.contains(&"W002".to_string()) && !codes.contains(&"W123".to_string()),
+        "enabled definer draws neither W002 nor a cascade: {codes:?}"
+    );
+}
+
+#[test]
+fn w211_deliberately_skips_destructuring_writer_outputs() {
+    // Policy pin (review-2 audit): a command-output variable the script
+    // never reads (`binary scan … rest`, `regexp … m`) is how Tcl spells
+    // "ignore the remainder" — no W211.  A plain `set` of an unread
+    // variable is the TP control.
+    let src = "proc f {d} {
+    binary scan $d H2H* type rest
+    return $type
+}
+";
+    let codes = codes_for_dialect(src, "tcl8.6");
+    assert!(
+        !codes.contains(&"W211".to_string()),
+        "unread destructuring output must not draw W211: {codes:?}"
+    );
+
+    let src_tp = "proc g {} {
+    set unread 1
+    return 2
+}
+";
+    let codes_tp = codes_for_dialect(src_tp, "tcl8.6");
+    assert!(
+        codes_tp.contains(&"W211".to_string()),
+        "a plain unread set still draws W211: {codes_tp:?}"
+    );
+}
+
+#[test]
+fn w218_args_in_non_final_position_fires() {
+    // TP: the classic pitfall — `args` before another parameter is an
+    // ordinary parameter (C Tcl sets VAR_IS_ARGS only on the last formal).
+    let mut a = crate::analyser::Analyser::new();
+    let src = "proc p {args extra} { puts $extra }
+";
+    let r = a.analyse(src, "tcl8.6");
+    let w218: Vec<_> = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W218)
+        .collect();
+    assert_eq!(w218.len(), 1, "got {:?}", r.diagnostics);
+    let expected = src.find("args").unwrap();
+    assert_eq!(
+        w218[0].span.start() as usize,
+        expected,
+        "anchor at the args parameter name"
+    );
+}
+
+#[test]
+fn w218_silent_for_final_args_and_plain_params() {
+    // TN: `args` in final position is the variadic idiom; no `args` at all
+    // is trivially fine; a lone `args` IS final.
+    for src in [
+        "proc p {a args} { puts $a }
+",
+        "proc p {a b} { puts $a$b }
+",
+        "proc p {args} { llength $args }
+",
+    ] {
+        assert!(
+            !codes_for_dialect(src, "tcl8.6").contains(&"W218".to_string()),
+            "must be silent for {src:?}"
+        );
+    }
+}
+
+#[test]
+fn w218_fires_for_method_and_apply_params() {
+    // TP: the same pitfall inside a TclOO method parameter list and an
+    // apply lambda.
+    let method_src = "oo::class create C {
+    method m {args other} { puts $other }
+}
+";
+    assert!(
+        codes_for_dialect(method_src, "tcl8.6").contains(&"W218".to_string()),
+        "method params must be checked"
+    );
+    let apply_src = "apply {{args extra} { puts $extra }} 1 2
+";
+    assert!(
+        codes_for_dialect(apply_src, "tcl8.6").contains(&"W218".to_string()),
+        "apply lambda params must be checked"
+    );
+}
+
+#[test]
 fn w108_off_mode_disables_entirely() {
     use crate::analyser::NonAsciiMode::Off;
     // Even smart quotes / NBSP are silent when W108 is off.
@@ -4669,6 +4915,60 @@ fn info_exists_query_word_not_read_before_set() {
 }
 
 #[test]
+fn i230_message_quotes_bare_var_as_source_spells_it() {
+    // Message fidelity: `if $n …` must render the condition as `$n`, not
+    // the segmenter's re-braced `${n}` reconstruction.
+    let src = "set n 1\nif $n { puts a } else { puts b }\n";
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics(src);
+    let i230: Vec<_> = a
+        .result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code.to_string() == "I230")
+        .collect();
+    assert!(
+        !i230.is_empty(),
+        "expected I230: {:?}",
+        a.result.diagnostics
+    );
+    assert!(
+        i230[0].message.contains("'$n'"),
+        "message must quote the source spelling `$n`, got {:?}",
+        i230[0].message
+    );
+    assert!(
+        !i230[0].message.contains("${n}"),
+        "message must not re-brace to `${{n}}`, got {:?}",
+        i230[0].message
+    );
+}
+
+#[test]
+fn i230_message_keeps_braced_var_spelling() {
+    // A source-braced `${n}` stays `${n}` — fidelity cuts both ways.
+    let src = "set n 1\nif ${n} { puts a } else { puts b }\n";
+    let mut a = Analyser::new();
+    a.emit_cfg_ssa_diagnostics(src);
+    let i230: Vec<_> = a
+        .result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code.to_string() == "I230")
+        .collect();
+    assert!(
+        !i230.is_empty(),
+        "expected I230: {:?}",
+        a.result.diagnostics
+    );
+    assert!(
+        i230[0].message.contains("'${n}'"),
+        "message must keep the source's braced spelling, got {:?}",
+        i230[0].message
+    );
+}
+
+#[test]
 fn info_exists_folds_false_for_never_defined_local() {
     // A never-defined non-parameter never
     // exists → predicate folds false → I230.
@@ -7337,18 +7637,20 @@ fn w312_registry_taint_list_widens_to_console_and_abbreviations() {
 
 #[test]
 fn w302_fire_and_forget_is_registry_destructive_data() {
-    // The suppression reads HAS_DESTRUCTIVE_OPS + SubCommand.destructive
-    // from the registry. `file mkdir` / `file rename` are
-    // registry-declared destructive (W313's set), so their bare-catch
-    // forms now suppress too — an intentional widening from the former
-    // `file delete`-only table.
+    // The suppression reads FIRE_AND_FORGET_TEARDOWN from the registry —
+    // deliberately NOT the wider HAS_DESTRUCTIVE_OPS + SubCommand.destructive
+    // axis (W313's set): `file mkdir` / `file rename` failures are real
+    // errors (permissions, missing source), exactly what W302 asks the
+    // caller to capture, so their bare-catch forms keep the hint. Only the
+    // teardown idioms — where "target already gone" is the expected,
+    // intentionally-ignored failure — suppress.
     assert_eq!(
         sec_codes("proc f {d} { catch {file mkdir $d} }\n", "W302"),
-        0
+        1
     );
     assert_eq!(
         sec_codes("proc f {a b} { catch {file rename $a $b} }\n", "W302"),
-        0
+        1
     );
     // Ensemble subcommand words resolve via the registry's unique-prefix
     // rule, matching C Tcl's `Tcl_GetIndexFromObj` (`file del` works in
@@ -7519,9 +7821,16 @@ fn w303_redos_nested_quantifiers() {
     );
     // Option flags before the pattern are skipped.
     assert_eq!(sec_codes("regexp -nocase {(a+)+} $s\n", "W303"), 1);
+    // Anchored nested quantifier still fires.
+    assert_eq!(sec_codes("regexp {(a+)+$} $x\n", "W303"), 1);
     // Safe patterns don't fire.
     assert_eq!(sec_codes("regexp {abc} $str\n", "W303"), 0);
     assert_eq!(sec_codes("regexp {[0-9]+} $s\n", "W303"), 0);
+    // FP gate: glob-pattern commands are not regexes — the guard is the
+    // spec's `pattern_type == Regex`, so regex-looking text under
+    // `string match` / `lsearch` must not fire.
+    assert_eq!(sec_codes("string match {(a+)+$} $x\n", "W303"), 0);
+    assert_eq!(sec_codes("lsearch $l {(a+)+$}\n", "W303"), 0);
 }
 
 #[test]
@@ -8074,5 +8383,410 @@ entry    main.tcl
             "`require` with one argument is below the directive's minimum: {:?}",
             result.diagnostics
         );
+    }
+}
+
+mod did_you_mean_variables {
+    //! W210 / W212 / W215 "did you mean…?" — the undefined-variable
+    //! family suggests a close in-scope variable name (W215's own tests
+    //! live with the emitter in `analyser::scope`).
+
+    use super::*;
+
+    fn find_code(src: &str, dialect: &str, code: DiagCode) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, dialect);
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == code)
+            .unwrap_or_else(|| panic!("expected {code:?} in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn w210_suggests_close_defined_variable() {
+        // TP: `countr` is an edit-distance-1 typo of the defined `counter`.
+        let d = find_code("set counter 1\nputs $countr\n", "tcl8.6", DiagCode::W210);
+        assert!(
+            d.message.ends_with("; did you mean 'counter'?"),
+            "expected a 'counter' suggestion: {:?}",
+            d.message
+        );
+        // The suggestion is informational only — no fix (the analyser
+        // cannot know which spelling was intended).
+        assert!(d.fixes.is_empty(), "{:?}", d.fixes);
+    }
+
+    #[test]
+    fn w210_suggests_inside_proc_bodies() {
+        let d = find_code(
+            "proc p {} {\n  set counter 1\n  puts $countr\n}\n",
+            "tcl8.6",
+            DiagCode::W210,
+        );
+        assert!(
+            d.message.ends_with("; did you mean 'counter'?"),
+            "expected a 'counter' suggestion: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w210_case_mismatch_still_wins_over_edit_distance() {
+        // `MYLIST` is 6 edits from `mylist` — far outside the scaled
+        // budget — but the case-insensitive twin rule still names it.
+        let d = find_code("set MYLIST 1\nputs $mylist\n", "tcl8.6", DiagCode::W210);
+        assert!(
+            d.message.ends_with("; did you mean 'MYLIST'?"),
+            "expected the case twin: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w210_no_suggestion_when_nothing_is_close() {
+        // FP guard: `frobnicate` is nowhere near `totally`.
+        let d = find_code(
+            "set totally 1\nputs $frobnicate\n",
+            "tcl8.6",
+            DiagCode::W210,
+        );
+        assert!(
+            !d.message.contains("did you mean"),
+            "no suggestion expected: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w210_short_name_never_fishes_a_full_replacement() {
+        // FP guard: every other 1-char name is a full rewrite of `$u`,
+        // not a typo correction — `m` must not be suggested.
+        let d = find_code("set m 1\nputs $u\nputs $m\n", "tcl8.6", DiagCode::W210);
+        assert!(
+            !d.message.contains("did you mean"),
+            "no suggestion expected for a 1-char read: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w212_suggests_close_in_scope_variable_for_undefined_name() {
+        // TP: `set $countr` where `countr` is undefined but `counter`
+        // is in scope — the better correction is `counter`.
+        let d = find_code("set counter 1\nset $countr 5\n", "tcl8.6", DiagCode::W212);
+        assert!(
+            d.message.contains("Did you mean 'counter'?"),
+            "expected the close in-scope name: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w212_keeps_de_sigil_suggestion_for_defined_name() {
+        // `varname` is itself defined — dropping the `$` is the fix.
+        let d = find_code("set varname x\nset $varname y\n", "tcl8.6", DiagCode::W212);
+        assert!(
+            d.message.contains("Did you mean 'varname'?"),
+            "expected the de-sigiled name: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w212_keeps_de_sigil_suggestion_when_nothing_is_close() {
+        // FP guard: no in-scope name is close — the de-sigil suggestion
+        // stands rather than fishing an unrelated variable.
+        let d = find_code(
+            "set totally 1\nincr $frobnicate\n",
+            "tcl8.6",
+            DiagCode::W212,
+        );
+        assert!(
+            d.message.contains("Did you mean 'frobnicate'?"),
+            "expected the de-sigiled name: {:?}",
+            d.message
+        );
+    }
+}
+
+mod irule2002_drop_in_fix {
+    //! IRULE2002 — a deprecated command whose registry spec marks the
+    //! replacement as a drop-in rename carries a head-swap quick fix;
+    //! non-mechanical replacements stay message-only.
+
+    use super::*;
+
+    fn irule2002_for(src: &str) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "f5-irules");
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::Irule2002)
+            .unwrap_or_else(|| panic!("expected IRULE2002 in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn drop_in_replacement_carries_head_swap_fix() {
+        // TP: `client_addr` → `IP::client_addr` is argument-compatible.
+        let d = irule2002_for("when HTTP_REQUEST {\n  set a [client_addr]\n}\n");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        let fix = &d.fixes[0];
+        assert_eq!(fix.new_text, "IP::client_addr");
+        assert_eq!(fix.description, "Replace with 'IP::client_addr'");
+        // The fix replaces exactly the command head token.
+        assert_eq!(fix.span, d.span);
+    }
+
+    #[test]
+    fn drop_in_fix_preserves_arguments() {
+        // TP: an argument-taking drop-in (`decode_uri <s>` →
+        // `URI::decode <s>`) swaps only the head; the argument words are
+        // untouched (outside the fix span).
+        let d = irule2002_for("when HTTP_REQUEST {\n  set u [decode_uri $raw]\n}\n");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(d.fixes[0].new_text, "URI::decode");
+        assert_eq!(d.fixes[0].span, d.span);
+    }
+
+    #[test]
+    fn non_mechanical_replacements_get_no_fix() {
+        // FP guards: `ip_addr` → `IP::addr` restructures its arguments
+        // (`… mask …`); `matchclass` → `class` needs the `match`
+        // subcommand (IRULE2001 carries the correct arity-aware fix);
+        // `use` → `virtual` changes the statement shape entirely.
+        for src in [
+            "when HTTP_REQUEST {\n  set m [ip_addr 10.0.0.1 255.0.0.0]\n}\n",
+            "when HTTP_REQUEST {\n  matchclass $u ::lib\n}\n",
+            "when HTTP_REQUEST {\n  use pool aol_pool\n}\n",
+        ] {
+            let d = irule2002_for(src);
+            assert!(
+                d.fixes.is_empty(),
+                "no fix expected for {src:?}: {:?}",
+                d.fixes
+            );
+        }
+    }
+}
+
+mod arity_usage_suffix {
+    //! E002 / E003 / E005 — arity messages append the registry
+    //! signature as a " — usage: …" suffix when the resolved spec
+    //! declares a synopsis.
+
+    use super::*;
+
+    fn find_code(src: &str, code: DiagCode) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == code)
+            .unwrap_or_else(|| panic!("expected {code:?} in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn e002_appends_command_synopsis() {
+        let d = find_code("lreplace\n", DiagCode::E002);
+        assert_eq!(
+            d.message,
+            "Too few arguments for 'lreplace': expected at least 3, got 0 \
+             — usage: lreplace list first last ?element element ...?"
+        );
+    }
+
+    #[test]
+    fn e003_appends_subcommand_synopsis() {
+        // The subcommand path uses the resolved subcommand's synopsis,
+        // not the parent ensemble's.
+        let d = find_code("string length a b c\n", DiagCode::E003);
+        assert!(
+            d.message.ends_with(" — usage: string length string"),
+            "expected the subcommand synopsis: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn e005_appends_command_synopsis() {
+        let d = find_code("lmap a b c d\n", DiagCode::E005);
+        assert!(
+            d.message.ends_with(" — usage: lmap varname list body"),
+            "expected the lmap synopsis: {:?}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn user_proc_arity_message_stays_count_only() {
+        // A same-file proc has no registry synopsis — the message keeps
+        // its count-only form.
+        let d = find_code("proc pair {a b} {}\npair 1\n", DiagCode::E002);
+        assert!(
+            !d.message.contains("usage:"),
+            "no usage suffix expected for a user proc: {:?}",
+            d.message
+        );
+    }
+}
+
+mod w104_lappend_fix {
+    //! W104 — the two-word leading-space `append` shape carries a
+    //! whole-command `lappend` rewrite; every non-mechanical shape
+    //! stays message-only.
+
+    use super::*;
+
+    fn w104_for(src: &str) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W104)
+            .unwrap_or_else(|| panic!("expected W104 in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn leading_space_var_piece_carries_whole_command_rewrite() {
+        let src = "set item x\nset items {}\nappend items \" $item\"\n";
+        let d = w104_for(src);
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        let fix = &d.fixes[0];
+        assert_eq!(fix.new_text, "lappend items $item");
+        assert_eq!(fix.description, "Rewrite with `lappend`");
+        // The fix replaces exactly the whole `append` command.
+        assert_eq!(
+            &src[fix.span.start() as usize..fix.span.end() as usize],
+            "append items \" $item\"",
+        );
+    }
+
+    #[test]
+    fn literal_piece_and_array_target_also_rewrite() {
+        let d = w104_for("append out(k) \" item\"\n");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(d.fixes[0].new_text, "lappend out(k) item");
+    }
+
+    #[test]
+    fn trailing_space_shape_gets_no_fix() {
+        // `append msg "item "` puts the separator *after* the piece;
+        // `lappend` would move it before — not equivalent.
+        let d = w104_for("append msg \"item \"\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
+    #[test]
+    fn non_mechanical_shapes_get_no_fix() {
+        for src in [
+            // Several pieces in one value word.
+            "set a 1\nset b 2\nappend out \" $a $b\"\n",
+            // Extra pad spaces.
+            "set a 1\nappend out \"  $a\"\n",
+            // Several value words.
+            "set a 1\nappend out \" $a\" tail\n",
+            // Braced value — a deliberate literal separator.
+            "append banner { }\n",
+            // Piece with a word/list metacharacter.
+            "set a 1\nappend out \" [list $a]\"\n",
+            // Pad-only value.
+            "append out \" \"\n",
+        ] {
+            let d = w104_for(src);
+            assert!(
+                d.fixes.is_empty(),
+                "no fix expected for {src:?}: {:?}",
+                d.fixes
+            );
+        }
+    }
+}
+
+mod w114_unwrap_fix {
+    //! W114 — a redundant nested `[expr {…}]` inside a braced outer
+    //! expression carries an unwrap fix; unbraced shapes and
+    //! string-comparison contexts stay message-only.
+
+    use super::*;
+
+    fn w114_for(src: &str) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W114)
+            .unwrap_or_else(|| panic!("expected W114 in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn compound_inner_body_is_parenthesised() {
+        let src = "set a 1\nset b 3\nif {$a && [expr {$b + 1}]} { puts hi }\n";
+        let d = w114_for(src);
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        let fix = &d.fixes[0];
+        assert_eq!(fix.new_text, "($b + 1)");
+        assert_eq!(fix.description, "Unwrap the nested `expr`");
+        // The fix replaces exactly the nested `[expr {…}]` — the
+        // diagnostic's own span.
+        assert_eq!(fix.span, d.span);
+        assert_eq!(
+            &src[fix.span.start() as usize..fix.span.end() as usize],
+            "[expr {$b + 1}]",
+        );
+    }
+
+    #[test]
+    fn atom_inner_body_drops_the_parentheses() {
+        let src = "set x 2\nset y [expr {[expr {$x}] + 1}]\n";
+        let d = w114_for(src);
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(d.fixes[0].new_text, "$x");
+        assert_eq!(
+            &src[d.fixes[0].span.start() as usize..d.fixes[0].span.end() as usize],
+            "[expr {$x}]",
+        );
+    }
+
+    #[test]
+    fn literal_atom_also_drops_the_parentheses() {
+        let d = w114_for("set y [expr {[expr {42}] + 1}]\n");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(d.fixes[0].new_text, "42");
+    }
+
+    #[test]
+    fn unbraced_inner_body_gets_no_fix() {
+        // Inlining an unbraced body re-exposes it to substitution.
+        let d = w114_for("set x 1\nif {[expr $x + 1] > 0} {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
+    #[test]
+    fn unbraced_outer_argument_gets_no_fix() {
+        // `if [expr {$x}] …` — the whole argument is the nested call;
+        // unwrapping to `($x)` would change the substitution pipeline.
+        let d = w114_for("set x 1\nif [expr {$x}] {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
+    #[test]
+    fn string_comparison_context_gets_no_fix() {
+        // `[expr {$s}]` normalises "007" to 7; `($s) eq "007"` would
+        // not — the unwrap could flip the verdict, so no fix.
+        let d = w114_for("set s 007\nif {[expr {$s}] eq \"007\"} {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
+    #[test]
+    fn multi_group_expr_arguments_get_no_fix() {
+        // `[expr {a} {b}]` concatenates its arguments — not one braced
+        // group, so no textual inline.
+        let d = w114_for("set a 1\nif {[expr {$a} {+ 1}] > 0} {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
     }
 }

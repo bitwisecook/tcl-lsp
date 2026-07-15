@@ -34,6 +34,7 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::CONTINUES_LOOP
+            | Traits::TRANSFERS_CONTROL
             | Traits::NEEDS_START_CMD,
         arity: Arity::exact(0),
         return_type: Some(TclType::String),

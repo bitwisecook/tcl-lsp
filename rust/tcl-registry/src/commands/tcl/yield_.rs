@@ -46,7 +46,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        traits: Traits::LANGUAGE_KEYWORD,
+        traits: Traits::LANGUAGE_KEYWORD | Traits::TRANSFERS_CONTROL,
         ..CommandSpec::DEFAULT
     }
 }

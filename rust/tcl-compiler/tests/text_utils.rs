@@ -32,16 +32,16 @@
 //! that want the default behaviour pass the explicit values
 //! `max_suggestions = 3, max_distance = 3`.
 
-use tcl_compiler::text::{edit_distance, suggest_similar};
+use tcl_compiler::text::{
+    edit_distance, rank_containment_suggestions, rank_suggestions, suggest_similar,
+};
 
-// ---------------------------------------------------------------------------
-// Edit distance
-// ---------------------------------------------------------------------------
+// Edit distance.
 //
-// `edit_distance` is plain
-// Levenshtein (substitution / insertion / deletion, no
-// transposition). A swap of adjacent chars therefore costs 2, not 1
-// (no Damerau transposition), and the asserted values reflect that.
+// `edit_distance` is optimal string alignment (restricted
+// Damerau–Levenshtein): substitution, insertion, deletion, and
+// adjacent transposition each cost one edit, and the asserted values
+// reflect that.
 
 #[test]
 fn test_identical() {
@@ -87,9 +87,7 @@ fn test_completely_different() {
     assert_eq!(edit_distance("abc", "xyz"), 3);
 }
 
-// ---------------------------------------------------------------------------
-// suggest_similar
-// ---------------------------------------------------------------------------
+// suggest_similar.
 //
 // `suggest_similar` borrows `&'a str` from the candidate
 // iterator and returns `Vec<&'a str>`, so the candidate slices are
@@ -106,9 +104,9 @@ fn test_exact_match_first() {
 
 #[test]
 fn test_close_match() {
-    // "pust" -> "puts" is a transposition (distance 2 under
-    // Levenshtein), which is within the default max_distance of 3,
-    // so "puts" must appear in the suggestions.
+    // "pust" -> "puts" is an adjacent transposition (one edit under
+    // optimal string alignment), well within max_distance of 3, so
+    // "puts" must appear in the suggestions.
     let result = suggest_similar("pust", ["puts", "set", "string"], 3, 3);
     assert!(result.contains(&"puts"));
 }
@@ -135,4 +133,34 @@ fn test_empty_candidates() {
     // `&str` so the return type's lifetime resolves.
     let result = suggest_similar("foo", Vec::<&str>::new(), 3, 3);
     assert_eq!(result, Vec::<&str>::new());
+}
+
+// rank_suggestions / rank_containment_suggestions.
+//
+// The shared `(score, name)` ordering core and its containment-scored
+// variant, consumed by the LSP package-require suggestions and the
+// completion fuzzy fallback.
+
+#[test]
+fn test_rank_suggestions_score_then_name() {
+    let scored = vec![(1, "bb"), (0, "cc"), (1, "aa")];
+    assert_eq!(rank_suggestions(scored, 3, |n| n), vec!["cc", "aa", "bb"]);
+}
+
+#[test]
+fn test_rank_suggestions_cap() {
+    let scored = vec![(0, "a"), (0, "b"), (0, "c")];
+    assert_eq!(rank_suggestions(scored, 2, |n| n).len(), 2);
+}
+
+#[test]
+fn test_rank_containment_exact_prefix_substring() {
+    let ranked = rank_containment_suggestions("http", ["xhttpx", "httpd", "http"], 5);
+    assert_eq!(ranked, vec!["http", "httpd", "xhttpx"]);
+}
+
+#[test]
+fn test_rank_containment_drops_non_containing() {
+    let ranked = rank_containment_suggestions("http", ["json", "tls"], 5);
+    assert_eq!(ranked, Vec::<&str>::new());
 }

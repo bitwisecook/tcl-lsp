@@ -492,6 +492,22 @@ impl Analyser {
         tcl_lexer::LexerConfig::for_dialect(&self.dialect)
     }
 
+    /// `true` when `cmd_name`'s registry spec declares its pattern argument
+    /// as a regular expression ([`tcl_registry::PatternType::Regex`]) —
+    /// `regexp` / `regsub`.  The regex-specific analyses (W303 `ReDoS`, W306
+    /// literal-expected, regex-pattern capture) key off this query instead
+    /// of hardcoded command names, so a future regex-pattern command is
+    /// registry data only.  Falls back to the cached default registry when
+    /// the analyser has none loaded (direct handler calls in unit tests).
+    pub(super) fn command_takes_regex_pattern(&self, cmd_name: &str) -> bool {
+        let registry = self.registry.as_ref().map_or_else(
+            || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+            |r| r,
+        );
+        registry.get(cmd_name).and_then(|spec| spec.pattern_type)
+            == Some(tcl_registry::PatternType::Regex)
+    }
+
     /// Construct an analyser with a fixed set of diagnostic codes
     /// disabled (e.g. `"W210"`, `"W211"`).
     #[must_use]
@@ -2786,6 +2802,58 @@ mod tests {
             .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
         assert!(w110[0].message.contains("ne"), "got {:?}", w110[0].message);
+    }
+
+    #[test]
+    fn w110_span_anchors_on_the_operator() {
+        // Range precision: the diagnostic anchors on the `==` itself, not
+        // the whole condition.
+        let src = "if {$x == \"foo\"} {puts yes}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        let expected = src.find("==").unwrap();
+        assert_eq!(
+            (w110[0].span.start() as usize, w110[0].span.end() as usize),
+            (expected, expected + 2),
+            "W110 must cover exactly the operator, got {:?}",
+            w110[0].span
+        );
+        // The code fix still replaces the whole condition text.
+        assert!(!w110[0].fixes.is_empty(), "fix expected: {:?}", w110[0]);
+        assert!(
+            w110[0].fixes[0].span.start() < w110[0].span.start(),
+            "fix span must cover the argument, not just the operator"
+        );
+    }
+
+    #[test]
+    fn w110_span_anchors_on_the_matched_operator_not_the_first() {
+        // `$a == $b` (variable compare — not flagged) precedes the
+        // string compare `$c == "x"`; the anchor must be the SECOND `==`.
+        let src = "if {$a == $b && $c == \"x\"} {puts yes}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        let expected = src.rfind("==").unwrap();
+        assert_eq!(
+            (w110[0].span.start() as usize, w110[0].span.end() as usize),
+            (expected, expected + 2),
+            "W110 must anchor the matched (second) `==`, got {:?}",
+            w110[0].span
+        );
+        // Mixed string/non-string compares must not offer the blanket fix.
+        assert!(w110[0].fixes.is_empty(), "no fix expected: {:?}", w110[0]);
     }
 
     #[test]

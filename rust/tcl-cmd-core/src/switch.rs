@@ -41,6 +41,7 @@ use tcl_syntax::glob::string_case_match;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
+use crate::prefix::OptionTable;
 use crate::regex::{NO_MATCH, RegMatch, RegexEngine, RegexFlags, decode_utf8};
 
 /// The matching mode (`-exact` is the default).
@@ -86,6 +87,9 @@ const OPT_NAMES: [&str; 7] = [
     "-regexp",
     "--",
 ];
+// C resolves switch options with abbreviations allowed (flags 0), so `-gl`,
+// `-noc`, … work like tclsh.
+const OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
 const USAGE_INLINE: &str = "switch ?-option ...? string ?pattern body ...? ?default body?";
 
 /// Parse the leading options of `args` (the name-stripped argv: any options, then
@@ -116,14 +120,7 @@ where
         if !arg.starts_with('-') {
             break;
         }
-        let idx = match crate::prefix::lookup(&OPT_NAMES, arg.as_bytes(), false) {
-            crate::prefix::Lookup::Found(i) => i,
-            miss => {
-                return Err(crate::prefix::lookup_error(
-                    &OPT_NAMES, "option", &arg, miss,
-                ));
-            }
-        };
+        let idx = OPTIONS.index_of_str(&arg)?;
         match idx {
             OPT_LAST => {
                 i += 1;
@@ -366,11 +363,9 @@ where
     writes
 }
 
-// option-name resolution + error catalogue
-//
-// The unique-prefix resolution and the `bad option "x": must be …` /
-// `ambiguous option …` texts route through the shared matcher
-// (`crate::prefix`), so `switch` cannot drift from the other option tables.
+// the switch-specific error catalogue (option resolution is the shared
+// `crate::prefix` wrapper over `crate::prefix`, so `switch` cannot
+// drift from the other option tables)
 
 fn double_option(arg: &str, found_name: &str) -> CmdError {
     CmdError::new(format!(
@@ -395,23 +390,26 @@ mod tests {
 
     #[test]
     fn option_table_matches_exact_and_unique_prefix() {
-        // Tcl unambiguous-prefix option matching, via the shared matcher.
-        use crate::prefix::{Lookup, lookup};
-        let l = |arg: &str| lookup(&OPT_NAMES, arg.as_bytes(), false);
-        assert_eq!(l("-exact"), Lookup::Found(0));
-        assert_eq!(l("-glob"), Lookup::Found(1));
-        assert_eq!(l("-e"), Lookup::Found(0)); // unique prefix
-        assert_eq!(l("-g"), Lookup::Found(1));
-        assert_eq!(l("-i"), Lookup::Found(2));
-        assert_eq!(l("-m"), Lookup::Found(3));
-        assert_eq!(l("-n"), Lookup::Found(4));
-        assert_eq!(l("-"), Lookup::Ambiguous); // prefixes all
-        assert_eq!(l("-zzz"), Lookup::None);
-        // The option-list text stays byte-identical to the old inline const
-        // (tclsh: `switch -zzz a b {}`).
+        // Tcl unambiguous-prefix option matching over the shared matcher.
+        // OPT_NAMES = -exact -glob -indexvar -matchvar -nocase -regexp --.
+        use crate::prefix::Resolution;
+        assert_eq!(OPTIONS.resolve(b"-exact"), Resolution::Exact(0));
+        assert_eq!(OPTIONS.resolve(b"-glob"), Resolution::Exact(1));
+        assert_eq!(OPTIONS.resolve(b"-e"), Resolution::UniquePrefix(0));
+        assert_eq!(OPTIONS.resolve(b"-g"), Resolution::UniquePrefix(1));
+        assert_eq!(OPTIONS.resolve(b"-i"), Resolution::UniquePrefix(2));
+        assert_eq!(OPTIONS.resolve(b"-m"), Resolution::UniquePrefix(3));
+        assert_eq!(OPTIONS.resolve(b"-n"), Resolution::UniquePrefix(4));
+        assert_eq!(OPTIONS.resolve(b"-"), Resolution::Ambiguous); // prefixes all
+        assert_eq!(OPTIONS.resolve(b"-zzz"), Resolution::NoMatch);
+        // The generated errors keep switch's exact tclsh message text.
+        let Err(e) = OPTIONS.index_of_str("-badopt") else {
+            panic!("-badopt must not resolve");
+        };
         assert_eq!(
-            crate::prefix::lookup_error(&OPT_NAMES, "option", "-zzz", Lookup::None).message(),
-            r#"bad option "-zzz": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --"#
+            e.message(),
+            "bad option \"-badopt\": must be -exact, -glob, -indexvar, \
+             -matchvar, -nocase, -regexp, or --"
         );
     }
 

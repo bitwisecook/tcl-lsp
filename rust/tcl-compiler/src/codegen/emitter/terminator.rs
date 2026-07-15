@@ -437,6 +437,7 @@ mod tests {
             true_target: tgt(&cfg, "tt"),
             false_target: tgt(&cfg, "ft"),
             span: None,
+            condition_base: None,
         };
         ctx.emit_term(&cfg, &term, Some("other"));
         assert_eq!(ctx.instructions[0].op, Op::JUMP4);
@@ -457,6 +458,7 @@ mod tests {
             true_target: tgt(&cfg, "tt"),
             false_target: tgt(&cfg, "ft"),
             span: None,
+            condition_base: None,
         };
         ctx.emit_term(&cfg, &term, Some("other"));
         assert_eq!(ctx.instructions[0].op, Op::JUMP4);
@@ -482,6 +484,7 @@ mod tests {
             true_target: tgt(&cfg, "tt"),
             false_target: tgt(&cfg, "ft"),
             span: None,
+            condition_base: None,
         };
         ctx.emit_term(&cfg, &term, Some("tt")); // true is fallthrough
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
@@ -558,6 +561,7 @@ mod tests {
                 true_target: true_tgt,
                 false_target: false_tgt,
                 span: None,
+                condition_base: None,
             }
         }
 

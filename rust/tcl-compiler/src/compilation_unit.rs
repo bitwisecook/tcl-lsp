@@ -407,7 +407,9 @@ impl FunctionUnit {
         let param_set: std::collections::HashSet<&str> =
             params.iter().map(String::as_str).collect();
         sccp.constant_branches
-            .extend(crate::sccp::existence_constant_branches(&cfg, &param_set));
+            .extend(crate::sccp::existence_constant_branches(
+                &cfg, &param_set, registry,
+            ));
         let types = propagate_types(
             &cfg,
             &ssa,

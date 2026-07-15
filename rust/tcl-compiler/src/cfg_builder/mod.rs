@@ -501,17 +501,22 @@ impl CfgBuilder {
             let Some(cmd) = words.first().map(String::as_str) else {
                 continue;
             };
-            match cmd {
-                "append" | "lappend" | "incr" | "lset" | "set" => record(words.get(1), &mut defs),
-                "dict"
-                    if matches!(
-                        words.get(1).map(String::as_str),
-                        Some("set" | "unset" | "incr" | "lappend" | "append" | "update" | "with")
-                    ) =>
+            // Membership is registry-driven: the first-arg writers via
+            // `writes_first_arg_variable`, and the `dict` sub-mutators via
+            // the per-subcommand `VarWrite` role (which includes the
+            // body-carrying `update`/`with` — their bodies write the dict
+            // back on completion, so the substitution is a kill-site).
+            let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+            if registry.writes_first_arg_variable(cmd) {
+                record(words.get(1), &mut defs);
+            } else if words.len() >= 2 {
+                let arg_strs: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+                if registry
+                    .arg_indices_for_role(cmd, &arg_strs, tcl_registry::ArgRole::VarWrite)
+                    .contains(&1)
                 {
                     record(words.get(2), &mut defs);
                 }
-                _ => {}
             }
             // Nested substitutions inside this one (`[set y [incr x]]`).
             for d in Self::builtin_write_defs_from_text(inner) {
@@ -2036,6 +2041,7 @@ mod tests {
                     value: "1".into(),
                 }]),
                 body_span: Span::new(6, 15),
+                condition_base: None,
             }],
             else_body: None,
             else_span: None,

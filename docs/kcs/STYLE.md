@@ -172,7 +172,7 @@ a list of twelve file paths.
 
 **Good** — a KCS note that says "The core and LSP packages share a set
 of position helpers. For the full contract, see [shared
-utilities](../design/contracts/shared-utility-contracts.md)."
+utilities](../design/contracts/shared-utility-contracts-rust.md)."
 
 ### 9. One screen
 

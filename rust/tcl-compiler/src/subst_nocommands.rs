@@ -68,10 +68,11 @@ pub fn subst_nocommands<S: BuildHasher>(
     while i < n {
         let c = bytes[i];
         if c == b'\\' {
-            // Defer to the shared backslash processor for the
-            // single following escape (plus continuation-line and
-            // octal / hex / unicode forms).
-            let j = backslash_end(bytes, i);
+            // Defer to the shared backslash processor for the single
+            // following escape; the canonical extent rule covers the
+            // continuation-line (LF / CR / CRLF) and octal / hex /
+            // unicode forms, so decode always sees one whole escape.
+            let j = tcl_lexer::backslash_escape_end(template, i);
             let decoded = tcl_lexer::backslash_subst(&template[i..j]);
             out.push_str(&decoded);
             i = j;
@@ -144,79 +145,6 @@ pub fn subst_nocommands<S: BuildHasher>(
 
 fn is_name_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
-}
-
-fn backslash_end(bytes: &[u8], start: usize) -> usize {
-    let n = bytes.len();
-    if start + 1 >= n {
-        return n;
-    }
-    let c = bytes[start + 1];
-    match c {
-        b'x' => {
-            let mut j = start + 2;
-            while j < n && j < start + 4 && bytes[j].is_ascii_hexdigit() {
-                j += 1;
-            }
-            if j > start + 2 { j } else { start + 2 }
-        }
-        b'u' => {
-            let mut j = start + 2;
-            while j < n && j < start + 6 && bytes[j].is_ascii_hexdigit() {
-                j += 1;
-            }
-            if j > start + 2 { j } else { start + 2 }
-        }
-        b'U' => {
-            let mut j = start + 2;
-            while j < n && j < start + 10 && bytes[j].is_ascii_hexdigit() {
-                j += 1;
-            }
-            if j > start + 2 { j } else { start + 2 }
-        }
-        b'0'..=b'7' => {
-            let mut j = start + 1;
-            while j < n && j < start + 4 && (b'0'..=b'7').contains(&bytes[j]) {
-                j += 1;
-            }
-            j
-        }
-        b'\n' => {
-            let mut j = start + 2;
-            while j < n && (bytes[j] == b' ' || bytes[j] == b'\t') {
-                j += 1;
-            }
-            j
-        }
-        b'\r' => {
-            let mut j = start + 2;
-            if j < n && bytes[j] == b'\n' {
-                j += 1;
-            }
-            while j < n && (bytes[j] == b' ' || bytes[j] == b'\t') {
-                j += 1;
-            }
-            j
-        }
-        // `\` before any other character: skip the backslash plus the
-        // full width of the following (possibly multi-byte UTF-8)
-        // character. A fixed `start + 2` here would split a multi-byte
-        // char and panic the `&template[i..j]` slice (mirrors the VM's
-        // `subst.rs` `other => 1 + utf8_char_len(other)`).
-        _ => start + 1 + utf8_char_len(c),
-    }
-}
-
-/// Byte width of the UTF-8 character whose leading byte is `first`.
-/// Continuation and invalid leading bytes count as 1 so the caller always
-/// advances. Mirrors `tcl-vm`'s `subst::utf8_char_len`.
-fn utf8_char_len(first: u8) -> usize {
-    match first {
-        0xC0..=0xDF => 2,
-        0xE0..=0xEF => 3,
-        0xF0..=0xF7 => 4,
-        _ => 1,
-    }
 }
 
 fn is_complex_var_name(name: &str) -> bool {
@@ -353,6 +281,24 @@ mod tests {
     fn backslash_x_hex() {
         let m: HashMap<String, String> = HashMap::new();
         assert_eq!(subst_nocommands(r"\x41", &m).as_deref(), Some("A"));
+    }
+
+    #[test]
+    fn backslash_x_hex_capped_at_two_digits() {
+        // Tcl 9 caps `\x` at two hex digits (TclParseBackslash): the rest of
+        // the digit run is literal text.
+        let m: HashMap<String, String> = HashMap::new();
+        assert_eq!(subst_nocommands(r"\x41BC", &m).as_deref(), Some("ABC"));
+    }
+
+    #[test]
+    fn backslash_newline_continuation_collapses_crlf_like_lf() {
+        // A `\<newline>` continuation (LF, CR, or CRLF) plus the whitespace
+        // after it collapses to a single space, matching tclsh.
+        let m: HashMap<String, String> = HashMap::new();
+        assert_eq!(subst_nocommands("a\\\n   b", &m).as_deref(), Some("a b"));
+        assert_eq!(subst_nocommands("a\\\r\n\t b", &m).as_deref(), Some("a b"));
+        assert_eq!(subst_nocommands("a\\\rb", &m).as_deref(), Some("a b"));
     }
 
     #[test]

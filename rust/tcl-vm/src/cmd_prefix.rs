@@ -150,18 +150,22 @@ fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     let s = sv.to_str();
 
-    // The shared `Tcl_GetIndexFromObjStruct` matcher: an exact entry always
-    // wins; otherwise a unique prefix (unless `-exact`); the miss carries C's
-    // exact bad/ambiguous wording (including the empty-string-never-matches
-    // rule, where the old local matcher wrongly resolved `""` against a
-    // one-entry table).
-    let miss = match tcl_cmd_core::prefix::lookup(&table, s.as_bytes(), exact) {
-        tcl_cmd_core::prefix::Lookup::Found(i) => {
-            return ok(Value::string(table[i].clone()));
-        }
-        miss => miss,
+    // The shared `Tcl_GetIndexFromObjStruct` matcher over the runtime
+    // `String` table — `TclPrefixMatchObjCmd` passes the caller's table,
+    // `-message` noun, and `-exact` (as `TCL_EXACT`) straight through. An
+    // exact entry always wins; otherwise a unique prefix (unless `-exact`);
+    // the miss carries C's exact bad/ambiguous wording (including the
+    // empty-string-never-matches rule, where the old local matcher wrongly
+    // resolved `""` against a one-entry table).
+    let options = if exact {
+        tcl_cmd_core::prefix::OptionTable::exact_only(&message, &table)
+    } else {
+        tcl_cmd_core::prefix::OptionTable::abbreviating(&message, &table)
     };
-    let msg = tcl_cmd_core::prefix::lookup_error(&table, &message, &s, miss).into_message();
+    let msg = match options.index_of(s.as_bytes()) {
+        Ok(i) => return ok(Value::string(table[i].clone())),
+        Err(m) => String::from_utf8_lossy(&m).into_owned(),
+    };
     match error_opts {
         // No `-error`: a normal error.
         None => err(msg),

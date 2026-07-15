@@ -738,6 +738,23 @@ fn bug_string_is_bad_option_with_trailing_arg() {
     );
 }
 
+/// A lone `-` (or the empty word) in option position prefixes *both* options,
+/// so C's `Tcl_GetIndexFromObj` reports it as ambiguous, not bad. (Previously
+/// the VM's hand-rolled `len >= 2` prefix test reported `bad option`.)
+#[test]
+fn string_is_dash_and_empty_option_words_are_ambiguous() {
+    // tclsh 8.6.16: ambiguous option "-": must be -strict or -failindex
+    err_eq(
+        "string is integer - 5",
+        "ambiguous option \"-\": must be -strict or -failindex",
+    );
+    // tclsh 8.6.16: same report for the empty word.
+    err_eq(
+        "string is integer \"\" 0",
+        "ambiguous option \"\": must be -strict or -failindex",
+    );
+}
+
 /// BUG: `string is integer -failindex` reports the wrong failure index when the
 /// integer has internal whitespace followed by a non-digit. For `"12 x"` real
 /// tclsh records the failure at the `x` (char index 3); the VM stops at the

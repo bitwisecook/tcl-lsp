@@ -35,9 +35,7 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_compiler::var_scoping::{
-    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
-};
+use tcl_compiler::var_scoping::scope_alias_declaration_indices;
 use tcl_lexer::{LexerConfig, LineIndex, Span};
 use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
@@ -190,7 +188,9 @@ fn collect_declarations_in_region(
             .collect();
 
         // A scoping statement records its declared-name token spans …
-        record_declaration_tokens(head, arg_tokens, &arg_texts, target, visible, found);
+        record_declaration_tokens(
+            registry, head, arg_tokens, &arg_texts, target, visible, found,
+        );
 
         // … and *every* command may carry body-role arguments to recurse
         // into (control-flow blocks, `namespace eval`, `catch`, …).
@@ -203,9 +203,14 @@ fn collect_declarations_in_region(
     }
 }
 
-/// Record the visible declaration-name token spans for a single `global`
-/// / `variable` / `upvar` / `namespace upvar` command into `found`.
+/// Record the visible declaration-name token spans for a single
+/// scope-alias command (`global` / `variable` / `upvar` /
+/// `namespace upvar` / `my variable`) into `found`.  Recognition and the
+/// per-form argument grammar come from the registry-driven
+/// [`scope_alias_declaration_indices`] (the navigation flavour of the
+/// shared `var_scoping` recogniser), never a head-name list here.
 fn record_declaration_tokens(
+    registry: &CommandRegistry,
     head: &str,
     arg_tokens: &[tcl_lexer::Token],
     arg_texts: &[String],
@@ -213,16 +218,7 @@ fn record_declaration_tokens(
     visible: &[Span],
     found: &mut DeclSpans,
 ) {
-    let indices = match head {
-        "global" => global_declaration_indices(arg_texts),
-        "variable" => variable_declaration_indices(arg_texts),
-        // `upvar …` and the lowered `namespace upvar …` form both
-        // route through the upvar grammar helper.
-        "upvar" | "namespace" => upvar_local_declaration_indices(head, arg_texts),
-        _ => return,
-    };
-
-    for i in indices {
+    for i in scope_alias_declaration_indices(registry, head, arg_texts) {
         let Some(tok) = arg_tokens.get(i) else {
             continue;
         };

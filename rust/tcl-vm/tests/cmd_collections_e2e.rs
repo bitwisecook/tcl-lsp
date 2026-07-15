@@ -973,6 +973,65 @@ fn lsearch_error_paths() {
     );
 }
 
+/// `lsort` option words abbreviate like tclsh's `Tcl_GetIndexFromObj` (flags
+/// 0): an exact match wins, a unique prefix resolves, and a shared prefix —
+/// including the empty word, which prefixes everything — is an *ambiguous*
+/// option. The VM previously demanded exact names (S4.2; probed tclsh 8.6.14,
+/// flags + table order verified in the 9.0.4 source).
+#[test]
+fn lsort_option_abbreviation() {
+    // tclsh: `lsort -uniq {b a b}` → `a b`; `-u` is already unique.
+    assert_eq!(run("lsort -uniq {b a b}").1, "a b");
+    assert_eq!(run("lsort -u {b a b}").1, "a b");
+    // tclsh: `lsort -decr {b a c}` → `c b a`.
+    assert_eq!(run("lsort -decr {b a c}").1, "c b a");
+    // tclsh: a value-taking option abbreviates too (`-inde` → `-index`), and
+    // its missing-value error names the canonical option.
+    assert_eq!(run("lsort -inde 1 {{a 3} {b 1}}").1, "{b 1} {a 3}");
+    let (ok, msg, _) = run("lsort -inde {a b}");
+    assert!(!ok);
+    assert_eq!(msg, "\"-index\" option must be followed by list index");
+    // tclsh: `-d` prefixes both -decreasing and -dictionary.
+    let (ok, msg, _) = run("lsort -d {b a}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "ambiguous option \"-d\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, -stride, or -unique"
+    );
+    // tclsh: the empty word is ambiguous, not bad.
+    let (ok, msg, _) = run("lsort \"\" {b a}");
+    assert!(!ok);
+    assert!(
+        msg.starts_with("ambiguous option \"\": must be"),
+        "got: {msg}"
+    );
+}
+
+/// The same abbreviation rule for `lsearch` (S4.2): `-exa`/`-inl`/`-gl`
+/// resolve; `-in` and the empty word are ambiguous. The enumeration is
+/// tclsh9.0's table (which includes `-stride`).
+#[test]
+fn lsearch_option_abbreviation() {
+    // tclsh: `-exa` → -exact, `-inl` → -inline, `-gl` → -glob.
+    assert_eq!(run("lsearch -exa {a b c} b").1, "1");
+    assert_eq!(run("lsearch -inl {a b c} b").1, "b");
+    assert_eq!(run("lsearch -gl {a b c} b*").1, "1");
+    // tclsh: `-in` prefixes -increasing/-index/-inline/-integer.
+    let (ok, msg, _) = run("lsearch -in {a b} a");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "ambiguous option \"-in\": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices"
+    );
+    // tclsh: the empty word is ambiguous, not bad.
+    let (ok, msg, _) = run("lsearch \"\" {a b} a");
+    assert!(!ok);
+    assert!(
+        msg.starts_with("ambiguous option \"\": must be"),
+        "got: {msg}"
+    );
+}
+
 // ===========================================================================
 // dict — additional edge / error paths
 // ===========================================================================

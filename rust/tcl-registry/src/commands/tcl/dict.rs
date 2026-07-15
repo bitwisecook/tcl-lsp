@@ -332,6 +332,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unset",
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",
@@ -514,14 +515,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
-        // `HAS_DESTRUCTIVE_OPS`: the `unset` subform removes keys
-        // (`DictUnsetCmd`, tclDictObj.c) — see the `destructive` flag on
-        // the `unset` subcommand.
+        // The `unset` subform removes keys (`DictUnsetCmd`, tclDictObj.c) —
+        // `FIRE_AND_FORGET_TEARDOWN` and the `destructive` flag live on
+        // that subcommand.
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CSE_CANDIDATE
-            | Traits::NEVER_INLINE_BODY
-            | Traits::HAS_DESTRUCTIVE_OPS,
+            | Traits::NEVER_INLINE_BODY,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

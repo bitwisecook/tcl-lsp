@@ -1032,6 +1032,14 @@ pub fn range_with_cu_and_classes_and_roles(
 /// [`legend_token_modifiers`]).
 type Entry = (u32, u32, u32, TokenKind, u32);
 
+/// The process-wide iRules registry, for the dialect-independent
+/// `when EVENT` overlay ([`special_arg_kinds`]) — resolved once so the
+/// per-command fallback lookup skips `registry_for_dialect`'s cache mutex.
+fn irules_registry() -> &'static CommandRegistry {
+    static IRULES: std::sync::OnceLock<&'static CommandRegistry> = std::sync::OnceLock::new();
+    IRULES.get_or_init(|| tcl_registry::registry_for_dialect("f5-irules"))
+}
+
 /// True when `s` looks like an iRules event name (`^[A-Z][A-Z0-9_]+$`).
 fn is_event_name(s: &str) -> bool {
     let bytes = s.as_bytes();
@@ -1294,8 +1302,18 @@ fn special_arg_kinds(
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
 
-    // `when EVENT` — the literal event-name argument.
-    if head == "when"
+    // `when EVENT` — the literal event-name argument.  Event handlers come
+    // from the registry's `IS_EVENT_HANDLER` trait; the event name is the
+    // first argument, the same convention the completion provider's
+    // event-name surface uses for the trait.  The overlay is deliberately
+    // dialect-independent — iRules snippets are routinely opened in generic
+    // Tcl buffers, and `when EVENT` was event-coloured there long before the
+    // trait dispatch — so a head the document registry does not know is
+    // resolved against the cached iRules registry before giving up.
+    if registry
+        .get(head)
+        .or_else(|| irules_registry().get(head))
+        .is_some_and(|s| s.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER))
         && let (Some(tok), Some(text)) = (seg.argv.get(1), seg.texts.get(1))
         && matches!(tok.kind, TokenType::Esc)
         && is_event_name(text)
@@ -1306,9 +1324,21 @@ fn special_arg_kinds(
     insert_regex_overrides(seg, registry, head, &mut overrides);
     insert_format_overrides(seg, &mut overrides);
 
-    // `proc NAME …` — the name argument is a function definition.
-    if head == "proc"
-        && let Some(tok) = seg.argv.get(1)
+    // `proc NAME …` — the name argument is a function definition.  Procedure
+    // definers come from the registry's `DEFINES_PROCEDURE` trait; a spec
+    // that also carries a `definition_body` grammar is a *class* definer
+    // (`oo::class` & co.), whose name argument is claimed by
+    // `insert_definer_class_name_override` instead.  The name position is
+    // the spec's `ArgRole::Name` argument.
+    if let Some(spec) = registry.get(head)
+        && spec
+            .traits
+            .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
+        && spec.definition_body.is_none()
+        && let Some(&name_idx) = registry
+            .arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Name)
+            .first()
+        && let Some(tok) = seg.argv.get(name_idx + 1)
     {
         overrides
             .entry(tok.span.start())

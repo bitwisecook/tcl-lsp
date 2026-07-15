@@ -127,71 +127,6 @@ fn eval_subst(vm: &mut Vm, inner: &str) -> Result<Value, TclError> {
 }
 
 /// The `subst` command: perform variable, command, and backslash substitution
-/// Byte length of the UTF-8 character whose leading byte is `first`
-/// (defensively 1 for a continuation/invalid byte).
-fn utf8_char_len(first: u8) -> usize {
-    match first {
-        0xC0..=0xDF => 2,
-        0xE0..=0xEF => 3,
-        0xF0..=0xF7 => 4,
-        // ASCII (0x00..=0x7F) and continuation / invalid leading bytes.
-        _ => 1,
-    }
-}
-
-/// Length in bytes of the single Tcl backslash escape starting at `b[i]`
-/// (which must be `\`). Mirrors reference Tcl's `TclParseBackslash` extent so
-/// the substitution loop advances past exactly one escape — including the
-/// multi-byte forms (`\xHH…`, `\uHHHH`, `\UHHHHHHHH`, octal `\ooo`, the
-/// `\<newline><whitespace>` line continuation) and a `\` before a multi-byte
-/// UTF-8 character. (`tcl_syntax::backslash::decode` then decodes that slice.)
-#[allow(clippy::many_single_char_names)] // b/i/j/k/n index the byte scan, mirroring C Tcl's TclParseBackslash.
-fn backslash_escape_len(b: &[u8], i: usize) -> usize {
-    let n = b.len();
-    if i + 1 >= n {
-        return 1; // trailing backslash → literal `\`
-    }
-    match b[i + 1] {
-        b'x' => {
-            // `\x` + every following hex digit (Tcl reads them all).
-            let mut j = i + 2;
-            while j < n && b[j].is_ascii_hexdigit() {
-                j += 1;
-            }
-            if j == i + 2 { 2 } else { j - i } // bare `\x` → literal `x`
-        }
-        b'u' | b'U' => {
-            let max = if b[i + 1] == b'u' { 4 } else { 8 };
-            let mut j = i + 2;
-            let mut k = 0;
-            while j < n && k < max && b[j].is_ascii_hexdigit() {
-                j += 1;
-                k += 1;
-            }
-            if k == 0 { 2 } else { j - i } // bare `\u`/`\U` → literal letter
-        }
-        b'0'..=b'7' => {
-            // Octal: up to three octal digits (the leading one is b[i+1]).
-            let mut j = i + 1;
-            let mut k = 0;
-            while j < n && k < 3 && (b'0'..=b'7').contains(&b[j]) {
-                j += 1;
-                k += 1;
-            }
-            j - i
-        }
-        b'\n' => {
-            // Line continuation: `\`, newline, then leading horizontal space.
-            let mut j = i + 2;
-            while j < n && (b[j] == b' ' || b[j] == b'\t') {
-                j += 1;
-            }
-            j - i
-        }
-        other => 1 + utf8_char_len(other),
-    }
-}
-
 /// on `s` (each independently switchable). Returns the substituted string.
 ///
 /// `subst` gives embedded command substitutions special control-flow handling,
@@ -215,15 +150,14 @@ pub fn subst_command(
     while i < n {
         match b[i] {
             b'\\' if backslashes => {
-                // Decode exactly one backslash escape and advance past it.
-                // Slicing a fixed two bytes here split a UTF-8 char boundary
-                // when a multi-byte character followed the backslash (panic),
-                // and mis-handled the multi-byte escape forms (`\xHH`,
-                // `\uHHHH`, `\UHHHHHHHH`, octal, line continuation).
-                let len = backslash_escape_len(b, i);
-                let decoded = tcl_syntax::backslash::decode(&s[i..i + len]);
-                out.push_str(&decoded);
-                i += len;
+                // Decode exactly one backslash escape and advance past it. The
+                // extent is the canonical `TclParseBackslash` rule (Tcl 9 caps
+                // `\x` at two hex digits; the `\<newline>` continuation — LF,
+                // CR, or CRLF — absorbs the following spaces/tabs), so the
+                // decode always sees one whole escape.
+                let end = tcl_syntax::backslash::escape_end(s, i);
+                out.push_str(&tcl_syntax::backslash::decode(&s[i..end]));
+                i = end;
             }
             b'[' if commands => {
                 // An unclosed `[` is a parse error reported before the bracket
@@ -327,9 +261,9 @@ pub(crate) fn subst_scan_step(vm: &mut Vm, st: &mut SubstState) -> SubstStep {
     while i < n {
         match b[i] {
             b'\\' if st.backslashes => {
-                let len = backslash_escape_len(b, i);
-                out.push_str(&tcl_syntax::backslash::decode(&template[i..i + len]));
-                i += len;
+                let end = tcl_syntax::backslash::escape_end(&template, i);
+                out.push_str(&tcl_syntax::backslash::decode(&template[i..end]));
+                i = end;
             }
             b'[' if st.commands => {
                 let Some(end) = command_end(b, i) else {
@@ -429,9 +363,9 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
     while i < n {
         match b[i] {
             b'\\' => {
-                let len = backslash_escape_len(b, i);
-                out.push_str(&tcl_syntax::backslash::decode(&idx[i..i + len]));
-                i += len;
+                let end = tcl_syntax::backslash::escape_end(idx, i);
+                out.push_str(&tcl_syntax::backslash::decode(&idx[i..end]));
+                i = end;
             }
             b'[' => {
                 let end =
@@ -624,7 +558,37 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{command_end, whole_braced};
+    use super::{command_end, subst_command, whole_braced};
+    use crate::interp::Vm;
+
+    /// `subst_command` with only backslash substitution enabled.
+    fn subst_backslashes(template: &str) -> String {
+        let mut vm = Vm::new();
+        subst_command(&mut vm, template, true, false, false).expect("subst")
+    }
+
+    #[test]
+    fn subst_hex_escape_consumes_exactly_two_digits() {
+        // Tcl 9 caps `\x` at two hex digits (`TclParseBackslash`): `\x41BC`
+        // is `A` + literal `BC`, never a wider code point or the 8.x
+        // last-two-digits reading.
+        assert_eq!(subst_backslashes(r"\x41BC"), "ABC");
+        assert_eq!(subst_backslashes(r"\x4142"), "A42");
+    }
+
+    #[test]
+    fn subst_backslash_newline_collapses_crlf_like_lf() {
+        // `\<LF>`, `\<CR>`, and `\<CRLF>` each collapse — together with the
+        // spaces/tabs after the newline — to a single space, matching what C
+        // Tcl produces for a continuation (`TclParseBackslash`, with CRLF
+        // normalised the way its channel layer would).
+        assert_eq!(subst_backslashes("a\\\n   b"), "a b");
+        assert_eq!(subst_backslashes("a\\\r\n\t b"), "a b");
+        assert_eq!(subst_backslashes("a\\\rb"), "a b");
+        // FP guard: `\\` is an escaped backslash, so the newline after it is
+        // real content, not a continuation.
+        assert_eq!(subst_backslashes("x\\\\\r\ny"), "x\\\r\ny");
+    }
 
     #[test]
     fn command_end_finds_matching_bracket() {

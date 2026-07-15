@@ -525,6 +525,7 @@ mod tests {
             true_target: true_t,
             false_target: false_t,
             span: Some(span),
+            condition_base: None,
         });
         b
     }
@@ -559,6 +560,7 @@ mod tests {
             true_target: t,
             false_target: e,
             span: Some(cond_span),
+            condition_base: None,
         });
         cfg.blocks.insert(t, ret_block("t"));
         cfg.blocks.insert(e, ret_block("e"));
@@ -605,6 +607,7 @@ mod tests {
             true_target: t,
             false_target: e,
             span: Some(cond_span),
+            condition_base: None,
         });
         cfg.blocks.insert(t, ret_block("t"));
         cfg.blocks.insert(e, ret_block("e"));
@@ -720,6 +723,7 @@ mod tests {
             true_target: mid,
             false_target: after,
             span: Some(Span::new(3, 7)), // "{$x}"
+            condition_base: None,
         });
         cfg.blocks
             .insert(mid, branch_block("mid", literal("1"), folded_span, t, e));
@@ -780,6 +784,7 @@ mod tests {
             true_target: t,
             false_target: e,
             span: Some(Span::new(3, 7)),
+            condition_base: None,
         });
         cfg.blocks.insert(t, ret_block("t"));
         cfg.blocks.insert(e, ret_block("e"));
@@ -816,6 +821,7 @@ mod tests {
             true_target: t,
             false_target: e,
             span: Some(cond_span),
+            condition_base: None,
         });
         cfg.blocks.insert(t, ret_block("t"));
         cfg.blocks.insert(e, ret_block("e"));

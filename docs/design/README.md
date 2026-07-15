@@ -314,13 +314,12 @@ are its rules, and what are the failure modes". One contract per file.
 - [registry-contract-tests.md](contracts/registry-contract-tests.md) —
   the language-agnostic registry shape contract, golden fixtures, and the
   front-end-driven tests that validate them (including the `rust` branch).
-- [shared-utility-contracts.md](contracts/shared-utility-contracts.md) —
-  shared helper ownership across core and LSP.
 - [shared-utility-contracts-rust.md](contracts/shared-utility-contracts-rust.md)
-  — the Rust workspace's shared-utility owners (`tcl-syntax` grammars,
-  `tcl-lexer` backslash decode, `tcl-cmd-core` namespace byte-ops /
-  prefix matcher / error catalogue, `tcl-core-types` vocabulary), the
-  no-re-derivation rule, and the documented exceptions.
+  — the Rust workspace's shared-utility owners (`tcl-syntax` grammars and
+  switch-body tokeniser, `tcl-lexer` backslash decode, `tcl-cmd-core`
+  namespace byte-ops / prefix matcher + `OptionTable` wrapper / error
+  catalogue, `tcl-compiler` text similarity, `tcl-core-types`
+  vocabulary), the no-re-derivation rule, and the documented exceptions.
 - [core-lsp-shared-utility.md](contracts/core-lsp-shared-utility.md) — the
   single home for logic that otherwise drifts between features/passes
   (offset mapping, proc lookup, package ranking, event context,

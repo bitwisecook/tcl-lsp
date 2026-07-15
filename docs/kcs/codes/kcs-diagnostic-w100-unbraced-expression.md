@@ -19,6 +19,10 @@ Why does the analyser warn about an unbraced expression in `expr`, `if`, or `whi
 
 Unbraced expressions undergo double substitution, which can execute arbitrary code and prevents byte-compilation. Bracing the expression makes it safe, predictable, and faster.
 
+## Why is it sometimes an error?
+
+The warning escalates to **Error** severity when the unbraced expression provably contains a substitution (`$var` or `[cmd]`). An unbraced expression with a substitution is evaluated twice at runtime — once by the Tcl parser and once by the consuming command — which changes behaviour and can execute attacker-controlled text. Without a substitution the finding is style-only and stays a Warning.
+
 ## Symptoms
 
 - A yellow squiggle appears under the expression argument, with the message "unbraced expr body".

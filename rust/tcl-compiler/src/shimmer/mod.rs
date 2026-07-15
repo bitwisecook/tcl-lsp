@@ -194,6 +194,7 @@ pub fn find_shimmer_warnings_for_cu(
 #[must_use]
 pub fn find_thunking_warnings_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
 ) -> Vec<ThunkingWarning> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
@@ -202,6 +203,7 @@ pub fn find_thunking_warnings_for_cu(
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            registry,
             cu.method_instance_vars(&fu.name),
         ));
     }
@@ -218,9 +220,17 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<BlockId>,
+    registry: &CommandRegistry,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<ThunkingWarning> {
-    thunking::find_thunking_warnings(cfg, ssa, types, executable_blocks, extra_scope_aliases)
+    thunking::find_thunking_warnings(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        registry,
+        extra_scope_aliases,
+    )
 }
 
 /// Find shared-value copy-on-write warnings (S103) for a single function.
@@ -361,6 +371,7 @@ mod tests {
                 &ssa,
                 &types,
                 &sccp.executable_blocks,
+                &registry(),
                 None::<&HashSet<String>>
             )
             .is_empty()

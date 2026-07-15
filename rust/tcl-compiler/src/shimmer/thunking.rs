@@ -265,6 +265,18 @@ fn loop_self_referential(ssa: &SsaFunction, loop_block_set: &HashSet<String>, sy
     })
 }
 
+/// The SSA/type/def-map inputs [`per_loop_type_span`] reads, bundled so the
+/// lookup can be shared between the S102 thunking pass (via [`ThunkCtx`])
+/// and the S101 phi pass (via its own `PhiCtx`) without either threading
+/// the other's whole context.
+pub(super) struct DefSpanLookup<'a> {
+    pub(super) ssa: &'a SsaFunction,
+    pub(super) types: &'a HashMap<ValueKey, TypeLattice>,
+    pub(super) empty_by_name: &'a HashMap<Symbol, HashSet<Version>>,
+    pub(super) def_map: &'a HashMap<ValueKey, Span>,
+    pub(super) destructure: &'a HashSet<String>,
+}
+
 /// Best-effort in-loop span for a `(Symbol, TclType)` pair: the earliest def
 /// of `sym` typed exactly `t` among `loop_block_set`'s own statements
 /// (destructure-foreach blocks excluded, matching [`per_loop_body_types`]'s
@@ -275,21 +287,21 @@ fn loop_self_referential(ssa: &SsaFunction, loop_block_set: &HashSet<String>, sy
 /// the oscillating code the developer needs to look at. `None` when no
 /// in-loop def produced that type (the oscillation was detected purely from
 /// the header phi's own direct incoming edges).
-fn per_loop_type_span(
-    ctx: &ThunkCtx<'_>,
+pub(super) fn per_loop_type_span(
+    look: &DefSpanLookup<'_>,
     loop_block_set: &HashSet<String>,
     sym: Symbol,
     target: TclType,
 ) -> Option<Span> {
-    let name_to_id = ssa_name_to_id(ctx.ssa);
+    let name_to_id = ssa_name_to_id(look.ssa);
     let mut best: Option<Span> = None;
     for lbn in loop_block_set {
-        if ctx.destructure.contains(lbn) {
+        if look.destructure.contains(lbn) {
             continue;
         }
         let Some(lssa) = name_to_id
             .get(lbn.as_str())
-            .and_then(|id| ctx.ssa.blocks.get(id))
+            .and_then(|id| look.ssa.blocks.get(id))
         else {
             continue;
         };
@@ -297,21 +309,21 @@ fn per_loop_type_span(
             let Some(&ver) = s.defs.get(&sym) else {
                 continue;
             };
-            if ctx
+            if look
                 .empty_by_name
                 .get(&sym)
                 .is_some_and(|set| set.contains(&ver))
             {
                 continue;
             }
-            let matches_target = ctx
+            let matches_target = look
                 .types
                 .get(&(sym, ver))
                 .is_some_and(|t| t.kind == TypeKind::Known && t.tcl_type == Some(target));
             if !matches_target {
                 continue;
             }
-            let Some(&sp) = ctx.def_map.get(&(sym, ver)) else {
+            let Some(&sp) = look.def_map.get(&(sym, ver)) else {
                 continue;
             };
             best = Some(match best {
@@ -321,6 +333,19 @@ fn per_loop_type_span(
         }
     }
     best
+}
+
+impl<'a> ThunkCtx<'a> {
+    /// The [`DefSpanLookup`] view of this context.
+    fn def_span_lookup(&self) -> DefSpanLookup<'a> {
+        DefSpanLookup {
+            ssa: self.ssa,
+            types: self.types,
+            empty_by_name: self.empty_by_name,
+            def_map: self.def_map,
+            destructure: self.destructure,
+        }
+    }
 }
 
 /// Identify the loop-header blocks of `cfg` by name.
@@ -472,7 +497,7 @@ fn classify_thunking_phi(
     // purely from the header's own two direct incoming edges).
     let span = [type_b, type_a]
         .into_iter()
-        .find_map(|t| per_loop_type_span(ctx, this_loop, phi.name, t))
+        .find_map(|t| per_loop_type_span(&ctx.def_span_lookup(), this_loop, phi.name, t))
         .unwrap_or_else(|| phi_span(phi, ctx.ssa, ctx.def_map));
     let related: Vec<_> = phi
         .incoming
@@ -544,7 +569,7 @@ fn classify_intra_iteration_thunk(
     let (type_a, type_b) = (sorted[0], sorted[1]);
     let span = [type_b, type_a]
         .into_iter()
-        .find_map(|t| per_loop_type_span(ctx, this_loop, phi.name, t))
+        .find_map(|t| per_loop_type_span(&ctx.def_span_lookup(), this_loop, phi.name, t))
         .unwrap_or_else(|| phi_span(phi, ctx.ssa, ctx.def_map));
     let related: Vec<_> = phi
         .incoming
@@ -588,6 +613,7 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<BlockId>,
+    registry: &tcl_registry::CommandRegistry,
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<ThunkingWarning> {
     let loop_blocks = loop_body_blocks(cfg);
@@ -604,7 +630,7 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     // in this body, plus the caller-supplied implicit set (a method's
     // class-declared instance variables, which never appear as statements
     // in the method's own CFG).
-    let mut scope_aliases = crate::optimiser::elimination::scan_scope_aliases(cfg);
+    let mut scope_aliases = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
     if let Some(extra) = extra_scope_aliases {
         scope_aliases.extend(extra.iter().cloned());
     }
@@ -679,6 +705,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "unexpected thunking warnings: {w:?}");
@@ -700,6 +727,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "sibling loops must not thunk: {w:?}");
@@ -720,6 +748,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "accumulator promotion must not thunk: {w:?}");
@@ -742,6 +771,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert_eq!(w.len(), 1, "intra-iteration oscillation must thunk: {w:?}");
@@ -766,6 +796,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -789,6 +820,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "uniform self-reference must not thunk: {w:?}");
@@ -804,6 +836,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty());
@@ -819,6 +852,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "unexpected thunking: {w:?}");
@@ -843,6 +877,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         let has_thunking = w
@@ -870,6 +905,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert_eq!(w.len(), 1, "expected exactly one S102 warning: {w:?}");
@@ -903,6 +939,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -931,6 +968,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -958,6 +996,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -987,6 +1026,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(w.is_empty(), "traced variable must not thunk: {w:?}");
@@ -1012,6 +1052,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(
@@ -1036,6 +1077,7 @@ mod tests {
             &fu.ssa,
             &fu.types,
             &fu.sccp.executable_blocks,
+            &registry(),
             None::<&HashSet<String>>,
         );
         assert!(

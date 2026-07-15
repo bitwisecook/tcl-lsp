@@ -217,6 +217,12 @@ fn describe_step_shape(arity: Arity) -> String {
 /// `{*}`-expansion abstention as E002: an expanded tail's true final
 /// count is unknowable, so a merely-in-range lower bound proves nothing
 /// about its parity either.
+///
+/// `usage` is the resolved spec's primary synopsis; when present it is
+/// appended to every verdict as a " — usage: …" suffix so the message
+/// shows the expected call shape, not just the counts. Callers with no
+/// registry spec (same-file procs, `TclOO` constructors/methods, `apply`
+/// lambdas) pass `None` and keep the count-only message.
 pub(super) fn arity_verdict(
     display_name: &str,
     arity: Arity,
@@ -224,7 +230,9 @@ pub(super) fn arity_verdict(
     positional_any_expand: bool,
     span: tcl_lexer::Span,
     excess: Option<ExcessArgs>,
+    usage: Option<&str>,
 ) -> Option<crate::analyser::types::Diagnostic> {
+    let usage_suffix = usage.map(|u| format!(" — usage: {u}")).unwrap_or_default();
     let min = usize::from(arity.min);
     let max = usize::from(arity.max);
     // `also_exact` is valid regardless of `min`/`max`/`step` — checked
@@ -242,7 +250,8 @@ pub(super) fn arity_verdict(
             code: DiagCode::E002,
             span,
             message: format!(
-                "Too few arguments for '{display_name}': expected at least {min}, got {nargs_min}"
+                "Too few arguments for '{display_name}': expected at least {min}, \
+got {nargs_min}{usage_suffix}"
             ),
             severity: Severity::Error,
             fixes: Vec::new(),
@@ -268,7 +277,8 @@ pub(super) fn arity_verdict(
             code: DiagCode::E003,
             span: e003_span,
             message: format!(
-                "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
+                "Too many arguments for '{display_name}': expected at most {max}, \
+got {nargs_min}{usage_suffix}"
             ),
             severity: Severity::Error,
             fixes,
@@ -281,7 +291,8 @@ pub(super) fn arity_verdict(
             code: DiagCode::E005,
             span,
             message: format!(
-                "Wrong argument-count shape for '{display_name}': expected {}, got {nargs_min}",
+                "Wrong argument-count shape for '{display_name}': expected {}, \
+got {nargs_min}{usage_suffix}",
                 describe_step_shape(arity)
             ),
             severity: Severity::Error,
@@ -1140,6 +1151,7 @@ impl Analyser {
             positional_any_expand,
             full_span,
             excess,
+            sig.synopsis,
         ) {
             self.pending_arity
                 .push((resolution_name.to_string(), ns, enforce_order, diag));
@@ -1217,6 +1229,7 @@ impl Analyser {
             positional_any_expand,
             full_span,
             excess,
+            None,
         ) {
             let ns = self.command_resolution_namespace(scope_path);
             let enforce_order = !self.scope_path_in_proc_body(scope_path);
@@ -1353,6 +1366,7 @@ impl Analyser {
                 cand.positional_any_expand,
                 cand.full_span,
                 excess,
+                None,
             ) {
                 self.result.diagnostics.push(diag);
             }
@@ -1451,6 +1465,7 @@ impl Analyser {
                             cand.positional_any_expand,
                             cand.full_span,
                             None,
+                            None,
                         ) {
                             diags.push(diag);
                         }
@@ -1492,6 +1507,7 @@ impl Analyser {
                     cand.nargs_min,
                     cand.positional_any_expand,
                     cand.full_span,
+                    None,
                     None,
                 ) {
                     diags.push(diag);
@@ -1573,6 +1589,7 @@ impl Analyser {
                     cand.nargs_min,
                     cand.positional_any_expand,
                     cand.full_span,
+                    None,
                     None,
                 ) {
                     diags.push(diag);
@@ -2470,6 +2487,14 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
     /// **IRULE2002.** Warn when a deprecated iRules command is used —
     /// the command's spec carries a `deprecated_replacement`.  Only fires
     /// under the `f5-irules` dialect.
+    ///
+    /// When the spec additionally marks the replacement as a drop-in
+    /// rename (`deprecated_replacement_drop_in` — the replacement accepts
+    /// the same argument list, e.g. `client_addr` → `IP::client_addr`),
+    /// the diagnostic carries a quick fix swapping exactly the command
+    /// head token for the replacement name.  Non-mechanical replacements
+    /// (`ip_addr` → `IP::addr … mask …`, `use pool` → `pool`, prose like
+    /// `"(removed)"`) keep the message-only warning.
     pub(in crate::analyser) fn emit_irule2002_deprecated_command(
         &mut self,
         cmd_name: &str,
@@ -2478,20 +2503,27 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         if self.dialect != "f5-irules" {
             return;
         }
-        let Some(replacement) = self
-            .registry
-            .as_ref()
-            .and_then(|r| r.get(cmd_name))
-            .and_then(|s| s.deprecated_replacement)
-        else {
+        let Some(spec) = self.registry.as_ref().and_then(|r| r.get(cmd_name)) else {
             return;
+        };
+        let Some(replacement) = spec.deprecated_replacement else {
+            return;
+        };
+        let fixes = if spec.deprecated_replacement_drop_in {
+            vec![super::types::CodeFix {
+                span: cmd_tok.span,
+                new_text: replacement.to_string(),
+                description: format!("Replace with '{replacement}'"),
+            }]
+        } else {
+            Vec::new()
         };
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::Irule2002,
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is deprecated in iRules. Use '{replacement}' instead."),
             severity: Severity::Warning,
-            fixes: Vec::new(),
+            fixes,
         });
     }
 

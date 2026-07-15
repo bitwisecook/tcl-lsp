@@ -29,12 +29,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "close",
-        // `HAS_DESTRUCTIVE_OPS`: `Tcl_CloseObjCmd` (tclIOCmd.c) unregisters
+        // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_CloseObjCmd` (tclIOCmd.c) unregisters
         // and frees the channel — a second `close` on the same handle errors
         // ("can not find channel named …"), which is why a bare
         // `catch {close $h}` is the documented fire-and-forget idiom the
         // W302 suppression keys off this trait.
-        traits: Traits::BYTE_COMPILED | Traits::HAS_DESTRUCTIVE_OPS,
+        traits: Traits::BYTE_COMPILED | Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),

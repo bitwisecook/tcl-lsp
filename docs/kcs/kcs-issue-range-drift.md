@@ -56,4 +56,4 @@ Range fidelity depends on preserving source `Range` from lowering through CFG/SS
 - [compiler KCS index](README.md)
 - [diagnostics integration](../../docs/design/compiler/diagnostics-integration.md)
 - [pass/fact ownership matrix](../../docs/design/compiler/pass-fact-ownership-matrix.md)
-- [shared utility contracts](../../docs/design/contracts/shared-utility-contracts.md)
+- [shared utility contracts](../../docs/design/contracts/shared-utility-contracts-rust.md)

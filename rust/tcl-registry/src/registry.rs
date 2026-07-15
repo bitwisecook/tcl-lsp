@@ -37,6 +37,13 @@ use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
 
+/// The trait union defining a **frame-sensitive** command — see
+/// [`CommandRegistry::is_frame_sensitive`].
+const FRAME_SENSITIVE_TRAITS: Traits = Traits::TERMINATES_BLOCK
+    .union(Traits::TRANSFERS_CONTROL)
+    .union(Traits::CREATES_SCOPE_ALIAS)
+    .union(Traits::CREATES_BARRIER);
+
 /// Resolved metadata for an iRules event — the result of
 /// [`CommandRegistry::event_info`].
 #[derive(Debug, Clone)]
@@ -731,6 +738,39 @@ impl CommandRegistry {
             .collect()
     }
 
+    /// Whether `name` **writes or modifies** the variable named by its
+    /// first argument (`set` / `append` / `lappend` / `incr` / `lset`):
+    /// [`Traits::FIRST_ARG_VARNAME`] minus the destroy-only `unset`
+    /// ([`Traits::DESTROYS_VARIABLE`]).
+    ///
+    /// The single membership query for the write-command consumers —
+    /// loop-bound checks, dead-store cancellation, embedded-script def
+    /// collection, catch-body out-vars — which previously each kept a
+    /// hardcoded (and mutually inconsistent) name set.
+    #[must_use]
+    pub fn writes_first_arg_variable(&self, name: &str) -> bool {
+        self.get(name).is_some_and(|s| {
+            s.traits.contains(Traits::FIRST_ARG_VARNAME)
+                && !s.traits.contains(Traits::DESTROYS_VARIABLE)
+        })
+    }
+
+    /// Whether `name` **read-modify-writes** the variable named by its
+    /// first argument (`append` / `lappend` / `incr` / `lset` — not the
+    /// whole-value `set`): [`Traits::FIRST_ARG_VARNAME`] ∧
+    /// [`Traits::READS_BEFORE_WRITE`].
+    ///
+    /// Drives the minifier's RMW target protection: a name-compaction
+    /// must not rename a variable whose current value an RMW command is
+    /// about to fold into, while a plain `set` target is rename-safe.
+    #[must_use]
+    pub fn rmw_first_arg_variable(&self, name: &str) -> bool {
+        self.get(name).is_some_and(|s| {
+            s.traits.contains(Traits::FIRST_ARG_VARNAME)
+                && s.traits.contains(Traits::READS_BEFORE_WRITE)
+        })
+    }
+
     /// Whether `name` is a core Tcl built-in carrying the
     /// [`Traits::BYTE_COMPILED`] trait — i.e. the minifier must not
     /// rewrite this command head to a `$var` alias.  Checks every
@@ -840,6 +880,67 @@ impl CommandRegistry {
             specs
                 .iter()
                 .any(|s| s.traits.contains(Traits::IS_SIDE_SWITCH))
+        })
+    }
+
+    /// Whether `name` is **frame-sensitive**: its meaning depends on the
+    /// frame or scope it executes in, so moving a call across a proc
+    /// boundary (inlining it into a caller) changes behaviour.  The union
+    /// of the block-unwinding ([`Traits::TERMINATES_BLOCK`]),
+    /// control-transferring ([`Traits::TRANSFERS_CONTROL`]),
+    /// scope-aliasing ([`Traits::CREATES_SCOPE_ALIAS`]), and
+    /// barrier-creating ([`Traits::CREATES_BARRIER`]) traits.  Like
+    /// [`Self::is_byte_compiled`], checks every spec registered under the
+    /// name.  Drives the inline-proc code action's safety decline and the
+    /// negative half of [`Self::is_splice_safe`].
+    #[must_use]
+    pub fn is_frame_sensitive(&self, name: &str) -> bool {
+        self.by_name.get(name).is_some_and(|specs| {
+            specs
+                .iter()
+                .any(|s| s.traits.intersects(FRAME_SENSITIVE_TRAITS))
+        })
+    }
+
+    /// Every command name that is frame-sensitive ([`Self::is_frame_sensitive`]),
+    /// for consumers that scan text for any member of the set (the
+    /// inline-proc code action's body check) rather than querying one
+    /// resolved head.
+    #[must_use]
+    pub fn frame_sensitive_commands(&self) -> Vec<&str> {
+        self.by_name
+            .iter()
+            .filter_map(|(name, specs)| {
+                specs
+                    .iter()
+                    .any(|s| s.traits.intersects(FRAME_SENSITIVE_TRAITS))
+                    .then_some(name.as_str())
+            })
+            .collect()
+    }
+
+    /// Whether `name` is **splice-safe**: a call to it can be lifted out of
+    /// a wrapper proc and spliced into any caller's frame without changing
+    /// observable behaviour.  A splice-safe command is fully lowered
+    /// ([`Traits::FRAMELESS_RUNTIME`] — it never falls back to the
+    /// interpreter, so it needs no frame) **and** frame-independent: not
+    /// frame-sensitive ([`Self::is_frame_sensitive`]) and not operating on
+    /// variables by name ([`Traits::FIRST_ARG_VARNAME`] writers,
+    /// [`Traits::FRAME_HASH_BUILTIN`] hash-bucket binders, and
+    /// [`Traits::DYNAMIC_EVAL_BODY`] body evaluators all observe the frame
+    /// they run in).  Drives the inliner's verbatim-splice eligibility;
+    /// membership is pinned by `splice_safe_membership` in
+    /// `tests/registry_commands.rs`.
+    #[must_use]
+    pub fn is_splice_safe(&self, name: &str) -> bool {
+        self.get(name).is_some_and(|s| {
+            s.traits.contains(Traits::FRAMELESS_RUNTIME)
+                && !s.traits.intersects(
+                    FRAME_SENSITIVE_TRAITS
+                        .union(Traits::FIRST_ARG_VARNAME)
+                        .union(Traits::FRAME_HASH_BUILTIN)
+                        .union(Traits::DYNAMIC_EVAL_BODY),
+                )
         })
     }
 
@@ -2566,6 +2667,33 @@ mod tests {
             ),
             vec![4],
         );
+    }
+
+    #[test]
+    fn writes_first_arg_variable_membership() {
+        let reg = CommandRegistry::build_default();
+        // TP: the five first-arg writers.
+        for cmd in ["set", "append", "lappend", "incr", "lset"] {
+            assert!(reg.writes_first_arg_variable(cmd), "{cmd} writes arg 0");
+        }
+        // FP guards: `unset` destroys (not a write); value-taking and
+        // unknown commands are out.
+        for cmd in ["unset", "puts", "llength", "foreach", "nosuchcmd"] {
+            assert!(!reg.writes_first_arg_variable(cmd), "{cmd} must not match");
+        }
+    }
+
+    #[test]
+    fn rmw_first_arg_variable_membership() {
+        let reg = CommandRegistry::build_default();
+        // TP: read-modify-write commands fold the current value in.
+        for cmd in ["append", "lappend", "incr", "lset"] {
+            assert!(reg.rmw_first_arg_variable(cmd), "{cmd} is RMW");
+        }
+        // FP guards: a whole-value `set` is rename-safe; `unset` destroys.
+        for cmd in ["set", "unset", "puts", "nosuchcmd"] {
+            assert!(!reg.rmw_first_arg_variable(cmd), "{cmd} must not match");
+        }
     }
 
     #[test]

@@ -197,6 +197,14 @@ pub fn resolve_alias(
 ///
 /// Returns both the qualified keys (`::=`) and stripped short names
 /// (`=`) so callers matching against bare command words get a hit.
+///
+/// The literal `"expr"` target match stays name-keyed for now: the
+/// consumers are the registry-less lowering fast paths
+/// (`extract_single_expr_arg` behind `LoweringHookId::Return` / `Set`),
+/// whose shared `dispatch_lowering_hook` signature deliberately carries
+/// no registry.  Routing this through `EXPR_CONCATENATES_ARGS` means
+/// threading a registry through that public dispatch table — tracked
+/// migration debt rather than a semantic choice.
 #[must_use]
 pub fn expr_alias_names(aliases: &CommandAliasMap) -> HashSet<String> {
     let mut result = HashSet::new();

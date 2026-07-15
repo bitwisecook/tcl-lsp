@@ -68,9 +68,20 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
         return None;
     }
     let expr = parse_expr(&cmd.args[0], None);
+    // Anchor the expression text absolutely when the arg word's content is
+    // a verbatim source slice (see `word_content_base`) so consumers can map
+    // expression-AST leaf offsets to source operand spans.
+    let expr_base = cmd.tokens.as_ref().and_then(|t| {
+        crate::lowering_hooks::word_content_base(
+            *t.argv.get(1)?,
+            t.single_token_word.get(1).copied().unwrap_or(false),
+            &cmd.args[0],
+        )
+    });
     Some(Statement::ExprEval {
         span: cmd.span,
         expr,
+        expr_base,
     })
 }
 
@@ -117,7 +128,7 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
                     .and_then(|s| s.strip_suffix(']'))
                     .unwrap_or(&cmd.args[0]);
                 let alias_names = expr_alias_names(aliases);
-                if let Some(expr_arg) = extract_single_expr_arg(inner, &alias_names) {
+                if let Some((expr_arg, _)) = extract_single_expr_arg(inner, &alias_names) {
                     expr = Some(parse_expr(&expr_arg, None));
                 }
             }

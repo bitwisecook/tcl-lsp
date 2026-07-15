@@ -170,6 +170,7 @@ fn expand_if(
             Ok(IfClause {
                 condition: c.condition.clone(),
                 condition_span: c.condition_span,
+                condition_base: c.condition_base,
                 body: expand_script(&c.body, templates, depth)?,
                 body_span: c.body_span,
             })

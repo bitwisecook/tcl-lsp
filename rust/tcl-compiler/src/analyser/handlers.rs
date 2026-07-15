@@ -517,6 +517,38 @@ impl Analyser {
         }
     }
 
+    /// **W218.** `args` declared anywhere but the final parameter position
+    /// is an ordinary parameter named `args` — C Tcl sets `VAR_IS_ARGS`
+    /// only on the last formal (`tclProc.c`), so the variadic
+    /// collect-the-rest meaning is silently lost.  Anchors at the
+    /// parameter's own name span; `fallback_tok` is used when the name
+    /// span could not be recovered.  Shared by the `proc`, `apply`, and
+    /// OO-method param walks.
+    pub(super) fn emit_w218_args_not_final(
+        &mut self,
+        params: &[crate::signature_scan::types::ParamDef],
+        param_spans: &[tcl_lexer::Span],
+        fallback_tok: Token,
+    ) {
+        let Some(last) = params.len().checked_sub(1) else {
+            return;
+        };
+        for (i, p) in params.iter().enumerate() {
+            if i == last || p.name != "args" {
+                continue;
+            }
+            let span = param_spans.get(i).copied().unwrap_or(fallback_tok.span);
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W218,
+                span,
+                message: "`args` here is an ordinary parameter — it only has its special                           collect-the-rest meaning as the final parameter. Move it last, or                           rename it if a plain parameter is intended."
+                    .to_string(),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
     /// Handle a `proc name params body` definition: record the procedure
     /// (name, parameter list, body, and harvested doc-comment) in the
     /// analysis result and run per-parameter trait inference. Returns `true`
@@ -637,6 +669,7 @@ impl Analyser {
                     param_spans.get(i).copied(),
                 );
             }
+            self.emit_w218_args_not_final(&params, &param_spans, params_tok);
 
             // Save / restore last_comment around the body walk so
             // a doc-comment inside the proc body doesn't bleed to
@@ -829,6 +862,7 @@ impl Analyser {
                 param_spans.get(i).copied(),
             );
         }
+        self.emit_w218_args_not_final(&params, &param_spans, params_tok);
 
         // Save / restore last_comment around the body walk, as `proc` does, so a
         // doc-comment inside the lambda body doesn't bleed to what follows.
@@ -1281,10 +1315,22 @@ impl Analyser {
             self.analyse_body(&args[0], body_tok, scope_path);
             self.conditional_depth -= 1;
         }
-        // Result var (args[1]) and options var (args[2]).
-        for (i, name) in args.iter().enumerate().take(3).skip(1) {
-            if let Some(tok) = arg_tokens.get(i) {
-                self.define_var(name, *tok, scope_path, false, None);
+        // The result-var / options-var positions come from the registry's
+        // `ArgRole::VarWrite` rows on the `catch` spec, matching the nested
+        // `[catch …]` path in `dispatch_nested_segment`. The literal spec
+        // name is sound here: `AnalyserHookId::Catch` dispatch already
+        // resolved the head (qualified spellings included) to this spec.
+        if let Some(registry) = self.registry.as_ref() {
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            for i in registry.arg_indices_for_role(
+                "catch",
+                &arg_strs,
+                tcl_registry::arg_role::ArgRole::VarWrite,
+            ) {
+                if let (Some(name), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
+                    let name = name.clone();
+                    self.define_var(&name, *tok, scope_path, false, None);
+                }
             }
         }
         true
@@ -2222,7 +2268,8 @@ impl Analyser {
         }
     }
 
-    /// Record `regexp` / `regsub` pattern arguments for syntax
+    /// Record the pattern arguments of regex-pattern commands
+    /// (`PatternType::Regex` specs — `regexp` / `regsub`) for syntax
     /// highlighting.
     ///
     /// Literal patterns (`Esc` / `Str` tokens) are recorded
@@ -3554,6 +3601,8 @@ mod tests {
     #[test]
     fn handle_catch_with_result_var_defines_it() {
         let mut a = Analyser::new();
+        // The binding positions come from the registry's VarWrite roles.
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         a.handle_catch_command(
             &["body".to_string(), "res".to_string()],
             &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
@@ -3565,6 +3614,7 @@ mod tests {
     #[test]
     fn handle_catch_with_options_var_defines_both() {
         let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::CommandRegistry::build_default());
         a.handle_catch_command(
             &["body".to_string(), "res".to_string(), "opts".to_string()],
             &[

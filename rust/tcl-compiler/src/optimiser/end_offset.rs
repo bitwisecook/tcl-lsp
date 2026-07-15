@@ -185,7 +185,7 @@ fn emit_for_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
         if idx_tok.kind != TokenType::Cmd {
             continue;
         }
-        let Some(expr_arg) = expr_arg_from_command_word(&cmd.texts[pos]) else {
+        let Some(expr_arg) = expr_arg_from_command_word(&cmd.texts[pos], ctx.registry) else {
             continue;
         };
         let Some((kind, length_arg, offset)) = try_end_offset_from_length_expr(&expr_arg) else {
@@ -239,14 +239,27 @@ fn end_offset_command_shape(texts: &[String]) -> Option<(Vec<usize>, usize, Leng
 
 /// Return the single `expr` argument of a `[expr <arg>]` command word, or
 /// `None` for anything else. The word text is the verbatim `[…]`
-/// substitution.
-fn expr_arg_from_command_word(word: &str) -> Option<String> {
+/// substitution; the head is recognised via the registry's
+/// `EXPR_CONCATENATES_ARGS` trait, not a name match.
+fn expr_arg_from_command_word(
+    word: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> Option<String> {
     let inner = word.strip_prefix('[').and_then(|s| s.strip_suffix(']'))?;
     let cmds = segment_commands_with_offset(inner, 0);
     let [cmd] = cmds.as_slice() else {
         return None;
     };
-    if cmd.texts.len() != 2 || cmd.texts[0] != "expr" {
+    if cmd.texts.len() != 2 {
+        return None;
+    }
+    let head_is_expr = registry
+        .and_then(|r| r.get(&cmd.texts[0]))
+        .is_some_and(|s| {
+            s.traits
+                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+        });
+    if !head_is_expr {
         return None;
     }
     Some(cmd.texts[1].clone())
@@ -323,16 +336,20 @@ mod tests {
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&reg);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
 
     /// The replacement and the exact source slice the rewrite targets.
     fn o128_rewrite(source: &str) -> Option<(String, String)> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&reg);
         run(&mut ctx, &cu);
         let opt = ctx
             .optimisations

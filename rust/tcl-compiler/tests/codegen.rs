@@ -178,6 +178,7 @@ fn emit_binop(op: BinOp) -> Vec<Op> {
         name: "r".into(),
         name_braced: false,
         expr,
+        expr_base: None,
     }]);
     opcodes(&codegen_function(&cfg, &[], false, &registry()))
 }
@@ -198,6 +199,7 @@ fn emit_unaryop(op: UnaryOp) -> Vec<Op> {
         name: "r".into(),
         name_braced: false,
         expr,
+        expr_base: None,
     }]);
     opcodes(&codegen_function(&cfg, &[], false, &registry()))
 }
