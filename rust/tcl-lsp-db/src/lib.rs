@@ -1396,6 +1396,31 @@ pub struct CheckSolve {
 ///   same delta `rebase_function_unit` applies in the whole-module build, since
 ///   `function_checks` returns offset-0 spans).
 ///
+/// Rebase one memoised offset-0 check onto its procedure's `body_offset` —
+/// the [`proc_taint_solve`] twin of the whole-module build's
+/// `rebase_function_unit` delta.
+///
+/// The diagnostic's own span rebases only when real: the `(0, 0)` "unknown
+/// span" sentinel (an O100 constant branch whose `cb.span` is `None`) renders
+/// to `(0, 0)` in *both* paths — the whole-module build rebases the
+/// `Option<Span>` (so `None` stays `None`) *before* the `None → (0,0)`
+/// lowering, so the offset must not be added here.  A fix's edit span is
+/// always a real location on the offset-0 unit (never the sentinel), so it
+/// rebases unconditionally — the same parity `compiler_checks::shift` keeps
+/// on the whole-module path.  No per-function check carries fixes today, but
+/// the first one that gains a quick fix must not silently edit at an
+/// unrebased offset.
+fn rebase_check(mut d: CompilerCheck, body_offset: u32) -> CompilerCheck {
+    if d.span.start() != 0 || d.span.end() != 0 {
+        d.span = tcl_lexer::Span::new(d.span.start() + body_offset, d.span.end() + body_offset);
+    }
+    for fix in &mut d.fixes {
+        fix.span =
+            tcl_lexer::Span::new(fix.span.start() + body_offset, fix.span.end() + body_offset);
+    }
+    d
+}
+
 /// Byte-identical to a bare `run_all_checks`, guarded by the `compiler_check`
 /// corpus differential + the debug fixpoint guard.
 #[salsa::tracked]
@@ -1457,11 +1482,12 @@ pub fn proc_taint_solve<'db>(
     );
 
     // Per-procedure non-taint checks.  The memoised [`function_checks`] returns
-    // **offset-0** spans (it runs on the offset-0 `function_lattice` unit), so we
-    // add the procedure's `body_offset` here — the same rebase the whole-module
-    // build's `rebase_function_unit` applies.  A proc without a lattice key (e.g.
-    // the top level, or a complexity-guarded body) falls back to the direct
-    // per-function computation on the *already-rebased* built unit (no offset add).
+    // **offset-0** spans (it runs on the offset-0 `function_lattice` unit), so
+    // [`rebase_check`] adds the procedure's `body_offset` here — the same rebase
+    // the whole-module build's `rebase_function_unit` applies.  A proc without a
+    // lattice key (e.g. the top level, or a complexity-guarded body) falls back
+    // to the direct per-function computation on the *already-rebased* built unit
+    // (no offset add).
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
     for fu in cu.analysable_functions() {
         match lattice_keys.get(&fu.name) {
@@ -1471,34 +1497,11 @@ pub fn proc_taint_solve<'db>(
                     .procedures
                     .get(&fu.name)
                     .map_or(0, |p| p.span.start());
-                for d in function_checks(db, key).iter() {
-                    let mut d = d.clone();
-                    // Rebase real spans by the procedure's offset, but leave the
-                    // `(0, 0)` "unknown span" sentinel alone: a spanless check (an
-                    // O100 constant branch whose `cb.span` is `None`) renders to
-                    // `(0, 0)` in *both* paths — the whole-module build rebases the
-                    // `Option<Span>` (so `None` stays `None`) *before* the
-                    // `None → (0,0)` lowering, so the offset must not be added here.
-                    if d.span.start() != 0 || d.span.end() != 0 {
-                        d.span = tcl_lexer::Span::new(
-                            d.span.start() + body_offset,
-                            d.span.end() + body_offset,
-                        );
-                    }
-                    // A fix's edit span is always a real location on the offset-0
-                    // unit (never the sentinel), so it rebases unconditionally —
-                    // the same parity `compiler_checks::shift` keeps on the
-                    // whole-module path. No per-function check carries fixes
-                    // today, but the first one that gains a quick fix must not
-                    // silently edit at an unrebased offset.
-                    for fix in &mut d.fixes {
-                        fix.span = tcl_lexer::Span::new(
-                            fix.span.start() + body_offset,
-                            fix.span.end() + body_offset,
-                        );
-                    }
-                    fn_checks.push(d);
-                }
+                fn_checks.extend(
+                    function_checks(db, key)
+                        .iter()
+                        .map(|d| rebase_check(d.clone(), body_offset)),
+                );
             }
             None => {
                 // The built unit's fallback fus (complexity-guarded / top level)
