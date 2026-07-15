@@ -89,6 +89,26 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
 /// what to resolve `name` as. They are bare (value-less) flags; declaring them
 /// lets the arity check skip them so `exact(1)` counts only the trailing `name`
 /// (catching `namespace which foo bar`), and lights up their completion/hover.
+/// `namespace which ?-command|-variable? name` — the sole positional `name`
+/// resolves as a command unless `-variable` (any unique prefix) selects a
+/// variable.  So it is a `CommandName` reference in the default / `-command`
+/// form and a `VarRead` reference under `-variable`.  `args` are the words
+/// after the `which` subcommand.
+fn namespace_which_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let Some(idx) = args.iter().rposition(|a| !a.starts_with('-')) else {
+        return Vec::new();
+    };
+    let is_variable = args
+        .iter()
+        .any(|a| a.len() > 1 && "-variable".starts_with(*a));
+    let role = if is_variable {
+        ArgRole::VarRead
+    } else {
+        ArgRole::CommandName
+    };
+    u8::try_from(idx).map_or_else(|_| Vec::new(), |i| vec![(i, role)])
+}
+
 static WHICH_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-command",
@@ -334,6 +354,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Looks up name as either a command or variable.",
         synopsis: "namespace which ?-command? ?-variable? name",
         options: WHICH_OPTIONS,
+        arg_role_resolver: Some(namespace_which_arg_roles),
         pure: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT

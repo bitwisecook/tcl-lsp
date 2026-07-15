@@ -138,6 +138,20 @@ fn references_proc_named_in_info_body_include_the_introspection_site() {
 }
 
 #[test]
+fn references_proc_named_in_namespace_which_command() {
+    // `namespace which -command greet` resolves the command `greet` by name —
+    // a reference, so Find-All-References from the declaration includes it.
+    let src = "proc greet {} {}\nnamespace which -command greet\n";
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![0, 1],
+        "decl + the `namespace which` site expected; got {refs:?}",
+    );
+}
+
+#[test]
 fn references_proc_named_in_trace_add_execution_include_the_trace_site() {
     // `trace add execution PROC …` names the traced command; it is a
     // reference, so Find-All-References from the declaration includes the

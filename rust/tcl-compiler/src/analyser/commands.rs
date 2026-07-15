@@ -630,7 +630,7 @@ impl Analyser {
                 false
             }
             Hook::NamespaceEnsemble => {
-                self.handle_namespace_ensemble(args, scope_path);
+                self.handle_namespace_ensemble(args, arg_tokens, scope_path);
                 false
             }
             Hook::InterpAlias => {
@@ -1213,12 +1213,40 @@ impl Analyser {
         }
     }
 
+    /// Record a **command reference** — a command named as data rather than
+    /// invoked with a fixed argument list at this span (an `info body` target,
+    /// a `forward` / ensemble `-map` target, an expression math function).
+    /// `written` is the head as it appears, `span` its token, `resolved` the
+    /// qualified command it denotes; [`Self::finalise_invocation_resolutions`]
+    /// recovers the namespace from the `(written, resolved)` pair and settles
+    /// the candidate list, so a rename rewrites only the written token.  `argc`
+    /// is the call-site argument count for arity checking, or `None` when the
+    /// site merely names the command.
+    pub(in crate::analyser) fn push_command_reference(
+        &mut self,
+        written: String,
+        span: Span,
+        resolved: String,
+        argc: Option<usize>,
+    ) {
+        self.result.command_invocations.push(
+            crate::signature_scan::types::SignatureCommandInvocation {
+                name: written,
+                range: span,
+                resolved_qualified_name: Some(resolved),
+                resolution_candidates: Vec::new(),
+                argc,
+                callback_arity: None,
+                callback_baked_args: 0,
+            },
+        );
+    }
+
     /// Record each [`tcl_registry::arg_role::ArgRole::CommandName`] argument as
     /// a command invocation: a bare command name held as data (`info body
     /// PROC`, `info args PROC`, `info default PROC …`) that navigation must
-    /// reach, but which is *not* invoked here — so it carries no call arity
-    /// (`argc` / `callback_arity` stay `None`).  A dynamic word (`info body
-    /// $p`) names no static command and is skipped.
+    /// reach, but which is *not* invoked here — so it carries no call arity.
+    /// A dynamic word (`info body $p`) names no static command and is skipped.
     fn record_command_name_invocations(
         &mut self,
         cmd_name: &str,
@@ -1243,17 +1271,7 @@ impl Analyser {
                 continue;
             }
             let resolved = self.resolve_command_qualified_name(name, scope_path);
-            self.result.command_invocations.push(
-                crate::signature_scan::types::SignatureCommandInvocation {
-                    name: name.clone(),
-                    range: tok.span,
-                    resolved_qualified_name: Some(resolved),
-                    resolution_candidates: Vec::new(),
-                    argc: None,
-                    callback_arity: None,
-                    callback_baked_args: 0,
-                },
-            );
+            self.push_command_reference(name.clone(), tok.span, resolved, None);
         }
     }
 
@@ -1744,17 +1762,7 @@ impl Analyser {
     fn record_expr_function_invocations(&mut self, expr_tok: Token) {
         for (name, span, argc) in self.expr_function_calls(expr_tok) {
             let resolved = format!("::tcl::mathfunc::{name}");
-            self.result.command_invocations.push(
-                crate::signature_scan::types::SignatureCommandInvocation {
-                    name,
-                    range: span,
-                    resolved_qualified_name: Some(resolved),
-                    resolution_candidates: Vec::new(),
-                    argc: Some(argc),
-                    callback_arity: None,
-                    callback_baked_args: 0,
-                },
-            );
+            self.push_command_reference(name, span, resolved, Some(argc));
         }
     }
 

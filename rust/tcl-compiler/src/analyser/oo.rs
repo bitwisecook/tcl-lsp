@@ -338,20 +338,10 @@ impl Analyser {
                 && let (Some(target), Some(tok)) = (cmd.texts.get(2), cmd.argv.get(2))
                 && !crate::naming::is_dynamic_word(target)
             {
+                // A forwarded command is invoked with a variable number of args
+                // appended, so it carries no fixed call arity.
                 let resolved = self.resolve_command_qualified_name(target, scope_path);
-                self.result.command_invocations.push(
-                    crate::signature_scan::types::SignatureCommandInvocation {
-                        name: target.clone(),
-                        range: tok.span,
-                        resolved_qualified_name: Some(resolved),
-                        resolution_candidates: Vec::new(),
-                        // A forwarded command is invoked with a variable number
-                        // of args appended, so it carries no fixed call arity.
-                        argc: None,
-                        callback_arity: None,
-                        callback_baked_args: 0,
-                    },
-                );
+                self.push_command_reference(target.clone(), tok.span, resolved, None);
             }
             if let Some(mb) = collect_method_body(grammar, &cmd.texts, &cmd.argv) {
                 method_bodies.push(mb);

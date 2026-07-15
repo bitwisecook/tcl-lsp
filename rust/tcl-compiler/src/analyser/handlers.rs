@@ -1173,7 +1173,12 @@ impl Analyser {
     /// (stamped on `namespace`'s `ensemble` subcommand); `args[0]` is
     /// still the subcommand word, and only the `create` form (checked
     /// on `args[1]`) mutates anything.
-    pub fn handle_namespace_ensemble(&mut self, args: &[String], scope_path: &[usize]) {
+    pub fn handle_namespace_ensemble(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
         if args.len() < 2 {
             return;
         }
@@ -1184,7 +1189,7 @@ impl Analyser {
         if !ns.is_empty() && ns != "::" {
             self.ensemble_namespaces.insert(ns.clone());
         }
-        let ns_prefix = ns.trim_start_matches(':');
+        let ns_prefix = ns.trim_start_matches(':').to_owned();
 
         let dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect);
         let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
@@ -1196,24 +1201,93 @@ impl Analyser {
             .unwrap_or_default();
 
         let opts = &args[2..];
+        let opt_tokens = arg_tokens.get(2..).unwrap_or(&[]);
         let mut i = 0usize;
         while i < opts.len() {
             let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
                 i += 1;
                 continue;
             };
-            if spec.name == "-command"
-                && let Some(value) = opts.get(i + 1)
-            {
-                // A dynamic value (`$var` / `[cmd]`) can't be resolved
-                // statically — leave it unrecorded, same convention as
-                // every other literal-only command-name extraction in
-                // this module.
-                if !(value.is_empty() || value.starts_with('$') || value.starts_with('[')) {
-                    self.ensemble_namespaces.insert(qualify(ns_prefix, value));
+            let value = opts.get(i + 1);
+            let value_tok = opt_tokens.get(i + 1).copied();
+            match spec.name {
+                // `-command NAME` names the ensemble command — its namespace
+                // is recorded so `<ns> sub` calls resolve.  A dynamic value
+                // (`$var` / `[cmd]`) can't be resolved statically.
+                "-command" => {
+                    if let Some(value) = value
+                        && !value.is_empty()
+                        && !value.starts_with('$')
+                        && !value.starts_with('[')
+                    {
+                        self.ensemble_namespaces.insert(qualify(&ns_prefix, value));
+                    }
                 }
+                // `-map {sub target sub target …}` — every *target* (an
+                // odd-indexed element) is a command the ensemble dispatches to,
+                // recorded so it is reached by references / definition / rename.
+                "-map" => {
+                    if let (Some(value), Some(tok)) = (value, value_tok) {
+                        self.record_ensemble_map_targets(value, tok, scope_path);
+                    }
+                }
+                // `-subcommands {a b c}` — each subcommand `a` dispatches to
+                // the command `<ns>::a` in the ensemble's namespace.
+                "-subcommands" => {
+                    if let (Some(value), Some(tok)) = (value, value_tok) {
+                        self.record_ensemble_subcommands(value, tok, &ns_prefix);
+                    }
+                }
+                _ => {}
             }
             i += 1 + spec.value_word_count(opts, i);
+        }
+    }
+
+    /// The `(element, span)` pairs of a whitespace-separated list word, with
+    /// each element's span located inside the token's content (`content_offset`
+    /// skips the opening delimiter).  Shared by the ensemble `-map` /
+    /// `-subcommands` extraction; a dynamic element is left for the caller to
+    /// skip.
+    fn list_word_elements(list_text: &str, tok: Token) -> Vec<(String, Span)> {
+        let content_start = tok.span.start() + u32::from(tok.content_offset);
+        let mut out = Vec::new();
+        let mut search_start = 0usize;
+        for elem in list_text.split_whitespace() {
+            if let Some(rel) = list_text[search_start..].find(elem) {
+                let idx = search_start + rel;
+                let start = content_start + u32::try_from(idx).unwrap_or(0);
+                let end = start + u32::try_from(elem.len()).unwrap_or(0);
+                out.push((elem.to_owned(), Span::new(start, end)));
+                search_start = idx + elem.len();
+            }
+        }
+        out
+    }
+
+    /// Record every `-map` target (the odd elements of the `sub target …`
+    /// list) as a command reference resolved in the caller's namespace.
+    fn record_ensemble_map_targets(&mut self, list_text: &str, tok: Token, scope_path: &[usize]) {
+        for (idx, (elem, span)) in Self::list_word_elements(list_text, tok)
+            .into_iter()
+            .enumerate()
+        {
+            if idx % 2 == 1 && !crate::naming::is_dynamic_word(&elem) {
+                let resolved = self.resolve_command_qualified_name(&elem, scope_path);
+                self.push_command_reference(elem, span, resolved, None);
+            }
+        }
+    }
+
+    /// Record each `-subcommands` name as a reference to the command
+    /// `<ns>::<name>` the ensemble maps it to.
+    fn record_ensemble_subcommands(&mut self, list_text: &str, tok: Token, ns_prefix: &str) {
+        for (elem, span) in Self::list_word_elements(list_text, tok) {
+            if crate::naming::is_dynamic_word(&elem) {
+                continue;
+            }
+            let resolved = qualify(ns_prefix, &elem);
+            self.push_command_reference(elem, span, resolved, None);
         }
     }
 
@@ -3513,7 +3587,7 @@ mod tests {
             .global_scope
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
-        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[0]);
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[], &[0]);
         assert!(a.ensemble_namespaces.contains("::myns"));
     }
 
@@ -3534,6 +3608,7 @@ mod tests {
                 "-command".to_string(),
                 "::ens".to_string(),
             ],
+            &[],
             &[0],
         );
         assert!(a.ensemble_namespaces.contains("::myns"));
@@ -3557,6 +3632,7 @@ mod tests {
                 "-command".to_string(),
                 "ens".to_string(),
             ],
+            &[],
             &[0],
         );
         assert!(a.ensemble_namespaces.contains("::myns::ens"));
@@ -3577,11 +3653,39 @@ mod tests {
                 "-command".to_string(),
                 "$dyn".to_string(),
             ],
+            &[],
             &[0],
         );
         assert_eq!(
             a.ensemble_namespaces,
             std::collections::HashSet::from(["::myns".to_string()])
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_map_and_subcommands_record_command_references() {
+        // `-map {get ::foo::getImpl}` — the odd element is the target command;
+        // `-subcommands {show}` maps `show` to `::foo::show`.  Both become
+        // command references so navigation reaches the implementing procs.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::foo {\n    \
+                   proc getImpl {} {}\n    \
+                   proc show {} {}\n    \
+                   namespace ensemble create -map {get ::foo::getImpl} -subcommands {show}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::foo::getImpl"),
+            "the -map target should be a command reference: {resolved:?}",
+        );
+        assert!(
+            resolved.contains(&"::foo::show"),
+            "the -subcommands name should map to `<ns>::show`: {resolved:?}",
         );
     }
 
@@ -3613,6 +3717,7 @@ mod tests {
                 "-command".to_string(),
                 "::real::target".to_string(),
             ],
+            &[],
             &[0],
         );
         assert_eq!(
@@ -3626,7 +3731,7 @@ mod tests {
     #[test]
     fn handle_namespace_ensemble_global_scope_no_op() {
         let mut a = Analyser::new();
-        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[]);
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[], &[]);
         assert!(a.ensemble_namespaces.is_empty());
     }
 
@@ -3638,7 +3743,7 @@ mod tests {
             .global_scope
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
-        a.handle_namespace_ensemble(&["eval".to_string(), "myns".to_string()], &[0]);
+        a.handle_namespace_ensemble(&["eval".to_string(), "myns".to_string()], &[], &[0]);
         assert!(a.ensemble_namespaces.is_empty());
     }
 
