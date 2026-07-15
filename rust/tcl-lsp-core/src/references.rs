@@ -556,6 +556,34 @@ pub(crate) fn method_references_for_class(
     Some((decl_span, call_spans))
 }
 
+/// Reference spans for `method` on `class_q` **within `source`**, for
+/// cross-document aggregation: every `$obj method` / `my method` call site,
+/// plus the declaration when `include_decl`.  Empty when `class_q` does not
+/// define `method` in this document.
+///
+/// The reference analogue of [`crate::rename::method_spans_in_document`]: the
+/// server calls it per definer document in a method's override family (the
+/// current document is already covered by [`references`]).
+#[must_use]
+pub fn method_reference_spans_in_document(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    include_decl: bool,
+) -> Vec<tcl_lexer::Span> {
+    match method_references_for_class(source, dialect, analysis, class_q, method) {
+        Some((decl, mut calls)) => {
+            if include_decl {
+                calls.push(decl);
+            }
+            calls
+        }
+        None => Vec::new(),
+    }
+}
+
 /// Re-segment each brace-delimited body span in `bodies` and return the
 /// name-token span of every `my <method>` invocation whose method name is
 /// `method`, skipping the token at `skip` (the declaration site, when the

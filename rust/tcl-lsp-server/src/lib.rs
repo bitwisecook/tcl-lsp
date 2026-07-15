@@ -3872,6 +3872,107 @@ impl Backend {
         changes
     }
 
+    /// Cross-document references for a `TclOO` method across its override
+    /// family — the reference analogue of [`Self::cross_file_method_rename`].
+    ///
+    /// Resolves the workspace-wide override family of `(seed_class, method)`,
+    /// then for every *sibling* document that defines a family class collects
+    /// the method's `$obj method` / `my method` call sites (and, when
+    /// `include_declaration`, its declaration), plus the inherited call sites in
+    /// documents holding a purely-inheriting subclass.  The current document is
+    /// excluded — [`Self::references`] already gathers its method sites from the
+    /// single-document provider.  Coverage is bounded the same way rename is: a
+    /// site resolves only in a document the index knows defines or inherits the
+    /// family class.
+    async fn cross_file_method_references(
+        &self,
+        current_uri: &Uri,
+        seed_class: &str,
+        method: &str,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        let by_uri: std::collections::HashMap<String, (Vec<String>, Vec<String>)> = {
+            let index = self.workspace_index.read().await;
+            let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
+                std::collections::HashMap::new();
+            for wc in index.method_override_family(seed_class, method) {
+                m.entry(wc.uri.clone())
+                    .or_default()
+                    .0
+                    .push(wc.qualified_name.clone());
+            }
+            for wc in index.method_inheritor_classes(seed_class, method) {
+                m.entry(wc.uri.clone())
+                    .or_default()
+                    .1
+                    .push(wc.qualified_name.clone());
+            }
+            m
+        };
+        let mut out = Vec::new();
+        for (u, (definers, inheritors)) in by_uri {
+            if u == current_uri.as_str() {
+                continue;
+            }
+            let Ok(parsed) = Uri::from_str(&u) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            let src = target_doc.text.clone();
+            let dialect = target_doc.dialect.clone();
+            let method_owned = method.to_owned();
+            let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
+                let mut all: Vec<tcl_lexer::Span> = Vec::new();
+                for cq in &definers {
+                    all.extend(core_references::method_reference_spans_in_document(
+                        &src,
+                        &dialect,
+                        &analysis,
+                        cq,
+                        &method_owned,
+                        include_declaration,
+                    ));
+                }
+                for cq in &inheritors {
+                    all.extend(core_rename::inherited_method_spans_in_document(
+                        &src,
+                        &dialect,
+                        &analysis,
+                        cq,
+                        &method_owned,
+                    ));
+                }
+                all
+            })
+            .await
+            .unwrap_or_default();
+            let line_index = target_doc.line_index.clone();
+            for span in spans {
+                let start = line_index.position_at_utf16(span.start(), &target_doc.text);
+                let end = line_index.position_at_utf16(span.end(), &target_doc.text);
+                out.push(Location {
+                    uri: parsed.clone(),
+                    range: Range {
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
+                    },
+                });
+            }
+        }
+        out
+    }
+
     /// Add cross-document rename edits for the proc / class at
     /// `pos` into `changes`.  Resolves the symbol, asks the core
     /// rename provider for the namespace-aware sibling-document
@@ -7148,6 +7249,19 @@ impl LanguageServer for Backend {
             .cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
             .await;
         locations.extend(cross);
+        // Cross-document TclOO method sites: when the cursor names a method
+        // (its declaration inside a class body, or an `$obj method` / `my
+        // method` call), gather the method's sites across its override family in
+        // sibling documents — the single-document provider above only sees this
+        // file.
+        if let Some((seed_class, method)) =
+            core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
+        {
+            let method_cross = self
+                .cross_file_method_references(&uri, &seed_class, &method, include_decl)
+                .await;
+            locations.extend(method_cross);
+        }
         dedup_locations(&mut locations);
         if locations.is_empty() {
             return Ok(None);
@@ -17063,6 +17177,150 @@ mod tests {
             dog_lines.contains(&2) && dog_lines.contains(&5),
             "expected `my speak` (l2) + `$d speak` (l5) in dog.tcl; got {:?}",
             changes[&dog],
+        );
+    }
+
+    /// Register `animal.tcl` (`Animal::speak`) and `dog.tcl` (a `Dog` subclass
+    /// that overrides `speak` and calls `$d speak`).  Returns the backend and
+    /// the two URIs.
+    async fn register_method_family_workspace() -> (Backend, Uri, Uri) {
+        let backend = test_backend();
+        let animal = Uri::from_str("file:///animal.tcl").unwrap();
+        let dog = Uri::from_str("file:///dog.tcl").unwrap();
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
+        register(
+            &backend,
+            &dog,
+            "oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\nset d [Dog new]\n$d speak\n",
+        )
+        .await;
+        (backend, animal, dog)
+    }
+
+    #[tokio::test]
+    async fn cross_file_method_references_span_override_family() {
+        // References on `Animal::speak` reach the override declaration and the
+        // `$d speak` call site in the sibling dog.tcl — previously TclOO methods
+        // had no cross-file reference support at all.
+        let (backend, animal, dog) = register_method_family_workspace().await;
+        let refs = backend
+            .cross_file_method_references(&animal, "::Animal", "speak", true)
+            .await;
+        let dog_lines: Vec<u32> = refs
+            .iter()
+            .filter(|l| l.uri == dog)
+            .map(|l| l.range.start.line)
+            .collect();
+        assert!(
+            dog_lines.contains(&2),
+            "override decl (l2) missing: {refs:?}"
+        );
+        assert!(dog_lines.contains(&5), "`$d speak` (l5) missing: {refs:?}");
+        // The current document is excluded — the single-document provider
+        // already covers its own method sites.
+        assert!(
+            refs.iter().all(|l| l.uri != animal),
+            "current document must be excluded: {refs:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn cross_file_method_references_exclude_declaration() {
+        // With `include_declaration` false, the sibling's override *declaration*
+        // (l2) is dropped but the `$d speak` call site (l5) stays.
+        let (backend, animal, dog) = register_method_family_workspace().await;
+        let refs = backend
+            .cross_file_method_references(&animal, "::Animal", "speak", false)
+            .await;
+        let dog_lines: Vec<u32> = refs
+            .iter()
+            .filter(|l| l.uri == dog)
+            .map(|l| l.range.start.line)
+            .collect();
+        assert!(!dog_lines.contains(&2), "decl should be excluded: {refs:?}");
+        assert!(dog_lines.contains(&5), "call site (l5) missing: {refs:?}");
+    }
+
+    #[tokio::test]
+    async fn cross_file_method_references_reach_inheritor_document() {
+        // Dog *inherits* speak (no override) and calls it via `my speak` and
+        // `$d speak` in a document holding no definer.  The inheritor pass must
+        // still reach those sites.
+        let backend = test_backend();
+        let animal = Uri::from_str("file:///animal.tcl").unwrap();
+        let dog = Uri::from_str("file:///dog.tcl").unwrap();
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
+        register(
+            &backend,
+            &dog,
+            "oo::class create Dog {\n    superclass Animal\n    method run {} { my speak }\n}\nset d [Dog new]\n$d speak\n",
+        )
+        .await;
+        let refs = backend
+            .cross_file_method_references(&animal, "::Animal", "speak", false)
+            .await;
+        let dog_lines: Vec<u32> = refs
+            .iter()
+            .filter(|l| l.uri == dog)
+            .map(|l| l.range.start.line)
+            .collect();
+        // `my speak` (l2) and `$d speak` (l5).
+        assert!(dog_lines.contains(&2), "`my speak` (l2) missing: {refs:?}");
+        assert!(dog_lines.contains(&5), "`$d speak` (l5) missing: {refs:?}");
+    }
+
+    #[tokio::test]
+    async fn cross_file_method_references_empty_for_unrelated_method() {
+        // A method name no family class defines yields nothing — no spurious
+        // cross-file sites.
+        let (backend, animal, _dog) = register_method_family_workspace().await;
+        let refs = backend
+            .cross_file_method_references(&animal, "::Animal", "nonexistent", true)
+            .await;
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[tokio::test]
+    async fn references_handler_includes_cross_file_method_sites() {
+        // End-to-end through the `references` handler: the cursor on
+        // `Animal::speak`'s declaration surfaces the override + `$d speak` in
+        // dog.tcl alongside the current document's own sites.
+        let (backend, animal, dog) = register_method_family_workspace().await;
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: animal.clone(),
+                },
+                position: Position::new(1, 11), // on `speak` in Animal's decl
+            },
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let refs = backend
+            .references(params)
+            .await
+            .expect("ok")
+            .expect("some references");
+        assert!(
+            refs.iter().any(|l| l.uri == dog && l.range.start.line == 5),
+            "cross-file `$d speak` (dog.tcl l5) missing: {refs:?}",
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == animal),
+            "current-document declaration missing: {refs:?}",
         );
     }
 
