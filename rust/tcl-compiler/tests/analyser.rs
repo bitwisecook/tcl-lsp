@@ -437,6 +437,21 @@ mod diagnostics {
     }
 
     #[test]
+    fn zipfs_is_a_9_0_ensemble_gated_out_of_earlier_dialects() {
+        // `zipfs` ships in Tcl 9.0 (TIP 430); the 8.x profiles have no such
+        // command.  Under 9.0 a real subcommand resolves cleanly, and a bogus
+        // one is W001 (unknown subcommand) — proving the subcommand set is
+        // modelled.  Under 8.6 the whole command is dialect-gated, so it is
+        // W002 ("disabled in the active dialect profile"), which points the
+        // user at the version rather than a bare "unknown command".
+        assert!(!fires("zipfs mount archive.zip /mnt", "tcl9.0", "W123"));
+        assert!(!fires("zipfs mount archive.zip /mnt", "tcl9.0", "W001"));
+        assert!(!fires("zipfs mount archive.zip /mnt", "tcl9.0", "W002"));
+        assert!(fires("zipfs bogus x", "tcl9.0", "W001"));
+        assert!(fires("zipfs mount archive.zip /mnt", "tcl8.6", "W002"));
+    }
+
+    #[test]
     fn proc_shadowing_ensemble_command_suppresses_w001() {
         // tclsh8.6: `proc string {op args} {...}` completely replaces the
         // builtin `string` ensemble at the call site — `string reverse x`
