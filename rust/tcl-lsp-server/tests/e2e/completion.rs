@@ -607,12 +607,26 @@ fn dollar_completion_uplevel_zero_uses_global_scope() {
 }
 
 #[test]
-fn dollar_completion_uplevel_one_keeps_proc_scope() {
+fn dollar_completion_uplevel_one_abstains_from_proc_scope() {
+    // A non-`#0` `uplevel` body runs in the *caller's* frame (statically
+    // unknown), where the enclosing proc's locals are not accessible.  Unlike
+    // `uplevel #0` (which resolves to the global frame), completion must
+    // abstain on the proc's locals here — offering `$local_var` would suggest a
+    // variable that is not in scope at runtime — while still offering the
+    // body's own declarations.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "proc p {} {\n    set local_var 1\n    uplevel 1 {\n        puts $\n    }\n}\n";
+    let src = "proc p {} {\n    set local_var 1\n    uplevel 1 {\n        set body_var 5\n        puts $\n    }\n}\n";
     lsp.open_ready(&uri, src);
-    assert!(labels(&mut lsp, &uri, 3, 14).contains(&"$local_var".to_owned()));
+    let ls = labels(&mut lsp, &uri, 4, 14);
+    assert!(
+        !ls.contains(&"$local_var".to_owned()),
+        "proc-local must not be offered inside an `uplevel 1` body: {ls:?}"
+    );
+    assert!(
+        ls.contains(&"$body_var".to_owned()),
+        "the uplevel body's own variable should be offered: {ls:?}"
+    );
 }
 
 // -- TestArrayReadOnlyIndices --------------------------------------------

@@ -1327,6 +1327,49 @@ fn non_uplevel_proc_local_still_resolves_locally() {
     );
 }
 
+/// FP-guard: inside a non-`#0` `uplevel N { … }` the body runs in the caller's
+/// frame — statically unknown — so a `$g` it does not itself declare abstains:
+/// it must link neither the enclosing proc-local (a definite mis-attribution)
+/// nor the global (the frame is not necessarily global, unlike `#0`).
+#[test]
+fn uplevel_nonzero_abstains_from_proc_and_global() {
+    let src = "set g 1\nproc p {} {\n    set g 99\n    uplevel 1 { puts $g }\n}\n";
+    let analysis = analyse(src);
+    let line3 = src.lines().nth(3).unwrap();
+    let col = line3.find("$g").unwrap() as u32 + 1; // on the `g`
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        !lines.contains(&2),
+        "uplevel 1 `$g` must NOT link the proc-local (line 2); got {refs:?}"
+    );
+    assert!(
+        !lines.contains(&0),
+        "uplevel 1 `$g` must NOT link the global (line 0) — the frame is unknown; got {refs:?}"
+    );
+}
+
+/// A variable declared *inside* a non-`#0` `uplevel` body resolves to itself
+/// (the abstention drops only the frames outside the body).
+#[test]
+fn uplevel_nonzero_body_local_resolves_within_body() {
+    let src = "proc p {} {\n    uplevel 1 {\n        set h 5\n        puts $h\n    }\n}\n";
+    let analysis = analyse(src);
+    // cursor on `$h` (line 3)
+    let line3 = src.lines().nth(3).unwrap();
+    let col = line3.find("$h").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        lines.contains(&2),
+        "the body's own `set h` (line 2) must be a reference; got {refs:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "the `$h` use (line 3) must be a reference; got {refs:?}"
+    );
+}
+
 // ===================================================================
 // Target selection: rename / references triggered from a bareword
 // CALL SITE must resolve namespace-aware (the proc/class C Tcl would

@@ -992,32 +992,49 @@ impl Analyser {
     /// completion / definition treat it as a global frame and ignore the
     /// proc's locals) and analyse the body there.
     ///
-    /// Returns `true` only for the `#0` (global-frame) form; every other
-    /// `uplevel` form (numeric level, level-relative, or no explicit
-    /// level) falls through to the generic body recursion, which keeps
-    /// the enclosing proc scope.
+    /// Returns `true` for every single-braced-body `uplevel` form; a
+    /// multi-word / non-literal script is left to the generic recursion (the
+    /// W301 injection check already flags that shape).
+    ///
+    /// The frame the body runs in depends on the level word: `#0` is the global
+    /// frame; `N` / `#N` / an implicit level is a *caller* frame that is
+    /// statically unknown.  Either way the body's locals do **not** belong to
+    /// the enclosing proc, so both open an [`ScopeKind::Uplevel`] child scope
+    /// (tagged with the level word so variable resolution can tell global-frame
+    /// from unknown-frame: `#0` resolves outward to the global namespace, a
+    /// non-`#0` level abstains — the true frame can't be named).  Without the
+    /// child scope the body's variables merged into the enclosing proc's
+    /// locals, silently unifying two variables in different frames.
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Uplevel`];
-    /// the `#0` level word is a shape check, not a command name.
+    /// the level word is a shape check, not a command name.
     pub fn handle_uplevel_command(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        // `uplevel #0 SCRIPT` — exactly the global-frame, single-braced
-        // body form.  `uplevel #0` with multiple concatenated script
-        // words is left to the generic recursion (the W301 injection
-        // check already flags that shape).
-        if args.len() != 2 || args[0] != "#0" {
-            return false;
-        }
-        let Some(body_tok) = arg_tokens.get(1).copied() else {
-            return false;
+        // Two literal-body shapes: `uplevel LEVEL {body}` (level word + single
+        // braced body) and `uplevel {body}` (implicit level 1).  A `#0` level
+        // records the global frame; anything else records an unknown caller
+        // frame.  Multi-word scripts (`args.len() > 2`) fall through.
+        let (level_word, body_tok, body_text) = match args.len() {
+            2 => {
+                let Some(bt) = arg_tokens.get(1).copied() else {
+                    return false;
+                };
+                (args[0].clone(), bt, args[1].clone())
+            }
+            1 => {
+                let Some(bt) = arg_tokens.first().copied() else {
+                    return false;
+                };
+                ("1".to_owned(), bt, args[0].clone())
+            }
+            _ => return false,
         };
         if body_tok.kind != TokenType::Str {
             return false;
         }
-        let body_text = args[1].clone();
 
         let path = scope_path.to_vec();
         let child_idx = {
@@ -1025,8 +1042,10 @@ impl Analyser {
             else {
                 return false;
             };
-            let mut child =
-                super::types::Scope::new(super::types::ScopeKind::Uplevel, String::new());
+            // The scope name carries the level word so `lookup_var_in_scope_chain`
+            // can distinguish the `#0` global frame (resolve outward) from a
+            // non-`#0` unknown caller frame (abstain outward).
+            let mut child = super::types::Scope::new(super::types::ScopeKind::Uplevel, level_word);
             child.body_span = Some(body_tok.span);
             parent.children.push(child);
             parent.children.len() - 1
@@ -4684,6 +4703,59 @@ mod tests {
             shallow_traits, deep_traits,
             "deep + shallow should match for top-level-only bodies",
         );
+    }
+
+    #[test]
+    fn uplevel_nonzero_isolates_body_vars_from_proc() {
+        // `uplevel 1 {set x 5}` runs in the caller's frame, not the enclosing
+        // proc's — its `x` must not merge into the proc's locals (they are
+        // different variables), and it lands in an isolated `Uplevel` child
+        // scope tagged with the level word.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc f {} {\n    uplevel 1 {set x 5}\n    set y 1\n}\n",
+            "tcl8.6",
+        );
+        let f_scope = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "f")
+            .expect("f proc scope");
+        assert!(f_scope.variables.contains_key("y"), "y is a proc local");
+        assert!(
+            !f_scope.variables.contains_key("x"),
+            "uplevel body's `x` must not merge into the proc scope",
+        );
+        let up = f_scope
+            .children
+            .iter()
+            .find(|c| c.kind == crate::analyser::ScopeKind::Uplevel)
+            .expect("isolated uplevel scope");
+        assert_eq!(up.name, "1", "the level word tags the frame");
+        assert!(up.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn uplevel_zero_still_resets_to_global_frame() {
+        // `uplevel #0` keeps the global-frame tag so variable resolution
+        // resolves outward to the global namespace (not the caller-frame
+        // abstention a non-`#0` level uses).
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc g {} {\n    uplevel #0 {set z 5}\n}\n", "tcl8.6");
+        let g_scope = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "g")
+            .expect("g proc scope");
+        let up = g_scope
+            .children
+            .iter()
+            .find(|c| c.kind == crate::analyser::ScopeKind::Uplevel)
+            .expect("uplevel scope");
+        assert_eq!(up.name, "#0");
+        assert!(up.variables.contains_key("z"));
     }
 
     // stub-overlay end-to-end

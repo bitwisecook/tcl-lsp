@@ -549,24 +549,41 @@ pub(crate) fn byte_offset_at(
 ///
 /// Descend into the innermost matching child, then walk the
 /// scope chain outward for the var lookup.
+/// Whether an `uplevel` body's frame semantics hide the scope at index `i` of
+/// the resolution `chain` (outermost-first) from the cursor.
+///
+/// Inside `uplevel #0 { … }` the script runs in the **global** frame, so the
+/// enclosing proc's locals are dropped and resolution reaches the
+/// global/namespace variable (a same-named proc-local must not shadow it).
+/// Inside a non-`#0` `uplevel N { … }` the script runs in a **caller** frame
+/// that is statically unknown, so everything *outside* the uplevel body is
+/// dropped — the body's own locals resolve, but a name it does not declare
+/// abstains rather than mis-attributing to the enclosing proc *or* the global
+/// frame (the level word, recorded as the uplevel scope's name, distinguishes
+/// the two).
+fn uplevel_hides_scope(chain: &[&tcl_compiler::analyser::Scope], i: usize) -> bool {
+    use tcl_compiler::analyser::ScopeKind;
+    let Some(up) = chain.iter().rposition(|sc| sc.kind == ScopeKind::Uplevel) else {
+        return false;
+    };
+    if chain[up].name == "#0" {
+        chain[i].kind == ScopeKind::Proc
+    } else {
+        i < up
+    }
+}
+
 pub(crate) fn lookup_var_in_scope_chain<'a>(
     scope: &'a tcl_compiler::analyser::Scope,
     byte_offset: u32,
     name: &str,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
-    use tcl_compiler::analyser::ScopeKind;
     // First, find the innermost scope containing the cursor.
     let chain = scope_chain_at(scope, byte_offset);
-    // Inside an `uplevel #0 { … }` body the script runs in the global frame, so
-    // the enclosing proc's locals are NOT visible — resolving `$g` there must
-    // skip the proc scope and reach the global/namespace `g`, matching
-    // `visible_variable_names`.  Without this guard a same-named proc-local
-    // shadows the global and drives goto-def / hover / references / rename to
-    // the wrong (invisible-at-runtime) variable.
-    let in_uplevel = chain.iter().any(|sc| sc.kind == ScopeKind::Uplevel);
-    // Walk outward (innermost-first) looking for the var.
-    for sc in chain.iter().rev() {
-        if in_uplevel && sc.kind == ScopeKind::Proc {
+    // Walk outward (innermost-first) looking for the var, honouring the
+    // `uplevel` frame semantics (see [`uplevel_hides_scope`]).
+    for (i, sc) in chain.iter().enumerate().rev() {
+        if uplevel_hides_scope(&chain, i) {
             continue;
         }
         if let Some(v) = sc.variables.get(name) {
@@ -685,14 +702,13 @@ pub(crate) fn visible_variable_names(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
 ) -> Vec<String> {
-    use tcl_compiler::analyser::ScopeKind;
     let chain = scope_chain_at(scope, byte_offset);
-    let in_uplevel = chain.iter().any(|sc| sc.kind == ScopeKind::Uplevel);
     let mut names: Vec<String> = Vec::new();
-    for sc in chain.iter().rev() {
-        // In a global frame (`uplevel #0`), skip the enclosing proc's
-        // locals — they are not reachable from the global frame.
-        if in_uplevel && sc.kind == ScopeKind::Proc {
+    for (i, sc) in chain.iter().enumerate().rev() {
+        // Honour the `uplevel` frame semantics (see [`uplevel_hides_scope`]):
+        // `#0` drops the enclosing proc's locals, a non-`#0` level drops
+        // everything outside the uplevel body.
+        if uplevel_hides_scope(&chain, i) {
             continue;
         }
         for k in sc.variables.keys() {
