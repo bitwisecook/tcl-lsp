@@ -857,7 +857,7 @@ pub struct AnalysisResult {
     /// Per-object method declarations added by
     /// `oo::objdefine $obj { method … }` (or its inline form), keyed by the
     /// object variable's simple name (`$obj` / `${obj}` / bare `obj` all key
-    /// as `obj`).  TclOO layers a per-object method *ahead* of the object's
+    /// as `obj`).  `TclOO` layers a per-object method *ahead* of the object's
     /// class methods, so `$obj m` navigation resolves the per-object override
     /// recorded here before falling back to the class.  The method **bodies**
     /// are walked into the scope tree at analysis time (so in-body diagnostics

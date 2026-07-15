@@ -3563,8 +3563,87 @@ impl Backend {
         }
         // Cross-document fallback: resolve a proc / class
         // defined in a sibling document via the workspace index.
-        self.cross_document_definition(&doc.text, pos, &analysis)
-            .await
+        let cross = self
+            .cross_document_definition(&doc.text, pos, &analysis)
+            .await?;
+        if !cross.is_empty() {
+            return Ok(cross);
+        }
+        // Autoload tier (M8): the command is defined nowhere in the open
+        // workspace, but the package / auto-load database may know which
+        // library file (`tclIndex` / `pkgIndex.tcl` on the configured
+        // `libraryPaths` / `TCLLIBPATH`) defines it.  Resolve that file, analyse
+        // it on demand (memoised by `analysis_for`), and jump to the proc.
+        self.autoload_definition(&doc.text, pos, &analysis).await
+    }
+
+    /// Autoload-tier go-to-definition (M8): resolve a command head that the
+    /// workspace index cannot place to the library file the auto-load / package
+    /// database says defines it, then jump to that proc's declaration.
+    ///
+    /// The library file need not be open — [`Self::read_document`] reads it from
+    /// disk, and [`Self::analysis_for`] memoises the analysis so repeated jumps
+    /// (and later references / hover) reuse it.  Only fires on a genuine miss,
+    /// so it never overrides an in-workspace definition.
+    async fn autoload_definition(
+        &self,
+        source: &str,
+        pos: Position,
+        analysis: &AnalysisResult,
+    ) -> jsonrpc::Result<Vec<Location>> {
+        let Some((word, namespace)) = core_definition::command_head_and_namespace_at(
+            source,
+            analysis,
+            pos.line,
+            pos.character,
+        ) else {
+            return Ok(Vec::new());
+        };
+        // Which library file(s) the auto-load / package database resolves the
+        // command to, and the qualified names it would auto-load under.
+        let (files, candidates) = {
+            let resolver = self.package_resolver.read().await;
+            (
+                resolver.resolve_auto_command(&word, &namespace),
+                tcl_lsp_core::package_resolver::auto_qualify(&word, &namespace),
+            )
+        };
+        for path in files {
+            let Some(target_uri) = Uri::from_file_path(&path) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&target_uri).await else {
+                continue;
+            };
+            let file_analysis = self
+                .analysis_for(&target_uri, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            // The library file defines the command as a proc under one of the
+            // auto-qualified names; jump to the first that its analysis indexes.
+            // `all_procs` keys are absolute (`::`-prefixed), while `auto_qualify`
+            // yields a bare name for a global command, so normalise before the
+            // lookup (and still try the raw form for safety).
+            for cand in &candidates {
+                let absolute = if cand.starts_with("::") {
+                    cand.clone()
+                } else {
+                    format!("::{cand}")
+                };
+                if let Some(p) = file_analysis
+                    .all_procs
+                    .get(&absolute)
+                    .or_else(|| file_analysis.all_procs.get(cand))
+                {
+                    return Ok(self
+                        .resolve_target_locations(vec![(
+                            target_uri.as_str().to_owned(),
+                            p.name_span,
+                        )])
+                        .await);
+                }
+            }
+        }
+        Ok(Vec::new())
     }
 
     /// Resolve the symbol at `pos` against the workspace index

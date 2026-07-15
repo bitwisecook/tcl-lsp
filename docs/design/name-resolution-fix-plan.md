@@ -257,7 +257,7 @@ the canonical resolver widened to the workspace. Detail in
 autoloaded name (config/env-aware: `TCL_LIBRARY`, `TCLLIBPATH`,
 `tclLsp.libraryPaths`, `.tcl-lsp.ini`) faithfully mirroring `tclPkgUnknown`/`auto_load` — it's just never analysed into `WorkspaceIndex`.
 
-**Stage 8.1 — lazy second tier** On an oracle miss (M5), ask `PackageResolver` for the defining file, lazily analyse, memoise, merge into the oracle. Never eagerly parse the whole stdlib.
+**Stage 8.1 — lazy second tier** ◐ **GO-TO-DEFINITION DONE** — go-to-definition now has an autoload tier: when a command head resolves to nothing in the current document *or* the workspace oracle (M5), `compute_definition` falls through to `autoload_definition`, which asks `PackageResolver::resolve_auto_command` (the same database that already clears the #832 W123) for the library file, reads it via the existing on-disk `read_document` fallback, analyses it through `analysis_for` — so the parse is **lazy** (only the resolved file, never the whole stdlib) and **memoised** (its per-file cache) — and jumps to the proc, normalising the `auto_qualify` bare-name candidate to the absolute `all_procs` key.  Fires only on a genuine miss, so it never overrides an in-workspace definition.  Test: `autoload_library_command_go_to_definition_m8`.  Remaining: merging the lazily-analysed file into the shared `WorkspaceIndex` so *references / rename* also reach library definitions — deferred because it broadens those providers' surface (workspace-symbol, find-refs) to stdlib files and wants its own test pass rather than a goto-def side effect.
 **Depends on:** M5.
 
 ---

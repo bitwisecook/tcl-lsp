@@ -293,7 +293,7 @@ fn lookup_class_member(
 }
 
 /// Look up `method` among the per-object methods added to the object named
-/// `receiver` by `oo::objdefine` — the per-object override TclOO layers ahead
+/// `receiver` by `oo::objdefine` — the per-object override `TclOO` layers ahead
 /// of the object's class methods.  Returns the declaration's `name_span`.
 ///
 /// Keyed by the receiver's simple name; the analyser stores `$obj` / `${obj}`
@@ -843,6 +843,30 @@ pub(crate) fn namespace_context_at(
     } else {
         format!("::{ns}")
     }
+}
+
+/// The bare command word at `(line, character)` together with the
+/// `::`-prefixed namespace in effect there.
+///
+/// For the autoload-definition fallback: when a command head resolves to
+/// nothing in the current document *or* the workspace index, the caller feeds
+/// this `(word, namespace)` to the package / auto-load database
+/// ([`crate::package_resolver::PackageResolver::resolve_auto_command`]) to find
+/// the library file that defines it.  Returns `None` off any word.  The word
+/// is returned verbatim (the resolver auto-qualifies it against the
+/// namespace); `namespace` is `"::"` at global scope.
+#[must_use]
+pub fn command_head_and_namespace_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<(String, String)> {
+    let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
+    let line_index = LineIndex::new(source);
+    let offset = byte_offset_at(&line_index, source, line, character);
+    let namespace = namespace_context_at(&analysis.global_scope, offset);
+    Some((word, namespace))
 }
 
 /// Resolve a written call `word` to the user proc C Tcl's command resolution
