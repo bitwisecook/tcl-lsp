@@ -234,7 +234,10 @@ the canonical resolver widened to the workspace. Detail in
 - [x] Cross-file go-to-definition: `cross_file_method_definition` walks the override family and returns the method's declaration span in the defining sibling document, wired into `compute_definition` before the command-head gate (a method call's head is `$obj`, not the method token). Resolves the common inherited-method-declared-in-another-file case.
 - [x] Coverage is bounded the same way rename is — a `$obj method` site resolves only in a document the index knows defines or inherits the family class (a pure-consumer document that merely holds `[::Base new]` needs the cross-file instance-inference tier, a documented follow-up). Tests: five references (override family, decl include/exclude, inheritor-only document, unrelated-method empty, end-to-end handler) + two definition (family lookup, end-to-end inherited jump).
 
-**Stage 6.2 — cross-file `oo::define`** Dedup the cross-file `oo::define ::C` **stub** ClassDef against the real one; honor a late cross-file `superclass`; add `next`/`nextto` reference sites (go-to-def already handles them). Same-file split `oo::define` already works ([tricky §3.5](tricky-name-resolution-surfaces.md)).
+**Stage 6.2 — cross-file `oo::define`** ✅ **DONE (hierarchy correctness)**
+- [x] A cross-file `oo::define ::C` records a second `::C` index entry with empty superclasses; the method-family parent walk resolved parents by first-match, so an adversarial indexing order let the stub hide the real class's hierarchy edge (non-deterministic). Added `WorkspaceIndex::resolved_parents_of`, which unions superclasses + mixins across every indexed definition of a class, and routed both family closures through it. Adversarial regression (stub indexed first) fails under first-match, passes under the union.
+- [ ] **Follow-ups (minor):** prefer the `oo::class create` site over `oo::define` extension sites in class go-to-definition (both are currently returned, akin to partial classes); add `next`/`nextto` dispatch sites to a method's reference set (go-to-def already handles them). Same-file split `oo::define` already works ([tricky §3.5](tricky-name-resolution-surfaces.md)).
+
 **Depends on:** M4, M5.
 
 ---
