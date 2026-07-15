@@ -1,249 +1,332 @@
-# Name resolution — full fix plan
+# Name resolution — master fix plan
 
-**Status:** execution plan. No code here has landed. Turns the findings in
-[name-resolution-centralization.md](name-resolution-centralization.md) and
-[cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md)
-into an ordered, concrete sequence of milestones. Each milestone lists the
-files to touch, the specific change, and how it gets verified. Read the two
-linked docs first for the *why*; this doc is the *how* and *in what order*.
+**Status:** execution plan. No code here has landed. This is the actionable
+plan behind four companion studies:
+[name-resolution-centralization.md](name-resolution-centralization.md) (the
+duplication audit), [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md)
+(#923 cross-file work), [name-resolution-tcl-version-and-c-source.md](name-resolution-tcl-version-and-c-source.md)
+(the C-source-grounded 8.4→9.1 conformance study, findings D1–D11 / N1–N8), and
+[tricky-name-resolution-surfaces.md](tricky-name-resolution-surfaces.md) (the
+dynamic-surface navigation-link audit). Read those for the *why*; this document
+is the *how*, *in what order*, with a task checklist and direct source link per
+step.
 
-Milestones are ordered by (severity of what they fix) × (how little they
-depend on anything not yet built). M0 fixes live silent-correctness bugs
-with no new architecture. Later milestones build genuinely new machinery
-and depend on earlier ones being in place.
+Structure: **16 milestones**, each split into **stages** (two levels, no
+deeper). Milestones are ordered by (severity of what they fix) × (independence
+from un-built work). Every stage is a checklist.
 
-## M0 — collapse target-selection duplication onto the existing canonical resolver
+## How the source links work
 
-**Fixes:** the Tier 1/2 items in the centralization doc's Part A — wrong-
-symbol Rename, wrong-node Call Hierarchy, cross-file wrong-symbol Rename/
-References, the Linked Editing Range OR-bug, plus the lower-severity Tier 2
-sites. No new algorithm needed — `definition.rs::resolve_called_proc` /
-`proc_visible_from_namespace` is already correct; the fix is routing
-everyone else through it.
+Every link is a **commit-pinned** GitHub permalink so line numbers never drift.
 
-1. **Establish the shared entry points.**
-   - Confirm `resolve_called_proc`/`proc_visible_from_namespace`
-     (`tcl-lsp-core/src/definition.rs`) are visible to every intra-crate
-     caller (`rename.rs`, `call_hierarchy.rs`, `references.rs`,
-     `implementation.rs`, `hover.rs`, `type_hierarchy.rs`,
-     `signature_help.rs`, `inlay_hints.rs`, `linked_editing_range.rs`,
-     `workspace_index.rs`) — likely already `pub(crate)`, just unused by
-     them; if any are private, widen to `pub(crate)`, not `pub`.
-   - `tcl-lsp-server::resolve_workspace_symbol` lives in a different crate
-     (`tcl-lsp-server`, not `tcl-lsp-core`) — its same-file tier needs a
-     `pub` (crate-external) re-export or a thin `tcl-lsp-core` wrapper it
-     can call; check what's already exported from `tcl-lsp-core`'s
-     `lib.rs` before adding new surface.
-   - Build the class-oriented analogue. Check first whether `definition.rs`
-     already has one for classes (go-to-definition on a class name works
-     today, so *something* resolves it) — if it exists, promote it to the
-     same shared-helper status as `resolve_called_proc`; if it's itself one
-     of the bespoke `.iter().find()` scans, fix it in place here rather
-     than adding a second thing to migrate later.
+- **This repo** → the **v2.1.9** release commit
+  [`6a6bc87`](https://github.com/bitwisecook/tcl-lsp/commit/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63)
+  (the validated code; this branch adds only docs on top).
+- **C Tcl** → `tcltk/tcl` at the exact release tags studied:
+  8.4.20 [`9ccfe9d1`](https://github.com/tcltk/tcl/tree/9ccfe9d1b35741ff7323837f6485ffe48b06fad9),
+  8.5.19 [`160d612a`](https://github.com/tcltk/tcl/tree/160d612a6b2b1c2c0db27236d648b7bc1364570c),
+  8.6.16 [`874e4fe4`](https://github.com/tcltk/tcl/tree/874e4fe4264a40c00c4db5115afba9600f9f368d),
+  9.0.4 [`c655b477`](https://github.com/tcltk/tcl/tree/c655b4770b1d6d32a8cbffd6cef59db6029fe19e),
+  9.1b0 [`fbe83207`](https://github.com/tcltk/tcl/tree/fbe83207a70634a5031c70bdce3d59071920f6da).
 
-2. **Migrate Tier 1 sites**, each a small diff replacing a `.or_else(||
-   analysis.all_procs.iter().find(...))`-shaped fallback with a call to the
-   shared resolver, keeping each file's existing "cursor is exactly on the
-   declaration's `name_span`" fast path untouched (that tier is already
-   correct):
-   - `rename.rs`: `rename_proc`, `rename_class`, `prepare_rename`.
-   - `call_hierarchy.rs`: `find_proc_for_item`, `prepare`.
-   - `references.rs`: `proc_references`, `class_references`.
-   - `tcl-lsp-server/src/lib.rs`: `resolve_workspace_symbol`'s same-document
-     loop (leave the workspace-index fallback below it for M1/M2 — it's a
-     different bug, gated on `WorkspaceIndex` which M2 is fixing anyway).
-   - `linked_editing_range.rs`: this one isn't a missing-helper problem,
-     it's a boolean-logic bug (`matches_self_call`'s result is OR'd with
-     the resolved check instead of only being consulted when
-     `resolved_qualified_name` is absent). Fix: when
-     `inv.resolved_qualified_name` is `Some`, it is authoritative — only
-     fall back to `matches_self_call` when it's `None`. Add the regression
-     test from the centralization doc's repro (`::a::greet` calling into a
-     `::b::greet` via a nested `namespace eval` block) directly.
+> **⚠ URGENT — confirmed source corruption; ship Stage 2.1 before anything
+> else.** Renaming a **TclOO instance variable** rewrites the *entire method
+> body*: `method get {} { return $n }`, rename `$n`→`w`, becomes `method get {} w`.
+> Verified by hand:
+> [`oo.rs:326`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/oo.rs#L326)
+> (object var seeded with `def_span = None`) →
+> [`scope.rs:696`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/scope.rs#L696)
+> (`unwrap_or(tok.span)` → the body span) →
+> [`rename.rs:631`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/rename.rs#L631)
+> (replaces `var_def.definition_span` with just the name).
 
-3. **Migrate Tier 2 sites**, same shape, lower urgency but do in the same
-   PR since the diff pattern is identical and it's a lot cheaper to do
-   while the helper is fresh in context:
-   - `implementation.rs`: replace `strip_colons`'s leading-colon-only strip
-     with a call to the shared class resolver (fixes the "bare superclass
-     reference to a namespaced base" miss directly, rather than patching
-     `strip_colons` in isolation).
-   - `signature_help.rs` + `inlay_hints.rs`: first dedupe the byte-identical
-     `lookup_proc` into one function (either promote one to
-     `tcl-lsp-core`'s shared utilities or have one call the other), then
-     route that through `resolve_called_proc`.
-   - `hover.rs`: `lookup_class`, `alias_hover_text`.
-   - `type_hierarchy.rs`: `prepare`.
-   - `workspace_index.rs`: `proc_definitions`/`class_definitions` need an
-     ambiguity gate at minimum (they currently have none, unlike
-     `invocations_of`'s `bare_is_safe`) — full fix folds into M2 since it's
-     the same function family the oracle work touches; if M2 isn't
-     immediately following, add the gate here as a standalone stopgap.
+---
 
-4. **Tier 3 — defense in depth, lower priority, can slip to a follow-up
-   PR**: `minify.rs`, `graphs.rs` (harden the dead fallback anyway),
-   `type_definition.rs`, `tcl-mcp/src/tools.rs`'s `generate_docstring`
-   (also fix the stale "mirrors `AnalysisResult.find_proc`" doc comment —
-   that method doesn't exist), `class_lattice.rs`'s `resolve_class_name`
-   (superseded by M1, see below).
+## Milestone index
 
-5. **Test strategy**: add one shared test fixture — a canonical "two
-   namespaces define a same-named proc" and "two namespaces define a
-   same-named class" Tcl snippet pair — under a common test-support module,
-   and add one test per migrated feature (rename, call hierarchy,
-   references, linked-editing, hover, signature-help, inlay-hints,
-   implementation, type-hierarchy) that triggers the feature from the
-   *ambiguous call site* and asserts it resolves to the correct symbol.
-   Reusing one fixture across all of them means the same shape is pinned
-   everywhere in one place, instead of each test file inventing its own
-   (and potentially missing the exact shape that mattered).
-
-**Risk**: low. Every change replaces a wrong/inconsistent lookup with a
-call to an already-shipping, already-correct function. No behavior change
-for any call site that was already unambiguous (the overwhelming majority).
-
-## M1 — consolidate class-name resolution onto the verified-correct rule
-
-**Fixes:** the confirmed-wrong `class_hierarchy.rs::resolve_class_name`
-(ancestor-walk vs. real Tcl's one-hop rule), and removes two more duplicate
-implementations (`class_lattice.rs`, `var_command.rs::canonicalise_class_name`).
-
-1. **Pin the correct algorithm first.** Before touching `class_hierarchy.rs`,
-   add conformance vectors for class-name resolution to (or alongside) the
-   existing `command_resolution_vectors.txt` machinery — since resolving a
-   class name is resolving a command name, the *shape* of the pinning
-   should match: current-namespace-relative, then global, no ancestor walk,
-   verified against real `tclsh`. Include the specific "namespace 2+ levels
-   deep, base only exists one level up, not in an ancestor" vector that
-   exposes the bug, plus **the open question the class-lattice experiment
-   raises**: does `superclass`/`mixin` resolution honor a `namespace
-   import`ed name the same way ordinary command resolution does? Pin that
-   against real tclsh explicitly rather than assuming either answer — this
-   determines whether `class_lattice.rs`'s `NsContext` (which tracks
-   imports) is capturing real behavior the one-hop rule is missing, or is
-   itself over-engineered relative to what TclOO actually does.
-2. **Replace `class_hierarchy.rs::resolve_class_name`** with a call into
-   `tcl_syntax::naming` (`bareword_resolution_candidates`/
-   `resolve_command_with`) using the *analyser's own* namespace-tracking
-   the same way command-invocation resolution does, rather than a fourth
-   hand-rolled walk. Feed the corrected resolver back through
-   `resolve_super_name`/`build_supers_mixins_maps` unchanged in shape.
-3. **Retire the duplicates**: delete `var_command.rs::canonicalise_class_name`
-   and route W308's constructor-object-type harvesting through the
-   consolidated resolver; either delete `class_lattice.rs::resolve_class_name`
-   or — if step 1's import-tracking question resolves in favor of needing
-   it — fold `NsContext`'s import-prefix tracking *into* the consolidated
-   resolver instead of leaving it as a parallel, separately-invoked
-   implementation.
-4. **Regression sweep**: run the full MRO (`analyser/mro.rs`), class
-   hierarchy, `type_hierarchy.rs`, W308, and `workspace_index.rs` cross-file
-   class test suites — this resolver feeds all of them, so a behavior
-   change here has the widest blast radius of any milestone in this plan.
-   Treat any test failure as a signal to re-examine, not to special-case
-   around.
-
-**Risk**: moderate — this is the one milestone that changes behavior for
-code that isn't obviously buggy today (the ancestor-walk fallback
-"worked," just not per real Tcl semantics, for any codebase that happened
-to write `superclass` bareword references matching its own ancestor-walk
-assumption). Mitigate with the conformance vectors in step 1 landing and
-passing *before* the resolver swap, and a full regression run after.
-
-## M2 — workspace-scoped resolution oracle (cross-file reference enumeration)
-
-This is [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md)'s
-phase 1, sequenced here as its own milestone because M0/M1 both produce
-consumers that benefit from it existing. No change to that doc's technical
-content; restating the steps for sequencing clarity:
-
-1. Extend the analyser's `finalise_invocation_resolutions` to record the
-   full priority-ordered candidate list per invocation (`Vec<String>`,
-   additive alongside the existing collapsed `resolved_qualified_name`).
-2. Add `WorkspaceIndex::workspace_command_exists` — an `exists`-shaped
-   oracle over the merged workspace (every indexed file's procs/classes/
-   aliases/renames).
-3. Rewrite `invocations_of` to run the recorded candidate list through
-   `resolve_command_with` against that oracle instead of its four bespoke
-   clauses; retire those clauses.
-4. Fold in the ambiguity gate for `proc_definitions`/`class_definitions`
-   noted in M0 step 3, if not already done as a stopgap there.
-5. Add the multi-file conformance vector format described in the companion
-   doc's Testing section.
-
-**Depends on**: nothing from M0/M1 structurally, but M1's corrected class
-resolver should land first if M3 (TclOO cross-file) is coming next, so M3
-isn't built on the ancestor-walk bug.
-
-## M3 — TclOO cross-file method references
-
-Companion doc's phase 3. Depends on M1 (correct class-name resolution) and
-M2 (the workspace oracle) both being in place — extend `WorkspaceIndex`
-with a method table per class, wire `resolve_workspace_symbol` and
-`cross_document_references` to check it, reuse `class_lattice.rs`'s
-`NsContext` (now consistent with M1's consolidated resolver) for the
-class-name half of `$obj method` resolution.
-
-## M4 — variable resolution: spike, then targeted fixes
-
-**Do not** attempt a direct command-resolution-style unification here
-without the spike — the centralization doc's Part C found four genuinely
-different data models (VM flat-frame map, runtime arena-tree, analyser
-scope-tree, compiler SSA/place), not four implementations of one
-algorithm.
-
-1. **Spike deliverable**: a short doc answering whether *any* shared
-   abstraction (even just a common `exists`-oracle-shaped interface, not a
-   shared candidate-list algorithm) is viable across the VM and runtime's
-   genuinely different structures, or whether variable resolution is
-   correctly two-backends-plus-two-static-consumers by nature and the
-   actionable fix is narrower than "centralize."
-2. **Ship regardless of the spike's outcome** (low-risk, same-crate):
-   - Stop `analyser/handlers.rs` from reimplementing `var_scoping.rs`'s
-     declaration-index grammar inline; call the existing helper (fixes the
-     `$`-prefix-exclusion gap noted in the audit as a side effect).
-   - Fix `namespace-model.md`'s broken pointer (it doesn't actually cover
-     variable resolution) and mark `runtime-variable-frame-model.md`
-     explicitly as aspirational/not-current in its own header if it isn't
-     already unambiguous about that.
-3. **After the spike**: scope any cross-backend work as its own follow-up
-   plan — out of scope for this document to pre-commit to an approach.
-
-## M5 — SCCP-backed command-name-in-variable resolution
-
-Companion doc's phase 4, unchanged. Still gated on the open question there
-(whether SSA/SCCP is already computed per-document as part of the existing
-diagnostics pipeline, or would be new cost) — resolve that as a short spike
-before committing to the design in detail.
-
-## M6 — library/package lazy resolution tier
-
-Companion doc's phase 5, unchanged: lazy-analyse a `PackageResolver`-located
-file on an oracle miss, memoise, merge into the same oracle M2 builds.
-Depends on M2 existing (same oracle interface).
-
-## Cross-cutting, can happen anytime
-
-- **Contract-doc corrections** (cheap, do early, no code risk):
-  `command-resolution.md`'s WASM-codegen line (inherits the *runtime's*
-  conformance via eval-delegation, not "the VM's"); `tcloo-implementation.md`
-  (describes stale pre-Rust-port Python modules).
-- **Drift-prevention lint**: once M0 lands and the sanctioned helpers are
-  the obviously-right thing to call, add an `xtask` check (grep-shaped is
-  fine to start) that flags new `.iter().find(...)`-style name-equality
-  scans over `all_procs`/`all_classes` outside `tcl_syntax::naming` and the
-  handful of sanctioned LSP-side helpers. This is what actually prevents
-  the next version of the #923 regression — the existing "add a vector"
-  discipline only protects consumers that already opted in, which is
-  exactly how 17 places went unnoticed.
-
-## Summary table
-
-| Milestone | Fixes | New architecture? | Depends on |
+| M | Title | Danger class | Depends on |
 |---|---|---|---|
-| M0 | Wrong-symbol Rename/Call-Hierarchy/Linked-Editing, ~15 duplicate lookups | No | — |
-| M1 | Wrong MRO/superclass resolution | No (reuses `tcl_syntax::naming`) | — (M0 optional but do first) |
-| M2 | #923 cross-file references regression | Yes (workspace oracle) | — |
-| M3 | TclOO cross-file method references | Extends M2's oracle | M1, M2 |
-| M4 | Variable resolution duplication | Spike first | — |
-| M5 | Command names held in variables | Yes (SCCP integration) | M2 |
-| M6 | References into libraries/packages | No (wires existing pieces) | M2 |
+| **M1** | Target-selection consolidation (~17 sites) | wrong-target edit (silent) | — |
+| **M2** | Variable resolution & VAR_LINK (incl. D1 corruption) | source corruption / wrong target | — |
+| **M3** | Command name-link following (alias/rename/import/forward) | dangling rename (silent) | M1 |
+| **M4** | Class-name resolution → one-hop rule | wrong inheritance edge (silent) | — |
+| **M5** | Workspace-scoped resolution oracle (#923) | missed cross-file refs | — |
+| **M6** | TclOO cross-file methods & `oo::define` merge | missed refs / stub class | M4, M5 |
+| **M7** | Command-names-in-variables & dispatch tables | missed refs | M5 |
+| **M8** | Library / autoload resolution tier | missed refs | M5 |
+| **M9** | Source-site namespace propagation | wrong FQN cross-file | M5, M8 |
+| **M10** | Dialect-aware command resolver (`namespace path`) | false resolve in 8.4 | — |
+| **M11** | Cross-version variable semantics (9.0 fallback) | false (non-)resolve | M2 |
+| **M12** | Expr-function fidelity (`::tcl::mathfunc`) | false resolve / missed | — |
+| **M13** | TclOO version fidelity (`property`) | false resolve in 8.6 | M4 |
+| **M14** | Dynamic reference roles (`ArgRole::CommandName`) | missed refs | M3 |
+| **M15** | Interpreter/scope isolation & coverage | wrong edit (interp) / missed | M3, M5 |
+| **M16** | VM behavioural parity | none (behavioural) | — |
+
+---
+
+## The duplication map (M1 work list)
+
+The canonical, namespace-aware resolver already exists:
+[`definition.rs:748 resolve_called_proc`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L748)
+→ [`:728 proc_visible_from_namespace`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L728)
+→ [`naming.rs:455 command_resolution_candidates`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs#L455).
+Only `hover.rs`'s proc path uses it. Each site below re-derives its own
+namespace-blind `all_procs.iter().find(name == word)` scan:
+
+| # | Site | Breaks | Tier |
+|---|---|---|---|
+| 1 | [`rename.rs:654 rename_proc`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/rename.rs#L654) | Rename → wrong same-named proc | 1 |
+| 2 | [`rename.rs:735 rename_class`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/rename.rs#L735) | Rename → wrong same-named class | 1 |
+| 3 | [`call_hierarchy.rs:127 find_proc_for_item`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/call_hierarchy.rs#L127) | Call-hierarchy wrong node | 1 |
+| 4 | [`references.rs:388 proc_references`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/references.rs#L388) | Find-refs from call site → wrong proc | 1 |
+| 5 | [`references.rs:340 class_references`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/references.rs#L340) | Find-refs from call site → wrong class | 1 |
+| 6 | [`lib.rs:3631 resolve_workspace_symbol`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-server/src/lib.rs#L3631) | Cross-document rename/refs → wrong symbol in another file | 1 |
+| 7 | [`linked_editing_range.rs:148 matches_self_call`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/linked_editing_range.rs#L148) | Live-links unrelated call site (OR-bug) | 1 |
+| 8 | [`implementation.rs:155 strip_colons`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/implementation.rs#L155) | Go-to-impl misses bare `superclass` to namespaced base | 2 |
+| 9 | [`signature_help.rs:302 lookup_proc`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/signature_help.rs#L302) | Signature help on wrong proc | 2 |
+| 10 | [`inlay_hints.rs:911 lookup_proc`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/inlay_hints.rs#L911) | Inlay hints from wrong proc (dup of #9) | 2 |
+| 11 | [`hover.rs:2198 lookup_class`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/hover.rs#L2198) | Hover wrong class docs | 2 |
+| 12 | [`type_hierarchy.rs:54 prepare`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/type_hierarchy.rs#L54) | Type-hierarchy wrong class | 2 |
+| 13 | [`workspace_index.rs:633 proc_definitions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L633) | Cross-doc goto-def, ungated (also M5) | 2 |
+| 14 | [`workspace_index.rs:645 class_definitions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L645) | Cross-doc goto-def classes, ungated (also M5) | 2 |
+| 15 | [`type_definition.rs:77 find_class`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/type_definition.rs#L77) | Go-to-type-def (narrow) | 3 |
+| 16 | [`minify.rs:1196`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/minify.rs#L1196) | Wrong param list on collision | 3 |
+| 17 | [`tools.rs:931 generate_docstring`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-mcp/src/tools.rs#L931) | MCP docstring arbitrary pick (+ stale comment) | 3 |
+
+---
+
+## M1 — Target-selection consolidation
+
+Route the 17 sites through the existing correct resolver. Ground truth: it
+already matches C's `Tcl_FindCommand`
+([8.6 `tclNamesp.c:2528`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclNamesp.c#L2528),
+[9.0 `:2640`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/generic/tclNamesp.c#L2640)). No new algorithm.
+
+**Stage 1.1 — shared entry points**
+- [ ] Widen [`resolve_called_proc`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L748) / [`proc_visible_from_namespace`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L728) to `pub(crate)`; add a re-export for [`lib.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-server/src/lib.rs#L3631).
+- [ ] Build a class analogue `resolve_referenced_class` sharing the same candidate walk (classes are commands).
+
+**Stage 1.2 — Tier-1 migrations (silent-corruption bugs)**
+- [ ] Migrate #1–#6 ([`rename_proc`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/rename.rs#L654), [`rename_class`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/rename.rs#L735), [`find_proc_for_item`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/call_hierarchy.rs#L127), [`proc_references`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/references.rs#L388), [`class_references`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/references.rs#L340), [`resolve_workspace_symbol`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-server/src/lib.rs#L3631) same-doc tier), preserving each existing exact `name_span`-containment fast path.
+- [ ] Fix the Linked-Editing OR-bug at [`matches_self_call`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/linked_editing_range.rs#L148): when `resolved_qualified_name` is `Some`, it is authoritative — only consult `matches_self_call` when it is `None`.
+
+**Stage 1.3 — Tier-2 migrations**
+- [ ] Migrate #8–#14: replace [`strip_colons`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/implementation.rs#L155) with the class resolver; dedupe the byte-identical [`signature_help.rs:302`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/signature_help.rs#L302) / [`inlay_hints.rs:911`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/inlay_hints.rs#L911) into one helper then route it; fix [`hover.rs:2198`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/hover.rs#L2198), [`type_hierarchy.rs:54`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/type_hierarchy.rs#L54); ambiguity-gate [`proc_definitions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L633)/[`class_definitions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L645) (finished in M5).
+
+**Stage 1.4 — Tier-3 migrations (follow-up)**
+- [ ] Migrate #15–#17: [`type_definition.rs:77`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/type_definition.rs#L77), [`minify.rs:1196`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/minify.rs#L1196), [`tools.rs:931`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-mcp/src/tools.rs#L931) (+ delete the stale "mirrors `AnalysisResult.find_proc`" comment — no such method exists).
+
+**Stage 1.5 — tests**
+- [ ] One shared fixture (two namespaces, same-named proc + same-named class); a per-feature test triggering from the **ambiguous call site**; the Linked-Editing regression (`proc ::a::greet {} { namespace eval ::b { greet } }` with a separate `::b::greet` — assert not linked).
+
+**Risk:** low. **Depends on:** —.
+
+---
+
+## M2 — Variable resolution & VAR_LINK
+
+Five variable contexts; details in
+[tricky-name-resolution-surfaces.md §2](tricky-name-resolution-surfaces.md).
+Ground truth: C's `VAR_LINK` — the alias's `Var.value.linkPtr` points at the
+target ([9.0 `tclVar.c:4737`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/generic/tclVar.c#L4737)) and every lookup follows the chain ([8.6 `tclVar.c:757`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclVar.c#L757)); identical 8.4→9.1. Runtime/VM model it; the analyser and place-layer do not.
+
+**Stage 2.1 — URGENT, ship first (source corruption / wrong target)**
+- [ ] **(D1)** Seed TclOO object-variable decls with a real name span: pass `Some(span)` at [`oo.rs:326`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/oo.rs#L326) so [`scope.rs:696`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/scope.rs#L696) stops falling back to `tok.span`, stopping [`rename.rs:631`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/rename.rs#L631) from overwriting the method body.
+- [ ] **(D2, one-line)** Apply the `in_uplevel && kind == Proc { continue }` guard that [`visible_variable_names:612`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L612) has to [`lookup_var_in_scope_chain:552`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L552), so an `uplevel #0` body's `$g` resolves to the global, not an invisible proc-local.
+
+**Stage 2.2 — the analyser link model (VAR_LINK)**
+- [ ] Add a link/target field to [`VarDef`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/types.rs#L285) (or a scope alias-edge map).
+- [ ] Populate from every alias site: [`handle_global_command:185`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/handlers.rs#L185), [`handle_variable_command:208`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/handlers.rs#L208), [`handle_upvar_command:1483`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/handlers.rs#L1483), [`handle_namespace_upvar_command:1509`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/handlers.rs#L1509), and the TclOO object variable (link `variable v`/`my variable v` across every method to one cell).
+- [ ] Make [`lookup_var_in_scope_chain`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L552) follow the link so refs/rename/hover unify alias↔target and `$v` across sibling methods.
+- [ ] For non-`#0` `uplevel N { … }` (target frame statically unknown) **abstain** rather than mis-attribute body vars (D3).
+
+**Stage 2.3 — hygiene**
+- [ ] Stop [`handlers.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/handlers.rs#L185) re-deriving `var_scoping.rs`'s decl-index grammar inline (fixes the `$`-prefix-exclusion gap).
+- [ ] Fix doc pointers: `command-resolution.md`→`namespace-model.md` doesn't cover variables; mark `runtime-variable-frame-model.md` aspirational.
+
+**Stage 2.4 — the 4-way split spike**
+- [ ] Can the analyser `VarDef` model and the compiler place-layer ([`var_resolve.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/var_resolve.rs)) share one alias model (D3), or are the VM flat-frame map and runtime arena-tree irreducible? Answer before committing to unification.
+
+**Verify** `oo::class create C { variable n; method get {} {return $n}; method set {x} {set n $x} }` — rename `$n`: body intact, both methods + decl rewrite. `upvar 0 x y` — rename links both. **Depends on:** —.
+
+---
+
+## M3 — Command name-link following
+
+The analyser records these links but no navigation feature follows them, so a
+rename leaves a runtime-live binding pointing at the old name. Several need the
+analyser to record a missing **span** first.
+([tricky-name-resolution-surfaces.md §1, §3.1](tricky-name-resolution-surfaces.md).)
+
+**Stage 3.1 — record missing spans**
+- [ ] Alias target word, `rename OLD NEW` arg spans, `namespace import` pattern span, `forward` target token span.
+
+**Stage 3.2 — path-aware definition/hover (closes M1's assumption gap, issue #5)**
+- [ ] Make `resolve_called_proc`/[`proc_visible_from_namespace`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/definition.rs#L728) consume `namespace path` (today they use the path-free variant, so def/hover can jump to an unrelated same-named `::helper`).
+
+**Stage 3.3 — follow the links in refs/rename/call-hierarchy**
+- [ ] Consult `command_aliases`, `renamed_commands`, `namespace_imports`, `forward` targets: a followed link is a reference; rename rewrites the defining-side spans. Ground truth: [`exec.rs:2701`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/exec.rs#L2701) (alias re-resolved from `::`), contract §104-117 (rename/import). **Do not** text-rewrite an import tail — the token follows the source rename.
+- [ ] Follow alias **chains** transitively (bounded hops + cycle detection, mirroring signature-help's existing `resolve_alias_chain`).
+
+**Stage 3.4 — command-word arg roles & nested-def homing**
+- [ ] Declare `CommandPrefix` on `tailcall` arg 0 and `coroutine` arg 1 ([`exec.rs:2909 run_tailcall`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/exec.rs#L2909)).
+- [ ] **(D4)** Wire nested `proc`/`oo::class create` definition homing to the existing [`command_resolution_namespace`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/scope.rs) helper instead of `namespace_from_scope_path` (which skips proc scopes) — else a nested def under a qualified-name encloser homes to the wrong FQN and can overwrite a same-named global in `all_procs`.
+
+**Depends on:** M1.
+
+---
+
+## M4 — Class-name resolution → the verified one-hop rule
+
+Fixes the wrong ancestor-walk in
+[`class_hierarchy.rs:258 resolve_class_name`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/class_hierarchy.rs#L258).
+Ground truth: C resolves a bare `superclass`/`mixin` relative to the
+`oo::define` **call-site** namespace, two scopes only (current→global, +path in
+8.5+), via `GetClassInOuterContext` ([8.6 `tclOODefineCmds.c:61`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclOODefineCmds.c#L61)) — no ancestor walk. The VM already does this at [`cmd_oo.rs:199 resolve_class`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/cmd_oo.rs#L199).
+
+**Stage 4.1 — pin it**
+- [ ] Class-name conformance vectors (same machinery as `command_resolution_vectors.txt`): base one level up not in an ancestor (the bug); does `superclass`/`mixin` honor a `namespace import`ed name? Pin against real `tclsh`.
+
+**Stage 4.2 — replace + retire**
+- [ ] Replace the ancestor-walk + unique-tail fallback in [`resolve_class_name`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/class_hierarchy.rs#L258) with a call into [`naming.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs#L455).
+- [ ] Retire the duplicate `canonicalise_class_name` (W308) and `class_lattice.rs`'s parallel `resolve_class_name` per the import answer.
+
+**Stage 4.3 — regression**
+- [ ] Full MRO / class-hierarchy / type-hierarchy / W308 / cross-file class suites (this resolver feeds all of them).
+
+**Risk:** moderate — vectors must land+pass before the swap. **Depends on:** — (before M6).
+
+---
+
+## M5 — Workspace-scoped resolution oracle (#923)
+
+Retire the bespoke matcher [`workspace_index.rs:758 invocations_of`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L758) for the canonical resolver widened to the workspace. Detail in [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md).
+
+**Stage 5.1 — record candidates** Extend [`finalise_invocation_resolutions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/scope.rs#L327) to keep the full candidate list per invocation.
+**Stage 5.2 — the oracle** Add `WorkspaceIndex::workspace_command_exists`; rewrite [`invocations_of`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L758) to run candidates through [`resolve_command_with`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs#L516); gate `proc_definitions`/`class_definitions`.
+**Stage 5.3 — tests** Multi-file conformance-vector format; the confirmed #923 repro. **Depends on:** —.
+
+---
+
+## M6 — TclOO cross-file methods & `oo::define` merge
+
+**Stage 6.1 — method index** Extend `WorkspaceClass.defined_methods` into a queryable method table; teach `resolve_workspace_symbol` + [`cross_document_references`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-server/src/lib.rs#L3682) to resolve method names and gather `$obj method`/`my method` sites cross-file. Reuse `class_lattice.rs`'s `NsContext` (consistent after M4).
+**Stage 6.2 — cross-file `oo::define`** Dedup the cross-file `oo::define ::C` **stub** ClassDef against the real one; honor a late cross-file `superclass`; add `next`/`nextto` reference sites (go-to-def already handles them). Same-file split `oo::define` already works ([tricky §3.5](tricky-name-resolution-surfaces.md)).
+**Depends on:** M4, M5.
+
+---
+
+## M7 — Command-names-in-variables & dispatch tables
+
+**Stage 7.1 — SCCP spike** Is SSA/SCCP already computed per-document, or new cost? (The analyser walk and SSA/SCCP are separate passes today.)
+**Stage 7.2 — resolve constants** If cheap: resolve a constant `$cmd` head through [`resolve_command_with`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs#L516); abstain on non-const (matches the documented limit).
+**Stage 7.3 — literals in data** Emit a reference for a proc-name literal held as a dict/`array set`/`string map` **value** dispatched via `{*}[dict get …]` — the W307 heuristic already recognizes these but only to suppress a diagnostic. **Depends on:** M5.
+
+---
+
+## M8 — Library / autoload resolution tier
+
+`PackageResolver` already locates the defining file for any `package require`d /
+autoloaded name (config/env-aware: `TCL_LIBRARY`, `TCLLIBPATH`,
+`tclLsp.libraryPaths`, `.tcl-lsp.ini`) faithfully mirroring `tclPkgUnknown`/`auto_load` — it's just never analysed into `WorkspaceIndex`.
+
+**Stage 8.1 — lazy second tier** On an oracle miss (M5), ask `PackageResolver` for the defining file, lazily analyse, memoise, merge into the oracle. Never eagerly parse the whole stdlib.
+**Depends on:** M5.
+
+---
+
+## M9 — Source-site namespace propagation
+
+`source` evaluates in the caller's current namespace ([`command.rs cmd_source`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/command.rs); contract §134-137). A bare `proc helper` in a file sourced inside `namespace eval ::x` is homed `::helper`, not `::x::helper` — so a correctly-written `::x::helper` call misses, and rename dangles. **M5/M8 as scoped do NOT fix this** (the index holds `::helper`).
+
+**Stage 9.1 — re-home** Re-home a sourced file's global-scope defs under the namespace active at the literal `source` call site.
+**Stage 9.2 — computed paths** Route source paths through the existing [`auto_path_eval`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/auto_path_eval.rs) folding for `[file join …]` forms.
+**Depends on:** M5, M8.
+
+---
+
+## M10 — Dialect-aware command resolver
+
+Version-correctness leaks where resolution *outcome* depends on dialect but the
+resolver ignores it.
+
+**Stage 10.1 — `namespace path` gating (D1 c-source).** 8.4 has no path tier ([8.4 `tclNamesp.c:1961`](https://github.com/tcltk/tcl/blob/9ccfe9d1b35741ff7323837f6485ffe48b06fad9/generic/tclNamesp.c#L1961) vs [8.5 `NamespacePathCmd:197`](https://github.com/tcltk/tcl/blob/160d612a6b2b1c2c0db27236d648b7bc1364570c/generic/tclNamesp.c#L197)); the registry records the boundary ([`namespace_.rs:160`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-registry/src/commands/tcl/namespace_.rs#L160)) but the resolver never consults it.
+- [ ] Thread dialect into [`scope.rs finalise_invocation_resolutions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/scope.rs#L327); skip the path tier when the dialect excludes `TCL85_PLUS`; mirror in the VM ([`interp.rs:1658`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/interp.rs#L1658)).
+
+**Stage 10.2 — `namespace unknown` re-gate (D9).** Re-gate to `TCL85_PLUS` (currently admits 8.4). **Depends on:** —.
+
+---
+
+## M11 — Cross-version variable semantics
+
+**Fixes D4 (c-source)** — the *only* resolution-semantics change 8.4→9.1. 8.4/8.5/8.6 fall back to global for an unqualified undefined var at namespace scope; **9.0 removed it** ([8.6 `tclVar.c:757`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclVar.c#L757) keeps it vs [9.0 forces `TCL_NAMESPACE_ONLY`, `tclVar.c:935`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/generic/tclVar.c#L935); [9.0 `changes.md:189`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/changes.md#L189)). Rust hardcodes 9.0 for all dialects ([`interp.rs:666`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/interp.rs#L666); [`vars.rs:107`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/runtime/rust/src/vars.rs#L107)).
+
+**Stage 11.1 — gate the fallback** Keep it for `TCL8X`, drop for `TCL90_PLUS`, in the runtime resolver, VM, and analyser var path.
+**Stage 11.2 — pin** Vector both behaviors against `tclsh8.6` and `tclsh9.0`. **Depends on:** M2.
+
+---
+
+## M12 — Expr-function fidelity (`::tcl::mathfunc`)
+
+**Stage 12.1 — dialect gating (D7 c-source).** 8.4 has no `::tcl::mathfunc`; functions are a fixed C table ([8.4 `tclExecute.c:3934`](https://github.com/tcltk/tcl/blob/9ccfe9d1b35741ff7323837f6485ffe48b06fad9/generic/tclExecute.c#L3934)) lacking `min`/`max`/`is*`; 8.5+ adds the namespace scheme ([8.6 `tclCompExpr.c:2276`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclCompExpr.c#L2276)). Add a dialect-aware allowlist in the shared evaluator + const-folder.
+**Stage 12.2 — proc linking (D8).** In [`collect_expr_substitutions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/commands.rs#L2225), emit a `::tcl::mathfunc::<f>` invocation head per expr function call so a user `proc ::tcl::mathfunc::f` gets goto-def/refs/arity and isn't flagged unused (codegen already resolves it, [`expressions.rs:325`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/codegen/expressions.rs#L325)). **Depends on:** —.
+
+---
+
+## M13 — TclOO version fidelity (`property`)
+
+**Stage 13.1 — gate `property` (D10).** Properties are 9.0+ ([`tcl9.0.4/generic/tclOOProp.c`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/generic/tclOOProp.c); absent 8.6). Gate the `property` body member `TCL90_PLUS` + configurable-family.
+**Stage 13.2 — accessors (N3).** Fold property accessors / configure-cget into `known_methods`. **Depends on:** M4.
+
+---
+
+## M14 — Dynamic reference roles (`ArgRole::CommandName`)
+
+Introduce a `CommandName` reference role (there is only `CommandPrefix` today) and
+apply it wherever a command name appears as a data argument — merging the
+C-source trace finding (D11) with the dynamic-surface introspection/ensemble
+findings.
+
+**Stage 14.1 — the role** Add `ArgRole::CommandName`; make refs/rename treat it as a reference.
+**Stage 14.2 — apply it** `trace add command/execution NAME` ([8.6 `tclTrace.c:507`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclTrace.c#L507)); `namespace which -command` / `namespace origin`; `info args/body/default PROC`; the `coroutine NAME` created command.
+**Stage 14.3 — ensembles** Parse `namespace ensemble create -map/-subcommands` into a subcommand→target map; emit a reference for each `<ns>::sub` and each `-map`/`-unknown` target literal. **Depends on:** M3.
+
+---
+
+## M15 — Interpreter/scope isolation & coverage
+
+**Stage 15.1 — cross-interp isolation** Open a child-interp scope for `interp eval CHILD SCRIPT` so a child `proc foo` and its calls don't merge into the parent namespace (today a rename of the parent `foo` edits the child body — a false-positive wrong edit; [`interp.rs:369`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/interp.rs#L369) is the isolation ground truth).
+**Stage 15.2 — inscope/code** Give `namespace inscope`/`namespace code` scripts the `ns` scope (like `namespace eval`).
+**Stage 15.3 — per-object mixins** Per-object symbol store for `oo::objdefine method`/`mixin` so `$obj m` resolves the per-object override, not a same-named class method.
+**Stage 15.4 — 9.0 `::tcl::` reorg (N4)** Model the removed/added `::tcl::` sub-namespaces as dialect-gated specs. **Depends on:** M3, M5.
+
+---
+
+## M16 — VM behavioural parity (out of resolution scope)
+
+**Stage 16.1** Alias-loop prevention (`TclPreventAliasLoop`, near [8.6 `tclInterp.c:225`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclInterp.c#L225)).
+**Stage 16.2** Cross-interp aliases child→parent (analyser already refuses the link — no false cross-interp reference).
+**Stage 16.3** Fire command/execution traces (accepted no-op today).
+**Stage 16.4** Command-name epoch cache (C caches on the name object; VM re-resolves every dispatch at [`interp.rs:1658`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/interp.rs#L1658) — perf only). **Depends on:** —.
+
+---
+
+## Danger-class summary
+
+Silent *wrong* output (not merely missed), highest priority first:
+
+1. **M2 Stage 2.1 (D1)** — rename **destroys** a method body. Ship first, standalone.
+2. **M1 Tier-1** — rename/call-hierarchy act on the **wrong** same-named symbol.
+3. **M2 Stage 2.1 (D2), Stage 2.2** — variable navigation to the **wrong** var (uplevel), and split/incomplete edits (upvar/object-var links).
+4. **M4** — **wrong** inheritance edge (ancestor-walk).
+5. **M3 (D4)** — nested-def homing overwrites a same-named symbol.
+6. **M10 / M11 / M12 / M13** — version-conditioned **false** resolution (8.4/8.6 dialects).
+7. **M15 Stage 15.1** — `interp eval` merges child/parent → wrong cross-interp edit.
+
+Everything else is *missed* refs/edits (under-delivery, not corruption).
+
+## Drift prevention (once M1 lands)
+
+- [ ] `xtask` lint (grep-shaped to start) flagging any new `.iter().find(|…| …name == word…)` scan over `all_procs`/`all_classes` outside [`tcl_syntax::naming`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs) and the sanctioned `definition.rs` helpers. The "add a vector" discipline only protects consumers already inside the contract — which is why 17 sites drifted.
+- [ ] Contract-doc corrections: `command-resolution.md`'s WASM-codegen line (inherits the *runtime's* conformance via eval-delegation, not "the VM's"); `tcloo-implementation.md` (stale pre-Rust-port Python modules).
