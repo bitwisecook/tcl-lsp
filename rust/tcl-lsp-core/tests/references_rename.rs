@@ -138,6 +138,25 @@ fn references_proc_named_in_info_body_include_the_introspection_site() {
 }
 
 #[test]
+fn references_proc_called_inside_oo_objdefine_method_body() {
+    // A per-object method body (`oo::objdefine $o { method … { helper } }`) is
+    // now analysed like any method body, so a proc it calls is found by
+    // Find-All-References from the proc's declaration.
+    let src = "proc helper {} {}\n\
+               oo::class create Foo {}\n\
+               set o [Foo new]\n\
+               oo::objdefine $o {\n    \
+                   method greet {} { helper }\n\
+               }\n";
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert!(
+        ref_lines(&refs).contains(&4),
+        "the call in the per-object method body (line 4) should be a reference: {refs:?}",
+    );
+}
+
+#[test]
 fn references_proc_named_in_namespace_which_command() {
     // `namespace which -command greet` resolves the command `greet` by name —
     // a reference, so Find-All-References from the declaration includes it.

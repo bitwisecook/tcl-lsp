@@ -1909,22 +1909,111 @@ impl Analyser {
     }
 
     /// Handle `oo::objdefine $obj …` — record the object variable
-    /// so later W308 (unknown method on object) checks can suppress
-    /// false positives from per-instance method extensions.
+    /// (so W308 can suppress unknown-method false positives from
+    /// per-instance extensions) **and** walk the per-object
+    /// definition so its method bodies are analysed exactly like an
+    /// `oo::define` class's.
+    ///
+    /// `oo::objdefine` shares the `oo::define` member grammar, so the
+    /// body / inline forms are parsed with the same helpers.  The
+    /// members are collected into a *throwaway* `ClassDef` whose only
+    /// purpose is to drive [`Self::parse_oo_definition_body`]'s
+    /// method-body walk (variable / command resolution and in-body
+    /// diagnostics light up as a side effect).  The `ClassDef` is
+    /// deliberately **not** registered in `all_classes`: a per-object
+    /// extension is not a class and must never surface in class
+    /// listings, hover, rename, or completion.  Its method bodies
+    /// home under a private synthetic name so the duplicate detector
+    /// never confuses them with the object's real class methods.
+    ///
+    /// Returns `true` when it owns the command's body walk (an object
+    /// name is present), mirroring [`Self::handle_oo_define_command`],
+    /// so the generic body recursion does not also descend the body.
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::OoObjdefine`].
-    pub fn handle_oo_objdefine(&mut self, args: &[String]) {
+    pub fn handle_oo_objdefine(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
         if args.is_empty() {
-            return;
+            return false;
         }
         let mut obj_name = args[0].trim().to_string();
         if let Some(stripped) = obj_name.strip_prefix('$') {
             obj_name = stripped.trim_matches(|c| c == '{' || c == '}').to_string();
         }
         if !obj_name.is_empty() {
-            self.objdefined_vars.insert(obj_name);
+            self.objdefined_vars.insert(obj_name.clone());
         }
+
+        // `oo::objdefine $obj` with no definition script — the object variable
+        // is recorded above; there is nothing more to walk.
+        if args.len() < 2 {
+            return true;
+        }
+
+        let cmd_name = "oo::objdefine";
+        // A throwaway holder for the walked members.  The method bodies home
+        // under a private synthetic name (`@objdefine@…`, unrepresentable in
+        // real Tcl) so a per-object `greet` never collides with the same-named
+        // class method in the duplicate detector or the scope-name key.
+        let synthetic = if obj_name.is_empty() {
+            "::@objdefine@".to_string()
+        } else {
+            format!("::@objdefine@::{obj_name}")
+        };
+        let mut object_class = super::types::ClassDef {
+            name: obj_name.clone(),
+            qualified_name: synthetic,
+            ..Default::default()
+        };
+
+        // Body-form vs inline-form is the same registry-grammar test as
+        // `oo::define`: `args[1]` being a known member keyword means the
+        // inline form (`oo::objdefine $o method m {} {}`).
+        let inline_form = self
+            .definition_grammar(cmd_name)
+            .is_some_and(|g| g.is_member(&args[1]));
+
+        if inline_form {
+            let inline_args: Vec<String> = args[1..].to_vec();
+            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
+            if let Some(grammar) = self.definition_grammar(cmd_name) {
+                super::oo::parse_oo_define_inline(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    &mut object_class,
+                );
+            }
+        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
+            let grammar = self.definition_grammar(cmd_name);
+            let definer_disabled = self.command_dialect_disabled(cmd_name);
+            self.parse_oo_definition_body(
+                &args[1],
+                body_tok,
+                &mut object_class,
+                scope_path,
+                grammar,
+                definer_disabled,
+            );
+        }
+
+        // Record the per-object method declarations so `$obj m` navigation
+        // resolves the per-object override ahead of a same-named class method.
+        // Accumulate across multiple `oo::objdefine` blocks on the same object.
+        if !obj_name.is_empty() && !object_class.methods.is_empty() {
+            self.result
+                .object_methods
+                .entry(obj_name)
+                .or_default()
+                .extend(object_class.methods.into_values());
+        }
+
+        true
     }
 
     /// Handle ``package require`` (and ``package provide``) —
@@ -4492,22 +4581,45 @@ mod tests {
     #[test]
     fn handle_oo_objdefine_records_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["$obj".to_string()]);
+        a.handle_oo_objdefine(&["$obj".to_string()], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_braced_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["${obj}".to_string()]);
+        a.handle_oo_objdefine(&["${obj}".to_string()], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_bare_name() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["obj".to_string()]);
+        a.handle_oo_objdefine(&["obj".to_string()], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
+    }
+
+    #[test]
+    fn oo_objdefine_body_methods_are_analysed() {
+        // Before: the `oo::objdefine` body was never parsed, so nothing inside
+        // a per-object method resolved.  Now the body walks like any method
+        // body — the call it makes is recorded as an invocation.
+        let mut a = Analyser::new();
+        let src = "proc helper {} {}\n\
+                   oo::class create Foo {}\n\
+                   set o [Foo new]\n\
+                   oo::objdefine $o {\n    \
+                       method greet {} { helper }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.command_invocations.iter().any(|i| i.name == "helper"),
+            "the call inside the per-object method body should be analysed: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| &i.name)
+                .collect::<Vec<_>>(),
+        );
     }
 
     // resolve_alias

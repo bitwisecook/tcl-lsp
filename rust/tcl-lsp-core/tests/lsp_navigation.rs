@@ -135,6 +135,30 @@ fn definition_proc_call_jumps_to_proc_definition() {
 }
 
 #[test]
+fn definition_instance_method_prefers_per_object_override() {
+    // tclsh: `oo::class create Foo {method greet {} {return class}}; set o [Foo
+    // new]; oo::objdefine $o {method greet {} {return obj}}; $o greet` -> obj.
+    // TclOO layers a per-object method ahead of the class method, so
+    // go-to-definition on `$o greet` must land on the per-object override (the
+    // `oo::objdefine` body, line 5), not the same-named class method (line 1).
+    let src = "oo::class create Foo {\n    \
+                   method greet {} { return class }\n\
+               }\n\
+               set o [Foo new]\n\
+               oo::objdefine $o {\n    \
+                   method greet {} { return obj }\n\
+               }\n\
+               $o greet\n";
+    let analysis = analyse(src);
+    let locs = definition(src, 7, 4, &analysis);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].start_line, 5,
+        "`$o greet` must resolve to the per-object override (line 5), not the class method (line 1): {locs:?}",
+    );
+}
+
+#[test]
 fn definition_bare_call_honours_namespace_path_over_global() {
     // `::helper` at global and `::mymod::helper`; `::app` declares `namespace
     // path ::mymod`.  A bare `helper` call in `::app` resolves (like C Tcl) to

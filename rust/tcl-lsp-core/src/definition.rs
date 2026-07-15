@@ -149,11 +149,18 @@ pub fn definition(
     // declaration.  Checked before the proc lookup so a method
     // call resolves to the method even when a same-named proc
     // exists.
-    if let Some((inst, method, is_dollar)) = instance_method_at_cursor(source, line, character)
-        && let Some(class_q) = receiver_instance_class(analysis, &inst, is_dollar)
-        && let Some(span) = lookup_method_in_class(analysis, class_q, &method)
-    {
-        return vec![span_to_range(source, &line_index, span)];
+    if let Some((inst, method, is_dollar)) = instance_method_at_cursor(source, line, character) {
+        // A per-object method (`oo::objdefine $obj { method m … }`) is layered
+        // ahead of the object's class methods, so resolve it first — `$obj m`
+        // must reach the per-object override, not a same-named class method.
+        if let Some(span) = lookup_object_method(analysis, &inst, &method) {
+            return vec![span_to_range(source, &line_index, span)];
+        }
+        if let Some(class_q) = receiver_instance_class(analysis, &inst, is_dollar)
+            && let Some(span) = lookup_method_in_class(analysis, class_q, &method)
+        {
+            return vec![span_to_range(source, &line_index, span)];
+        }
     }
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
@@ -283,6 +290,26 @@ fn lookup_class_member(
         }
     }
     None
+}
+
+/// Look up `method` among the per-object methods added to the object named
+/// `receiver` by `oo::objdefine` — the per-object override TclOO layers ahead
+/// of the object's class methods.  Returns the declaration's `name_span`.
+///
+/// Keyed by the receiver's simple name; the analyser stores `$obj` / `${obj}`
+/// / bare `obj` all under `obj`, and `instance_method_at_cursor` yields that
+/// same bare name, so a `$`-receiver and a bare object command both match.
+fn lookup_object_method(
+    analysis: &AnalysisResult,
+    receiver: &str,
+    method: &str,
+) -> Option<tcl_lexer::Span> {
+    analysis
+        .object_methods
+        .get(receiver)?
+        .iter()
+        .find(|m| m.name == method)
+        .map(|m| m.name_span)
 }
 
 /// Look up `method` against the class identified by qualified

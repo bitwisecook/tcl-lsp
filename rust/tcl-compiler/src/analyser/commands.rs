@@ -637,10 +637,7 @@ impl Analyser {
                 self.handle_interp_alias(args, cmd_tok.span.start());
                 false
             }
-            Hook::OoObjdefine => {
-                self.handle_oo_objdefine(args);
-                false
-            }
+            Hook::OoObjdefine => self.handle_oo_objdefine(args, arg_tokens, scope_path),
             Hook::PackageRequire => {
                 self.handle_package_require(cmd_tok, args, arg_tokens);
                 false

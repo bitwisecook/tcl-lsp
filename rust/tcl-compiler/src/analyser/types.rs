@@ -854,6 +854,16 @@ pub struct AnalysisResult {
     /// binding sites, not by the `TclOO` user-class paths in
     /// `record_instance_creation`.
     pub ambiguous_instance_names: std::collections::HashSet<String>,
+    /// Per-object method declarations added by
+    /// `oo::objdefine $obj { method … }` (or its inline form), keyed by the
+    /// object variable's simple name (`$obj` / `${obj}` / bare `obj` all key
+    /// as `obj`).  TclOO layers a per-object method *ahead* of the object's
+    /// class methods, so `$obj m` navigation resolves the per-object override
+    /// recorded here before falling back to the class.  The method **bodies**
+    /// are walked into the scope tree at analysis time (so in-body diagnostics
+    /// and variable/command resolution work); this map carries only each
+    /// declaration's `name_span` for the receiver-dispatch name lookup.
+    pub object_methods: HashMap<String, Vec<MethodDef>>,
     /// Call sites of unresolved (unknown) commands — `(span, bare name)`, the
     /// same set the W123 diagnostic is emitted for, but recorded **regardless of
     /// whether W123 is disabled** (only the *diagnostic* honours the toggle).
