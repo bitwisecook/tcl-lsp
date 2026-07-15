@@ -228,6 +228,12 @@ pub struct Analyser {
     pub(super) namespace_paths: HashMap<String, Vec<String>>,
     /// Variable-as-command call sites; resolved post-walk by W307.
     pub var_command_sites: Vec<VarCommandSite>,
+    /// Tk widget instance-dispatch candidates (`.t instate …`, `$w tag
+    /// configure …`) whose head the ordinary registry-command resolution
+    /// could not resolve; resolved post-walk by
+    /// [`super::diagnostics::widget_command::Analyser::flush_widget_dispatch_diagnostics`]
+    /// once `instance_classes` is complete (issue #927).
+    pub widget_dispatch_sites: Vec<super::diagnostics::widget_command::WidgetDispatchSite>,
     /// Command-substitution-as-command call sites; same dispatch
     /// as [`Self::var_command_sites`] but for ``[cmd] args``
     /// shapes.
@@ -519,6 +525,7 @@ impl Analyser {
             deleted_commands: HashMap::new(),
             namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
+            widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
             ns_cache: HashMap::new(),
             ensemble_namespaces: HashSet::new(),
@@ -1352,6 +1359,7 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics(source);
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
+        self.flush_widget_dispatch_diagnostics(&diag_registry);
         self.flush_tk_geometry_diagnostics();
         self.flush_version_gate_diagnostics();
         self.apply_disabled_diagnostics();

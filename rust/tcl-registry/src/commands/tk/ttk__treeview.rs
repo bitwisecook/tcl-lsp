@@ -307,6 +307,17 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+/// `ttk::treeview`'s instance command (`.t instate …`, `.t tag …`)
+/// dispatches through the same subcommand table as its own constructor
+/// spec, so `object_class` is self-referential rather than naming a
+/// separate class (see `docs/design/tk-widget-instance-typing.md`).
+static TTK_TREEVIEW_CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "ttk::treeview",
+    instance_methods: SUBCOMMANDS,
+    superclasses: &[],
+    allow_unknown_methods: false,
+};
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::treeview",
@@ -327,6 +338,8 @@ pub fn spec() -> CommandSpec {
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
+        object_class: Some(&TTK_TREEVIEW_CLASS),
+        creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
 }

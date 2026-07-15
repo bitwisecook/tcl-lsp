@@ -810,6 +810,21 @@ pub struct AnalysisResult {
     /// holds one of these names — must not be flagged as an unknown command
     /// (W123) or a stray non-literal command word (W307).  Issue #777.
     pub created_instance_commands: std::collections::HashSet<String>,
+    /// Names dropped from [`Self::instance_classes`] because a *registry*
+    /// object-factory binding (Tk widget path, tcllib naming factory) saw
+    /// the same name bound to two different classes somewhere in the file
+    /// — e.g. `.t` created as both a `ttk::treeview` and a `listbox` in two
+    /// different procs. `instance_classes` itself stays last-write-wins for
+    /// every other producer (its long-documented, best-effort contract);
+    /// this set exists only so a consumer that needs a *sound* answer
+    /// (`widget_command.rs`'s W001/E002/E003 — issue #927) can tell "no
+    /// binding" apart from "binding, but two different ones, so
+    /// unknowable" and abstain on the latter rather than trust whichever
+    /// write happened to run last.  Populated only by
+    /// `Analyser::record_registry_factory_instance`'s two registry-driven
+    /// binding sites, not by the `TclOO` user-class paths in
+    /// `record_instance_creation`.
+    pub ambiguous_instance_names: std::collections::HashSet<String>,
     /// Call sites of unresolved (unknown) commands — `(span, bare name)`, the
     /// same set the W123 diagnostic is emitted for, but recorded **regardless of
     /// whether W123 is disabled** (only the *diagnostic* honours the toggle).
