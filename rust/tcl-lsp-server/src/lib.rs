@@ -3587,16 +3587,28 @@ impl Backend {
         };
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
+            let classes = index.class_definitions_qualified(&qualified, "");
+            // Prefer real `oo::class create` sites over cross-file `oo::define`
+            // extension stubs; fall back to every site only when no true
+            // creation site is indexed (the class is defined solely by
+            // `oo::define`, e.g. on a built-in).
+            let creation_sites: Vec<_> = classes.iter().filter(|c| !c.via_define).collect();
+            let class_targets: Vec<(String, tcl_lexer::Span)> = if creation_sites.is_empty() {
+                classes
+                    .iter()
+                    .map(|c| (c.uri.clone(), c.name_span))
+                    .collect()
+            } else {
+                creation_sites
+                    .iter()
+                    .map(|c| (c.uri.clone(), c.name_span))
+                    .collect()
+            };
             index
                 .proc_definitions_qualified(&qualified, "")
                 .into_iter()
                 .map(|p| (p.uri.clone(), p.name_span))
-                .chain(
-                    index
-                        .class_definitions_qualified(&qualified, "")
-                        .into_iter()
-                        .map(|c| (c.uri.clone(), c.name_span)),
-                )
+                .chain(class_targets)
                 .collect()
         };
         Ok(self.resolve_target_locations(targets).await)
@@ -16920,6 +16932,30 @@ mod tests {
             serde_json::json!("can't read \"greet\": no such variable")
         );
         assert_eq!(result["changed"], serde_json::json!(true));
+    }
+
+    #[tokio::test]
+    async fn cross_document_definition_prefers_class_creation_over_define_stub() {
+        // `::C` is created in a.tcl and extended by a cross-file `oo::define` in
+        // b.tcl.  Go-to-definition on a `C` call jumps to the real creation site
+        // (a.tcl), not the extension stub (b.tcl).
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        register(&backend, &a, "oo::class create C {}\n").await;
+        register(&backend, &b, "oo::define C {\n    method foo {} {}\n}\n").await;
+        let main_src = "C new\n";
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(main_src, "tcl8.6").clone()
+        };
+        // Cursor on the `C` call head.
+        let defs = backend
+            .cross_document_definition(main_src, Position::new(0, 0), &analysis)
+            .await
+            .expect("ok");
+        assert_eq!(defs.len(), 1, "{defs:?}");
+        assert_eq!(defs[0].uri, a, "{defs:?}");
     }
 
     #[tokio::test]

@@ -2035,6 +2035,9 @@ impl Analyser {
                     qualified_name: qualified.clone(),
                     name_span,
                     body_span: name_span,
+                    // An `oo::define` on a class not created in this file — a
+                    // cross-file extension stub, not the class's definition.
+                    via_define: true,
                     ..Default::default()
                 }
             });

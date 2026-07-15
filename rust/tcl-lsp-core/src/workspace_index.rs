@@ -92,6 +92,11 @@ pub struct WorkspaceClass {
     /// method rename.  Spans aren't stored — the server re-analyses each
     /// family member's document to collect the precise decl / call sites.
     pub defined_methods: Vec<String>,
+    /// `true` when this record is a cross-file `oo::define` extension stub
+    /// rather than the class's own `oo::class create` site (see
+    /// [`tcl_compiler::analyser::ClassDef::via_define`]).  Go-to-definition
+    /// prefers a real creation site over a stub.
+    pub via_define: bool,
 }
 
 /// One command-invocation (call) site recorded in the index.
@@ -206,6 +211,7 @@ impl WorkspaceIndex {
                     .chain(class_def.class_methods.keys())
                     .cloned()
                     .collect(),
+                via_define: class_def.via_define,
             });
         }
         for inv in &analysis.command_invocations {

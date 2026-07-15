@@ -536,6 +536,14 @@ pub struct ClassDef {
     /// Doc-comment text harvested from the line(s) above the
     /// ``oo::class create`` / ``oo::define`` statement.
     pub doc: String,
+    /// `true` when this record originates from an ``oo::define`` on a class
+    /// **not** created in this file — a cross-file extension "stub" (it adds
+    /// members / a `superclass` to a class defined elsewhere) rather than the
+    /// class's own ``oo::class create`` definition.  Go-to-definition prefers a
+    /// real creation site over such a stub; `false` for `oo::class create` and
+    /// for an ``oo::define`` that extends a class created earlier in the same
+    /// file.
+    pub via_define: bool,
 }
 
 impl Default for ClassDef {
@@ -569,6 +577,7 @@ impl Default for ClassDef {
             exports: HashSet::new(),
             unexports: HashSet::new(),
             doc: String::new(),
+            via_define: false,
         }
     }
 }
