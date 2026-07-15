@@ -315,8 +315,8 @@ apply it wherever a command name appears as a data argument — merging the
 C-source trace finding (D11) with the dynamic-surface introspection/ensemble
 findings.
 
-**Stage 14.1 — the role** Add `ArgRole::CommandName`; make refs/rename treat it as a reference.
-**Stage 14.2 — apply it** `trace add command/execution NAME` ([8.6 `tclTrace.c:507`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclTrace.c#L507)); `namespace which -command` / `namespace origin`; `info args/body/default PROC`; the `coroutine NAME` created command.
+**Stage 14.1 — the role** ✅ **DONE** — added `ArgRole::CommandName` (the whole word is a bare command name held as data, introspected not invoked — distinct from `CommandPrefix`, which appends args and carries a callback arity).  The analyser's `record_command_name_invocations` records each such literal argument as a `command_invocation` (`argc`/`callback_arity` both `None` — a reference with no arity to check), so find-references / go-to-definition / rename / call-hierarchy reach the named command through the ordinary invocation machinery.  A dynamic word (`info body $p`) is skipped.
+**Stage 14.2 — apply it** ◐ **PARTIAL** — applied `CommandName` to `info args` / `info body` / `info default PROC` (proc introspected by name) and `namespace origin NAME` (command resolved by name).  Test: `references_proc_named_in_info_body_include_the_introspection_site`.  Remaining, deferred (each needs a flag-position-aware `arg_role_resolver`, not a fixed index): `namespace which ?-command? NAME` (the `-variable` form makes `NAME` a variable, so the role is flag-conditional); `trace add command/execution NAME cmdPrefix` (`NAME` is the *traced* command — a reference — while the trailing callback is already a `CommandPrefix`); the `coroutine NAME` created command is already handled by `defines_command_at`.
 **Stage 14.3 — ensembles** Parse `namespace ensemble create -map/-subcommands` into a subcommand→target map; emit a reference for each `<ns>::sub` and each `-map`/`-unknown` target literal. **Depends on:** M3.
 
 ---

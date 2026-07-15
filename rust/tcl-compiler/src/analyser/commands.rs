@@ -352,6 +352,13 @@ impl Analyser {
                 cmd_name, args, arg_tokens, arg_single, scope_path,
             );
 
+            // Record `ArgRole::CommandName` arguments (`info body PROC`,
+            // `namespace which -command NAME`) — a bare command name held as
+            // data — as command invocations too, so the named command is
+            // reached by find-references / go-to-definition / rename without
+            // any arity check (it is introspected, not called).
+            self.record_command_name_invocations(cmd_name, args, arg_tokens, scope_path);
+
             // Run the per-command syntactic checks on commands nested inside
             // ``[…]`` substitutions — the main walk never descends a
             // substitution (it treats `[cmd …]` as a value), so a command
@@ -1196,6 +1203,50 @@ impl Analyser {
                     argc: None,
                     callback_arity: Some(inv.appended),
                     callback_baked_args: inv.baked,
+                },
+            );
+        }
+    }
+
+    /// Record each [`tcl_registry::arg_role::ArgRole::CommandName`] argument as
+    /// a command invocation: a bare command name held as data (`info body
+    /// PROC`, `info args PROC`, `info default PROC …`) that navigation must
+    /// reach, but which is *not* invoked here — so it carries no call arity
+    /// (`argc` / `callback_arity` stay `None`).  A dynamic word (`info body
+    /// $p`) names no static command and is skipped.
+    fn record_command_name_invocations(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let indices = registry.arg_indices_for_role(
+            cmd_name,
+            &arg_strs,
+            tcl_registry::arg_role::ArgRole::CommandName,
+        );
+        for idx in indices {
+            let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
+                continue;
+            };
+            if name.is_empty() || crate::naming::is_dynamic_word(name) {
+                continue;
+            }
+            let resolved = self.resolve_command_qualified_name(name, scope_path);
+            self.result.command_invocations.push(
+                crate::signature_scan::types::SignatureCommandInvocation {
+                    name: name.clone(),
+                    range: tok.span,
+                    resolved_qualified_name: Some(resolved),
+                    resolution_candidates: Vec::new(),
+                    argc: None,
+                    callback_arity: None,
+                    callback_baked_args: 0,
                 },
             );
         }

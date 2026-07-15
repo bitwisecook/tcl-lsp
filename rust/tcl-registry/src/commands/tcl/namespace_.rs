@@ -247,6 +247,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace origin command",
         pure: true,
         return_type: Some(TclType::String),
+        // The single argument is a command name resolved (not called), so it
+        // is a command reference navigation follows.
+        arg_roles: &[(0, ArgRole::CommandName)],
         ..SubCommand::DEFAULT
     },
     SubCommand {

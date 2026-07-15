@@ -122,6 +122,22 @@ fn references_proc_from_call_site_finds_the_same_set() {
 }
 
 #[test]
+fn references_proc_named_in_info_body_include_the_introspection_site() {
+    // `info body PROC` names the proc as data (introspected, not called); it
+    // is a command reference, so Find-All-References from the declaration must
+    // include the `greet` word inside `info body greet`.
+    let src = "proc greet {} { return hi }\ninfo body greet\n";
+    let analysis = analyse(src);
+    // Cursor on `greet` in the declaration (line 0, col 6).
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![0, 1],
+        "decl + the `info body` introspection site expected; got {refs:?}",
+    );
+}
+
+#[test]
 fn references_proc_exclude_declaration_drops_the_decl_line() {
     // include_declaration = false omits the defining span; only call sites
     // remain (lines 1 and 2).

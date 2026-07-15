@@ -223,6 +223,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info args procname",
         pure: true,
         return_type: Some(TclType::List),
+        // `procname` names a proc introspected (not called), so it is a
+        // command reference navigation follows.
+        arg_roles: &[(0, ArgRole::CommandName)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -232,6 +235,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info body procname",
         pure: true,
         return_type: Some(TclType::String),
+        arg_roles: &[(0, ArgRole::CommandName)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -320,7 +324,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "If the parameter has a default value, stores that value in varname and returns 1.",
         synopsis: "info default procname parameter varname",
         return_type: Some(TclType::Boolean),
-        arg_roles: &[(2, ArgRole::VarWrite)],
+        // `procname` is an introspected proc (a command reference); `varname`
+        // is written.
+        arg_roles: &[(0, ArgRole::CommandName), (2, ArgRole::VarWrite)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
