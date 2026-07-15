@@ -209,13 +209,21 @@ Ground truth: C resolves a bare `superclass`/`mixin` relative to the
 
 ---
 
-## M5 — Workspace-scoped resolution oracle (#923)
+## M5 — Workspace-scoped resolution oracle (#923) ✅ **DONE**
 
-Retire the bespoke matcher [`workspace_index.rs:758 invocations_of`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L758) for the canonical resolver widened to the workspace. Detail in [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md).
+Retired the bespoke textual matcher `workspace_index.rs invocations_of` for
+the canonical resolver widened to the workspace. Detail in
+[cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md).
 
-**Stage 5.1 — record candidates** Extend [`finalise_invocation_resolutions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/scope.rs#L327) to keep the full candidate list per invocation.
-**Stage 5.2 — the oracle** Add `WorkspaceIndex::workspace_command_exists`; rewrite [`invocations_of`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L758) to run candidates through [`resolve_command_with`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs#L516); gate `proc_definitions`/`class_definitions`.
-**Stage 5.3 — tests** Multi-file conformance-vector format; the confirmed #923 repro. **Depends on:** —.
+**Stage 5.1 — record candidates** ✅ **DONE**
+- [x] Added `SignatureCommandInvocation::resolution_candidates` (the full ordered candidate list — caller namespace, each `namespace path` entry, then global) and populated it in `finalise_invocation_resolutions` for every resolvable call (absolute → itself; the unusual-spelling branch records the settled name rather than nothing, so the list is never empty for a real call). Carried into `WorkspaceInvocation`.
+
+**Stage 5.2 — the oracle** ✅ **DONE**
+- [x] Added `WorkspaceIndex::workspace_command_exists` over a `defined_command_names` set. Rewrote `invocations_of(qualified_name, exclude_uri)` (dropped the `simple_name` arg) as pure candidate resolution: a call is a reference iff the first of its candidates defined anywhere in the workspace is the target. Deleted the exact-literal special case, the `resolved_qualified_name` fallback, the bare-name ambiguity gate, `simple_name_defined_elsewhere`, and the now-unused `WorkspaceInvocation::resolved_qualified_name` field — one rule, no heuristics.
+- [x] Rewrote `resolve_workspace_symbol` (returns the qualified name only): a declaration name under the cursor, else the invocation's candidates resolved against the current document and the workspace — replacing a namespace-blind `name == word` current-doc scan (M1 site #6) and an arbitrary same-simple-name sibling `.first()` pick. Gated cross-document go-to-definition and the references "include declaration" branch on the *qualified* matchers (`proc_definitions_qualified`/`class_definitions_qualified`), so a same simple name in an unrelated namespace is no longer surfaced as this symbol's definition (issue #923 false-positive #1, sites #13/#14).
+
+**Stage 5.3 — tests** ✅ **DONE**
+- [x] Reproduced the confirmed #923 trigger first (bare call reaching a namespaced proc via `namespace path`, with a same-simple-name collision elsewhere → 0 references), then fixed → 1. Coverage: five workspace-index unit tests (namespace-path resolution, collision FP guard, all three call spellings, no-path bare call resolves to nothing, existence oracle) + three server-layer tests (references follow the path, don't cross-link the collision, go-to-definition follows the path). **Depends on:** —.
 
 ---
 
