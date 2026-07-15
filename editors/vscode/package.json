@@ -5047,6 +5047,7 @@
   ],
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "precompile": "make -C ../.. copy-canonical",
     "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run copy-wasm && npm run bundle",
     "copy-canonical": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('src','chat','canonical'),d=p.join('out','chat','canonical');if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))}\"",
     "copy-core-js": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('..','..','rust','tcl-cli','gui','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}\"",
