@@ -303,8 +303,8 @@ resolver ignores it.
 
 ## M13 — TclOO version fidelity (`property`)
 
-**Stage 13.1 — gate `property` (D10).** Properties are 9.0+ ([`tcl9.0.4/generic/tclOOProp.c`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/generic/tclOOProp.c); absent 8.6). Gate the `property` body member `TCL90_PLUS` + configurable-family.
-**Stage 13.2 — accessors (N3).** Fold property accessors / configure-cget into `known_methods`. **Depends on:** M4.
+**Stage 13.1 — gate `property` (D10).** ✅ **DONE** — `MemberSpec` gained an optional `dialects` gate; the `property` member carries `TCL90_PLUS`, so a document using it under an older core draws W002 (disabled-in-dialect) on the member keyword and records no property, while 9.0+ accepts it.  When the enclosing definer is itself disabled (`oo::configurable`, also 9.0+), the member gate is bypassed so the body still resolves structurally and the version-only construct draws a single diagnostic rather than a cascade.  Tests: `property_member_is_gated_to_9_0`, `disabled_definer_nested_in_catch_reports_w002_once_without_cascade`.
+**Stage 13.2 — accessors (N3).** ✅ **DONE** — a configurable class (the `oo::configurable` metaclass, or any class carrying `property` declarations) answers `configure`/`cget` for its properties, so `known_methods` folds those accessor words in even though no `method` body defines them — `$obj configure -x …` / `$obj cget -x` no longer look like unknown methods.  Test: `configurable_class_knows_configure_and_cget`. **Depends on:** M4.
 
 ---
 

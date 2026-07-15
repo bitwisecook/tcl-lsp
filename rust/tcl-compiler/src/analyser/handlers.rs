@@ -2072,8 +2072,14 @@ impl Analyser {
         // ``class_methods`` from the OO-define subcommands.
         if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
             let grammar = self.definition_grammar(cmd_name);
+            let definer_disabled = self.command_dialect_disabled(cmd_name);
             self.parse_oo_definition_body(
-                body_text, body_tok, &mut class, &qualified, scope_path, grammar,
+                body_text,
+                body_tok,
+                &mut class,
+                scope_path,
+                grammar,
+                definer_disabled,
             );
         }
         // Register globally and in the current scope, the same as
@@ -2187,13 +2193,14 @@ impl Analyser {
             // ``oo::define Class { body }`` — args[1] is the
             // body text, arg_tokens[1] is the body token.
             let grammar = self.definition_grammar(cmd_name);
+            let definer_disabled = self.command_dialect_disabled(cmd_name);
             self.parse_oo_definition_body(
                 &args[1],
                 body_tok,
                 &mut class_def,
-                &qualified,
                 scope_path,
                 grammar,
+                definer_disabled,
             );
         }
 

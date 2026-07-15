@@ -227,14 +227,46 @@ impl Analyser {
     /// recovery — recovery is top-level only).  Dynamic bodies
     /// (non-`Str` tokens) skip the walk because they can't be
     /// statically re-segmented.
+    /// Whether the command `cmd_name` is *unavailable* in the active dialect —
+    /// its registry spec is dialect-gated and the document's dialect falls
+    /// outside the gate.  Used to suppress member-level dialect diagnostics
+    /// when the enclosing definer (`oo::configurable`, itself 9.0+) is already
+    /// flagged: one diagnostic for the version-only construct, not a cascade.
+    pub(super) fn command_dialect_disabled(&self, cmd_name: &str) -> bool {
+        let Some(doc) = tcl_registry::prelude::DialectSet::parse(&self.dialect) else {
+            return false;
+        };
+        self.registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .is_some_and(|spec| !spec.supports_dialect(doc))
+    }
+
+    /// Whether the definition-body member `subcmd` is available in the active
+    /// dialect.  A member with no dialect restriction (the common case) and an
+    /// unknown member (handled elsewhere, not gated here) both count as
+    /// available; a version-gated member — `property`, 9.0+ — is available
+    /// only when the document's dialect intersects its set.  An unrecognised
+    /// dialect never restricts.
+    fn oo_member_available(&self, grammar: &DefinitionBodyGrammar, subcmd: &str) -> bool {
+        let Some(member) = grammar.member(subcmd) else {
+            return true;
+        };
+        match member.dialects {
+            None => true,
+            Some(allowed) => tcl_registry::prelude::DialectSet::parse(&self.dialect)
+                .is_none_or(|doc| allowed.intersects(doc)),
+        }
+    }
+
     pub(super) fn parse_oo_definition_body(
         &mut self,
         body_text: &str,
         body_tok: Token,
         class_def: &mut ClassDef,
-        class_qualified: &str,
         scope_path: &[usize],
         grammar: Option<&'static DefinitionBodyGrammar>,
+        definer_disabled: bool,
     ) {
         if body_tok.kind != TokenType::Str {
             return;
@@ -245,6 +277,9 @@ impl Analyser {
         let Some(grammar) = grammar else {
             return;
         };
+        // The methods walked below home under the class's qualified name;
+        // capture it before the phase-1 walk mutates `class_def`.
+        let class_qualified = class_def.qualified_name.clone();
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
@@ -265,6 +300,32 @@ impl Analyser {
         let mut init_bodies: Vec<(String, Token)> = Vec::new();
         for cmd in &cmds {
             if cmd.is_partial || cmd.argv.is_empty() {
+                continue;
+            }
+            // A member keyword gated to a newer core — `property` is 9.0+ —
+            // does not exist in this dialect's definition grammar.  Flag it
+            // (the same disabled-in-dialect diagnostic a command draws) and
+            // skip recording a member the runtime lacks.  When the enclosing
+            // definer is itself disabled, its own diagnostic already covers
+            // the construct, so the gate is bypassed entirely and the body is
+            // resolved structurally — a member word never cascades into an
+            // unknown-command warning.
+            if !definer_disabled
+                && let Some(subcmd) = cmd.texts.first()
+                && !self.oo_member_available(grammar, subcmd)
+            {
+                if let Some(tok) = cmd.argv.first() {
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: tcl_core_types::DiagCode::W002,
+                        span: tok.span,
+                        message: format!(
+                            "'{subcmd}' is disabled in the active dialect profile ('{}')",
+                            self.dialect
+                        ),
+                        severity: super::types::Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
                 continue;
             }
             apply_oo_subcommand(grammar, &cmd.texts, &cmd.argv, class_def);
@@ -335,7 +396,7 @@ impl Analyser {
             self.walk_method_body(
                 &class_variables,
                 &var_decl_spans,
-                class_qualified,
+                &class_qualified,
                 scope_path,
                 mb,
                 oo_global,
@@ -1801,6 +1862,60 @@ mod tests {
         assert!(!pd.has_setter);
     }
 
+    /// `property` is a 9.0 `TclOO` member: under 8.6 it is flagged
+    /// disabled-in-dialect (W002) and records no property, but from 9.0 on it
+    /// is accepted.
+    #[test]
+    fn property_member_is_gated_to_9_0() {
+        let src = "oo::class create C {\n    property color\n}\n";
+        let mut a86 = Analyser::new();
+        let r86 = a86.analyse(src, "tcl8.6");
+        assert!(
+            r86.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W002),
+            "property should be W002 under 8.6",
+        );
+        assert!(
+            r86.all_classes
+                .get("::C")
+                .is_none_or(|c| c.properties.is_empty()),
+            "a disabled property records nothing",
+        );
+
+        let mut a90 = Analyser::new();
+        let r90 = a90.analyse(src, "tcl9.0");
+        assert!(
+            !r90.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W002),
+            "property is available in 9.0",
+        );
+        assert!(
+            r90.all_classes
+                .get("::C")
+                .is_some_and(|c| c.properties.contains_key("color")),
+            "9.0 records the property",
+        );
+    }
+
+    /// A configurable class answers `configure`/`cget` for its properties, so
+    /// those accessor method words are folded into its known methods even
+    /// though no `method` body defines them.
+    #[test]
+    fn configurable_class_knows_configure_and_cget() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "oo::configurable create C {\n    property color\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        let known = r.class_hierarchy().known_methods("::C");
+        assert!(known.contains(&"configure".to_owned()), "{known:?}");
+        assert!(known.contains(&"cget".to_owned()), "{known:?}");
+    }
+
     #[test]
     fn property_subcommand_with_no_kind_defaults_to_readwrite() {
         let mut cd = class();
@@ -2137,12 +2252,13 @@ mod tests {
     fn oo_property_accessor_bodies_are_walked() {
         // `-get`/`-set` accessor bodies are walked with the instance variable
         // `val` and the implicit `value` visible — no false W210 / W307.
+        // `property` is a 9.0 member, so the vector runs under a 9.0 dialect.
         let src = "oo::configurable create Bar {\n\
                    variable val\n\
                    property color -get { return $val } -set { set val $value }\n\
                    }";
         let mut a = Analyser::new();
-        let r = a.analyse(src, "tcl8.6");
+        let r = a.analyse(src, "tcl9.0");
         assert!(r.all_classes.contains_key("::Bar"));
         assert!(
             !r.diagnostics
