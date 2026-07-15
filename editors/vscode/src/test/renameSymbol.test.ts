@@ -82,7 +82,7 @@ suite("Rename Symbol", () => {
     assert.ok(entries.length > 0, "WorkspaceEdit should have entries for variable rename");
   });
 
-  // M2 Stage 2.1 (D1): renaming a TclOO instance variable must edit its
+  // Renaming a TclOO instance variable must edit its
   // `variable` declaration and `$var` uses, and NEVER rewrite the method body.
   test("rename of a TclOO instance variable does not rewrite the method body", async () => {
     const ooUri = getDocUri("tclooVariableRename.tcl");
@@ -128,7 +128,7 @@ suite("Rename Symbol", () => {
     assert.strictEqual(declEdit!.newText, "count");
   });
 
-  // M1: renaming from a bareword call site must target the caller's namespace,
+  // Renaming from a bareword call site must target the caller's namespace,
   // never a same-named proc in an unrelated namespace.
   test("rename from a call site does not touch a same-named proc in another namespace", async () => {
     const uri = getDocUri("renameNamespaceCollision.tcl");

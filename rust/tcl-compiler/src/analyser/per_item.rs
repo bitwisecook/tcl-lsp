@@ -88,8 +88,8 @@ pub struct DeferredBody {
     /// Class instance variables pre-bound in every method body (`variable`
     /// declarations at class level).  Empty for proc bodies.
     ///
-    /// The seeded var's real `definition_span` (the `variable v` declaration,
-    /// D1) is supplied by the *shell* walk (`oo::walk_method_body`), which the
+    /// The seeded var's real `definition_span` (the `variable v` declaration)
+    /// is supplied by the *shell* walk (`oo::walk_method_body`), which the
     /// graft keeps for shell-owned keys (`merge_one_var`); the isolated body
     /// pass below only needs the names, so this stays `Vec<String>` (and salsa
     /// -interning-friendly — see `tcl-lsp-db`'s `ItemBodyKey`).
@@ -641,7 +641,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         // The isolated body only needs the binding to exist so `$v` reads
         // resolve; the authoritative `definition_span` comes from the shell
         // walk and is preserved by the graft (`merge_one_var`), so a
-        // `placeholder` here is discarded for this shell-owned key (D1).
+        // `placeholder` here is discarded for this shell-owned key.
         a.define_var(base, dummy, &proc_path, false, Some(placeholder));
     }
     a.suppress_w215 = false;

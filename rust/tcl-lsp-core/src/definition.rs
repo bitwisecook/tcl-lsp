@@ -560,7 +560,7 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     // Inside an `uplevel #0 { … }` body the script runs in the global frame, so
     // the enclosing proc's locals are NOT visible — resolving `$g` there must
     // skip the proc scope and reach the global/namespace `g`, matching
-    // `visible_variable_names` (D2).  Without this guard a same-named proc-local
+    // `visible_variable_names`.  Without this guard a same-named proc-local
     // shadows the global and drives goto-def / hover / references / rename to
     // the wrong (invisible-at-runtime) variable.
     let in_uplevel = chain.iter().any(|sc| sc.kind == ScopeKind::Uplevel);

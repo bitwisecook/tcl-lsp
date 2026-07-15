@@ -134,7 +134,7 @@ fn is_var_declaration(member: &MemberSpec) -> bool {
 /// Map each declared instance-variable name in `known` to the span of its
 /// declaration name-token, scanning the class-body `cmds`.  Used to anchor a
 /// seeded object variable's `definition_span` at its `variable v` declaration
-/// (D1) instead of the whole method body — a whole-body span would let a
+/// instead of the whole method body — a whole-body span would let a
 /// variable rename overwrite the entire method.  Only names already present in
 /// `known` (the authoritative `ClassDef::variables` list) are recorded, so a
 /// non-name argument of a declaration member can never be mistaken for a
@@ -298,7 +298,7 @@ impl Analyser {
         // with the formal parameters and the class's instance variables
         // pre-bound; the `initialise` body walks in the enclosing scope.
         let class_variables = class_def.variables.clone();
-        // D1: map each declared instance-variable name to its `variable v`
+        // Map each declared instance-variable name to its `variable v`
         // declaration name-token span, so the per-method seeding below anchors
         // the object variable's definition at the declaration rather than the
         // whole method body.
@@ -379,7 +379,7 @@ impl Analyser {
         }
         // Class instance variables — visible in every method body.  Anchor
         // each one's definition span at its `variable v` declaration token
-        // (D1): a seeded var must NEVER take the whole method-body span as its
+        // A seeded var must NEVER take the whole method-body span as its
         // `definition_span`, or a rename would rewrite the entire body.  When
         // the declaration span is unknown (e.g. a snit implicit var) fall back
         // to a zero-width span at the body start — harmless, never destructive.
@@ -413,7 +413,7 @@ impl Analyser {
                 scope_name: method_qn,
                 params: mb.params.clone(),
                 // The shell walk above already seeded these with their real
-                // declaration spans (D1); the graft keeps the shell's span, so
+                // declaration spans; the graft keeps the shell's span, so
                 // the deferred body pass only needs the names.
                 class_variables: class_variables.to_vec(),
             });

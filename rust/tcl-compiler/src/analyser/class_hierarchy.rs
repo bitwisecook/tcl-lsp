@@ -884,7 +884,7 @@ mod tests {
         assert_eq!(h.method_target("::C::Sub", "m"), None);
     }
 
-    // M4 — class-name resolution follows C Tcl's one-hop rule (current ns, then
+    // Class-name resolution follows C Tcl's one-hop rule (current ns, then
     // global), never an ancestor walk.  `resolve_from` mirrors the analyser's
     // real call.
     fn resolve_from(name: &str, owner: &str, keys: &[&str]) -> Option<String> {
@@ -899,21 +899,21 @@ mod tests {
     /// the current ns or global) and the tail is ambiguous must NOT link — real
     /// Tcl errors there.  Before the fix this wrongly returned `::a::Base`.
     #[test]
-    fn m4_ancestor_walk_does_not_manufacture_link() {
+    fn superclass_resolution_abstains_on_ancestor_only_base() {
         let got = resolve_from("Base", "::a::b::Sub", &["::a::Base", "::x::Base", "::a::b::Sub"]);
         assert_eq!(got, None, "must abstain, not climb to an ancestor namespace");
     }
 
     /// TP: a base in the class's *own* namespace resolves one-hop.
     #[test]
-    fn m4_same_namespace_base_resolves() {
+    fn superclass_same_namespace_base_resolves() {
         let got = resolve_from("Base", "::a::Sub", &["::a::Base", "::a::Sub"]);
         assert_eq!(got.as_deref(), Some("::a::Base"));
     }
 
     /// TP: a global base resolves (current-ns miss falls through to global).
     #[test]
-    fn m4_global_base_resolves() {
+    fn superclass_global_base_resolves() {
         let got = resolve_from("Base", "::a::b::Sub", &["::Base", "::a::b::Sub"]);
         assert_eq!(got.as_deref(), Some("::Base"));
     }
@@ -922,14 +922,14 @@ mod tests {
     /// subclass names a namespaced base bare when the base is unique — still
     /// links via the sound-by-abstention unique-tail fallback.
     #[test]
-    fn m4_cross_file_unique_tail_still_links() {
+    fn superclass_cross_file_unique_tail_links() {
         let got = resolve_from("Device", "::spice::sub::Sub", &["::spice::Device", "::spice::sub::Sub"]);
         assert_eq!(got.as_deref(), Some("::spice::Device"));
     }
 
     /// TN: an absolute `::`-qualified name is taken exactly.
     #[test]
-    fn m4_absolute_name_is_exact() {
+    fn superclass_absolute_name_is_exact() {
         let got = resolve_from("::a::Base", "::x::Sub", &["::a::Base", "::x::Sub"]);
         assert_eq!(got.as_deref(), Some("::a::Base"));
     }

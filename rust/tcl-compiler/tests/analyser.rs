@@ -1766,7 +1766,7 @@ mod tcloo_classes {
         assert_eq!(class(src, "::Dog").superclasses, ["Animal"]);
     }
 
-    /// M4 (integration, full analyse → resolved hierarchy): a bare
+    /// Integration (full analyse → resolved hierarchy): a bare
     /// `superclass Base` in a deeply-nested `::a::b::Sub`, where `Base` exists
     /// only in an *ancestor* namespace (`::a::Base`) and the tail is ambiguous
     /// (a second `::x::Base`), must NOT resolve — real Tcl errors there.  The
@@ -1782,7 +1782,7 @@ mod tcloo_classes {
         );
     }
 
-    /// M4 (integration, TP): a base in the class's own namespace resolves, so
+    /// TP: a base in the class's own namespace resolves, so
     /// the inheritance edge is real.
     #[test]
     fn class_superclass_same_namespace_resolves() {

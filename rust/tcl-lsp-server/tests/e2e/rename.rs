@@ -285,9 +285,9 @@ fn rejects_var_collision_in_same_scope() {
     assert!(rename_edits(&result).is_empty());
 }
 
-// -- M2 Stage 2.1: TclOO instance-variable rename must not corrupt the body --
+// -- TclOO instance-variable rename must not corrupt the body --
 
-/// D1 (end-to-end, real server / incremental path): renaming a TclOO
+/// End-to-end (real server / incremental path): renaming a TclOO
 /// instance variable rewrites its `variable` declaration and its `$var`
 /// uses — and NEVER the whole method body.  Before the fix the declaration
 /// edit spanned `{return $n}`, replacing the body with the new name.
@@ -327,7 +327,7 @@ fn rename_tcloo_instance_variable_does_not_rewrite_body() {
     );
 }
 
-/// D2 (end-to-end): go-to-definition on `$g` inside `uplevel #0 { … }`
+/// End-to-end: go-to-definition on `$g` inside `uplevel #0 { … }`
 /// resolves to the GLOBAL `set g` (line 0), not the same-named proc-local.
 #[test]
 fn definition_uplevel_zero_var_resolves_global() {
@@ -360,7 +360,7 @@ fn definition_uplevel_zero_var_resolves_global() {
     );
 }
 
-// -- M1: rename from a call site targets the caller's namespace --
+// -- rename from a call site targets the caller's namespace --
 
 /// End-to-end: renaming from the `helper` call site inside `::a::run` renames
 /// `::a::helper` and its call, never the same-named `::b::helper`.
