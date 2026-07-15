@@ -53,6 +53,22 @@
 //! carrying `Traits::INVOKES_USER_PROC` surfaces user-defined
 //! proc names at word-index 1 (iRules `call PROC_NAME`).
 //!
+//! **Fuzzy fallback.**  Candidate filtering goes through one shared
+//! helper ([`filter_candidates`]): prefix matches keep the historical
+//! behaviour byte-for-byte, and when a typed fragment of two-plus
+//! characters prefix-matches nothing, the closest candidates by edit
+//! distance (budget and ranking shared with the analyser's "did you
+//! mean…?" emitters via `tcl_compiler::text`) are offered instead —
+//! capped, ranked by `(distance, name)`, and decorated
+//! ([`decorate_fuzzy_items`]) so editors neither hide nor re-order
+//! them.  Context-scoped lists (switches, subcommands, argument
+//! values, events, scoped ops, `call` procs, variables, array
+//! elements) fall back per list; the command-position response falls
+//! back as a whole ([`fuzzy_command_fallback`]) only when procs,
+//! built-ins, scoped heads, workspace procs, and snippets all
+//! produced nothing, so a fragment that matches anything today keeps
+//! today's response exactly.
+//!
 //! Cache + `spawn_blocking` + cached-analysis read-out ride on
 //! top of this provider in `tcl-lsp-server::Backend::completion`;
 //! this module is the pure-CPU computation, no I/O, no async.
@@ -139,6 +155,107 @@ pub struct CompletionEdit {
     pub end_char: u32,
     /// Replacement text.
     pub new_text: String,
+}
+
+/// Minimum typed-fragment length (in characters) for the fuzzy
+/// completion fallback.  Zero- and one-character fragments sit within
+/// one edit of nearly everything, so falling back there would be
+/// noise, not typo correction.
+const MIN_FUZZY_FRAGMENT_CHARS: usize = 2;
+
+/// Cap on the fuzzy-fallback suggestion list.
+const MAX_FUZZY_SUGGESTIONS: usize = 8;
+
+/// Outcome of [`filter_candidates`]: the surviving candidates, and
+/// whether they came from the fuzzy fallback (fuzzy items need
+/// [`decorate_fuzzy_items`] before they reach an editor).
+struct FilteredCandidates<T> {
+    candidates: Vec<T>,
+    fuzzy: bool,
+}
+
+/// The one shared candidate filter behind every completion list.
+///
+/// **Prefix path** — when `partial` is empty or prefix-matches at
+/// least one candidate name — keeps exactly the prefix matches, in
+/// input order: byte-identical to the per-site `starts_with` filters
+/// it replaced.
+///
+/// **Fuzzy fallback** — when nothing prefix-matches and the typed
+/// fragment is at least [`MIN_FUZZY_FRAGMENT_CHARS`] characters —
+/// returns the candidates within the shared "did you mean…?" edit
+/// budget ([`tcl_compiler::text::scaled_max_distance`]), ranked by
+/// `(distance, name)` via [`tcl_compiler::text::rank_suggestions`] and
+/// capped at [`MAX_FUZZY_SUGGESTIONS`], so a typo'd fragment
+/// (`lsaerch`) still offers its target (`lsearch`) instead of an
+/// empty list.
+fn filter_candidates<T>(
+    partial: &str,
+    candidates: Vec<T>,
+    name_of: impl Fn(&T) -> &str,
+) -> FilteredCandidates<T> {
+    if partial.is_empty()
+        || candidates
+            .iter()
+            .any(|candidate| name_of(candidate).starts_with(partial))
+    {
+        let mut kept = candidates;
+        kept.retain(|candidate| name_of(candidate).starts_with(partial));
+        return FilteredCandidates {
+            candidates: kept,
+            fuzzy: false,
+        };
+    }
+    if partial.chars().count() < MIN_FUZZY_FRAGMENT_CHARS {
+        return FilteredCandidates {
+            candidates: Vec::new(),
+            fuzzy: false,
+        };
+    }
+    let budget = tcl_compiler::text::scaled_max_distance(partial);
+    let scored: Vec<(usize, T)> = candidates
+        .into_iter()
+        .filter_map(|candidate| {
+            let distance = tcl_compiler::text::edit_distance(partial, name_of(&candidate));
+            (distance <= budget).then_some((distance, candidate))
+        })
+        .collect();
+    let ranked = tcl_compiler::text::rank_suggestions(scored, MAX_FUZZY_SUGGESTIONS, &name_of);
+    FilteredCandidates {
+        fuzzy: !ranked.is_empty(),
+        candidates: ranked,
+    }
+}
+
+/// Decorate fuzzy-fallback items so editors keep and rank them.
+///
+/// Editors re-filter returned items against the typed word
+/// (`filterText`, falling back to the label) with a subsequence
+/// matcher that hides a fuzzy match — `lsaerch` is not a subsequence
+/// of `lsearch` — so `filter_text` is pinned to the exact fragment the
+/// user typed.  `sort_text` encodes the fallback rank (`F00_…`,
+/// `F01_…`), preserving the `(distance, name)` order in editors that
+/// re-sort: after real symbols (`A…`/`B…`/`C…`) and before snippets
+/// (`Z0_…`).
+fn decorate_fuzzy_items(items: &mut [CompletionItem], typed: &str) {
+    for (rank, item) in items.iter_mut().enumerate() {
+        item.filter_text = Some(typed.to_string());
+        item.sort_text = Some(format!("F{rank:02}_{}", item.label));
+    }
+}
+
+/// Candidate name of an assembled completion item for fragment
+/// matching: a `::`-led fragment matches the inserted (qualified)
+/// name, anything else matches the label.  Procs label their simple
+/// name but insert the qualified one; for every other item kind the
+/// two agree, so this reproduces the historical
+/// name-or-qualified-name prefix test.
+fn item_match_name<'a>(item: &'a CompletionItem, partial: &str) -> &'a str {
+    if partial.starts_with(':') {
+        &item.insert_text
+    } else {
+        &item.label
+    }
 }
 
 /// `true` when `$name` lexes as a single bare variable token (so it
@@ -323,8 +440,7 @@ fn context_aware_completions(
             .traits
             .contains(tcl_registry::Traits::INVOKES_USER_PROC)
     {
-        let usage = document_usage_counts(analysis);
-        return Some(proc_completions(analysis, partial, &usage));
+        return Some(invoked_proc_completions(analysis, partial));
     }
     if word_idx == 1 && !spec.subcommands.is_empty() {
         return Some(subcommand_completions(spec, partial));
@@ -552,6 +668,12 @@ pub fn completions(
             file_events: &file_events,
         },
     ));
+    // Response-level fuzzy fallback — only when nothing at all matched
+    // the fragment, so any fragment that matches something today keeps
+    // today's response byte-for-byte.
+    if items.is_empty() {
+        items = fuzzy_command_fallback(source, line, character, analysis, registry, dialect);
+    }
     items
 }
 
@@ -752,34 +874,94 @@ fn variable_completions(
 
     // Scope-aware: union of variables visible at the cursor (innermost scope
     // first, then enclosing scopes up to the global root).
-    let mut names: Vec<String> = crate::definition::visible_variable_names(scope, byte_offset)
-        .into_iter()
-        .filter(|n| n.starts_with(partial) && var_is_substitutable(n))
-        .collect();
-    names.sort_unstable();
-    names.dedup();
+    let names = visible_substitutable_names(scope, byte_offset, partial);
 
     // Inside a proc / nested namespace, a global variable is only reachable
     // via its `::`-qualified name (a bare `$foo` there is a local / namespace
     // lookup), so qualify global-origin names — `foo-bar` → `::foo-bar`.
     let qualify_globals = crate::definition::global_vars_needing_qualification(scope, byte_offset);
 
+    let edit = VarEdit {
+        start: edit_start,
+        end: edit_end,
+        has_open_brace,
+    };
     let mut items = Vec::new();
+    push_local_var_items(&mut items, names, qualify_globals.as_ref(), edit);
+    // Cross-namespace candidates — variables in *other* namespaces, offered in
+    // fully-qualified `::ns::var` form (vars in the cursor's own namespace
+    // chain are already above as bare names).
+    push_cross_namespace_vars(&mut items, scope, byte_offset, partial, edit);
+    if !items.is_empty() {
+        return items;
+    }
+
+    // Fuzzy fallback for the whole variable response: nothing
+    // prefix-matched the fragment, so re-enumerate every candidate
+    // (local and cross-namespace) and offer the closest names.
+    let mut universe = Vec::new();
+    push_local_var_items(
+        &mut universe,
+        visible_substitutable_names(scope, byte_offset, ""),
+        qualify_globals.as_ref(),
+        edit,
+    );
+    push_cross_namespace_vars(&mut universe, scope, byte_offset, "", edit);
+    let FilteredCandidates {
+        candidates: mut fallback,
+        fuzzy,
+    } = filter_candidates(partial, universe, |item| {
+        item.label.strip_prefix('$').unwrap_or(&item.label)
+    });
+    if fuzzy {
+        // The on-screen fragment (sigil included) — the text editors
+        // match the replaced range against.
+        let typed = if has_open_brace {
+            format!("${{{partial}")
+        } else {
+            format!("${partial}")
+        };
+        decorate_fuzzy_items(&mut fallback, &typed);
+    }
+    fallback
+}
+
+/// Sorted, deduplicated variable names visible at `byte_offset` that
+/// start with `partial` and survive the substitutability check.
+fn visible_substitutable_names(scope: &Scope, byte_offset: u32, partial: &str) -> Vec<String> {
+    let mut names: Vec<String> = crate::definition::visible_variable_names(scope, byte_offset)
+        .into_iter()
+        .filter(|n| n.starts_with(partial) && var_is_substitutable(n))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+/// Append `$name` / `${name}` items for `names` (already sorted and
+/// deduplicated), `::`-qualifying globals reached from a local
+/// context and forcing the `${…}` form when the user already typed
+/// `${` or the bare `$name` syntax can't carry the name (hyphens,
+/// dots, …).
+fn push_local_var_items(
+    items: &mut Vec<CompletionItem>,
+    names: Vec<String>,
+    qualify_globals: Option<&FxHashSet<String>>,
+    edit: VarEdit,
+) {
     for name in names {
         // `::`-qualify a global reached from a local context; leave already
         // qualified names and locals untouched.
-        let qname = qualified_var_name(&name, qualify_globals.as_ref());
-        // Force the `${…}` form when the user already typed `${`, or when the
-        // bare `$name` syntax can't carry the name (hyphens, dots, …).
-        let use_brace = has_open_brace || !is_bare_var_name(&qname);
+        let qname = qualified_var_name(&name, qualify_globals);
+        let use_brace = edit.has_open_brace || !is_bare_var_name(&qname);
         let new_text = if use_brace {
             format!("${{{qname}}}")
         } else {
             format!("${qname}")
         };
-        let text_edit = edit_start.map(|start_char| CompletionEdit {
+        let text_edit = edit.start.map(|start_char| CompletionEdit {
             start_char,
-            end_char: edit_end,
+            end_char: edit.end,
             new_text: new_text.clone(),
         });
         items.push(CompletionItem {
@@ -794,17 +976,6 @@ fn variable_completions(
             documentation: None,
         });
     }
-
-    // Cross-namespace candidates — variables in *other* namespaces, offered in
-    // fully-qualified `::ns::var` form (vars in the cursor's own namespace
-    // chain are already above as bare names).
-    let edit = VarEdit {
-        start: edit_start,
-        end: edit_end,
-        has_open_brace,
-    };
-    push_cross_namespace_vars(&mut items, scope, byte_offset, partial, edit);
-    items
 }
 
 /// Edit-range + brace-form parameters shared by the variable-name builders.
@@ -897,14 +1068,17 @@ fn array_element_completions(
         None => end,
     };
     let arr_edit_end = char_col_to_utf16(line_text, arr_end);
+    let valid: Vec<&String> = arr_def
+        .array_indices
+        .iter()
+        .filter(|elem| !elem.is_empty() && !elem.contains(')'))
+        .collect();
+    let FilteredCandidates {
+        candidates: elems,
+        fuzzy,
+    } = filter_candidates(elem_prefix, valid, |elem| elem.as_str());
     let mut items = Vec::new();
-    for elem in &arr_def.array_indices {
-        if elem.is_empty() || elem.contains(')') {
-            continue;
-        }
-        if !elem_prefix.is_empty() && !elem.starts_with(elem_prefix) {
-            continue;
-        }
+    for elem in elems {
         let new_text = format!("${arr_name}({elem})");
         let text_edit = edit_start.map(|start_char| CompletionEdit {
             start_char,
@@ -923,7 +1097,13 @@ fn array_element_completions(
             documentation: None,
         });
     }
-    items.sort_by(|a, b| a.label.cmp(&b.label));
+    if fuzzy {
+        // The on-screen fragment runs from the `$` to the cursor (the
+        // partial spans `arr(prefix`), sigil included.
+        decorate_fuzzy_items(&mut items, &format!("${partial}"));
+    } else {
+        items.sort_by(|a, b| a.label.cmp(&b.label));
+    }
     items
 }
 
@@ -982,25 +1162,45 @@ fn strip_instance_var(cmd: &str) -> Option<String> {
 }
 
 /// Complete the methods/subcommands callable on a receiver whose class
-/// (`class_q`) is already resolved — gathered across the whole MRO so
-/// **inherited** methods appear, not just the receiver class's own.
-/// Overridden methods appear once (the most-derived provider wins).  Only
-/// public methods plus the universal `destroy` are offered (an external
-/// `$obj method` dispatch cannot reach private / unexported methods).
-///
-/// `class_q` may name either a *user*-defined class (`analysis.all_classes`,
-/// tried first) or fall through to the registry (`ObjectClassSpec`/a
-/// self-referential Tk widget spec — issue #927) when it isn't one. Returns
-/// `None` when the class is unknown to both or nothing matches, so the
-/// caller falls through to plain command completion.
+/// (`class_q`) is already resolved — a user-defined class walks the whole
+/// MRO, a registry-modelled one reads its instance table (see
+/// [`method_items`]).  Returns `None` when the class is unknown to both or
+/// nothing prefix-matches, so the caller falls through to plain command
+/// completion — a typo'd fragment is deliberately *not* fuzzy-matched
+/// here, because the command/proc path this falls through to still offers
+/// its own prefix matches; the response-level [`fuzzy_command_fallback`]
+/// re-ranks these methods together with command candidates only once the
+/// whole response would otherwise be empty.
 fn method_completions(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     class_q: &str,
     partial: &str,
 ) -> Option<Vec<CompletionItem>> {
+    let all = method_items(analysis, Some(registry), class_q)?;
+    let FilteredCandidates {
+        candidates: items,
+        fuzzy,
+    } = filter_candidates(partial, all, |item| item.label.as_str());
+    (!fuzzy && !items.is_empty()).then_some(items)
+}
+
+/// Every method item callable on an instance of `class_q` (label-sorted) —
+/// gathered across the whole MRO so **inherited** methods appear, not just
+/// the receiver class's own.  Overridden methods appear once (the
+/// most-derived provider wins).  Only public methods plus the universal
+/// `destroy` are offered (an external `$obj method` dispatch cannot reach
+/// private / unexported methods).  A class unknown to the analysis falls
+/// through to the registry (`ObjectClassSpec` / a self-referential Tk
+/// widget spec — issue #927).  The candidate universe behind
+/// [`method_completions`] and [`fuzzy_command_fallback`].
+fn method_items(
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    class_q: &str,
+) -> Option<Vec<CompletionItem>> {
     if !analysis.all_classes.contains_key(class_q) {
-        return registry_method_completions(registry, class_q, partial);
+        return registry_method_items(registry?, class_q);
     }
     let hierarchy = analysis.class_hierarchy();
     let mro = hierarchy
@@ -1026,7 +1226,7 @@ fn method_completions(
             .collect();
         methods.sort_by(|a, b| a.0.cmp(b.0));
         for (name, provider) in methods {
-            if !name.starts_with(partial) || !seen.insert(name.clone()) {
+            if !seen.insert(name.clone()) {
                 continue;
             }
             let detail = if provider == class_q {
@@ -1044,7 +1244,7 @@ fn method_completions(
         }
     }
     // The universal object method (present on every object).
-    if "destroy".starts_with(partial) && seen.insert("destroy".to_string()) {
+    if seen.insert("destroy".to_string()) {
         items.push(CompletionItem {
             label: "destroy".to_string(),
             insert_text: "destroy".to_string(),
@@ -1053,14 +1253,11 @@ fn method_completions(
             ..CompletionItem::default()
         });
     }
-    if items.is_empty() {
-        return None;
-    }
     items.sort_by(|a, b| a.label.cmp(&b.label));
     Some(items)
 }
 
-/// Complete instance methods/subcommands for a *registry*-modelled class:
+/// Every instance method/subcommand item for a *registry*-modelled class:
 /// a tcllib-style factory (`report::report`, `struct::graph` — a distinct
 /// `ObjectClassSpec`) or a Tk/ttk widget (self-referential — `class_q`
 /// names its own `CommandSpec`, whose `subcommands` *is* its instance
@@ -1069,11 +1266,11 @@ fn method_completions(
 /// back to the class's own `CommandSpec` when it has no separate
 /// `ObjectClassSpec` (matching `CommandRegistry::instance_method`'s own
 /// `object_class` lookup, `registry.rs:413-415`).  No MRO walk — neither
-/// shape currently declares `superclasses` (issue #927).
-fn registry_method_completions(
+/// shape currently declares `superclasses` (issue #927).  Unfiltered:
+/// fragment matching happens in [`method_completions`].
+fn registry_method_items(
     registry: &CommandRegistry,
     class_q: &str,
-    partial: &str,
 ) -> Option<Vec<CompletionItem>> {
     let methods: &[tcl_registry::SubCommand] = registry
         .object_class(class_q)
@@ -1081,7 +1278,6 @@ fn registry_method_completions(
         .or_else(|| registry.get(class_q).map(|spec| spec.subcommands))?;
     let mut items: Vec<CompletionItem> = methods
         .iter()
-        .filter(|m| m.name.starts_with(partial))
         .map(|m| CompletionItem {
             label: m.name.to_owned(),
             insert_text: m.name.to_owned(),
@@ -1161,13 +1357,17 @@ fn switch_completions(
     let mut opts: Vec<_> = options
         .iter()
         .filter(|opt| {
-            (partial.is_empty() || opt.name.starts_with(partial))
-                && opt.available_for_version(package_version)
+            opt.available_for_version(package_version)
                 && opt.supports_dialect(dialect, parent_dialects)
         })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
-    opts.into_iter()
+    let FilteredCandidates {
+        candidates: opts,
+        fuzzy,
+    } = filter_candidates(partial, opts, |opt| opt.name);
+    let mut items: Vec<CompletionItem> = opts
+        .into_iter()
         .map(|opt| {
             let doc = (!opt.detail.is_empty()).then(|| opt.detail.to_owned());
             CompletionItem {
@@ -1186,7 +1386,13 @@ fn switch_completions(
                 }),
             }
         })
-        .collect()
+        .collect();
+    if fuzzy {
+        // `partial` carries the leading dash, matching the on-screen
+        // fragment the replace edit covers.
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
 }
 
 /// Compute iRules event-name completions for `when EVENT { body }`.
@@ -1203,13 +1409,13 @@ fn switch_completions(
 /// even when iRules isn't in scope, so we keep it local instead.
 fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     let reg = tcl_registry::events::EventRegistry::build();
-    let mut names: Vec<&str> = reg
-        .all_event_names()
-        .into_iter()
-        .filter(|n| partial.is_empty() || n.starts_with(partial))
-        .collect();
+    let mut names: Vec<&str> = reg.all_event_names().into_iter().collect();
     names.sort_unstable();
-    names
+    let FilteredCandidates {
+        candidates: names,
+        fuzzy,
+    } = filter_candidates(partial, names, |name| *name);
+    let mut items: Vec<CompletionItem> = names
         .into_iter()
         .map(|name| {
             // Describe the event from its registry props (sides / transport /
@@ -1236,17 +1442,22 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
                 documentation: doc.or_else(|| Some(format!("F5 iRules event `{name}`"))),
             }
         })
-        .collect()
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
 }
 
 fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<CompletionItem> {
-    let mut subs: Vec<&tcl_registry::SubCommand> = spec
-        .subcommands
-        .iter()
-        .filter(|sub| partial.is_empty() || sub.name.starts_with(partial))
-        .collect();
+    let mut subs: Vec<&tcl_registry::SubCommand> = spec.subcommands.iter().collect();
     subs.sort_unstable_by_key(|sub| sub.name);
-    subs.into_iter()
+    let FilteredCandidates {
+        candidates: subs,
+        fuzzy,
+    } = filter_candidates(partial, subs, |sub| sub.name);
+    let mut items: Vec<CompletionItem> = subs
+        .into_iter()
         .map(|sub| CompletionItem {
             label: sub.name.to_owned(),
             insert_text: sub.name.to_owned(),
@@ -1262,7 +1473,11 @@ fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Ve
             text_edit: None,
             documentation: None,
         })
-        .collect()
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
 }
 
 /// The scoped command environment active at the cursor, if the position falls
@@ -1311,9 +1526,13 @@ fn scoped_op_completions(
     cmd: &'static tcl_registry::scoped::ScopedCommand,
     partial: &str,
 ) -> Vec<CompletionItem> {
-    cmd.subcommands
-        .iter()
-        .filter(|s| partial.is_empty() || s.name.starts_with(partial))
+    let ops: Vec<&tcl_registry::SubCommand> = cmd.subcommands.iter().collect();
+    let FilteredCandidates {
+        candidates: ops,
+        fuzzy,
+    } = filter_candidates(partial, ops, |op| op.name);
+    let mut items: Vec<CompletionItem> = ops
+        .into_iter()
         .map(|s| CompletionItem {
             label: s.name.to_owned(),
             insert_text: s.name.to_owned(),
@@ -1325,7 +1544,11 @@ fn scoped_op_completions(
             text_edit: None,
             documentation: None,
         })
-        .collect()
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
 }
 
 /// Build completions for the second-level subcommands of a two-level ensemble
@@ -1335,13 +1558,14 @@ fn sub_subcommand_completions(
     sub: &tcl_registry::SubCommand,
     partial: &str,
 ) -> Vec<CompletionItem> {
-    let mut subs: Vec<&tcl_registry::SubSubCommand> = sub
-        .sub_subcommands
-        .iter()
-        .filter(|s| partial.is_empty() || s.name.starts_with(partial))
-        .collect();
+    let mut subs: Vec<&tcl_registry::SubSubCommand> = sub.sub_subcommands.iter().collect();
     subs.sort_unstable_by_key(|s| s.name);
-    subs.into_iter()
+    let FilteredCandidates {
+        candidates: subs,
+        fuzzy,
+    } = filter_candidates(partial, subs, |s| s.name);
+    let mut items: Vec<CompletionItem> = subs
+        .into_iter()
         .map(|s| CompletionItem {
             label: s.name.to_owned(),
             insert_text: s.name.to_owned(),
@@ -1353,7 +1577,11 @@ fn sub_subcommand_completions(
             text_edit: None,
             documentation: None,
         })
-        .collect()
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
 }
 
 /// Return the `n`-th whitespace-delimited word on `line` of
@@ -1372,9 +1600,17 @@ fn nth_word_on_line(source: &str, line: u32, n: usize) -> Option<String> {
 /// Build completions for a fixed set of enumerable argument
 /// values (e.g. `string is <class>`), filtered by `partial`.
 fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Vec<CompletionItem> {
+    let mut values: Vec<&tcl_registry::ArgValue> = values.iter().collect();
+    // Pre-sort by value so the prefix path's output matches the
+    // historical post-build label sort, while the fuzzy path keeps its
+    // `(distance, name)` ranking.
+    values.sort_unstable_by_key(|v| v.value);
+    let FilteredCandidates {
+        candidates: values,
+        fuzzy,
+    } = filter_candidates(partial, values, |v| v.value);
     let mut items: Vec<CompletionItem> = values
-        .iter()
-        .filter(|v| partial.is_empty() || v.value.starts_with(partial))
+        .into_iter()
         .map(|v| CompletionItem {
             label: v.value.to_owned(),
             insert_text: v.value.to_owned(),
@@ -1387,7 +1623,9 @@ fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Ve
             documentation: None,
         })
         .collect();
-    items.sort_unstable_by(|a, b| a.label.cmp(&b.label));
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
     items
 }
 
@@ -1585,6 +1823,94 @@ fn proc_completions(
             text_edit: None,
             documentation: None,
         });
+    }
+    items
+}
+
+/// Proc-name completions for an `INVOKES_USER_PROC` argument (iRules
+/// `call PROC_NAME`), with the fuzzy fallback: this list is the whole
+/// response for that cursor context, so when no proc prefix-matches a
+/// two-plus-character fragment the closest proc names are offered
+/// instead of an empty list.
+fn invoked_proc_completions(analysis: &AnalysisResult, partial: &str) -> Vec<CompletionItem> {
+    let usage = document_usage_counts(analysis);
+    let items = proc_completions(analysis, partial, &usage);
+    if !items.is_empty() || partial.is_empty() {
+        return items;
+    }
+    let FilteredCandidates {
+        candidates: mut fallback,
+        fuzzy,
+    } = filter_candidates(partial, proc_completions(analysis, "", &usage), |item| {
+        item_match_name(item, partial)
+    });
+    if fuzzy {
+        decorate_fuzzy_items(&mut fallback, partial);
+    }
+    fallback
+}
+
+/// Response-level fuzzy fallback for the command-position path: called
+/// by [`completions`] only when procs, built-ins, scoped heads,
+/// workspace procs, and snippets all produced nothing for the typed
+/// fragment.  Re-enumerates the same candidate universe the prefix
+/// path consults — `$obj` methods when the command head is a known
+/// instance, then user procs, built-ins, and scoped command heads —
+/// and offers the closest names via [`filter_candidates`].
+fn fuzzy_command_fallback(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    dialect: &str,
+) -> Vec<CompletionItem> {
+    let partial = word_partial_at_position(source, line, character);
+    if partial.chars().count() < MIN_FUZZY_FRAGMENT_CHARS {
+        return Vec::new();
+    }
+    let usage = document_usage_counts(analysis);
+    let mut universe: Vec<CompletionItem> = Vec::new();
+    // Receiver-method context — the method universe the instance branch of
+    // `context_aware_completions` declined to fuzzy-match (see
+    // `method_completions`) joins the ranking here, resolved with the same
+    // `$var`-vs-bareword gate that branch applies (issue #927).
+    if let Some((cmd, word_idx)) = command_context_on_line(source, line, character)
+        && word_idx == 1
+    {
+        let receiver = strip_instance_var(&cmd).map(|v| (v, true)).or_else(|| {
+            (!cmd.is_empty() && !cmd.contains(['$', '['])).then(|| (cmd.clone(), false))
+        });
+        if let Some((recv, is_dollar)) = receiver
+            && let Some(class_q) =
+                crate::definition::receiver_instance_class(analysis, &recv, is_dollar)
+            && let Some(methods) = method_items(analysis, registry, class_q)
+        {
+            universe.extend(methods);
+        }
+    }
+    universe.extend(proc_completions(analysis, "", &usage));
+    if let Some(registry) = registry {
+        let tk_loaded =
+            dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
+        universe.extend(builtin_completions(
+            registry, dialect, "", &usage, tk_loaded, analysis,
+        ));
+    }
+    if let Some(env) = scoped_env_at(analysis, source, line, character) {
+        let present: FxHashSet<String> = universe.iter().map(|i| i.label.clone()).collect();
+        universe.extend(
+            scoped_command_completions(env, "")
+                .into_iter()
+                .filter(|item| !present.contains(&item.label)),
+        );
+    }
+    let FilteredCandidates {
+        candidates: mut items,
+        fuzzy,
+    } = filter_candidates(&partial, universe, |item| item_match_name(item, &partial));
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, &partial);
     }
     items
 }
@@ -2746,5 +3072,222 @@ mod tests {
         // templates at all.
         let labels = irule_snippet_labels("irule", 0, 5, "tcl8.6");
         assert!(labels.is_empty(), "got {labels:?}");
+    }
+
+    // The shared candidate filter (prefix path + fuzzy fallback).
+
+    #[test]
+    fn filter_candidates_prefix_path_keeps_input_order() {
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("alpha", vec!["delta", "alpha", "beta", "alphabet"], |n| *n);
+        assert!(!fuzzy);
+        assert_eq!(candidates, vec!["alpha", "alphabet"]);
+    }
+
+    #[test]
+    fn filter_candidates_empty_partial_keeps_everything() {
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("", vec!["b", "a"], |n| *n);
+        assert!(!fuzzy);
+        assert_eq!(candidates, vec!["b", "a"]);
+    }
+
+    #[test]
+    fn filter_candidates_no_fallback_for_one_char_fragment() {
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("q", vec!["set", "puts"], |n| *n);
+        assert!(!fuzzy);
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn filter_candidates_fuzzy_ranks_by_distance_then_name() {
+        // No candidate prefix-matches `abcdef`; `zbcdef` is one edit
+        // away, `abcdxy` two — distance outranks the name order.
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("abcdef", vec!["abcdxy", "zbcdef", "qqqqqq"], |n| *n);
+        assert!(fuzzy);
+        assert_eq!(candidates, vec!["zbcdef", "abcdxy"]);
+    }
+
+    #[test]
+    fn filter_candidates_fuzzy_cap_respected() {
+        // Nine candidates all one edit from `az` — the fallback caps
+        // at MAX_FUZZY_SUGGESTIONS, keeping the name-order head.
+        let names = vec!["aa", "ab", "ac", "ad", "ae", "af", "ag", "ah", "ai"];
+        let FilteredCandidates { candidates, fuzzy } = filter_candidates("az", names, |n| *n);
+        assert!(fuzzy);
+        assert_eq!(candidates.len(), MAX_FUZZY_SUGGESTIONS);
+        assert_eq!(candidates[0], "aa");
+        assert!(!candidates.contains(&"ai"), "cap should drop the tail");
+    }
+
+    #[test]
+    fn filter_candidates_fuzzy_respects_distance_budget() {
+        // `xyzzy` is beyond the scaled edit budget of every candidate.
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("xyzzy", vec!["set", "puts"], |n| *n);
+        assert!(!fuzzy);
+        assert!(candidates.is_empty());
+    }
+
+    // Pinned prefix lists — the byte-identical contract for fragments
+    // that match something.
+
+    #[test]
+    fn prefix_proc_list_pinned() {
+        let src = "proc alpha {} {}\nproc beta {} {}\nal\n";
+        let analysis = analyse(src);
+        let items = completions(src, 2, 2, &analysis, None, None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["alpha"]);
+        assert_eq!(items[0].insert_text, "::alpha");
+        assert_eq!(
+            items[0].filter_text, None,
+            "prefix matches stay undecorated"
+        );
+    }
+
+    #[test]
+    fn prefix_subcommand_list_pinned() {
+        let src = "string to\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 9, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["tolower", "totitle", "toupper"]);
+        assert!(items.iter().all(|i| i.filter_text.is_none()));
+    }
+
+    // Fuzzy fallback behaviour through the public entry point.
+
+    #[test]
+    fn fuzzy_fallback_offers_lsearch_for_lsaerch() {
+        let src = "lsaerch\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None, "tcl8.6");
+        let lsearch = items
+            .iter()
+            .find(|i| i.label == "lsearch")
+            .unwrap_or_else(|| panic!("expected fuzzy lsearch, got {items:?}"));
+        // Decorated so editors neither hide nor re-order the item.
+        assert_eq!(lsearch.filter_text.as_deref(), Some("lsaerch"));
+        assert_eq!(lsearch.sort_text.as_deref(), Some("F00_lsearch"));
+    }
+
+    #[test]
+    fn fuzzy_fallback_skips_one_char_fragment() {
+        // `q` prefix-matches no command and is below the fragment
+        // minimum — the response stays empty rather than fuzzing.
+        let src = "q\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 1, &analysis, Some(&registry), None, "tcl8.6");
+        assert!(items.is_empty(), "got {items:?}");
+    }
+
+    #[test]
+    fn fuzzy_subcommand_offers_length_for_lenght() {
+        let src = "string lenght\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 13, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["length"], "typo'd subcommand fragment");
+        assert_eq!(items[0].filter_text.as_deref(), Some("lenght"));
+    }
+
+    #[test]
+    fn fuzzy_switch_offers_nocase_for_ncoase() {
+        let src = "lsort -ncoase\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 13, &analysis, Some(&registry), None, "tcl8.6");
+        let nocase = items
+            .iter()
+            .find(|i| i.label == "-nocase")
+            .unwrap_or_else(|| panic!("expected fuzzy -nocase, got {items:?}"));
+        // The filter text carries the dash, matching the replaced range.
+        assert_eq!(nocase.filter_text.as_deref(), Some("-ncoase"));
+        let edit = nocase.text_edit.as_ref().expect("switch replace edit");
+        assert_eq!(edit.new_text, "-nocase");
+    }
+
+    #[test]
+    fn fuzzy_variable_offers_banana_for_bnaana() {
+        let src = "set apple 1\nset banana 2\nputs $bnaana\n";
+        let analysis = analyse(src);
+        let items = completions(src, 2, 12, &analysis, None, None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["$banana"], "typo'd variable fragment");
+        // Sigil included, matching the replaced `$…` range.
+        assert_eq!(items[0].filter_text.as_deref(), Some("$bnaana"));
+        let edit = items[0].text_edit.as_ref().expect("variable replace edit");
+        assert_eq!(edit.new_text, "$banana");
+    }
+
+    #[test]
+    fn fuzzy_array_element_offers_key_for_kye() {
+        let src = "set arr(key) 1\nset v $arr(kye\n";
+        let analysis = analyse(src);
+        let items = completions(src, 1, 14, &analysis, None, None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["$arr(key)"], "typo'd array index");
+        assert_eq!(items[0].filter_text.as_deref(), Some("$arr(kye"));
+    }
+
+    #[test]
+    fn fuzzy_method_surfaces_when_response_would_be_empty() {
+        // `$d brk` — no method prefix-matches and no command comes
+        // within the edit budget, so the response-level fallback offers
+        // the instance's `bark`.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method beg {} {}\n}\nset d [Dog new]\n$d brk\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 5, 6, &analysis, Some(&registry), None, "tcl8.6");
+        let bark = items
+            .iter()
+            .find(|i| i.label == "bark")
+            .unwrap_or_else(|| panic!("expected fuzzy bark, got {items:?}"));
+        assert!(
+            bark.detail.as_deref().unwrap_or("").starts_with("method"),
+            "method item expected, got {:?}",
+            bark.detail,
+        );
+    }
+
+    #[test]
+    fn method_typo_does_not_hijack_command_prefix_matches() {
+        // `$d xy` — no method prefix-matches, but the proc `xyz` does;
+        // the fall-through command/proc list must stay exactly as
+        // before (no fuzzy methods creep in alongside it).
+        let src = "oo::class create Dog {\n    method xx {} {}\n}\nproc xyz {} {}\nset d [Dog new]\n$d xy\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 5, 5, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"xyz"), "prefix proc expected: {labels:?}");
+        assert!(
+            !labels.contains(&"xx"),
+            "fuzzy method must not pad a prefix-matching response: {labels:?}",
+        );
+        assert!(items.iter().all(|i| i.filter_text.is_none()));
+    }
+
+    #[test]
+    fn invoked_proc_completions_fuzzy_falls_back() {
+        let src = "proc greet {} {}\nproc shout {} {}\n";
+        let analysis = analyse(src);
+        // Prefix path unchanged…
+        let items = invoked_proc_completions(&analysis, "gre");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["greet"]);
+        assert!(items[0].filter_text.is_none());
+        // …and the typo'd fragment falls back to the closest proc.
+        let items = invoked_proc_completions(&analysis, "gret");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["greet"]);
+        assert_eq!(items[0].filter_text.as_deref(), Some("gret"));
     }
 }

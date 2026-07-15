@@ -23,6 +23,15 @@
 //! grows a W001 (unknown subcommand) emitter the same
 //! [`suggest_similar`] helper applies.
 //!
+//! The LSP layer consumes the same machinery: `tcl-lsp-core`'s
+//! completion fuzzy fallback ranks typo'd fragments with
+//! [`edit_distance`] / [`scaled_max_distance`] /
+//! [`rank_suggestions`], and its `Add 'package require …'` code
+//! action ranks package names with
+//! [`rank_containment_suggestions`].  Every suggestion surface
+//! shares one ordering rule — ascending `(score, name)` — via
+//! [`rank_suggestions`].
+//!
 //! Also hosts [`fold_interpolation_set`] — a CONSTSET-aware fold
 //! used by the W123 emitter to suppress diagnostics on
 //! command names like ``foo$suffix`` whose interpolated parts
@@ -100,6 +109,23 @@ pub fn scaled_max_distance_strict(name: &str) -> usize {
     scaled_max_distance(name).min(name.chars().count().saturating_sub(1))
 }
 
+/// Order scored candidates ascending by `(score, name)` and cap the
+/// list at `max_suggestions` — the one ranking rule every suggestion
+/// surface shares: [`suggest_similar`] (edit-distance scores),
+/// [`rank_containment_suggestions`] (containment scores), and the
+/// completion fuzzy fallback in `tcl-lsp-core`.  Lower scores rank
+/// first; ties break on the candidate name via `name_of`.
+#[must_use]
+pub fn rank_suggestions<T>(
+    mut scored: Vec<(usize, T)>,
+    max_suggestions: usize,
+    name_of: impl Fn(&T) -> &str,
+) -> Vec<T> {
+    scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| name_of(&a.1).cmp(name_of(&b.1))));
+    scored.truncate(max_suggestions);
+    scored.into_iter().map(|(_, candidate)| candidate).collect()
+}
+
 /// Suggest up to `max_suggestions` candidates from `candidates`
 /// ranked by edit distance to `attempted`, dropping any whose
 /// distance exceeds `max_distance`.
@@ -117,17 +143,60 @@ pub fn suggest_similar<'a, I>(
 where
     I: IntoIterator<Item = &'a str>,
 {
-    let mut scored: Vec<(usize, &'a str)> = candidates
+    let scored: Vec<(usize, &'a str)> = candidates
         .into_iter()
-        .map(|name| (edit_distance(attempted, name), name))
+        .filter_map(|name| {
+            let distance = edit_distance(attempted, name);
+            (distance <= max_distance).then_some((distance, name))
+        })
         .collect();
-    scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(b.1)));
-    scored
+    rank_suggestions(scored, max_suggestions, |name| name)
+}
+
+/// Rank `candidates` against `needle` by containment quality — exact
+/// match, then prefix, then substring — dropping candidates that do
+/// not contain `needle` at all, and capping the list at
+/// `max_suggestions`.  Ties break on the candidate name.  Matching
+/// is case-insensitive; the returned names keep their original
+/// spelling.  An empty `needle` matches nothing (rather than
+/// prefix-matching everything).
+///
+/// This is the ranking behind the LSP `Add 'package require …'`
+/// suggestions (`tcl-lsp-core`'s code actions): a namespace prefix
+/// (`http`) is expected to *appear in* the package name (`http`,
+/// `httpd`), so containment — not edit distance — is the metric, and
+/// an exact package-name hit always outranks a longer name that
+/// merely starts with it.
+#[must_use]
+pub fn rank_containment_suggestions<'a, I>(
+    needle: &str,
+    candidates: I,
+    max_suggestions: usize,
+) -> Vec<&'a str>
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    let needle = needle.to_lowercase();
+    if needle.is_empty() {
+        return Vec::new();
+    }
+    let scored: Vec<(usize, &'a str)> = candidates
         .into_iter()
-        .take(max_suggestions)
-        .filter(|(d, _)| *d <= max_distance)
-        .map(|(_, n)| n)
-        .collect()
+        .filter_map(|candidate| {
+            let lower = candidate.to_lowercase();
+            let score = if lower == needle {
+                0
+            } else if lower.starts_with(&needle) {
+                1
+            } else if lower.contains(&needle) {
+                2
+            } else {
+                return None;
+            };
+            Some((score, candidate))
+        })
+        .collect();
+    rank_suggestions(scored, max_suggestions, |name| name)
 }
 
 /// Maximum size for the Cartesian product when folding an
@@ -330,6 +399,46 @@ mod tests {
         let candidates = ["aab", "aaa"];
         let suggestions = suggest_similar("aax", candidates, 2, 2);
         assert_eq!(suggestions, vec!["aaa", "aab"]);
+    }
+
+    #[test]
+    fn rank_suggestions_orders_by_score_then_name_and_caps() {
+        let scored = vec![(2, "zeta"), (1, "beta"), (1, "alpha"), (0, "omega")];
+        assert_eq!(
+            rank_suggestions(scored.clone(), 4, |n| n),
+            vec!["omega", "alpha", "beta", "zeta"]
+        );
+        // The cap trims from the tail of the ranked order.
+        assert_eq!(rank_suggestions(scored, 2, |n| n), vec!["omega", "alpha"]);
+    }
+
+    #[test]
+    fn rank_containment_orders_exact_before_prefix_before_substring() {
+        let candidates = ["shttp", "httpd", "http", "json"];
+        let ranked = rank_containment_suggestions("http", candidates, 5);
+        assert_eq!(ranked, vec!["http", "httpd", "shttp"]);
+    }
+
+    #[test]
+    fn rank_containment_is_case_insensitive_and_keeps_spelling() {
+        let candidates = ["Thread", "tdom"];
+        let ranked = rank_containment_suggestions("thread", candidates, 5);
+        assert_eq!(ranked, vec!["Thread"]);
+    }
+
+    #[test]
+    fn rank_containment_caps_and_breaks_ties_by_name() {
+        let candidates = ["abz", "aby", "abx"];
+        let ranked = rank_containment_suggestions("ab", candidates, 2);
+        // All three are prefix matches (score 1); ties break by name
+        // and the cap keeps the first two.
+        assert_eq!(ranked, vec!["abx", "aby"]);
+    }
+
+    #[test]
+    fn rank_containment_rejects_empty_needle() {
+        let candidates = ["http", "json"];
+        assert!(rank_containment_suggestions("", candidates, 5).is_empty());
     }
 
     fn vmap(entries: &[(&str, &[&str])]) -> HashMap<String, HashSet<String>> {
