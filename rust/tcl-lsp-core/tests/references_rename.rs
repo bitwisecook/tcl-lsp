@@ -1389,3 +1389,37 @@ fn class_rename_from_callsite_targets_caller_namespace() {
         "must NOT rename ::b::Widget (line 5): {edits:?}"
     );
 }
+
+#[test]
+fn object_var_references_unify_across_methods() {
+    // `$n` used in `get` and written in `bump`; both are the one instance
+    // variable declared by `variable n`.  Find-References on `$n` in `get`
+    // must reach the declaration (line 1) and the sibling-method use.
+    let src = "oo::class create C {\n    variable n\n    method get {} { return $n }\n    method bump {} { incr n }\n}\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 2, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "declaration (line 1) expected: {refs:?}");
+    assert!(lines.contains(&2), "`$n` in get (line 2) expected: {refs:?}");
+    assert!(
+        lines.contains(&3),
+        "the sibling-method use `incr n` (line 3) must unify: {refs:?}"
+    );
+}
+
+#[test]
+fn object_var_rename_unifies_declaration_and_all_method_uses() {
+    // Renaming the instance variable rewrites its `variable` declaration and
+    // every method's use as one variable — not just the method under the cursor.
+    let src = "oo::class create C {\n    variable n\n    method get {} { return $n }\n    method bump {} { incr n }\n}\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let edits = rename(src, "tcl8.6", 2, col, "count", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(lines.contains(&1), "declaration (line 1) must rename: {edits:?}");
+    assert!(lines.contains(&2), "`$n` in get (line 2) must rename: {edits:?}");
+    assert!(lines.contains(&3), "`incr n` in bump (line 3) must rename: {edits:?}");
+    // No edit spans the body (the earlier corruption guard still holds).
+    assert!(edits.iter().all(|e| e.range.start_line == e.range.end_line), "{edits:?}");
+}

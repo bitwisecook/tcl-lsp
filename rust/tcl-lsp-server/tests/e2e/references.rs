@@ -255,3 +255,20 @@ fn superclass_and_mixin_references() {
     assert!(s.contains(&(4, 15)), "superclass: {s:?}");
     assert!(s.contains(&(8, 10)), "mixin: {s:?}");
 }
+
+/// End-to-end (real server): a TclOO instance variable's uses unify across
+/// every method body — Find-References on `$n` in one method reaches its
+/// declaration and the sibling method's use.
+#[test]
+fn references_object_variable_unify_across_methods() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 1: variable n; line 2: `$n` in get; line 3: `incr n` in bump
+    let src = "oo::class create C {\n    variable n\n    method get {} { return $n }\n    method bump {} { incr n }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let lines = start_lines(&lsp.references(&uri, 2, col, true));
+    assert!(lines.contains(&1), "declaration (line 1): {lines:?}");
+    assert!(lines.contains(&2), "`$n` in get (line 2): {lines:?}");
+    assert!(lines.contains(&3), "`incr n` in bump (line 3) must unify: {lines:?}");
+}

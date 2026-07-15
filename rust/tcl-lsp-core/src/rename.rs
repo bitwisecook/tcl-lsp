@@ -633,12 +633,28 @@ fn rename_var(
         range: span_to_range(source, line_index, var_def.definition_span),
         new_text: def_new_text,
     });
-    for r in &var_def.references {
+    // A class instance variable's uses span every method body (all seeded from
+    // the one `variable v` declaration); rewrite them together by unioning on
+    // the shared declaration span.  A zero-width span (a declaration-less
+    // implicit) can't be unioned, so fall back to this variable's own uses.
+    let ref_spans: Vec<tcl_lexer::Span> = if var_def.definition_span.is_empty() {
+        var_def.references.clone()
+    } else {
+        crate::definition::linked_var_reference_spans(
+            &analysis.global_scope,
+            var_def.definition_span,
+        )
+    };
+    let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
+    for r in ref_spans {
+        if !seen.insert((r.start(), r.end())) {
+            continue;
+        }
         // Brace-ref escaping — see
         // [`build_var_ref_replacement`].
-        let replacement = build_var_ref_replacement(source, *r, new_name);
+        let replacement = build_var_ref_replacement(source, r, new_name);
         edits.push(TextEdit {
-            range: span_to_range(source, line_index, *r),
+            range: span_to_range(source, line_index, r),
             new_text: replacement,
         });
     }

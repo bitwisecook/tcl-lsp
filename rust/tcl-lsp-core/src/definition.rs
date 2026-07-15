@@ -576,6 +576,45 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     None
 }
 
+/// Union of every reference span for the variable whose declaration is
+/// `def_span`, gathered across the whole scope tree.
+///
+/// A `TclOO` instance variable is pre-bound into every method scope carrying
+/// the *same* `variable v` declaration span, so its reads/writes are spread
+/// across sibling method-body scopes.  Unioning by that shared declaration span
+/// links them into the one cell Tcl stores per object — so Find-References,
+/// Rename, and Document-Highlight on `$v` in one method reach its uses in every
+/// method plus the declaration.
+///
+/// The caller must only invoke this for a *non-empty* `def_span`: a zero-width
+/// span is the fallback used when a seeded variable has no source declaration
+/// token (a grammar-injected implicit), and several such vars in one body share
+/// it — unioning by an empty span would wrongly merge them.  For an ordinary
+/// variable (unique declaration span) this returns exactly its own references.
+#[must_use]
+pub(crate) fn linked_var_reference_spans(
+    scope: &tcl_compiler::analyser::Scope,
+    def_span: tcl_lexer::Span,
+) -> Vec<tcl_lexer::Span> {
+    fn walk(
+        scope: &tcl_compiler::analyser::Scope,
+        def_span: tcl_lexer::Span,
+        out: &mut Vec<tcl_lexer::Span>,
+    ) {
+        for v in scope.variables.values() {
+            if v.definition_span == def_span {
+                out.extend(v.references.iter().copied());
+            }
+        }
+        for child in &scope.children {
+            walk(child, def_span, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(scope, def_span, &mut out);
+    out
+}
+
 /// Resolve the *name* of a variable whose declaration occupies
 /// `byte_offset` — i.e. the cursor sits on the name token of a
 /// `set` / `variable` / `global` / param declaration rather than
