@@ -229,7 +229,11 @@ the canonical resolver widened to the workspace. Detail in
 
 ## M6 — TclOO cross-file methods & `oo::define` merge
 
-**Stage 6.1 — method index** Extend `WorkspaceClass.defined_methods` into a queryable method table; teach `resolve_workspace_symbol` + [`cross_document_references`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-server/src/lib.rs#L3682) to resolve method names and gather `$obj method`/`my method` sites cross-file. Reuse `class_lattice.rs`'s `NsContext` (consistent after M4).
+**Stage 6.1 — cross-file method references + definition** ✅ **DONE**
+- [x] Mirrored the existing cross-file method *rename* path for references: `references::method_reference_spans_in_document` (reference analogue of `rename::method_spans_in_document`, honouring `include_declaration`) + the server's `cross_file_method_references`, wired into the references handler via `method_rename_target`. Gathers `$obj method` / `my method` sites (and the declaration when requested) across the method's workspace-wide override family + pure-inheritor classes, in sibling documents (the current document is covered by the single-document provider). Resolves from either cursor shape — a method declaration in a class body, or an `$obj method` / `my method` call.
+- [x] Cross-file go-to-definition: `cross_file_method_definition` walks the override family and returns the method's declaration span in the defining sibling document, wired into `compute_definition` before the command-head gate (a method call's head is `$obj`, not the method token). Resolves the common inherited-method-declared-in-another-file case.
+- [x] Coverage is bounded the same way rename is — a `$obj method` site resolves only in a document the index knows defines or inherits the family class (a pure-consumer document that merely holds `[::Base new]` needs the cross-file instance-inference tier, a documented follow-up). Tests: five references (override family, decl include/exclude, inheritor-only document, unrelated-method empty, end-to-end handler) + two definition (family lookup, end-to-end inherited jump).
+
 **Stage 6.2 — cross-file `oo::define`** Dedup the cross-file `oo::define ::C` **stub** ClassDef against the real one; honor a late cross-file `superclass`; add `next`/`nextto` reference sites (go-to-def already handles them). Same-file split `oo::define` already works ([tricky §3.5](tricky-name-resolution-surfaces.md)).
 **Depends on:** M4, M5.
 
