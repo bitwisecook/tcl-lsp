@@ -3540,6 +3540,21 @@ impl Backend {
                 })
                 .collect());
         }
+        // Cross-file TclOO method definition: a `$obj method` / `my method`
+        // call (or a method-name cursor in a class body) whose defining class
+        // lives in another file — e.g. an inherited method declared in the
+        // base class's own document.  A method call's head is `$obj`, not the
+        // method token, so this is not gated on `on_command_head`.
+        if let Some((class_q, method)) =
+            core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
+        {
+            let method_defs = self
+                .cross_file_method_definition(uri, &class_q, &method)
+                .await;
+            if !method_defs.is_empty() {
+                return Ok(method_defs);
+            }
+        }
         if !on_command_head {
             return Ok(Vec::new());
         }
@@ -3971,6 +3986,54 @@ impl Backend {
             }
         }
         out
+    }
+
+    /// Cross-file go-to-definition for a `TclOO` method: the declaration
+    /// site(s) of `(class_q, method)` in *sibling* documents.
+    ///
+    /// Walks the method's workspace-wide override family and, for every definer
+    /// in another file, re-analyses that document and returns the method's
+    /// name-token span.  This resolves the common inherited-method case — a
+    /// `$obj method` call whose method is declared in the base class's own file
+    /// — that the single-document provider (which only sees this file's class
+    /// table) cannot.  The current document is excluded; the single-document
+    /// provider already jumps to a same-file declaration.
+    async fn cross_file_method_definition(
+        &self,
+        current_uri: &Uri,
+        class_q: &str,
+        method: &str,
+    ) -> Vec<Location> {
+        let definers: Vec<(String, String)> = {
+            let index = self.workspace_index.read().await;
+            index
+                .method_override_family(class_q, method)
+                .into_iter()
+                .filter(|wc| wc.uri != current_uri.as_str())
+                .map(|wc| (wc.uri.clone(), wc.qualified_name.clone()))
+                .collect()
+        };
+        let mut targets: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        for (u, cq) in definers {
+            let Ok(parsed) = Uri::from_str(&u) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let analysis = self
+                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
+                .await;
+            if let Some(class_def) = analysis.all_classes.get(&cq)
+                && let Some(m) = class_def
+                    .methods
+                    .get(method)
+                    .or_else(|| class_def.class_methods.get(method))
+            {
+                targets.push((u, m.name_span));
+            }
+        }
+        self.resolve_target_locations(targets).await
     }
 
     /// Add cross-document rename edits for the proc / class at
@@ -17322,6 +17385,66 @@ mod tests {
             refs.iter().any(|l| l.uri == animal),
             "current-document declaration missing: {refs:?}",
         );
+    }
+
+    #[tokio::test]
+    async fn cross_file_method_definition_jumps_to_inherited_declaration() {
+        // `Dog` inherits `speak` from `Animal` in another file.  Go-to-def on a
+        // `Dog` instance's `speak` call resolves to `Animal::speak`'s
+        // declaration in animal.tcl.
+        let backend = test_backend();
+        let animal = Uri::from_str("file:///animal.tcl").unwrap();
+        let dog = Uri::from_str("file:///dog.tcl").unwrap();
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
+        register(
+            &backend,
+            &dog,
+            "oo::class create Dog {\n    superclass Animal\n}\nset d [Dog new]\n$d speak\n",
+        )
+        .await;
+        let defs = backend
+            .cross_file_method_definition(&dog, "::Dog", "speak")
+            .await;
+        assert_eq!(defs.len(), 1, "{defs:?}");
+        assert_eq!(defs[0].uri, animal);
+        assert_eq!(defs[0].range.start.line, 1, "{defs:?}");
+    }
+
+    #[tokio::test]
+    async fn goto_definition_follows_inherited_method_cross_file() {
+        // End-to-end through `compute_definition`: the cursor on `$d speak`
+        // (dog.tcl) jumps to the inherited `Animal::speak` declaration in
+        // animal.tcl — a method-call cursor is not a command head, so the
+        // dedicated method path (not the command-head cross-doc fallback)
+        // resolves it.
+        let backend = test_backend();
+        let animal = Uri::from_str("file:///animal.tcl").unwrap();
+        let dog = Uri::from_str("file:///dog.tcl").unwrap();
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} {}\n}\n",
+        )
+        .await;
+        register(
+            &backend,
+            &dog,
+            "oo::class create Dog {\n    superclass Animal\n}\nset d [Dog new]\n$d speak\n",
+        )
+        .await;
+        // `$d speak` is on line 4; `speak` starts at column 3.
+        let defs = backend
+            .compute_definition(&dog, Position::new(4, 4))
+            .await
+            .expect("ok");
+        assert_eq!(defs.len(), 1, "{defs:?}");
+        assert_eq!(defs[0].uri, animal);
+        assert_eq!(defs[0].range.start.line, 1, "{defs:?}");
     }
 
     /// Build a backend with one document registered, then disable the named
