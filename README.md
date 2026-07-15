@@ -302,13 +302,17 @@ catch { error "oops" }       ;# W302: catch without a result variable
 ### Completions
 
 Context-aware completions for commands, subcommands, variables, proc names
-(workspace-wide), switch arms, and `package require` names.
+(workspace-wide), switch arms, and `package require` names. When a fragment
+of two or more characters matches nothing by prefix, completion falls back
+to fuzzy matching, so a typo still finds the intended name (prefix matches
+always keep their exact list).
 
 ```tcl
 string len|              ;# offers: length, last, ...
 set name "world"
 puts $na|                ;# offers: $name
 dict |                   ;# offers: create, get, set, exists, ...
+lsaerch|                 ;# fuzzy fallback offers: lsearch
 ```
 
 ### Hover

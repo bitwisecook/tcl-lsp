@@ -21,9 +21,17 @@ all-editors, MCP, analyser
 
 The completion provider offers context-sensitive suggestions based on the cursor position: command names, subcommands after a known command, variable names after `$`, proc arguments, switch flags, and package names after `package require`.
 
+When what you have typed matches nothing by prefix and is at least two
+characters long, the provider falls back to fuzzy matching, so a small typo
+still finds the intended name: `lsaerch` offers `lsearch`, `string lenght`
+offers `length`, `lsort -ncoase` offers `-nocase`, and `$bnaana` offers
+`$banana`. Choosing a fuzzy suggestion replaces the typo. Prefix matches are
+never mixed with fuzzy ones — a fragment that matches something today keeps
+exactly today's list.
+
 ## File-path anchors
 
-- `server/features/completion.py`
+- `rust/tcl-lsp-core/src/completion.rs`
 
 ## Failure modes
 
@@ -32,7 +40,8 @@ The completion provider offers context-sensitive suggestions based on the cursor
 
 ## Test anchors
 
-- `tests/test_completion.py`
+- `rust/tcl-lsp-core/src/completion.rs` (unit tests)
+- `rust/tcl-lsp-server/tests/e2e/completion.rs`
 
 ## Screenshots
 
