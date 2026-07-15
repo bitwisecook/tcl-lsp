@@ -355,6 +355,34 @@ impl WorkspaceIndex {
         (known, tail_index)
     }
 
+    /// The owner-aware direct parents (superclasses + mixins) of `qname`,
+    /// unioned across **every** indexed definition of the class.  A cross-file
+    /// `oo::define ::C { ... }` records a second `::C` entry that names no
+    /// `superclass`; unioning here keeps the real class's parent edges from
+    /// being hidden when such a stub happens to be the first match (the parent
+    /// walk otherwise picked an arbitrary duplicate and silently dropped the
+    /// hierarchy).
+    fn resolved_parents_of(
+        &self,
+        qname: &str,
+        known: &std::collections::HashSet<&str>,
+        tail_index: &std::collections::HashMap<String, Vec<String>>,
+    ) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for c in self.classes.iter().filter(|c| c.qualified_name == qname) {
+            for s in c.superclasses.iter().chain(c.mixins.iter()) {
+                if let Some(p) =
+                    resolve_class_name(s, qname, |cand| known.contains(cand), tail_index)
+                    && seen.insert(p.clone())
+                {
+                    out.push(p);
+                }
+            }
+        }
+        out
+    }
+
     /// The workspace classes that `wc`'s written superclasses + mixins
     /// resolve to, **owner-aware** — each name is resolved relative to
     /// `wc.qualified_name`'s namespace (ancestry → global → unique tail) via
@@ -461,21 +489,7 @@ impl WorkspaceIndex {
         let family_set: std::collections::HashSet<&str> =
             family.iter().map(String::as_str).collect();
         let (known, tail_index) = self.class_name_universe();
-        let parents = |qname: &str| -> Vec<String> {
-            self.classes
-                .iter()
-                .find(|c| c.qualified_name == qname)
-                .map(|c| {
-                    c.superclasses
-                        .iter()
-                        .chain(c.mixins.iter())
-                        .filter_map(|s| {
-                            resolve_class_name(s, qname, |cand| known.contains(cand), &tail_index)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
+        let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
         let defines = |qname: &str| {
             self.classes
                 .iter()
@@ -521,22 +535,10 @@ impl WorkspaceIndex {
     /// `seed_class`.
     fn method_family_qnames(&self, seed_class: &str, method: &str) -> Vec<String> {
         let (known, tail_index) = self.class_name_universe();
-        // Owner-aware direct parents (superclasses + mixins) of each class.
-        let parents = |qname: &str| -> Vec<String> {
-            self.classes
-                .iter()
-                .find(|c| c.qualified_name == qname)
-                .map(|c| {
-                    c.superclasses
-                        .iter()
-                        .chain(c.mixins.iter())
-                        .filter_map(|s| {
-                            resolve_class_name(s, qname, |cand| known.contains(cand), &tail_index)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
+        // Owner-aware direct parents (superclasses + mixins) of each class,
+        // unioned across every indexed definition (a cross-file `oo::define`
+        // stub must not hide the real class's parents).
+        let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
         // `parent` is a (transitive) ancestor of `child`.
         let is_ancestor = |child: &str, parent: &str| -> bool {
             let mut stack = parents(child);
@@ -1138,6 +1140,32 @@ mod tests {
         ]);
         let refs = index.invocations_of("::mymod::helper", "file:///mymod.tcl");
         assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn cross_file_oo_define_stub_does_not_hide_superclass() {
+        // `::B` defines `greet`; `::C` (superclass `::B`) inherits it; a
+        // cross-file `oo::define ::C` adds `extra` and names no superclass,
+        // recording a second `::C` entry with empty parents.  The parent walk
+        // must union both entries — otherwise the stub hides the `::B` edge and
+        // `::C` is wrongly dropped from `greet`'s inheritor set.
+        let b = analyse("oo::class create B {\n    method greet {} {}\n}\n");
+        let c = analyse("oo::class create C {\n    superclass B\n}\n");
+        let stub = analyse("oo::define C {\n    method extra {} {}\n}\n");
+        // The stub is indexed *before* the real class, so a first-match parent
+        // lookup would pick the stub's empty superclasses — the adversarial
+        // ordering the union guards against.
+        let index = WorkspaceIndex::from_documents([
+            ("file:///b.tcl", &b),
+            ("file:///ext.tcl", &stub),
+            ("file:///c.tcl", &c),
+        ]);
+        let inheritors: Vec<&str> = index
+            .method_inheritor_classes("::B", "greet")
+            .iter()
+            .map(|wc| wc.qualified_name.as_str())
+            .collect();
+        assert!(inheritors.contains(&"::C"), "{inheritors:?}");
     }
 
     #[test]
