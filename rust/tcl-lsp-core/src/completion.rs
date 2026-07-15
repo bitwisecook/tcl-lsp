@@ -1268,10 +1268,7 @@ fn method_items(
 /// `object_class` lookup, `registry.rs:413-415`).  No MRO walk — neither
 /// shape currently declares `superclasses` (issue #927).  Unfiltered:
 /// fragment matching happens in [`method_completions`].
-fn registry_method_items(
-    registry: &CommandRegistry,
-    class_q: &str,
-) -> Option<Vec<CompletionItem>> {
+fn registry_method_items(registry: &CommandRegistry, class_q: &str) -> Option<Vec<CompletionItem>> {
     let methods: &[tcl_registry::SubCommand] = registry
         .object_class(class_q)
         .map(|oc| oc.instance_methods)
