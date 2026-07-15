@@ -424,6 +424,9 @@ impl Analyser {
         self.result
             .created_instance_commands
             .extend(r.created_instance_commands);
+        self.result
+            .ambiguous_instance_names
+            .extend(r.ambiguous_instance_names);
         self.result.diagnostics.extend(r.diagnostics);
         self.result
             .command_invocations

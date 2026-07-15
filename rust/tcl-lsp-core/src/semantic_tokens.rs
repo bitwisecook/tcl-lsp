@@ -2172,8 +2172,13 @@ fn insert_object_method_overrides(
         return;
     };
     // Candidate receiver classes implied by the head's shape: a `$var` object
-    // handle, a direct `[Class new] …` constructor, or a `[dict get $coll $k]`
-    // / `[lindex $coll $i]` retrieval from an object collection (issue #797).
+    // handle, a direct `[Class new] …` constructor, a `[dict get $coll $k]`
+    // / `[lindex $coll $i]` retrieval from an object collection (issue #797),
+    // or a bareword instance-command name bound by a positional create call
+    // (`ttk::treeview .t` / a registry naming factory — issue #927; `object_classes`
+    // is name-keyed regardless of whether the name came from a `set` LHS or a
+    // bareword factory, so the same map already carries these — see
+    // `object_types::harvest_unit`'s `Statement::Call` arm).
     let mut candidates: Vec<String> = match head_tok.kind {
         TokenType::Var => object_handle_name(head_text)
             .and_then(|name| object_classes.get(name))
@@ -2194,6 +2199,10 @@ fn insert_object_method_overrides(
                     .unwrap_or_default()
             }
         }
+        TokenType::Esc => object_classes
+            .get(head_text.as_str())
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default(),
         _ => Vec::new(),
     };
     if candidates.is_empty() {
@@ -7391,6 +7400,26 @@ mod tests {
             "registry_class",
             "set c [ticklecharts::chart new]\n$c Xaxis -name x\n",
             "Xaxis",
+            1,
+            Resolve,
+        ),
+        (
+            // Tk widget instance dispatch, bareword receiver (issue #927):
+            // `ttk::treeview .t` names a widget path exactly like a registry
+            // naming factory (`struct::graph g`) — `.t instate …` resolves
+            // through the same self-referential `object_class`.
+            "widget_bareword",
+            "ttk::treeview .t\n.t instate {selected} {}\n",
+            "instate",
+            1,
+            Resolve,
+        ),
+        (
+            // Tk widget instance dispatch, `$var`-captured constructor
+            // return value (the issue's own `set lb [listbox .l]` example).
+            "widget_var_captured",
+            "set lb [listbox .l]\n$lb curselection\n",
+            "curselection",
             1,
             Resolve,
         ),

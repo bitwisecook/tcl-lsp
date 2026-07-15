@@ -94,6 +94,22 @@ along the MRO (the chain is exhausted), draws no diagnostic — both are
 runtime errors in Tcl itself ("next may only be called from inside a
 method" / "no next"), not statically-checkable arity mismatches.
 
+## Tk widget instance-dispatch context
+
+`E002` also fires on a **Tk/ttk widget's own instance command** when the
+analyser can trace the receiver back to the widget that created it:
+
+```tcl
+ttk::treeview .t
+.t move onlyone   ;# `move` needs (item parent index) → E002
+```
+
+This works for a bareword receiver (`.t`, reusing the literal path text) and
+for a `$var` holding a widget the constructor's return value was captured
+into (`set lb [listbox .l]; $lb …`). `configure`/`cget` are never
+arity-checked (every widget accepts them, but no widget spec declares their
+shape).
+
 ## Fix
 
 ```tcl

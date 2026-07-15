@@ -159,6 +159,31 @@ fn widened_word_span(tok: tcl_lexer::Token, source: &str) -> tcl_lexer::Span {
     tcl_lexer::Span::new(tok.span.start(), widen_token_end(tok, source))
 }
 
+/// Two shape-based reasons `first_arg` is never W001 regardless of whether
+/// it names a real subcommand of the resolved ensemble — split out of
+/// [`Analyser::emit_w001_unknown_subcommand`] to keep that function under
+/// the line-count lint.
+fn shape_exempt_from_w001(sig: &super::dispatch::SubcommandSig, first_arg: &str) -> bool {
+    // A command may declare a *default* form selected by a first word of a
+    // particular value shape rather than a subcommand — `after` dispatches
+    // on `cancel` / `idle` / `info`, but an integer first word is a
+    // millisecond delay (`after 200 {…}`), not an unknown subcommand. The
+    // shape comes from the spec's `default_form_first_word`; no command is
+    // named here. (Non-matching words such as `after foo` remain genuine
+    // errors and still fire.)
+    if sig.matches_default_form(first_arg) {
+        return true;
+    }
+    // A subcommand name never starts with `.`, so a `.`-prefixed first word
+    // is a Tk window pathname, not an unknown subcommand.  This covers both
+    // the geometry-manager shortcut (`grid .w ?args?` for `grid configure
+    // .w …`, per grid.n / pack.n / place.n) and widget-creation commands
+    // (`entry .e …`, `canvas .c …`), whose registry `subcommands` describe
+    // the created widget's *instance* command rather than a first-word
+    // subcommand of the creator.  Either way `.path` is never W001.
+    first_arg.starts_with('.')
+}
+
 /// Describe [`Arity`]'s [`Arity::step`] / [`Arity::also_exact`] shape in
 /// prose for the E005 message — `"0, 2, 4, …"` for a plain progression,
 /// `"2, or 3, 5, 7, …"` when `also_exact` adds an exception (`switch`'s
@@ -648,10 +673,8 @@ impl Analyser {
             // Empty arg list — E001 path; not in scope here.
             return;
         };
-        // A `{*}`-expanded subcommand word (`cmd {*}bogus …`) splices
-        // ``bogus``'s *elements* into the subcommand position at run time,
-        // not its literal text — a multi-element literal (`cmd {*}{a b}`)
-        // would otherwise be misread as one bogus subcommand named `"a b"`.
+        // A `{*}`-expanded subcommand word splices its *elements* into the
+        // subcommand position at run time, not its literal text.
         // `arg_expand_in` is parallel to the full argv (command name at
         // index 0); drop that slot so it lines up with `args`.
         let arg_expand: &[bool] = arg_expand_in.get(1..).unwrap_or(&[]);
@@ -677,29 +700,21 @@ impl Analyser {
         let Some(CommandSignature::WithSubcommands(sig)) =
             self.resolve_command_signature(cmd_name, dialect)
         else {
+            // Not a registered ensemble — buffer as a widget-dispatch
+            // candidate, resolved post-walk (issue #927).
+            self.record_widget_dispatch_candidate(
+                cmd_name,
+                args,
+                cmd_tok,
+                arg_tokens,
+                arg_expand_in,
+            );
             return;
         };
         if sig.allow_unknown {
             return;
         }
-        // A command may declare a *default* form selected by a first word of
-        // a particular value shape rather than a subcommand — `after`
-        // dispatches on `cancel` / `idle` / `info`, but an integer first word
-        // is a millisecond delay (`after 200 {…}`), not an unknown
-        // subcommand. The shape comes from the spec's
-        // `default_form_first_word`; no command is named here. (Non-matching
-        // words such as `after foo` remain genuine errors and still fire.)
-        if sig.matches_default_form(first_arg) {
-            return;
-        }
-        // A subcommand name never starts with `.`, so a `.`-prefixed first word
-        // is a Tk window pathname, not an unknown subcommand.  This covers both
-        // the geometry-manager shortcut (`grid .w ?args?` for `grid configure
-        // .w …`, per grid.n / pack.n / place.n) and widget-creation commands
-        // (`entry .e …`, `canvas .c …`), whose registry `subcommands` describe
-        // the created widget's *instance* command rather than a first-word
-        // subcommand of the creator.  Either way `.path` is never W001.
-        if first_arg.starts_with('.') {
+        if shape_exempt_from_w001(&sig, first_arg) {
             return;
         }
         // Accept a unique-prefix abbreviation (`string le` ⇒ `length`), the way
@@ -707,32 +722,17 @@ impl Analyser {
         if sig.is_known(first_arg) {
             return;
         }
-        // The subcommand is unknown *in the active dialect*.  Before reporting
-        // it as nonexistent, check whether it exists in some *other* dialect —
-        // e.g. `info cmdtype` is a real subcommand introduced in Tcl 9.0 but
-        // absent from the default 8.6 profile (issue #812).  That is the
-        // subcommand-level analogue of the W002 disabled-in-dialect check for
-        // whole commands (`emit_w002_disabled_command`): it EXISTS, just not
-        // here, so it must be reported as disabled-in-dialect rather than as an
-        // "Unknown subcommand" with a misleading spelling suggestion.
-        //
-        // Deferred exactly like the whole-command form: whether `cmd_name`
-        // itself resolves to the registry ensemble (rather than a same-file
-        // proc/alias/rename/class/ensemble that shadows it — e.g. `proc
-        // package {args} {…}` fully overriding the `package` ensemble) can
-        // depend on facts not yet known mid-walk.
-        let ns = self.command_resolution_namespace(scope_path);
-        let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        if self.queue_w002_other_dialect_subcommand(
-            cmd_name,
-            first_arg,
-            cmd_tok,
-            arg_tokens,
-            &ns,
-            enforce_order,
+        // The subcommand is unknown *in the active dialect* — before
+        // reporting it as nonexistent, check whether it exists in some
+        // *other* dialect (e.g. a Tcl 9.0-only subcommand under an 8.6
+        // profile) and report disabled-in-dialect instead (issue #812).
+        if self.check_disabled_in_other_dialect_subcommand(
+            cmd_name, first_arg, cmd_tok, arg_tokens, scope_path,
         ) {
             return;
         }
+        let ns = self.command_resolution_namespace(scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
         let candidates: Vec<&str> = sig.subcommands.keys().map(String::as_str).collect();
         let suggestions = crate::text::suggest_similar(
@@ -772,27 +772,32 @@ impl Analyser {
         ));
     }
 
-    /// The disabled-in-other-dialect half of the W001 check: when the
-    /// unknown subcommand *exists* under some other dialect (`info cmdtype`
-    /// is real but 9.0-only), queue a W002 disabled-in-dialect diagnostic —
-    /// with a best-effort "available in: …" hint from the registry's own
-    /// dialect gate on the matching [`tcl_registry::SubCommand`] entry
-    /// (falling back to the parent command's, the same inheritance
-    /// `emit_w004_dialect_invalid_option` uses; an abbreviated `first_arg`
-    /// that doesn't literally match a `SubCommand.name` just yields no
-    /// hint) — and return `true` so the caller skips the "Unknown
-    /// subcommand" path with its misleading spelling suggestion.
-    fn queue_w002_other_dialect_subcommand(
+    /// `first_arg` is unknown in the active dialect profile but exists as a
+    /// real subcommand in some *other* dialect (e.g. a Tcl 9.0-only
+    /// subcommand checked under an 8.6 profile, issue #812) — the
+    /// subcommand-level analogue of the whole-command W002 check
+    /// (`emit_w002_disabled_command`): it EXISTS, just not here, so report
+    /// disabled-in-dialect rather than "Unknown subcommand" with a
+    /// misleading spelling suggestion. Deferred like the whole-command
+    /// form (buffered into `pending_disabled_commands`, not emitted
+    /// inline): whether `cmd_name` itself resolves to the registry
+    /// ensemble, rather than a same-file proc/alias/rename/class/ensemble
+    /// that shadows it, can depend on facts not yet known mid-walk.
+    /// Returns whether it handled (and buffered) the site — the caller
+    /// should return without falling through to W001 either way.
+    /// Split out of [`Self::emit_w001_unknown_subcommand`] to keep that
+    /// function under the line-count lint.
+    fn check_disabled_in_other_dialect_subcommand(
         &mut self,
         cmd_name: &str,
         first_arg: &str,
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
-        ns: &str,
-        enforce_order: bool,
+        scope_path: &[usize],
     ) -> bool {
         use super::dispatch::{CommandSignature, signature_for_command};
         use tcl_registry::prelude::DialectSet;
+
         let Some(registry) = self.registry.as_ref() else {
             return false;
         };
@@ -808,6 +813,12 @@ impl Analyser {
             Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
             None => cmd_tok.span,
         };
+        // Best-effort "available in: …" hint from the registry's own
+        // dialect gate on the matching `SubCommand` entry (falling back to
+        // the parent command's, the same inheritance
+        // `emit_w004_dialect_invalid_option` uses). An abbreviated
+        // `first_arg` that doesn't literally match a `SubCommand.name` just
+        // yields no hint — the base message stays accurate either way.
         let suffix = registry.get(cmd_name).map_or(String::new(), |spec| {
             spec.subcommands
                 .iter()
@@ -825,12 +836,10 @@ impl Analyser {
             severity: Severity::Warning,
             fixes: Vec::new(),
         };
-        self.pending_disabled_commands.push((
-            cmd_name.to_string(),
-            ns.to_string(),
-            enforce_order,
-            diag,
-        ));
+        let ns = self.command_resolution_namespace(scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
+        self.pending_disabled_commands
+            .push((cmd_name.to_string(), ns, enforce_order, diag));
         true
     }
 

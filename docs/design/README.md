@@ -39,6 +39,11 @@ rules for the KCS/documentation split live in
 - [tcloo-object-typing.md](tcloo-object-typing.md) — the shipping `TclOO`
   object-handle typing model: how `set v [Class new]` provenance is harvested
   so `$v method …` dispatch resolves to the object's class.
+- [tk-widget-instance-typing.md](tk-widget-instance-typing.md) — the sibling
+  model for Tk/ttk widgets: how a widget-creating command's instance path
+  (`.t`, `$w`) resolves back to the widget class, so `.t instate …` / `$w tag
+  configure …` reach subcommand-aware highlighting, hover, completion, and
+  diagnostics.
 
 > Past project-tracking documents (perf reports, phase trackers,
 > migration plans) are kept in [`../archive/`](../archive/) and are

@@ -1814,7 +1814,7 @@ impl Analyser {
             && !matches!(name.as_str(), "=" | ":=" | "as" | "deserialize")
         {
             let class = class_name.unwrap_or_else(|| cmd_name.to_string());
-            self.result.instance_classes.insert(name.clone(), class);
+            self.bind_registry_instance_class(name.clone(), class);
             self.result.created_instance_commands.insert(name.clone());
             return true;
         }
@@ -1825,7 +1825,7 @@ impl Analyser {
             && args.len() >= 2
             && let Some(class) = self.registry_factory_class_from_subst(&args[1])
         {
-            self.result.instance_classes.insert(args[0].clone(), class);
+            self.bind_registry_instance_class(args[0].clone(), class);
             return true;
         }
         false
@@ -1871,6 +1871,31 @@ impl Analyser {
             return;
         }
         self.result.created_instance_commands.insert(name.clone());
+    }
+
+    /// Collision-safe `instance_classes` insertion for the two *registry*
+    /// object-factory binding sites above (Tk widget paths, tcllib naming
+    /// factories) — unlike `instance_classes`' general last-write-wins
+    /// contract, a name seen bound to two *different* registry classes
+    /// anywhere in the file is dropped and never re-added, so a consumer
+    /// that needs soundness (`widget_command.rs`'s W001/E002/E003 — issue
+    /// #927) can trust a present entry unconditionally. Scoped to these two
+    /// call sites only: the `TclOO` user-class paths in
+    /// `record_instance_creation` keep their existing documented
+    /// best-effort behaviour unchanged.
+    fn bind_registry_instance_class(&mut self, name: String, class: String) {
+        if self.result.ambiguous_instance_names.contains(&name) {
+            return;
+        }
+        match self.result.instance_classes.get(&name) {
+            Some(existing) if *existing != class => {
+                self.result.instance_classes.remove(&name);
+                self.result.ambiguous_instance_names.insert(name);
+            }
+            _ => {
+                self.result.instance_classes.insert(name, class);
+            }
+        }
     }
 
     /// The class named by a `[factory …]` command-substitution when `factory` is
@@ -2452,6 +2477,60 @@ mod tests {
         assert_eq!(
             a.resolve_analyser_hook("dict", &args(&["for", "{k v}", "$d", "{}"])),
             Some(H::DictFor)
+        );
+    }
+
+    /// A Tk widget constructor is syntactically identical to a tcllib
+    /// naming factory (`struct::graph g`) — a bareword `ttk::treeview .t`
+    /// must bind `.t` in `instance_classes`/`created_instance_commands`
+    /// through the existing, already-generic `record_registry_factory_instance`
+    /// with no new analyser code, once the registry declares
+    /// `creates_instance_at`/`object_class` (issue #927).
+    #[test]
+    fn bareword_widget_constructor_binds_instance_class() {
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("ttk::treeview .t\n.t instate {selected} {}\n", "tcl8.6");
+        assert_eq!(
+            res.instance_classes.get(".t").map(String::as_str),
+            Some("ttk::treeview"),
+            "instance_classes: {:?}",
+            res.instance_classes
+        );
+        assert!(
+            res.created_instance_commands.contains(".t"),
+            "created_instance_commands: {:?}",
+            res.created_instance_commands
+        );
+    }
+
+    /// The `set w [ctor .path]` return-value-capture shape resolves through
+    /// the existing, already-generic `registry_factory_class_from_subst` —
+    /// again no new analyser code needed once the registry data lands.
+    #[test]
+    fn var_captured_widget_constructor_binds_instance_class() {
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("set lb [listbox .l]\n$lb curselection\n", "tcl8.6");
+        assert_eq!(
+            res.instance_classes.get("lb").map(String::as_str),
+            Some("listbox"),
+            "instance_classes: {:?}",
+            res.instance_classes
+        );
+    }
+
+    /// A plain widget with no modelled subcommands (`button`) still binds
+    /// an instance class (useful for definition/references/W123
+    /// suppression) even though it has no `object_class` to dispatch
+    /// methods against.
+    #[test]
+    fn simple_widget_without_subcommands_still_binds_instance_class() {
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("button .b -text hi\n", "tcl8.6");
+        assert_eq!(
+            res.instance_classes.get(".b").map(String::as_str),
+            Some("button"),
+            "instance_classes: {:?}",
+            res.instance_classes
         );
     }
 

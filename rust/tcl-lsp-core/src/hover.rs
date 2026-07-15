@@ -241,7 +241,7 @@ pub fn hover_with_dialect(
         crate::definition::instance_method_at_cursor(source, line, character)
         && let Some(class_q) =
             crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
-        && let Some(text) = obj_method_hover_text(analysis, class_q, &method)
+        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, registry)
     {
         return Some(Hover::markdown(text));
     }
@@ -2670,25 +2670,45 @@ fn class_member_hover_text(
 /// `methods` then `class_methods`, rendering a one-line
 /// summary that names the receiver class plus an MRO note
 /// (inherited-from / overrides).
-fn obj_method_hover_text(analysis: &AnalysisResult, class_q: &str, method: &str) -> Option<String> {
-    let class_def = analysis.all_classes.get(class_q)?;
-    let note = oo_method_resolution_note(analysis, class_q, method);
-    let suffix = note.map_or(String::new(), |n| format!("  \n{n}"));
-    if let Some(m) = class_def.methods.get(method) {
-        return Some(format!(
-            "**method** `{class_q}::{name}` ({nparam} param(s)){suffix}",
-            name = m.name,
-            nparam = m.params.len(),
-        ));
+///
+/// `class_q` may name either a *user*-defined class (`analysis.all_classes`
+/// — `oo::class`/`oo::define`/snit/itcl bodies the analyser parsed) or a
+/// *registry*-modelled one (a `tcl-registry` `ObjectClassSpec` — tcllib
+/// factories, or a Tk/ttk widget's self-referential class, issue #927).
+/// User classes are tried first (richer: params, MRO note); the registry is
+/// the fallback so e.g. `.t instate` still hovers even though `ttk::treeview`
+/// is never a user-defined class.
+fn obj_method_hover_text(
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    registry: Option<&CommandRegistry>,
+) -> Option<String> {
+    if let Some(class_def) = analysis.all_classes.get(class_q) {
+        let note = oo_method_resolution_note(analysis, class_q, method);
+        let suffix = note.map_or(String::new(), |n| format!("  \n{n}"));
+        if let Some(m) = class_def.methods.get(method) {
+            return Some(format!(
+                "**method** `{class_q}::{name}` ({nparam} param(s)){suffix}",
+                name = m.name,
+                nparam = m.params.len(),
+            ));
+        }
+        if let Some(m) = class_def.class_methods.get(method) {
+            return Some(format!(
+                "**classmethod** `{class_q}::{name}` ({nparam} param(s)){suffix}",
+                name = m.name,
+                nparam = m.params.len(),
+            ));
+        }
+        return None;
     }
-    if let Some(m) = class_def.class_methods.get(method) {
-        return Some(format!(
-            "**classmethod** `{class_q}::{name}` ({nparam} param(s)){suffix}",
-            name = m.name,
-            nparam = m.params.len(),
-        ));
-    }
-    None
+    let sub = registry?.instance_method(class_q, method)?;
+    Some(format!(
+        "**method** `{class_q} {method}`  \n{detail}\n\n`{synopsis}`",
+        detail = sub.detail,
+        synopsis = sub.synopsis,
+    ))
 }
 
 /// MRO note for `method` on `class_q`: `inherited from ::Provider` when the
@@ -4101,5 +4121,38 @@ mod tests {
         let analysis = analyse(src);
         // `x` has no recorded class — no hover.
         assert!(hover(src, 3, 3, &analysis, None).is_none());
+    }
+
+    /// A Tk widget's instance command (a registry-modelled, self-referential
+    /// `object_class`, not a user-defined one — issue #927) needs the
+    /// registry passed to resolve hover text at all.
+    #[test]
+    fn obj_method_hover_fires_for_bareword_widget() {
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let src = "ttk::treeview .t\n.t instate {selected} {}\n";
+        let analysis = analyse(src);
+        // Line 1 `.t instate …` — cursor on `instate` (col 3).
+        let h = hover(src, 1, 3, &analysis, Some(&reg)).expect("hover");
+        assert!(h.value.contains("ttk::treeview instate"), "{}", h.value);
+    }
+
+    /// Without a registry passed, the same widget dispatch has nowhere to
+    /// look up the method — `obj_method_hover_text`'s registry fallback is
+    /// skipped, not a panic.
+    #[test]
+    fn obj_method_hover_none_for_widget_without_registry() {
+        let src = "ttk::treeview .t\n.t instate {selected} {}\n";
+        let analysis = analyse(src);
+        assert!(hover(src, 1, 3, &analysis, None).is_none());
+    }
+
+    #[test]
+    fn obj_method_hover_fires_for_var_captured_widget() {
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let src = "set lb [listbox .l]\n$lb curselection\n";
+        let analysis = analyse(src);
+        // Line 1 `$lb curselection` — cursor on `curselection` (col 4).
+        let h = hover(src, 1, 4, &analysis, Some(&reg)).expect("hover");
+        assert!(h.value.contains("listbox curselection"), "{}", h.value);
     }
 }

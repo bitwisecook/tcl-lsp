@@ -465,6 +465,38 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     #[test]
+    fn bareword_widget_path_is_a_handle() {
+        // `ttk::treeview .t` is syntactically identical to the tcllib
+        // naming-factory shape (`struct::graph g`) `harvest_unit` already
+        // reads generically via `creates_instance_at`/`object_class` — so a
+        // Tk widget's bareword path becomes a tracked handle with zero new
+        // code in this pass, once the registry declares those two fields
+        // (issue #927).
+        let registry = CommandRegistry::build_default();
+        let src = "ttk::treeview .t\n.t instate {selected} {}\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get(".t").map(|s| s.contains("ttk::treeview")),
+            Some(true),
+            "`.t` should be a tracked ttk::treeview handle; got {map:?}"
+        );
+    }
+
+    #[test]
+    fn var_captured_widget_path_is_a_handle() {
+        let registry = CommandRegistry::build_default();
+        let src = "set lb [listbox .l]\n$lb curselection\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let map = object_handle_classes(&cu, &registry);
+        assert_eq!(
+            map.get("lb").map(|s| s.contains("listbox")),
+            Some(true),
+            "`lb` should be a tracked listbox handle; got {map:?}"
+        );
+    }
+
+    #[test]
     fn scalar_handle_from_constructor() {
         let registry = CommandRegistry::build_default();
         let src = "set chart [ticklecharts::chart new]\n$chart Xaxis -name x\n";

@@ -247,15 +247,28 @@ fn context_aware_completions(
 ) -> Option<Vec<CompletionItem>> {
     let (cmd, word_idx) = command_context_on_line(source, line, character)?;
 
-    // `$obj <method>` — when the command head is an instance variable whose
-    // class is known, complete the methods callable on it, gathered across
-    // the whole MRO (inherited methods included).  Checked before the
-    // registry lookup because `$obj` is not a registered command.
-    if word_idx == 1
-        && let Some(obj) = strip_instance_var(&cmd)
-        && let Some(items) = oo_method_completions(analysis, &obj, partial)
-    {
-        return Some(items);
+    // `$obj <method>` / `.w <subcommand>` — when the command head is an
+    // instance variable *or* a bareword instance-command name (a Tk widget
+    // path, or `CLASS create NAME`) whose class is known, complete the
+    // methods/subcommands callable on it.  Checked before the registry
+    // lookup because neither `$obj` nor a bareword widget path is itself a
+    // registered command.  `receiver_instance_class` applies the same
+    // bareword-vs-`$var` gate go-to-definition/hover already use — a bare
+    // name only resolves when it was actually bound by a create call
+    // (`created_instance_commands`), not merely because some unrelated
+    // variable of the same name happens to hold an object elsewhere
+    // (issue #927).
+    if word_idx == 1 {
+        let receiver = strip_instance_var(&cmd).map(|v| (v, true)).or_else(|| {
+            (!cmd.is_empty() && !cmd.contains(['$', '['])).then(|| (cmd.clone(), false))
+        });
+        if let Some((recv, is_dollar)) = receiver
+            && let Some(class_q) =
+                crate::definition::receiver_instance_class(analysis, &recv, is_dollar)
+            && let Some(items) = method_completions(analysis, registry, class_q, partial)
+        {
+            return Some(items);
+        }
     }
 
     // Inside a scoped command environment (a `report::defstyle` style script):
@@ -968,25 +981,33 @@ fn strip_instance_var(cmd: &str) -> Option<String> {
     .then(|| inner.to_string())
 }
 
-/// Complete the methods callable on `$obj` when its class is known —
-/// gathered across the whole MRO so **inherited** methods appear, not just
-/// the receiver class's own.  Overridden methods appear once (the
-/// most-derived provider wins).  Only public methods plus the universal
-/// `destroy` are offered (an external `$obj method` dispatch cannot reach
-/// private / unexported methods).  Returns `None` when the class is
-/// unknown or nothing matches, so the caller falls through.
-fn oo_method_completions(
+/// Complete the methods/subcommands callable on a receiver whose class
+/// (`class_q`) is already resolved — gathered across the whole MRO so
+/// **inherited** methods appear, not just the receiver class's own.
+/// Overridden methods appear once (the most-derived provider wins).  Only
+/// public methods plus the universal `destroy` are offered (an external
+/// `$obj method` dispatch cannot reach private / unexported methods).
+///
+/// `class_q` may name either a *user*-defined class (`analysis.all_classes`,
+/// tried first) or fall through to the registry (`ObjectClassSpec`/a
+/// self-referential Tk widget spec — issue #927) when it isn't one. Returns
+/// `None` when the class is unknown to both or nothing matches, so the
+/// caller falls through to plain command completion.
+fn method_completions(
     analysis: &AnalysisResult,
-    obj: &str,
+    registry: &CommandRegistry,
+    class_q: &str,
     partial: &str,
 ) -> Option<Vec<CompletionItem>> {
-    let class_q = analysis.instance_classes.get(obj)?;
+    if !analysis.all_classes.contains_key(class_q) {
+        return registry_method_completions(registry, class_q, partial);
+    }
     let hierarchy = analysis.class_hierarchy();
     let mro = hierarchy
         .mro_map
         .get(class_q)
         .cloned()
-        .unwrap_or_else(|| vec![class_q.clone()]);
+        .unwrap_or_else(|| vec![class_q.to_string()]);
     let mut seen: FxHashSet<String> = FxHashSet::default();
     let mut items: Vec<CompletionItem> = Vec::new();
     for cls in &mro {
@@ -1032,6 +1053,44 @@ fn oo_method_completions(
             ..CompletionItem::default()
         });
     }
+    if items.is_empty() {
+        return None;
+    }
+    items.sort_by(|a, b| a.label.cmp(&b.label));
+    Some(items)
+}
+
+/// Complete instance methods/subcommands for a *registry*-modelled class:
+/// a tcllib-style factory (`report::report`, `struct::graph` — a distinct
+/// `ObjectClassSpec`) or a Tk/ttk widget (self-referential — `class_q`
+/// names its own `CommandSpec`, whose `subcommands` *is* its instance
+/// dispatch table).  Tries the dedicated object class first since that is
+/// the precise, intended shape; the self-referential widget case falls
+/// back to the class's own `CommandSpec` when it has no separate
+/// `ObjectClassSpec` (matching `CommandRegistry::instance_method`'s own
+/// `object_class` lookup, `registry.rs:413-415`).  No MRO walk — neither
+/// shape currently declares `superclasses` (issue #927).
+fn registry_method_completions(
+    registry: &CommandRegistry,
+    class_q: &str,
+    partial: &str,
+) -> Option<Vec<CompletionItem>> {
+    let methods: &[tcl_registry::SubCommand] = registry
+        .object_class(class_q)
+        .map(|oc| oc.instance_methods)
+        .or_else(|| registry.get(class_q).map(|spec| spec.subcommands))?;
+    let mut items: Vec<CompletionItem> = methods
+        .iter()
+        .filter(|m| m.name.starts_with(partial))
+        .map(|m| CompletionItem {
+            label: m.name.to_owned(),
+            insert_text: m.name.to_owned(),
+            kind: CompletionKind::Function,
+            detail: Some(format!("method — {class_q}")),
+            documentation: (!m.detail.is_empty()).then(|| m.detail.to_owned()),
+            ..CompletionItem::default()
+        })
+        .collect();
     if items.is_empty() {
         return None;
     }
@@ -1638,6 +1697,58 @@ mod tests {
         assert!(
             !labels.contains(&"sit"),
             "partial `b` should exclude sit: {labels:?}"
+        );
+    }
+
+    /// A Tk widget's bareword instance path completes its own subcommands
+    /// (a self-referential registry `object_class`, not a user class —
+    /// issue #927), same as `$var`-receiver completion above.
+    #[test]
+    fn widget_bareword_completion_offers_subcommands() {
+        let src = "ttk::treeview .t\n.t i\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `.t i` on line 1.
+        let items = completions(src, 1, 4, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"instate")
+                && labels.contains(&"identify")
+                && labels.contains(&"insert"),
+            "{labels:?}"
+        );
+        assert!(
+            !labels.contains(&"curselection"),
+            "must not offer an unrelated widget's subcommand: {labels:?}"
+        );
+    }
+
+    /// The `set lb [listbox .l]` return-value-capture shape completes too.
+    #[test]
+    fn widget_var_captured_completion_offers_subcommands() {
+        let src = "set lb [listbox .l]\n$lb cu\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 1, 6, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"curselection"), "{labels:?}");
+    }
+
+    /// A bareword that merely shares a name with an unrelated tracked
+    /// variable must not offer method completion — only a name genuinely
+    /// bound by a create call qualifies (mirrors
+    /// `receiver_instance_class_gates_bare_on_created_commands` in
+    /// definition.rs).
+    #[test]
+    fn bareword_completion_does_not_leak_unrelated_variable_class() {
+        let src = "oo::class create Bar {\n    method get {} {}\n}\nset b [Bar new]\nb \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 4, 2, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"get"),
+            "bareword `b` was never created — must not complete as `Bar`: {labels:?}"
         );
     }
 
