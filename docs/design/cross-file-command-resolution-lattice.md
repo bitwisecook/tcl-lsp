@@ -192,6 +192,65 @@ established from the LSP request pipeline before committing to this
 phase's cost. Suggest resolving that question first, as a short spike,
 before scoping the rest of phase 4 in detail.
 
+## Phase 5 — resolving into library/package files (`TCL_LIBRARY`, `TCLLIBPATH`, editor config)
+
+Corrected from an earlier draft of this doc, which mischaracterised this as
+"not implemented at all." That's wrong in the way that matters most: the
+**discovery and configuration layer is already fully built** and is more
+thorough than most of what's proposed above needed to be —
+
+- `tcl_install::discover` finds installed Tcl trees by walking
+  platform-specific search bases plus `$TCL_LIBRARY` (directly) and
+  `$TCLLIBPATH` (`tcl_install.rs:54-106`), looking for a directory
+  containing `init.tcl`, with best-effort version detection per
+  installation.
+- `effective_auto_path` (`tcl-lsp-server/src/lib.rs:10784-10791`) layers,
+  in priority order: the editor's `tclLsp.libraryPaths` setting (a real,
+  documented VS Code config key, `editors/vscode/package.json:3037-3046`)
+  → user `config.ini` `[global] libraryPaths` → per-workspace
+  `.tcl-lsp.ini` `[project] libraryPaths` → discovered installations'
+  `auto_path` → `$TCLLIBPATH`.
+- `PackageResolver` (`package_resolver.rs`) then mirrors C Tcl's actual
+  loading machinery over that path set — structurally parsing
+  `pkgIndex.tcl` (`package ifneeded` → source files, matching
+  `tclPkgUnknown`) and `tclIndex` (`auto_index` proc→file, matching
+  `auto_load_index`/`auto_qualify`) with the real lexer, differentially
+  tested against actual `tclsh`. It already knows, for any `package
+  require`d or auto-loadable name, exactly which file on disk defines it.
+
+**The actual gap**: `scan_workspace_folders` builds this `PackageResolver`
+from the full effective `auto_path` (so it's completely config/env-aware),
+but only ever calls `workspace_index.add_document` for files under the
+*workspace folders* (`collect_tcl_files(root, ...)` over `roots`, i.e. the
+editor's open folders) — `PackageResolver`'s resolved `source_files`
+(`PackageInfo`) and `source_file` (`AutoIndexEntry`) never get analysed
+into `WorkspaceIndex` at all. Today `PackageResolver`'s only consumer is
+the W120 (`refine_w120_diagnostics`) existence check — "is this package
+resolvable" — not the actual proc/class content of the resolved files.
+Definition/References/Rename/Call Hierarchy accordingly only ever see
+workspace files, never library ones, entirely independent of whether the
+library was correctly located.
+
+Proposed fix, once phase 1's workspace-scoped `exists` oracle exists: give
+it a **second-tier source** — when a candidate isn't found in
+`WorkspaceIndex`'s already-analysed documents, consult `PackageResolver`
+for a file that would define it (`AutoIndexEntry`/`PackageInfo` lookup by
+qualified name), lazily analyse *that* file on demand (not eagerly — a
+workspace can trivially pull in all of Tk + tcllib, and nobody wants every
+open project to eagerly parse the whole standard library on startup),
+memoise the result the same way `analysis_for` memoises workspace
+documents, and merge it into the oracle. This makes library resolution
+"just" a lazily-populated extra layer behind the same oracle interface —
+no separate mechanism, and it inherits phase 1's soundness properties
+(never guesses; abstains when the file can't be parsed or the name isn't
+found in it).
+
+Scope note: dialect matters here too — a BIG-IP/iRules project's "library"
+is a different concept (F5-provided commands, not `pkgIndex.tcl`), already
+modelled separately by `tcl-registry`'s dialect-specific command tables;
+this phase is about *Tcl-proc-level* libraries (tcllib, Tk, project-private
+packages), not re-deriving iRules' registry-driven command set.
+
 ## Suggested delivery order
 
 1. Workspace-scoped `exists` oracle + candidate-list recording — fixes #1,
@@ -203,6 +262,9 @@ before scoping the rest of phase 4 in detail.
    #3, and is a real justification to ship (part of) that experiment.
 4. SCCP-backed command-name-in-variable resolution — the "tricky
    indirection" case, pending the spike above.
+5. Library/package resolution as a lazy second tier behind the same
+   oracle — the discovery/config half needs no new work, only the
+   lazy-analyse-and-merge wiring described above.
 
 ## Testing
 
