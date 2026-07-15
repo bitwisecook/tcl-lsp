@@ -1196,8 +1196,7 @@ fn is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest() {
 
 /// The `oo::class create C { variable n; method get {} {return $n} … }`
 /// fixture used across the object-variable tests.  `$n` in `get` sits at line 2.
-const OBJECT_VAR_SRC: &str =
-    "oo::class create C {\n    variable n\n    method get {} {return $n}\n    method set {x} {set n $x}\n}\n";
+const OBJECT_VAR_SRC: &str = "oo::class create C {\n    variable n\n    method get {} {return $n}\n    method set {x} {set n $x}\n}\n";
 
 /// FP-guard (the corruption regression): a rename edit must never span more
 /// than one line, and must never cover the whole `{return $n}` method body.
@@ -1216,9 +1215,8 @@ fn object_var_rename_never_rewrites_method_body() {
         );
         // The method body `{return $n}` starts at col 18 on line 2.  No edit
         // may start at the brace and run to end-of-body.
-        let spans_body = e.range.start_line == 2
-            && e.range.start_character <= 18
-            && e.range.end_character >= 28;
+        let spans_body =
+            e.range.start_line == 2 && e.range.start_character <= 18 && e.range.end_character >= 28;
         assert!(!spans_body, "edit covers the whole method body: {e:?}");
     }
 }
@@ -1263,7 +1261,10 @@ fn object_var_references_are_token_sized() {
     let refs = references(OBJECT_VAR_SRC, "tcl", 2, col, &analysis, true);
     assert!(!refs.is_empty());
     for r in &refs {
-        assert_eq!(r.start_line, r.end_line, "reference span crosses lines: {r:?}");
+        assert_eq!(
+            r.start_line, r.end_line,
+            "reference span crosses lines: {r:?}"
+        );
     }
 }
 
@@ -1277,7 +1278,10 @@ fn plain_proc_local_rename_unaffected() {
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
     let edits = rename(src, "tcl8.6", 3, col, "total", &analysis, None);
     let lines = edit_lines(&edits);
-    assert!(lines.contains(&1), "decl `set count` should rename: {edits:?}");
+    assert!(
+        lines.contains(&1),
+        "decl `set count` should rename: {edits:?}"
+    );
     assert!(lines.contains(&3), "`$count` use should rename: {edits:?}");
     for e in &edits {
         assert_eq!(e.range.start_line, e.range.end_line);
@@ -1338,11 +1342,31 @@ const NS_COLLISION_PROC_SRC: &str = "namespace eval ::a {\n    proc helper {} { 
 #[test]
 fn proc_rename_from_callsite_targets_caller_namespace() {
     let analysis = analyse(NS_COLLISION_PROC_SRC);
-    let col = NS_COLLISION_PROC_SRC.lines().nth(2).unwrap().find("{ helper }").unwrap() as u32 + 2;
-    let edits = rename(NS_COLLISION_PROC_SRC, "tcl8.6", 2, col, "assist", &analysis, None);
+    let col = NS_COLLISION_PROC_SRC
+        .lines()
+        .nth(2)
+        .unwrap()
+        .find("{ helper }")
+        .unwrap() as u32
+        + 2;
+    let edits = rename(
+        NS_COLLISION_PROC_SRC,
+        "tcl8.6",
+        2,
+        col,
+        "assist",
+        &analysis,
+        None,
+    );
     let lines = edit_lines(&edits);
-    assert!(lines.contains(&1), "::a::helper decl (line 1) must rename: {edits:?}");
-    assert!(lines.contains(&2), "the call (line 2) must rename: {edits:?}");
+    assert!(
+        lines.contains(&1),
+        "::a::helper decl (line 1) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "the call (line 2) must rename: {edits:?}"
+    );
     assert!(
         !lines.contains(&5),
         "must NOT rename ::b::helper (line 5): {edits:?}"
@@ -1354,12 +1378,21 @@ fn proc_rename_from_callsite_targets_caller_namespace() {
 #[test]
 fn proc_references_from_callsite_targets_caller_namespace() {
     let analysis = analyse(NS_COLLISION_PROC_SRC);
-    let col = NS_COLLISION_PROC_SRC.lines().nth(2).unwrap().find("{ helper }").unwrap() as u32 + 2;
+    let col = NS_COLLISION_PROC_SRC
+        .lines()
+        .nth(2)
+        .unwrap()
+        .find("{ helper }")
+        .unwrap() as u32
+        + 2;
     let refs = references(NS_COLLISION_PROC_SRC, "tcl", 2, col, &analysis, true);
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "decl line 1 expected: {refs:?}");
     assert!(lines.contains(&2), "call line 2 expected: {refs:?}");
-    assert!(!lines.contains(&5), "must NOT include ::b::helper (line 5): {refs:?}");
+    assert!(
+        !lines.contains(&5),
+        "must NOT include ::b::helper (line 5): {refs:?}"
+    );
 }
 
 /// TN: a single unambiguous proc still renames correctly from its call site.
@@ -1383,7 +1416,10 @@ fn class_rename_from_callsite_targets_caller_namespace() {
     let col = src.lines().nth(2).unwrap().find("Widget new").unwrap() as u32 + 1;
     let edits = rename(src, "tcl8.6", 2, col, "Panel", &analysis, None);
     let lines = edit_lines(&edits);
-    assert!(lines.contains(&1), "::a::Widget decl (line 1) must rename: {edits:?}");
+    assert!(
+        lines.contains(&1),
+        "::a::Widget decl (line 1) must rename: {edits:?}"
+    );
     assert!(
         !lines.contains(&5),
         "must NOT rename ::b::Widget (line 5): {edits:?}"
@@ -1400,8 +1436,14 @@ fn object_var_references_unify_across_methods() {
     let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
     let refs = references(src, "tcl", 2, col, &analysis, true);
     let lines = ref_lines(&refs);
-    assert!(lines.contains(&1), "declaration (line 1) expected: {refs:?}");
-    assert!(lines.contains(&2), "`$n` in get (line 2) expected: {refs:?}");
+    assert!(
+        lines.contains(&1),
+        "declaration (line 1) expected: {refs:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "`$n` in get (line 2) expected: {refs:?}"
+    );
     assert!(
         lines.contains(&3),
         "the sibling-method use `incr n` (line 3) must unify: {refs:?}"
@@ -1417,11 +1459,23 @@ fn object_var_rename_unifies_declaration_and_all_method_uses() {
     let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
     let edits = rename(src, "tcl8.6", 2, col, "count", &analysis, None);
     let lines = edit_lines(&edits);
-    assert!(lines.contains(&1), "declaration (line 1) must rename: {edits:?}");
-    assert!(lines.contains(&2), "`$n` in get (line 2) must rename: {edits:?}");
-    assert!(lines.contains(&3), "`incr n` in bump (line 3) must rename: {edits:?}");
+    assert!(
+        lines.contains(&1),
+        "declaration (line 1) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "`$n` in get (line 2) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "`incr n` in bump (line 3) must rename: {edits:?}"
+    );
     // No edit spans the body (the earlier corruption guard still holds).
-    assert!(edits.iter().all(|e| e.range.start_line == e.range.end_line), "{edits:?}");
+    assert!(
+        edits.iter().all(|e| e.range.start_line == e.range.end_line),
+        "{edits:?}"
+    );
 }
 
 #[test]
@@ -1434,8 +1488,14 @@ fn namespace_variable_unifies_across_procs() {
     let refs = references(src, "tcl", 3, col, &analysis, true);
     let lines = ref_lines(&refs);
     eprintln!("namespace-variable reference lines = {lines:?}");
-    assert!(lines.contains(&1), "namespace-level `variable count 0` (line 1): {refs:?}");
-    assert!(lines.contains(&2), "`variable count`/`incr count` in bump (line 2): {refs:?}");
+    assert!(
+        lines.contains(&1),
+        "namespace-level `variable count 0` (line 1): {refs:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "`variable count`/`incr count` in bump (line 2): {refs:?}"
+    );
     assert!(lines.contains(&3), "`$count` in get (line 3): {refs:?}");
 }
 
@@ -1449,8 +1509,14 @@ fn global_variable_unifies_across_procs() {
     let refs = references(src, "tcl", 2, col, &analysis, true);
     let lines = ref_lines(&refs);
     eprintln!("global-variable reference lines = {lines:?}");
-    assert!(lines.contains(&1), "`global g`/`incr g` in a (line 1): {refs:?}");
-    assert!(lines.contains(&2), "`global g`/`$g` in b (line 2): {refs:?}");
+    assert!(
+        lines.contains(&1),
+        "`global g`/`incr g` in a (line 1): {refs:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "`global g`/`$g` in b (line 2): {refs:?}"
+    );
 }
 
 #[test]
@@ -1462,10 +1528,22 @@ fn namespace_variable_rename_unifies_all_aliases() {
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
     let edits = rename(src, "tcl8.6", 3, col, "total", &analysis, None);
     let lines = edit_lines(&edits);
-    assert!(lines.contains(&1), "namespace decl (line 1) must rename: {edits:?}");
-    assert!(lines.contains(&2), "bump's alias + use (line 2) must rename: {edits:?}");
-    assert!(lines.contains(&3), "get's alias + use (line 3) must rename: {edits:?}");
-    assert!(edits.iter().all(|e| e.new_text.contains("total")), "{edits:?}");
+    assert!(
+        lines.contains(&1),
+        "namespace decl (line 1) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "bump's alias + use (line 2) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "get's alias + use (line 3) must rename: {edits:?}"
+    );
+    assert!(
+        edits.iter().all(|e| e.new_text.contains("total")),
+        "{edits:?}"
+    );
 }
 
 #[test]

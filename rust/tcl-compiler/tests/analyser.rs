@@ -1789,7 +1789,9 @@ mod tcloo_classes {
         let src = "namespace eval ::a {\n    oo::class create Base {}\n    oo::class create Sub {\n        superclass Base\n    }\n}\n";
         let analysis = Analyser::new().analyse(src, D).clone();
         assert!(
-            analysis.class_hierarchy().is_subtype("::a::Sub", "::a::Base"),
+            analysis
+                .class_hierarchy()
+                .is_subtype("::a::Sub", "::a::Base"),
             "a same-namespace superclass must resolve"
         );
     }

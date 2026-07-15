@@ -270,7 +270,10 @@ fn references_object_variable_unify_across_methods() {
     let lines = start_lines(&lsp.references(&uri, 2, col, true));
     assert!(lines.contains(&1), "declaration (line 1): {lines:?}");
     assert!(lines.contains(&2), "`$n` in get (line 2): {lines:?}");
-    assert!(lines.contains(&3), "`incr n` in bump (line 3) must unify: {lines:?}");
+    assert!(
+        lines.contains(&3),
+        "`incr n` in bump (line 3) must unify: {lines:?}"
+    );
 }
 
 /// End-to-end (real server): a namespace variable's `variable` aliases across
@@ -283,7 +286,10 @@ fn references_namespace_variable_unify_across_procs() {
     lsp.open_ready(&uri, src);
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
     let lines = start_lines(&lsp.references(&uri, 3, col, true));
-    assert!(lines.contains(&1), "namespace-level decl (line 1): {lines:?}");
+    assert!(
+        lines.contains(&1),
+        "namespace-level decl (line 1): {lines:?}"
+    );
     assert!(lines.contains(&2), "bump alias+use (line 2): {lines:?}");
     assert!(lines.contains(&3), "get alias+use (line 3): {lines:?}");
 }

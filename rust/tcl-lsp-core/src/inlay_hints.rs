@@ -1142,7 +1142,10 @@ mod tests {
             true,
         );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
-        assert!(!labels.contains(&"custom:"), "proc hijacked builtin: {labels:?}");
+        assert!(
+            !labels.contains(&"custom:"),
+            "proc hijacked builtin: {labels:?}"
+        );
     }
 
     #[test]

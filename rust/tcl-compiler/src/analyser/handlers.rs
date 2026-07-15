@@ -1550,7 +1550,10 @@ impl Analyser {
         while i < args.len() && i < arg_tokens.len() {
             self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
             let other = &args[i - 1];
-            let target = format!("{target_ns}::{}", other.rsplit("::").next().unwrap_or(other));
+            let target = format!(
+                "{target_ns}::{}",
+                other.rsplit("::").next().unwrap_or(other)
+            );
             self.set_var_link_target(&args[i], scope_path, target);
             i += 2;
         }

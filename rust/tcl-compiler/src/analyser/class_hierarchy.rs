@@ -900,8 +900,15 @@ mod tests {
     /// Tcl errors there.  Before the fix this wrongly returned `::a::Base`.
     #[test]
     fn superclass_resolution_abstains_on_ancestor_only_base() {
-        let got = resolve_from("Base", "::a::b::Sub", &["::a::Base", "::x::Base", "::a::b::Sub"]);
-        assert_eq!(got, None, "must abstain, not climb to an ancestor namespace");
+        let got = resolve_from(
+            "Base",
+            "::a::b::Sub",
+            &["::a::Base", "::x::Base", "::a::b::Sub"],
+        );
+        assert_eq!(
+            got, None,
+            "must abstain, not climb to an ancestor namespace"
+        );
     }
 
     /// TP: a base in the class's *own* namespace resolves one-hop.
@@ -923,7 +930,11 @@ mod tests {
     /// links via the sound-by-abstention unique-tail fallback.
     #[test]
     fn superclass_cross_file_unique_tail_links() {
-        let got = resolve_from("Device", "::spice::sub::Sub", &["::spice::Device", "::spice::sub::Sub"]);
+        let got = resolve_from(
+            "Device",
+            "::spice::sub::Sub",
+            &["::spice::Device", "::spice::sub::Sub"],
+        );
         assert_eq!(got.as_deref(), Some("::spice::Device"));
     }
 
@@ -933,5 +944,4 @@ mod tests {
         let got = resolve_from("::a::Base", "::x::Sub", &["::a::Base", "::x::Sub"]);
         assert_eq!(got.as_deref(), Some("::a::Base"));
     }
-
 }

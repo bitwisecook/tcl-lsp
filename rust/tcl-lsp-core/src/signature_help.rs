@@ -659,7 +659,10 @@ mod tests {
         let (l, c) = pos_after(src, "A::greet ", 1);
         let h = signature_help(src, l, c, &analysis, Some(&registry)).expect("signature help");
         assert!(
-            h.signatures[0].parameters.iter().any(|p| p.label == "alpha"),
+            h.signatures[0]
+                .parameters
+                .iter()
+                .any(|p| p.label == "alpha"),
             "{:?}",
             h.signatures[0].parameters
         );
@@ -677,7 +680,10 @@ mod tests {
         let (l, c) = pos_after(src, "puts ", 2);
         let h = signature_help(src, l, c, &analysis, Some(&registry)).expect("signature help");
         assert!(
-            !h.signatures[0].parameters.iter().any(|p| p.label == "custom"),
+            !h.signatures[0]
+                .parameters
+                .iter()
+                .any(|p| p.label == "custom"),
             "namespaced proc hijacked the builtin: {:?}",
             h.signatures[0].parameters
         );
@@ -695,7 +701,10 @@ mod tests {
         let (l, c) = pos_after(src, "greet ", 3);
         let h = signature_help(src, l, c, &analysis, Some(&registry)).expect("signature help");
         assert!(
-            h.signatures[0].parameters.iter().any(|p| p.label == "alpha"),
+            h.signatures[0]
+                .parameters
+                .iter()
+                .any(|p| p.label == "alpha"),
             "{:?}",
             h.signatures[0].parameters
         );

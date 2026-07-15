@@ -379,8 +379,14 @@ fn rename_from_callsite_does_not_touch_same_named_proc_in_other_namespace() {
         .iter()
         .filter_map(|e| e["range"]["start"]["line"].as_u64())
         .collect();
-    assert!(lines.contains(&1), "::a::helper decl (line 1) must rename: {for_uri:?}");
-    assert!(lines.contains(&2), "the call (line 2) must rename: {for_uri:?}");
+    assert!(
+        lines.contains(&1),
+        "::a::helper decl (line 1) must rename: {for_uri:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "the call (line 2) must rename: {for_uri:?}"
+    );
     assert!(
         !lines.contains(&5),
         "must NOT rename ::b::helper (line 5): {for_uri:?}"
