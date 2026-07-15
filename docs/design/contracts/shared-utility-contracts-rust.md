@@ -211,8 +211,6 @@ helper without reading the rationale:
 ## Discoverability
 
 - [KCS index](../README.md)
-- [shared-utility-contracts.md](shared-utility-contracts.md) — the
-  Python-side counterpart.
 - [core-lsp-shared-utility.md](core-lsp-shared-utility.md)
 - [family-b-routing.md](../family-b-routing.md) — the runtime seam this
   crate layering serves.
