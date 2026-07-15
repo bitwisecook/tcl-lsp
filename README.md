@@ -1875,7 +1875,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W003 | Expression operator not available in the active dialect | |
 | W004 | Command option not available in the active dialect | |
 | W100 | Unbraced `expr`/`if`/`while`/`for` expression (double substitution risk) | Wrap in braces |
-| W104 | `append` with space-separated values (use `lappend` for lists) | |
+| W104 | `append` with space-separated values (use `lappend` for lists) | Rewrite with `lappend` |
 | W105 | Unbraced code block or missing `variable` declaration in `namespace eval` | Wrap in braces |
 | W106 | Dangerous unbraced `switch` body | |
 | W108 | Non-ASCII characters in token content (smart quotes, non-breaking spaces) | Replace with ASCII |
@@ -1883,7 +1883,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W111 | Line exceeds configured maximum length | |
 | W112 | Trailing whitespace | Remove whitespace |
 | W113 | Procedure shadows a built-in command | |
-| W114 | Redundant nested `[expr]` -- already in expression context | |
+| W114 | Redundant nested `[expr]` -- already in expression context | Unwrap the nested `expr` |
 | W115 | Backslash-newline in comment silently swallows the next line | Convert to per-line comments |
 | W116 | Stub command shadows a built-in command | |
 | W117 | Stub expression definition shadows a built-in function or operator | |
@@ -1897,7 +1897,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W126 | Non-channel value in channel argument position | |
 | W127 | Value not in the command's allowed set (e.g. `HTTP::version "2.0"`) | Use one of the listed values |
 | W200 | Binary format modifier requires newer Tcl | |
-| W201 | Manual path concatenation — uses rendered value properties and taint suppression (use `file join`) | Rewrite as `[file join]` |
+| W201 | Manual path concatenation — uses rendered value properties and taint suppression (use `file join`) | Rewrite with `file join` |
 | W230 | Constant list index out of range -- `lindex`/`lrange`/`lreplace` silently return empty or clamp | |
 | W231 | Constant list index out of range -- `lset` raises a runtime error | |
 | W232 | Constant string index out of range -- `string index`/`range`/`replace`/`insert` silently no-op | |

@@ -577,11 +577,25 @@ Use braces: {{ \u{2026} }}"
     /// like list construction — fragile if the data contains special
     /// characters.  Fires once (HINT) on the first value argument that
     /// starts or ends with a space.
+    ///
+    /// The two-word leading-space shape — `append var " $item"`, one
+    /// quoted value holding exactly one pad space and one
+    /// whitespace-free piece — carries a whole-command `lappend`
+    /// rewrite fix (the message's own advice made concrete): byte-for-byte
+    /// equivalent on a non-empty proper list, and dropping only the
+    /// stray leading separator on the first append.  Every other shape
+    /// stays message-only: a trailing pad moves the separator to the
+    /// other side, several value words or extra padding have no
+    /// unambiguous element mapping, a braced value is a deliberate
+    /// literal, and a piece with word/list metacharacters would need
+    /// requoting.
     pub(in crate::analyser) fn emit_w104_append_list(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        cmd_tok: tcl_lexer::Token,
     ) {
         if cmd_name != "append" || args.len() < 2 || arg_tokens.len() < 2 {
             return;
@@ -589,6 +603,10 @@ Use braces: {{ \u{2026} }}"
         for (i, text) in args.iter().enumerate().skip(1) {
             if text.starts_with(' ') || text.ends_with(' ') {
                 let tok = arg_tokens.get(i).unwrap_or(&arg_tokens[0]);
+                let fixes = self
+                    .w104_lappend_fix(args, arg_tokens, arg_expand, cmd_tok)
+                    .into_iter()
+                    .collect();
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: DiagCode::W104,
                     span: tok.span,
@@ -597,11 +615,65 @@ Use braces: {{ \u{2026} }}"
                               containing spaces, braces, or backslashes."
                         .to_string(),
                     severity: super::types::Severity::Hint,
-                    fixes: Vec::new(),
+                    fixes,
                 });
                 return;
             }
         }
+    }
+
+    /// The `lappend` rewrite for W104's mechanical shape (see
+    /// [`Self::emit_w104_append_list`]): exactly `append VAR "<sp>PIECE"`
+    /// with no `{*}` expansion, a single pad space, and both the
+    /// variable word and the piece safe to re-paste as bare words.
+    /// The fix spans the whole command — `lappend VAR PIECE`, built
+    /// from the raw source slices so the user's spelling is kept.
+    fn w104_lappend_fix(
+        &self,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        cmd_tok: tcl_lexer::Token,
+    ) -> Option<super::types::CodeFix> {
+        if args.len() != 2 || arg_tokens.len() != 2 || arg_expand.iter().any(|&e| e) {
+            return None;
+        }
+        // Leading-space shape only: `append var "x "` appends the
+        // separator *after* the piece, which `lappend` cannot reproduce.
+        if !args[1].starts_with(' ') || args[1].ends_with(' ') {
+            return None;
+        }
+        // The value word must be a double-quoted word in the source; a
+        // single-fragment quoted token's span end sits on its closing
+        // quote (the inner-end convention), so widen over it.
+        let vstart = arg_tokens[1].span.start() as usize;
+        let mut vend = arg_tokens[1].span.end() as usize;
+        if self.source.as_bytes().get(vend) == Some(&b'"') {
+            vend += 1;
+        }
+        let raw = self.source.get(vstart..vend)?;
+        let inner = raw.strip_prefix('"')?.strip_suffix('"')?;
+        // Exactly one pad space, then one bare-word-safe piece.
+        let piece = inner.strip_prefix(' ')?;
+        if !is_safe_bare_word(piece) {
+            return None;
+        }
+        let name_tok = arg_tokens[0];
+        let name_raw = self
+            .source
+            .get(name_tok.span.start() as usize..name_tok.span.end() as usize)?;
+        if !is_safe_bare_word(name_raw) {
+            return None;
+        }
+        let span = tcl_lexer::Span::new(
+            cmd_tok.span.start(),
+            u32::try_from(vend).unwrap_or(arg_tokens[1].span.end()),
+        );
+        Some(super::types::CodeFix {
+            span,
+            new_text: format!("lappend {name_raw} {piece}"),
+            description: "Rewrite with `lappend`".to_string(),
+        })
     }
 
     /// W106: an unbraced `switch` body undergoes an extra round
@@ -957,6 +1029,10 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
     /// expression argument; we scan its source slice for the first
     /// `[`-`expr`-whitespace sequence and anchor the warning at the
     /// nested `[expr … ]`.  One warning per argument (first match only).
+    ///
+    /// When the outer argument is braced and the nested body is one
+    /// braced group, the diagnostic carries an unwrap fix — see
+    /// [`w114_unwrap_fix`] for the exact conditions.
     pub(in crate::analyser) fn emit_w114_redundant_nested_expr(
         &mut self,
         _text: &str,
@@ -975,12 +1051,15 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
             u32::try_from(start + open).unwrap_or(diag_span.start()),
             u32::try_from(start + close + 1).unwrap_or(diag_span.end()),
         );
+        let fixes = w114_unwrap_fix(slice, open, close, nested_span)
+            .into_iter()
+            .collect();
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W114,
             span: nested_span,
             message: "Redundant nested [expr] \u{2014} already in expression context".to_string(),
             severity: super::types::Severity::Warning,
-            fixes: Vec::new(),
+            fixes,
         });
     }
 
@@ -1500,6 +1579,142 @@ pub(super) fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
         open += 1;
     }
     None
+}
+
+/// The W114 unwrap fix: replace the nested `[expr {INNER}]` (at
+/// `open..=close` within `outer`, absolute span `span`) with
+/// `(INNER)` — or bare `INNER` when it is a single atom.  `None`
+/// unless every condition for a purely textual inline holds:
+///
+/// * the outer argument is braced (`outer` starts with `{`), so no
+///   Tcl-level substitution reruns over the inlined text;
+/// * the bracket scan really matched (`outer[close]` is `]`);
+/// * the outer expression carries no string-comparison operator
+///   (`eq`/`ne`/`in`/`ni`): a nested `expr` normalises a numeric
+///   result (`[expr {$x}]` yields `7` for `x == "007"`), so unwrapping
+///   could flip a string comparison's verdict;
+/// * the nested body is exactly one braced group — an unbraced body
+///   would be re-substituted when inlined.
+fn w114_unwrap_fix(
+    outer: &str,
+    open: usize,
+    close: usize,
+    span: tcl_lexer::Span,
+) -> Option<super::types::CodeFix> {
+    if !outer.starts_with('{') || outer.as_bytes().get(close) != Some(&b']') {
+        return None;
+    }
+    if contains_string_comparison_word(outer) {
+        return None;
+    }
+    // Step over `[`, `\s*`, `expr`, and the following whitespace run to
+    // reach the body region (mirrors `first_nested_expr`'s match).
+    let bytes = outer.as_bytes();
+    let mut body_start = open + 1;
+    while body_start < close && bytes[body_start].is_ascii_whitespace() {
+        body_start += 1;
+    }
+    body_start = body_start.checked_add(4)?; // the `expr` keyword
+    while body_start < close && bytes[body_start].is_ascii_whitespace() {
+        body_start += 1;
+    }
+    let body = outer.get(body_start..close)?.trim();
+    let inner = single_braced_group(body)?.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let new_text = if is_expr_atom(inner) {
+        inner.to_string()
+    } else {
+        format!("({inner})")
+    };
+    Some(super::types::CodeFix {
+        span,
+        new_text,
+        description: "Unwrap the nested `expr`".to_string(),
+    })
+}
+
+/// The content of `body` when it is exactly one `{…}` group — braces
+/// balanced, depth first returning to zero at the final byte.  `None`
+/// otherwise (several groups, unbalanced or quote/escape-skewed braces,
+/// trailing text).
+fn single_braced_group(body: &str) -> Option<&str> {
+    let bytes = body.as_bytes();
+    if body.len() < 2 || bytes[0] != b'{' || bytes[body.len() - 1] != b'}' {
+        return None;
+    }
+    let mut depth = 0i32;
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth < 0 || (depth == 0 && i != body.len() - 1) {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    }
+    (depth == 0).then(|| &body[1..body.len() - 1])
+}
+
+/// True when `text` contains a standalone `eq` / `ne` / `in` / `ni`
+/// word — the expr string-comparison operators whose verdict a nested
+/// `expr`'s numeric normalisation can influence.  Deliberately scans
+/// the whole outer expression (a coarse, conservative over-match).
+fn contains_string_comparison_word(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let is_word_byte = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+    for op in ["eq", "ne", "in", "ni"] {
+        let mut from = 0;
+        while let Some(pos) = text.get(from..).and_then(|t| t.find(op)) {
+            let at = from + pos;
+            let before_ok = at == 0 || !is_word_byte(bytes[at - 1]);
+            let after = at + op.len();
+            let after_ok = after >= bytes.len() || !is_word_byte(bytes[after]);
+            if before_ok && after_ok {
+                return true;
+            }
+            from = at + 1;
+        }
+    }
+    false
+}
+
+/// True when `inner` is a single expr atom — a bare
+/// alphanumeric/`.`/`_` literal (`42`, `3.14`, `0x1f`, `true`) or a
+/// plain `$name` / `${name}` variable reference — so the `(…)`
+/// wrapping of the W114 unwrap fix can be dropped without changing
+/// how the surrounding expression parses.
+fn is_expr_atom(inner: &str) -> bool {
+    let ident = |name: &str| {
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+    };
+    if let Some(name) = inner.strip_prefix('$') {
+        return match name.strip_prefix('{').and_then(|n| n.strip_suffix('}')) {
+            Some(braced) => ident(braced),
+            None => ident(name),
+        };
+    }
+    !inner.is_empty()
+        && inner
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'))
+}
+
+/// True when `text` can be pasted verbatim as one bare Tcl word — no
+/// whitespace and none of the word/list metacharacters that would
+/// change tokenisation (`{`/`}`/`"`/`[`/`]`/`\`/`;`).
+fn is_safe_bare_word(text: &str) -> bool {
+    !text.is_empty()
+        && !text
+            .chars()
+            .any(|c| c.is_whitespace() || matches!(c, '{' | '}' | '"' | '[' | ']' | '\\' | ';'))
 }
 
 /// Walk `node` and collect every `==`/`!=` operator whose at least

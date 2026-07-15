@@ -22,6 +22,7 @@ Manually joining path segments with separator characters is fragile and non-port
 ## Symptoms
 
 - A yellow squiggle appears under the concatenation, with the message "manual path concatenation with '/' or '\\'".
+- When the value splits cleanly into `/`-separated segments, a quick fix titled "Rewrite with `file join`" is offered.
 
 ## Example that triggers it
 
@@ -38,6 +39,8 @@ set path [file join $dir $filename]
 ```
 
 Use `file join` to build paths safely and portably.
+
+The quick fix replaces exactly the concatenated value, and is offered only when every `/`-separated segment is a plain word or a simple `$var` reference. A leading `/` is kept on the first segment, so an absolute path stays absolute (`"/tmp/$x"` becomes `[file join /tmp $x]`). No fix is offered for mixed segments (`$name.log`), command substitutions, glob characters, backslashes, protocol-like values (`http://...`), or consecutive or trailing slashes — `file join` would silently normalise those, changing the built string.
 
 ## How to suppress
 

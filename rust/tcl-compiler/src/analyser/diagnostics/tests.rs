@@ -8630,3 +8630,161 @@ mod arity_usage_suffix {
         );
     }
 }
+
+mod w104_lappend_fix {
+    //! W104 — the two-word leading-space `append` shape carries a
+    //! whole-command `lappend` rewrite; every non-mechanical shape
+    //! stays message-only.
+
+    use super::*;
+
+    fn w104_for(src: &str) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W104)
+            .unwrap_or_else(|| panic!("expected W104 in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn leading_space_var_piece_carries_whole_command_rewrite() {
+        let src = "set item x\nset items {}\nappend items \" $item\"\n";
+        let d = w104_for(src);
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        let fix = &d.fixes[0];
+        assert_eq!(fix.new_text, "lappend items $item");
+        assert_eq!(fix.description, "Rewrite with `lappend`");
+        // The fix replaces exactly the whole `append` command.
+        assert_eq!(
+            &src[fix.span.start() as usize..fix.span.end() as usize],
+            "append items \" $item\"",
+        );
+    }
+
+    #[test]
+    fn literal_piece_and_array_target_also_rewrite() {
+        let d = w104_for("append out(k) \" item\"\n");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(d.fixes[0].new_text, "lappend out(k) item");
+    }
+
+    #[test]
+    fn trailing_space_shape_gets_no_fix() {
+        // `append msg "item "` puts the separator *after* the piece;
+        // `lappend` would move it before — not equivalent.
+        let d = w104_for("append msg \"item \"\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
+    #[test]
+    fn non_mechanical_shapes_get_no_fix() {
+        for src in [
+            // Several pieces in one value word.
+            "set a 1\nset b 2\nappend out \" $a $b\"\n",
+            // Extra pad spaces.
+            "set a 1\nappend out \"  $a\"\n",
+            // Several value words.
+            "set a 1\nappend out \" $a\" tail\n",
+            // Braced value — a deliberate literal separator.
+            "append banner { }\n",
+            // Piece with a word/list metacharacter.
+            "set a 1\nappend out \" [list $a]\"\n",
+            // Pad-only value.
+            "append out \" \"\n",
+        ] {
+            let d = w104_for(src);
+            assert!(
+                d.fixes.is_empty(),
+                "no fix expected for {src:?}: {:?}",
+                d.fixes
+            );
+        }
+    }
+}
+
+mod w114_unwrap_fix {
+    //! W114 — a redundant nested `[expr {…}]` inside a braced outer
+    //! expression carries an unwrap fix; unbraced shapes and
+    //! string-comparison contexts stay message-only.
+
+    use super::*;
+
+    fn w114_for(src: &str) -> Diagnostic {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        r.diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W114)
+            .unwrap_or_else(|| panic!("expected W114 in {:?}", r.diagnostics))
+            .clone()
+    }
+
+    #[test]
+    fn compound_inner_body_is_parenthesised() {
+        let src = "set a 1\nset b 3\nif {$a && [expr {$b + 1}]} { puts hi }\n";
+        let d = w114_for(src);
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        let fix = &d.fixes[0];
+        assert_eq!(fix.new_text, "($b + 1)");
+        assert_eq!(fix.description, "Unwrap the nested `expr`");
+        // The fix replaces exactly the nested `[expr {…}]` — the
+        // diagnostic's own span.
+        assert_eq!(fix.span, d.span);
+        assert_eq!(
+            &src[fix.span.start() as usize..fix.span.end() as usize],
+            "[expr {$b + 1}]",
+        );
+    }
+
+    #[test]
+    fn atom_inner_body_drops_the_parentheses() {
+        let src = "set x 2\nset y [expr {[expr {$x}] + 1}]\n";
+        let d = w114_for(src);
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(d.fixes[0].new_text, "$x");
+        assert_eq!(
+            &src[d.fixes[0].span.start() as usize..d.fixes[0].span.end() as usize],
+            "[expr {$x}]",
+        );
+    }
+
+    #[test]
+    fn literal_atom_also_drops_the_parentheses() {
+        let d = w114_for("set y [expr {[expr {42}] + 1}]\n");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(d.fixes[0].new_text, "42");
+    }
+
+    #[test]
+    fn unbraced_inner_body_gets_no_fix() {
+        // Inlining an unbraced body re-exposes it to substitution.
+        let d = w114_for("set x 1\nif {[expr $x + 1] > 0} {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
+    #[test]
+    fn unbraced_outer_argument_gets_no_fix() {
+        // `if [expr {$x}] …` — the whole argument is the nested call;
+        // unwrapping to `($x)` would change the substitution pipeline.
+        let d = w114_for("set x 1\nif [expr {$x}] {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
+    #[test]
+    fn string_comparison_context_gets_no_fix() {
+        // `[expr {$s}]` normalises "007" to 7; `($s) eq "007"` would
+        // not — the unwrap could flip the verdict, so no fix.
+        let d = w114_for("set s 007\nif {[expr {$s}] eq \"007\"} {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
+    #[test]
+    fn multi_group_expr_arguments_get_no_fix() {
+        // `[expr {a} {b}]` concatenates its arguments — not one braced
+        // group, so no textual inline.
+        let d = w114_for("set a 1\nif {[expr {$a} {+ 1}] > 0} {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+}

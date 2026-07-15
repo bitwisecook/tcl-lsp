@@ -1024,8 +1024,10 @@ fn test_s100_eq_numeric_offers_no_numeric_comparison_fix() {
 // diagnostic back into `codeAction` (exactly what an editor does) and pins
 // the fix by title plus the *applied* edit — never the diagnostic message,
 // which is free to be reworded. Covers W120 / W123 / W001 / W213 / W216 /
-// W217; the iRules-only analyser fixes (IRULE2001/5005/6001) run against
-// the dedicated iRules server in `irules.rs`.
+// W217, plus the style rewrites W104 / W114 / W201 (the last lifted from
+// the compiler-checks stream rather than the analyser); the iRules-only
+// analyser fixes (IRULE2001/5005/6001) run against the dedicated iRules
+// server in `irules.rs`.
 
 /// The quickfix-only actions for `code`, requested over the first such
 /// diagnostic's own range with the published diagnostics as context —
@@ -1295,5 +1297,122 @@ fn test_w217_no_action_when_a_variable_follows() {
             .iter()
             .any(|t| t.starts_with("Insert '--'")),
         "{actions:?}"
+    );
+}
+
+/// W104: the two-word leading-space `append` carries a whole-command
+/// `lappend` rewrite.
+#[test]
+fn test_w104_offers_lappend_rewrite() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set item x\nset items {}\nappend items \" $item\"\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W104");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Rewrite with `lappend`",
+        "set item x\nset items {}\nlappend items $item\n",
+    );
+}
+
+/// W104 guard: the trailing-space shape still fires the hint but offers no
+/// rewrite — `lappend` would move the separator to the other side.
+#[test]
+fn test_w104_no_rewrite_for_trailing_space() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "append msg \"item \"\n");
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W104");
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t == "Rewrite with `lappend`"),
+        "trailing-space append is not a mechanical lappend: {actions:?}"
+    );
+}
+
+/// W114: the redundant nested `[expr {…}]` inside a braced outer expression
+/// carries an unwrap fix, parenthesised for a compound inner body.
+#[test]
+fn test_w114_offers_parenthesised_unwrap() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set a 1\nset b 3\nif {$a && [expr {$b + 1}]} { puts hi }\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W114");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Unwrap the nested `expr`",
+        "set a 1\nset b 3\nif {$a && ($b + 1)} { puts hi }\n",
+    );
+}
+
+/// W114: a lone-`$var` inner body inlines bare — the parentheses would be
+/// noise around a single atom.
+#[test]
+fn test_w114_atom_unwrap_drops_parentheses() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set x 2\nset y [expr {[expr {$x}] + 1}]\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W114");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Unwrap the nested `expr`",
+        "set x 2\nset y [expr {$x + 1}]\n",
+    );
+}
+
+/// W114 guard: an unbraced inner body still fires the warning but offers no
+/// unwrap — inlining it would re-expose the text to substitution.
+#[test]
+fn test_w114_no_unwrap_for_unbraced_inner_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x 1\nif {[expr $x + 1] > 0} {}\n");
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W114");
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t == "Unwrap the nested `expr`"),
+        "unbraced inner body must stay message-only: {actions:?}"
+    );
+}
+
+/// W201: the manual path concatenation carries a `[file join …]` rewrite of
+/// exactly the value word (the leading `/` stays, keeping the path
+/// absolute). The rewrite spells the variable in the lowered `${x}` form.
+#[test]
+fn test_w201_offers_file_join_rewrite() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set x 42\nset p \"/tmp/$x\"\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W201");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Rewrite with `file join`",
+        "set x 42\nset p [file join /tmp ${x}]\n",
+    );
+}
+
+/// W201 guard: a mixed segment (`$n.log` — neither a pure variable nor a
+/// pure literal) still fires the hint but offers no rewrite.
+#[test]
+fn test_w201_no_rewrite_for_mixed_segment() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set n x\nset p \"/var/log/$n.log\"\n");
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W201");
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t == "Rewrite with `file join`"),
+        "a mixed segment does not decompose cleanly: {actions:?}"
     );
 }

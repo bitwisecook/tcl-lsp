@@ -120,30 +120,45 @@ fn is_simple_path_var(s: &str) -> bool {
 /// Conservative `[file join …]` replacement text. Returns `None` when
 /// the RHS has characters the trivial split can't handle safely.
 ///
-/// Strips one layer of surrounding quotes/braces, bails on
-/// `[`/`]`/`;`/whitespace, splits on `/` and `\`, and emits the rewrite
-/// only when every non-empty segment is either a simple path token or a
-/// simple `$var` reference.
+/// Strips one layer of surrounding double quotes, bails on a braced
+/// word and on brackets, embedded quotes, semicolons, backslashes, and
+/// whitespace, splits on `/`, and emits the rewrite only when every
+/// segment is either a simple path token or a simple `$var` reference
+/// (`${name}` included). A leading
+/// `/` stays attached to the first segment — `file join /tmp $x` keeps
+/// the path absolute (probed against tclsh 8.6), whereas dropping it
+/// would silently relativise the result. Consecutive or trailing
+/// separators bail: `file join` collapses the empty segment, so the
+/// rewrite would not reproduce the original string. A backslash bails
+/// too — `file join` emits forward slashes, so a `\`-separated value
+/// would not round-trip textually.
 #[must_use]
 pub fn build_file_join_fix(path_expr: &str) -> Option<String> {
     let mut text = path_expr.trim();
-    if (text.starts_with('"') && text.ends_with('"'))
-        || (text.starts_with('{') && text.ends_with('}'))
-    {
+    if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
         text = &text[1..text.len() - 1];
     }
     if text.is_empty() {
         return None;
     }
-    if text.chars().any(|c| matches!(c, '[' | ']' | ';')) {
+    // A braced word substitutes nothing, so a live `[file join …]`
+    // rewrite would change semantics.  Braces *inside* the text (the
+    // `${name}` reference form) are fine — the per-segment whitelists
+    // below accept exactly the balanced `${name}` shape.
+    if text.starts_with('{') {
         return None;
     }
-    if text.chars().any(char::is_whitespace) {
+    if text
+        .chars()
+        .any(|c| c.is_whitespace() || matches!(c, '[' | ']' | ';' | '\\' | '"'))
+    {
         return None;
     }
 
-    let parts: Vec<&str> = text.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
-    if parts.len() < 2 {
+    let absolute = text.starts_with('/');
+    let body = if absolute { &text[1..] } else { text };
+    let parts: Vec<&str> = body.split('/').collect();
+    if parts.len() < 2 || parts.iter().any(|p| p.is_empty()) {
         return None;
     }
     for part in &parts {
@@ -151,7 +166,9 @@ pub fn build_file_join_fix(path_expr: &str) -> Option<String> {
             return None;
         }
     }
-    Some(format!("[file join {}]", parts.join(" ")))
+    let joined = parts.join(" ");
+    let prefix = if absolute { "/" } else { "" };
+    Some(format!("[file join {prefix}{joined}]"))
 }
 
 /// Find W201 warnings in `cfg` / `ssa`.
@@ -287,14 +304,14 @@ where
             // so editors highlight the offending word, not the whole
             // statement. Fall back to the command span when tokens aren't
             // available (e.g. synthesised assignments).
-            let value_span = tokens
-                .as_ref()
-                .and_then(|t| t.argv.get(2).copied())
-                .unwrap_or(*span);
-
-            let replacement = build_file_join_fix(value);
+            let value_span = tokens.as_ref().and_then(|t| t.argv.get(2).copied());
+            // The replacement lifts into a quick fix that replaces the
+            // warning span, so it is only built when that span is the
+            // value word's own token range — on the whole-statement
+            // fallback the rewrite would swallow `set name` too.
+            let replacement = value_span.and_then(|_| build_file_join_fix(value));
             out.push(PathConcatWarning {
-                span: value_span,
+                span: value_span.unwrap_or(*span),
                 variable: name.clone(),
                 code: DiagCode::W201,
                 message: "Possible manual path concatenation. Use [file join] for portable path \
@@ -333,11 +350,14 @@ mod tests {
 
     // build_file_join_fix unit tests
 
+    /// A leading `/` stays attached to the first segment so the rewrite
+    /// keeps the path absolute (`file join /etc hosts` → `/etc/hosts`;
+    /// `file join etc hosts` would relativise it).
     #[test]
-    fn file_join_fix_simple_two_segments() {
+    fn file_join_fix_simple_two_segments_keeps_absolute() {
         assert_eq!(
             build_file_join_fix("/etc/hosts").as_deref(),
-            Some("[file join etc hosts]"),
+            Some("[file join /etc hosts]"),
         );
     }
 
@@ -345,7 +365,15 @@ mod tests {
     fn file_join_fix_with_var_segment() {
         assert_eq!(
             build_file_join_fix("/var/log/$name").as_deref(),
-            Some("[file join var log $name]"),
+            Some("[file join /var log $name]"),
+        );
+    }
+
+    #[test]
+    fn file_join_fix_relative_var_segments() {
+        assert_eq!(
+            build_file_join_fix("$dir/$file").as_deref(),
+            Some("[file join $dir $file]"),
         );
     }
 
@@ -360,7 +388,7 @@ mod tests {
     fn file_join_fix_strips_quotes() {
         assert_eq!(
             build_file_join_fix("\"/tmp/$x\"").as_deref(),
-            Some("[file join tmp $x]"),
+            Some("[file join /tmp $x]"),
         );
     }
 
@@ -382,6 +410,37 @@ mod tests {
     #[test]
     fn file_join_fix_rejects_semicolon() {
         assert!(build_file_join_fix("/a/b;rm").is_none());
+    }
+
+    /// `file join` collapses empty segments, so consecutive or trailing
+    /// separators would not round-trip — no fix.
+    #[test]
+    fn file_join_fix_rejects_consecutive_and_trailing_slashes() {
+        assert!(build_file_join_fix("/tmp//$x").is_none());
+        assert!(build_file_join_fix("$dir/$file/").is_none());
+    }
+
+    /// `file join` emits forward slashes, so a backslash-separated value
+    /// (previously split like `/`) is no longer rewritten.
+    #[test]
+    fn file_join_fix_rejects_backslash() {
+        assert!(build_file_join_fix("C:\\temp\\$x").is_none());
+        assert!(build_file_join_fix("$dir\\$file").is_none());
+    }
+
+    /// A braced RHS substitutes nothing, so rewriting it into a live
+    /// `[file join …]` would change semantics — no fix.
+    #[test]
+    fn file_join_fix_rejects_braced_value() {
+        assert!(build_file_join_fix("{/tmp/$x}").is_none());
+    }
+
+    /// Glob characters and protocol-like prefixes stay unfixed (the
+    /// segment whitelists reject `*`, `?`, and `:`).
+    #[test]
+    fn file_join_fix_rejects_glob_and_protocol() {
+        assert!(build_file_join_fix("/tmp/*.log").is_none());
+        assert!(build_file_join_fix("http://$host/path").is_none());
     }
 
     // is_file_normalize_of unit tests
@@ -495,7 +554,7 @@ mod tests {
     /// The emitted warning carries a buildable `[file join …]`
     /// replacement when the RHS decomposes cleanly. The lowering
     /// pipeline may brace the variable reference (`$x` → `${x}`), so
-    /// both forms are accepted.
+    /// both forms are accepted; the leading `/` must be preserved.
     #[test]
     fn warning_includes_replacement_when_buildable() {
         let ws = warnings_for("set x 42\nset p \"/tmp/$x\"");
@@ -505,8 +564,24 @@ mod tests {
             .expect("expected W201 on p");
         let replacement = w.replacement.as_deref().unwrap_or("");
         assert!(
-            replacement == "[file join tmp $x]" || replacement == "[file join tmp ${x}]",
+            replacement == "[file join /tmp $x]" || replacement == "[file join /tmp ${x}]",
             "unexpected replacement: {replacement:?}",
+        );
+    }
+
+    /// A firing shape whose RHS does not decompose cleanly (mixed
+    /// `$n.log` segment) keeps the warning but carries no replacement.
+    #[test]
+    fn warning_omits_replacement_for_mixed_segment() {
+        let ws = warnings_for("set n x\nset p \"/var/log/$n.log\"");
+        let w = ws
+            .iter()
+            .find(|w| w.variable == "p")
+            .expect("expected W201 on p");
+        assert!(
+            w.replacement.is_none(),
+            "no replacement expected: {:?}",
+            w.replacement
         );
     }
 }
