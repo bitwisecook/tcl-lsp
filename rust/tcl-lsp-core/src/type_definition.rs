@@ -72,20 +72,24 @@ pub fn type_definition(
     Vec::new()
 }
 
-/// Resolve a class reference to its `ClassDef`, accepting the bare
-/// name and either spelling of the qualified name.
+/// Resolve an already-qualified class `name` (an `instance_classes` value,
+/// which the analyser stored namespace-aware) to its `ClassDef`.
 fn find_class<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ClassDef> {
-    // Fast path: `instance_classes` stores the qualified name, which
-    // is the `all_classes` key.
+    // `instance_classes` stores the qualified name, which is the `all_classes`
+    // key, so the exact lookup is the resolving path; the `::`-prefixed spelling
+    // covers a caller that passes the unprefixed qualified form.  A
+    // namespace-blind simple-name scan is intentionally *not* used — it could
+    // jump to a same-named class in an unrelated namespace, the exact wrong
+    // target that `instance_classes`' namespace-aware inference already avoids.
     if let Some(cd) = analysis.all_classes.get(name) {
         return Some(cd);
     }
-    let stripped = name.trim_start_matches(':');
-    analysis.all_classes.values().find(|cd| {
-        cd.name == name
-            || cd.qualified_name == name
-            || cd.qualified_name.trim_start_matches(':') == stripped
-    })
+    let prefixed = if name.starts_with("::") {
+        name.to_owned()
+    } else {
+        format!("::{name}")
+    };
+    analysis.all_classes.get(&prefixed)
 }
 
 /// The innermost class whose `body_span` contains the cursor offset.
@@ -168,5 +172,27 @@ mod tests {
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "hello", 1);
         assert!(type_definition(src, l, c, &analysis).is_empty());
+    }
+
+    #[test]
+    fn variable_jumps_to_class_in_its_own_namespace() {
+        // `::A::Widget` and `::B::Widget` share a simple name.  An instance
+        // created in `::A` types to `::A::Widget`; go-to-type-definition must
+        // land on that class's declaration, never the same-named `::B::Widget`.
+        let src = "namespace eval A {\n\
+                       oo::class create Widget {}\n\
+                       set w [Widget new]\n\
+                       $w foo\n\
+                   }\n\
+                   namespace eval B {\n\
+                       oo::class create Widget {}\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Cursor on `$w` in the `$w foo` call (line 3).
+        let (l, c) = pos_of(src, "$w foo", 1);
+        let locs = type_definition(src, l, c + 1, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // `::A::Widget`'s declaration is on line 1, not `::B::Widget`'s line 6.
+        assert_eq!(locs[0].start_line, 1, "{locs:?}");
     }
 }
