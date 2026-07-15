@@ -998,6 +998,18 @@ impl Analyser {
         if tcl_syntax::naming::is_dynamic_word(&args[1]) {
             return;
         }
+        // The `namespace path` command-resolution tier is an 8.5 addition
+        // (`NamespacePathCmd`, tclNamesp.c); 8.4 has no path tier, so a bare
+        // call there never reaches a path namespace.  Recording the path under
+        // a pre-8.5 dialect would make command resolution / definition / hover
+        // falsely settle a call onto a path entry the runtime never consults —
+        // so skip it, matching the `namespace path` subcommand's own dialect
+        // gate (which already flags the command W002 there).
+        let dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect)
+            .unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
+        if !dialect.intersects(tcl_registry::prelude::DialectSet::TCL85_PLUS) {
+            return;
+        }
         let ns = self.command_resolution_namespace(scope_path);
         let entries = args[1].split_whitespace().map(str::to_string).collect();
         self.namespace_paths.insert(ns, entries);
@@ -3284,6 +3296,34 @@ mod tests {
         assert_eq!(
             a.namespace_paths.get("::outer").map(Vec::as_slice),
             Some(&["::helpers".to_string()][..]),
+        );
+    }
+
+    /// The `namespace path` resolution tier is 8.5+: a bare call under a path
+    /// gains the path namespace as a candidate from 8.5 on, but under 8.4 it
+    /// must not (8.4 has no path tier, so the call never reaches it).
+    #[test]
+    fn bare_call_honours_namespace_path_only_from_8_5() {
+        let src =
+            "namespace eval ::app { namespace path ::mymod\n    proc run {} { helper } }\n";
+        let candidates = |dialect: &str| {
+            let mut a = Analyser::new();
+            a.analyse(src, dialect)
+                .command_invocations
+                .iter()
+                .find(|i| i.name == "helper")
+                .map(|i| i.resolution_candidates.clone())
+                .unwrap_or_default()
+        };
+        assert!(
+            candidates("tcl8.6").iter().any(|c| c == "::mymod::helper"),
+            "8.6 should add the path namespace as a candidate: {:?}",
+            candidates("tcl8.6"),
+        );
+        assert!(
+            !candidates("tcl8.4").iter().any(|c| c == "::mymod::helper"),
+            "8.4 has no path tier, so it must not: {:?}",
+            candidates("tcl8.4"),
         );
     }
 
