@@ -1560,26 +1560,23 @@ impl Analyser {
         // `OoDefine` hooks first (the handlers no longer name-guard
         // themselves), then the grammar-driven definer trio only on the
         // hookless path.
+        // Each handler returns whether it claimed the command; nothing
+        // follows this dispatch, so an unclaimed command simply ends the
+        // substitution walk the same way a claimed one does.
         {
             use tcl_registry::hooks::AnalyserHookId as Hook;
             match self.resolve_analyser_hook(&cmd_name, args) {
                 Some(Hook::Proc) => {
-                    if self.handle_proc_command(args, arg_tokens, scope_path) {
-                        return;
-                    }
+                    self.handle_proc_command(args, arg_tokens, scope_path);
                 }
                 Some(Hook::OoDefine) => {
-                    if self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path) {
-                        return;
-                    }
+                    self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path);
                 }
                 None => {
-                    if self.handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path)
+                    let _claimed = self
+                        .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path)
                         || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)
-                        || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path)
-                    {
-                        return;
-                    }
+                        || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path);
                 }
                 Some(_) => {}
             }
