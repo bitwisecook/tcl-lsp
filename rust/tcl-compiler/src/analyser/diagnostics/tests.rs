@@ -6972,6 +6972,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             name: "random_cmd".to_string(),
             range: Span::new(25, 35),
             resolved_qualified_name: None,
+            resolution_candidates: Vec::new(),
             argc: Some(0),
             callback_arity: None,
             callback_baked_args: 0,

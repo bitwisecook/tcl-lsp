@@ -108,6 +108,11 @@ pub struct WorkspaceInvocation {
     /// Scope-resolved qualified name when the analyser computed
     /// one, else `None`.
     pub resolved_qualified_name: Option<String>,
+    /// The full ordered command-resolution candidate list for this call
+    /// (caller namespace, then each `namespace path` entry, then global).
+    /// Run through the workspace-wide existence oracle to settle a call the
+    /// single analysing file could not — see [`WorkspaceIndex::invocations_of`].
+    pub resolution_candidates: Vec<String>,
     /// Byte span of the command-head token in `uri`'s source.
     pub range: Span,
 }
@@ -210,6 +215,7 @@ impl WorkspaceIndex {
                 uri: uri.to_owned(),
                 name: inv.name.clone(),
                 resolved_qualified_name: inv.resolved_qualified_name.clone(),
+                resolution_candidates: inv.resolution_candidates.clone(),
                 range: inv.range,
             });
         }
@@ -743,17 +749,24 @@ impl WorkspaceIndex {
     /// `exclude_uri` (the caller's own document, whose call
     /// sites the single-doc provider already surfaces).
     ///
-    /// Matches the call-site head against the proc's qualified name, the
-    /// `::`-stripped qualified name, or the call site's
-    /// `resolved_qualified_name`.
+    /// Each call site is settled against a **workspace-wide** command-existence
+    /// oracle: its recorded [`resolution_candidates`](WorkspaceInvocation::resolution_candidates)
+    /// (caller namespace, then each `namespace path` entry, then global — Tcl's
+    /// real priority order) are walked, and the first that names a proc/class
+    /// defined *anywhere in the workspace* is the call's true target.  A call is
+    /// a reference iff that target is `qualified_name`.  This is the canonical
+    /// resolver (`resolve_command_with`) widened from one file to the whole
+    /// project, so a bare call reaching a namespaced proc in another file via
+    /// `namespace path` resolves correctly — the case the file-local
+    /// `resolved_qualified_name` guess (and the previous textual matcher) could
+    /// not settle, and the collision on the simple name no longer disables a
+    /// legitimate reference.
     ///
-    /// A **bare simple-name** call is matched only when the simple name is
-    /// unambiguous across the workspace — i.e. no *other* namespace defines a
-    /// proc/class of the same simple name (`RUST_ISSUE_036`). When two files
-    /// define `::a::helper` and `::b::helper`, a bare `helper` call could
-    /// resolve to either, so cross-document rename rewrites only the explicitly
-    /// qualified or resolution-confirmed call sites — never an ambiguous bare
-    /// call that might belong to the *other* proc.
+    /// Fallbacks preserve the earlier behaviour where the oracle can't help: an
+    /// exact literal match (`::a::helper` written verbatim), and the recorded
+    /// `resolved_qualified_name` when no candidate is defined anywhere in the
+    /// workspace (an as-yet-undefined cross-file target — treated as a
+    /// candidate, never ground truth).
     #[must_use]
     pub fn invocations_of<'a>(
         &'a self,
@@ -763,18 +776,79 @@ impl WorkspaceIndex {
     ) -> Vec<&'a WorkspaceInvocation> {
         let qname_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
         let target_norm = qualified_name.trim_start_matches("::");
+        // Build the workspace command set once (normalised qualified names of
+        // every proc and class), so the per-candidate existence check below is
+        // O(1) rather than a scan per candidate per call site.
+        let defined = self.defined_command_names();
+        // A bare simple-name call is safe to match only when no *other*
+        // namespace defines the same simple name (the ambiguity gate); computed
+        // once for the background-scan fallback below.
         let bare_is_safe = !self.simple_name_defined_elsewhere(simple_name, qualified_name);
         self.invocations
             .iter()
             .filter(|i| i.uri != exclude_uri)
             .filter(|i| {
-                i.name == qualified_name
-                    || i.name == qname_no_prefix
-                    || i.resolved_qualified_name
+                // 1. Exact literal spelling of the qualified name.
+                if i.name == qualified_name || i.name == qname_no_prefix {
+                    return true;
+                }
+                // 2. Resolve the call against the workspace: the first candidate
+                //    defined anywhere in the project is its true target.
+                if let Some(winner) = i
+                    .resolution_candidates
+                    .iter()
+                    .find(|c| defined.contains(c.trim_start_matches("::")))
+                {
+                    return winner.trim_start_matches("::") == target_norm;
+                }
+                // 3. A candidate list exists but none is defined workspace-wide
+                //    (target not yet indexed): fall back to the settled
+                //    local-first guess, a candidate rather than ground truth.
+                if !i.resolution_candidates.is_empty() {
+                    return i
+                        .resolved_qualified_name
                         .as_deref()
-                        .is_some_and(|r| r.trim_start_matches("::") == target_norm)
+                        .is_some_and(|r| r.trim_start_matches("::") == target_norm);
+                }
+                // 4. No candidate list at all (a background-scanned file skips
+                //    the scope walk): fall back to the resolved guess, then to a
+                //    bare simple-name match gated on the simple name being
+                //    unambiguous across the workspace.
+                i.resolved_qualified_name
+                    .as_deref()
+                    .is_some_and(|r| r.trim_start_matches("::") == target_norm)
                     || (bare_is_safe && i.name == simple_name)
             })
+            .collect()
+    }
+
+    /// Whether a proc or class with fully-qualified `qualified_name` (leading
+    /// `::` ignored) is defined anywhere in the workspace — the existence oracle
+    /// that widens the single-file command resolver to the whole project.
+    #[must_use]
+    pub fn workspace_command_exists(&self, qualified_name: &str) -> bool {
+        let target = qualified_name.trim_start_matches("::");
+        self.procs
+            .iter()
+            .any(|p| p.qualified_name.trim_start_matches("::") == target)
+            || self
+                .classes
+                .iter()
+                .any(|c| c.qualified_name.trim_start_matches("::") == target)
+    }
+
+    /// The set of `::`-stripped qualified names of every indexed proc and class,
+    /// for O(1) membership in the candidate-resolution loop of
+    /// [`Self::invocations_of`].
+    fn defined_command_names(&self) -> std::collections::HashSet<&str> {
+        self.procs
+            .iter()
+            .map(|p| p.qualified_name.trim_start_matches("::"))
+            .chain(
+                self.classes
+                    .iter()
+                    .map(|c| c.qualified_name.trim_start_matches("::")),
+            )
             .collect()
     }
 }
@@ -1051,6 +1125,84 @@ mod tests {
         let calls = index.invocations_of("helper", "::helper", "file:///a.tcl");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].uri, "file:///b.tcl");
+    }
+
+    #[test]
+    fn invocations_of_finds_namespaced_call_all_spellings() {
+        // A namespaced proc in a.tcl, called three ways from b.tcl: fully
+        // qualified, relative-qualified, and bare from inside the namespace.
+        let a = analyse("namespace eval ns {\n    proc helper {} {}\n}\n");
+        let b = analyse("::ns::helper\nns::helper\nnamespace eval ns {\n    helper\n}\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        let calls = index.invocations_of("helper", "::ns::helper", "file:///a.tcl");
+        assert_eq!(calls.len(), 3, "{calls:?}");
+    }
+
+    #[test]
+    fn invocations_of_resolves_namespace_path_across_files() {
+        // The confirmed #923 trigger: a bare call reaches a namespaced proc in
+        // *another* file via `namespace path`, while an unrelated file defines
+        // the same simple name (which used to disable the bare-name fallback).
+        // The file-local guess settles to `::app::helper` (the caller's
+        // namespace), so only the workspace-wide candidate resolution finds it.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let other = analyse("namespace eval ::other { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace path ::mymod\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///other.tcl", &other),
+            ("file:///app.tcl", &app),
+        ]);
+        // The call resolves to `::mymod::helper` via the namespace path.
+        let refs = index.invocations_of("helper", "::mymod::helper", "file:///mymod.tcl");
+        assert_eq!(refs.len(), 1, "{refs:?}");
+        assert_eq!(refs[0].uri, "file:///app.tcl");
+    }
+
+    #[test]
+    fn invocations_of_does_not_cross_link_the_colliding_namespace() {
+        // The same call must NOT be reported as a reference of the *other*
+        // same-named proc: `namespace path ::mymod` resolves it to
+        // `::mymod::helper`, never `::other::helper`.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let other = analyse("namespace eval ::other { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace path ::mymod\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///other.tcl", &other),
+            ("file:///app.tcl", &app),
+        ]);
+        let refs = index.invocations_of("helper", "::other::helper", "file:///other.tcl");
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn bare_call_without_path_does_not_reach_unrelated_namespace() {
+        // A bare `helper` in `::app` with no `namespace path` and no local
+        // `::app::helper` resolves to nothing (real tclsh: invalid command
+        // name), so it is a reference of neither namespaced proc.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse("namespace eval ::app {\n    proc run {} { helper }\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let refs = index.invocations_of("helper", "::mymod::helper", "file:///mymod.tcl");
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn workspace_command_exists_covers_procs_and_classes() {
+        let a = analyse("namespace eval ns { proc p {} {} }\noo::class create ::C {}\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        assert!(index.workspace_command_exists("::ns::p"));
+        assert!(index.workspace_command_exists("ns::p")); // leading `::` optional
+        assert!(index.workspace_command_exists("::C"));
+        assert!(!index.workspace_command_exists("::ns::missing"));
     }
 
     #[test]

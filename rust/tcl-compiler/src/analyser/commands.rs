@@ -307,6 +307,7 @@ impl Analyser {
                     name: cmd_name.to_string(),
                     range: cmd_tok.span,
                     resolved_qualified_name: Some(resolved),
+                    resolution_candidates: Vec::new(),
                     argc: arg_count,
                     callback_arity: None,
                     callback_baked_args: 0,
@@ -328,6 +329,7 @@ impl Analyser {
                         name: target_name.clone(),
                         range: target_tok.span,
                         resolved_qualified_name: Some(resolved),
+                        resolution_candidates: Vec::new(),
                         // iRules `call PROC ...` indirection — arity not
                         // cross-file-checked here; skip conservatively.
                         argc: None,
@@ -1186,6 +1188,7 @@ impl Analyser {
                     name: inv.head,
                     range: inv.span,
                     resolved_qualified_name: Some(resolved),
+                    resolution_candidates: Vec::new(),
                     // The legacy direct-call arity path always skips a
                     // callback head (`None`); the callback-arity check reads
                     // `callback_baked_args` (0 for a bareword head, N for a
@@ -1648,6 +1651,7 @@ impl Analyser {
                     name,
                     range,
                     resolved_qualified_name: Some(resolved),
+                    resolution_candidates: Vec::new(),
                     argc,
                     callback_arity,
                     callback_baked_args: 0,
@@ -1693,6 +1697,7 @@ impl Analyser {
                     name,
                     range: tcl_lexer::Span::new(abs_start, abs_end),
                     resolved_qualified_name: Some(resolved),
+                    resolution_candidates: Vec::new(),
                     // Nested `[cmd ...]` head, no recorded argument list — arity skip.
                     argc: None,
                     callback_arity: None,
