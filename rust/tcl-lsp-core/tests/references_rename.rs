@@ -1188,3 +1188,138 @@ fn is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest() {
         assert!(!is_safe_symbol_name(bad), "{bad:?} should be rejected");
     }
 }
+
+// ===================================================================
+// M2 Stage 2.1 — D1: renaming a TclOO instance variable must NOT rewrite
+// the method body, and D2: `uplevel #0` var resolution must skip proc
+// locals.  TP/FP/TN/FN coverage.
+// ===================================================================
+
+/// The `oo::class create C { variable n; method get {} {return $n} … }`
+/// fixture used across the D1 tests.  `$n` in `get` sits at line 2.
+const D1_SRC: &str =
+    "oo::class create C {\n    variable n\n    method get {} {return $n}\n    method set {x} {set n $x}\n}\n";
+
+/// FP-guard (the corruption regression): a rename edit must never span more
+/// than one line, and must never cover the whole `{return $n}` method body.
+/// Before the fix the declaration edit was `2:18-2:28 → "w"`, destroying the
+/// body.
+#[test]
+fn d1_object_var_rename_never_rewrites_method_body() {
+    let analysis = analyse(D1_SRC);
+    let col = D1_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let edits = rename(D1_SRC, "tcl8.6", 2, col, "w", &analysis, None);
+    assert!(!edits.is_empty(), "expected a rename to be produced");
+    for e in &edits {
+        assert_eq!(
+            e.range.start_line, e.range.end_line,
+            "no rename edit may span multiple lines (body-destroying): {e:?}"
+        );
+        // The method body `{return $n}` starts at col 18 on line 2.  No edit
+        // may start at the brace and run to end-of-body.
+        let spans_body = e.range.start_line == 2
+            && e.range.start_character <= 18
+            && e.range.end_character >= 28;
+        assert!(!spans_body, "edit covers the whole method body: {e:?}");
+    }
+}
+
+/// TP: the declaration edit lands on the `variable n` name token (line 1),
+/// and the `$n` read (line 2) is rewritten — the correct, non-destructive
+/// rename.
+#[test]
+fn d1_object_var_rename_edits_declaration_and_use() {
+    let analysis = analyse(D1_SRC);
+    let col = D1_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let edits = rename(D1_SRC, "tcl8.6", 2, col, "w", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&1),
+        "expected the `variable n` declaration (line 1) to be renamed; got {edits:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "expected the `$n` use (line 2) to be renamed; got {edits:?}"
+    );
+    // The declaration edit is exactly the `n` token, not a wide span.
+    let decl = edits
+        .iter()
+        .find(|e| e.range.start_line == 1)
+        .expect("declaration edit");
+    assert_eq!(decl.new_text, "w");
+    assert_eq!(
+        decl.range.end_character - decl.range.start_character,
+        1,
+        "declaration edit must cover just the `n` token: {decl:?}"
+    );
+}
+
+/// FN-that-must-hold: `references` on the object variable surfaces the
+/// declaration + the use without a body-wide span (the reference set feeds
+/// document-highlight; a whole-body highlight was the visible symptom).
+#[test]
+fn d1_object_var_references_are_token_sized() {
+    let analysis = analyse(D1_SRC);
+    let col = D1_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let refs = references(D1_SRC, "tcl", 2, col, &analysis, true);
+    assert!(!refs.is_empty());
+    for r in &refs {
+        assert_eq!(r.start_line, r.end_line, "reference span crosses lines: {r:?}");
+    }
+}
+
+/// TN: an ordinary proc-local variable (no TclOO) still renames across its
+/// own decl + uses — the fix must not disturb the common path.
+#[test]
+fn d1_plain_proc_local_rename_unaffected() {
+    let src = "proc p {} {\n    set count 0\n    incr count\n    return $count\n}\n";
+    let analysis = analyse(src);
+    // cursor on `$count` (line 3)
+    let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
+    let edits = rename(src, "tcl8.6", 3, col, "total", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(lines.contains(&1), "decl `set count` should rename: {edits:?}");
+    assert!(lines.contains(&3), "`$count` use should rename: {edits:?}");
+    for e in &edits {
+        assert_eq!(e.range.start_line, e.range.end_line);
+    }
+}
+
+/// D2 TP: inside `uplevel #0 { … }` the body runs in the global frame, so a
+/// `$g` there resolves to the GLOBAL `g`, not a same-named proc-local.
+/// References on `$g` in the uplevel body must include the global definition
+/// (line 0), not the proc-local (`set g 99`, line 1).
+#[test]
+fn d2_uplevel_zero_resolves_global_not_proc_local() {
+    let src = "set g 1\nproc p {} {\n    set g 99\n    uplevel #0 { puts $g }\n}\n";
+    let analysis = analyse(src);
+    // cursor on `$g` inside the uplevel body (line 3)
+    let line3 = src.lines().nth(3).unwrap();
+    let col = line3.find("$g").unwrap() as u32 + 1; // on the `g`
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        lines.contains(&0),
+        "uplevel #0 `$g` must resolve to the global `set g` on line 0; got {refs:?}"
+    );
+    assert!(
+        !lines.contains(&2),
+        "uplevel #0 `$g` must NOT resolve to the proc-local `set g 99` on line 2; got {refs:?}"
+    );
+}
+
+/// D2 TN: a non-uplevel `$g` inside the proc still resolves to the proc-local
+/// (the guard must only fire inside an uplevel scope).
+#[test]
+fn d2_non_uplevel_proc_local_still_resolves_locally() {
+    let src = "set g 1\nproc p {} {\n    set g 99\n    puts $g\n}\n";
+    let analysis = analyse(src);
+    let line3 = src.lines().nth(3).unwrap();
+    let col = line3.find("$g").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        lines.contains(&2),
+        "plain proc-body `$g` must resolve to the proc-local on line 2; got {refs:?}"
+    );
+}

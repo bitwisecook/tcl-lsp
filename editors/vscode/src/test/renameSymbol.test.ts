@@ -81,4 +81,50 @@ suite("Rename Symbol", () => {
     const entries = edit.entries();
     assert.ok(entries.length > 0, "WorkspaceEdit should have entries for variable rename");
   });
+
+  // M2 Stage 2.1 (D1): renaming a TclOO instance variable must edit its
+  // `variable` declaration and `$var` uses, and NEVER rewrite the method body.
+  test("rename of a TclOO instance variable does not rewrite the method body", async () => {
+    const ooUri = getDocUri("tclooVariableRename.tcl");
+    await activate(ooUri);
+
+    // `$n` in `method get {} { return $n }` — line 2 (0-based), on the `n`.
+    const pos = new vscode.Position(2, 30);
+
+    const edit = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentRenameProvider",
+      ooUri,
+      pos,
+      "count",
+    )) as vscode.WorkspaceEdit | undefined;
+
+    assert.ok(edit, "Rename should return a workspace edit for an instance variable");
+    const docEdits = edit.entries().find(([uri]) => uri.toString() === ooUri.toString());
+    assert.ok(docEdits, "Should include edits for the target document");
+    const [, textEdits] = docEdits!;
+    assert.ok(textEdits.length > 0, "expected at least one edit");
+
+    for (const te of textEdits) {
+      // FP guard: no edit may span multiple lines (the body-destroying symptom),
+      // and none may cover the whole `{ return $n }` body on line 2.
+      assert.strictEqual(
+        te.range.start.line,
+        te.range.end.line,
+        `no rename edit may span lines (body-destroying): ${JSON.stringify(te.range)}`,
+      );
+      const coversBody =
+        te.range.start.line === 2 &&
+        te.range.start.character <= 22 &&
+        te.range.end.character >= 33;
+      assert.ok(
+        !coversBody,
+        `edit must not cover the method body: ${JSON.stringify(te.range)}`,
+      );
+    }
+
+    // The `variable n` declaration (line 1) is renamed.
+    const declEdit = textEdits.find((te) => te.range.start.line === 1);
+    assert.ok(declEdit, "expected the `variable n` declaration (line 1) to be renamed");
+    assert.strictEqual(declEdit!.newText, "count");
+  });
 });

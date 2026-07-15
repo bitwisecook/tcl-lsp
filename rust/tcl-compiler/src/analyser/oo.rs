@@ -131,6 +131,53 @@ fn is_var_declaration(member: &MemberSpec) -> bool {
     has_var && !has_body
 }
 
+/// Map each declared instance-variable name in `known` to the span of its
+/// declaration name-token, scanning the class-body `cmds`.  Used to anchor a
+/// seeded object variable's `definition_span` at its `variable v` declaration
+/// (D1) instead of the whole method body — a whole-body span would let a
+/// variable rename overwrite the entire method.  Only names already present in
+/// `known` (the authoritative `ClassDef::variables` list) are recorded, so a
+/// non-name argument of a declaration member can never be mistaken for a
+/// variable; the first declaration of a name wins.
+fn collect_var_decl_spans(
+    grammar: &DefinitionBodyGrammar,
+    cmds: &[crate::segmenter::SegmentedCommand],
+    known: &[String],
+) -> std::collections::HashMap<String, Span> {
+    let mut out: std::collections::HashMap<String, Span> = std::collections::HashMap::new();
+    if known.is_empty() {
+        return out;
+    }
+    let known_set: std::collections::HashSet<&str> = known.iter().map(String::as_str).collect();
+    for cmd in cmds {
+        if cmd.is_partial {
+            continue;
+        }
+        let Some((sub, _)) = cmd.texts.split_first() else {
+            continue;
+        };
+        // A command is a variable declaration when the grammar marks it one
+        // (snit `typevariable`/`component`, …) OR it is TclOO's `variable` /
+        // `typevariable`, which `apply_oo_subcommand` handles with a hardcoded
+        // arm rather than through the grammar.  Gating additionally on
+        // `known_set` below means a stray non-declaration match cannot leak.
+        let is_decl = matches!(sub.as_str(), "variable" | "typevariable")
+            || grammar.member(sub).is_some_and(is_var_declaration);
+        if !is_decl {
+            continue;
+        }
+        // argv[0] / texts[0] is the member keyword; the remaining words are the
+        // declared names (`variable a b c`).
+        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()).skip(1) {
+            let base = crate::naming::normalise_var_name(text);
+            if known_set.contains(base) {
+                out.entry(base.to_string()).or_insert(tok.span);
+            }
+        }
+    }
+    out
+}
+
 /// Strip a leading itcl access modifier (`public` / `protected` / `private`, a
 /// registry [`MemberKind::Wrapper`]) from a member call, returning the effective
 /// member keyword, its argument texts + tokens (the words *after* the keyword),
@@ -251,12 +298,24 @@ impl Analyser {
         // with the formal parameters and the class's instance variables
         // pre-bound; the `initialise` body walks in the enclosing scope.
         let class_variables = class_def.variables.clone();
+        // D1: map each declared instance-variable name to its `variable v`
+        // declaration name-token span, so the per-method seeding below anchors
+        // the object variable's definition at the declaration rather than the
+        // whole method body.
+        let var_decl_spans = collect_var_decl_spans(grammar, &cmds, &class_variables);
         // `TclOO` method bodies resolve bare commands globally (object-ns
         // semantics — see `Scope::oo_global_resolution`); snit / itcl
         // members resolve in the type / class namespace.
         let oo_global = matches!(grammar.family, tcl_registry::definer::DefinerFamily::TclOo);
         for mb in method_bodies.iter().chain(accessor_bodies.iter()) {
-            self.walk_method_body(&class_variables, class_qualified, scope_path, mb, oo_global);
+            self.walk_method_body(
+                &class_variables,
+                &var_decl_spans,
+                class_qualified,
+                scope_path,
+                mb,
+                oo_global,
+            );
         }
         for (body, tok) in init_bodies {
             self.analyse_body(&body, tok, scope_path);
@@ -274,6 +333,7 @@ impl Analyser {
     fn walk_method_body(
         &mut self,
         class_variables: &[String],
+        var_decl_spans: &std::collections::HashMap<String, Span>,
         class_qualified: &str,
         scope_path: &[usize],
         mb: &CollectedMethodBody,
@@ -317,13 +377,23 @@ impl Analyser {
         if let Some(pt) = mb.params_tok {
             self.emit_w218_args_not_final(&mb.params, param_spans.as_deref().unwrap_or(&[]), pt);
         }
-        // Class instance variables — visible in every method body.
+        // Class instance variables — visible in every method body.  Anchor
+        // each one's definition span at its `variable v` declaration token
+        // (D1): a seeded var must NEVER take the whole method-body span as its
+        // `definition_span`, or a rename would rewrite the entire body.  When
+        // the declaration span is unknown (e.g. a snit implicit var) fall back
+        // to a zero-width span at the body start — harmless, never destructive.
+        let body_start = mb.body_tok.span.start();
         for var in class_variables {
             let base = crate::naming::normalise_var_name(var);
             if base.is_empty() || mb.params.iter().any(|p| p.name == base) {
                 continue;
             }
-            self.define_var(base, mb.body_tok, &method_path, false, None);
+            let def_span = var_decl_spans
+                .get(base)
+                .copied()
+                .unwrap_or_else(|| Span::new(body_start, body_start));
+            self.define_var(base, mb.body_tok, &method_path, false, Some(def_span));
         }
         // Per-item shell pass: defer the method body for an isolated pass like
         // `handle_proc_command`.  Carry the method's qualified name as
@@ -342,6 +412,9 @@ impl Analyser {
                 namespace,
                 scope_name: method_qn,
                 params: mb.params.clone(),
+                // The shell walk above already seeded these with their real
+                // declaration spans (D1); the graft keeps the shell's span, so
+                // the deferred body pass only needs the names.
                 class_variables: class_variables.to_vec(),
             });
         } else {
@@ -680,7 +753,20 @@ impl Analyser {
                 body_tok: bt,
                 params_tok,
             };
-            self.walk_method_body(seed_vars, ctx.class_qualified, ctx.scope_path, &mb, false);
+            // snit / itcl seed vars are mostly grammar-injected implicits with no
+            // source declaration token; an empty span map makes `walk_method_body`
+            // fall back to a safe zero-width span (never the body span), so a
+            // rename can't overwrite the body.  (Precise snit declaration spans
+            // are a follow-up.)
+            let no_var_spans = std::collections::HashMap::new();
+            self.walk_method_body(
+                seed_vars,
+                &no_var_spans,
+                ctx.class_qualified,
+                ctx.scope_path,
+                &mb,
+                false,
+            );
         }
     }
 

@@ -554,10 +554,21 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     byte_offset: u32,
     name: &str,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
+    use tcl_compiler::analyser::ScopeKind;
     // First, find the innermost scope containing the cursor.
     let chain = scope_chain_at(scope, byte_offset);
+    // Inside an `uplevel #0 { … }` body the script runs in the global frame, so
+    // the enclosing proc's locals are NOT visible — resolving `$g` there must
+    // skip the proc scope and reach the global/namespace `g`, matching
+    // `visible_variable_names` (D2).  Without this guard a same-named proc-local
+    // shadows the global and drives goto-def / hover / references / rename to
+    // the wrong (invisible-at-runtime) variable.
+    let in_uplevel = chain.iter().any(|sc| sc.kind == ScopeKind::Uplevel);
     // Walk outward (innermost-first) looking for the var.
     for sc in chain.iter().rev() {
+        if in_uplevel && sc.kind == ScopeKind::Proc {
+            continue;
+        }
         if let Some(v) = sc.variables.get(name) {
             return Some(v);
         }
