@@ -168,7 +168,10 @@ else
     init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
     if reply=$(printf '%s\n' "$init" | "$mcp" 2>/dev/null | head -1) && [ -n "$reply" ]; then
         case "$reply" in
-            *'"serverInfo"'*"\"version\":\"$expected\""*)
+            # The version value may carry build metadata after the tag (e.g.
+            # "2.1.9+g6a6bc87e", same scheme as `tcl`/`f5` --version above) —
+            # match on the tag as a prefix of the quoted value, not full equality.
+            *'"serverInfo"'*"\"version\":\"$expected"*'"'*)
                 pass "MCP server answers initialize and reports $expected" ;;
             *'"serverInfo"'*)
                 fail "MCP server answered initialize but not with $expected
