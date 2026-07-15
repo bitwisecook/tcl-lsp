@@ -982,6 +982,7 @@ impl Analyser {
                     tok.span.end(),
                 );
                 self.emit_w003_dialect_invalid_expr_operator(content_span);
+                self.emit_expr_function_dialect_diagnostics(*tok);
                 self.emit_w114_redundant_nested_expr(text, tok.span);
             }
         }
@@ -1691,6 +1692,70 @@ impl Analyser {
             heads
         };
         self.push_collected_heads(heads, scope_path);
+        self.record_expr_function_invocations(expr_tok);
+    }
+
+    /// Every math-function application inside the expression `expr_tok`, as
+    /// `(name, name_span, arg_count)` with the function-name span mapped to
+    /// absolute source coordinates.  The single extraction the invocation
+    /// recorder and the dialect-availability diagnostic both read.
+    ///
+    /// The expression body starts past the opening delimiter; the AST's
+    /// offsets are relative to the *trimmed* text, so each is translated back
+    /// through the leading-whitespace trim to a source span.
+    pub(in crate::analyser) fn expr_function_calls(
+        &self,
+        expr_tok: Token,
+    ) -> Vec<(String, Span, usize)> {
+        let content_start = expr_tok.span.start() + u32::from(expr_tok.content_offset);
+        let (start, end) = (content_start as usize, expr_tok.span.end() as usize);
+        if start > end || end > self.source.len() {
+            return Vec::new();
+        }
+        let expr_text = &self.source[start..end];
+        let trimmed = expr_text.trim();
+        if trimmed.is_empty() {
+            return Vec::new();
+        }
+        let trim_base = u32::try_from(expr_text.len() - expr_text.trim_start().len()).unwrap_or(0);
+        let parsed = crate::parse_expr(trimmed, Some(self.dialect.as_str()));
+        parsed
+            .function_calls()
+            .into_iter()
+            .map(|(name, rel_start, argc)| {
+                let name_start = content_start + trim_base + rel_start;
+                let span = Span::new(name_start, name_start + u32::try_from(name.len()).unwrap_or(0));
+                (name.to_owned(), span, argc)
+            })
+            .collect()
+    }
+
+    /// Record each math-function application (`sin($x)`, `max($a, $b)`) as an
+    /// invocation of the command it dispatches to, `::tcl::mathfunc::<name>`.
+    /// A user who defines `proc ::tcl::mathfunc::myfunc { … }` then gets
+    /// go-to-definition, references, rename, and arity checking on
+    /// `myfunc(...)` calls, and the function is no longer reported unused.
+    ///
+    /// The written head is the bare function word (`sin`) and the resolved
+    /// name is `::tcl::mathfunc::sin`; [`Self::finalise_invocation_resolutions`]
+    /// recovers the `::tcl::mathfunc` namespace from that pair and settles the
+    /// candidate list the same way it does an ordinary namespaced call, so a
+    /// rename rewrites only the tail token in the expression.
+    fn record_expr_function_invocations(&mut self, expr_tok: Token) {
+        for (name, span, argc) in self.expr_function_calls(expr_tok) {
+            let resolved = format!("::tcl::mathfunc::{name}");
+            self.result.command_invocations.push(
+                crate::signature_scan::types::SignatureCommandInvocation {
+                    name,
+                    range: span,
+                    resolved_qualified_name: Some(resolved),
+                    resolution_candidates: Vec::new(),
+                    argc: Some(argc),
+                    callback_arity: None,
+                    callback_baked_args: 0,
+                },
+            );
+        }
     }
 
     /// Resolve each collected `(name, span, argc)` head to a qualified name and
@@ -3043,5 +3108,83 @@ mod tests {
         assert!(d.message.contains("call helper x y"));
         assert_eq!(d.fixes.len(), 1);
         assert_eq!(d.fixes[0].new_text, "call helper");
+    }
+
+    /// A math-function call in an expression resolves to the
+    /// `::tcl::mathfunc::<name>` command it dispatches to: the written head is
+    /// the bare tail, the resolved / settled name is the mathfunc command, and
+    /// the span covers just the function token so a rename rewrites the tail.
+    #[test]
+    fn expr_function_call_records_a_mathfunc_invocation() {
+        let src = "proc ::tcl::mathfunc::myfunc {x} { return $x }\nexpr {myfunc($a) + 1}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|i| {
+                i.name == "myfunc"
+                    && i.resolved_qualified_name.as_deref() == Some("::tcl::mathfunc::myfunc")
+            })
+            .expect("mathfunc invocation recorded");
+        assert_eq!(
+            &src[inv.range.start() as usize..inv.range.end() as usize],
+            "myfunc",
+            "span should cover the function-name token only",
+        );
+        assert_eq!(inv.argc, Some(1), "one argument expression");
+        assert!(
+            inv.resolution_candidates
+                .iter()
+                .any(|c| c == "::tcl::mathfunc::myfunc"),
+            "settled candidates should include the mathfunc command: {:?}",
+            inv.resolution_candidates,
+        );
+    }
+
+    /// A math function used before its introducing release is W002 (the
+    /// `::tcl::mathfunc::<name>` command does not exist in the older core):
+    /// `min` is 8.5+, the `is*` classification family is 9.0+.
+    #[test]
+    fn expr_function_before_its_release_is_disabled_in_dialect() {
+        let flags = |src: &str, dialect: &str| {
+            let mut a = Analyser::new();
+            a.analyse(src, dialect)
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W002)
+        };
+        assert!(flags("expr {min(1, 2)}\n", "tcl8.4"), "min() is 8.5+");
+        assert!(!flags("expr {min(1, 2)}\n", "tcl8.6"), "min() exists in 8.6");
+        assert!(flags("expr {isinf(1.0)}\n", "tcl8.6"), "isinf() is 9.0+");
+        assert!(
+            !flags("expr {isinf(1.0)}\n", "tcl9.0"),
+            "isinf() exists in 9.0"
+        );
+        // An 8.4-era function is fine everywhere.
+        assert!(!flags("expr {abs(-1)}\n", "tcl8.4"), "abs() is 8.4");
+    }
+
+    /// A nested function call (`sqrt(abs($x))`) records both the outer and the
+    /// inner function as mathfunc invocations.
+    #[test]
+    fn expr_nested_function_calls_are_both_recorded() {
+        let src = "expr {sqrt(abs($x))}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        for f in ["sqrt", "abs"] {
+            assert!(
+                r.command_invocations.iter().any(|i| {
+                    i.name == f
+                        && i.resolved_qualified_name.as_deref()
+                            == Some(&format!("::tcl::mathfunc::{f}"))
+                }),
+                "{f} should be recorded: {:?}",
+                r.command_invocations
+                    .iter()
+                    .map(|i| &i.name)
+                    .collect::<Vec<_>>(),
+            );
+        }
     }
 }

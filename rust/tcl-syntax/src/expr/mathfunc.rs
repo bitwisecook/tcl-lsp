@@ -95,6 +95,58 @@ pub fn accepts_boolean_operand(name: &str) -> bool {
     name == "bool"
 }
 
+/// The Tcl core release an `expr` math function first appeared in.
+///
+/// `expr` functions gate by the *expr grammar* base version — the same axis
+/// the relational operators (`in`/`lt`/…) do — so a vendor shell running on an
+/// 8.5 core has the 8.5 set even though its dialect tag isn't a plain Tcl
+/// version.  The variants are ordered oldest-first, so a caller checks
+/// availability with `added_in(name) <= base_version`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum MathFuncSince {
+    /// The fixed 8.4 C function table (`tclExecute.c`).
+    Tcl84,
+    /// TIP 232 introduced the `::tcl::mathfunc` command scheme and added
+    /// `bool` / `entier` / `isqrt` / `min` / `max`.
+    Tcl85,
+    /// TIP 521 added the floating-point classification functions
+    /// (`isinf` / `isnan` / `isnormal` / `issubnormal` / `isfinite` /
+    /// `isunordered`).
+    Tcl90,
+    /// TIP 745 added the C99 batch (`acosh` / `cbrt` / `fma` / `log2` / …).
+    Tcl91,
+}
+
+/// The release a math function named `name` first became available in, or
+/// `None` when `name` is not a built-in `expr` function in any release.
+///
+/// This is the single source of truth for *which* names are `expr` functions
+/// and *when* each appeared, shared by the const-folder, the runtime, and the
+/// dialect-availability diagnostic.  Names are matched verbatim (mathfunc
+/// lookup is case-sensitive).
+#[must_use]
+pub fn added_in(name: &str) -> Option<MathFuncSince> {
+    let since = match name {
+        // The 8.4 fixed C table (`wide` landed in 8.4.0).
+        "abs" | "acos" | "asin" | "atan" | "atan2" | "ceil" | "cos" | "cosh" | "double" | "exp"
+        | "floor" | "fmod" | "hypot" | "int" | "log" | "log10" | "pow" | "rand" | "round"
+        | "sin" | "sinh" | "sqrt" | "srand" | "tan" | "tanh" | "wide" => MathFuncSince::Tcl84,
+        // TIP 232 (8.5).
+        "bool" | "entier" | "isqrt" | "max" | "min" => MathFuncSince::Tcl85,
+        // TIP 521 (9.0).
+        "isfinite" | "isinf" | "isnan" | "isnormal" | "issubnormal" | "isunordered" => {
+            MathFuncSince::Tcl90
+        }
+        // TIP 745 (9.1) C99 batch; the multi-value C99 functions land as the
+        // `divmod` / `frexp` / `modf` / `remquo` *commands* instead.
+        "acosh" | "asinh" | "atanh" | "cbrt" | "copysign" | "dim" | "erf" | "erfc" | "exp2"
+        | "expm1" | "fma" | "gamma" | "ldexp" | "lgamma" | "log1p" | "log2" | "logb"
+        | "nextafter" | "remainder" | "signbit" | "trunc" => MathFuncSince::Tcl91,
+        _ => return None,
+    };
+    Some(since)
+}
+
 /// `isunordered(x, y)` — 1 if either operand is NaN (they cannot be ordered),
 /// else 0 (C's `ExprIsUnorderedFunc`). Integers convert to finite doubles.
 fn is_unordered(vals: &[Num]) -> Option<Num> {
