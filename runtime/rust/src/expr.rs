@@ -35,7 +35,7 @@ use core::cmp::Ordering;
 
 use crate::bignum::{self, ArithError};
 use crate::obj::{self, TclObj};
-use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, UnaryOp};
+use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 
 /// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
 /// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).
@@ -310,7 +310,13 @@ impl ExprOps for TowerOps<'_> {
         };
         match op {
             UnaryOp::Pos => {
-                if bignum::compare(value.ptr(), value.ptr()).is_none() {
+                // Non-numeric AND NaN operands both raise for unary `+`
+                // (tclsh: `expr {+NaN}` → "can't use non-numeric
+                // floating-point value as operand").
+                if !matches!(
+                    bignum::compare(value.ptr(), value.ptr()),
+                    Some(NumericCompare::Ordered(_))
+                ) {
                     return Err(operand_type_err(
                         false,
                         &obj::bytes_of(value.ptr()),
@@ -341,7 +347,7 @@ impl ExprOps for TowerOps<'_> {
         }
     }
 
-    fn compare_numeric(&mut self, left: &Owned, right: &Owned) -> Option<Ordering> {
+    fn compare_numeric(&mut self, left: &Owned, right: &Owned) -> Option<NumericCompare> {
         bignum::compare(left.ptr(), right.ptr())
     }
     fn compare_string(&mut self, left: &Owned, right: &Owned) -> Ordering {
@@ -396,10 +402,14 @@ pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
         "0" | "false" | "no" | "off" => return Ok(false),
         _ => {}
     }
-    // Any number: non-zero ⇒ true.
+    // Any number: non-zero ⇒ true. NaN is numeric but not a boolean —
+    // tclsh: `expr {NaN ? 1 : 0}` → "floating point value is Not a Number".
     let zero = Owned::fresh(obj::new_wide_int_obj(0));
     match bignum::compare(o, zero.ptr()) {
-        Some(ord) => Ok(!ord.is_eq()),
+        Some(NumericCompare::Ordered(ord)) => Ok(!ord.is_eq()),
+        Some(NumericCompare::Unordered) => {
+            Err(ExprError::msg(b"floating point value is Not a Number"))
+        }
         None => {
             // The `got <here>` tail matches C: a multi-token well-formed list
             // reads as `a list`, anything else is quoted (truncated to 50 bytes),

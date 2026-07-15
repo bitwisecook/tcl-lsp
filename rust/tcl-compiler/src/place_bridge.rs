@@ -355,7 +355,8 @@ pub fn read_places(
             // A structural body (proc/method/test/snit) runs in its own scope
             // and is analysed separately — its reads must not leak into this
             // scope.
-            let structural = structural_body_indices(command, args, tokens.as_ref(), registry);
+            let lookup = canonical_command.as_deref().unwrap_or(command);
+            let structural = structural_body_indices(lookup, args, tokens.as_ref(), registry);
             // Body-role args (incl. non-structural ones like an iRules
             // `clientside {…}` script) DO run, so their `$`-refs are real reads
             // and must still be scanned even when braced.

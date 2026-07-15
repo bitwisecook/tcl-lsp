@@ -132,6 +132,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Close a channel.",
         synopsis: "chan close channelId ?direction?",
+        // Same `Tcl_CloseObjCmd` machinery as the bare `close` (tclIOCmd.c
+        // — `chan close` is an alias for it): destroys the channel and
+        // errors on an already-closed handle, so `catch {chan close $h}`
+        // is the documented fire-and-forget idiom the W302 suppression
+        // keys off.
+        destructive: true,
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,

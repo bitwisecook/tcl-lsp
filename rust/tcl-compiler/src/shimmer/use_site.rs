@@ -49,7 +49,9 @@ use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
 use super::graph::loop_body_blocks;
-use super::hints::{arg_shimmer_type, is_numeric_compatible};
+use super::hints::{
+    ShimmerExpectation, arg_shimmer_expectation, arg_shimmer_type, is_numeric_compatible,
+};
 use super::span::def_range_map;
 use super::{ShimmerWarning, type_name};
 
@@ -342,14 +344,20 @@ fn check_invocation(
     } = *site;
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     for (i, word) in args.iter().enumerate() {
-        let expected = if is_foreach_header {
-            foreach_header_expected_type(ctx.registry, lookup_command)
+        let expectation = if is_foreach_header {
+            foreach_header_expected_type(ctx.registry, lookup_command).map(|expected| {
+                ShimmerExpectation {
+                    expected,
+                    transparent_from: &[],
+                }
+            })
         } else {
-            arg_shimmer_type(ctx.registry, lookup_command, &arg_refs, i)
+            arg_shimmer_expectation(ctx.registry, lookup_command, &arg_refs, i)
         };
-        let Some(expected) = expected else {
+        let Some(expectation) = expectation else {
             continue;
         };
+        let expected = expectation.expected;
         // Only flag pure variable references — complex words may produce
         // the right type via their own evaluation.
         let stripped = word.trim();
@@ -382,6 +390,27 @@ fn check_invocation(
             continue;
         };
         if current == expected || is_numeric_compatible(current, expected) {
+            continue;
+        }
+        // The registry marks intreps this operation reads directly without
+        // installing `expected` (e.g. `string length`'s pure-byte-array fast
+        // path): those operands keep their rep — no shimmer.
+        if expectation.is_transparent_from(current) {
+            continue;
+        }
+        // A numeric lattice type does not prove a numeric *intrep*: a
+        // literal-defined `set x 42` is a pure string at runtime
+        // (tclsh-verified) with nothing for a String-installing operation to
+        // destroy, and when the numeric rep IS installed its string
+        // regenerates in O(digits). Only container intreps (List/Dict) lose
+        // real structure to a String expectation, so numeric currents stay
+        // silent there.
+        if expected == TclType::String
+            && matches!(
+                current,
+                TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+            )
+        {
             continue;
         }
         // A prior use in this block already coerced `(var, ver)` to this
@@ -1012,6 +1041,52 @@ mod tests {
 
     /// TP control: the identical shape on a plain scalar still fires — the
     /// array guard must not blanket-silence use-site shimmer.
+    /// `string length`/`index`/`range` install the string intrep on their
+    /// subject (tclsh-verified: a list becomes `string`) — genuine shimmer —
+    /// but a pure byte array short-circuits and keeps its rep
+    /// (`transparent_from`), so it must stay silent.
+    #[test]
+    fn string_subject_shimmers_list_but_not_bytearray() {
+        // TP: a List-typed subject is coerced to the string intrep.
+        let cu =
+            CompilationUnit::build_for("set l [list 1 2 3]\nstring length $l", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.variable == "l" && w.to_type == TclType::String),
+            "list subject of `string length` must shimmer: {warnings:?}"
+        );
+
+        // FP guard: a ByteArray-typed subject passes through untouched.
+        let cu2 = CompilationUnit::build_for(
+            "set ba [binary format c* {200 201}]\nstring length $ba\nstring range $ba 0 1",
+            &registry(),
+            false,
+        );
+        let fu2 = cu2.function("::top").unwrap();
+        let warnings2 = find_use_site_shimmers(
+            &fu2.cfg,
+            &fu2.ssa,
+            &fu2.types,
+            &fu2.sccp.executable_blocks,
+            &registry(),
+            &fu2.sccp.values,
+        );
+        assert!(
+            !warnings2.iter().any(|w| w.variable == "ba"),
+            "byte-array subject is transparent — no shimmer: {warnings2:?}"
+        );
+    }
+
     #[test]
     fn use_site_shimmer_still_fires_for_scalar_control() {
         let cu =
@@ -1085,6 +1160,197 @@ mod tests {
         // The message keeps the alias spelling the user wrote, not the
         // resolved canonical target.
         assert_eq!(w.command, "myindex");
+    }
+
+    /// Helper for the string-subcommand family tests below: all use-site
+    /// warnings for `src`'s `::top`.
+    fn warnings_for(src: &str) -> Vec<ShimmerWarning> {
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        )
+    }
+
+    /// `string first`/`last` convert BOTH the needle and the haystack to the
+    /// string intrep; a pure byte array stays silent (the 9.0-safe
+    /// under-approximation — see the registry note). tclsh 8.6.14 probe:
+    ///
+    /// ```text
+    /// string first pat SUBJ   list:  list -> string
+    /// string first SUBJ hay   list:  list -> string
+    /// string last  pat SUBJ   list:  list -> string
+    /// string last  SUBJ hay   list:  list -> string
+    /// string first pat SUBJ   bytes: bytearray -> string   (silenced: 9.0
+    /// string first SUBJ hay   bytes: bytearray -> string    keeps the rep
+    ///                                                       for a both-
+    ///                                                       bytearray pair)
+    /// ```
+    #[test]
+    fn string_first_last_needle_and_haystack_shimmer_list_not_bytearray() {
+        for sub in ["first", "last"] {
+            // TP: a List-typed needle and a List-typed haystack each fire.
+            let warnings = warnings_for(&format!(
+                "set n [list 1 2]\nset h [list 3 4]\nstring {sub} $n $h",
+            ));
+            for var in ["n", "h"] {
+                assert!(
+                    warnings
+                        .iter()
+                        .any(|w| w.variable == var && w.to_type == TclType::String),
+                    "string {sub}: list-typed '{var}' must shimmer to string: {warnings:?}"
+                );
+            }
+            // FP guard: byte-array operands stay silent.
+            let warnings = warnings_for(&format!(
+                "set n [binary format c* {{200}}]\nset h [binary format c* {{199 200}}]\nstring {sub} $n $h",
+            ));
+            assert!(
+                warnings
+                    .iter()
+                    .all(|w| w.variable != "n" && w.variable != "h"),
+                "string {sub}: byte-array operands must stay silent: {warnings:?}"
+            );
+        }
+    }
+
+    /// `string map` subject: converts to the string intrep from a List AND
+    /// from a pure `ByteArray` (no fast path in 8.6 or 9.0 — the subject is
+    /// read via `Tcl_GetUnicodeFromObj` unconditionally). tclsh 8.6.14:
+    ///
+    /// ```text
+    /// string map {a b} SUBJ   list:  list -> string
+    /// string map {a b} SUBJ   bytes: bytearray -> string
+    /// ```
+    #[test]
+    fn string_map_subject_shimmers_list_and_bytearray() {
+        let warnings = warnings_for("set s [list 1 2 3]\nstring map {a b} $s");
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.variable == "s" && w.to_type == TclType::String),
+            "list-typed map subject must shimmer to string: {warnings:?}"
+        );
+        let warnings = warnings_for("set s [binary format c* {200 201}]\nstring map {a b} $s");
+        assert!(
+            warnings.iter().any(|w| w.variable == "s"
+                && w.from_type == TclType::ByteArray
+                && w.to_type == TclType::String),
+            "byte-array map subject genuinely converts — must fire: {warnings:?}"
+        );
+    }
+
+    /// `string map` mapping: the dict iteration path keeps a pure dict, and
+    /// `TclListObjGetElements` keeps a list — neither may fire. tclsh
+    /// 8.6.14 (probe refuting the former `expected: Dict` hint):
+    ///
+    /// ```text
+    /// map mapping list:   list -> list
+    /// map mapping dict:   dict -> dict
+    /// map mapping string: pure -> list
+    /// ```
+    #[test]
+    fn string_map_mapping_list_and_dict_stay_silent() {
+        for mapping in ["[list a b]", "[dict create a b]"] {
+            let warnings = warnings_for(&format!("set m {mapping}\nstring map $m xyz"));
+            assert!(
+                warnings.iter().all(|w| w.variable != "m"),
+                "mapping {mapping} keeps its intrep — must stay silent: {warnings:?}"
+            );
+        }
+    }
+
+    /// The `-nocase` option shifts `string map`'s positionals by one; the
+    /// leading-option skip keeps the mapping/subject hints aligned, so the
+    /// mapping stays silent and the subject still fires.
+    #[test]
+    fn string_map_nocase_keeps_hint_alignment() {
+        let warnings = warnings_for("set m [list a b]\nset s [list 1 2]\nstring map -nocase $m $s");
+        assert!(
+            warnings.iter().all(|w| w.variable != "m"),
+            "-nocase mapping keeps its list intrep — must stay silent: {warnings:?}"
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.variable == "s" && w.to_type == TclType::String),
+            "-nocase subject must still shimmer: {warnings:?}"
+        );
+    }
+
+    /// `string replace`/`reverse` subjects: List converts to the string
+    /// intrep, a pure byte array keeps its rep in both 8.6 and 9.0. tclsh
+    /// 8.6.14:
+    ///
+    /// ```text
+    /// string replace SUBJ 0 0 Z   list:  list -> string
+    /// string replace SUBJ 0 0 Z   bytes: bytearray -> bytearray
+    /// string reverse SUBJ         list:  list -> string
+    /// string reverse SUBJ         bytes: bytearray -> bytearray
+    /// ```
+    #[test]
+    fn string_replace_reverse_subject_shimmers_list_not_bytearray() {
+        for call in ["string replace $s 0 0 Z", "string reverse $s"] {
+            let warnings = warnings_for(&format!("set s [list 1 2 3]\n{call}"));
+            assert!(
+                warnings
+                    .iter()
+                    .any(|w| w.variable == "s" && w.to_type == TclType::String),
+                "{call}: list subject must shimmer: {warnings:?}"
+            );
+            let warnings = warnings_for(&format!("set s [binary format c* {{200 201}}]\n{call}"));
+            assert!(
+                warnings.iter().all(|w| w.variable != "s"),
+                "{call}: byte-array subject is transparent — silent: {warnings:?}"
+            );
+        }
+    }
+
+    /// Oracle-verified negatives (tclsh 8.6.14: a list subject stays `list`
+    /// through every one of these — the subject is read via its string rep
+    /// only, dual-ported):
+    ///
+    /// ```text
+    /// string compare SUBJ y / y SUBJ    list -> list
+    /// string equal SUBJ y               list -> list
+    /// string match p* SUBJ / SUBJ s     list -> list
+    /// string repeat SUBJ 2              list -> list
+    /// string tolower|toupper|totitle    list -> list   (also with indices)
+    /// string trim|trimleft|trimright    list -> list
+    /// string wordend|wordstart SUBJ 1   list -> list   (9.0 converts — see
+    ///                                                   the registry note)
+    /// string cat SUBJ / SUBJ y          list -> list
+    /// ```
+    #[test]
+    fn dual_ported_string_subcommands_stay_silent_for_list_subject() {
+        for call in [
+            "string compare $s y",
+            "string compare y $s",
+            "string equal $s y",
+            "string match p* $s",
+            "string match $s y",
+            "string repeat $s 2",
+            "string tolower $s",
+            "string toupper $s 0 1",
+            "string totitle $s",
+            "string trim $s",
+            "string trimleft $s x",
+            "string trimright $s",
+            "string wordend $s 1",
+            "string wordstart $s 1",
+            "string cat $s y",
+        ] {
+            let warnings = warnings_for(&format!("set s [list 1 2 3]\n{call}"));
+            assert!(
+                warnings.iter().all(|w| w.variable != "s"),
+                "{call}: dual-ported read keeps the list intrep — silent: {warnings:?}"
+            );
+        }
     }
 
     /// TN control: an alias to a *non*-shimmering command (`puts`) must not

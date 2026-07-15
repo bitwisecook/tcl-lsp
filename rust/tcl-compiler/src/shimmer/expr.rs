@@ -153,10 +153,12 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
             collect_expr_shimmers(ctx, right);
 
             match op {
-                // Arithmetic, bitwise, and logical operators are an
-                // unconditional numeric context: Tcl coerces every operand to a
-                // number, so a String/List/Dict/ByteArray intrep is always
-                // clobbered.
+                // Arithmetic, bitwise, and shift operators are an unconditional
+                // numeric context with NO string fallback: Tcl reads each
+                // operand with `Tcl_GetNumberFromObj`, which on success installs
+                // the numeric intrep in place (clobbering String/List/Dict/
+                // ByteArray) and on failure raises — so on any path that
+                // executes without error, the shimmer really happened.
                 BinOp::Add
                 | BinOp::Sub
                 | BinOp::Mul
@@ -167,28 +169,29 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
                 | BinOp::RShift
                 | BinOp::BitAnd
                 | BinOp::BitOr
-                | BinOp::BitXor
-                | BinOp::And
-                | BinOp::Or => {
-                    check_numeric_operand(ctx, left, *op);
-                    check_numeric_operand(ctx, right, *op);
+                | BinOp::BitXor => {
+                    check_numeric_operand(ctx, left, *op, NumericContext::Arithmetic);
+                    check_numeric_operand(ctx, right, *op, NumericContext::Arithmetic);
                 }
 
-                // Comparisons — both ordering (`<`/`<=`/`>`/`>=`) and equality
-                // (`==`/`!=`) — take the numeric-coercion path only when at
-                // least one operand is provably numeric. Otherwise Tcl compares
-                // the operands' *string* representations and no intrep is lost:
-                // verified on tclsh 8.6/9.0, `expr {$s < $t}` with non-numeric
-                // strings leaves both as `pure string`, and a list operand keeps
-                // its `list` intrep (only a string rep is materialised
-                // alongside). Flagging those is a false positive.
-                BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge | BinOp::Eq | BinOp::Ne => {
-                    if operand_looks_numeric(left, ctx.uses, ctx.types, ctx.ssa)
-                        || operand_looks_numeric(right, ctx.uses, ctx.types, ctx.ssa)
-                    {
-                        check_numeric_operand(ctx, left, *op);
-                        check_numeric_operand(ctx, right, *op);
-                    }
+                // `&&`/`||` are a boolean context, not arithmetic
+                // (`tclExecute.c` INST_LOR/INST_LAND use `TclGetBooleanFromObj`)
+                // — but like arithmetic it has no string fallback: the operand's
+                // intrep is replaced by a boolean/numeric one on success and the
+                // command errors otherwise, so flagging a non-numeric intrep is
+                // still sound. Only the wording and target type differ.
+                BinOp::And | BinOp::Or => {
+                    check_numeric_operand(ctx, left, *op, NumericContext::Boolean);
+                    check_numeric_operand(ctx, right, *op, NumericContext::Boolean);
+                }
+
+                // `in`/`ni` convert the RIGHT operand to a list
+                // (`TclListObjGetElements`) — a genuine intrep replacement for
+                // a String/Dict/ByteArray value (tclsh-verified:
+                // `expr {"b" in $L}` with a string-typed `$L` installs the
+                // list intrep). The needle is read as a string (intrep kept).
+                BinOp::In | BinOp::Ni => {
+                    check_list_operand(ctx, right, *op);
                 }
 
                 // String comparison operators: operands should be String.
@@ -212,6 +215,19 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
                     check_string_operand(ctx, right, *op);
                 }
 
+                // Everything else — notably the comparisons, both ordering
+                // (`<`/`<=`/`>`/`>=`) and equality (`==`/`!=`) — is NOT
+                // flagged. C Tcl probes each comparison operand with
+                // `GetNumberFromObj` *without* generating a string rep and
+                // falls back to a string comparison (both intreps kept) when
+                // either operand is non-numeric; an operand's intrep is
+                // replaced only when its OWN string happens to parse as a
+                // number, which a static type cannot prove (verified on tclsh
+                // 8.6: `expr {5 == $L}` with `$L` a list keeps the list
+                // intrep; `expr {$s <= 5}` with `$s` = "hello" keeps
+                // `string`). Flagging on "the sibling operand looks numeric"
+                // was a verified false-positive class; the S102 flip-flop
+                // detection still catches genuinely alternating intreps.
                 _ => {}
             }
         }
@@ -235,71 +251,25 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
     }
 }
 
-/// True when `node` is provably numeric-looking — gates the conditional
-/// `==` / `!=` numeric-shimmer check.  The SCCP-CONST arm is omitted;
-/// the literal / numeric-string / typed-var arms cover the shimmer
-/// cases the syntactic types reach.
-fn operand_looks_numeric(
-    node: &ExprNode,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    ssa: &SsaFunction,
-) -> bool {
-    match node {
-        ExprNode::Literal { .. } => true,
-        ExprNode::String { text, .. } => expr_string_is_numeric(text),
-        ExprNode::Var { name, .. } => {
-            let base = normalise_var_name(name);
-            let Some(sym) = ssa.var_symbol(base) else {
-                return false;
-            };
-            let Some(&ver) = uses.get(&sym) else {
-                return false;
-            };
-            if ver == 0 {
-                return false;
-            }
-            types
-                .get(&(sym, ver))
-                .filter(|l| l.kind == TypeKind::Known)
-                .and_then(|l| l.tcl_type)
-                .is_some_and(|t| {
-                    matches!(
-                        t,
-                        TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
-                    )
-                })
-        }
-        _ => false,
-    }
-}
-
-/// True when `text` (an `ExprNode::String` body or raw value, possibly still
-/// wrapped in `{}` / `"`) parses as an int, float, or Tcl boolean literal.
-fn expr_string_is_numeric(text: &str) -> bool {
-    let mut s = text.trim();
-    if s.len() >= 2
-        && ((s.starts_with('{') && s.ends_with('}')) || (s.starts_with('"') && s.ends_with('"')))
-    {
-        s = &s[1..s.len() - 1];
-    }
-    let s = s.trim();
-    if s.is_empty() {
-        return false;
-    }
-    if s.parse::<i64>().is_ok() || s.parse::<f64>().is_ok() {
-        return true;
-    }
-    matches!(
-        s.to_ascii_lowercase().as_str(),
-        "true" | "false" | "yes" | "no" | "on" | "off"
-    )
+/// Which no-string-fallback expr context a flagged operand sits in — decides
+/// the diagnostic's wording and target type, not whether it fires.
+#[derive(Clone, Copy)]
+enum NumericContext {
+    /// `+`/`-`/`*`/… — `Tcl_GetNumberFromObj`, intrep becomes Int/Double.
+    Arithmetic,
+    /// `&&`/`||` — `TclGetBooleanFromObj`, intrep becomes Boolean (or numeric).
+    Boolean,
 }
 
 /// Emit a shimmer if `node` is a variable reference with a non-numeric
-/// type used in a numeric arithmetic context.  The code is S101 inside a
-/// loop body (per-iteration conversion) and S100 outside one.
-fn check_numeric_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
+/// type used in a numeric/boolean coercion context.  The code is S101 inside
+/// a loop body (per-iteration conversion) and S100 outside one.
+fn check_numeric_operand(
+    ctx: &mut ExprShimmerCtx<'_>,
+    node: &ExprNode,
+    op: BinOp,
+    context: NumericContext,
+) {
     let ExprNode::Var { name, .. } = node else {
         return;
     };
@@ -344,19 +314,85 @@ fn check_numeric_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinO
         } else {
             DiagCode::S100
         };
+        let (to_type, context_name) = match context {
+            NumericContext::Arithmetic => (TclType::Numeric, "arithmetic expression"),
+            NumericContext::Boolean => (TclType::Boolean, "boolean context"),
+        };
         ctx.out.push(ShimmerWarning {
             span: ctx.stmt_span,
             variable: base.to_owned(),
             from_type: current,
-            to_type: TclType::Numeric,
+            to_type,
             command: format!("expr:{op:?}"),
             in_loop: ctx.in_loop,
             code,
             message: format!(
-                "variable '{var}' has {from} intrep used in arithmetic \
-                 expression (operand of '{op}')",
+                "variable '{var}' has {from} intrep used in {context_name} \
+                 (operand of '{op}')",
                 var = base,
                 from = type_name(current),
+            ),
+            related: Vec::new(),
+        });
+    }
+}
+
+/// Emit a shimmer for the RIGHT operand of `in`/`ni` when its type shows an
+/// intrep that list conversion replaces (String/Dict/ByteArray → List). A
+/// List-typed operand is already there; numeric intreps regenerate a string
+/// then parse, which is the same replacement, but a single number is a
+/// one-element list conversion so cheap it is not worth a warning.
+fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
+    let ExprNode::Var { name, .. } = node else {
+        return;
+    };
+    let base = normalise_var_name(name);
+    let Some(sym) = ctx.ssa.var_symbol(base) else {
+        return;
+    };
+    let Some(&ver) = ctx.uses.get(&sym) else {
+        return;
+    };
+    if ver == 0 {
+        return;
+    }
+    let lattice = ctx
+        .types
+        .get(&(sym, ver))
+        .cloned()
+        .unwrap_or_else(TypeLattice::unknown);
+    if lattice.kind != TypeKind::Known {
+        return;
+    }
+    let Some(current) = lattice.tcl_type else {
+        return;
+    };
+    if matches!(
+        current,
+        TclType::String | TclType::Dict | TclType::ByteArray
+    ) {
+        if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
+            return;
+        }
+        let code = if ctx.in_loop {
+            DiagCode::S101
+        } else {
+            DiagCode::S100
+        };
+        ctx.out.push(ShimmerWarning {
+            span: ctx.stmt_span,
+            variable: base.to_owned(),
+            from_type: current,
+            to_type: TclType::List,
+            command: format!("expr:{op:?}"),
+            in_loop: ctx.in_loop,
+            code,
+            message: format!(
+                "variable '{var}' has {from} intrep converted to a list by \
+                 '{op_word}' membership",
+                var = base,
+                from = type_name(current),
+                op_word = if matches!(op, BinOp::In) { "in" } else { "ni" },
             ),
             related: Vec::new(),
         });
@@ -395,7 +431,14 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
     let Some(current) = lattice.tcl_type else {
         return;
     };
-    // Numeric types in string comparison → shimmer to String.
+    // A numeric variable in a string comparison does NOT lose its intrep —
+    // `TclStringCmp` reads the string reps, which are generated once and
+    // cached *alongside* the numeric intrep (dual-porting; tclsh-verified:
+    // `set x 42; expr {$x eq "42"}` leaves `x` an int). So this is a
+    // likely-intent hint (`eq` on numbers is usually a typo for `==`), not a
+    // conversion cost: it stays S100 even inside a loop — the S101
+    // "per-iteration cost" escalation would claim a cost that is paid at
+    // most once — and the wording claims no representation change.
     if matches!(
         current,
         TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
@@ -404,11 +447,6 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
         if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
             return;
         }
-        let code = if ctx.in_loop {
-            DiagCode::S101
-        } else {
-            DiagCode::S100
-        };
         let numeric_op = numeric_equivalent(op);
         ctx.out.push(ShimmerWarning {
             span: ctx.stmt_span,
@@ -417,10 +455,11 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
             to_type: TclType::String,
             command: format!("expr:{op:?}"),
             in_loop: ctx.in_loop,
-            code,
+            code: DiagCode::S100,
             message: format!(
-                "numeric variable '{base}' used in string comparison ('{op}'); \
-                 if a numeric comparison was intended, use '{numeric_op}' instead"
+                "numeric variable '{base}' compared as a string ('{op}') — the \
+                 numeric intrep is kept (a string rep is cached alongside); if \
+                 a numeric comparison was intended, use '{numeric_op}' instead"
             ),
             related: Vec::new(),
         });
@@ -482,90 +521,102 @@ mod tests {
         );
     }
 
-    /// A String variable compared with `==` against a numeric literal takes
-    /// the numeric-coercion path and shimmers; comparing against a non-numeric
-    /// string stays on the string path and does not.
+    /// Comparison operators never flag: C Tcl probes each operand without
+    /// generating a string rep and falls back to a string comparison — an
+    /// operand's intrep is replaced only when its OWN string parses as a
+    /// number, which the value (not the type) decides. tclsh-verified:
+    /// `set s [string trim hello]; expr {$s == "5"}` and `expr {$s <= 5}`
+    /// both leave `s` a `string`; `expr {5 == $L}` keeps `$L` a `list`.
+    /// The old behaviour ("flag when the sibling operand looks numeric") was
+    /// a verified false-positive class.
     #[test]
-    fn expr_shimmer_string_eq_numeric_literal() {
-        let cu = CompilationUnit::build_for(
+    fn expr_shimmer_comparisons_never_flag() {
+        for src in [
+            // String operand vs numeric literal — value "hello" cannot parse,
+            // no shimmer happens at runtime (the old code flagged this).
             "set s [string trim hello]\nset y [expr {$s == \"5\"}]",
+            "set s [string trim hello]\nset y [expr {$s <= 5}]",
+            // Both string — string compare.
+            "set s [string trim hello]\nset y [expr {$s == \"hello\"}]",
+            "set s [string trim hello]\nset y [expr {$s < \"banana\"}]",
+            // List operand — list intrep kept, string compare.
+            "set lst [list a b c]\nset s [string trim hi]\nset y [expr {$lst > $s}]",
+            "set lst [list a b c]\nset y [expr {5 == $lst}]",
+        ] {
+            let cu = CompilationUnit::build_for(src, &registry(), false);
+            let fu = cu.function("::top").unwrap();
+            let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+            assert!(
+                !w.iter()
+                    .any(|sw| sw.variable == "s" || sw.variable == "lst"),
+                "comparison operands must not be flagged for {src:?}: {w:?}"
+            );
+        }
+    }
+
+    /// `&&`/`||` are a boolean coercion context with no string fallback: a
+    /// String-typed operand genuinely loses its intrep (tclsh:
+    /// `set s "true"; expr {$s && 1}` installs a boolean intrep). The wording
+    /// says boolean, not arithmetic.
+    #[test]
+    fn expr_shimmer_boolean_context_flags_string_operand() {
+        let cu = CompilationUnit::build_for(
+            "set s [string trim true]\nset y [expr {$s && 1}]",
             &registry(),
             false,
         );
         let fu = cu.function("::top").unwrap();
         let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warning = w.iter().find(|sw| sw.variable == "s");
+        let warning = warning.expect("string operand of && must be flagged");
+        assert_eq!(warning.to_type, TclType::Boolean);
         assert!(
-            w.iter().any(|sw| sw.variable == "s"),
-            "string == numeric literal must shimmer: {w:?}"
+            warning.message.contains("boolean context"),
+            "wording must say boolean context: {}",
+            warning.message
         );
-        // `$s == "hello"` — both string, no numeric coercion, no shimmer.
+    }
+
+    /// `in`/`ni` convert the RIGHT operand to a list — flag a String-typed
+    /// haystack (tclsh-verified genuine shimmer), leave a List-typed one and
+    /// the needle alone.
+    #[test]
+    fn expr_shimmer_in_membership_flags_string_haystack() {
+        let cu = CompilationUnit::build_for(
+            "set hay [string trim \"a b c\"]\nset y [expr {\"b\" in $hay}]",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warning = w.iter().find(|sw| sw.variable == "hay");
+        let warning = warning.expect("string haystack of `in` must be flagged");
+        assert_eq!(warning.to_type, TclType::List);
+
+        // A List-typed haystack is already a list — silent.
         let cu2 = CompilationUnit::build_for(
-            "set s [string trim hello]\nset y [expr {$s == \"hello\"}]",
+            "set hay [list a b c]\nset y [expr {\"b\" in $hay}]",
             &registry(),
             false,
         );
         let fu2 = cu2.function("::top").unwrap();
         let w2 = find_expr_shimmers(&fu2.cfg, &fu2.ssa, &fu2.types, &fu2.sccp.executable_blocks);
         assert!(
-            !w2.iter().any(|sw| sw.variable == "s"),
-            "string == string must not shimmer: {w2:?}"
+            !w2.iter().any(|sw| sw.variable == "hay"),
+            "list haystack must not be flagged: {w2:?}"
         );
-    }
 
-    /// Ordering comparisons (`<`/`<=`/`>`/`>=`) coerce to numbers only when an
-    /// operand is provably numeric — mirroring `==`/`!=`. A String or List
-    /// operand compared against a *non-numeric* value stays on Tcl's string
-    /// path and keeps its intrep (verified on tclsh 8.6/9.0), so no shimmer.
-    #[test]
-    fn expr_shimmer_ordering_op_only_when_numeric() {
-        // FP: `$s < "banana"` — both string, string compare, no intrep loss.
-        let cu = CompilationUnit::build_for(
-            "set s [string trim hello]\nset y [expr {$s < \"banana\"}]",
+        // The needle is read as a string — a String-typed needle is silent.
+        let cu3 = CompilationUnit::build_for(
+            "set needle [string trim b]\nset hay [list a b c]\nset y [expr {$needle in $hay}]",
             &registry(),
             false,
         );
-        let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let fu3 = cu3.function("::top").unwrap();
+        let w3 = find_expr_shimmers(&fu3.cfg, &fu3.ssa, &fu3.types, &fu3.sccp.executable_blocks);
         assert!(
-            !w.iter().any(|sw| sw.variable == "s"),
-            "string < non-numeric string must not shimmer: {w:?}"
-        );
-
-        // FP: a List-typed operand keeps its `list` intrep in `$lst > $s`.
-        let cu_l = CompilationUnit::build_for(
-            "set lst [list a b c]\nset s [string trim hi]\nset y [expr {$lst > $s}]",
-            &registry(),
-            false,
-        );
-        let fu_l = cu_l.function("::top").unwrap();
-        let w_l = find_expr_shimmers(
-            &fu_l.cfg,
-            &fu_l.ssa,
-            &fu_l.types,
-            &fu_l.sccp.executable_blocks,
-        );
-        assert!(
-            !w_l.iter().any(|sw| sw.variable == "lst"),
-            "list operand in an ordering compare must not shimmer: {w_l:?}"
-        );
-
-        // TP: `$s <= 5` — the numeric literal forces the numeric path, so the
-        // String operand's intrep is genuinely coerced to int.
-        let cu_tp = CompilationUnit::build_for(
-            "set s [string trim hello]\nset y [expr {$s <= 5}]",
-            &registry(),
-            false,
-        );
-        let fu_tp = cu_tp.function("::top").unwrap();
-        let w_tp = find_expr_shimmers(
-            &fu_tp.cfg,
-            &fu_tp.ssa,
-            &fu_tp.types,
-            &fu_tp.sccp.executable_blocks,
-        );
-        assert!(
-            w_tp.iter().any(|sw| sw.variable == "s"),
-            "string <= numeric literal must shimmer: {w_tp:?}"
+            !w3.iter().any(|sw| sw.variable == "needle"),
+            "the needle of `in` must not be flagged: {w3:?}"
         );
     }
 

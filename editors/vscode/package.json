@@ -4160,12 +4160,19 @@
             "markdownDescription": "**S102:** Variable oscillates between two types across loop iterations.",
             "order": 2
           },
+          "tclLsp.diagnostics.S103": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**S103:** Mutation of a potentially shared value copies it — Tcl duplicates a shared value before a `lappend`/`lset`/`dict` write.",
+            "order": 3
+          },
           "tclLsp.diagnostics.S110": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**S110:** Byte-array value coerced to a string by a string operation — binary representation corrupted.",
-            "order": 3
+            "order": 4
           }
         }
       },

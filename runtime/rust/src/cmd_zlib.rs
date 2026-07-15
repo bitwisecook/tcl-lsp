@@ -42,13 +42,6 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"zlib", zlib_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 // -- checksums -------------------------------------------------------------
 
 /// The reflected CRC-32 table (polynomial `0xEDB88320`), built at compile time.
@@ -177,7 +170,7 @@ fn zlib_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"stream",
     ];
     if argv.len() < 2 {
-        return wrong_args(interp, b"zlib subcommand ?arg ...?");
+        return interp.wrong_args(b"zlib subcommand ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
     let names: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
@@ -221,7 +214,7 @@ fn checksum(interp: &mut Interp, argv: &[*mut TclObj], adler: bool) -> Code {
         } else {
             b"zlib crc32 data ?startValue?"
         };
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let data = obj_bytes(argv[2]);
     // The start value defaults to the format's identity (adler starts at 1, crc
@@ -258,7 +251,7 @@ fn compress(interp: &mut Interp, argv: &[*mut TclObj], format: Format) -> Code {
             Format::Zlib => b"zlib compress data ?level?",
             Format::Raw => b"zlib deflate data ?level?",
         };
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let level = match parse_level(interp, argv.get(3).map(|&a| obj_bytes(a)).as_deref()) {
         Ok(l) => l,
@@ -281,7 +274,7 @@ fn decompress(interp: &mut Interp, argv: &[*mut TclObj], format: Format) -> Code
             Format::Zlib => b"zlib decompress data ?bufferSize?",
             Format::Raw => b"zlib inflate data ?bufferSize?",
         };
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let data = obj_bytes(argv[2]);
     let out = match format {
@@ -301,7 +294,7 @@ fn decompress(interp: &mut Interp, argv: &[*mut TclObj], format: Format) -> Code
 /// gzip metadata) is not modelled here.
 fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"zlib gzip data ?-level level? ?-header header?");
+        return interp.wrong_args(b"zlib gzip data ?-level level? ?-header header?");
     }
     let data = obj_bytes(argv[2]);
     let mut level = Compression::default();
@@ -311,7 +304,7 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match opt.as_slice() {
             b"-level" => {
                 let Some(&val) = argv.get(i + 1) else {
-                    return wrong_args(interp, b"zlib gzip data ?-level level? ?-header header?");
+                    return interp.wrong_args(b"zlib gzip data ?-level level? ?-header header?");
                 };
                 level = match parse_level(interp, Some(&obj_bytes(val))) {
                     Ok(l) => l,
@@ -341,7 +334,7 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// modelled here.
 fn gunzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"zlib gunzip data ?-headerVar varName?");
+        return interp.wrong_args(b"zlib gunzip data ?-headerVar varName?");
     }
     if argv.len() > 3 {
         let opt = obj_bytes(argv[3]);

@@ -18,6 +18,7 @@
 
 //! `regexp` — match a regular expression against a string.
 
+use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -120,8 +121,10 @@ pub fn spec() -> CommandSpec {
         // `exp` is an ARE pattern — drives regex sub-tokens and
         // pattern validation.
         pattern_type: Some(PatternType::Regex),
+        inline_codegen_hook: Some(InlineCodegenHookId::Regexp),
         forms: FORMS,
         arg_role_resolver: Some(regexp_arg_roles),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
         ..CommandSpec::DEFAULT
     }
 }

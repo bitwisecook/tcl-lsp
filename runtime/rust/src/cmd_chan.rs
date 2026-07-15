@@ -156,7 +156,7 @@ fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"truncate",
     ];
     if argv.len() < 2 {
-        return wrong_args(interp, b"chan subcommand ?arg ...?");
+        return interp.wrong_args(b"chan subcommand ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
     let names: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
@@ -188,13 +188,6 @@ fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_error(&m)
         }
     }
-}
-
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
 }
 
 fn no_channel(interp: &mut Interp, id: &[u8]) -> Code {
@@ -240,7 +233,7 @@ fn io_error(interp: &mut Interp, e: &std::io::Error) -> Code {
 
 fn open_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
-        return wrong_args(interp, b"open fileName ?access? ?permissions?");
+        return interp.wrong_args(b"open fileName ?access? ?permissions?");
     }
     let path = obj_bytes(argv[1]);
     let mode = argv
@@ -292,7 +285,7 @@ fn open_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn close_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"close channelId");
+        return interp.wrong_args(b"close channelId");
     }
     let id = obj_bytes(argv[1]);
     let removed = interp.channels.borrow_mut().map.remove(&id);
@@ -316,7 +309,7 @@ fn read_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         (false, 1)
     };
     let Some(&id_obj) = argv.get(id_idx) else {
-        return wrong_args(interp, b"read ?-nonewline? channelId");
+        return interp.wrong_args(b"read ?-nonewline? channelId");
     };
     let id = obj_bytes(id_obj);
     let nchars = argv.get(id_idx + 1).and_then(|&a| {
@@ -355,7 +348,7 @@ fn read_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn gets_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
-        return wrong_args(interp, b"gets channelId ?varName?");
+        return interp.wrong_args(b"gets channelId ?varName?");
     }
     let id = obj_bytes(argv[1]);
     // Read the line inside the borrow scope; `n == usize::MAX` flags EOF/no-line.
@@ -429,7 +422,7 @@ fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let (chan, string) = match rest {
         [s] => (b"stdout".to_vec(), obj_bytes(*s)),
         [ch, s] => (obj_bytes(*ch), obj_bytes(*s)),
-        _ => return wrong_args(interp, usage),
+        _ => return interp.wrong_args(usage),
     };
     // `None` ⇒ no such channel; `Some(Err)` ⇒ write failed. The standard sinks
     // go through the host's StdIo capability (the browser routes them to a
@@ -490,7 +483,7 @@ fn write_std(interp: &Interp, bytes: &[u8], newline: bool, err: bool) {
 
 fn flush_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"flush channelId");
+        return interp.wrong_args(b"flush channelId");
     }
     let id = obj_bytes(argv[1]);
     match id.as_slice() {
@@ -520,7 +513,7 @@ fn flush_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn eof_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"eof channelId");
+        return interp.wrong_args(b"eof channelId");
     }
     let id = obj_bytes(argv[1]);
     let eof = interp.channels.borrow().map.get(&id).map(|st| st.eof);
@@ -537,7 +530,7 @@ fn eof_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// options (no CRLF translation, UTF-8 encoding); report queried options blank.
 fn fconfigure_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"fconfigure channelId ?-option value ...?");
+        return interp.wrong_args(b"fconfigure channelId ?-option value ...?");
     }
     let id = obj_bytes(argv[1]);
     if id != b"stdout"
@@ -554,7 +547,7 @@ fn fconfigure_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn fblocked_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"fblocked channelId");
+        return interp.wrong_args(b"fblocked channelId");
     }
     interp.set_result_bytes(b"0");
     Code::Ok
@@ -563,7 +556,7 @@ fn fblocked_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use std::io::SeekFrom;
     if argv.len() < 3 || argv.len() > 4 {
-        return wrong_args(interp, b"seek channelId offset ?origin?");
+        return interp.wrong_args(b"seek channelId offset ?origin?");
     }
     let id = obj_bytes(argv[1]);
     let offset: i64 = core::str::from_utf8(&obj_bytes(argv[2]))
@@ -607,7 +600,7 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn tell_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"tell channelId");
+        return interp.wrong_args(b"tell channelId");
     }
     let id = obj_bytes(argv[1]);
     let pos = {

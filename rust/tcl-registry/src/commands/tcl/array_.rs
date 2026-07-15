@@ -18,7 +18,7 @@
 
 //! `array` — manipulate array variables.
 
-use crate::hooks::CodegenHookId;
+use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -169,6 +169,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
+        // `Tcl_ArrayObjCmd` (tclVar.c, `ArrayUnsetCmd`) destroys matching
+        // elements — or the whole array in the pattern-less form — via the
+        // same `TclObjUnsetVar2` machinery as `unset`; a bare
+        // `catch {array unset a …}` is the documented fire-and-forget
+        // idiom the W302 suppression keys off.
+        destructive: true,
         ..SubCommand::DEFAULT
     },
 ];
@@ -177,7 +183,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "array",
-        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::WHOLE_ARRAY_ARG,
+        // `HAS_DESTRUCTIVE_OPS`: the `unset` subform destroys elements or
+        // the whole array (`ArrayUnsetCmd`, tclVar.c) — see the
+        // `destructive` flag on the `unset` subcommand.
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::WHOLE_ARRAY_ARG
+            | Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::at_least(1),
         assigns_variable_at: Some(1),
         inferred_storage_type: Some(StorageType::Array),
@@ -197,6 +209,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         codegen_hook: Some(CodegenHookId::Array),
+        inline_codegen_hook: Some(InlineCodegenHookId::Array),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

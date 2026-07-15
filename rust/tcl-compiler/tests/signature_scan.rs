@@ -519,3 +519,170 @@ fn param_list_empty() {
     assert!(parse_param_list("").is_empty());
     assert!(parse_param_list("   \t\n ").is_empty());
 }
+
+// ---------------------------------------------------------------------------
+// Registry-driven class-definer recognition (walker `definer_family`)
+// ---------------------------------------------------------------------------
+//
+// The walker classifies class-definer heads from registry data — a
+// `definition_body` grammar plus, for TclOO, the `IS_OO_METACLASS` trait —
+// never from a hardcoded name list.
+
+/// Drift guard: the registry's recognised class-definer set must equal the
+/// scanner's former hardcoded list.  A new `IS_OO_METACLASS` +
+/// `definition_body` bearer (or a new snit/itcl-family definer) is
+/// *supposed* to be discovered by the scanner from the day it is
+/// registered — when one appears, extend the expectation here (and the
+/// discovery tests below) rather than the walker.
+#[test]
+fn registry_definer_set_equals_former_hardcoded_list() {
+    use tcl_registry::Traits;
+    use tcl_registry::definer::DefinerFamily;
+    let registry = CommandRegistry::build_default();
+    let mut recognised: Vec<&str> = registry
+        .command_names()
+        .filter(|name| {
+            registry.get(name).is_some_and(|spec| {
+                spec.definition_body.is_some_and(|g| match g.family {
+                    DefinerFamily::TclOo => spec.traits.contains(Traits::IS_OO_METACLASS),
+                    DefinerFamily::Snit | DefinerFamily::Itcl => true,
+                })
+            })
+        })
+        .collect();
+    recognised.sort_unstable();
+    assert_eq!(
+        recognised,
+        [
+            "itcl::class",
+            "oo::abstract",
+            "oo::class",
+            "oo::configurable",
+            "oo::singleton",
+            "snit::type",
+            "snit::widget",
+            "snit::widgetadaptor",
+        ],
+        "registry class-definer set drifted from the scanner's expectations"
+    );
+}
+
+#[test]
+fn every_registry_metaclass_is_discovered() {
+    // Each TclOO metaclass creates classes through the same
+    // `METACLASS create NAME ?BODY?` interface; the scanner discovers all
+    // of them via the registry, in both bare and fully-qualified
+    // spellings (`get` resolves the leading `::`).
+    for head in [
+        "oo::class",
+        "::oo::class",
+        "oo::configurable",
+        "::oo::configurable",
+        "oo::abstract",
+        "::oo::abstract",
+        "oo::singleton",
+        "::oo::singleton",
+    ] {
+        let r = run(&format!("{head} create Pin {{ method go {{}} {{}} }}"));
+        assert!(
+            r.classes.contains_key("::Pin"),
+            "{head} create Pin must be discovered; got {:?}",
+            r.classes.keys().collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
+fn snit_definers_are_discovered_via_registry() {
+    for head in [
+        "snit::type",
+        "::snit::type",
+        "snit::widget",
+        "::snit::widget",
+        "snit::widgetadaptor",
+        "::snit::widgetadaptor",
+    ] {
+        let r = run(&format!("{head} Gadget {{ method poke {{}} {{}} }}"));
+        assert!(
+            r.classes.contains_key("::Gadget"),
+            "{head} Gadget must be discovered; got {:?}",
+            r.classes.keys().collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
+fn oo_object_create_makes_instances_not_classes() {
+    // `oo::object` carries IS_OO_METACLASS but no `definition_body` —
+    // `oo::object create x` manufactures a plain instance, so the scanner
+    // must not record a class (the trait alone is not the recognition
+    // rule).
+    let r = run("oo::object create widgetInstance");
+    assert!(
+        r.classes.is_empty(),
+        "oo::object creations are instances, not classes; got {:?}",
+        r.classes.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn oo_define_and_objdefine_are_not_class_creations() {
+    // The inverse guard: `oo::define` / `oo::objdefine` carry the TclOO
+    // `definition_body` grammar but no IS_OO_METACLASS — they extend an
+    // existing class named at arg 1, so no class record is created even
+    // for the `oo::define Cls create …`-shaped word sequence.
+    let r = run("oo::define create method go {} {}");
+    assert!(
+        r.classes.is_empty(),
+        "oo::define must not be mistaken for a class creation; got {:?}",
+        r.classes.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn oo_class_method_words_do_not_abbreviate() {
+    // TclOO method dispatch is exact-match in C (`oo::class cr Foo` →
+    // "unknown method cr"), unlike ensemble subcommands — the scanner
+    // must not prefix-resolve the `create` word.
+    let r = run("oo::class cr Foo { method go {} {} }");
+    assert!(r.classes.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Ensemble subcommand words resolve through the registry (canonical names)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn namespace_eval_abbreviation_discovers_body_procs() {
+    // C Tcl's ensemble dispatch accepts a unique prefix (`namespace ev`
+    // works in tclsh 8.6); the scanner resolves the word through the same
+    // registry rule, so the body is still walked.
+    let r = run("namespace ev ns { proc inner {} {} }");
+    assert!(
+        r.procs.contains_key("::ns::inner"),
+        "namespace ev body must be walked; got {:?}",
+        r.procs.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn package_require_abbreviation_recorded() {
+    // `package req Tcl` is accepted by tclsh (unique prefix of require).
+    let r = run("package req Tcl 8.6");
+    assert_eq!(r.package_requires.len(), 1);
+    assert_eq!(r.package_requires[0].name, "Tcl");
+    // An ambiguous prefix (`package pr` — prefer/present/provide) is a
+    // tclsh error; nothing is recorded.
+    let r = run("package pr Tcl");
+    assert!(r.package_requires.is_empty());
+}
+
+#[test]
+fn interp_alias_ambiguous_abbreviation_skipped() {
+    // `interp al` / `interp alia` are ambiguous with `aliases` — tclsh
+    // errors — so no alias is recorded; only the exact spelling resolves.
+    let r = run("interp al {} myalias {} puts");
+    assert!(r.command_aliases.is_empty());
+    let r = run("interp alias {} myalias {} puts");
+    assert!(r.command_aliases.contains_key("::myalias"));
+}

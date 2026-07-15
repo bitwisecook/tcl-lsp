@@ -66,7 +66,7 @@ fn pid_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"");
             Code::Ok
         }
-        _ => wrong_args(interp, b"pid ?channelId?"),
+        _ => interp.wrong_args(b"pid ?channelId?"),
     }
 }
 
@@ -92,7 +92,7 @@ const BUILD_INFO: &[u8] = b"9.0.4+0000000000000000000000000000000000000000.rust"
 /// suffix value, or boolean 1/0 for its presence.
 fn build_info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 2 {
-        return wrong_args(interp, b"tcl::build-info ?option?");
+        return interp.wrong_args(b"tcl::build-info ?option?");
     }
     let data = BUILD_INFO;
     if argv.len() < 2 {
@@ -158,16 +158,9 @@ fn noop(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"encoding subcommand ?arg ...?");
+        return interp.wrong_args(b"encoding subcommand ?arg ...?");
     }
     match obj_bytes(argv[1]).as_slice() {
         // `encoding dirs ?list?` — we don't search encoding files; accept + ignore.
@@ -186,7 +179,7 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // `convertto`/`convertfrom ?encoding? data` — pass through (UTF-8 internal).
         b"convertto" | b"convertfrom" => {
             let Some(&data) = argv.last() else {
-                return wrong_args(interp, b"encoding convertto ?encoding? data");
+                return interp.wrong_args(b"encoding convertto ?encoding? data");
             };
             interp.set_result(data);
             Code::Ok

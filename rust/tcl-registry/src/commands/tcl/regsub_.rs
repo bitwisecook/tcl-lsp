@@ -208,6 +208,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(regsub_arg_roles),
         command_prefix_resolver: Some(regsub_command_prefixes),
         forms: FORMS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
         ..CommandSpec::DEFAULT
     }
 }

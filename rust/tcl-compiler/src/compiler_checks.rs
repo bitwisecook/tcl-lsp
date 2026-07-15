@@ -24,7 +24,7 @@
 //! single flat list of diagnostics ready for the LSP.
 //!
 //! Hosts the [`Diagnostic`] supertype and the [`run_all_checks`] entry
-//! point that calls every analysis pass — SCCP, GVN, shimmer (S100–S102),
+//! point that calls every analysis pass — SCCP, GVN, shimmer (S100–S103),
 //! and taint (T100–T101) — and collects results into a flat list.
 
 use tcl_lexer::Span;
@@ -38,8 +38,8 @@ use crate::irules_checks::{
 use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
 use crate::sccp::ConstantBranch;
 use crate::shimmer::{
-    ShimmerWarning, ThunkingWarning, find_byte_array_warnings, find_shimmer_warnings,
-    find_thunking_warnings,
+    SharingWarning, ShimmerWarning, ThunkingWarning, find_byte_array_warnings,
+    find_sharing_warnings, find_shimmer_warnings, find_thunking_warnings,
 };
 use crate::taint::{
     TaintWarning, find_destructive_file_warnings, find_setter_constraint_warnings,
@@ -126,6 +126,22 @@ impl Diagnostic {
             code: w.code,
             category: "shimmer".into(),
             severity: Severity::Warning,
+            message: w.message.clone(),
+            replacement: None,
+            fixes: Vec::new(),
+        }
+    }
+
+    fn from_sharing(w: &SharingWarning) -> Self {
+        Self {
+            span: w.span,
+            code: w.code,
+            category: "shimmer".into(),
+            // S103 (mutation of a potentially shared value copies it) is a
+            // hint: the duplicate is correct behaviour with a real but
+            // situational cost, one notch below the S100 representation
+            // conversions.
+            severity: Severity::Hint,
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
@@ -298,7 +314,8 @@ pub fn run_all_checks_with_solved_and_patterns(
 /// procedure's **offset-0** spans (the caller rebases — `shift` for a built
 /// unit, or `+ body_offset` for the LSP db's offset-0 memo): SCCP constant
 /// branches, GVN full / partial / loop redundancies, and the intrep-shimmer
-/// family (shimmer S100/S101, thunking S102, byte-array S110).
+/// family (shimmer S100/S101, thunking S102, shared-value copy S103,
+/// byte-array S110).
 ///
 /// These read only the `FunctionUnit`, so the LSP db wraps this in a salsa query
 /// keyed on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL 2a) — an unedited
@@ -330,7 +347,7 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
 
 /// The intrep-shimmer diagnostic family alone for one function body: use-site
 /// / expression / phi shimmer (S100/S101), loop-oscillation thunking (S102),
-/// and byte-array corruption (S110).
+/// shared-value copy-on-write (S103), and byte-array corruption (S110).
 ///
 /// Split out of [`function_nontaint_checks`] so it can also run over `TclOO`
 /// method bodies and synthetic body units (`apply` lambdas, `namespace eval`
@@ -366,6 +383,16 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
         instance_vars,
     ) {
         out.push(Diagnostic::from_thunking(&w));
+    }
+    for w in find_sharing_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.def_use,
+        &fu.sccp.executable_blocks,
+        registry,
+        instance_vars,
+    ) {
+        out.push(Diagnostic::from_sharing(&w));
     }
     let payload_layouts = if is_irules_dialect(dialect) {
         registry.byte_array_payload_layouts()

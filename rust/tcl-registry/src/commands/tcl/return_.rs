@@ -18,7 +18,7 @@
 
 //! `return` — return from the current procedure or script.
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -52,6 +52,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         lowering_hook: Some(LoweringHookId::Return),
+        inline_codegen_hook: Some(InlineCodegenHookId::Return),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

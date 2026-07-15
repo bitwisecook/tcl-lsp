@@ -29,5 +29,5 @@ pub mod mathfunc;
 pub mod parser;
 
 pub use ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
-pub use eval::{ExprOps, eval};
+pub use eval::{ExprOps, NumericCompare, eval};
 pub use parser::parse_expr;

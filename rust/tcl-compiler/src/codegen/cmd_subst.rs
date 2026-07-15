@@ -22,6 +22,9 @@
 //! substitutions and emitting specialised bytecode sequences for
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::hooks::InlineCodegenHookId;
+
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_braced_scalar_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, str_class_id};
@@ -436,9 +439,17 @@ impl CodegenCtx<'_> {
             // Fallback: push as literal
             self.push_lit(arg);
         } else if !braced && arg.starts_with('[') && arg.ends_with(']') {
-            // Nested command substitution — compile inline.
+            // Nested command substitution — compile inline. Everything
+            // except an `expr` body gets a startCommand wrap: `expr`'s
+            // inline emitter (the registry-stamped
+            // `InlineCodegenHookId::Expr`) compiles to pure stack ops
+            // with no command boundary, so tclsh emits no startCommand
+            // for it.
             let inner_parts = parse_cmd_parts(arg);
-            let needs_sc = self.is_proc && !inner_parts.is_empty() && inner_parts[0].0 != "expr";
+            let needs_sc = self.is_proc
+                && !inner_parts.is_empty()
+                && self.inline_cmd_subst_hook(&inner_parts[0].0, &inner_parts[1..])
+                    != Some(InlineCodegenHookId::Expr);
             if needs_sc {
                 let sc_end = self.fresh_label("cmd_end");
                 self.emit_comment(
@@ -754,6 +765,32 @@ impl CodegenCtx<'_> {
         self.push_lit(value);
     }
 
+    /// Resolve the registry-stamped [`InlineCodegenHookId`] for a
+    /// command-substitution head word, mirroring how
+    /// `emitter::bytecoded::try_bytecoded` resolves statement-position
+    /// hooks (`resolve_call`, so a subcommand-keyed hook such as
+    /// `dict get` / `info exists` wins over the command level).
+    ///
+    /// The spec-name equality check keeps qualified spellings
+    /// (`[::expr …]`) on the generic-invoke path: `CommandRegistry::get`
+    /// resolves a leading `::` to the bare spec, but the historical
+    /// dispatch keyed on the raw head word and the emitted bytecode
+    /// must not change under the registry-driven dispatch.
+    fn inline_cmd_subst_hook(
+        &self,
+        cmd: &str,
+        args: &[(String, bool)],
+    ) -> Option<InlineCodegenHookId> {
+        let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
+        let resolved = self
+            .registry
+            .resolve_call(cmd, &arg_refs, DialectSet::empty())?;
+        if resolved.spec.name != cmd {
+            return None;
+        }
+        resolved.inline_codegen_hook
+    }
+
     /// Inline-compile a `[cmd arg ...]` command substitution.
     ///
     /// Handles `[expr {...}]` specially by parsing and inlining the
@@ -763,19 +800,16 @@ impl CodegenCtx<'_> {
     /// Multi-command scripts (containing `;` or newlines outside
     /// quotes/braces) fall back to runtime `EVAL_STK`.
     ///
-    /// Specialised commands:
-    /// - `expr` — inline expression compilation
-    /// - `incr` — LVT or stack-based increment
-    /// - `info exists` — existScalar / existStk
-    /// - `string` subcommands (index, range, equal, compare, length,
-    ///   is, replace, map, match, trim, reverse, repeat, tolower,
-    ///   toupper, totitle, first, last, cat)
-    /// - `lindex`, `lrange`, `lreplace`, `linsert`
-    /// - `regexp`
-    /// - `list`
-    /// - `array exists`
-    /// - `dict get`
-    /// - `catch` (delegates to `control_flow`)
+    /// Which commands get a specialised inline emitter is registry
+    /// data, not compiler code: the dispatch resolves the head word
+    /// via [`Self::inline_cmd_subst_hook`] and matches the returned
+    /// [`InlineCodegenHookId`]. The compiler keeps the per-variant
+    /// emitters and their applicability guards (arity / shape /
+    /// proc-context); a call whose guard fails — or whose hook this
+    /// value-position dispatcher does not specialise (e.g.
+    /// `Return` / `Break`, which only the catch-body dispatcher in
+    /// `control_flow` emits inline) — falls back to the generic
+    /// invoke.
     pub fn emit_inline_cmd_subst(&mut self, text: &str) {
         // Multi-command scripts (a `;`/newline separator outside quotes/braces)
         // fall back to runtime eval — checked *before* the `{*}` form below so a
@@ -811,50 +845,55 @@ impl CodegenCtx<'_> {
         let cmd = &parts[0].0;
         let args = &parts[1..];
 
-        match cmd.as_str() {
-            "expr" if args.len() == 1 => {
+        // Registry-driven dispatch: the hook ID names the emitter, the
+        // guards are each emitter's applicability conditions. A
+        // subcommand-keyed hook (`InfoExists`, `DictGet`) only resolves
+        // when the subcommand word matched exactly, so those arms need
+        // no re-check of the subcommand text.
+        match self.inline_cmd_subst_hook(cmd, args) {
+            Some(InlineCodegenHookId::Expr) if args.len() == 1 => {
                 let expr_body = &args[0].0;
                 let node = crate::expr_parser::parse_expr(expr_body, None);
                 self.emit_expr(&node);
             }
-            "incr" if (1..=2).contains(&args.len()) => {
+            Some(InlineCodegenHookId::Incr) if (1..=2).contains(&args.len()) => {
                 self.emit_inline_incr(args);
             }
-            "info" if args.len() == 2 && args[0].0 == "exists" => {
+            Some(InlineCodegenHookId::InfoExists) if args.len() == 2 => {
                 self.emit_inline_info_exists(args);
             }
-            "string" if args.len() >= 2 => {
+            Some(InlineCodegenHookId::String) if args.len() >= 2 => {
                 self.emit_inline_string(args);
             }
-            "lindex" if args.len() >= 2 => {
+            Some(InlineCodegenHookId::Lindex) if args.len() >= 2 => {
                 self.emit_inline_lindex(args);
             }
-            "lrange" if args.len() == 3 => {
+            Some(InlineCodegenHookId::Lrange) if args.len() == 3 => {
                 self.emit_inline_lrange(args);
             }
-            "lreplace" if args.len() >= 3 => {
+            Some(InlineCodegenHookId::Lreplace) if args.len() >= 3 => {
                 self.emit_inline_lreplace(args);
             }
-            "linsert" if args.len() >= 2 => {
+            Some(InlineCodegenHookId::Linsert) if args.len() >= 2 => {
                 self.emit_inline_linsert(args);
             }
-            "regexp" if args.len() >= 2 => {
+            Some(InlineCodegenHookId::Regexp) if args.len() >= 2 => {
                 self.emit_inline_regexp(args);
             }
-            "list" if !args.is_empty() && !text.contains("{*}") => {
+            Some(InlineCodegenHookId::List) if !args.is_empty() && !text.contains("{*}") => {
                 self.used_inline_cmd_subst = true;
                 for (a, b) in args {
                     self.emit_cmd_subst_arg(a, *b);
                 }
                 self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(args.len()))]);
             }
-            "array" if args.len() >= 2 => {
+            Some(InlineCodegenHookId::Array) if args.len() >= 2 => {
                 self.emit_inline_array(args);
             }
-            "dict" if args.len() >= 3 && args[0].0 == "get" => {
+            Some(InlineCodegenHookId::DictGet) if args.len() >= 3 => {
                 self.emit_inline_dict_get(args);
             }
-            "catch" if self.is_proc && (1..=3).contains(&args.len()) => {
+            Some(InlineCodegenHookId::Catch) if self.is_proc && (1..=3).contains(&args.len()) => {
                 let result_var = args.get(1).map(|(s, _)| s.as_str());
                 if result_var.is_some_and(|v| v.starts_with("::")) {
                     self.used_inline_cmd_subst = false;
@@ -1822,5 +1861,116 @@ mod tests {
             ops.contains(&Op::LIST_RANGE_IMM),
             "end should use LIST_RANGE_IMM, got {ops:?}",
         );
+    }
+
+    // -- registry drift: inline codegen hook stamping --
+
+    /// The registry-stamped inline-hook set must equal the command set
+    /// the retired hardcoded `match cmd.as_str()` dispatch (plus the
+    /// catch-body dispatch in `control_flow`) special-cased — so a
+    /// future spec change is a conscious decision, not a silent
+    /// bytecode change.
+    #[test]
+    fn registry_inline_hook_stamping_matches_previous_hardcoded_dispatch() {
+        use tcl_registry::hooks::InlineCodegenHookId as H;
+        let registry = CommandRegistry::build_default();
+        let expected: &[(&str, H)] = &[
+            ("expr", H::Expr),
+            ("incr", H::Incr),
+            ("string", H::String),
+            ("lindex", H::Lindex),
+            ("lrange", H::Lrange),
+            ("lreplace", H::Lreplace),
+            ("linsert", H::Linsert),
+            ("regexp", H::Regexp),
+            ("list", H::List),
+            ("array", H::Array),
+            ("catch", H::Catch),
+            ("return", H::Return),
+            ("error", H::Error),
+            ("break", H::Break),
+            ("continue", H::Continue),
+            ("try", H::Try),
+        ];
+        for (name, hook) in expected {
+            assert_eq!(
+                registry.get(name).and_then(|s| s.inline_codegen_hook),
+                Some(*hook),
+                "{name} must carry the {hook:?} inline hook"
+            );
+        }
+        // Subcommand-keyed hooks.
+        assert_eq!(
+            registry
+                .get("info")
+                .and_then(|s| s.subcommand("exists"))
+                .and_then(|s| s.inline_codegen_hook),
+            Some(H::InfoExists)
+        );
+        assert_eq!(
+            registry
+                .get("dict")
+                .and_then(|s| s.subcommand("get"))
+                .and_then(|s| s.inline_codegen_hook),
+            Some(H::DictGet)
+        );
+        // …and nothing else: stamping an inline hook on any further
+        // spec or subcommand must fail here first.
+        let expected_cmds: std::collections::HashSet<&str> =
+            expected.iter().map(|(n, _)| *n).collect();
+        let names: Vec<String> = registry.command_names().map(str::to_owned).collect();
+        for name in &names {
+            let Some(spec) = registry.get(name) else {
+                continue;
+            };
+            if spec.inline_codegen_hook.is_some() {
+                assert!(
+                    expected_cmds.contains(name.as_str()),
+                    "unexpected command-level inline hook on {name}"
+                );
+            }
+            for sub in spec.subcommands {
+                if sub.inline_codegen_hook.is_some() {
+                    assert!(
+                        (name == "info" && sub.name == "exists")
+                            || (name == "dict" && sub.name == "get"),
+                        "unexpected subcommand-level inline hook on {name} {}",
+                        sub.name
+                    );
+                }
+            }
+        }
+    }
+
+    /// A `::`-qualified head word keeps the generic-invoke path — the
+    /// retired dispatch keyed on the raw word, so `[::expr …]` never
+    /// took the inline expression emitter and must not start to.
+    #[test]
+    fn qualified_head_word_stays_generic() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_inline_cmd_subst("[::expr {$x+2}]");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(!ops.contains(&Op::ADD), "qualified ::expr must not inline");
+        assert!(
+            ops.contains(&Op::INVOKE_STK1),
+            "qualified ::expr must invoke generically, got {ops:?}"
+        );
+    }
+
+    /// Hooks the value-position dispatcher does not specialise
+    /// (`Break` is catch-body-only) fall to the generic invoke, as the
+    /// retired dispatch did for `[break]`.
+    #[test]
+    fn catch_body_only_hooks_stay_generic_in_value_position() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_inline_cmd_subst("[break]");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(
+            !ops.contains(&Op::BREAK),
+            "no inline break in value position"
+        );
+        assert!(ops.contains(&Op::INVOKE_STK1), "generic invoke expected");
     }
 }

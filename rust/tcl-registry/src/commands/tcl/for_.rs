@@ -57,6 +57,7 @@ pub fn spec() -> CommandSpec {
             ArgTypeHint {
                 expected: Some(TclType::Boolean),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         hover: Some(HoverSnippet {
@@ -69,6 +70,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::For),
         ..CommandSpec::DEFAULT
     }
 }

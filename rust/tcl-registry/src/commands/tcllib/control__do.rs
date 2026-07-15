@@ -77,6 +77,7 @@ pub fn spec() -> CommandSpec {
             ArgTypeHint {
                 expected: Some(TclType::Boolean),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         hover: Some(HoverSnippet {

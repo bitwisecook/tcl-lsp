@@ -47,6 +47,7 @@ pub fn spec() -> CommandSpec {
             (2, ArgRole::VarWrite),
         ],
         lowering_hook: Some(crate::hooks::LoweringHookId::Catch),
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Catch),
         return_type: Some(TclType::Int),
         hover: Some(HoverSnippet {
             summary: "Evaluate script and trap exceptional returns",
@@ -58,6 +59,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Catch),
         ..CommandSpec::DEFAULT
     }
 }

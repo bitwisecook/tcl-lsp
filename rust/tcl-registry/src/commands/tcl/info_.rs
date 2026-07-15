@@ -18,6 +18,7 @@
 
 //! `info` — information about the state of the Tcl interpreter.
 
+use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -341,6 +342,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Boolean),
         arg_roles: &[(0, ArgRole::VarRead)],
+        inline_codegen_hook: Some(InlineCodegenHookId::InfoExists),
         ..SubCommand::DEFAULT
     },
     SubCommand {

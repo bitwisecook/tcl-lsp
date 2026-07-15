@@ -707,7 +707,15 @@ impl Analyser {
             // declaration span, but its span is recorded as a reference so
             // find-references / rename see every assignment, and it escalates
             // the unused flag.  Array indices accumulate.
-            if span != existing.definition_span {
+            //
+            // The last-reference check makes re-definition idempotent per
+            // token span: a write site is recorded once even when both its
+            // dedicated handler (`incr` / `append` / `dict update`) and the
+            // registry `VarWrite`-role walk (`handle_var_binding_command`)
+            // bind it — the two run back-to-back for the same word, and a
+            // duplicated reference becomes a duplicated (hence overlapping)
+            // rename edit downstream.
+            if span != existing.definition_span && existing.references.last() != Some(&span) {
                 existing.references.push(span);
             }
             if warn_if_unused {
@@ -767,9 +775,17 @@ impl Analyser {
         };
 
         let runtime_name = subst(base_name);
-        if !is_brace_substitutable(&runtime_name) {
+        // The `${…}` delimiting rule is dialect-dependent (Tcl 9 tracks
+        // nested braces and `\X` pairs; the 8.x family stops at the first
+        // literal `}`) — resolve it from the active dialect's lexer config.
+        let nesting = self.lexer_config().braced_var.nests();
+        if !is_brace_substitutable(&runtime_name, nesting) {
             let detail = if runtime_name.contains('}') {
-                "the brace form ``${name}`` ends at the first ``}`` not preceded by ``\\`` (and the bare form stops at the first non-word character)"
+                if nesting {
+                    "the brace form ``${name}`` ends at the first unbalanced ``}`` not preceded by ``\\`` (and the bare form stops at the first non-word character)"
+                } else {
+                    "the brace form ``${name}`` ends at the first ``}`` (and the bare form stops at the first non-word character)"
+                }
             } else if runtime_name.ends_with('\\') {
                 "the brace form ``${name}`` would read the trailing ``\\`` as the start of a 2-char escape and run out of input -- missing close-brace"
             } else if runtime_name.contains('{') {

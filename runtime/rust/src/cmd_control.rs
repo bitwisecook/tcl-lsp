@@ -51,18 +51,11 @@ pub fn install(interp: &mut Interp) {
     }
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 // -- break / continue ------------------------------------------------------
 
 fn break_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
-        return wrong_args(interp, b"break");
+        return interp.wrong_args(b"break");
     }
     // `break`/`continue` carry no value — clear any prior result so `catch
     // {break}` (and a `break` propagated out of an expr substitution) report the
@@ -73,7 +66,7 @@ fn break_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn continue_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
-        return wrong_args(interp, b"continue");
+        return interp.wrong_args(b"continue");
     }
     interp.set_result_bytes(b"");
     Code::Continue
@@ -88,7 +81,7 @@ fn continue_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// not complete `OK` (error / break / continue / return) propagates.
 fn time_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
-        return wrong_args(interp, b"time command ?count?");
+        return interp.wrong_args(b"time command ?count?");
     }
     let count: i128 = if argv.len() == 3 {
         let bytes = obj_bytes(argv[2]);
@@ -255,8 +248,7 @@ fn timerate_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn timerate_usage(interp: &mut Interp) -> Code {
-    wrong_args(
-        interp,
+    interp.wrong_args(
         b"timerate ?-direct? ?-calibrate? ?-overhead double? command ?time ?max-count??",
     )
 }
@@ -537,7 +529,7 @@ fn no_script_following(interp: &mut Interp, token: &[u8]) -> Code {
 #[cfg(have_tommath)]
 fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"while test command");
+        return interp.wrong_args(b"while test command");
     }
     let cond = argv[1];
     let body = argv[2];
@@ -575,7 +567,7 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(have_tommath)]
 fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return wrong_args(interp, b"for start test next command");
+        return interp.wrong_args(b"for start test next command");
     }
     let (init, cond, next, body) = (argv[1], argv[2], argv[3], argv[4]);
     // `start`/`next` are scripts too — run them through `eval_control_body` so a
@@ -664,7 +656,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
         } else {
             b"foreach varList list ?varList list ...? command"
         };
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let body = argv[argv.len() - 1];
 

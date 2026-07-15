@@ -1617,3 +1617,40 @@ fn report_commands_gated_out_of_tcl84() {
         }
     }
 }
+
+// ===========================================================================
+// defines_command_at — spec-declared "argument names a new command" facts.
+// ===========================================================================
+
+/// `coroutine NAME cmd ?arg …?` creates the command NAME
+/// (`TclNRCoroutineObjCmd`, `tclBasic.c`) — the spec carries the name index
+/// so the analyser's W123 suppression stays registry-driven.
+///
+/// tclsh (8.6 & 9.0): `coroutine nextNum apply {{} {yield}}; info commands
+/// nextNum` lists it.
+#[test]
+fn coroutine_defines_command_at_its_name_argument() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    let spec = reg
+        .get_for_dialect("coroutine", ds)
+        .expect("coroutine registered in tcl8.6");
+    assert_eq!(spec.defines_command_at, Some(0), "coroutine names arg 0");
+}
+
+/// `interp create ?-safe? ?--? ?name?` binds `name` as the child
+/// interpreter's command — declared on the `create` subcommand, index
+/// relative to the word after `create`.
+///
+/// tclsh (8.6 & 9.0): `interp create child; child eval {expr 1}` works.
+#[test]
+fn interp_create_defines_command_at_its_name_argument() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+    let spec = reg
+        .get_for_dialect("interp", ds)
+        .expect("interp registered in tcl8.6");
+    let create = spec.subcommand("create").expect("interp create modelled");
+    assert_eq!(create.defines_command_at, Some(0), "create names sub-arg 0");
+    // The other interp subcommands bind no command name.
+    let eval = spec.subcommand("eval").expect("interp eval modelled");
+    assert_eq!(eval.defines_command_at, None);
+}

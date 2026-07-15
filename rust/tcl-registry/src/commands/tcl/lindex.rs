@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `lindex` — retrieve an element from a list.
+use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -42,6 +43,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        inline_codegen_hook: Some(InlineCodegenHookId::Lindex),
         forms: FORMS,
         arg_types: &[
             (
@@ -49,6 +51,7 @@ pub fn spec() -> CommandSpec {
                 ArgTypeHint {
                     expected: Some(TclType::List),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -56,6 +59,7 @@ pub fn spec() -> CommandSpec {
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],

@@ -18,7 +18,7 @@
 
 //! `dict` — dictionary operations.
 
-use crate::hooks::CodegenHookId;
+use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
@@ -79,6 +79,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -110,6 +111,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -126,6 +128,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -141,15 +144,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         loop_list_header: true,
         cfg_rewrite_name: Some("::tcl::dict::for"),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::DictFor),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "get",
         const_fold: Some(crate::const_fold::fold_dict_get),
+        inline_codegen_hook: Some(InlineCodegenHookId::DictGet),
         arity: Arity::at_least(1),
         detail: "Get a value from a dictionary.",
         synopsis: "dict get dictionaryValue ?key ...?",
@@ -160,6 +166,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -175,6 +182,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -195,6 +203,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -212,6 +221,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -227,6 +237,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         return_type: Some(TclType::Dict),
@@ -257,6 +268,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -276,6 +288,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -291,6 +304,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -311,6 +325,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -320,12 +335,20 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",
+        // `Tcl_DictObjCmd` (tclDictObj.c, `DictUnsetCmd`) removes the key —
+        // erroring on a missing *nested* path — so `catch {dict unset d …}`
+        // is the documented fire-and-forget idiom the W302 suppression keys
+        // off. (The variable itself is written back, created when absent —
+        // the `VarWrite` role below — so this is a key removal, not a
+        // variable destroy.)
+        destructive: true,
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
@@ -339,6 +362,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // + 1 body — confirmed against tclsh 8.6.14: `dict update d k v
         // extra body` (5 args) fails "wrong # args").
         arity: Arity::stepped(4, Arity::UNLIMITED, 2),
+        // Like `dict with`: the dictionary variable is read on entry and
+        // written back after the body — a scope alias (reads-own-def).
+        creates_scope_alias: true,
         detail: "Map dictionary keys to variables, execute body, write back.",
         synopsis: "dict update dictionaryVariable key varName ?...? body",
         arg_role_resolver: Some(dict_last_arg_body),
@@ -347,9 +373,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::DictUpdate),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -365,6 +393,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -374,15 +403,22 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Map all dictionary keys to variables, execute body, write back.",
         synopsis: "dict with dictionaryVariable ?key ...? body",
+        // The dictionary variable is read on entry and written back when the
+        // body ends — a scope alias whose def is its own use (the SSA walk
+        // marks it reads-own-def so a `dict with $param {}` reference keeps
+        // the parameter used).
+        creates_scope_alias: true,
         arg_role_resolver: Some(dict_last_arg_body),
         arg_types: &[(
             0,
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         mutator: true,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::DictWith),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -397,6 +433,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -420,6 +457,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -442,6 +480,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -464,6 +503,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Dict),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -474,10 +514,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
+        // `HAS_DESTRUCTIVE_OPS`: the `unset` subform removes keys
+        // (`DictUnsetCmd`, tclDictObj.c) — see the `destructive` flag on
+        // the `unset` subcommand.
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CSE_CANDIDATE
-            | Traits::NEVER_INLINE_BODY,
+            | Traits::NEVER_INLINE_BODY
+            | Traits::HAS_DESTRUCTIVE_OPS,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

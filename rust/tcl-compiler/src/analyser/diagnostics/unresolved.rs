@@ -37,8 +37,8 @@ use crate::analyser::types::Severity;
 /// The "known command name" sets consulted by the W123 unresolved-command
 /// pass: registry names enabled in the active dialect, the simple-name tails
 /// of user procs / classes / aliases / rename targets / ensemble commands,
-/// inline-stub names, and the deduplicated candidate list for "did you
-/// mean…?" suggestions.
+/// inline-stub names, the tails of literal `namespace import` patterns, and
+/// the deduplicated candidate list for "did you mean…?" suggestions.
 struct W123KnownNames {
     registry_names: HashSet<String>,
     proc_tail_names: HashSet<String>,
@@ -47,6 +47,11 @@ struct W123KnownNames {
     rename_target_names: HashSet<String>,
     ensemble_cmds: HashSet<String>,
     stub_names: HashSet<String>,
+    /// Final `::`-segment of each literal (non-conjectured) `namespace
+    /// import` pattern — glob text (`*` from `::acme::*`, `render_*` from
+    /// `::acme::render_*`) or an exact name (`render_box`).  An unqualified
+    /// call matching one of these resolves to the imported command.
+    import_pattern_tails: Vec<String>,
     candidates: Vec<String>,
 }
 
@@ -60,7 +65,8 @@ impl Analyser {
     /// Resolution paths checked in order — first match
     /// suppresses W123:
     ///
-    /// - `cmd_name in registry_names` (built-in command).
+    /// - `cmd_name in registry_names` (built-in command), unless the
+    ///   built-in was renamed away / deleted earlier in the file.
     /// - `cmd_name` contains `::` (qualified — defer to
     ///   per-namespace logic, conservative skip).
     /// - `cmd_name` starts with `$` / `[` (interpolated /
@@ -70,14 +76,14 @@ impl Analyser {
     /// - Command alias tail.
     /// - Static `rename OLD NEW` target tail.
     /// - Ensemble namespace tail.
+    /// - Tail of a literal `namespace import` pattern (glob-matched).
     ///
     /// Idempotency: ``self.unresolved_commands_emitted`` guards
     /// against double-emission when ``analyse`` is called twice
     /// or the chunked entry runs both passes.
     ///
-    /// **Not yet implemented:** ``has_dynamic_providers`` early-return;
-    /// the CONSTSET-driven interpolation suppression for
-    /// ``$``-bearing command names.
+    /// **Not yet implemented:** the CONSTSET-driven interpolation
+    /// suppression for ``$``-bearing command names.
     pub fn emit_unresolved_command_diagnostics(
         &mut self,
         registry: &tcl_registry::CommandRegistry,
@@ -90,13 +96,24 @@ impl Analyser {
         // unresolved-command *call sites* are recorded regardless (below), so a
         // cross-file consumer can run its arity check independently of the W123
         // toggle.  The knowability gates that follow (dynamic `package require` /
-        // `unknown` proc) still suppress both, since resolution is then unknown.
+        // dynamic providers / `unknown` proc) still suppress both, since
+        // resolution is then unknown.
         let emit_w123 = !self.disabled_diagnostics.contains("W123");
 
         // Conservative gate: if any ``package require`` was seen,
         // suppress W123 entirely.  The package may load arbitrary
         // commands at runtime that the analyser can't see.
         if !self.result.package_requires.is_empty() {
+            return;
+        }
+
+        // Dynamic providers ⇒ unknowable command set ⇒ no W123 — the same
+        // gate W120 applies (see
+        // [`Self::emit_missing_package_require_diagnostics`]).  Set by
+        // `load`, a dynamic `rename` / `package require` name, a dynamic
+        // `namespace import` pattern, an `auto_path` mutation, and a
+        // `namespace unknown` handler installation.
+        if self.result.has_dynamic_providers {
             return;
         }
 
@@ -220,6 +237,28 @@ impl Analyser {
             .filter_map(|ns| ns.rsplit_once("::").map(|(_, t)| t.to_string()))
             .filter(|s| !s.is_empty())
             .collect();
+        // Literal `namespace import` patterns make their matching source
+        // commands callable by bare name — keep each pattern's final
+        // `::`-segment for the per-invocation glob match (a `::acme::*`
+        // import provides an unknowable subset of `::acme`, so its `*` tail
+        // conservatively resolves every bare name; `::acme::render_*` only
+        // names matching the glob; a non-glob import exactly that name).
+        // Conjectured tcllib-wrapper imports (`X::import alias`) re-export
+        // under the *alias* namespace — qualified names, which W123 already
+        // skips — so they contribute no bare-name tails.
+        let import_pattern_tails: Vec<String> = {
+            let mut tails: Vec<String> = self
+                .result
+                .namespace_imports
+                .iter()
+                .filter(|imp| !imp.conjectured)
+                .filter_map(|imp| imp.pattern.rsplit_once("::").map(|(_, t)| t.to_string()))
+                .filter(|t| !t.is_empty())
+                .collect();
+            tails.sort_unstable();
+            tails.dedup();
+            tails
+        };
 
         // Build the candidate set for "did you mean…?"
         // suggestions — every name a real command
@@ -249,8 +288,131 @@ impl Analyser {
             rename_target_names,
             ensemble_cmds,
             stub_names,
+            import_pattern_tails,
             candidates,
         }
+    }
+
+    /// Whether the registry built-in `name` has been renamed away or deleted
+    /// (`rename puts myputs` / `rename puts {}` / an `interp alias`
+    /// deletion) at a source offset before `call_off` — from that point the
+    /// global name no longer denotes the built-in (confirmed against tclsh
+    /// 9.0.4: calling it fails "invalid command name").
+    ///
+    /// The same top-level order-gating convention as the arity resolver's
+    /// `fact_in_effect` / `fact_superseded_by_deletion`: `deleted_commands`
+    /// holds the *last* deletion offset per name, so a call textually before
+    /// it stays resolved by the registry.  A re-binding after the deletion
+    /// (a fresh `proc puts …`, `rename … puts`, or `interp alias … puts`) is
+    /// not checked here — the caller falls through to the proc / alias /
+    /// rename-target sets, which already carry those (deletion-gated at
+    /// file-end granularity, their existing convention).
+    fn registry_name_deleted_before(&self, name: &str, call_off: u32) -> bool {
+        // `handle_rename` / `handle_interp_alias` record deletions under the
+        // normalised qualified name; an unqualified built-in lives at `::`.
+        let Some(&del_off) = self.deleted_commands.get(&format!("::{name}")) else {
+            return false;
+        };
+        if del_off >= call_off {
+            return false;
+        }
+        // A deletion recorded from inside a proc / method / class body is
+        // *conditional* — it executes only if and when that procedure is
+        // called, which the load-order textual gate can't know — so it
+        // never disqualifies the built-in.  (This also keeps the per-item
+        // path byte-identical: an isolated body's analyser state, including
+        // its deletions, is not grafted back into the shell.)
+        !self.offset_is_inside_definition_body(del_off)
+    }
+
+    /// Whether byte offset `off` falls inside any recorded proc or class
+    /// definition body — code there runs at *call* time, not load time.
+    fn offset_is_inside_definition_body(&self, off: u32) -> bool {
+        self.result
+            .all_procs
+            .values()
+            .map(|p| p.body_span)
+            .chain(self.result.all_classes.values().map(|c| c.body_span))
+            .any(|span| span.start() <= off && off < span.end())
+    }
+
+    /// Whether the command head `name`, invoked at `range`, resolves through
+    /// any W123 resolution path — first match wins (see
+    /// [`Self::emit_unresolved_command_diagnostics`] for the ordered list).
+    /// A head that resolves nowhere falls through to the diagnostic emitter.
+    #[must_use]
+    fn w123_invocation_resolves(
+        &self,
+        known: &W123KnownNames,
+        name: &str,
+        range: tcl_lexer::Span,
+    ) -> bool {
+        // A built-in renamed away / deleted at an earlier offset no longer
+        // resolves here — fall through to the user-defined paths below,
+        // which carry any later re-binding of the name (a fresh `proc` /
+        // `rename … NAME` / `interp alias`).  Calls lexically before the
+        // deletion stay resolved by the registry name.
+        if known.registry_names.contains(name)
+            && !self.registry_name_deleted_before(name, range.start())
+        {
+            return true;
+        }
+        // Qualified names defer to per-namespace logic (conservative skip);
+        // `$`-interpolated / `[…]`-substituted heads are W307 / W308's
+        // domain.
+        if name.contains("::") || name.starts_with('$') || name.starts_with('[') {
+            return true;
+        }
+        if known.proc_tail_names.contains(name)
+            || known.class_tail_names.contains(name)
+            || known.alias_names.contains(name)
+            || known.rename_target_names.contains(name)
+            || known.ensemble_cmds.contains(name)
+            || known.stub_names.contains(name)
+        {
+            return true;
+        }
+        // A bare name matching the tail of a literal `namespace import`
+        // pattern resolves to the imported command (`namespace import
+        // ::acme::widgets::*` makes `render_box` callable unqualified).
+        // Glob semantics via `tcl_syntax::glob::string_match`, so a
+        // non-glob import suppresses exactly that name.
+        if known
+            .import_pattern_tails
+            .iter()
+            .any(|tail| tcl_syntax::glob::string_match(tail, name))
+        {
+            return true;
+        }
+        // User-declared extra commands (`tclLsp.extraCommands`) are known.
+        if self.extra_commands.contains(name) {
+            return true;
+        }
+        if let Some(info) = self.result.unknown_proc_info.as_ref()
+            && info.dispatch_targets.contains(name)
+        {
+            return true;
+        }
+        // Absolute-form fallback — ``cmd`` may be defined as ``::cmd`` in
+        // the global namespace.
+        if self.result.all_procs.contains_key(&format!("::{name}"))
+            || self.result.all_classes.contains_key(&format!("::{name}"))
+        {
+            return true;
+        }
+        // A command bound by `CLASS create NAME` (or a registry
+        // `defines_command_at` argument — `coroutine NAME cmd`, `interp
+        // create NAME`) — later calls dispatch on a real command, not an
+        // unknown (issue #777).
+        if self.result.created_instance_commands.contains(name) {
+            return true;
+        }
+        // A bare head inside a scoped command environment (a
+        // `report::defstyle` style script, …) resolves against that
+        // environment's registry-declared command set — plus any sibling
+        // definitions it exposes (#806).  Registry data drives the check;
+        // no command name is matched here.
+        self.is_scoped_command_resolved(name, range)
     }
 
     /// Walk every recorded command invocation, record the unresolved ones as
@@ -279,61 +441,7 @@ impl Analyser {
         let invocations = std::mem::take(&mut self.result.command_invocations);
         for inv in &invocations {
             let name = &inv.name;
-            if known.registry_names.contains(name) {
-                continue;
-            }
-            if name.contains("::") {
-                continue;
-            }
-            if name.starts_with('$') || name.starts_with('[') {
-                continue;
-            }
-            if known.proc_tail_names.contains(name) {
-                continue;
-            }
-            if known.class_tail_names.contains(name) {
-                continue;
-            }
-            if known.alias_names.contains(name) {
-                continue;
-            }
-            if known.rename_target_names.contains(name) {
-                continue;
-            }
-            if known.ensemble_cmds.contains(name) {
-                continue;
-            }
-            if known.stub_names.contains(name) {
-                continue;
-            }
-            // User-declared extra commands (`tclLsp.extraCommands`) are known.
-            if self.extra_commands.contains(name) {
-                continue;
-            }
-            if let Some(info) = self.result.unknown_proc_info.as_ref()
-                && info.dispatch_targets.contains(name)
-            {
-                continue;
-            }
-            // Absolute-form fallback — ``cmd`` may be defined as
-            // ``::cmd`` in the global namespace.
-            if self.result.all_procs.contains_key(&format!("::{name}")) {
-                continue;
-            }
-            if self.result.all_classes.contains_key(&format!("::{name}")) {
-                continue;
-            }
-            // A command bound by `CLASS create NAME` — later `NAME method`
-            // dispatch is a real command call, not an unknown (issue #777).
-            if self.result.created_instance_commands.contains(name) {
-                continue;
-            }
-            // A bare head inside a scoped command environment (a
-            // `report::defstyle` style script, …) resolves against that
-            // environment's registry-declared command set — plus any sibling
-            // definitions it exposes (#806).  Registry data drives the check;
-            // no command name is matched here.
-            if self.is_scoped_command_resolved(name, inv.range) {
+            if self.w123_invocation_resolves(known, name, inv.range) {
                 continue;
             }
 
@@ -353,10 +461,16 @@ impl Analyser {
             // ``candidate_strs`` was
             // deduplicated above so every name in it is unique;
             // copying the slice per invocation is cheap (Vec of
-            // ``&str`` references).
+            // ``&str`` references).  The name itself is excluded — a
+            // renamed-away builtin is still in the registry candidate set,
+            // and suggesting the very name that no longer resolves would be
+            // a self-referential fix.
             let suggestions = crate::text::suggest_similar(
                 name,
-                candidate_strs.iter().copied(),
+                candidate_strs
+                    .iter()
+                    .copied()
+                    .filter(|candidate| *candidate != name.as_str()),
                 1,
                 crate::text::scaled_max_distance(name),
             );

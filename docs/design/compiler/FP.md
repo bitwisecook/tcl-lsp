@@ -1618,7 +1618,7 @@ also stay silent.
 
 ---
 
-### FP-RBS-05 — `namespace upvar` alias-not-a-def (OPEN, ~39 W210 still FP)
+### FP-RBS-05 — `namespace upvar` alias-not-a-def (RESOLVED in the Rust port; see fp-audit-todo.md disposition)
 
 - **Verdict:** FALSE POSITIVE (W210) — `namespace upvar ns src alias` legally
   links `alias` in the caller frame but no lowering hook records it as an
@@ -3414,7 +3414,7 @@ Use-set building in `compiler/var_refs.py` includes CFGReturn value-expression r
 ### FP-DS-06 — array-element dead-store distinction: $a(k) write is not killed by $a(j) write
 
 - **Verdict:** FALSE POSITIVE (now fixed, Phase 8G)
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_06_array_elem_writes_distinct`
+- **Status:** locked in by `analyser/diagnostics/fp/ds.rs::fp_ds_06_*` (Rust; the Python-era xfail for the same-element must-alias kill is resolved — see fp-audit-todo.md)
 - **Codes:** W220, W211, O109
 - **Corpus:** any keyed-by-element pattern (tcllib's `dict`-builders, iRules' `set ::tbl(\$client) val` patterns, snit option storage).  Corpus impact: **W220 −88, W211 −2, O109 −66** on first measurement.
 
@@ -4402,6 +4402,20 @@ function ::f
 - `tests/test_fp_sh.py::test_FP_SH_08_eq_with_numeric_literal_still_fires` (TP, `$s == "5"` with $s STRING)
 - `tests/test_fp_sh.py::test_FP_SH_08_add_still_fires` (TP control, `$s + 0` — always numeric)
 
+**Addendum (compiler deep review):** the `_operand_looks_numeric` gate was
+itself a verified false-positive class. C Tcl's numeric probe is
+**per-operand on its own value** — `$s == "5"` with `s = "hello"` converts
+only the `"5"` literal; `$s` fails the parse, the comparison string-compares,
+and `s` keeps its intrep (tclsh-verified). A sibling operand's numericness
+proves nothing about this one, and a static type cannot prove a value
+parses, so `==`/`!=` (with the ordering comparisons — see FP-SH-20) are no
+longer flagged at all. The Rust locks are
+`analyser/diagnostics/fp/sh.rs::fp_sh_08_eq_both_non_numeric_no_shimmer`,
+`fp_sh_08_eq_with_numeric_literal_stays_silent` (was `…_still_fires`, whose
+TP claim was refuted), `fp_sh_08_add_still_fires` (arithmetic keeps firing —
+it has no string fallback), and
+`shimmer/expr.rs::expr_shimmer_comparisons_never_flag`.
+
 ---
 
 ### FP-SH-09 — byte array case-folded / re-encoded by a string op corrupts high bytes (S110)
@@ -5221,10 +5235,20 @@ fired S100/S101.  But Tcl's comparison operators — ordering **and** equality
 they compare the operands' string representations.  A non-numeric operand
 therefore never has its intrep clobbered, so the warning is a false positive.
 
-The fix moves `Lt`/`Le`/`Gt`/`Ge` into the same `operand_looks_numeric`
-gate already used for `==` / `!=`: fire only when at least one operand is
-provably numeric (the case where the numeric path — and the coercion — is
-actually taken).
+The first fix moved `Lt`/`Le`/`Gt`/`Ge` into the same
+`operand_looks_numeric` gate already used for `==` / `!=`: fire only when at
+least one operand is provably numeric.
+
+**Addendum (compiler deep review):** that gate was still wrong — a verified
+false-positive class remained. C Tcl's probe is **per-operand on its own
+value**: `GetNumberFromObj(NULL, …)` converts an operand's intrep only when
+*that operand's* string parses as a number, and a non-numeric sibling then
+falls the whole comparison back to a string compare with both intreps kept.
+So `expr {$s <= 5}` with `s = "hello"` leaves `s` a `string` (tclsh-verified)
+— the "numeric literal forces the numeric path" claim the old TP-control
+tests locked in was false. A static type cannot prove a value parses, so the
+comparison operators are no longer flagged at all; the S102 flip-flop
+detection still catches genuinely alternating intreps.
 
 #### tclsh ground truth (8.6 and 9.0)
 
@@ -5235,15 +5259,17 @@ actually taken).
 % tcl::unsupported::representation $a        ;# STILL pure string — no shimmer
 % set lst [list a b c]
 % expr {$lst > $b}                          ;# list intrep preserved (string rep only materialised)
+% set s [string trim hello]
+% expr {$s <= 5}                            ;# 0 — string compare; $s STAYS pure string
 % set n 10
-% expr {$n < 5}                             ;# 0 — n shimmers pure string -> int (TP)
+% expr {$n < 5}                             ;# 0 — n's own value parses: string -> int
 ```
 
 #### Tests
 
 - `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_non_numeric_silent` (FP)
-- `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_numeric_literal_still_fires` (TP)
-- `shimmer/expr.rs::expr_shimmer_ordering_op_only_when_numeric` (FP + TP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_numeric_literal_stays_silent` (FP)
+- `shimmer/expr.rs::expr_shimmer_comparisons_never_flag` (FP)
 
 ---
 
@@ -6319,6 +6345,60 @@ function ::f
 - `tests/test_ground_truth_tn_fn.py::test_TP_W307_interproc_dict_with_unpacks_non_command`
 - `tests/test_ground_truth_tn_fn.py::test_TN_interproc_dict_with_unpacks_known_command_silent`
 - Cross-link: [FP-DS-09](#fp-ds-09) (the underlying interproc dict propagation).
+
+---
+
+### FP-OBJ-20 — external mixin methods are callable — W308 abstains as for an external superclass
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `analyser/diagnostics/fp/obj.rs::fp_obj_20_*`
+- **Codes:** W308 (unknown method)
+
+#### Reproducer
+
+```tcl
+oo::class create Reactive {
+    mixin ::somelib::Observable
+    method local {} {}
+}
+set o [Reactive new]
+$o subscribe handler
+```
+
+#### Per-line reasoning
+
+`TclOO` mixins contribute to the MRO exactly as superclasses do, so
+`subscribe` provided by `::somelib::Observable` is callable on `Reactive`
+instances.  The W308 external-class escape hatch — abstain when a candidate
+class inherits from a class outside the local index, because its callable
+method set is then unknowable — walked only `superclasses`, so an
+unresolvable **mixin** did not abstain and `$o subscribe` fired W308.  Fix:
+one shared helper (`has_external_super_or_mixin` in
+`analyser/diagnostics/var_command.rs`) evaluates the escape hatch over
+superclasses ∪ mixins at both W308 sites (`w308_for_object_var` and
+`validate_method_on_class`), preserving the `oo::object` / `oo::class` base
+special-casing.  A *local* (indexed) mixin is unaffected: it resolves
+through the MRO, and an unknown method on such a class still fires.
+
+#### tclsh ground truth (8.6.14)
+
+```
+% oo::class create Observable { method subscribe {h} { return "subscribed $h" } }
+% oo::class create Reactive { mixin Observable; method local {} {} }
+% set o [Reactive new]
+% $o subscribe handler
+subscribed handler
+% $o nosuch
+unknown method "nosuch": must be destroy, local or subscribe
+```
+
+#### Tests
+
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_external_mixin_method_no_w308` (FP)
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_external_mixin_cmdsub_dispatch_no_w308` (FP, `[Reactive new] subscribe` shape)
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_all_local_class_unknown_method_still_w308` (TP control)
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_local_mixin_unknown_method_still_w308` (TP control — an indexed mixin does not blanket-suppress)
+- `analyser/diagnostics/fp/obj.rs::fp_obj_20_local_mixin_provides_method_silent` (regression — in-file mixin resolves via the MRO)
 
 ---
 

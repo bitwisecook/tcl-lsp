@@ -64,6 +64,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp alias path cmd",
         return_type: Some(TclType::List),
         command_prefix_resolver: Some(interp_alias_command_prefixes),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
+        command_table_effect: Some(crate::command_table::CommandTableEffect::CreatesAliases),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -124,6 +126,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Create a child interpreter.",
         synopsis: "interp create ?-safe? ?--? ?name?",
+        // `interp create NAME` binds NAME as the child interpreter's command
+        // (`NAME eval {…}` dispatches on it).  Index 0 is after the `create`
+        // word; a `-safe` / `--` flag there (or a missing, auto-generated
+        // name) is skipped by the consumer.
+        defines_command_at: Some(0),
         return_type: Some(TclType::String),
         options: const {
             &[
@@ -163,6 +170,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Delete interpreters.",
         synopsis: "interp delete ?path ...?",
+        // `Tcl_InterpObjCmd` (tclInterp.c, `OPT_DELETE` arm) tears the
+        // child interpreter down (`Tcl_DeleteInterp`) and errors when the
+        // path no longer names one — `catch {interp delete $child}` is the
+        // documented fire-and-forget idiom the W302 suppression keys off.
+        destructive: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
     },

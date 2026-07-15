@@ -31,6 +31,7 @@
 //! | [`phi`]       | S101 phi-node shimmer detection                 |
 //! | [`expr`]      | S100 expression-level shimmer detection         |
 //! | [`thunking`]  | S102 loop-oscillation detection                 |
+//! | [`sharing`]   | S103 shared-value copy-on-write detection       |
 //! | [`byte_array`]| S110 byte-array-corruption detection            |
 
 pub mod byte_array;
@@ -38,6 +39,7 @@ pub mod expr;
 pub mod graph;
 pub mod hints;
 pub mod phi;
+pub mod sharing;
 pub mod span;
 pub mod thunking;
 pub mod use_site;
@@ -91,6 +93,28 @@ pub struct ThunkingWarning {
     /// Formatted message.
     pub message: String,
     /// Related spans.
+    pub related: Vec<(Span, String)>,
+}
+
+/// A mutation of a provably shared value — C Tcl duplicates the whole value
+/// before writing (`Tcl_IsShared` → `Tcl_DuplicateObj`), so the mutation
+/// pays an O(n) copy. See [`sharing`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SharingWarning {
+    /// Source span of the mutating command.
+    pub span: Span,
+    /// The mutated variable.
+    pub variable: String,
+    /// The other live holder of the same value.
+    pub shared_with: String,
+    /// The mutating command (`lappend` / `lset` / `dict`).
+    pub command: String,
+    /// Diagnostic code (`"S103"`).
+    pub code: DiagCode,
+    /// Formatted message.
+    pub message: String,
+    /// Related spans: the copy that created the share, and the partner's
+    /// still-live read.
     pub related: Vec<(Span, String)>,
 }
 
@@ -197,6 +221,52 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     extra_scope_aliases: Option<&HashSet<String, S>>,
 ) -> Vec<ThunkingWarning> {
     thunking::find_thunking_warnings(cfg, ssa, types, executable_blocks, extra_scope_aliases)
+}
+
+/// Find shared-value copy-on-write warnings (S103) for a single function.
+///
+/// Fires on the tight `set b $a` … `lappend/lset/dict-mutator` pattern
+/// where both holders are provably alive — C Tcl duplicates the shared
+/// value before every such mutation. See [`sharing`] for the pattern and
+/// its deliberate exclusions.
+#[must_use]
+pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    def_use: &crate::def_use::DefUseResult,
+    executable_blocks: &HashSet<BlockId>,
+    registry: &CommandRegistry,
+    extra_scope_aliases: Option<&HashSet<String, S>>,
+) -> Vec<SharingWarning> {
+    sharing::find_sharing_warnings(
+        cfg,
+        ssa,
+        def_use,
+        executable_blocks,
+        registry,
+        extra_scope_aliases,
+    )
+}
+
+/// Find every shared-value copy-on-write warning (S103) across a whole
+/// compilation unit. See [`find_shimmer_warnings_for_cu`].
+#[must_use]
+pub fn find_sharing_warnings_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+) -> Vec<SharingWarning> {
+    let mut out = Vec::new();
+    for fu in cu.analysable_functions() {
+        out.extend(find_sharing_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.def_use,
+            &fu.sccp.executable_blocks,
+            registry,
+            cu.method_instance_vars(&fu.name),
+        ));
+    }
+    out
 }
 
 /// Find byte-array-corruption warnings (S110) for a single function.

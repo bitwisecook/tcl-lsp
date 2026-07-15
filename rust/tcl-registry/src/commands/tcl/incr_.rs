@@ -21,7 +21,7 @@
 // VERIFIED: Tcl 9.0.3 manpage incr(n) (man3/incr.n).
 
 use crate::forms::CommandForm;
-use crate::hooks::LoweringHookId;
+use crate::hooks::{InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
@@ -73,6 +73,7 @@ pub fn spec() -> CommandSpec {
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -80,6 +81,7 @@ pub fn spec() -> CommandSpec {
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -92,9 +94,11 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         lowering_hook: Some(LoweringHookId::Incr),
+        inline_codegen_hook: Some(InlineCodegenHookId::Incr),
         command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Incr),
         ..CommandSpec::DEFAULT
     }
 }

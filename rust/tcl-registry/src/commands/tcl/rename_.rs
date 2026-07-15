@@ -34,7 +34,12 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename",
         dialects: Some(DialectSet::NON_IRULES_OPERATORS),
-        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
+        // `HAS_DESTRUCTIVE_OPS`: `Tcl_RenameObjCmd` → `TclRenameCommand`
+        // (tclNamesp.c / tclBasic.c) deletes `oldName` (an empty `newName`
+        // deletes the command outright) and errors when `oldName` doesn't
+        // exist — the property the W302 fire-and-forget suppression
+        // (`catch {rename foo ""}`) keys off.
+        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name)],
         return_type: Some(TclType::String),
@@ -48,6 +53,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Rename),
+        command_table_effect: Some(crate::command_table::CommandTableEffect::RenamesCommands),
         ..CommandSpec::DEFAULT
     }
 }

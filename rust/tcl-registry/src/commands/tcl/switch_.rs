@@ -184,6 +184,7 @@ pub fn spec() -> CommandSpec {
         // options, even when dynamic/tainted and starting with `-`.
         reserved_trailing_words: 2,
         case_list: Some(&CaseListSpec::SWITCH),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
         ..CommandSpec::DEFAULT
     }
 }

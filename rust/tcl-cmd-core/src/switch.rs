@@ -86,7 +86,6 @@ const OPT_NAMES: [&str; 7] = [
     "-regexp",
     "--",
 ];
-const OPTION_LIST: &str = "-exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --";
 const USAGE_INLINE: &str = "switch ?-option ...? string ?pattern body ...? ?default body?";
 
 /// Parse the leading options of `args` (the name-stripped argv: any options, then
@@ -117,10 +116,14 @@ where
         if !arg.starts_with('-') {
             break;
         }
-        let idx = get_index(&arg).map_err(|e| match e {
-            IdxErr::Bad => bad_option(&arg),
-            IdxErr::Ambiguous => ambiguous_option(&arg),
-        })?;
+        let idx = match crate::prefix::lookup(&OPT_NAMES, arg.as_bytes(), false) {
+            crate::prefix::Lookup::Found(i) => i,
+            miss => {
+                return Err(crate::prefix::lookup_error(
+                    &OPT_NAMES, "option", &arg, miss,
+                ));
+            }
+        };
         match idx {
             OPT_LAST => {
                 i += 1;
@@ -364,40 +367,10 @@ where
 }
 
 // option-name resolution + error catalogue
-
-enum IdxErr {
-    Bad,
-    Ambiguous,
-}
-
-/// Resolve an option word against `OPT_NAMES` with Tcl's unambiguous-prefix rule
-/// (an exact match always wins; otherwise a unique prefix).
-fn get_index(arg: &str) -> Result<usize, IdxErr> {
-    let mut found = None;
-    let mut count = 0;
-    for (k, name) in OPT_NAMES.iter().enumerate() {
-        if *name == arg {
-            return Ok(k);
-        }
-        if name.starts_with(arg) {
-            found = Some(k);
-            count += 1;
-        }
-    }
-    match (count, found) {
-        (1, Some(k)) => Ok(k),
-        (0, _) => Err(IdxErr::Bad),
-        _ => Err(IdxErr::Ambiguous),
-    }
-}
-
-fn bad_option(arg: &str) -> CmdError {
-    CmdError::new(format!("bad option \"{arg}\": must be {OPTION_LIST}"))
-}
-
-fn ambiguous_option(arg: &str) -> CmdError {
-    CmdError::new(format!("ambiguous option \"{arg}\": must be {OPTION_LIST}"))
-}
+//
+// The unique-prefix resolution and the `bad option "x": must be …` /
+// `ambiguous option …` texts route through the shared matcher
+// (`crate::prefix`), so `switch` cannot drift from the other option tables.
 
 fn double_option(arg: &str, found_name: &str) -> CmdError {
     CmdError::new(format!(
@@ -421,19 +394,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_index_matches_exact_and_unique_prefix() {
-        // Tcl unambiguous-prefix option matching (cmd-core switch.rs had no
-        // unit coverage). OPT_NAMES = -exact -glob -indexvar -matchvar
-        // -nocase … — `IdxErr` has no derives, so match with `matches!`.
-        assert!(matches!(get_index("-exact"), Ok(0)));
-        assert!(matches!(get_index("-glob"), Ok(1)));
-        assert!(matches!(get_index("-e"), Ok(0))); // unique prefix
-        assert!(matches!(get_index("-g"), Ok(1)));
-        assert!(matches!(get_index("-i"), Ok(2)));
-        assert!(matches!(get_index("-m"), Ok(3)));
-        assert!(matches!(get_index("-n"), Ok(4)));
-        assert!(matches!(get_index("-"), Err(IdxErr::Ambiguous))); // prefixes all
-        assert!(matches!(get_index("-zzz"), Err(IdxErr::Bad)));
+    fn option_table_matches_exact_and_unique_prefix() {
+        // Tcl unambiguous-prefix option matching, via the shared matcher.
+        use crate::prefix::{Lookup, lookup};
+        let l = |arg: &str| lookup(&OPT_NAMES, arg.as_bytes(), false);
+        assert_eq!(l("-exact"), Lookup::Found(0));
+        assert_eq!(l("-glob"), Lookup::Found(1));
+        assert_eq!(l("-e"), Lookup::Found(0)); // unique prefix
+        assert_eq!(l("-g"), Lookup::Found(1));
+        assert_eq!(l("-i"), Lookup::Found(2));
+        assert_eq!(l("-m"), Lookup::Found(3));
+        assert_eq!(l("-n"), Lookup::Found(4));
+        assert_eq!(l("-"), Lookup::Ambiguous); // prefixes all
+        assert_eq!(l("-zzz"), Lookup::None);
+        // The option-list text stays byte-identical to the old inline const
+        // (tclsh: `switch -zzz a b {}`).
+        assert_eq!(
+            crate::prefix::lookup_error(&OPT_NAMES, "option", "-zzz", Lookup::None).message(),
+            r#"bad option "-zzz": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --"#
+        );
     }
 
     #[test]

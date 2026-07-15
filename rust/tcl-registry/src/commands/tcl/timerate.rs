@@ -50,6 +50,7 @@ pub fn spec() -> CommandSpec {
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         return_type: Some(TclType::String),

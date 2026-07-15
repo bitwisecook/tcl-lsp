@@ -976,6 +976,46 @@ mod tests {
     }
 
     #[test]
+    fn renamed_away_builtin_w123_matches() {
+        // A top-level rename-away of a builtin plus a later call — the W123
+        // deleted-builtin gate reads shell-pass state (`deleted_commands`),
+        // which both paths populate identically for top-level statements.
+        eq("rename puts {}\nputs x\n");
+        eq("puts early\nrename puts myputs\nmyputs late\n");
+        // An in-body rename is *conditional* (runs at call time): the gate
+        // ignores it on both paths — the whole-file walk records it into
+        // `deleted_commands` but filters it as inside a proc body, while an
+        // isolated body's analyser state never reaches the shell at all.
+        eq("proc hook {} { rename puts _p }\nputs hi\n");
+    }
+
+    #[test]
+    fn registry_defined_command_names_match() {
+        // `coroutine NAME cmd` / `interp create NAME` bind NAME via the
+        // registry's `defines_command_at` — recorded eagerly in the isolated
+        // body too, and merged at graft, so both paths agree.
+        eq("proc gen {} { while 1 { yield 1 } }\ncoroutine nextNum gen\nnextNum\n");
+        eq("proc mk {} { coroutine nextNum ::gen }\ninterp create child\nchild eval { puts hi }\n");
+    }
+
+    #[test]
+    fn literal_namespace_import_w123_matches() {
+        // Top-level literal imports feed the W123 tail-glob suppression from
+        // `result.namespace_imports`, recorded by the shell pass on both
+        // paths (a body-local import falls back — see
+        // `namespace_import_inside_body_falls_back`).
+        eq("namespace import ::acme::widgets::render_*\nrender_box 10\nfrobnicate 1\n");
+    }
+
+    #[test]
+    fn namespace_unknown_handler_suppression_matches() {
+        // `namespace unknown HANDLER` flips `has_dynamic_providers` (merged
+        // with `|=` at graft), suppressing W123 identically on both paths.
+        eq("proc h {args} { puts $args }\nnamespace unknown h\nmystery_cmd 1\n");
+        eq("proc inst {} { namespace unknown ::h }\nmystery_cmd 1\n");
+    }
+
+    #[test]
     fn namespace_and_top_level_code() {
         eq("namespace eval ns { proc foo {} {} }\nset g 1\nputs $g\n");
     }

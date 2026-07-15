@@ -43,13 +43,6 @@ pub fn install(interp: &mut Interp) {
     // `update` is registered by `cmd_event` (the real event loop).
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 // -- rename ----------------------------------------------------------------
 
 /// `rename oldName newName` — move a command, or delete it when `newName` is the
@@ -58,7 +51,7 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
 /// 8.6.16 / 9.0.4).
 fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"rename oldName newName");
+        return interp.wrong_args(b"rename oldName newName");
     }
     let old = obj_bytes(argv[1]);
     let new = obj_bytes(argv[2]);
@@ -83,7 +76,7 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// and trap here.
 fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"interp cmd ?arg ...?");
+        return interp.wrong_args(b"interp cmd ?arg ...?");
     }
     match obj_bytes(argv[1]).as_slice() {
         b"alias" => interp_alias(interp, argv),
@@ -116,7 +109,7 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // `interp bgerror path ?cmdPrefix?` — get/set the (possibly nested)
             // interp's background-error handler.
             if argv.len() < 3 || argv.len() > 4 {
-                return wrong_args(interp, b"interp bgerror path ?cmdPrefix?");
+                return interp.wrong_args(b"interp bgerror path ?cmdPrefix?");
             }
             let path = interp_path(argv[2]);
             let prefix = argv.get(3).copied();
@@ -163,7 +156,7 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // `interp recursionlimit path ?newlimit?` — get/set a (possibly
             // nested) interp's recursion bound.
             if argv.len() < 3 || argv.len() > 4 {
-                return wrong_args(interp, b"interp recursionlimit path ?newlimit?");
+                return interp.wrong_args(b"interp recursionlimit path ?newlimit?");
             }
             let path = interp_path(argv[2]);
             let newlimit = argv.get(3).map(|&a| obj_bytes(a));
@@ -223,7 +216,7 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         if name_obj.is_some() {
-            return wrong_args(interp, b"interp create ?-safe? ?--? ?path?");
+            return interp.wrong_args(b"interp create ?-safe? ?--? ?path?");
         }
         if i < argv.len() {
             name_obj = Some(argv[i]);
@@ -310,7 +303,7 @@ enum HideOp {
 fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // argv = [interp, limit, path, limitType, opts…]
     if argv.len() < 4 {
-        return wrong_args(interp, b"interp limit path limitType ?-option value ...?");
+        return interp.wrong_args(b"interp limit path limitType ?-option value ...?");
     }
     let path = interp_path(argv[2]);
     let ltype = obj_bytes(argv[3]);
@@ -340,7 +333,7 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// safe interpreter).
 fn interp_marktrusted(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"interp marktrusted path");
+        return interp.wrong_args(b"interp marktrusted path");
     }
     if interp.is_safe() {
         return interp.set_error(b"permission denied: safe interpreter cannot mark trusted");
@@ -362,7 +355,7 @@ fn interp_marktrusted(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `interp debug path ?-frame ?bool??` — the per-interp frame-debug switch.
 fn interp_debug(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 || argv.len() > 5 {
-        return wrong_args(interp, b"interp debug path ?-frame ?bool??");
+        return interp.wrong_args(b"interp debug path ?-frame ?bool??");
     }
     let path = interp_path(argv[2]);
     let opts: Vec<*mut TclObj> = argv[3..].to_vec();
@@ -390,8 +383,8 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code
     // `interp expose path hiddenName  ?cmdName?`
     if argv.len() != 4 && argv.len() != 5 {
         return match op {
-            HideOp::Hide => wrong_args(interp, b"interp hide path cmdName ?hiddenCmdName?"),
-            HideOp::Expose => wrong_args(interp, b"interp expose path hiddenCmdName ?cmdName?"),
+            HideOp::Hide => interp.wrong_args(b"interp hide path cmdName ?hiddenCmdName?"),
+            HideOp::Expose => interp.wrong_args(b"interp expose path hiddenCmdName ?cmdName?"),
         };
     }
     // A safe interpreter may not touch the hidden-command table of itself or
@@ -451,7 +444,7 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code
 /// command in the named (or current) interpreter.
 fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"interp invokehidden path ?-opt? cmd ?arg ...?");
+        return interp.wrong_args(b"interp invokehidden path ?-opt? cmd ?arg ...?");
     }
     let path = interp_path(argv[2]);
     // Skip leading option flags (`-namespace ns`, `-global`).
@@ -469,7 +462,7 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     if i >= argv.len() {
-        return wrong_args(interp, b"interp invokehidden path ?-opt? cmd ?arg ...?");
+        return interp.wrong_args(b"interp invokehidden path ?-opt? cmd ?arg ...?");
     }
     if interp.is_safe() {
         return interp.set_error(b"not allowed to invoke hidden commands from safe interpreter");
@@ -501,7 +494,7 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `interp eval path arg ?arg ...?` — evaluate a script in a child interpreter.
 fn interp_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"interp eval path arg ?arg ...?");
+        return interp.wrong_args(b"interp eval path arg ?arg ...?");
     }
     let path = interp_path(argv[2]);
     let mut script = Vec::new();
@@ -550,10 +543,7 @@ fn interp_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // argv: interp alias srcPath aliasName ?targetPath target ?arg ...??
     if argv.len() < 4 {
-        return wrong_args(
-            interp,
-            b"interp alias srcPath srcCmd ?targetPath targetCmd? ?arg ...?",
-        );
+        return interp.wrong_args(b"interp alias srcPath srcCmd ?targetPath targetCmd? ?arg ...?");
     }
     let src = obj_bytes(argv[2]);
     let name = obj_bytes(argv[3]);
@@ -625,7 +615,7 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// current one for an empty/missing path) as a Tcl list.
 fn interp_aliases(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
-        return wrong_args(interp, b"interp aliases ?path?");
+        return interp.wrong_args(b"interp aliases ?path?");
     }
     let path = argv.get(2).map(|&a| obj_bytes(a)).unwrap_or_default();
     let names = if path.is_empty() {

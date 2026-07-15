@@ -1090,11 +1090,24 @@ impl<'r> Lowerer<'r> {
         // `resolve_alias` looks the name back up (current namespace, then
         // global) and `command_binding`'s own namespace-relative candidates.
         let args_owned: Vec<String> = args.to_vec();
-        if let Some((qualified, target, prepended)) = detect_interp_alias(cmd_name, &args_owned) {
-            self.aliases.insert(qualified, (target, prepended));
-        } else if let Some((old, new)) = detect_rename(cmd_name, &args_owned) {
-            self.aliases
-                .insert(join_namespace(namespace, &new), (old, Vec::new()));
+        match self
+            .registry
+            .command_table_effect(cmd_name, args_owned.first().map(String::as_str))
+        {
+            Some(tcl_registry::CommandTableEffect::CreatesAliases) => {
+                if let Some((qualified, target, prepended)) = detect_interp_alias(&args_owned) {
+                    self.aliases.insert(qualified, (target, prepended));
+                }
+            }
+            Some(tcl_registry::CommandTableEffect::RenamesCommands) => {
+                if let Some((old, new)) = detect_rename(&args_owned) {
+                    self.aliases
+                        .insert(join_namespace(namespace, &new), (old, Vec::new()));
+                }
+            }
+            // `proc` feeds the alias table nothing — its definition is
+            // lowered by its own hook below.
+            _ => {}
         }
 
         self.record_namespace_directives(cmd_name, args, seg, namespace);

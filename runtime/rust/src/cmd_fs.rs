@@ -44,13 +44,6 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"cd", cd_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 fn as_str(b: &[u8]) -> &str {
     core::str::from_utf8(b).unwrap_or("")
 }
@@ -71,7 +64,7 @@ fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     if i != argv.len() - 1 {
-        return wrong_args(interp, USAGE);
+        return interp.wrong_args(USAGE);
     }
     let path = obj_bytes(argv[i]);
     let read = interp
@@ -119,7 +112,7 @@ const FILE_SUBCOMMANDS: &[&[u8]] = &[
 
 fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"file subcommand ?arg ...?");
+        return interp.wrong_args(b"file subcommand ?arg ...?");
     }
     let raw = obj_bytes(argv[1]);
     // Ensemble prefix resolution: an exact name wins; otherwise a unique prefix.
@@ -424,7 +417,7 @@ fn normalize(p: &[u8], cwd: &[u8]) -> Vec<u8> {
 
 fn pwd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
-        return wrong_args(interp, b"pwd");
+        return interp.wrong_args(b"pwd");
     }
     let cwd = interp.host().env().cwd();
     match cwd {
@@ -435,7 +428,7 @@ fn pwd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 2 {
-        return wrong_args(interp, b"cd ?dirName?");
+        return interp.wrong_args(b"cd ?dirName?");
     }
     let dir = argv
         .get(1)

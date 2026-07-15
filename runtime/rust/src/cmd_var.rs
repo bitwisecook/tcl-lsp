@@ -51,13 +51,6 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"upvar", upvar);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 /// `can't <verb> "<name>": parent namespace doesn't exist` — the qualified-into-
 /// a-missing-namespace error (verb is `define` for `variable`, `access` for
 /// `global`/`upvar`).
@@ -135,7 +128,7 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let usage = b"upvar ?level? otherVar localVar ?otherVar localVar ...?";
     if argv.len() < 3 {
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     // A level is present iff the arg count is even (cmd + level + pairs); else
     // the default relative level 1 applies and the pairs start at argv[1].
@@ -146,7 +139,7 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         (b"1".to_vec(), 1)
     };
     if argv.len() - pairs_start < 2 {
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let target_level = parse_level(&spec, interp.current_level());
     // A *relative* `upvar 0` at namespace-eval scope (no proc frame) resolves an

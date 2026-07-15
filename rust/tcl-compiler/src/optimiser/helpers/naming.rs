@@ -18,18 +18,15 @@
 
 //! Namespace and qualified-name helpers for the optimiser.
 
-use crate::naming::normalise_qualified_name;
-
 /// Split a namespace string into its `::`-delimited parts,
 /// skipping empty segments. `"::"` yields `[]`, `"::foo::bar"`
-/// yields `["foo", "bar"]`.
+/// yields `["foo", "bar"]`. This is the canonical
+/// [`crate::naming::qualifier_segments_owned`] split (colon runs are a
+/// single separator), shared with the interprocedural pass's
+/// `namespace_parts_from_proc` so the two cannot drift.
 #[must_use]
 pub fn namespace_parts(namespace: &str) -> Vec<String> {
-    normalise_qualified_name(namespace)
-        .split("::")
-        .filter(|p| !p.is_empty())
-        .map(str::to_owned)
-        .collect()
+    crate::naming::qualifier_segments_owned(namespace)
 }
 
 /// Extract the enclosing-namespace portion of a fully qualified
@@ -61,6 +58,12 @@ mod tests {
         assert_eq!(namespace_parts("::foo"), vec!["foo".to_string()]);
         assert_eq!(
             namespace_parts("::a::b::c"),
+            vec!["a".to_string(), "b".into(), "c".into()],
+        );
+        // Colon runs collapse to one separator (tclsh8.6: `a:::b` names
+        // `::a::b`) — no stray `:`-bearing segments.
+        assert_eq!(
+            namespace_parts("::a:::b::::c"),
             vec!["a".to_string(), "b".into(), "c".into()],
         );
     }

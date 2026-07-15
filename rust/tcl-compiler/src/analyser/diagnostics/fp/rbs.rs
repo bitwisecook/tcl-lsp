@@ -509,6 +509,91 @@ fn fp_rbs_05_namespace_upvar_silent() {
     );
 }
 
+// `namespace upvar`'s otherVar may be an ARRAY ELEMENT.  tclsh 8.6 (and
+// tclNamesp.c `NamespaceUpvarCmd`: the source resolves through
+// `TclObjLookupVarEx(..., createPart1=1, createPart2=1)`, so an `(index)`
+// suffix is parsed — and created — exactly as for `upvar`; `TclPtrMakeUpvar`
+// then links the scalar local).  Verified live:
+//   % namespace eval ns {variable arr; array set arr {k 1}}
+//   % namespace upvar ns arr(k) local; puts $local        → 1
+//   % proc t {} {namespace upvar ns arr(new) l; set l 7}
+//   % t; puts $ns::arr(new)                                → 7
+const FP_RBS_05_ELEM_REPRO: &str = "\
+proc tester {} {
+    # tclsh: 'local' is now the caller-scope name for ::ns::arr(k).
+    namespace upvar ::ns arr(k) local
+    return $local
+}
+";
+
+#[test]
+fn fp_rbs_05_namespace_upvar_array_element_silent() {
+    // FP-RBS-05: an array-element source is as real a link as a scalar one.
+    assert!(
+        !fires(FP_RBS_05_ELEM_REPRO, D, "W210"),
+        "FP-RBS-05: element-source alias read must NOT fire W210; emitted: {:?}",
+        codes(FP_RBS_05_ELEM_REPRO, D)
+    );
+    assert!(
+        !fires(FP_RBS_05_ELEM_REPRO, D, "W213"),
+        "FP-RBS-05: element-source alias read must NOT fire W213; emitted: {:?}",
+        codes(FP_RBS_05_ELEM_REPRO, D)
+    );
+}
+
+#[test]
+fn fp_rbs_05_array_element_alias_write_only_silent() {
+    // Adjacent FP guard: a write through the element-source alias lands in
+    // ::ns::arr(k) — observable outside the frame (tclsh: `set l 7` above
+    // creates/overwrites `ns::arr(new)`) — so it is neither a dead store
+    // (W220) nor an unused variable (W211).
+    let src = "proc t {} {\n    namespace upvar ::ns arr(k) local\n    set local 5\n}\n";
+    assert!(
+        !fires(src, D, "W220"),
+        "FP-RBS-05: write through an element-source alias must NOT fire W220; emitted: {:?}",
+        codes(src, D)
+    );
+    assert!(
+        !fires(src, D, "W211"),
+        "FP-RBS-05: write through an element-source alias must NOT fire W211; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_05_array_element_unrelated_read_still_fires() {
+    // TP control: the silence above comes from the alias binding of `local`,
+    // not from a blanket namespace-upvar suppression — an unrelated,
+    // never-written `$other` in the same proc must still fire W210.
+    let src = "proc tester {} {\n    namespace upvar ::ns arr(k) local\n    return $other\n}\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-05 TP: $other (no alias, no set) must fire W210; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_05_alias_exists_guard_is_not_constant() {
+    // The `::safe::CheckInterp` guard shape (safe.tcl:109): whether an alias
+    // local exists tracks the linked namespace variable — runtime state — so
+    // `[info exists alias]` must not fold to a constant branch (I230).
+    // tclsh 8.6: `namespace upvar ns s a; info exists a` → 1 when `ns::s`
+    // exists, 0 when it does not.  Pre-fix the fold said "always false"
+    // (the lowered `namespace upvar` Call carries no defs, unlike
+    // `global`/`variable`/`upvar`).  Scalar and array-element sources both.
+    for src in [
+        "proc t {} {\n    namespace upvar ::ns state alias\n    if {[info exists alias]} { puts yes }\n}\n",
+        "proc t {} {\n    namespace upvar ::ns arr(k) alias\n    if {[info exists alias]} { puts yes }\n}\n",
+    ] {
+        assert!(
+            !fires(src, D, "I230"),
+            "FP-RBS-05: alias existence guard must NOT fold to I230; emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // FP-RBS-06 — cmd-sub write-targets inside an expr body are caller-scope writes
 // ---------------------------------------------------------------------------

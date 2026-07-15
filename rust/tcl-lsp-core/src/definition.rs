@@ -32,12 +32,21 @@
 //!   descent is not done — the analyser's body-span line index
 //!   isn't currently threaded into the search path.
 //! * Bare-word references resolve to a user-defined `proc` or
-//!   `TclOO` class via `name_span`.
+//!   `TclOO` class via `name_span`.  Proc resolution follows C
+//!   Tcl's command lookup (`Tcl_FindCommand`, `tclNamesp.c`):
+//!   the caller's namespace first, then the global namespace;
+//!   an absolute `::`-prefixed word resolves exactly.  When no
+//!   candidate is defined and the word doesn't name a registry
+//!   builtin, a deterministic tail match keeps the lenient
+//!   behaviour for procs whose defining namespace isn't
+//!   statically visible at the call.
 //!
 //! Command-alias resolution: when the cursor's word matches an
 //! `interp alias {} ALIAS {} TARGET` recorded in
 //! `analysis.command_aliases`, the provider jumps to the target
-//! proc's definition (when the target is a user proc).
+//! proc's definition (when the target is a user proc), resolving
+//! the target from the global namespace — where an alias target
+//! is looked up when the alias fires.
 //!
 //! Class-member lookup: when the cursor sits on a
 //! word inside a class body span, the provider walks that
@@ -155,23 +164,34 @@ pub fn definition(
     {
         return vec![span_to_range(source, &line_index, span)];
     }
-    // Prefer the proc/class whose own declaration name span covers the
-    // cursor (so a same-named proc/class in another namespace's own decl
-    // resolves to *that* one, not whichever `all_procs`/`all_classes` entry
-    // hashes first — mirrors `references::proc_references` /
-    // `references::class_references` / `rename::rename_proc` /
-    // `rename::rename_class`); else the first entry matching the word.
+    // Prefer the proc whose own declaration name span covers the cursor (so
+    // a same-named proc in another namespace's own decl resolves to *that*
+    // one — mirrors `references::proc_references` / `rename::rename_proc`;
+    // #924).
     let cursor_offset = byte_offset_at(&line_index, source, line, character);
-    let proc_match = analysis
+    if let Some((_, proc_def)) = analysis
         .all_procs
         .iter()
         .find(|(_, p)| p.name_span.start() <= cursor_offset && cursor_offset < p.name_span.end())
-        .or_else(|| {
-            analysis.all_procs.iter().find(|(qname, p)| {
-                p.name == word || *qname == &word || *qname == &format!("::{word}")
-            })
-        });
-    if let Some((_, proc_def)) = proc_match {
+    {
+        return vec![span_to_range(source, &line_index, proc_def.name_span)];
+    }
+    // Otherwise it is a CALL — resolve namespace-aware, following C Tcl's
+    // command resolution (`Tcl_FindCommand`, `tclNamesp.c`): the caller's
+    // namespace first, then the global namespace; an absolute `::`-prefixed
+    // word resolves exactly. A word no candidate defines falls back — unless
+    // it names a registry builtin, which is what the call actually reaches —
+    // to the lenient tail match for procs whose defining namespace isn't
+    // statically visible, resolved deterministically (see
+    // [`resolve_called_proc`]).
+    let namespace = namespace_context_at(&analysis.global_scope, cursor_offset);
+    if let Some(proc_def) = resolve_called_proc(
+        analysis,
+        source,
+        &namespace,
+        &word,
+        Some(tcl_registry::registry_for_dialect("")),
+    ) {
         return vec![span_to_range(source, &line_index, proc_def.name_span)];
     }
     let class_match = analysis
@@ -196,16 +216,19 @@ pub fn definition(
     }
     // Alias resolution — when the cursor's word matches an
     // `interp alias {} ALIAS {} TARGET` recorded in
-    // `analysis.command_aliases`, jump to the TARGET proc.
-    if let Some(alias) = lookup_alias(analysis, &word) {
-        for (qname, proc_def) in &analysis.all_procs {
-            if proc_def.name == alias.target
-                || qname == &alias.target
-                || qname == &format!("::{}", alias.target)
-            {
-                return vec![span_to_range(source, &line_index, proc_def.name_span)];
-            }
-        }
+    // `analysis.command_aliases`, jump to the TARGET proc.  An alias target
+    // is looked up when the alias fires, from the global namespace, so its
+    // resolution context is `"::"` wherever the alias was written.
+    if let Some(alias) = lookup_alias(analysis, &word)
+        && let Some(proc_def) = resolve_called_proc(
+            analysis,
+            source,
+            "::",
+            &alias.target,
+            Some(tcl_registry::registry_for_dialect("")),
+        )
+    {
+        return vec![span_to_range(source, &line_index, proc_def.name_span)];
     }
     Vec::new()
 }
@@ -679,6 +702,96 @@ pub(crate) fn innermost_namespace_at(
         .to_string()
 }
 
+/// The `::`-prefixed namespace context at `byte_offset` (`"::"` at global
+/// scope), in the shape [`tcl_syntax::naming::bareword_resolution_candidates`]
+/// expects.  Built on [`innermost_namespace_at`] so call attribution here
+/// agrees with the reference / rename gates
+/// (`references::invocation_references_proc`).
+pub(crate) fn namespace_context_at(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> String {
+    let ns = innermost_namespace_at(scope, byte_offset);
+    if ns.is_empty() {
+        "::".to_owned()
+    } else {
+        format!("::{ns}")
+    }
+}
+
+/// Resolve a written call `word` to the user proc C Tcl's command resolution
+/// would pick (`Tcl_FindCommand`, `tclNamesp.c`): each candidate qualified
+/// name from [`tcl_syntax::naming::bareword_resolution_candidates`] — the
+/// caller's namespace first, then global; an absolute `::`-prefixed word is
+/// exact — looked up in `all_procs`.  `namespace` is the caller's
+/// `::`-prefixed namespace (`"::"` at global scope).
+fn proc_visible_from_namespace<'a>(
+    analysis: &'a AnalysisResult,
+    namespace: &str,
+    word: &str,
+) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    tcl_syntax::naming::bareword_resolution_candidates(namespace, word)
+        .into_iter()
+        .find_map(|qname| analysis.all_procs.get(&qname))
+}
+
+/// Resolve a call `word` written in `namespace` to the proc it denotes:
+/// C Tcl's rule first ([`proc_visible_from_namespace`]); then, unless the
+/// word names a `registry` builtin — which C Tcl would resolve instead, so a
+/// same-named proc in an unrelated namespace must not shadow it — the
+/// lenient tail match kept for procs whose defining namespace isn't
+/// statically visible at the call, made deterministic by
+/// [`fallback_proc_by_simple_name`].
+///
+/// `registry`, when `Some`, supplies the builtin gate; `None` skips the gate
+/// (callers without a registry keep the lenient behaviour).
+pub(crate) fn resolve_called_proc<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    namespace: &str,
+    word: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    if let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word) {
+        return Some(proc_def);
+    }
+    if registry.is_some_and(|r| r.get(word).is_some()) {
+        return None;
+    }
+    fallback_proc_by_simple_name(analysis, source, word)
+}
+
+/// Deterministic replacement for the old first-`HashMap`-hit tail match: of
+/// every proc whose simple name equals `word`, prefer one defined in this
+/// document ([`name_token_in_document`]), then the lexicographically
+/// smallest qualified name.  `HashMap` iteration order never decides the
+/// result.
+pub(crate) fn fallback_proc_by_simple_name<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    word: &str,
+) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    analysis
+        .all_procs
+        .iter()
+        .filter(|(_, proc_def)| proc_def.name == word)
+        .min_by(|(qname_a, proc_a), (qname_b, proc_b)| {
+            let a_foreign = !name_token_in_document(source, proc_a);
+            let b_foreign = !name_token_in_document(source, proc_b);
+            a_foreign.cmp(&b_foreign).then_with(|| qname_a.cmp(qname_b))
+        })
+        .map(|(_, proc_def)| proc_def)
+}
+
+/// Whether `proc_def`'s name token actually spells its name in `source` —
+/// the available evidence that the proc was defined in *this* document
+/// rather than carried in from another file's analysis.
+fn name_token_in_document(source: &str, proc_def: &tcl_compiler::analyser::ProcDef) -> bool {
+    source
+        .get(proc_def.name_span.start() as usize..proc_def.name_span.end() as usize)
+        .is_some_and(|text| text.ends_with(proc_def.name.as_str()))
+}
+
 /// Fully-qualified `::ns::var` form for a var stored in a namespace / global
 /// scope.
 fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> String {
@@ -794,6 +907,81 @@ mod tests {
         // The proc name span is on line 0 starting at column 5.
         assert_eq!(locs[0].start_line, 0);
         assert_eq!(locs[0].start_character, 5);
+    }
+
+    // namespace-aware proc resolution (C Tcl `Tcl_FindCommand` order)
+
+    #[test]
+    fn unqualified_call_resolves_in_callers_namespace_first() {
+        // Two namespaces each define `helper`; the unqualified call inside
+        // ::b must land on ::b::helper — C Tcl resolves the current
+        // namespace before global, never a sibling namespace.
+        let src = "namespace eval a {\n    proc helper {} { return 1 }\n}\nnamespace eval b {\n    proc helper {} { return 2 }\n    helper\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the bare `helper` call (line 5).
+        let locs = definition(src, 5, 6, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 4, "must resolve to ::b::helper");
+        assert_eq!(locs[0].start_character, 9);
+    }
+
+    #[test]
+    fn unqualified_call_at_global_prefers_global_proc() {
+        // A global ::helper exists alongside ::a::helper; a global-scope
+        // call resolves the global proc (the only candidate C Tcl tries).
+        let src = "namespace eval a {\n    proc helper {} { return 1 }\n}\nproc helper {} { return 0 }\nhelper\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 2, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 3, "must resolve to ::helper");
+    }
+
+    #[test]
+    fn global_call_with_only_namespaced_procs_falls_back_deterministically() {
+        // No ::helper exists, so no candidate resolves; the lenient tail
+        // fallback fires and must be deterministic — the lexicographically
+        // smallest qualified name (::a::helper), on every repeat, never a
+        // `HashMap`-iteration-order pick.
+        let src = "namespace eval z {\n    proc helper {} { return 26 }\n}\nnamespace eval a {\n    proc helper {} { return 1 }\n}\nhelper\n";
+        let analysis = analyse(src);
+        for attempt in 0..8 {
+            let locs = definition(src, 6, 2, &analysis);
+            assert_eq!(locs.len(), 1, "attempt {attempt}: {locs:?}");
+            assert_eq!(
+                locs[0].start_line, 4,
+                "attempt {attempt}: fallback must pick ::a::helper"
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_named_namespace_proc_resolves_inside_its_namespace_only() {
+        // `proc set` inside ::ns shadows the builtin *within* the namespace;
+        // a global-scope `set` reaches the builtin, so no user-proc jump.
+        let src = "namespace eval ns {\n    proc set {key value} { return $value }\n    set x 1\n}\nset y 2\n";
+        let analysis = analyse(src);
+        // Inside the namespace: the proc wins.
+        let inside = definition(src, 2, 5, &analysis);
+        assert_eq!(inside.len(), 1, "{inside:?}");
+        assert_eq!(inside[0].start_line, 1);
+        // At global scope the builtin wins — no definition to jump to.
+        let global = definition(src, 4, 1, &analysis);
+        assert!(global.is_empty(), "{global:?}");
+    }
+
+    #[test]
+    fn qualified_relative_call_prefers_current_namespace_then_global() {
+        // `sub::p` written inside ::ns resolves ::ns::sub::p before
+        // ::sub::p; the absolute `::sub::p` resolves exactly (confirmed
+        // against tclsh — see `bareword_resolution_candidates`).
+        let src = "namespace eval ns {\n    namespace eval sub {\n        proc p {} { return 1 }\n    }\n    sub::p\n}\nnamespace eval sub {\n    proc p {} { return 2 }\n}\n::sub::p\n";
+        let analysis = analyse(src);
+        let relative = definition(src, 4, 5, &analysis);
+        assert_eq!(relative.len(), 1, "{relative:?}");
+        assert_eq!(relative[0].start_line, 2, "must prefer ::ns::sub::p");
+        let absolute = definition(src, 9, 4, &analysis);
+        assert_eq!(absolute.len(), 1, "{absolute:?}");
+        assert_eq!(absolute[0].start_line, 7, "::sub::p is absolute");
     }
 
     #[test]

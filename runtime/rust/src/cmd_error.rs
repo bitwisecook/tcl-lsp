@@ -43,20 +43,13 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"throw", throw_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 // -- catch -----------------------------------------------------------------
 
 /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
 /// completion code, and return it as an integer (0=ok … 4=continue).
 fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
-        return wrong_args(interp, b"catch script ?resultVarName? ?optionVarName?");
+        return interp.wrong_args(b"catch script ?resultVarName? ?optionVarName?");
     }
     // `catch` is bytecode-compiled inline (C's `TclCompileCatchCmd`): a literal
     // body runs in the **same** `info frame` level and the same `codePtr->source`
@@ -157,7 +150,7 @@ fn build_options(interp: &mut Interp, code: Code) -> *mut TclObj {
 /// unwinds. `errorCode` defaults to `NONE`. (`tclProc.c` `Tcl_ErrorObjCmd`.)
 fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
-        return wrong_args(interp, b"error message ?errorInfo? ?errorCode?");
+        return interp.wrong_args(b"error message ?errorInfo? ?errorCode?");
     }
     // An explicit `errorCode` arg is honoured verbatim — even when empty, it
     // reads back empty rather than the `NONE` default (error-4.5).
@@ -243,7 +236,7 @@ fn errorcode_prefix_match(pattern: &[u8], errorcode: &[u8]) -> bool {
 fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"try body ?handler ...? ?finally script?";
     if argv.len() < 2 {
-        return wrong_args(interp, USAGE);
+        return interp.wrong_args(USAGE);
     }
     let body = argv[1];
 
@@ -455,7 +448,7 @@ fn bind_handler_vars(
 /// list). Equivalent to `return -code error -errorcode $type $message`.
 fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"throw type message");
+        return interp.wrong_args(b"throw type message");
     }
     let ecode = obj_bytes(argv[1]);
     match crate::parse::split_list(&ecode) {

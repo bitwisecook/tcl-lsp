@@ -42,11 +42,17 @@ fn test_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let n = args.len();
     // Skip name (0) and description (1); scan option positions in *pairs* so a
     // value that is literally `-body`/`-setup`/`-cleanup` (e.g. `-result -body`)
-    // is not misread as an option.
+    // is not misread as an option. In the option form the body roles come
+    // from the option-value model (`arg_indices_for_role` derives Body for
+    // the script-valued options), so this resolver contributes none — it
+    // owns only the legacy positional shape.
+    let _ = BODY_OPTIONS;
     let mut i = 2usize;
     while i + 1 < n {
-        if BODY_OPTIONS.contains(&args[i]) {
-            // Option form — the option-value model handles the bodies.
+        // ANY `-option` at an option position selects the option form —
+        // `test n d -result r` must not fall through to the positional
+        // branch and mis-mark the value as a body.
+        if args[i].starts_with('-') {
             return Vec::new();
         }
         i += 2;

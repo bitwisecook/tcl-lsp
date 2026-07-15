@@ -856,6 +856,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "cat",
+        // S110: conservative may-corrupt. When **every** operand is a pure
+        // byte array the result stays a byte array in both 8.6 (`StringCatCmd`
+        // → `Tcl_AppendObjToObj`'s bytearray fast path; tclsh 8.6.14-verified)
+        // and 9.0 (`TclStringCat`'s pure-bytearray path) — but any operand
+        // with a string rep (the typical `string cat $bytes " text"`) makes
+        // the result a character string, and the pass cannot prove runtime
+        // purity of every operand, so it warns on may-coerce.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::any(),
         detail: "Concatenate strings.",
@@ -934,17 +941,54 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_first),
-        arg_types: &[(
-            2,
-            ArgTypeHint {
-                expected: Some(TclType::Int),
-                shimmers: true,
-            },
-        )],
+        arg_types: &[
+            (
+                0,
+                // Needle: 8.6 reads it via `Tcl_GetUnicodeFromObj`
+                // (`StringFirstCmd`), installing the string intrep —
+                // tclsh8.6-verified: a list needle becomes `string`
+                // (`string first $l hay` → representation flips list→string).
+                // 9.0's `TclStringFirst` keeps the rep only when needle AND
+                // haystack are both pure byte arrays; 8.6 converts byte
+                // arrays unconditionally. A positional hint cannot see the
+                // sibling operand, so ByteArray is listed transparent — the
+                // 9.0-safe under-approximation (silent on the 8.6
+                // byte-array conversion rather than false-positive on 9.0's
+                // both-byte-array fast path).
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
+                1,
+                // Haystack: same `Tcl_GetUnicodeFromObj` read as the needle
+                // (tclsh8.6-verified: `string first pat $l` flips the
+                // haystack list→string) and the same 8.6/9.0 byte-array
+                // split — see the needle's note.
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
+                2,
+                ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                    transparent_from: &[],
+                },
+            ),
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "index",
+        // S110: keeps a pure byte-array rep in both 8.6 and 9.0
+        // (`StringIndexCmd` returns a one-byte `Tcl_NewByteArrayObj` on the
+        // `TclIsPureByteArray` path; tclsh 8.6.14-verified).
         byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::exact(2),
         detail: "Return character at index.",
@@ -952,17 +996,37 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_index),
-        arg_types: &[(
-            1,
-            ArgTypeHint {
-                expected: Some(TclType::Int),
-                shimmers: true,
-            },
-        )],
+        arg_types: &[
+            (
+                0,
+                // The subject installs the `tclStringType` intrep
+                // (`SetStringFromAny` via the char-indexing path), replacing
+                // a List/Dict/Int/… rep — tclsh-verified (a list becomes
+                // `string`). A pure byte array short-circuits before the
+                // conversion and keeps its rep.
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
+                1,
+                ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                    transparent_from: &[],
+                },
+            ),
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "insert",
+        // S110 (9.0-only subcommand): built on `TclStringReplace`, so a pure
+        // byte-array operand with a pure byte-array insertion keeps the
+        // byte-array rep, but the typical string insertion coerces —
+        // `Coerces` is the may-corrupt classification.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::exact(3),
         detail: "Insert string at index.",
@@ -975,6 +1039,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -1024,13 +1089,41 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_last),
-        arg_types: &[(
-            2,
-            ArgTypeHint {
-                expected: Some(TclType::Int),
-                shimmers: true,
-            },
-        )],
+        arg_types: &[
+            (
+                0,
+                // Needle: mirrors `string first` — 8.6's `StringLastCmd`
+                // reads both operands via `Tcl_GetUnicodeFromObj`
+                // (tclsh8.6-verified: a list needle flips to `string`);
+                // 9.0's `TclStringLast` keeps the rep only for the
+                // both-pure-byte-array pair, so ByteArray is listed
+                // transparent as the 9.0-safe under-approximation.
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
+                1,
+                // Haystack: same read and same 8.6/9.0 byte-array split as
+                // the needle (tclsh8.6-verified: `string last pat $l` flips
+                // the haystack list→string).
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
+                2,
+                ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                    transparent_from: &[],
+                },
+            ),
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1041,10 +1134,28 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_length),
+        // `Tcl_GetCharLength` installs the `tclStringType` intrep
+        // (`SetStringFromAny`), replacing a List/Dict/Int/… rep —
+        // tclsh-verified (`set i 5; incr i; string length $i` leaves `i` a
+        // `string`). A pure byte array short-circuits to its byte count and
+        // keeps its rep, so it is transparent here even though the
+        // subcommand is no byte-array value-transform
+        // (`byte_array_effect: None` — the result is a count, not bytes).
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::String),
+                shimmers: true,
+                transparent_from: &[TclType::ByteArray],
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "map",
+        // S110: always builds a character string from the Unicode rep in both
+        // 8.6 and 9.0 (`StringMapCmd`; tclsh 8.6.14-verified — a bytearray
+        // operand yields a string). The canonical K22406348 corruption step.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::at_least(2),
         detail: "Map substrings via key-value pairs.",
@@ -1062,13 +1173,42 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 min_version: None,
             }]
         },
-        arg_types: &[(
-            0,
-            ArgTypeHint {
-                expected: Some(TclType::Dict),
-                shimmers: true,
-            },
-        )],
+        arg_types: &[
+            (
+                0,
+                // Mapping: both 8.6 and 9.0 (`StringMapCmd`) take the dict
+                // iteration path only for a *pure* dict (`tclDictType` with
+                // no string rep) and hand everything else to
+                // `TclListObjGetElements`, which installs the LIST intrep —
+                // tclsh8.6-verified: a plain-string mapping flips to
+                // `list`, a list mapping stays `list`, a `dict create`
+                // mapping stays `dict`. The previous `expected: Dict` hint
+                // was refuted by that probe (a list mapping never converts
+                // to dict). Dict is listed transparent for the pure-dict
+                // path; a dict that has regenerated its string rep does
+                // re-parse as a list, which this positional hint cannot
+                // see — deliberate under-approximation.
+                ArgTypeHint {
+                    expected: Some(TclType::List),
+                    shimmers: true,
+                    transparent_from: &[TclType::Dict],
+                },
+            ),
+            (
+                1,
+                // Subject: read via `Tcl_GetUnicodeFromObj` unconditionally
+                // in both 8.6 and 9.0 (`StringMapCmd`), installing the
+                // string intrep — tclsh8.6-verified: a list subject flips
+                // list→string and a pure byte-array subject flips
+                // bytearray→string (no byte-array fast path in either
+                // release), so nothing is transparent here.
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[],
+                },
+            ),
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1092,6 +1232,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "range",
+        // S110: keeps a pure byte-array rep in both 8.6 and 9.0
+        // (`Tcl_GetRange`'s `TclIsPureByteArray` path returns
+        // `Tcl_NewByteArrayObj`; tclsh 8.6.14-verified in the interpreted
+        // and compiled paths).
         byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::exact(3),
         detail: "Return substring by index range.",
@@ -1101,10 +1245,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         const_fold: Some(fold_range),
         arg_types: &[
             (
+                0,
+                // Subject: installs the string intrep except for the pure
+                // byte-array fast path — see `string index` arg 0.
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
                 1,
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1112,6 +1267,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1119,6 +1275,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "repeat",
+        // S110: 8.6 builds the result from the string rep (`StringReptCmd` →
+        // `TclGetStringFromObj` + fresh buffer; tclsh 8.6.14-verified — a
+        // bytearray operand yields a pure string). 9.0 differs:
+        // `TclStringRepeat` pre-sizes a pure byte-array result for a pure
+        // byte-array operand. `Coerces` is the 8.6-conservative may-corrupt
+        // classification.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::exact(2),
         detail: "Repeat string N times.",
@@ -1131,12 +1293,20 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "replace",
+        // S110: 8.6 always builds the result from the Unicode rep
+        // (`StringRplcCmd` → `Tcl_GetUnicodeFromObj`; tclsh 8.6.14-verified —
+        // a bytearray operand yields a string). 9.0 differs: `TclStringReplace`
+        // keeps a pure byte-array rep when the operand *and* the replacement
+        // are both pure byte arrays (or the replacement is omitted); a string
+        // replacement still coerces. `Coerces` is the 8.6-conservative
+        // may-corrupt classification.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(3, 4),
         detail: "Replace range with new string.",
@@ -1146,10 +1316,25 @@ static SUBCOMMANDS: &[SubCommand] = &[
         const_fold: Some(fold_replace),
         arg_types: &[
             (
+                0,
+                // Subject: installs the string intrep — tclsh8.6-verified:
+                // a list subject flips list→string while a pure byte-array
+                // subject keeps its rep (8.6's index computation
+                // short-circuits on `TclIsPureByteArray`, and 9.0's
+                // `TclStringReplace` has the same pure-byte-array path), so
+                // ByteArray is transparent.
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                    transparent_from: &[TclType::ByteArray],
+                },
+            ),
+            (
                 1,
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1157,6 +1342,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1164,6 +1350,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "reverse",
+        // S110: keeps a pure byte-array rep in both 8.6 and 9.0
+        // (`TclStringReverse`'s `TclIsPureByteArray` path reverses the bytes;
+        // tclsh 8.6.14-verified).
         byte_array_effect: ByteArrayEffect::Transparent,
         arity: Arity::exact(1),
         detail: "Reverse character order.",
@@ -1173,6 +1362,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
         const_fold: Some(fold_reverse),
         // Added in Tcl 8.5.
         dialects: Some(DialectSet::TCL85_PLUS),
+        arg_types: &[(
+            0,
+            // Subject: `TclStringReverse` calls `SetStringFromAny` in 8.6
+            // (`Tcl_GetUnicode` in 9.0) for anything that is not a pure
+            // byte array — tclsh8.6-verified: a list subject flips
+            // list→string; a pure byte-array subject keeps its rep via the
+            // `TclIsPureByteArray` byte-reversal path in both releases.
+            ArgTypeHint {
+                expected: Some(TclType::String),
+                shimmers: true,
+                transparent_from: &[TclType::ByteArray],
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1190,6 +1392,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1197,6 +1400,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1217,6 +1421,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1224,6 +1429,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1244,6 +1450,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -1251,6 +1458,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],
@@ -1258,7 +1466,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trim",
-        byte_array_effect: ByteArrayEffect::Transparent,
+        // S110 correction (was `Transparent`): whenever `trim` actually
+        // strips characters it builds a fresh *string* from the UTF rep in
+        // both 8.6 and 9.0 (`StringTrimCmd` → `Tcl_NewStringObj`, and the
+        // compiled `INST_STR_TRIM` likewise; tclsh 8.6.14-verified — trimming
+        // whitespace off a bytearray yields a pure string). The byte-array
+        // rep survives only the compiled *no-op* trim (nothing stripped →
+        // the same object is returned) — 8.6's interpreted command proc
+        // strings-ifies even that — so `Coerces` (may-corrupt) is the honest
+        // classification for both versions.
+        byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(1, 2),
         detail: "Trim leading and trailing characters.",
         synopsis: "string trim string ?chars?",
@@ -1269,7 +1486,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimleft",
-        byte_array_effect: ByteArrayEffect::Transparent,
+        // S110 correction (was `Transparent`): see `trim` above — an
+        // effective trim builds a fresh string in both 8.6 and 9.0
+        // (`StringTrimLCmd` / `INST_STR_TRIM_LEFT`).
+        byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(1, 2),
         detail: "Trim leading characters.",
         synopsis: "string trimleft string ?chars?",
@@ -1280,7 +1500,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimright",
-        byte_array_effect: ByteArrayEffect::Transparent,
+        // S110 correction (was `Transparent`): see `trim` above — an
+        // effective trim builds a fresh string in both 8.6 and 9.0
+        // (`StringTrimRCmd` / `INST_STR_TRIM_RIGHT`).
+        byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(1, 2),
         detail: "Trim trailing characters.",
         synopsis: "string trimright string ?chars?",
@@ -1296,11 +1519,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string wordend string charIndex",
         pure: true,
         return_type: Some(TclType::Int),
+        // Subject (index 0) deliberately carries NO hint: 8.6's
+        // `StringEndCmd` reads it via `TclGetStringFromObj` + `Tcl_UtfAtIndex`
+        // (dual-ported — tclsh8.6-verified: a list subject stays `list`).
+        // 9.0 switched to `Tcl_GetUnicodeFromObj`, which DOES install the
+        // string intrep; the hint table is dialect-agnostic, so stamping it
+        // would false-positive on 8.6 — the dominant dialect — and stays
+        // un-stamped per the verified-only rule.
         arg_types: &[(
             1,
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -1312,11 +1543,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string wordstart string charIndex",
         pure: true,
         return_type: Some(TclType::Int),
+        // Subject (index 0) deliberately un-stamped — same 8.6 dual-ported
+        // read / 9.0 `Tcl_GetUnicodeFromObj` divergence as `wordend`.
         arg_types: &[(
             1,
             ArgTypeHint {
                 expected: Some(TclType::Int),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         ..SubCommand::DEFAULT
@@ -1341,6 +1575,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::String),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

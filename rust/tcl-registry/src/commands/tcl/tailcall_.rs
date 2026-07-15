@@ -30,7 +30,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tailcall",
-        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::REPLACES_FRAME,
         dialects: Some(DialectSet::TCL86_PLUS),
         // Tcl 9.0: ``tailcall`` with no args clears any scheduled
         // tailcall; with args it replaces it.  Real arity is 0..∞.

@@ -167,6 +167,202 @@ pub enum CodegenHookId {
     Upvar,
 }
 
+/// Typed identifier for an *inline* (value-position) bytecode codegen
+/// specialisation.
+///
+/// Identifies which command shape gets a hand-written inline emitter
+/// on the compiler's command-substitution / catch-body paths — the
+/// `[cmd …]` value-position dispatch in
+/// `tcl_compiler::codegen::cmd_subst::emit_inline_cmd_subst` and the
+/// single-command catch/try-body dispatch in
+/// `tcl_compiler::codegen::control_flow::emit_catch_body`. The
+/// compiler owns the per-variant emitters (and their applicability
+/// guards — arity / shape / proc-context); the registry stamps which
+/// command form picks which emitter, exactly as [`CodegenHookId`]
+/// does for the statement-position dispatch in
+/// `tcl_compiler::codegen::emitter::bytecoded`. A new variant here
+/// gives the compiler a compile-time match-exhaustion error until the
+/// new arm is wired up. A dispatcher matches only the variants it
+/// specialises in its own context — an unmatched variant falls to
+/// that dispatcher's generic-invoke arm (e.g. [`Self::Break`] is
+/// specialised in a catch body but generic in plain value position).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InlineCodegenHookId {
+    /// `expr expression` — inline typed-expression compilation
+    /// (value position and catch body).
+    Expr,
+    /// `incr varName ?increment?` — LVT / stack increment.
+    Incr,
+    /// `info exists varName` — `existScalar` / `existStk`
+    /// (subcommand-keyed: stamped on `info`'s `exists` subcommand).
+    InfoExists,
+    /// `string <subcommand> …` — per-subcommand string ops with an
+    /// FQN `::tcl::string::*` invoke fallback.
+    String,
+    /// `lindex list index ?index …?`.
+    Lindex,
+    /// `lrange list first last`.
+    Lrange,
+    /// `lreplace list first last ?element …?`.
+    Lreplace,
+    /// `linsert list index ?element …?`.
+    Linsert,
+    /// `regexp ?-nocase? ?--? pattern subject`.
+    Regexp,
+    /// `list ?arg …?` (non-expanding form).
+    List,
+    /// `array <subcommand> …` — `exists` / `names` / `size` forms.
+    Array,
+    /// `dict get dictionary ?key …?` (subcommand-keyed: stamped on
+    /// `dict`'s `get` subcommand).
+    DictGet,
+    /// `catch body ?resultVar? ?optionsVar?` — inline
+    /// `beginCatch4`/`endCatch` sequence.
+    Catch,
+    /// `return ?-code C? ?-level L? ?value?` inside a catch body —
+    /// `returnImm` with compile-time-folded code/level.
+    Return,
+    /// `error message ?info? ?code?` inside a catch/try body —
+    /// `returnImm 1 0`.
+    Error,
+    /// `break` inside a catch body — the `break` opcode.
+    Break,
+    /// `continue` inside a catch body — the `continue` opcode.
+    Continue,
+    /// `try body on error {var} handler` inside a catch body —
+    /// inline two-range catch/handler sequence.
+    Try,
+}
+
+/// Typed identifier for an analyser per-command handler family.
+///
+/// The analyser's central dispatch
+/// (`tcl_compiler::analyser` — `dispatch_command_handlers`) used to
+/// chain ~28 `handle_*` methods, each re-checking the command-name
+/// literal it owned.  The registry now stamps which handler family
+/// owns a command form — a subcommand-level stamp (`namespace eval`
+/// vs `namespace import`, `dict for` vs `dict update`) overrides the
+/// command level, exactly like [`InlineCodegenHookId`] — and the
+/// dispatcher performs one typed `match` on the resolved hook.  The
+/// compiler keeps the handler implementations and their *shape*
+/// guards (arity, braced-body, literalness); the registry keeps only
+/// the catalogue.  A new variant gives the analyser a deliberate
+/// compile-time match-exhaustion error until its arm is wired up.
+///
+/// Resolution matches the retired guards exactly: the head must be
+/// the spec's own spelling (a `::`-qualified head resolves no hook,
+/// as the literal guards never matched one) and a subcommand word
+/// must match its `SubCommand` name exactly (no prefix abbreviation).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AnalyserHookId {
+    /// `set varName ?value?` — defines (two-arg form) or reads
+    /// (one-arg form) the variable and tracks constant-string values.
+    /// The `set auto_path PATH` special case is dispatched from the
+    /// same arm.
+    Set,
+    /// `variable name ?value? ...` — declares each name, skipping the
+    /// optional value words.
+    Variable,
+    /// `global name ...` — declares the unqualified tail of each name
+    /// as a local alias.
+    Global,
+    /// `proc name params body` — records the proc and walks its body
+    /// in a fresh proc scope.
+    Proc,
+    /// `apply {{params} body ?ns?} ?arg ...?` — models the lambda like
+    /// a `proc` (params bind in a fresh scope; element 1 is the body).
+    Apply,
+    /// `uplevel #0 script` — the global-frame form opens an uplevel
+    /// scope; every other `uplevel` shape falls through to the generic
+    /// body recursion.
+    Uplevel,
+    /// `namespace eval ns ?body?` — opens a namespace child scope
+    /// (stamped on `namespace`'s `eval` subcommand).
+    NamespaceEval,
+    /// `namespace ensemble create ?options?` — records the enclosing
+    /// namespace (and an explicit `-command` name) as an ensemble.
+    NamespaceEnsemble,
+    /// `namespace import ?-force? pattern ...` — records literal
+    /// import patterns; a dynamic pattern flips the dynamic-providers
+    /// flag.
+    NamespaceImport,
+    /// `namespace path {ns ...}` — records the namespace's
+    /// command-resolution search path.
+    NamespacePath,
+    /// `namespace unknown handler` — installing a handler makes
+    /// command resolution unknowable (dynamic providers).
+    NamespaceUnknown,
+    /// `namespace upvar ns otherVar myVar ...` — binds each `myVar`
+    /// local alias.
+    NamespaceUpvar,
+    /// `foreach varList list ?varList list ...? body` — defines the
+    /// loop variables and walks the body.  Also stamped on the EDA
+    /// `foreach_in_collection` (same shape).
+    Foreach,
+    /// `for init test next body` — walks init / next / body.
+    For,
+    /// `switch ?options? string ?pattern body ...?` — walks each arm
+    /// body and records `-regexp` patterns.
+    Switch,
+    /// `catch script ?resultVar? ?optionsVar?` — walks the guarded
+    /// body and defines the result / options variables.
+    Catch,
+    /// `try body ?on/trap code varList body ...? ?finally body?` —
+    /// walks every clause and binds handler variable lists.
+    Try,
+    /// `upvar ?level? otherVar myVar ...` — binds each `myVar` local
+    /// alias.
+    Upvar,
+    /// `dict for {keyVar valueVar} dict body` — defines the two loop
+    /// variables (stamped on `dict`'s `for` subcommand).
+    DictFor,
+    /// `dict update dictVar key var ?key var ...? body` — binds each
+    /// `var` (stamped on `dict`'s `update` subcommand).
+    DictUpdate,
+    /// `dict with dictVar body` — binds the keys of a
+    /// constant-propagated dict value (stamped on `dict`'s `with`
+    /// subcommand).
+    DictWith,
+    /// `interp alias {} name {} target ?arg ...?` — records (or, in
+    /// the four-word form, deletes) a current-interpreter alias
+    /// (stamped on `interp`'s `alias` subcommand).
+    InterpAlias,
+    /// `rename oldName newName` — records a static rename / deletion;
+    /// a dynamic operand reports back so the caller can widen the
+    /// dynamic-providers flag.
+    Rename,
+    /// `oo::define class ?script | member args?` — extends a recorded
+    /// class from the definition script or inline member form.
+    OoDefine,
+    /// `oo::objdefine object ...` — records the object variable so
+    /// per-instance method extensions suppress unknown-method noise.
+    OoObjdefine,
+    /// `package require ?-exact? name ?version?` — records the
+    /// dependency (stamped on `package`'s `require` subcommand).
+    PackageRequire,
+    /// `package provide name ?version?` — records the provided
+    /// package (stamped on `package`'s `provide` subcommand).
+    PackageProvide,
+    /// `source ?-encoding enc? fileName` — records the source target.
+    Source,
+    /// `append varName ?value ...?` — read-modify-write variable
+    /// definition.
+    Append,
+    /// `lappend varName ?value ...?` — like [`Self::Append`]; the
+    /// `lappend auto_path PATH ...` special case is dispatched from
+    /// the same arm.
+    Lappend,
+    /// `regexp` / `regsub` — records literal / constant-propagated
+    /// pattern arguments for highlighting.
+    RegexPatternCapture,
+    /// `incr varName ?increment?` — defines the variable
+    /// (safe-on-uninit).
+    Incr,
+    /// `load libFile ?prefix? ?interp?` — brings a shared library's
+    /// commands in at runtime: flips the dynamic-providers flag.
+    Load,
+}
+
 /// Typed identifier for a WASM-runtime codegen specialisation.
 ///
 /// Reserved for the WASM-target codegen path
@@ -244,6 +440,14 @@ pub struct ArgTypeHint {
     pub expected: Option<crate::types::TclType>,
     /// Whether converting to this type destroys a previous intrep (shimmer).
     pub shimmers: bool,
+    /// Current intreps the operation reads directly, without installing
+    /// [`Self::expected`] — no shimmer happens for an operand already in one
+    /// of these representations even though it differs from `expected`.
+    /// E.g. `string length`/`index`/`range` have a pure-byte-array fast path
+    /// (`Tcl_GetCharLength` short-circuits before `SetStringFromAny`;
+    /// tclsh-verified the intrep survives), so their string argument is
+    /// `expected: String, shimmers: true, transparent_from: &[ByteArray]`.
+    pub transparent_from: &'static [crate::types::TclType],
 }
 
 #[cfg(test)]

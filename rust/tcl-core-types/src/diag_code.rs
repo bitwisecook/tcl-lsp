@@ -370,6 +370,7 @@ diagnostic_codes! {
     S100 => "S100", diag(Shimmer, true, "Single shimmer outside a loop — object internal representation changed.");
     S101 => "S101", diag(Shimmer, true, "Shimmer inside a loop body — per-iteration representation conversion cost.");
     S102 => "S102", diag(Shimmer, true, "Variable oscillates between two types across loop iterations.");
+    S103 => "S103", diag(Shimmer, true, "Mutation of a potentially shared value copies it — Tcl duplicates a shared value before a `lappend`/`lset`/`dict` write.");
     S110 => "S110", diag(Shimmer, true, "Byte-array value coerced to a string by a string operation — binary representation corrupted.");
     T100 => "T100", diag(Taint, true, "Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion).");
     T101 => "T101", diag(Taint, true, "Tainted data flows into an output command (`puts`).");

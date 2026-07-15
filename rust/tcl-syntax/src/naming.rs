@@ -80,6 +80,29 @@ pub fn ends_with_separator(name: &[u8]) -> bool {
     name.len() >= 2 && name[name.len() - 1] == b':' && name[name.len() - 2] == b':'
 }
 
+/// [`qualifier_segments`] over a `&str`, as owned `String`s — the one shared
+/// segment split for consumers that hold qualified names as strings (the
+/// compiler's interprocedural/optimiser namespace walks). Same colon-run rule:
+/// `::a:::b::` → `["a", "b"]`.
+///
+/// ```
+/// use tcl_syntax::naming::qualifier_segments_owned;
+/// assert_eq!(qualifier_segments_owned("::a::b::cmd"), vec!["a", "b", "cmd"]);
+/// assert_eq!(qualifier_segments_owned("a:::b"), vec!["a", "b"]);
+/// assert!(qualifier_segments_owned("::").is_empty());
+/// ```
+#[must_use]
+pub fn qualifier_segments_owned(name: &str) -> Vec<String> {
+    qualifier_segments(name.as_bytes())
+        .into_iter()
+        .map(|s| {
+            core::str::from_utf8(s)
+                .expect("subslice of valid UTF-8")
+                .to_owned()
+        })
+        .collect()
+}
+
 /// Strip a variable reference's substitution sigil (`$`, `${…}`) while
 /// **keeping** any array-index suffix — the form an evaluator needs to read the
 /// actual variable (`$arr(idx)` → `arr(idx)`, `${v}` → `v`, `$x` → `x`). Unlike
@@ -131,23 +154,32 @@ pub fn normalise_var_name(name: &str) -> &str {
     }
 }
 
-/// Return `true` when `${name}` would successfully look up `name`.
+/// Return `true` when `${name}` would successfully look up `name` under the
+/// given `${…}` delimiting rule.
 ///
-/// Mirrors Tcl 9.0.3's `Tcl_ParseVarName` brace-form parser
-/// (`tclParse.c` §1383+):
+/// `nesting` selects the dialect's `Tcl_ParseVarName` brace-form parser
+/// (`LexerConfig::braced_var`):
 ///
-/// - `\X` (backslash + any char) consumes 2 source chars, both kept in
-///   the lookup name — so a `}` preceded by `\` does not end the span.
-/// - `{` / `}` are tracked with a depth counter; only a `}` at depth 0
-///   ends the var-name span.
+/// - **`true` — Tcl 9.x** (tcl9.0.1 `tclParse.c`, the `braceCount` loop):
+///   `\X` consumes 2 source chars, both kept in the lookup name — so a `}`
+///   preceded by `\` does not end the span — and `{` / `}` are tracked with
+///   a depth counter; only a `}` at depth 0 ends the var-name span.
+///   Unreachable: a `}` at depth 0, a trailing lone `\`, or unbalanced `{`.
+/// - **`false` — the 8.x family** (8.6.14 `tclParse.c:1466`,
+///   tclsh-verified): the name is everything up to the FIRST literal `}`,
+///   with no nesting and no backslash processing — so any name containing a
+///   `}` is unreachable, and `{` / `\` are ordinary name characters.
 ///
-/// Returns `false` for a `}` at depth 0, a trailing lone `\`, or
-/// unbalanced `{` (depth > 0 at end).  Drives the W215 reachability
-/// check.
+/// Drives the W215 reachability check.
 #[must_use]
-pub fn is_brace_substitutable(name: &str) -> bool {
+pub fn is_brace_substitutable(name: &str, nesting: bool) -> bool {
     if name.is_empty() {
         return true; // `${}` looks up the var literally named "".
+    }
+    if !nesting {
+        // 8.x: the first literal `}` closes the form, so a name containing
+        // one can never be spelt; everything else is verbatim.
+        return !name.contains('}');
     }
     let b = name.as_bytes();
     let n = b.len();
@@ -174,10 +206,13 @@ pub fn is_brace_substitutable(name: &str) -> bool {
 
 /// Return `true` when `$name` would lex as a single bare variable token.
 ///
-/// Mirrors `compiler/parsing/lexer._parse_var`'s bare-form rule: a name is
-/// one or more `::`-separated segments, each consisting of Unicode alnum or
-/// `_` characters, with an optional leading `::`.  Used to decide between
-/// the bare `$name` and brace `${name}` forms in quick fixes.
+/// A name is one or more `::`-separated segments of **ASCII** alphanumerics
+/// or `_`, with an optional leading `::` — `TclIsBareword` is ASCII-only in
+/// every Tcl (8.6.14 and 9.0.1 `tclParse.c`; the man page: "Letters and
+/// digits are only the standard ASCII ones"), so `$café` names the variable
+/// `caf`. Used to decide between the bare `$name` and brace `${name}` forms
+/// in quick fixes — a Unicode-permissive rule here would let a
+/// `${café}` → `$café` rewrite silently change which variable is read.
 ///
 /// ```
 /// use tcl_syntax::naming::is_bare_var_name;
@@ -185,6 +220,7 @@ pub fn is_brace_substitutable(name: &str) -> bool {
 /// assert!(is_bare_var_name("ns::bar"));
 /// assert!(is_bare_var_name("::baz"));
 /// assert!(!is_bare_var_name("has-dash"));
+/// assert!(!is_bare_var_name("café"));
 /// assert!(!is_bare_var_name(""));
 /// ```
 #[must_use]
@@ -200,7 +236,10 @@ pub fn is_bare_var_name(name: &str) -> bool {
         if segment.is_empty() {
             return false;
         }
-        if !segment.chars().all(|ch| ch.is_alphanumeric() || ch == '_') {
+        if !segment
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        {
             return false;
         }
     }
@@ -704,17 +743,33 @@ mod tests {
     }
 
     #[test]
-    fn brace_substitutable_cases() {
-        // Reachable names.
-        assert!(is_brace_substitutable(""));
-        assert!(is_brace_substitutable("foo"));
-        assert!(is_brace_substitutable("a(b)")); // `)` is fine in brace form
-        assert!(is_brace_substitutable("a{b}c")); // balanced inner braces
-        assert!(is_brace_substitutable(r"a\}b")); // `\}` consumes 2, kept
+    fn brace_substitutable_cases_tcl9_nesting() {
+        // Reachable names under the Tcl 9 rule (nested braces + `\X` pairs).
+        assert!(is_brace_substitutable("", true));
+        assert!(is_brace_substitutable("foo", true));
+        assert!(is_brace_substitutable("a(b)", true)); // `)` is fine in brace form
+        assert!(is_brace_substitutable("a{b}c", true)); // balanced inner braces
+        assert!(is_brace_substitutable(r"a\}b", true)); // `\}` consumes 2, kept
         // Unreachable names.
-        assert!(!is_brace_substitutable("a}b")); // `}` at depth 0 ends span early
-        assert!(!is_brace_substitutable(r"trail\")); // trailing lone backslash
-        assert!(!is_brace_substitutable("a{b")); // unbalanced `{`
+        assert!(!is_brace_substitutable("a}b", true)); // `}` at depth 0 ends span early
+        assert!(!is_brace_substitutable(r"trail\", true)); // trailing lone backslash
+        assert!(!is_brace_substitutable("a{b", true)); // unbalanced `{`
+    }
+
+    #[test]
+    fn brace_substitutable_cases_tcl8_first_close() {
+        // The 8.x family closes at the FIRST literal `}` (8.6.14
+        // `tclParse.c:1466`, tclsh-verified: `${a{b}}` reads variable `a{b`).
+        assert!(is_brace_substitutable("", false));
+        assert!(is_brace_substitutable("foo", false));
+        assert!(is_brace_substitutable("a(b)", false));
+        // `{` and `\` are ordinary name characters — no pairing, no escapes.
+        assert!(is_brace_substitutable("a{b", false));
+        assert!(is_brace_substitutable(r"trail\", false));
+        // ANY `}` in the name is unreachable — nesting/escapes don't help.
+        assert!(!is_brace_substitutable("a{b}c", false));
+        assert!(!is_brace_substitutable(r"a\}b", false));
+        assert!(!is_brace_substitutable("a}b", false));
     }
 
     #[test]

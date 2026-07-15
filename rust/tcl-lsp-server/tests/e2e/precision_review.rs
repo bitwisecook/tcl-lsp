@@ -93,6 +93,92 @@ fn short_unknown_command_gets_no_far_suggestion() {
     );
 }
 
+/// TP: a builtin renamed away (`rename puts {}`) no longer resolves — the
+/// later call draws W123.  FP guard: a call lexically *before* the rename
+/// still resolves to the builtin.
+#[test]
+fn renamed_away_builtin_fires_w123_only_after_the_rename() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "rename puts {}\nputs gone\n");
+    let d = find(&diags, "W123").expect("the deleted builtin draws W123");
+    assert!(
+        message_of(d).contains("'puts'"),
+        "W123 names the deleted builtin: {}",
+        message_of(d)
+    );
+
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(&uri2, "puts early\nrename puts myputs\nmyputs late\n");
+    assert!(
+        !codes(&diags2).iter().any(|c| c == "W123"),
+        "a call before the rename and the rename target both resolve: {diags2:?}"
+    );
+}
+
+/// FP guard: `coroutine NAME cmd` binds NAME as a command — calling it is
+/// not unknown.  TP control: a typo'd coroutine name still fires.
+#[test]
+fn coroutine_created_command_is_known() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc gen {} { while 1 { yield 1 } }\ncoroutine nextNum gen\nnextNum\n",
+    );
+    assert!(
+        !codes(&diags).iter().any(|c| c == "W123"),
+        "the coroutine command must be known: {diags:?}"
+    );
+
+    let uri2 = unique_uri("tcl");
+    let diags2 = lsp.open_ready(
+        &uri2,
+        "proc gen {} { while 1 { yield 1 } }\ncoroutine nextNum gen\nnextNun\n",
+    );
+    let d = find(&diags2, "W123").expect("the typo'd coroutine name draws W123");
+    assert!(message_of(d).contains("nextNun"));
+}
+
+/// FP guard: `interp create NAME` binds NAME — `NAME eval {…}` is a real
+/// dispatch, not an unknown command.
+#[test]
+fn interp_create_name_is_known() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "interp create child\nchild eval { puts hi }\n");
+    assert!(
+        !codes(&diags).iter().any(|c| c == "W123"),
+        "the created interpreter command must be known: {diags:?}"
+    );
+}
+
+/// FP guard: a literal glob `namespace import` provides the names matching
+/// its tail — an imported call is silent.  TP control: an unrelated name in
+/// the same file still fires.
+#[test]
+fn namespace_import_glob_suppresses_only_matching_names() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "namespace import ::acme::widgets::render_*\nrender_box 10\nfrobnicate 1\n",
+    );
+    let w123s: Vec<_> = diags
+        .iter()
+        .filter(|d| code_str(d) == "W123")
+        .map(message_of)
+        .collect();
+    assert!(
+        w123s.iter().all(|m| !m.contains("render_box")),
+        "the glob-imported name is known: {w123s:?}"
+    );
+    assert!(
+        w123s.iter().any(|m| m.contains("frobnicate")),
+        "an unrelated name still fires: {w123s:?}"
+    );
+}
+
 // -- W210 nested-read narrowing + cross-event suppression ------------------
 
 /// The read-before-set squiggle sits on the `$foo` read nested inside the

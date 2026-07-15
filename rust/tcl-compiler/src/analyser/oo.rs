@@ -544,7 +544,7 @@ impl Analyser {
         // snit allows a type-private `proc name args body` — analyse it as an
         // ordinary proc in the enclosing scope, not a method.
         if sub == "proc" {
-            self.handle_proc_command("proc", sub_args, sub_tokens, ctx.scope_path);
+            self.handle_proc_command(sub_args, sub_tokens, ctx.scope_path);
             return;
         }
         let Some(member) = ctx.grammar.member(sub) else {

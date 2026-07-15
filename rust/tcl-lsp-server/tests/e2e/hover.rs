@@ -226,6 +226,56 @@ fn proc_with_defaults() {
     assert!(hover(&mut lsp, &uri, 1, 2).contains("World"));
 }
 
+// -- TestNamespaceResolutionHover ------------------------------------------
+// C Tcl resolves an unqualified command in the current namespace first, then
+// the global namespace (`Tcl_FindCommand`, `tclNamesp.c`) — never a sibling
+// namespace picked by proc-table iteration order.
+
+#[test]
+fn unqualified_call_hover_prefers_callers_namespace_proc() {
+    // Two namespaces each define `helper`; hovering the unqualified call
+    // inside ::b must surface ::b::helper (with its own param list).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval a {\n    proc helper {x} { return 1 }\n}\nnamespace eval b {\n    proc helper {y} { return 2 }\n    helper 5\n}\n";
+    lsp.open_ready(&uri, src);
+    let text = hover(&mut lsp, &uri, 5, 6);
+    assert!(text.contains("proc ::b::helper {y}"), "hover: {text:?}");
+}
+
+#[test]
+fn namespace_proc_set_shadows_builtin_only_inside_its_namespace() {
+    // A namespace proc named like a builtin: inside ::ns the proc wins; at
+    // global scope only the builtin resolves — a proc in an unrelated
+    // namespace must not hijack builtin hover.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ns {\n    proc set {key value} { return $value }\n    set x 1\n}\nset y 2\n";
+    lsp.open_ready(&uri, src);
+    let inside = hover(&mut lsp, &uri, 2, 5);
+    assert!(inside.contains("proc ::ns::set"), "inside ns: {inside:?}");
+    let global = hover(&mut lsp, &uri, 4, 1);
+    assert!(global.contains("built-in"), "global: {global:?}");
+    assert!(!global.contains("::ns::set"), "global: {global:?}");
+}
+
+#[test]
+fn global_call_hover_fallback_is_deterministic() {
+    // No ::helper exists, so the lenient fallback fires — and must pick the
+    // lexicographically smallest qualified name (::a::helper), identically
+    // on every repeat (::z::helper is deliberately defined first).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval z {\n    proc helper {a} { return 26 }\n}\nnamespace eval a {\n    proc helper {b} { return 1 }\n}\nhelper 1\n";
+    lsp.open_ready(&uri, src);
+    let first = hover(&mut lsp, &uri, 6, 2);
+    assert!(first.contains("proc ::a::helper"), "hover: {first:?}");
+    for attempt in 0..3 {
+        let repeat = hover(&mut lsp, &uri, 6, 2);
+        assert_eq!(first, repeat, "attempt {attempt}: hover must be stable");
+    }
+}
+
 // -- TestVariableHover ---------------------------------------------------
 
 #[test]

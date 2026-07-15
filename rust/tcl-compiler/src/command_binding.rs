@@ -45,7 +45,7 @@ use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
-use tcl_registry::CommandRegistry;
+use tcl_registry::{CommandRegistry, CommandTableEffect};
 
 /// The lattice element a command name resolves to.
 ///
@@ -161,7 +161,9 @@ fn proc_qname_of(args: &[String]) -> Option<String> {
 ///
 /// Recognises `proc` (definition / redefinition), `rename` (redirect or
 /// deletion), and `interp alias` — plus their dynamic variants, which
-/// collapse the state to a wildcard ⊤.
+/// collapse the state to a wildcard ⊤.  Which calls mutate the command
+/// table is registry data ([`CommandTableEffect`], resolved through the
+/// spec / `alias` subcommand stamps), not a name match here.
 fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
     let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
         return;
@@ -174,8 +176,8 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
     let cmd = stmt.canonical_command_or_source();
     let cmd_bare = cmd.strip_prefix("::").unwrap_or(cmd);
 
-    match cmd_bare {
-        "proc" => match proc_qname_of(args) {
+    match registry.command_table_effect(cmd_bare, args.first().map(String::as_str)) {
+        Some(CommandTableEffect::DefinesProcedure) => match proc_qname_of(args) {
             // `proc $x …` defines an unknown name — be conservative.
             None => state.wildcard = true,
             Some(qname) => {
@@ -188,7 +190,7 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
                 );
             }
         },
-        "rename" => {
+        Some(CommandTableEffect::RenamesCommands) => {
             if args.len() != 2 || is_dynamic_word(&args[0]) || is_dynamic_word(&args[1]) {
                 // `rename $old …` / `rename … [x]` can touch any command.
                 state.wildcard = true;
@@ -203,8 +205,8 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
                 state.map.insert(nqn(&args[1]), moved);
             }
         }
-        "interp" => {
-            if let Some((alias_name, target_cmd, _prepended)) = detect_interp_alias(cmd, args) {
+        Some(CommandTableEffect::CreatesAliases) => {
+            if let Some((alias_name, target_cmd, _prepended)) = detect_interp_alias(args) {
                 if is_dynamic_word(&alias_name) || is_dynamic_word(&target_cmd) {
                     state.wildcard = true;
                     return;
@@ -216,13 +218,13 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
                         target: Some(nqn(&target_cmd)),
                     },
                 );
-            } else if args.first().map(String::as_str) == Some("alias") {
+            } else {
                 // A non-current target path or a dynamic form we could
                 // not destructure — only the alias subcommand mutates.
                 state.wildcard = true;
             }
         }
-        _ => {}
+        None => {}
     }
 }
 
@@ -542,6 +544,7 @@ fn collect_tampered_builtins(
 fn collect_proc_rebindings(
     stmt: &Statement,
     namespace: &str,
+    registry: &CommandRegistry,
     rebound: &mut std::collections::HashSet<String>,
     dynamic: &mut bool,
 ) {
@@ -550,8 +553,8 @@ fn collect_proc_rebindings(
     };
     let cmd = stmt.canonical_command_or_source();
     let cmd_bare = cmd.strip_prefix("::").unwrap_or(cmd);
-    match cmd_bare {
-        "rename" => {
+    match registry.command_table_effect(cmd_bare, args.first().map(String::as_str)) {
+        Some(CommandTableEffect::RenamesCommands) => {
             if args.len() != 2 || is_dynamic_word(&args[0]) || is_dynamic_word(&args[1]) {
                 *dynamic = true;
                 return;
@@ -561,18 +564,20 @@ fn collect_proc_rebindings(
                 insert_rebound_candidates(&args[1], namespace, rebound);
             }
         }
-        "interp" => {
-            if let Some((alias_name, target_cmd, _prepended)) = detect_interp_alias(cmd, args) {
+        Some(CommandTableEffect::CreatesAliases) => {
+            if let Some((alias_name, target_cmd, _prepended)) = detect_interp_alias(args) {
                 if is_dynamic_word(&alias_name) || is_dynamic_word(&target_cmd) {
                     *dynamic = true;
                     return;
                 }
                 insert_rebound_candidates(&alias_name, namespace, rebound);
-            } else if args.first().map(String::as_str) == Some("alias") {
+            } else {
                 *dynamic = true;
             }
         }
-        _ => {}
+        // A `proc` declaration is deliberately NOT recorded here — see
+        // the doc comment above.
+        Some(CommandTableEffect::DefinesProcedure) | None => {}
     }
 }
 
@@ -620,7 +625,7 @@ fn walk_body_calls(
     for stmt in &script.statements {
         match stmt {
             Statement::Call { .. } | Statement::Barrier { .. } => {
-                collect_proc_rebindings(stmt, namespace, rebound, dynamic);
+                collect_proc_rebindings(stmt, namespace, registry, rebound, dynamic);
                 stmt_gen(stmt, state, registry);
                 collect_tampered_builtins(state, registry, names, dynamic);
             }

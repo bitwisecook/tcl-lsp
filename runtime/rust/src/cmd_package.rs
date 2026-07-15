@@ -69,16 +69,9 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"package", package_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 fn package_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"package subcommand ?arg ...?");
+        return interp.wrong_args(b"package subcommand ?arg ...?");
     }
     match obj_bytes(argv[1]).as_slice() {
         b"provide" => provide(interp, argv),
@@ -130,7 +123,7 @@ fn provide(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"");
             Code::Ok
         }
-        _ => wrong_args(interp, b"package provide name ?version?"),
+        _ => interp.wrong_args(b"package provide name ?version?"),
     }
 }
 
@@ -144,10 +137,7 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         i += 1;
     }
     let Some(&name_obj) = argv.get(i) else {
-        return wrong_args(
-            interp,
-            b"package require ?-exact? package ?requirement ...?",
-        );
+        return interp.wrong_args(b"package require ?-exact? package ?requirement ...?");
     };
     let name = obj_bytes(name_obj);
     let reqs: Vec<Vec<u8>> = argv[i + 1..].iter().map(|&a| obj_bytes(a)).collect();
@@ -258,10 +248,7 @@ fn present(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         i += 1;
     }
     let Some(&name_obj) = argv.get(i) else {
-        return wrong_args(
-            interp,
-            b"package present ?-exact? package ?requirement ...?",
-        );
+        return interp.wrong_args(b"package present ?-exact? package ?requirement ...?");
     };
     let name = obj_bytes(name_obj);
     let reqs: Vec<Vec<u8>> = argv[i + 1..].iter().map(|&a| obj_bytes(a)).collect();
@@ -283,7 +270,7 @@ fn present(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `package ifneeded name version ?script?`.
 fn ifneeded(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
-        return wrong_args(interp, b"package ifneeded package version ?script?");
+        return interp.wrong_args(b"package ifneeded package version ?script?");
     }
     let key = (obj_bytes(argv[2]), obj_bytes(argv[3]));
     if argv.len() == 5 {
@@ -319,14 +306,14 @@ fn unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"");
             Code::Ok
         }
-        _ => wrong_args(interp, b"package unknown ?command?"),
+        _ => interp.wrong_args(b"package unknown ?command?"),
     }
 }
 
 /// `package names` — sorted names of all provided / ifneeded packages.
 fn names(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"package names");
+        return interp.wrong_args(b"package names");
     }
     let mut set: std::collections::BTreeSet<Vec<u8>> =
         interp.packages.borrow().provided.keys().cloned().collect();
@@ -341,7 +328,7 @@ fn names(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `package versions name` — versions with an `ifneeded` script.
 fn versions(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"package versions package");
+        return interp.wrong_args(b"package versions package");
     }
     let name = obj_bytes(argv[2]);
     let vers: Vec<*mut TclObj> = interp
@@ -358,10 +345,7 @@ fn versions(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn vsatisfies_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(
-            interp,
-            b"package vsatisfies version requirement ?requirement ...?",
-        );
+        return interp.wrong_args(b"package vsatisfies version requirement ?requirement ...?");
     }
     let v = obj_bytes(argv[2]);
     let ok = argv[3..].iter().all(|&r| vsatisfies(&v, &obj_bytes(r)));
@@ -371,7 +355,7 @@ fn vsatisfies_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn vcompare_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"package vcompare version1 version2");
+        return interp.wrong_args(b"package vcompare version1 version2");
     }
     let c = vcompare(&obj_bytes(argv[2]), &obj_bytes(argv[3]));
     interp.set_result_bytes(format!("{}", c as i32).as_bytes());

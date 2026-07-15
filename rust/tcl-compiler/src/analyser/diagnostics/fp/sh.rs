@@ -368,16 +368,21 @@ fn fp_sh_08_eq_both_non_numeric_no_shimmer() {
     );
 }
 
-/// FP-SH-08 TP control: `expr {$s == "5"}` with `s` STRING-typed — the
-/// other operand parses as numeric, so tclsh attempts the numeric path and
-/// coerces $s.  Genuine shimmer.
+/// FP-SH-08 guard: `expr {$s == "5"}` with `s` STRING-typed stays silent.
+/// C Tcl probes each comparison operand's OWN string with
+/// `GetNumberFromObj`: `"5"` parses (the literal shimmers, harmlessly), but
+/// `$s` = "hello" does not — the comparison falls back to a string compare
+/// and `s` keeps its intrep (tclsh-verified: `s` stays `string`). The old
+/// claim "the sibling operand parses as numeric, so `$s` is coerced" was a
+/// verified false positive.
 #[test]
-fn fp_sh_08_eq_with_numeric_literal_still_fires() {
+fn fp_sh_08_eq_with_numeric_literal_stays_silent() {
     let src = r#"proc f {} { set s [string trim hello]; set y [expr {$s == "5"}]; puts $y }"#;
     let got = codes(src, D);
     assert!(
-        got.iter().any(|c| c == "S100" || c == "S101"),
-        "FP-SH-08 TP: ==/numeric-literal mix must still fire shimmer; got {got:?}"
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-08: a comparison must not flag an operand whose own value \
+         decides the coercion; got {got:?}"
     );
 }
 
@@ -1296,19 +1301,23 @@ proc f {n} {
 // FP-SH-19 — byte-array-transparent `string` ops on a payload getter
 // ---------------------------------------------------------------------------
 
-/// FP-SH-19: `string range`/`index`/`reverse`/`trim*` keep the byte-array
-/// representation (verified against tclsh 8.6 and 9.0), so the canonical
+/// FP-SH-19: `string range`/`index`/`reverse` keep the byte-array
+/// representation (tclsh 8.6.14-verified; 9.0.1 `tclStringObj.c` has the same
+/// `TclIsPureByteArray` fast paths), so the canonical
 /// `string range $payload …` → `*::payload replace` idiom is byte-exact and
 /// must NOT fire S110. Registry-driven via `ByteArrayEffect::Transparent`.
+///
+/// `string trim*` was removed from this list: whenever a trim actually strips
+/// characters it builds a fresh string in both 8.6 and 9.0 (`StringTrimCmd` →
+/// `Tcl_NewStringObj`; the compiled `INST_STR_TRIM` keeps the object only for
+/// a no-op trim), so trim is now classified `Coerces` — see the TP control
+/// below.
 #[test]
 fn fp_sh_19_transparent_string_ops_on_payload_silent() {
     for op in [
         "string range $p 0 5",
         "string index $p 3",
         "string reverse $p",
-        "string trim $p",
-        "string trimleft $p",
-        "string trimright $p",
     ] {
         let src = format!(
             "when CLIENT_DATA {{\n  set p [TCP::payload]\n  set q [{op}]\n  \
@@ -1323,16 +1332,27 @@ fn fp_sh_19_transparent_string_ops_on_payload_silent() {
 }
 
 /// FP-SH-19 TP control: the coercing `string map` form DOES corrupt the byte
-/// array (it builds a character string), so it must still fire S110.
+/// array (it builds a character string), so it must still fire S110. The
+/// `trim*` forms coerce too whenever they actually trim (see above), so they
+/// fire alongside.
 #[test]
-fn fp_sh_19_coercing_string_map_on_payload_still_fires() {
-    let src = "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
-               TCP::payload replace 0 100 $q\n}\n";
-    assert!(
-        fires(src, "f5-irules", "S110"),
-        "FP-SH-19 TP: string map on a payload must fire S110; got {:?}",
-        codes(src, "f5-irules"),
-    );
+fn fp_sh_19_coercing_string_ops_on_payload_still_fire() {
+    for op in [
+        "string map {a b} $p",
+        "string trim $p",
+        "string trimleft $p",
+        "string trimright $p",
+    ] {
+        let src = format!(
+            "when CLIENT_DATA {{\n  set p [TCP::payload]\n  set q [{op}]\n  \
+             TCP::payload replace 0 100 $q\n}}\n"
+        );
+        assert!(
+            fires(&src, "f5-irules", "S110"),
+            "FP-SH-19 TP: coercing op '{op}' on a payload must fire S110; got {:?}",
+            codes(&src, "f5-irules"),
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1355,15 +1375,18 @@ fn fp_sh_20_ordering_compare_non_numeric_silent() {
     }
 }
 
-/// FP-SH-20 TP control: once a numeric literal forces the numeric path
-/// (`$s <= 5`), the String operand's intrep is genuinely coerced to int, so
-/// S100 must still fire.
+/// FP-SH-20 guard: `$s <= 5` stays silent too. A numeric literal on one side
+/// does NOT force the other operand onto the numeric path — the probe is
+/// per-operand on its own value, and "hello" cannot parse, so the comparison
+/// string-compares and `s` keeps its `string` intrep (tclsh-verified). The
+/// old "numeric literal forces the numeric path" claim was a verified false
+/// positive.
 #[test]
-fn fp_sh_20_ordering_compare_numeric_literal_still_fires() {
+fn fp_sh_20_ordering_compare_numeric_literal_stays_silent() {
     let src = "set s [string trim hello]\nset y [expr {$s <= 5}]\n";
     assert!(
-        fires(src, D, "S100"),
-        "FP-SH-20 TP: `$s <= 5` must fire S100; got {:?}",
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-20: `$s <= 5` must not shimmer-flag `s`; got {:?}",
         codes(src, D),
     );
 }

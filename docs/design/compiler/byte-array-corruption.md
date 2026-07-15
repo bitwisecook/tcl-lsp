@@ -38,7 +38,8 @@ re-binarifying the result — identical on Tcl 8.6.14 and 9.0.3:
 | `string tolower` | `80 e3 ff fe` (bytes changed) | **intrinsic** (case fold) |
 | `string totitle` | `80 e3 ff fe` (bytes changed) | **intrinsic** (case fold) |
 | `encoding convertto utf-8` | `c2 80 c3 83 c3 bf c3 be` | **intrinsic** (re-encode) |
-| `string range` / `index` / `reverse` / `trim` / `trimleft` / `trimright` | keeps the byte-array intrep | **transparent** |
+| `string range` / `index` / `reverse` | keeps the byte-array intrep | **transparent** |
+| `string trim` / `trimleft` / `trimright` | character string (an effective trim builds one — `StringTrimCmd` → `Tcl_NewStringObj` in 8.6 and 9.0; only a no-op trim keeps the object) | round-trip (coerce) |
 | `string map` / `replace` / `insert` / `cat` / `repeat` | character string | round-trip (coerce) |
 | `format %s` / `join` / `concat` / `split` / `regsub` / `subst` | character string | round-trip (coerce) |
 | interpolation `"$x"` / `append` | character string | round-trip (coerce) |

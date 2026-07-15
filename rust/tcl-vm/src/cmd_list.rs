@@ -23,7 +23,7 @@ use std::rc::Rc;
 use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
-use crate::interp::{Vm, err, ok};
+use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
 /// Map a portable `tcl-cmd-core` result onto the VM's `Completion`.
@@ -66,27 +66,27 @@ fn cmd_list(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn cmd_llength(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [l] => adapt(list_core::llength(vm, l)),
-        _ => err("wrong # args: should be \"llength list\""),
+        _ => err_wrong_args("llength list"),
     }
 }
 
 fn cmd_lindex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((list, idxs)) = args.split_first() else {
-        return err("wrong # args: should be \"lindex list ?index ...?\"");
+        return err_wrong_args("lindex list ?index ...?");
     };
     adapt(list_core::lindex(vm, list, idxs))
 }
 
 fn cmd_lrange(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to] = args else {
-        return err("wrong # args: should be \"lrange list first last\"");
+        return err_wrong_args("lrange list first last");
     };
     adapt(list_core::lrange(vm, list, from, to))
 }
 
 fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((name, vals)) = args.split_first() else {
-        return err("wrong # args: should be \"lappend varName ?value ...?\"");
+        return err_wrong_args("lappend varName ?value ...?");
     };
     let n = name.to_str();
     let cur = vm.var_get(&n);
@@ -122,7 +122,7 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((list, names)) = args.split_first() else {
-        return err("wrong # args: should be \"lassign list ?varName ...?\"");
+        return err_wrong_args("lassign list ?varName ...?");
     };
     let items = match as_list(list) {
         Ok(i) => i,
@@ -146,27 +146,27 @@ fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn cmd_lreverse(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [l] => adapt(list_core::lreverse(vm, l)),
-        _ => err("wrong # args: should be \"lreverse list\""),
+        _ => err_wrong_args("lreverse list"),
     }
 }
 
 fn cmd_lrepeat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((count, elems)) = args.split_first() else {
-        return err("wrong # args: should be \"lrepeat count ?value ...?\"");
+        return err_wrong_args("lrepeat count ?value ...?");
     };
     adapt(list_core::lrepeat(vm, count, elems))
 }
 
 fn cmd_linsert(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, index, elems @ ..] = args else {
-        return err("wrong # args: should be \"linsert list index ?element ...?\"");
+        return err_wrong_args("linsert list index ?element ...?");
     };
     adapt(list_core::linsert(vm, list, index, elems))
 }
 
 fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to, rest @ ..] = args else {
-        return err("wrong # args: should be \"lreplace list first last ?element ...?\"");
+        return err_wrong_args("lreplace list first last ?element ...?");
     };
     adapt(list_core::lreplace(vm, list, from, to, rest))
 }
@@ -177,7 +177,7 @@ fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// goes through `var_set`, so it fires the variable's write traces.
 fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name, from, to, rest @ ..] = args else {
-        return err("wrong # args: should be \"ledit listVar first last ?element ...?\"");
+        return err_wrong_args("ledit listVar first last ?element ...?");
     };
     let n = name.to_str();
     let Some(cur) = vm.var_get(&n) else {
@@ -201,7 +201,7 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// index argument is itself an index *list*, several arguments are a flat path.
 fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.len() < 2 {
-        return err("wrong # args: should be \"lset listVar ?index? ?index ...? value\"");
+        return err_wrong_args("lset listVar ?index? ?index ...? value");
     }
     let n = args[0].to_str();
     let value = args.last().expect("args.len() >= 2");
@@ -235,7 +235,7 @@ fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// list is stored back (firing write traces).
 fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((name, indices)) = args.split_first() else {
-        return err("wrong # args: should be \"lpop listvar ?index?\"");
+        return err_wrong_args("lpop listvar ?index?");
     };
     let n = name.to_str();
     let Some(cur) = vm.var_get(&n) else {
@@ -368,7 +368,7 @@ fn cmd_join(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [l] => adapt(list_core::join(vm, l, None)),
         [l, s] => adapt(list_core::join(vm, l, Some(s))),
-        _ => err("wrong # args: should be \"join list ?joinString?\""),
+        _ => err_wrong_args("join list ?joinString?"),
     }
 }
 
@@ -376,6 +376,6 @@ fn cmd_split(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [s] => ok(list_core::split(vm, s, None)),
         [s, c] => ok(list_core::split(vm, s, Some(c))),
-        _ => err("wrong # args: should be \"split string ?splitChars?\""),
+        _ => err_wrong_args("split string ?splitChars?"),
     }
 }

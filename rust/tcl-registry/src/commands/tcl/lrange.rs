@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `lrange` — return a range of list elements.
-use crate::hooks::CodegenHookId;
+use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -43,6 +43,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         codegen_hook: Some(CodegenHookId::Lrange),
+        inline_codegen_hook: Some(InlineCodegenHookId::Lrange),
         forms: FORMS,
         arg_types: &[
             (
@@ -50,6 +51,7 @@ pub fn spec() -> CommandSpec {
                 ArgTypeHint {
                     expected: Some(TclType::List),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -57,6 +59,7 @@ pub fn spec() -> CommandSpec {
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
             (
@@ -64,6 +67,7 @@ pub fn spec() -> CommandSpec {
                 ArgTypeHint {
                     expected: Some(TclType::Int),
                     shimmers: true,
+                    transparent_from: &[],
                 },
             ),
         ],

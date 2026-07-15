@@ -31,16 +31,9 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"array", array_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"array subcommand arrayName ?arg ...?");
+        return interp.wrong_args(b"array subcommand arrayName ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
     let sub_str = String::from_utf8_lossy(&sub);
@@ -79,14 +72,14 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // argv: array default <subcmd> arrayName ?value?
     if argv.len() < 4 {
-        return wrong_args(interp, b"array default subcommand arrayName ?value?");
+        return interp.wrong_args(b"array default subcommand arrayName ?value?");
     }
     let sub = obj_bytes(argv[2]);
     let name = obj_bytes(argv[3]);
     match sub.as_slice() {
         b"set" => {
             if argv.len() != 5 {
-                return wrong_args(interp, b"array default set arrayName value");
+                return interp.wrong_args(b"array default set arrayName value");
             }
             match interp.set_array_default(&name, argv[4]) {
                 Ok(()) => {
@@ -104,7 +97,7 @@ fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"get" => {
             if argv.len() != 4 {
-                return wrong_args(interp, b"array default get arrayName");
+                return interp.wrong_args(b"array default get arrayName");
             }
             // Missing var or scalar both error (C: `!varPtr || undefined || !isArray`).
             if !interp.var_is_array(&name) {
@@ -122,7 +115,7 @@ fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"exists" => {
             if argv.len() != 4 {
-                return wrong_args(interp, b"array default exists arrayName");
+                return interp.wrong_args(b"array default exists arrayName");
             }
             // An undefined variable has no default — not an error (C).
             if !interp.var_exists(&name) {
@@ -140,7 +133,7 @@ fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"unset" => {
             if argv.len() != 4 {
-                return wrong_args(interp, b"array default unset arrayName");
+                return interp.wrong_args(b"array default unset arrayName");
             }
             // A missing variable is a silent no-op; a scalar errors (C).
             if interp.var_exists(&name) {
@@ -168,7 +161,7 @@ fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// search; changing an existing element's value is fine.
 fn array_for(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return wrong_args(interp, b"array for {key value} arrayName script");
+        return interp.wrong_args(b"array for {key value} arrayName script");
     }
     let varlist = obj_bytes(argv[2]);
     let vars = match crate::parse::split_list(&varlist) {
@@ -249,7 +242,7 @@ fn not_array(interp: &mut Interp, name: &[u8]) -> Code {
 /// `array set arrayName {key value …}` — store each pair as an element.
 fn array_set(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"array set arrayName list");
+        return interp.wrong_args(b"array set arrayName list");
     }
     // An array-element name (`foo(bar)`) can't be the target of `array set`.
     if crate::frame::split_array_ref(name).1.is_some() {

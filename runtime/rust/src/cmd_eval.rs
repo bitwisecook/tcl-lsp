@@ -35,13 +35,6 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"uplevel", uplevel_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 /// Join `args` with single spaces (the multi-arg `eval`/`uplevel` body form). A
 /// single arg is used verbatim.
 fn join_body(args: &[*mut TclObj]) -> Vec<u8> {
@@ -61,7 +54,7 @@ fn join_body(args: &[*mut TclObj]) -> Vec<u8> {
 /// `eval arg ?arg ...?` — concatenate the args and evaluate in the current scope.
 fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"eval arg ?arg ...?");
+        return interp.wrong_args(b"eval arg ?arg ...?");
     }
     // A single body argument keeps its object identity, so a literal from a
     // sourced file evaluates as `type source` (TIP 280 LABC); multiple args are
@@ -84,7 +77,7 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let usage = b"uplevel ?level? command ?arg ...?";
     if argv.len() < 2 {
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let spec = obj_bytes(argv[1]);
     let (target, body_start) = if looks_like_level(&spec) {
@@ -100,7 +93,7 @@ fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     };
     if body_start >= argv.len() {
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let code = if body_start == argv.len() - 1 {
         interp.eval_uplevel_obj(target, argv[body_start])

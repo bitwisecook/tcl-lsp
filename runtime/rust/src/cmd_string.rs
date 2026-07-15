@@ -29,6 +29,8 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use tcl_cmd_core::prefix::Lookup;
+
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
@@ -52,7 +54,7 @@ pub fn install(interp: &mut Interp) {
 /// an unshared plain string, else copy-on-write. Returns the new value.
 fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"append varName ?value ...?");
+        return interp.wrong_args(b"append varName ?value ...?");
     }
     let name = obj_bytes(argv[1]);
     let values = &argv[2..];
@@ -113,7 +115,7 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"string subcommand ?arg ...?");
+        return interp.wrong_args(b"string subcommand ?arg ...?");
     }
     // The `string` ensemble resolves its subcommand by unambiguous prefix
     // (`Tcl_GetIndexFromObj`): `string fir` → `first`, `string trim` wins over
@@ -200,7 +202,7 @@ const STRING_SUBCOMMANDS: &[&[u8]] = &[
 
 fn str_length(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"string length string");
+        return interp.wrong_args(b"string length string");
     }
     let n = char_count(&obj_bytes(argv[2]));
     interp.set_result(obj::new_wide_int_obj(n as i64));
@@ -209,7 +211,7 @@ fn str_length(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn str_index(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"string index string charIndex");
+        return interp.wrong_args(b"string index string charIndex");
     }
     let s = obj_bytes(argv[2]);
     let n = char_count(&s);
@@ -229,7 +231,7 @@ fn str_index(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn str_range(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return wrong_args(interp, b"string range string first last");
+        return interp.wrong_args(b"string range string first last");
     }
     let s = obj_bytes(argv[2]);
     let n = char_count(&s);
@@ -257,7 +259,7 @@ fn str_range(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// returns the string unchanged (`StringRplcCmd`).
 fn str_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 && argv.len() != 6 {
-        return wrong_args(interp, b"string replace string first last ?string?");
+        return interp.wrong_args(b"string replace string first last ?string?");
     }
     let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
         .chars()
@@ -292,7 +294,7 @@ fn str_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// (`index == end`/`>= length` appends). `StringInsertCmd`.
 fn str_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return wrong_args(interp, b"string insert string index insertString");
+        return interp.wrong_args(b"string insert string index insertString");
     }
     let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
         .chars()
@@ -315,7 +317,7 @@ fn str_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// by re-aligning argv to the `string insert …` shape.
 fn tcl_string_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"tcl::string::insert string index insertString");
+        return interp.wrong_args(b"tcl::string::insert string index insertString");
     }
     let shifted = [argv[0], argv[0], argv[1], argv[2], argv[3]];
     str_insert(interp, &shifted)
@@ -325,36 +327,23 @@ fn tcl_string_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// ensemble entry. Re-aligns argv to the `string reverse …` shape.
 fn tcl_string_reverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"tcl::string::reverse string");
+        return interp.wrong_args(b"tcl::string::reverse string");
     }
     let shifted = [argv[0], argv[0], argv[1]];
     str_reverse(interp, &shifted)
 }
 
-/// Render an option set as Tcl's `a, b, or c` / `a or b` / `a` enumeration.
+/// Render an option set as Tcl's `a, b, or c` / `a or b` / `a` enumeration —
+/// the shared `Tcl_GetIndexFromObjStruct` formatter.
 fn enum_must_be(items: &[Vec<u8>]) -> Vec<u8> {
-    let mut m = Vec::new();
-    for (i, it) in items.iter().enumerate() {
-        if i > 0 {
-            if items.len() > 2 {
-                m.extend_from_slice(b", ");
-            } else {
-                m.push(b' ');
-            }
-            if i == items.len() - 1 {
-                m.extend_from_slice(b"or ");
-            }
-        }
-        m.extend_from_slice(it);
-    }
-    m
+    tcl_cmd_core::prefix::choice_list_bytes(items)
 }
 
 /// `tcl::prefix match|all|longest …` — prefix matching against a table
 /// (`Tcl_PrefixMatchObjCmd` / `Tcl_PrefixAllObjCmd` / `Tcl_PrefixLongestObjCmd`).
 fn tcl_prefix(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"tcl::prefix subcommand ?arg ...?");
+        return interp.wrong_args(b"tcl::prefix subcommand ?arg ...?");
     }
     match obj_bytes(argv[1]).as_slice() {
         b"match" => tcl_prefix_match(interp, argv),
@@ -475,28 +464,12 @@ fn split_list_or_error(interp: &mut Interp, s: &[u8]) -> Result<Vec<Vec<u8>>, Co
     }
 }
 
-/// The table elements with `s` as a (string) prefix.
-fn prefix_matches(table: &[Vec<u8>], s: &[u8], exact: bool) -> Vec<usize> {
-    table
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| {
-            if exact {
-                e.as_slice() == s
-            } else {
-                e.starts_with(s)
-            }
-        })
-        .map(|(i, _)| i)
-        .collect()
-}
-
 const PREFIX_MATCH_OPTIONS: &[&[u8]] = &[b"-error", b"-exact", b"-message"];
 
 fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // tcl::prefix match ?options? table string
     if argv.len() < 4 {
-        return wrong_args(interp, b"tcl::prefix match ?options? table string");
+        return interp.wrong_args(b"tcl::prefix match ?options? table string");
     }
     let mut exact = false;
     let mut message: Vec<u8> = b"option".to_vec();
@@ -552,16 +525,17 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(c) => return c,
     };
     let s = obj_bytes(argv[argv.len() - 1]);
-    let hits = prefix_matches(&table, &s, exact);
-    // Exact match always wins even if it is also a prefix of others.
-    if let Some(&h) = hits.iter().find(|&&h| table[h] == s) {
-        interp.set_result(new_string(&table[h]));
-        return Code::Ok;
-    }
-    if hits.len() == 1 {
-        interp.set_result(new_string(&table[hits[0]]));
-        return Code::Ok;
-    }
+    // The shared `Tcl_GetIndexFromObjStruct` matcher: an exact entry always
+    // wins; otherwise a unique prefix (unless `-exact`); an empty string never
+    // matches (the old local scan wrongly resolved `""` against a one-entry
+    // table). The miss carries C's bad/ambiguous wording.
+    let miss = match tcl_cmd_core::prefix::lookup(&table, &s, exact) {
+        tcl_cmd_core::prefix::Lookup::Found(i) => {
+            interp.set_result(new_string(&table[i]));
+            return Code::Ok;
+        }
+        miss => miss,
+    };
     // No unique match: error (or return "" if -error {} was given).
     if let Some(opts) = &error_opts {
         if opts.is_empty() {
@@ -569,30 +543,22 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return Code::Ok;
         }
     }
-    let verb: &[u8] = if hits.is_empty() {
-        b"bad "
-    } else {
-        b"ambiguous "
-    };
-    let mut m = verb.to_vec();
-    m.extend_from_slice(&message);
-    m.extend_from_slice(b" \"");
-    m.extend_from_slice(&s);
-    if table.is_empty() {
-        // Empty table: "no valid options" (pluralised message).
-        m.extend_from_slice(b"\": no valid ");
-        m.extend_from_slice(&message);
-        m.push(b's');
-    } else {
-        m.extend_from_slice(b"\": must be ");
-        m.extend_from_slice(&enum_must_be(&table));
-    }
+    // The shared message builder — including C's literal `no valid options`
+    // for an empty table (the old local builder pluralised the `-message`
+    // noun instead; tclsh8.6: `tcl::prefix match -message thing {} foo` →
+    // `bad thing "foo": no valid options`).
+    let m = tcl_cmd_core::prefix::bad_key_message(
+        &table,
+        &message,
+        &s,
+        matches!(miss, tcl_cmd_core::prefix::Lookup::Ambiguous),
+    );
     interp.set_error(&m)
 }
 
 fn tcl_prefix_all(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"tcl::prefix all table string");
+        return interp.wrong_args(b"tcl::prefix all table string");
     }
     let table = match split_list_or_error(interp, &obj_bytes(argv[2])) {
         Ok(t) => t,
@@ -613,7 +579,7 @@ fn tcl_prefix_all(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn tcl_prefix_longest(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"tcl::prefix longest table string");
+        return interp.wrong_args(b"tcl::prefix longest table string");
     }
     let table = match split_list_or_error(interp, &obj_bytes(argv[2])) {
         Ok(t) => t,
@@ -655,7 +621,7 @@ fn str_compare_equal(interp: &mut Interp, argv: &[*mut TclObj], equal: bool) -> 
     // C's `StringCmpOpts` allows 3..=6 args ([cmd, ?-nocase?, ?-length n?,
     // s1, s2]); here `string` adds one, so 4..=7.
     if argv.len() < 4 || argv.len() > 7 {
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let mut nocase = false;
     let mut length: Option<usize> = None;
@@ -670,7 +636,7 @@ fn str_compare_equal(interp: &mut Interp, argv: &[*mut TclObj], equal: bool) -> 
             i += 1;
         } else if opt.len() > 1 && b"-length".starts_with(opt.as_slice()) {
             if i + 1 >= argv.len() - 2 {
-                return wrong_args(interp, usage);
+                return interp.wrong_args(usage);
             }
             // `-length` reads a wide int (`TclGetWideIntFromObj`): a negative or
             // out-of-`Tcl_Size` value means "no limit", a bignum overflows.
@@ -692,7 +658,7 @@ fn str_compare_equal(interp: &mut Interp, argv: &[*mut TclObj], equal: bool) -> 
         }
     }
     if argv.len() - i != 2 {
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let mut a: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[i]))
         .chars()
@@ -741,7 +707,7 @@ fn str_cat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn str_repeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"string repeat string count");
+        return interp.wrong_args(b"string repeat string count");
     }
     let s = obj_bytes(argv[2]);
     let count = match parse_isize(&obj_bytes(argv[3])) {
@@ -762,7 +728,7 @@ fn str_repeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn str_reverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"string reverse string");
+        return interp.wrong_args(b"string reverse string");
     }
     let s = obj_bytes(argv[2]);
     let out = if s.is_ascii() {
@@ -810,7 +776,7 @@ fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
         CaseMode::Title => b"string totitle string ?first? ?last?",
     };
     if argv.len() < 3 || argv.len() > 5 {
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let s = obj_bytes(argv[2]);
 
@@ -932,7 +898,7 @@ fn str_trim(interp: &mut Interp, argv: &[*mut TclObj], left: bool, right: bool) 
             (true, false) => b"string trimleft string ?chars?",
             _ => b"string trimright string ?chars?",
         };
-        return wrong_args(interp, usage);
+        return interp.wrong_args(usage);
     }
     let s = obj_bytes(argv[2]);
     let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
@@ -962,14 +928,11 @@ fn str_trim(interp: &mut Interp, argv: &[*mut TclObj], left: bool, right: bool) 
 
 fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
-        return wrong_args(
-            interp,
-            if first {
-                b"string first needleString haystackString ?startIndex?"
-            } else {
-                b"string last needleString haystackString ?lastIndex?"
-            },
-        );
+        return interp.wrong_args(if first {
+            b"string first needleString haystackString ?startIndex?"
+        } else {
+            b"string last needleString haystackString ?lastIndex?"
+        });
     }
     let needle = obj_bytes(argv[2]);
     let hay = obj_bytes(argv[3]);
@@ -1025,7 +988,7 @@ fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Cod
 /// `switch -glob` / `lsearch -glob`).
 fn str_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
-        return wrong_args(interp, b"string match ?-nocase? pattern string");
+        return interp.wrong_args(b"string match ?-nocase? pattern string");
     }
     let mut nocase = false;
     if argv.len() == 5 {
@@ -1052,7 +1015,7 @@ fn str_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// then skip past the replacement), per `tclCmdMZ.c` `StringMapCmd`.
 fn str_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
-        return wrong_args(interp, b"string map ?-nocase? charMap string");
+        return interp.wrong_args(b"string map ?-nocase? charMap string");
     }
     let mut nocase = false;
     if argv.len() == 5 {
@@ -1135,41 +1098,14 @@ const IS_CLASSES: &[&[u8]] = &[
 /// `string is` option table (for the `-strict`/`-failindex` prefix match).
 const IS_OPTIONS: &[&[u8]] = &[b"-strict", b"-failindex"];
 
-/// The outcome of an exact/unambiguous-prefix table lookup (`Tcl_GetIndexFromObj`).
-enum Lookup {
-    /// Resolved to `table[index]` (exact match, or a unique prefix).
-    Found(usize),
-    /// The prefix matched more than one entry.
-    Ambiguous,
-    /// No entry matched.
-    None,
-}
-
 /// Resolve `arg` against `table` like `Tcl_GetIndexFromObj` (flags 0): an exact
 /// match wins, else a *unique* prefix; ambiguous and no-match are distinguished
-/// so the caller can emit `bad`/`ambiguous` as C does.
+/// so the caller can emit `bad`/`ambiguous` as C does. An empty `arg` never
+/// abbreviates, but — per C — its miss is worded `ambiguous` when it trivially
+/// prefixes two or more entries (tclsh8.6: `string is "" x` → `ambiguous
+/// class ""…`; the old local matcher said `bad`).
 fn index_lookup(table: &[&[u8]], arg: &[u8]) -> Lookup {
-    if let Some(i) = table.iter().position(|s| *s == arg) {
-        return Lookup::Found(i);
-    }
-    // A leading "-" with nothing after is not treated as an option/class prefix
-    // by Tcl_GetIndexFromObj; an empty arg matches nothing.
-    if arg.is_empty() {
-        return Lookup::None;
-    }
-    let mut found = None;
-    for (i, s) in table.iter().enumerate() {
-        if s.starts_with(arg) {
-            if found.is_some() {
-                return Lookup::Ambiguous;
-            }
-            found = Some(i);
-        }
-    }
-    match found {
-        Some(i) => Lookup::Found(i),
-        None => Lookup::None,
-    }
+    tcl_cmd_core::prefix::lookup(table, arg, false)
 }
 
 /// `string is class ?-strict? ?-failindex var? string`. Returns 1/0; with
@@ -1179,7 +1115,7 @@ fn index_lookup(table: &[&[u8]], arg: &[u8]) -> Lookup {
 fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"string is class ?-strict? ?-failindex var? str";
     if argv.len() < 4 || argv.len() > 7 {
-        return wrong_args(interp, USAGE);
+        return interp.wrong_args(USAGE);
     }
     let class_arg = obj_bytes(argv[2]);
     let class: &[u8] = match index_lookup(IS_CLASSES, &class_arg) {
@@ -1208,7 +1144,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     let mut usage = b"string is ".to_vec();
                     usage.extend_from_slice(class);
                     usage.extend_from_slice(b" ?-strict? ?-failindex var? str");
-                    return wrong_args(interp, &usage);
+                    return interp.wrong_args(&usage);
                 }
                 failvar = Some(obj_bytes(argv[k + 1]));
                 k += 2;
@@ -1355,13 +1291,6 @@ fn get_wide(b: &[u8]) -> Result<i64, WideErr> {
 use crate::cmd_list::index_spec;
 
 // -- error helpers ---------------------------------------------------------
-
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
 /// Whether `opt` abbreviates `-nocase` (`strncmp` with `length > 1`), the sole
 /// option of `string map`/`string match`.
 fn is_nocase_opt(opt: &[u8]) -> bool {

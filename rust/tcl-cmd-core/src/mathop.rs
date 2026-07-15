@@ -31,8 +31,8 @@
 
 use core::cmp::Ordering;
 
-use tcl_syntax::expr::ExprOps;
 use tcl_syntax::expr::ast::{BinOp, UnaryOp};
+use tcl_syntax::expr::{ExprOps, NumericCompare};
 
 /// A `mathop` failure: a wrong-args (arity) error carrying the operator's usage
 /// string, or an arithmetic/coercion error from the value ops.
@@ -196,8 +196,13 @@ fn bool_chain<O: ExprOps>(
     pred: impl Fn(Ordering) -> bool,
 ) -> O::Value {
     for w in args.windows(2) {
-        let ord = compare(ops, &w[0], &w[1], string_only);
-        if !pred(ord) {
+        // A NaN operand is unordered: every ordering link in the chain is
+        // false (`::tcl::mathop::< 1 NaN` → 0), same as `expr`'s rule.
+        let ok = match compare(ops, &w[0], &w[1], string_only) {
+            NumericCompare::Ordered(ord) => pred(ord),
+            NumericCompare::Unordered => false,
+        };
+        if !ok {
             return ops.bool_value(false);
         }
     }
@@ -212,7 +217,11 @@ fn ne_binary<O: ExprOps>(
 ) -> Result<O::Value, MathopError<O::Error>> {
     match into_n::<O, 2>(args) {
         Some([a, b]) => {
-            let ne = compare(ops, &a, &b, string_only) != Ordering::Equal;
+            // NaN is unequal to everything (`::tcl::mathop::!= 1 NaN` → 1).
+            let ne = match compare(ops, &a, &b, string_only) {
+                NumericCompare::Ordered(ord) => ord != Ordering::Equal,
+                NumericCompare::Unordered => true,
+            };
             Ok(ops.bool_value(ne))
         }
         None => Err(MathopError::WrongArgs("value value")),
@@ -234,16 +243,20 @@ fn membership<O: ExprOps>(
     }
 }
 
-/// Compare two operands by the `expr` rule (numeric if both look numeric, else a
-/// string compare); `string_only` forces the string compare (`eq`/`ne`).
-fn compare<O: ExprOps>(ops: &mut O, a: &O::Value, b: &O::Value, string_only: bool) -> Ordering {
+/// Compare two operands by the `expr` rule (numeric if both look numeric —
+/// possibly unordered, for NaN — else a string compare); `string_only` forces
+/// the string compare (`eq`/`ne`).
+fn compare<O: ExprOps>(
+    ops: &mut O,
+    a: &O::Value,
+    b: &O::Value,
+    string_only: bool,
+) -> NumericCompare {
     if string_only {
-        ops.compare_string(a, b)
+        NumericCompare::Ordered(ops.compare_string(a, b))
     } else {
-        match ops.compare_numeric(a, b) {
-            Some(o) => o,
-            None => ops.compare_string(a, b),
-        }
+        ops.compare_numeric(a, b)
+            .unwrap_or_else(|| NumericCompare::Ordered(ops.compare_string(a, b)))
     }
 }
 

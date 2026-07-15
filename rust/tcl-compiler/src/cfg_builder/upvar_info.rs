@@ -67,6 +67,12 @@ pub struct UpvarInfo {
     /// the order here matches the order of declarations in the
     /// proc body.
     pub args_tail_upvar: Vec<String>,
+    /// The proc has an `upvar` whose CALLER-side name cannot be resolved
+    /// statically (`upvar 1 $computed x`, or `$foo` where `foo` is not a
+    /// parameter): the callee can write *any* caller variable, so
+    /// [`Self::caller_side_defs`] under-approximates and the call site must
+    /// widen to an opaque caller-frame clobber instead of trusting it.
+    pub has_unresolvable_caller_target: bool,
 }
 
 impl UpvarInfo {
@@ -78,6 +84,10 @@ impl UpvarInfo {
         self.literal_targets.is_empty()
             && self.param_targets.is_empty()
             && self.args_tail_upvar.is_empty()
+            // A flag-only summary still matters: an unresolvable caller
+            // target means call sites must widen, so the info must not be
+            // dropped by `detect_upvar_procs`'s emptiness filter.
+            && !self.has_unresolvable_caller_target
     }
 
     /// Resolve the caller-frame name aliased by *local* in this
@@ -315,11 +325,19 @@ fn record_upvar_call(args: &[String], params: &[String], info: &mut UpvarInfo) {
             } else if params.iter().any(|p| p == param) {
                 info.param_targets
                     .insert(dst.to_string(), param.to_string());
+            } else {
+                // `$foo` where `foo` isn't a param — the caller-side name
+                // depends on runtime state; the callee can clobber any
+                // caller variable, so the summary must widen (a silent
+                // skip would let SCCP propagate stale caller values past
+                // the call).
+                info.has_unresolvable_caller_target = true;
             }
-            // else: $foo where foo isn't a param — caller can't
-            // resolve, skip.
+        } else {
+            // Fully dynamic source (`upvar 1 [pick] x`, `upvar 1 a($i) x`,
+            // …) — same widening as above.
+            info.has_unresolvable_caller_target = true;
         }
-        // else: dynamic source we can't classify.
     }
 }
 
@@ -372,9 +390,31 @@ mod tests {
     fn dollar_var_skipped_when_not_a_param() {
         let body = lower("upvar 1 $foo x");
         let info = collect_upvar_targets(&body, &["bar".to_string()]);
-        // $foo is not a param (only `bar` is); not classifiable.
+        // $foo is not a param (only `bar` is); not classifiable per-name —
+        // and the summary must say so, not silently under-approximate: the
+        // callee can write ANY caller variable through the alias.
         assert!(info.param_targets.is_empty());
         assert!(info.literal_targets.is_empty());
+        assert!(info.has_unresolvable_caller_target);
+    }
+
+    #[test]
+    fn fully_dynamic_source_widens_summary() {
+        // `upvar 1 [pick] x` / an array-element source — the caller-side
+        // name is runtime state; the flag must be set so the call site
+        // widens to an opaque caller-frame clobber.
+        for src in ["upvar 1 [pick] x", "upvar 1 a($i) x"] {
+            let body = lower(src);
+            let info = collect_upvar_targets(&body, &[]);
+            assert!(
+                info.has_unresolvable_caller_target,
+                "{src} must widen the summary"
+            );
+        }
+        // Resolvable shapes must NOT set the flag.
+        let body = lower("upvar 1 caller_x x\nupvar 1 $p y");
+        let info = collect_upvar_targets(&body, &["p".to_string()]);
+        assert!(!info.has_unresolvable_caller_target);
     }
 
     #[test]

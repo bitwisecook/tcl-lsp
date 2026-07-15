@@ -129,7 +129,19 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::exact(1),
-        arg_roles: &[(0, ArgRole::VarRead)],
+        // `VarWrite`, not `VarRead`: `Tcl_VwaitObjCmd` (tclEvent.c) never
+        // reads the variable's value — it installs a
+        // `TCL_TRACE_WRITES|TCL_TRACE_UNSETS` trace (creating the entry when
+        // absent) and returns only once the variable has been *written* by
+        // an event handler.  `vwait forever` on a never-set variable is the
+        // canonical infinite-wait idiom, so modelling the operand as a read
+        // produced a false W210 (read-before-set); as a write the post-state
+        // is a defined variable, which is what the analyser records.
+        arg_roles: &[(0, ArgRole::VarWrite)],
+        // The value observed after the wait is whatever the event handler
+        // stored — unknowable statically — so the written variable is typed
+        // overdefined, never from vwait's own (empty-string) return type.
+        var_write_typing: VarWriteTyping::Destructured,
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Process events until a variable is written",

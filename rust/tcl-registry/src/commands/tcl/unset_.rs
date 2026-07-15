@@ -56,9 +56,14 @@ fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unset",
+        // `HAS_DESTRUCTIVE_OPS`: `Tcl_UnsetObjCmd` (tclCmdMZ.c) removes the
+        // variable and errors ("can't unset …: no such variable") when the
+        // target is already gone (absent `-nocomplain`) — the property the
+        // W302 fire-and-forget suppression (`catch {unset x}`) keys off.
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::DESTROYS_VARIABLE
+            | Traits::HAS_DESTRUCTIVE_OPS
             | Traits::FIRST_ARG_VARNAME,
         // Names are optional: tclsh 8.5+ accepts `unset`, `unset -nocomplain`,
         // and `unset --` as valid no-ops (the `-nocomplain` option was added in

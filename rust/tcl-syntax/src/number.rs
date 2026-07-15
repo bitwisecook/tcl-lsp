@@ -189,6 +189,103 @@ pub fn format_double(f: f64) -> String {
     if neg { format!("-{out}") } else { out }
 }
 
+/// Exactly compare an integer against a double, the way C Tcl's
+/// `TclCompareTwoNumbers` (`tclExecute.c`) does for its wide/double arm —
+/// **without** first rounding the integer to a double, which above 2⁵³ merges
+/// distinct values (`expr {9007199254740993 > 9007199254740992.0}` is 1; a
+/// both-as-`f64` comparison calls them equal). `None` means the double is NaN
+/// (unordered — C Tcl's rule for a NaN comparison operand is "`!=` is true,
+/// every other comparison false", which the caller applies).
+///
+/// Takes `i128` so the runtime's `Big` tier shares it; `i64` callers widen.
+#[must_use]
+pub fn compare_int_double(w: i128, d: f64) -> Option<core::cmp::Ordering> {
+    use core::cmp::Ordering;
+    // 2¹²⁷ — the smallest double at or above every i128 (`i128::MAX` = 2¹²⁷−1).
+    // At or beyond it (incl. +Inf) every integer is smaller; strictly below
+    // −2¹²⁷ (incl. −Inf) every integer is greater. −2¹²⁷ itself is exactly
+    // `i128::MIN`, so it falls through to the exact path.
+    const TWO_POW_127: f64 = 170_141_183_460_469_231_731_687_303_715_884_105_728.0;
+    if d.is_nan() {
+        return None;
+    }
+    if d >= TWO_POW_127 {
+        return Some(Ordering::Less);
+    }
+    if d < -TWO_POW_127 {
+        return Some(Ordering::Greater);
+    }
+    // Finite with |d| ≤ 2¹²⁷: the integer part is exactly representable, so
+    // compare integer parts first and let a non-zero fraction break the tie.
+    let (int_part, has_fraction) = split_double_exact(d);
+    Some(match w.cmp(&int_part) {
+        Ordering::Equal if !has_fraction => Ordering::Equal,
+        // Same integer part but `d` carries a fraction: truncation is toward
+        // zero, so a positive `d` sits above its integer part (w < d) and a
+        // negative `d` below it (w > d).
+        Ordering::Equal if d > 0.0 => Ordering::Less,
+        Ordering::Equal => Ordering::Greater,
+        unequal => unequal,
+    })
+}
+
+/// Split a finite double with |d| ≤ 2¹²⁷ into its exact truncated integer part
+/// and whether a non-zero fractional part was cut off. Pure bit arithmetic on
+/// the IEEE-754 representation — a `d as i128` cast would truncate silently on
+/// out-of-range input and trip `clippy::cast_possible_truncation`; this stays
+/// exact by construction.
+fn split_double_exact(d: f64) -> (i128, bool) {
+    const MANTISSA_BITS: u64 = 52;
+    const MANTISSA_MASK: u64 = (1 << MANTISSA_BITS) - 1;
+    const EXPONENT_MASK: u64 = 0x7ff;
+    // IEEE-754 binary64 bias for the stored exponent, plus the 52 mantissa
+    // fraction bits: value = mantissa × 2^(stored − 1023 − 52).
+    const EXPONENT_BIAS_AND_SHIFT: u64 = 1023 + MANTISSA_BITS;
+
+    let bits = d.to_bits();
+    let negative = (bits >> 63) == 1;
+    let stored_exponent = (bits >> MANTISSA_BITS) & EXPONENT_MASK;
+    let fraction_bits = bits & MANTISSA_MASK;
+    if stored_exponent == 0 {
+        // Zero (fraction 0) or subnormal (|d| < 2⁻¹⁰²²): integer part is 0
+        // either way; only a subnormal leaves a fraction behind.
+        return (0, fraction_bits != 0);
+    }
+    // Normal number: an implicit leading 1 above the 52 stored fraction bits.
+    let mantissa = (1 << MANTISSA_BITS) | fraction_bits;
+    let (magnitude, has_fraction) =
+        if let Some(left) = stored_exponent.checked_sub(EXPONENT_BIAS_AND_SHIFT) {
+            // 2^left scales the mantissa up: purely integral. The caller's range
+            // bound (|d| ≤ 2¹²⁷) keeps the result within a u128; saturate rather
+            // than panic if the bound is ever violated.
+            let scaled = u32::try_from(left)
+                .ok()
+                .and_then(|shift| u128::from(mantissa).checked_shl(shift))
+                .unwrap_or(u128::MAX);
+            (scaled, false)
+        } else {
+            // Scaling down by 2^right: the low `right` bits are the fraction.
+            let right = EXPONENT_BIAS_AND_SHIFT - stored_exponent;
+            if right > MANTISSA_BITS {
+                // The whole mantissa is fractional (|d| < 1).
+                (0, true)
+            } else {
+                (
+                    u128::from(mantissa >> right),
+                    mantissa & ((1 << right) - 1) != 0,
+                )
+            }
+        };
+    // Magnitude ≤ 2¹²⁷ by the caller's bound. Only −2¹²⁷ (`i128::MIN`) uses the
+    // top bit, and only on the negative side; every other value converts.
+    let int_part = if negative {
+        i128::try_from(magnitude).map_or(i128::MIN, |m| -m)
+    } else {
+        i128::try_from(magnitude).unwrap_or(i128::MAX)
+    };
+    (int_part, has_fraction)
+}
+
 /// Tcl numeric whitespace: space, tab, newline, VT, FF, CR.
 #[inline]
 fn is_ws(c: u8) -> bool {
@@ -306,11 +403,19 @@ fn to_i64(mag: u64, negative: bool) -> Option<i64> {
 /// shape). Returns `None` on trailing junk.
 #[must_use]
 pub fn parse_whole(s: &str) -> Option<Number> {
-    let flags = ParseFlags::default();
+    parse_whole_with(s, ParseFlags::default())
+}
+
+/// [`parse_whole`] with explicit [`ParseFlags`] — e.g. `integer_only` for the
+/// whole-string integer shape (`Tcl_GetWideIntFromObj` via
+/// `TCL_PARSE_INTEGER_ONLY`), where a fractional part is trailing junk.
+/// Trailing whitespace is skipped unless `no_whitespace` forbids it.
+#[must_use]
+pub fn parse_whole_with(s: &str, flags: ParseFlags) -> Option<Number> {
     let p = parse(s, flags)?;
     let mut i = p.end;
     let b = s.as_bytes();
-    while i < b.len() && is_ws(b[i]) {
+    while !flags.no_whitespace && i < b.len() && is_ws(b[i]) {
         i += 1;
     }
     (i == b.len()).then_some(p.number)
@@ -694,5 +799,93 @@ mod tests {
                 other => panic!("format_double({v}) = {s:?} re-parsed as {other:?}, not Double"),
             }
         }
+    }
+
+    #[test]
+    fn compare_int_double_is_exact_past_2_pow_53() {
+        use core::cmp::Ordering::{Equal, Greater, Less};
+        // The motivating cases (tclsh oracle): a both-as-f64 comparison calls
+        // 9007199254740993 equal to 9007199254740992.0; Tcl compares exactly.
+        //   expr {9007199254740993 == 9007199254740992.0} → 0
+        //   expr {9007199254740993 >  9007199254740992.0} → 1
+        assert_eq!(
+            compare_int_double(9_007_199_254_740_993, 9_007_199_254_740_992.0),
+            Some(Greater)
+        );
+        // The float literal ...993.0 itself rounds to ...992.0, so the wide
+        // still orders above it: expr {9007199254740993 > 9007199254740993.0} → 1.
+        assert_eq!(
+            compare_int_double(9_007_199_254_740_993, 9_007_199_254_740_993.0),
+            Some(Greater)
+        );
+        assert_eq!(
+            compare_int_double(9_007_199_254_740_992, 9_007_199_254_740_992.0),
+            Some(Equal)
+        );
+        // 20000000000000003 < 20000000000000004.0 — the exact case the C
+        // comment in TclCompareTwoNumbers cites.
+        assert_eq!(
+            compare_int_double(20_000_000_000_000_003, 20_000_000_000_000_004.0),
+            Some(Less)
+        );
+    }
+
+    #[test]
+    fn compare_int_double_small_and_fractional() {
+        use core::cmp::Ordering::{Equal, Greater, Less};
+        assert_eq!(compare_int_double(2, 2.5), Some(Less));
+        assert_eq!(compare_int_double(3, 2.5), Some(Greater));
+        assert_eq!(compare_int_double(-2, -2.5), Some(Greater));
+        assert_eq!(compare_int_double(-3, -2.5), Some(Less));
+        assert_eq!(compare_int_double(0, 0.0), Some(Equal));
+        assert_eq!(compare_int_double(0, -0.0), Some(Equal));
+        assert_eq!(compare_int_double(0, -0.5), Some(Greater));
+        assert_eq!(compare_int_double(0, 0.5), Some(Less));
+        assert_eq!(compare_int_double(5, 5.0), Some(Equal));
+        assert_eq!(compare_int_double(-5, -5.0), Some(Equal));
+        // Subnormals: integer part 0, fraction non-zero.
+        assert_eq!(compare_int_double(0, f64::MIN_POSITIVE / 2.0), Some(Less));
+        assert_eq!(
+            compare_int_double(0, -f64::MIN_POSITIVE / 2.0),
+            Some(Greater)
+        );
+    }
+
+    #[test]
+    fn compare_int_double_extremes() {
+        use core::cmp::Ordering::{Equal, Greater, Less};
+        // ±2¹²⁷: i128::MAX = 2¹²⁷−1 sits below 2¹²⁷; i128::MIN is exactly
+        // −2¹²⁷. 2⁶³ marks the i64-boundary sliver.
+        const TWO_POW_127: f64 = 170_141_183_460_469_231_731_687_303_715_884_105_728.0;
+        const TWO_POW_63: f64 = 9_223_372_036_854_775_808.0;
+        // NaN is unordered — the caller applies Tcl's "!= true, rest false".
+        assert_eq!(compare_int_double(1, f64::NAN), None);
+        // Infinities order around every integer.
+        assert_eq!(compare_int_double(i128::MAX, f64::INFINITY), Some(Less));
+        assert_eq!(
+            compare_int_double(i128::MIN, f64::NEG_INFINITY),
+            Some(Greater)
+        );
+        assert_eq!(compare_int_double(i128::MAX, TWO_POW_127), Some(Less));
+        assert_eq!(compare_int_double(i128::MIN, -TWO_POW_127), Some(Equal));
+        assert_eq!(compare_int_double(0, -TWO_POW_127), Some(Greater));
+        // 2⁶³ exactly vs the neighbouring wides (the i64-boundary sliver).
+        assert_eq!(
+            compare_int_double(i128::from(i64::MAX), TWO_POW_63),
+            Some(Less)
+        );
+        assert_eq!(
+            compare_int_double(i128::from(i64::MIN), -TWO_POW_63),
+            Some(Equal)
+        );
+        // A wide whose f64 rounding lands ON 2⁶³ still orders exactly.
+        assert_eq!(
+            compare_int_double(9_223_372_036_854_775_807, 9.3e18),
+            Some(Less)
+        );
+        assert_eq!(
+            compare_int_double(-9_223_372_036_854_775_807, -9.3e18),
+            Some(Greater)
+        );
     }
 }

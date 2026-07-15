@@ -26,11 +26,12 @@ use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
+use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::hooks::{
-    ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId, TclVersion, VersionedConstFoldFn,
-    WasmCodegenHookId,
+    AnalyserHookId, ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId,
+    TclVersion, VersionedConstFoldFn, WasmCodegenHookId,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::patterns::{FormatType, PatternType};
@@ -360,11 +361,34 @@ pub struct CommandSpec {
     /// `None` means the generic invoke emitter handles this command.
     pub codegen_hook: Option<CodegenHookId>,
 
+    /// Inline (value-position / catch-body) bytecode codegen hook ID —
+    /// picks the per-command emitter on the compiler's
+    /// command-substitution and catch-body paths
+    /// (`tcl_compiler::codegen::cmd_subst` /
+    /// `tcl_compiler::codegen::control_flow`). `None` means those
+    /// paths use their generic invoke emission for this command.
+    pub inline_codegen_hook: Option<InlineCodegenHookId>,
+
     /// WASM-runtime codegen hook ID — picks the per-command
     /// emitter on the WASM target. Currently always `None`
     /// (no WASM-specific emitters yet); the field exists so
     /// the per-command coverage audit can track WASM hook stamping.
     pub wasm_codegen_hook: Option<WasmCodegenHookId>,
+
+    /// Analyser handler-family hook ID — picks the per-command
+    /// handler in the analyser's central dispatch
+    /// (`tcl_compiler::analyser`). `None` means the analyser has no
+    /// command-specific handler for this command; only the generic,
+    /// registry-role-driven walks apply.
+    pub analyser_hook: Option<AnalyserHookId>,
+
+    /// How this command mutates the interpreter's *command table*
+    /// (`proc` defines, `rename` moves, `interp alias` aliases — see
+    /// [`CommandTableEffect`]). `None` = the command never rebinds a
+    /// command name. Consumed by the command-binding lattice, the
+    /// lowerer's alias table, and the analyser's rename / alias
+    /// records via [`crate::CommandRegistry::command_table_effect`].
+    pub command_table_effect: Option<CommandTableEffect>,
 
     /// Structured side-effect declarations.
     pub side_effects: &'static [SideEffect],
@@ -646,6 +670,17 @@ pub struct CommandSpec {
     /// The bound name resolves later `reportName <method> …` dispatch through
     /// `object_class`.  `None` for a command that creates no object command.
     pub creates_instance_at: Option<u8>,
+
+    /// Command-defining name argument — `Some(idx)` when the *literal* value
+    /// of this command's `idx`-th argument (0-based, after the command name)
+    /// becomes a callable command name once the call runs: `coroutine NAME
+    /// cmd ?arg …?` binds `NAME` (`TclNRCoroutineObjCmd`, `tclBasic.c`).
+    /// Lighter than [`Self::creates_instance_at`], which additionally binds
+    /// the name to an [`Self::object_class`] for method dispatch — this is
+    /// the bare "the name is now a command" fact, consumed generically by
+    /// the analyser so later calls to the name don't draw W123
+    /// (unknown command).  `None` = no argument names a new command.
+    pub defines_command_at: Option<u8>,
 }
 
 impl CommandSpec {
@@ -675,7 +710,10 @@ impl CommandSpec {
         const_fold_versioned: None,
         lowering_hook: None,
         codegen_hook: None,
+        inline_codegen_hook: None,
         wasm_codegen_hook: None,
+        analyser_hook: None,
+        command_table_effect: None,
         side_effects: &[],
         inferred_storage_type: None,
         required_package: None,
@@ -718,6 +756,7 @@ impl CommandSpec {
         defines_symbol: None,
         body_scope: None,
         creates_instance_at: None,
+        defines_command_at: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
@@ -1065,9 +1104,27 @@ pub struct SubCommand {
     /// [`CommandSpec::codegen_hook`].
     pub codegen_hook: Option<CodegenHookId>,
 
+    /// Inline (value-position / catch-body) bytecode codegen hook ID.
+    /// See [`CommandSpec::inline_codegen_hook`]. Overrides the
+    /// parent's when the call resolves to this subcommand
+    /// (`dict get` / `info exists`).
+    pub inline_codegen_hook: Option<InlineCodegenHookId>,
+
     /// WASM-runtime codegen hook ID. See
     /// [`CommandSpec::wasm_codegen_hook`].
     pub wasm_codegen_hook: Option<WasmCodegenHookId>,
+
+    /// Analyser handler-family hook ID.
+    /// See [`CommandSpec::analyser_hook`]. Overrides the parent's when
+    /// the call resolves to this subcommand (`namespace eval` /
+    /// `dict for`).
+    pub analyser_hook: Option<AnalyserHookId>,
+
+    /// Command-table mutation descriptor.
+    /// See [`CommandSpec::command_table_effect`]. Overrides the
+    /// parent's when the call resolves to this subcommand
+    /// (`interp alias`).
+    pub command_table_effect: Option<CommandTableEffect>,
 
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
@@ -1198,6 +1255,13 @@ pub struct SubCommand {
     /// #798), and drives hover and completion for it. Empty for the
     /// overwhelmingly-common single-level subcommand.
     pub sub_subcommands: &'static [SubSubCommand],
+
+    /// Command-defining name argument (0-based, *after* the subcommand word)
+    /// — the subcommand-level twin of [`CommandSpec::defines_command_at`]:
+    /// `interp create ?-safe? ?--? ?name?` binds `name` as a callable
+    /// command.  A word at the index that is an option flag (leading `-`) or
+    /// a missing name (auto-generated at run time) names nothing statically.
+    pub defines_command_at: Option<u8>,
 }
 
 /// A second-level subcommand of a two-level ensemble (`info object <op>`,
@@ -1241,7 +1305,10 @@ impl SubCommand {
         const_fold_versioned: None,
         lowering_hook: None,
         codegen_hook: None,
+        inline_codegen_hook: None,
         wasm_codegen_hook: None,
+        analyser_hook: None,
+        command_table_effect: None,
         options: &[],
         arg_values: &[],
         subcommand_forms: &[],
@@ -1269,6 +1336,7 @@ impl SubCommand {
         is_unescape: false,
         cfg_rewrite_name: None,
         sub_subcommands: &[],
+        defines_command_at: None,
     };
 
     /// Run this subcommand's constant folder for `args` under `dialect` —

@@ -146,6 +146,61 @@ pub(crate) fn err(message: impl Into<String>) -> Completion<Value> {
     Completion::new(Code::Error, Value::string(m), Value::empty())
 }
 
+/// Build an `ERROR` completion carrying the canonical
+/// `wrong # args: should be "usage"` arity message (the
+/// [`tcl_cmd_core::CmdError::wrong_args`] catalogue text).
+pub(crate) fn err_wrong_args(usage: &str) -> Completion<Value> {
+    err(tcl_cmd_core::CmdError::wrong_args(usage).into_message())
+}
+
+/// `&str` view of a [`tcl_cmd_core::namespace`] byte-op result (the ops slice
+/// at ASCII `:` boundaries, so a `&str` input yields valid UTF-8).
+fn str_slice(b: &[u8]) -> &str {
+    core::str::from_utf8(b).expect("subslice of valid UTF-8")
+}
+
+/// Join `name`'s `::`-separated segments with single separators — colon runs
+/// collapse via the canonical [`tcl_syntax::naming::qualifier_segments`] split.
+fn join_segments(name: &str) -> String {
+    let segs = tcl_syntax::naming::qualifier_segments(name.as_bytes());
+    let mut out = String::with_capacity(name.len());
+    for (i, s) in segs.iter().enumerate() {
+        if i > 0 {
+            out.push_str("::");
+        }
+        out.push_str(core::str::from_utf8(s).expect("subslice of valid UTF-8"));
+    }
+    out
+}
+
+/// Canonicalise a command name's separators into the VM's key form: a run of
+/// two or more colons is **one** separator (C's `TclGetNamespaceForQualName` —
+/// `foo:::bar` names `foo::bar`), the leading root drops (keys are unrooted),
+/// and a trailing run survives as a single `::` — it names the empty-tailed
+/// (`{}`) command in the qualified namespace (`proc quux::: {} {}` defines
+/// `::quux::`, tclsh8.6-verified). Borrows when `name` is already in key form
+/// (a lone leading/interior `:` is an ordinary name character).
+pub(crate) fn canonical_cmd_key(name: &str) -> std::borrow::Cow<'_, str> {
+    if !name.starts_with(':') && !name.contains(":::") {
+        return std::borrow::Cow::Borrowed(name);
+    }
+    let mut out = join_segments(name);
+    if !out.is_empty() && tcl_syntax::naming::ends_with_separator(name.as_bytes()) {
+        out.push_str("::");
+    }
+    std::borrow::Cow::Owned(out)
+}
+
+/// Canonicalise a namespace name's separators: as [`canonical_cmd_key`], but a
+/// trailing separator run drops entirely — `namespace eval c::: {}` creates
+/// `::c` (tclsh8.6-verified), never a namespace named `c::`.
+fn canonical_ns_name(name: &str) -> std::borrow::Cow<'_, str> {
+    if !name.starts_with(':') && !name.contains(":::") && !name.ends_with("::") {
+        return std::borrow::Cow::Borrowed(name);
+    }
+    std::borrow::Cow::Owned(join_segments(name))
+}
+
 /// Quote a trace-callback argument as a single Tcl word: empty or
 /// whitespace-bearing values are brace-wrapped, simple words are passed bare.
 fn tcl_brace(s: &str) -> String {
@@ -1601,6 +1656,17 @@ impl Vm {
     /// this plus the command fetch, so the two can never disagree.
     /// `None` if unresolved.
     pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
+        // Collapse separator runs up front — C treats any colon run as one
+        // separator, so `foo:::bar` dispatches `foo::bar` and `quux:::` the
+        // `{}` command `quux::` (tclsh8.6-verified). The key form keeps the
+        // shared resolver's candidates aligned with the command table; a
+        // rooted name stays absolute.
+        let cleaned = canonical_cmd_key(name);
+        let name: std::borrow::Cow<'_, str> = if name.starts_with("::") {
+            std::borrow::Cow::Owned(format!("::{cleaned}"))
+        } else {
+            cleaned
+        };
         // `ns_paths` entries are stored in the VM's canonical form — always
         // absolute, no leading `::` (rooted at set time by `canon_ns`).
         // Root them before handing to the shared resolver, whose unrooted
@@ -1610,7 +1676,7 @@ impl Vm {
             .ns_paths
             .get(cxt)
             .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect());
-        tcl_syntax::naming::resolve_command_with(cxt, &rooted, name, |candidate| {
+        tcl_syntax::naming::resolve_command_with(cxt, &rooted, &name, |candidate| {
             self.commands
                 .contains_key(candidate.trim_start_matches(':'))
         })
@@ -1636,8 +1702,14 @@ impl Vm {
         self.cmd_arena.borrow().fqns.get(id as usize).cloned()
     }
 
-    /// Push a namespace onto the resolution stack (created if new).
+    /// Push a namespace onto the resolution stack (created if new). The name is
+    /// normalised to canonical form first ([`canonical_ns_name`]), so
+    /// `namespace eval c::: {}` enters (and creates) `c`, matching tclsh.
     pub(crate) fn push_ns(&mut self, ns: String) {
+        let ns = match canonical_ns_name(&ns) {
+            std::borrow::Cow::Borrowed(_) => ns,
+            std::borrow::Cow::Owned(o) => o,
+        };
         if !ns.is_empty() {
             self.namespaces.insert(ns.clone());
         }
@@ -1656,16 +1728,21 @@ impl Vm {
 
     /// Canonicalise a name (no leading `::`) relative to the current namespace:
     /// an absolute `::a::b` drops the leading `::`; anything else is qualified
-    /// with the current namespace.
+    /// with the current namespace. Separator runs collapse to the key form
+    /// ([`canonical_cmd_key`]), so `foo:::bar` names `foo::bar`.
     pub(crate) fn qualify_name(&self, name: &str) -> String {
-        if let Some(abs) = name.strip_prefix("::") {
-            return abs.to_string();
+        let own = |s: String| match canonical_cmd_key(&s) {
+            std::borrow::Cow::Borrowed(_) => s,
+            std::borrow::Cow::Owned(o) => o,
+        };
+        if name.starts_with("::") {
+            return canonical_cmd_key(name).into_owned();
         }
         let cur = self.current_ns();
         if cur.is_empty() {
-            name.to_string()
+            own(name.to_string())
         } else {
-            format!("{cur}::{name}")
+            own(format!("{cur}::{name}"))
         }
     }
 
@@ -1675,17 +1752,23 @@ impl Vm {
         ns.is_empty() || self.namespaces.contains(ns)
     }
 
-    /// Register an existing namespace (and its ancestors).
+    /// Register an existing namespace (and its ancestors). The name is
+    /// normalised to canonical form first, and the ancestor walk uses the
+    /// shared separator-run-aware split ([`tcl_cmd_core::namespace`]), so a
+    /// colon-run name (`a:::b`) registers `a::b` under parent `a` — never a
+    /// bogus `a:` (the old `rsplit_once("::")` drift).
     pub(crate) fn declare_namespace(&mut self, ns: &str) {
+        let ns = canonical_ns_name(ns);
         if ns.is_empty() {
             return;
         }
         self.namespaces.insert(ns.to_string());
         // Mint a stable `NsId` (handle) so the `Namespaces` nav methods are pure
         // `&self` lookups — every namespace, however created, has an id.
-        self.intern_ns(ns);
-        if let Some((parent, _)) = ns.rsplit_once("::") {
-            self.declare_namespace(parent);
+        self.intern_ns(&ns);
+        let parent = tcl_cmd_core::namespace::qualifiers(ns.as_bytes());
+        if !parent.is_empty() {
+            self.declare_namespace(core::str::from_utf8(parent).expect("subslice of valid UTF-8"));
         }
     }
 
@@ -1717,11 +1800,13 @@ impl Vm {
     /// exported command of the source namespace matching the glob into the
     /// current namespace under its tail name. Returns the imported tail names.
     pub(crate) fn import_commands(&mut self, pattern: &str) -> Vec<String> {
-        let abs = pattern.strip_prefix("::").unwrap_or(pattern);
-        let (src_ns, glob) = match abs.rsplit_once("::") {
-            Some((ns, g)) => (ns.to_string(), g.to_string()),
-            None => (String::new(), abs.to_string()),
-        };
+        // Split the glob tail off at the last separator *run* and canonicalise
+        // the qualifier — `namespace import ::src:::im*` imports from `src`
+        // (tclsh8.6-verified; the old `rsplit_once("::")` left `src:` behind).
+        let pb = pattern.as_bytes();
+        let glob = str_slice(tcl_cmd_core::namespace::tail(pb)).to_string();
+        let src_ns =
+            canonical_ns_name(str_slice(tcl_cmd_core::namespace::qualifiers(pb))).into_owned();
         let exports = self.ns_exports.get(&src_ns).cloned().unwrap_or_default();
         let prefix = if src_ns.is_empty() {
             String::new()
@@ -1767,19 +1852,28 @@ impl Vm {
     /// those whose origin lives in `ns` and whose origin tail matches `pat`.
     /// Returns `Err` for an unknown namespace in a qualified pattern.
     pub(crate) fn forget_imports(&mut self, pattern: &str) -> Result<(), String> {
-        // Split a canonical command key into (namespace, tail).
+        // Split a canonical command key into (namespace, tail) — the shared
+        // separator-run-aware byte ops (a canonical key has single `::`s, so
+        // this is the plain last-separator split).
         fn split_key(key: &str) -> (&str, &str) {
-            match key.rsplit_once("::") {
-                Some((ns, tail)) => (ns, tail),
-                None => ("", key),
-            }
+            let kb = key.as_bytes();
+            (
+                str_slice(tcl_cmd_core::namespace::qualifiers(kb)),
+                str_slice(tcl_cmd_core::namespace::tail(kb)),
+            )
         }
         let cur = self.current_ns().to_string();
-        let abs = pattern.strip_prefix("::").unwrap_or(pattern);
-        let victims: Vec<String> = if pattern.contains("::") {
-            // Qualified pattern: source namespace + simple pattern on the origin.
-            let (src_ns, simple) = abs.rsplit_once("::").unwrap();
-            if !self.namespace_exists(src_ns) {
+        let victims: Vec<String> = if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
+            // Qualified pattern: source namespace + simple pattern on the
+            // origin. Splitting at the last separator *run* keeps colon-run
+            // patterns working (`namespace forget ::src:::im*` forgets from
+            // `src`, tclsh8.6-verified; the old `rsplit_once("::")` produced
+            // `src:` — and panicked outright on `:::pat`).
+            let pb = pattern.as_bytes();
+            let simple = str_slice(tcl_cmd_core::namespace::tail(pb));
+            let src_ns =
+                canonical_ns_name(str_slice(tcl_cmd_core::namespace::qualifiers(pb))).into_owned();
+            if !self.namespace_exists(&src_ns) {
                 return Err(format!(
                     "unknown namespace in namespace forget pattern \"{pattern}\""
                 ));
@@ -1801,7 +1895,7 @@ impl Vm {
                 .keys()
                 .filter(|key| {
                     let (ns, tail) = split_key(key);
-                    ns == cur && tcl_syntax::glob::string_match(abs, tail)
+                    ns == cur && tcl_syntax::glob::string_match(pattern, tail)
                 })
                 .cloned()
                 .collect()
@@ -1819,6 +1913,9 @@ impl Vm {
     /// not exist — the caller reports `unknown namespace`. The global namespace
     /// (`""`) is never deletable.
     pub(crate) fn delete_namespace(&mut self, canonical: &str) -> bool {
+        // Callers pass the canonical form; still normalise separator runs so
+        // `namespace delete a:::b` removes `a::b` (tclsh8.6-verified).
+        let canonical: &str = &canonical_ns_name(canonical);
         if canonical.is_empty() || !self.namespaces.contains(canonical) {
             return false;
         }
@@ -3091,11 +3188,14 @@ impl Vm {
     }
 
     /// Register a user procedure under its canonical (namespace-qualified)
-    /// name, and ensure its namespace exists.
+    /// name, and ensure its namespace exists. The namespace is taken with the
+    /// shared separator-run-aware split, so a colon-run name never declares a
+    /// bogus `a:`-style namespace.
     pub(crate) fn define_proc(&mut self, proc: ProcDef) {
         let key = proc.name.clone();
-        if let Some((ns, _)) = key.rsplit_once("::") {
-            self.declare_namespace(ns);
+        let ns = tcl_cmd_core::namespace::qualifiers(key.as_bytes());
+        if !ns.is_empty() {
+            self.declare_namespace(str_slice(ns));
         }
         let cmd = Command::Proc(Rc::new(proc));
         self.register_command(&key, cmd);
@@ -3416,14 +3516,17 @@ impl Namespaces for Vm {
     // — the String model honouring the `NsId` handle contract.
     fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId> {
         // Resolve `name` (absolute, or relative to `cxt`) to a canonical name.
-        let canonical = if let Some(abs) = name.strip_prefix("::") {
-            abs.to_string()
+        // Separator runs collapse and a trailing run drops (the namespace
+        // rule), so `namespace exists a:::b` finds `a::b` (tclsh8.6-verified;
+        // the old literal join looked up `a:::b` and missed).
+        let canonical: String = if name.starts_with("::") {
+            canonical_ns_name(name).into_owned()
         } else {
             let cxt_name = self.ns_name(cxt);
             if cxt_name.is_empty() {
-                name.to_string()
+                canonical_ns_name(name).into_owned()
             } else {
-                format!("{cxt_name}::{name}")
+                canonical_ns_name(&format!("{cxt_name}::{name}")).into_owned()
             }
         };
         self.ns_intern.get(&canonical).copied()
@@ -3434,7 +3537,9 @@ impl Namespaces for Vm {
         if name.is_empty() {
             return None; // the global root has no parent
         }
-        let parent = name.rsplit_once("::").map_or("", |(p, _)| p);
+        // The shared separator-run-aware qualifier split (canonical names
+        // have single `::`s, but the shared op is the one source of truth).
+        let parent = str_slice(tcl_cmd_core::namespace::qualifiers(name.as_bytes()));
         self.ns_intern.get(parent).copied()
     }
 
@@ -3464,14 +3569,17 @@ impl Namespaces for Vm {
 /// `canonical` (unrooted; `""` = global), else `None`. A direct member's key is
 /// `canonical::tail` (or a bare `tail` at the global level) with no further `::`
 /// in the tail — so descendants (`foo::sub::x` for `foo`) and the namespace
-/// itself are excluded.
+/// itself are excluded. The tail may be empty: `quux::` is the `{}`-named
+/// command, a listable direct member of `quux` (tclsh8.6: `info commands
+/// ::quux::*` reports `::quux::`) — but a bare namespace-named key (`quux`
+/// for `quux`, which strips to no separator) is not.
 fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
     let tail = if canonical.is_empty() {
         key
     } else {
         key.strip_prefix(canonical)?.strip_prefix("::")?
     };
-    if tail.is_empty() || tail.contains("::") {
+    if tcl_syntax::naming::is_qualified(tail.as_bytes()) {
         None
     } else {
         Some(tail)

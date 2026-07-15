@@ -202,7 +202,7 @@ catalogues.
 
 ## Diagnostics and optimisations (per-code pages)
 
-143 per-code KCS notes live under [`codes/`](codes/README.md) — 112
+149 per-code KCS notes live under [`codes/`](codes/README.md) — 118
 diagnostic pages (E, W, S, T, and IRULE families) and 31 optimisation
 pages (O family). Each page follows the diagnostic or optimisation
 template, tags the compiler pass that produces it, explains in plain

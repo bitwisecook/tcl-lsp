@@ -142,18 +142,12 @@ pub struct CompletionEdit {
 }
 
 /// `true` when `$name` lexes as a single bare variable token (so it
-/// needs no `${…}` braces): one or more `::`-separated segments
-/// of alnum / `_`, with an optional leading `::`.
+/// needs no `${…}` braces). Delegates to the shared, ASCII-correct rule
+/// (`TclIsBareword` accepts only ASCII alphanumerics — a Unicode-permissive
+/// copy here would offer brace-free completions that change which variable
+/// is read).
 fn is_bare_var_name(name: &str) -> bool {
-    if name.is_empty() {
-        return false;
-    }
-    let s = name.strip_prefix("::").unwrap_or(name);
-    if s.is_empty() {
-        return false;
-    }
-    s.split("::")
-        .all(|seg| !seg.is_empty() && seg.chars().all(|c| c.is_alphanumeric() || c == '_'))
+    tcl_syntax::naming::is_bare_var_name(name)
 }
 
 /// Convert a codepoint column on `line_text` to a UTF-16 column (for

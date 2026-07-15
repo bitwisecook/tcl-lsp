@@ -136,6 +136,7 @@ class StringCommand(CommandDef):
 | `safe_on_uninit` | `frozenset[str] \| None` | `None` | Whether the command safely creates an uninitialised variable.  `None` = not safe (W210 fires).  Empty frozenset = safe in all dialects.  Non-empty frozenset = safe only in listed dialects.  Use `dialects_since("tcl8.5")` for version-gated behaviour (e.g. `incr` is safe in 8.5+ but errors in 8.4 and iRules) |
 | `inferred_storage_type` | `StorageType \| None` | `None` | Inferred type for the target variable: `DICT`, `LIST`, or `ARRAY` |
 | `defines_procedure` | `bool` | `False` | Command defines a procedure (proc, method, etc.) |
+| `defines_command_at` | `Option<u8>` | `None` | Argument index (0-based, after the command name) whose *literal* value becomes a callable command name once the call runs — `coroutine NAME cmd ?arg …?` binds `NAME` (`TclNRCoroutineObjCmd`, `tclBasic.c`).  Lighter than `creates_instance_at` (no `object_class` method dispatch); consumed generically by the analyser so later calls to the name don't draw W123.  The subcommand-level twin lives on `SubCommand` (`interp create ?-safe? ?--? ?name?`, index relative to the word after the subcommand); an option flag (leading `-`) or dynamic word at the index is never recorded, and a missing name is auto-generated at run time |
 
 ##### `var_write_typing` — return type vs written-variable type
 
@@ -212,6 +213,7 @@ still types `left` from `return_type`.
 |-------|------|---------|---------|
 | `handler` | `CommandHandler \| None` | `None` | VM execution hook |
 | `codegen` | `CodegenHook \| None` | `None` | Bytecode specialisation hook |
+| `inline_codegen_hook` | `Option<InlineCodegenHookId>` | `None` | Inline (value-position `[cmd …]` / catch-body) bytecode specialisation hook — the Rust registry's typed ID dispatched by `tcl_compiler::codegen::{cmd_subst,control_flow}` |
 | `lowering` | `LoweringHook \| None` | `None` | IR lowering hook |
 
 #### Cross-cutting
@@ -246,6 +248,7 @@ subcommand (`binary scan` destructures where the bare `binary` does not).
 | `taint_output_sink` | `str \| None` | `None` | Per-subcommand output sink diagnostic code |
 | `xc_operation` | `str \| None` | `None` | XC translation operation |
 | `forms` | `tuple[FormSpec, ...]` | `()` | Per-subcommand getter/setter forms |
+| `defines_command_at` | `Option<u8>` | `None` | Subcommand-level twin of the command-level `defines_command_at` (index 0-based, *after* the subcommand word) — `interp create ?-safe? ?--? ?name?` binds `name` as the child interpreter's command |
 
 ### ObjectClassSpec -- object-method dispatch
 

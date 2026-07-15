@@ -59,6 +59,7 @@ pub mod byte_array_effect;
 pub mod cache;
 pub mod clause_shape;
 pub mod command_snapshot;
+pub mod command_table;
 pub mod commands;
 pub mod const_fold;
 pub mod definer;
@@ -95,6 +96,7 @@ pub mod prelude {
     pub use crate::body_kind::BodyKind;
     pub use crate::byte_array_effect::ByteArrayEffect;
     pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
+    pub use crate::command_table::CommandTableEffect;
     pub use crate::definer::{
         DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberSpec,
     };
@@ -102,8 +104,8 @@ pub mod prelude {
     pub use crate::events::EventRequires;
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::hooks::{
-        ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion, VersionedConstFoldFn,
-        WasmCodegenHookId,
+        AnalyserHookId, ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion,
+        VersionedConstFoldFn, WasmCodegenHookId,
     };
     pub use crate::hover::{
         ArgValue, FormKind, FormSpec, HoverSnippet, OptionArg, OptionArity, OptionSpec, OptionValue,
@@ -129,6 +131,7 @@ pub use body_kind::BodyKind;
 pub use byte_array_effect::ByteArrayEffect;
 pub use cache::registry_for_dialect;
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
+pub use command_table::CommandTableEffect;
 pub use dialects::{
     DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
     detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,

@@ -44,13 +44,6 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"namespace", namespace_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 /// Canonical `namespace` subcommands (alphabetical — the ensemble order, used
 /// for unique-prefix resolution and the error message).
 const NAMESPACE_SUBS: &[&[u8]] = &[
@@ -77,7 +70,7 @@ const NAMESPACE_SUBS: &[&[u8]] = &[
 
 fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return wrong_args(interp, b"namespace subcommand ?arg ...?");
+        return interp.wrong_args(b"namespace subcommand ?arg ...?");
     }
     // Resolve the subcommand by exact name or unambiguous prefix (the ensemble
     // contract), so e.g. `namespace exist` → `exists`.
@@ -130,7 +123,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `::unknown` at dispatch). Mirrors `NamespaceUnknownCmd` (`tclNamesp.c`).
 fn ns_unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
-        return wrong_args(interp, b"namespace unknown ?script?");
+        return interp.wrong_args(b"namespace unknown ?script?");
     }
     let cur = interp.current_ns();
     if argv.len() == 3 {
@@ -157,7 +150,7 @@ fn ns_unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `namespace current` — the FQN of the current namespace.
 fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return wrong_args(interp, b"namespace current");
+        return interp.wrong_args(b"namespace current");
     }
     // The shared Family-B core over `Namespaces::{current, name}`.
     let v = tcl_cmd_core::namespace::current(interp);
@@ -193,7 +186,7 @@ fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `arg`s are concatenated with spaces, like `eval`).
 fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"namespace eval name arg ?arg...?");
+        return interp.wrong_args(b"namespace eval name arg ?arg...?");
     }
     let name = obj_bytes(argv[2]);
     // A single body argument keeps its `Tcl_Obj` so a located literal runs as
@@ -214,7 +207,7 @@ fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `namespace exists name` — whether the namespace resolves.
 fn ns_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"namespace exists name");
+        return interp.wrong_args(b"namespace exists name");
     }
     let name = String::from_utf8_lossy(&obj_bytes(argv[2])).into_owned();
     let v = tcl_cmd_core::namespace::exists(interp, &name);
@@ -226,7 +219,7 @@ fn ns_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// via the shared `tcl_cmd_core::namespace` core over `Namespaces`.
 fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
-        return wrong_args(interp, b"namespace parent ?name?");
+        return interp.wrong_args(b"namespace parent ?name?");
     }
     let name = argv
         .get(2)
@@ -244,7 +237,7 @@ fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// via the shared core.
 fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 4 {
-        return wrong_args(interp, b"namespace children ?name? ?pattern?");
+        return interp.wrong_args(b"namespace children ?name? ?pattern?");
     }
     let name = argv
         .get(2)
@@ -264,7 +257,7 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `namespace qualifiers string` — everything before the last `::` (pure text).
 fn ns_qualifiers(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"namespace qualifiers string");
+        return interp.wrong_args(b"namespace qualifiers string");
     }
     let s = obj_bytes(argv[2]);
     interp.set_result_bytes(tcl_cmd_core::namespace::qualifiers(&s));
@@ -274,7 +267,7 @@ fn ns_qualifiers(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `namespace tail string` — the simple name after the last `::` (pure text).
 fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"namespace tail string");
+        return interp.wrong_args(b"namespace tail string");
     }
     let s = obj_bytes(argv[2]);
     interp.set_result_bytes(tcl_cmd_core::namespace::tail(&s));
@@ -299,13 +292,13 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             want_variable = true;
         } else {
             if name.is_some() {
-                return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
+                return interp.wrong_args(b"namespace which ?-command? ?-variable? name");
             }
             name = Some(b);
         }
     }
     let Some(name) = name else {
-        return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
+        return interp.wrong_args(b"namespace which ?-command? ?-variable? name");
     };
     if want_variable {
         // `-variable` resolution is runtime-local (not in the Family-B contract).
@@ -488,7 +481,7 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `namespace path ?nsList?` — query (FQN list) or set the current ns's path.
 fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
-        return wrong_args(interp, b"namespace path ?nsList?");
+        return interp.wrong_args(b"namespace path ?nsList?");
     }
     let cur = interp.current_ns();
     if argv.len() == 2 {
@@ -583,7 +576,7 @@ fn drop_fresh(obj: *mut TclObj) {
 /// list-element-quoting refinement matters only for the multi-arg form.)
 fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"namespace inscope name arg ?arg...?");
+        return interp.wrong_args(b"namespace inscope name arg ?arg...?");
     }
     let name = obj_bytes(argv[2]);
     let mut script = obj_bytes(argv[3]);
@@ -598,7 +591,7 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// (following `namespace import` chains to the source).
 fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"namespace origin name");
+        return interp.wrong_args(b"namespace origin name");
     }
     let name = obj_bytes(argv[2]);
     let cur = interp.current_ns();
@@ -624,7 +617,7 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// capture is returned unchanged (`NamespaceCodeCmd`, `tclNamesp.c`).
 fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"namespace code arg");
+        return interp.wrong_args(b"namespace code arg");
     }
     let script = obj_bytes(argv[2]);
     // Idempotent for an existing capture (matches C's leading-token check).
@@ -651,7 +644,7 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // objc<2 || objc&1 in C (argv[0] is "namespace"): need ns + even #pairs.
     if argv.len() < 3 || argv.len() % 2 == 0 {
-        return wrong_args(interp, b"namespace upvar ns ?otherVar myVar ...?");
+        return interp.wrong_args(b"namespace upvar ns ?otherVar myVar ...?");
     }
     let ns_name = obj_bytes(argv[2]);
     let Some(ns) = interp
@@ -692,7 +685,7 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// redirect (the generalised `dict for`→`::tcl::dict::for` mechanism).
 fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"namespace ensemble subcommand ?arg ...?");
+        return interp.wrong_args(b"namespace ensemble subcommand ?arg ...?");
     }
     // Subcommands resolve by exact name or unambiguous prefix (Tcl's index table).
     let sub = obj_bytes(argv[2]);
@@ -801,10 +794,8 @@ fn apply_ensemble_option(cfg: &mut EnsembleConfig, opt: &[u8], val: &[u8]) -> Re
 /// all settings; one bare `-option`: its value; `-option value …` pairs: update.
 fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(
-            interp,
-            b"namespace ensemble configure cmdname ?-option value ...? ?arg ...?",
-        );
+        return interp
+            .wrong_args(b"namespace ensemble configure cmdname ?-option value ...? ?arg ...?");
     }
     let cmd = obj_bytes(argv[3]);
     let Some(mut cfg) = interp.ensemble_config(&cmd) else {
@@ -921,7 +912,7 @@ fn ensemble_config_dict(interp: &Interp, cfg: &EnsembleConfig) -> Vec<u8> {
 /// `namespace ensemble exists command` — 1 if it resolves to an ensemble.
 fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return wrong_args(interp, b"namespace ensemble exists cmd");
+        return interp.wrong_args(b"namespace ensemble exists cmd");
     }
     let exists = interp.is_ensemble(&obj_bytes(argv[3]));
     interp.set_result_bytes(if exists { b"1" } else { b"0" });

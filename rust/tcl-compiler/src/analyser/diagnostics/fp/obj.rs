@@ -1098,3 +1098,78 @@ fn fp_obj_19_dict_create_key_is_not_a_command() {
         r.unresolved_command_sites,
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-OBJ-20 — an external (unindexed) mixin contributes methods through the
+// MRO exactly as an external superclass does, so the W308 external-class
+// escape hatch must cover mixins too.
+// ---------------------------------------------------------------------------
+
+const FP_OBJ_20_REPRO: &str = "\
+oo::class create Reactive {
+    mixin ::somelib::Observable
+    method local {} {}
+}
+set o [Reactive new]
+$o subscribe handler
+";
+
+#[test]
+fn fp_obj_20_external_mixin_method_no_w308() {
+    // FP: `subscribe` comes from the external mixin ::somelib::Observable —
+    // the class's callable method set is unknowable, so W308 must abstain
+    // exactly as it does for an external superclass.
+    assert!(
+        !fires(FP_OBJ_20_REPRO, D, "W308"),
+        "FP-OBJ-20: method from external mixin must NOT fire W308; emitted: {:?}",
+        codes(FP_OBJ_20_REPRO, D)
+    );
+}
+
+#[test]
+fn fp_obj_20_external_mixin_cmdsub_dispatch_no_w308() {
+    // FP: the same abstention on the `[Reactive new] subscribe` cmd-sub
+    // dispatch shape (the `validate_method_on_class` W308 path).
+    let src = "oo::class create Reactive {\n    mixin ::somelib::Observable\n    method local {} {}\n}\n[Reactive new] subscribe handler\n";
+    assert!(
+        !fires(src, D, "W308"),
+        "FP-OBJ-20: cmd-sub dispatch of external-mixin method must NOT fire W308; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_obj_20_all_local_class_unknown_method_still_w308() {
+    // TP control: with no external superclass or mixin the method set IS
+    // fully known — an unknown method must still fire W308.
+    let src = "oo::class create Plain { method local {} {} }\nset o [Plain new]\n$o nosuch\n";
+    assert!(
+        fires(src, D, "W308"),
+        "FP-OBJ-20 TP: unknown method on all-local class must fire W308; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_obj_20_local_mixin_unknown_method_still_w308() {
+    // TP control: a *local* (indexed) mixin is fully introspectable, so it
+    // must not blanket-suppress — an unknown method still fires W308.
+    let src = "oo::class create ::Observable { method subscribe {h} {} }\noo::class create Reactive {\n    mixin ::Observable\n}\nset o [Reactive new]\n$o nosuch\n";
+    assert!(
+        fires(src, D, "W308"),
+        "FP-OBJ-20 TP: unknown method on class with all-local mixin must fire W308; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_obj_20_local_mixin_provides_method_silent() {
+    // Regression: an in-file mixin providing the method resolves through the
+    // MRO — silent, with no reliance on the external-mixin abstention.
+    let src = "oo::class create ::Observable { method subscribe {h} {} }\noo::class create Reactive {\n    mixin ::Observable\n    method local {} {}\n}\nset o [Reactive new]\n$o subscribe handler\n";
+    assert!(
+        !fires(src, D, "W308"),
+        "FP-OBJ-20: in-file mixin providing the method must NOT fire W308; emitted: {:?}",
+        codes(src, D)
+    );
+}

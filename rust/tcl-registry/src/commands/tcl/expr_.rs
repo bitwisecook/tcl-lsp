@@ -20,7 +20,7 @@
 //
 // VERIFIED: Tcl 9.0.3 manpage expr(n) (man3/expr.n).
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
@@ -54,6 +54,7 @@ pub fn spec() -> CommandSpec {
             ArgTypeHint {
                 expected: Some(TclType::Numeric),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         hover: Some(HoverSnippet {
@@ -65,6 +66,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The result of evaluating the expression.",
         }),
         lowering_hook: Some(LoweringHookId::Expr),
+        inline_codegen_hook: Some(InlineCodegenHookId::Expr),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

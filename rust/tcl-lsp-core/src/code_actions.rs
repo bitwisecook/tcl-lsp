@@ -473,12 +473,13 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
 }
 
 /// True for the shimmer diagnostic family (S100/S101/S102 — performance
-/// intrep-conversion; S110 — byte-array-corruption correctness), the set
+/// intrep-conversion; S103 — shared-value copy-on-write; S110 —
+/// byte-array-corruption correctness), the set
 /// [`build_shimmer_noqa_suppress_action`] offers a suppression fix for.
 fn is_shimmer_family(code: DiagCode) -> bool {
     matches!(
         code,
-        DiagCode::S100 | DiagCode::S101 | DiagCode::S102 | DiagCode::S110
+        DiagCode::S100 | DiagCode::S101 | DiagCode::S102 | DiagCode::S103 | DiagCode::S110
     )
 }
 

@@ -19,10 +19,13 @@
 //! Central command dispatch.
 //!
 //! Walks one segmented Tcl command and routes it through the
-//! per-command handlers. The dispatch shape is a series of
-//! ``if let true = self.handle_xxx(...) { return }`` calls, so
-//! adding a new handler or interleaving an additional concern
-//! remains a one-liner.
+//! per-command handlers. Which handler family owns a command form is
+//! registry data — the [`tcl_registry::hooks::AnalyserHookId`] stamped
+//! on its `CommandSpec` / `SubCommand` — so the dispatch is a single
+//! typed `match` ([`Analyser::dispatch_analyser_hook`]); adding a new
+//! handler means adding a hook variant and stamping the spec.
+
+use std::sync::OnceLock;
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
@@ -66,6 +69,17 @@ struct DispatchSite<'a> {
     arg_expand_in: &'a [bool],
     cmd_tok: Token,
     scope_path: &'a [usize],
+}
+
+/// Shared core registry standing in for [`Analyser::registry`] when a
+/// handler runs outside an `analyse*` entry point (unit harnesses drive
+/// handlers on a bare `Analyser::new()`, which never populates the
+/// dialect-aware registry).  Built once; the core `tcl` pack carries
+/// every stamped [`tcl_registry::hooks::AnalyserHookId`], so hook
+/// resolution behaves identically to an analyse-time run.
+fn fallback_registry() -> &'static CommandRegistry {
+    static FALLBACK: OnceLock<CommandRegistry> = OnceLock::new();
+    FALLBACK.get_or_init(CommandRegistry::build_default)
 }
 
 /// Parent command for a control-flow keyword that is only valid as an
@@ -412,10 +426,19 @@ impl Analyser {
         self.dispatch_command_handlers(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
     }
 
-    /// Handler-by-handler dispatch for [`Self::process_command`]. Each
-    /// returning-bool handler is consulted in turn; first match wins and
-    /// returns. The void-returning handlers then run unconditionally (their
-    /// own internal cmd-name guard rejects mismatches).
+    /// Typed per-command dispatch for [`Self::process_command`].
+    ///
+    /// Which handler family owns a command form is registry data — the
+    /// [`AnalyserHookId`] stamped on the `CommandSpec` (or, for the
+    /// subcommand-shaped families like `namespace eval` / `dict for` /
+    /// `interp alias`, on the `SubCommand`) — so the dispatch is one
+    /// typed `match`, not a chain of name-guarded calls.  The
+    /// early-return families stop the walk exactly as their `true`
+    /// return used to; the void families fall through to the shared
+    /// tail: the registry-role-driven handlers that consider every
+    /// command (`VarWrite` bindings, symbol definers, the tcllib
+    /// `::import` wrapper idiom) and the generic `ArgRole::Body`
+    /// recursion.
     fn dispatch_command_handlers(
         &mut self,
         cmd_name: &str,
@@ -425,130 +448,236 @@ impl Analyser {
         cmd_tok: Token,
         scope_path: &[usize],
     ) {
-        // proc — registers the proc record + scope.
-        if self.handle_proc_command(cmd_name, args, arg_tokens, scope_path) {
+        if self.dispatch_analyser_hook(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path)
+        {
             return;
         }
 
-        // oo::class create / oo::define — class records + body walk.
-        if self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-        if self.handle_oo_define_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-
-        // snit (tcllib) `snit::type` / `widget` / `widgetadaptor` — modelled
-        // as a `ClassDef` with method scopes, like `oo::class`.
-        if self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-
-        // [incr Tcl] `itcl::class Name { … }` — modelled as a `ClassDef` too,
-        // with `public`/`protected`/`private` access modifiers unwrapped.
-        if self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-
-        // namespace eval — opens a namespace child scope.
-        if self.handle_namespace_eval_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-
-        // uplevel #0 { body } — opens a global-frame child scope so the
-        // body's locals don't leak into the enclosing proc's variable
-        // set.  Only the `#0` form is handled here; other levels fall
-        // through to the generic body recursion below.
-        if self.handle_uplevel_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-
-        // foreach / for / switch / catch / try — entry shims that
-        // recurse into their braced bodies.
-        if self.handle_foreach_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-        if self.handle_for_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-        if self.handle_switch_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-        if self.handle_catch_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-        if self.handle_try_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-
-        // apply {{params} body} — an anonymous lambda. Owns its body walk
-        // (binds params, analyses element 1) so the generic `ArgRole::Body`
-        // recursion below never mis-reads the parameter list as a command.
-        if self.handle_apply_command(cmd_name, args, arg_tokens, scope_path) {
-            return;
-        }
-
-        // Variable-mutating handlers. These are void-returning
-        // and silently no-op if the cmd_name doesn't match —
-        // safe to call sequentially.
-        self.handle_set_command(cmd_name, args, arg_tokens, arg_single, scope_path);
-        self.handle_var_declaration_command(cmd_name, args, arg_tokens, scope_path);
-        self.handle_incr_command(cmd_name, args, arg_tokens, scope_path);
-        self.handle_append_lappend_command(cmd_name, args, arg_tokens, scope_path);
-        // Local-alias / loop-var bindings: `upvar`, `namespace upvar`, and
-        // `dict for/update/with` introduce names visible to completion / hover.
-        self.handle_upvar_command(cmd_name, args, arg_tokens, scope_path);
-        self.handle_namespace_upvar_command(cmd_name, args, arg_tokens, scope_path);
-        self.handle_dict_var_command(cmd_name, args, arg_tokens, scope_path);
-        // `lassign` / `scan` / `regexp` / `regsub` write their results into
-        // trailing variable arguments; bind them so completion/hover/definition
-        // see the destructured / captured names.
+        // Any command with registry `VarWrite`-role args (`lassign`, `scan`,
+        // `regexp`, `regsub`, `gets`, `binary scan`, `vwait`, …) writes
+        // results into named variable arguments; bind them so
+        // completion/hover/definition see the destructured / captured names.
         self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
         // records the symbol; the body still recurses via the generic
         // `ArgRole::Body` walk below.
         self.handle_defines_symbol(cmd_name, args, arg_tokens, arg_single, scope_path);
-
-        // Side-effect-only handlers. Same idempotent pattern.
-        self.handle_namespace_ensemble(cmd_name, args, scope_path);
-        self.handle_interp_alias(cmd_name, args, cmd_tok.span.start());
-        self.handle_oo_objdefine(cmd_name, args);
-        self.handle_package_command(cmd_name, cmd_tok, args, arg_tokens);
-        self.handle_source_command(cmd_name, args, arg_tokens);
-        self.handle_namespace_import_command(cmd_name, args, arg_tokens, scope_path);
-        self.handle_namespace_path_command(cmd_name, args, scope_path);
+        // The tcllib `<NS>::import <alias>` wrapper idiom — recognised by
+        // the call's own `::import` tail, not a registry name.
         self.handle_tcllib_import_wrapper(cmd_name, cmd_tok, args, scope_path);
-        self.handle_auto_path_command(cmd_name, args, arg_tokens);
-        self.handle_regex_pattern_capture(cmd_name, args, arg_tokens, scope_path);
-
-        // ``load`` unconditionally flips ``has_dynamic_providers``: it
-        // brings a shared library's commands into the interpreter at
-        // runtime, which static W123 unknown-command analysis can never
-        // predict.  A *static* ``rename OLD NEW`` is instead recorded
-        // precisely by ``handle_rename`` (``NEW`` resolves to whatever
-        // ``OLD`` denoted, including its arity) — only a genuinely
-        // *dynamic* rename (``rename $x y`` / ``rename x [y]``) falls
-        // back to the same conservative flag, matching
-        // ``command_binding.rs``'s wildcard-collapse convention for the
-        // identical shape.
-        if cmd_name == "load" || self.handle_rename(cmd_name, args, cmd_tok.span.start()) {
-            self.result.has_dynamic_providers = true;
-        }
 
         // Generic body recursion via the command registry's
         // `ArgRole::Body`.  Picks up `if` / `while` / `when` /
         // `eval` / `uplevel` / `subst` / etc. — every command whose
         // registry spec marks an argument index as `BODY`.  The
-        // dedicated `handle_*_command` calls above already returned
-        // early for the commands they own (proc, oo::class,
-        // oo::define, namespace eval, foreach, for, switch, catch,
-        // try), so this loop only fires for the rest.
+        // early-return hook arms above already consumed the commands
+        // that own their body walk (proc, oo::class, oo::define,
+        // namespace eval, foreach, for, switch, catch, try), so this
+        // loop only fires for the rest.
         //
         // For `when EVENT { body }` the iRules dialect spec
         // marks arg 1 as BODY; set `current_event` for the body
         // walk so race-detection diagnostics see the event name.
         self.dispatch_body_arguments(cmd_name, args, arg_tokens, arg_single, scope_path);
+    }
+
+    /// Resolve the [`AnalyserHookId`] for a command head, mirroring the
+    /// retired per-handler guards exactly: the head must be the spec's
+    /// own spelling — a `::`-qualified head resolves no hook (the
+    /// literal guards never matched one, and `CommandRegistry::get`'s
+    /// leading-`::` fallback must not widen the dispatch) — and a
+    /// subcommand word must match its `SubCommand` name exactly.
+    ///
+    /// Outside an `analyse*` run (unit harnesses drive handlers on a
+    /// bare `Analyser::new()`) the shared core registry stands in for
+    /// the stashed dialect-aware one.
+    pub(in crate::analyser) fn resolve_analyser_hook(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+    ) -> Option<tcl_registry::hooks::AnalyserHookId> {
+        if cmd_name.starts_with("::") {
+            return None;
+        }
+        let registry = self
+            .registry
+            .as_ref()
+            .unwrap_or_else(|| fallback_registry());
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        registry
+            .resolve_call(
+                cmd_name,
+                &arg_strs,
+                tcl_registry::prelude::DialectSet::empty(),
+            )
+            .and_then(|resolved| resolved.analyser_hook)
+    }
+
+    /// The single typed `match` over the resolved [`AnalyserHookId`].
+    ///
+    /// Returns `true` when the command was consumed by an early-return
+    /// family (the caller stops, skipping the shared tail), `false`
+    /// when the walk should continue — either a void family ran, or no
+    /// hook (and no definition-grammar definer) matched.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "exhaustive registry-hook dispatch (one arm per AnalyserHookId \
+                  variant, so a new variant is a compile error until wired); \
+                  splitting hurts readability, per classify_side_effects"
+    )]
+    fn dispatch_analyser_hook(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        cmd_tok: Token,
+        scope_path: &[usize],
+    ) -> bool {
+        use tcl_registry::hooks::AnalyserHookId as Hook;
+        let Some(hook) = self.resolve_analyser_hook(cmd_name, args) else {
+            // No stamped family — the definition-grammar-driven definers
+            // (TclOO metaclass create, snit::type/widget, itcl::class)
+            // get their chance.  Their registry conditions are disjoint
+            // from every stamped hook (pinned by tcl-registry's
+            // analyser-hook drift tests), so running them only on the
+            // hookless path preserves the old chain's order.
+            return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path)
+                || self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path)
+                || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path);
+        };
+        match hook {
+            // Early-return families: the handler owns the whole command
+            // (including its body walk) when it returns `true`.
+            Hook::Proc => self.handle_proc_command(args, arg_tokens, scope_path),
+            Hook::OoDefine => self.handle_oo_define_command(cmd_name, args, arg_tokens, scope_path),
+            Hook::NamespaceEval => self.handle_namespace_eval_command(args, arg_tokens, scope_path),
+            // uplevel #0 { body } — opens a global-frame child scope so
+            // the body's locals don't leak into the enclosing proc's
+            // variable set.  Only the `#0` form is consumed; other
+            // levels fall through to the generic body recursion.
+            Hook::Uplevel => self.handle_uplevel_command(args, arg_tokens, scope_path),
+            Hook::Foreach => self.handle_foreach_command(args, arg_tokens, scope_path),
+            Hook::For => self.handle_for_command(args, arg_tokens, scope_path),
+            Hook::Switch => self.handle_switch_command(args, arg_tokens, scope_path),
+            Hook::Catch => self.handle_catch_command(args, arg_tokens, scope_path),
+            Hook::Try => self.handle_try_command(args, arg_tokens, scope_path),
+            // apply {{params} body} — owns its body walk (binds params,
+            // analyses element 1) so the generic `ArgRole::Body`
+            // recursion never mis-reads the parameter list as a command.
+            Hook::Apply => self.handle_apply_command(args, arg_tokens, scope_path),
+
+            // Void families: run the handler(s), then fall through to
+            // the shared tail.
+            Hook::Set => {
+                self.handle_set_command(args, arg_tokens, arg_single, scope_path);
+                self.handle_auto_path_set(args, arg_tokens);
+                false
+            }
+            Hook::Variable => {
+                self.handle_variable_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::Global => {
+                self.handle_global_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::Incr => {
+                self.handle_incr_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::Append => {
+                self.handle_append_lappend_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::Lappend => {
+                self.handle_append_lappend_command(args, arg_tokens, scope_path);
+                self.handle_auto_path_lappend(args, arg_tokens);
+                false
+            }
+            Hook::Upvar => {
+                self.handle_upvar_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::NamespaceUpvar => {
+                self.handle_namespace_upvar_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::DictFor => {
+                self.handle_dict_for_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::DictUpdate => {
+                self.handle_dict_update_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::DictWith => {
+                self.handle_dict_with_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::NamespaceEnsemble => {
+                self.handle_namespace_ensemble(args, scope_path);
+                false
+            }
+            Hook::InterpAlias => {
+                self.handle_interp_alias(args, cmd_tok.span.start());
+                false
+            }
+            Hook::OoObjdefine => {
+                self.handle_oo_objdefine(args);
+                false
+            }
+            Hook::PackageRequire => {
+                self.handle_package_require(cmd_tok, args, arg_tokens);
+                false
+            }
+            Hook::PackageProvide => {
+                self.handle_package_provide(cmd_tok, args);
+                false
+            }
+            Hook::Source => {
+                self.handle_source_command(args, arg_tokens);
+                false
+            }
+            Hook::NamespaceImport => {
+                self.handle_namespace_import_command(args, arg_tokens, scope_path);
+                false
+            }
+            Hook::NamespacePath => {
+                self.handle_namespace_path_command(args, scope_path);
+                false
+            }
+            Hook::NamespaceUnknown => {
+                self.handle_namespace_unknown_command(args);
+                false
+            }
+            Hook::RegexPatternCapture => {
+                self.handle_regex_pattern_capture(cmd_name, args, arg_tokens, scope_path);
+                false
+            }
+            // ``load`` unconditionally flips ``has_dynamic_providers``:
+            // it brings a shared library's commands into the interpreter
+            // at runtime, which static W123 unknown-command analysis can
+            // never predict.
+            Hook::Load => {
+                self.result.has_dynamic_providers = true;
+                false
+            }
+            // A *static* ``rename OLD NEW`` is recorded precisely by
+            // ``handle_rename`` (``NEW`` resolves to whatever ``OLD``
+            // denoted, including its arity) — only a genuinely *dynamic*
+            // rename (``rename $x y`` / ``rename x [y]``) falls back to
+            // the same conservative flag as ``load``, matching
+            // ``command_binding.rs``'s wildcard-collapse convention for
+            // the identical shape.
+            Hook::Rename => {
+                if self.handle_rename(args, cmd_tok.span.start()) {
+                    self.result.has_dynamic_providers = true;
+                }
+                false
+            }
+        }
     }
 
     /// Emit the two diagnostics that key off whether the command head
@@ -1332,11 +1461,12 @@ impl Analyser {
         // the check entirely, so the brace-then-paren emitter must run on
         // substitution commands too.
         self.emit_w216_brace_then_paren(seg);
-        // `lassign`/`scan`/`regexp`/`regsub` nested in a `[…]` substitution still
-        // write their trailing variables into the enclosing scope — the
-        // idiomatic `if {[regexp {…} $s m]} {…}` / `set n [scan $s "%d" x]` —
-        // so bind them for completion/hover/definition and read-before-set,
-        // just as the top-level `process_command` path does.
+        // A `VarWrite`-role command nested in a `[…]` substitution still
+        // writes its variable arguments into the enclosing scope — the
+        // idiomatic `if {[regexp {…} $s m]} {…}` / `set n [scan $s "%d" x]` /
+        // `while {[gets $chan line] >= 0} {…}` — so bind them for
+        // completion/hover/definition and read-before-set, just as the
+        // top-level `process_command` path does.
         self.handle_var_binding_command(&cmd_name, args, arg_tokens, scope_path);
         // Record the nested command's variable-/command-substitution-as-command
         // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main
@@ -1363,8 +1493,18 @@ impl Analyser {
         // body collector descends `catch`'s script argument to reach it. Without
         // this, W120 ("requires `package require Tk`") false-positives on every
         // file using the standard guard, and the W123 conservative
-        // any-require-seen gate never engages.
-        self.handle_package_command(&cmd_name, cmd_tok, args, arg_tokens);
+        // any-require-seen gate never engages.  Only the two `package`
+        // hooks run here — the substitution path deliberately dispatches
+        // no other handler family.
+        match self.resolve_analyser_hook(&cmd_name, args) {
+            Some(tcl_registry::hooks::AnalyserHookId::PackageRequire) => {
+                self.handle_package_require(cmd_tok, args, arg_tokens);
+            }
+            Some(tcl_registry::hooks::AnalyserHookId::PackageProvide) => {
+                self.handle_package_provide(cmd_tok, args);
+            }
+            _ => {}
+        }
         // A `catch SCRIPT ?resultVar? ?optionsVar?` nested in a `[...]`
         // substitution (`set out [catch {…} msg]`, `if {[catch {…} e]} …`)
         // still binds its result/options variables in the enclosing scope, so
@@ -1576,6 +1716,12 @@ impl Analyser {
     /// Best-effort and not flow-sensitive: the last assignment
     /// to a given name wins.
     pub(crate) fn record_instance_creation(&mut self, cmd_name: &str, args: &[String]) {
+        // Registry `defines_command_at` — a spec-declared argument whose
+        // literal value becomes a callable command name (`coroutine NAME cmd
+        // …`, `interp create NAME`).  Registry data only, so it is recorded
+        // eagerly (like the factory binding below) and works inside an
+        // isolated proc body too.
+        self.record_registry_defined_command(cmd_name, args);
         // Registry object-factories (`struct::graph g` naming form, `set g
         // [struct::graph …]` return form) resolve from the registry alone — no
         // `all_classes` — so bind them IMMEDIATELY, even inside an isolated proc
@@ -1683,6 +1829,48 @@ impl Analyser {
             return true;
         }
         false
+    }
+
+    /// Record a command name bound by a registry `defines_command_at` spec —
+    /// the argument whose *literal* value becomes a callable command once the
+    /// call runs (`coroutine NAME cmd ?arg …?` at the command level, `interp
+    /// create ?-safe? ?--? ?NAME?` at the subcommand level).  The name goes
+    /// into [`AnalysisResult::created_instance_commands`] so the W123
+    /// unresolved-command pass treats later calls to it as resolved.  Purely
+    /// registry-driven — no command name is matched here.
+    ///
+    /// Conservative by construction: only a plain literal word is recorded (a
+    /// `$var` / `[cmd]` / `%AUTO%` name is runtime-computed), and a word
+    /// starting with `-` at the name index is an option flag (`interp create
+    /// -safe`), never a name — a missing name is auto-generated at run time
+    /// and needs no recording.
+    fn record_registry_defined_command(&mut self, cmd_name: &str, args: &[String]) {
+        let Some(reg) = self.registry.as_ref() else {
+            return;
+        };
+        let Some(spec) = reg.get(cmd_name) else {
+            return;
+        };
+        // Command-level index, else the resolved subcommand's index shifted
+        // past the subcommand word itself.
+        let name_idx = if let Some(idx) = spec.defines_command_at {
+            Some(usize::from(idx))
+        } else {
+            args.first()
+                .and_then(|sub| spec.resolve_subcommand(sub))
+                .and_then(|sub| sub.defines_command_at)
+                .map(|idx| usize::from(idx) + 1)
+        };
+        let Some(idx) = name_idx else {
+            return;
+        };
+        let Some(name) = args.get(idx) else {
+            return;
+        };
+        if name.starts_with('-') || !is_plain_created_name(name) {
+            return;
+        }
+        self.result.created_instance_commands.insert(name.clone());
     }
 
     /// Collision-safe `instance_classes` insertion for the two *registry*
@@ -2240,6 +2428,57 @@ fn first_command_head(text: &str) -> Option<(&str, usize)> {
 mod tests {
     use super::*;
     use tcl_lexer::{Span, TokenType};
+
+    /// The dispatch-level replacement for the retired per-handler
+    /// name-guard tests (`handle_set_wrong_command_no_op` and
+    /// friends): an unstamped or `::`-qualified head resolves no
+    /// [`tcl_registry::hooks::AnalyserHookId`], so no handler runs at
+    /// all, while stamped heads resolve the family the guards used to
+    /// select — including the subcommand-level stamps.  Runs on a bare
+    /// `Analyser::new()`, which also exercises the shared
+    /// [`fallback_registry`] path the unit harnesses rely on.
+    #[test]
+    fn resolve_analyser_hook_mirrors_the_retired_name_guards() {
+        use tcl_registry::hooks::AnalyserHookId as H;
+        let a = Analyser::new();
+        let args = |words: &[&str]| words.iter().map(ToString::to_string).collect::<Vec<_>>();
+
+        // Unstamped head: no handler family.
+        assert_eq!(a.resolve_analyser_hook("puts", &args(&["hi"])), None);
+        // The literal guards never matched a qualified spelling.
+        assert_eq!(
+            a.resolve_analyser_hook("::proc", &args(&["p", "a", "b"])),
+            None
+        );
+        // Command-level stamp.
+        assert_eq!(
+            a.resolve_analyser_hook("proc", &args(&["p", "a", "b"])),
+            Some(H::Proc)
+        );
+        // Subcommand-level stamps pick the family per subcommand word…
+        assert_eq!(
+            a.resolve_analyser_hook("namespace", &args(&["eval", "ns", "{}"])),
+            Some(H::NamespaceEval)
+        );
+        assert_eq!(
+            a.resolve_analyser_hook("namespace", &args(&["import", "::t::*"])),
+            Some(H::NamespaceImport)
+        );
+        // …and an unstamped subcommand of a stamped command resolves
+        // nothing (`namespace which`, `dict set`).
+        assert_eq!(
+            a.resolve_analyser_hook("namespace", &args(&["which", "x"])),
+            None
+        );
+        assert_eq!(
+            a.resolve_analyser_hook("dict", &args(&["set", "d", "k", "v"])),
+            None
+        );
+        assert_eq!(
+            a.resolve_analyser_hook("dict", &args(&["for", "{k v}", "$d", "{}"])),
+            Some(H::DictFor)
+        );
+    }
 
     /// A Tk widget constructor is syntactically identical to a tcllib
     /// naming factory (`struct::graph g`) — a bareword `ttk::treeview .t`

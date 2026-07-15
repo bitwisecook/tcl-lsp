@@ -95,6 +95,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Indicates that a version of a package is now present in the interpreter.",
         synopsis: "package provide package ?version?",
         return_type: Some(TclType::String),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::PackageProvide),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -113,6 +114,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 min_version: None,
             }]
         },
+        analyser_hook: Some(crate::hooks::AnalyserHookId::PackageRequire),
         ..SubCommand::DEFAULT
     },
     SubCommand {

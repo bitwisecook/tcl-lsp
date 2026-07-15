@@ -69,6 +69,7 @@ pub fn spec() -> CommandSpec {
             ArgTypeHint {
                 expected: Some(TclType::List),
                 shimmers: true,
+                transparent_from: &[],
             },
         )],
         lowering_hook: Some(crate::hooks::LoweringHookId::Lmap),

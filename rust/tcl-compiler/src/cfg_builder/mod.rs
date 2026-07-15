@@ -26,10 +26,13 @@
 //! - [`build_cfg`] — build CFGs for a whole module (top-level + procs).
 //! - [`build_cfg_function`] — build a CFG for a single script body.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::sync::LazyLock;
 
 use rustc_hash::FxHashMap;
 use tcl_lexer::{Span, TokenType};
+use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::{Traits, registry_for_dialect};
 
 use crate::cfg::{Block, BlockId, CfgModule, Function, LoopNode, Terminator};
 use crate::expr_ast::ExprNode;
@@ -248,6 +251,29 @@ impl CfgBuilder {
     /// depend on call-site arguments, so no params-based mapping is
     /// needed, just the literal name list.
     fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Vec<Statement> {
+        // 0. A callee whose `upvar` caller-side name is unresolvable
+        //    (`upvar 1 $computed x`) can write ANY caller variable — no
+        //    per-name def list is sound, so widen the call site with an
+        //    opaque barrier after the call (SCCP/propagation widen every
+        //    tracked value at a `Statement::Barrier`), instead of trusting
+        //    the under-approximate `caller_side_defs`.
+        if let Statement::Call { command, span, .. } = &stmt
+            && self
+                .upvar_procs
+                .get(command.as_str())
+                .is_some_and(|info| info.has_unresolvable_caller_target)
+        {
+            let barrier = Statement::Barrier {
+                span: *span,
+                reason: format!("{command} upvar-aliases a dynamic caller variable"),
+                command: command.clone(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: None,
+            };
+            return vec![stmt, barrier];
+        }
+
         // 1. Direct-call extras: command is a known upvar proc / a proc that
         //    writes outer-scope names.
         let direct_extras: Vec<String> = match &stmt {
@@ -495,20 +521,24 @@ impl CfgBuilder {
         defs
     }
 
-    /// If `stmt` is a `break` / `continue` inside a loop, push it into
+    /// If `stmt` is a loop jump (the registry's `BREAKS_LOOP` /
+    /// `CONTINUES_LOOP` classes) inside a loop, push it into
     /// `current` and set a `Goto` terminator to the loop's exit / continue
     /// target, returning `true`.  Returns `false` (no-op) otherwise.
+    /// Matched against the raw command word (no `::` trimming), as the
+    /// retired hardcoded comparison was.
     fn lower_loop_jump(&mut self, current: &str, stmt: &Statement) -> bool {
         let Statement::Call { command, span, .. } = stmt else {
             return false;
         };
-        if command != "break" && command != "continue" {
+        let is_break = is_loop_break_command(command);
+        if !is_break && !is_loop_continue_command(command) {
             return false;
         }
         let Some((brk, cont)) = self.loop_stack.last().cloned() else {
             return false;
         };
-        let target_name = if command == "break" { brk } else { cont };
+        let target_name = if is_break { brk } else { cont };
         let target = self.bid(&target_name);
         self.block_mut(current).statements.push(stmt.clone());
         self.block_mut(current).terminator = Some(Terminator::Goto {
@@ -1256,24 +1286,110 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
     v.retain(|item| seen.insert(item.clone()));
 }
 
-/// Builtin commands that unconditionally terminate the current block (the
-/// `Traits::TERMINATES_BLOCK` set).  The CFG builder has no registry handle,
-/// so the core set is matched by name here; `return` is handled separately
-/// as its own `Statement::Return`.
-fn is_block_terminating_command(command: &str) -> bool {
-    matches!(command.trim_start_matches(':'), "error" | "throw" | "exit")
+// Registry-derived command classifications
+//
+// The CFG builder's public entry points ([`build_cfg`],
+// [`build_cfg_function`]) carry no registry handle, and several
+// classification consumers ([`flow_facts_stmt`],
+// [`escaping_loop_jumps`]) are free functions shared with SSA — so the
+// name sets are materialised once per process from the shared plain-Tcl
+// registry ([`registry_for_dialect`]'s cached `&'static` instance)
+// instead of being threaded through every signature. The sets replace
+// the hardcoded name matches this file used to carry; the drift test
+// `registry_derived_cfg_classes_match_previous_hardcodes` pins their
+// contents so a registry stamping change is a conscious CFG decision.
+
+/// Name sets for the command classifications the CFG builder keys
+/// control-flow shape on, each derived from one registry trait.
+struct CfgCommandClasses {
+    /// [`Traits::TERMINATES_BLOCK`] minus specs lowered through
+    /// [`LoweringHookId::Return`]: `return` carries the trait but
+    /// reaches the builder as its own [`Statement::Return`], never as a
+    /// plain `Statement::Call`, so it has no business in the
+    /// name-keyed terminator set.
+    terminates_block: HashSet<&'static str>,
+    /// [`Traits::CATCHABLE_THROW`] — raises `TCL_ERROR`, sourcing an
+    /// enclosing `try`'s on-error edge (`error` / `throw`; not `exit`,
+    /// which kills the process outside any exception range).
+    catchable_throw: HashSet<&'static str>,
+    /// [`Traits::REPLACES_FRAME`] — replaces the procedure frame and
+    /// never returns to the calling body (`tailcall`).
+    replaces_frame: HashSet<&'static str>,
+    /// [`Traits::BREAKS_LOOP`] — jumps to the enclosing loop's
+    /// post-loop target.
+    breaks_loop: HashSet<&'static str>,
+    /// [`Traits::CONTINUES_LOOP`] — jumps to the enclosing loop's
+    /// next-iteration target.
+    continues_loop: HashSet<&'static str>,
 }
 
-/// Whether `command` is `tailcall` (canonical `::tailcall`).
+/// The classification sets, built once from the cached plain-Tcl
+/// registry. All five classes are core-Tcl commands present in every
+/// dialect, so the plain registry is the right (and dialect-stable)
+/// source — exactly the set the retired hardcoded matches encoded.
+static CFG_COMMAND_CLASSES: LazyLock<CfgCommandClasses> = LazyLock::new(|| {
+    let registry = registry_for_dialect("");
+    let with = |t: Traits| -> HashSet<&'static str> {
+        registry.commands_with_trait(t).into_iter().collect()
+    };
+    let terminates_block = registry
+        .commands_with_trait(Traits::TERMINATES_BLOCK)
+        .into_iter()
+        .filter(|name| {
+            registry
+                .get(name)
+                .is_none_or(|s| s.lowering_hook != Some(LoweringHookId::Return))
+        })
+        .collect();
+    CfgCommandClasses {
+        terminates_block,
+        catchable_throw: with(Traits::CATCHABLE_THROW),
+        replaces_frame: with(Traits::REPLACES_FRAME),
+        breaks_loop: with(Traits::BREAKS_LOOP),
+        continues_loop: with(Traits::CONTINUES_LOOP),
+    }
+});
+
+/// Builtin commands that unconditionally terminate the current block —
+/// the registry's `Traits::TERMINATES_BLOCK` set (minus `return`, which
+/// is handled separately as its own `Statement::Return`; see
+/// [`CfgCommandClasses::terminates_block`]).  Leading `:` runs are
+/// trimmed so a qualified `::error` classifies like `error`, as the
+/// retired hardcoded match did.
+fn is_block_terminating_command(command: &str) -> bool {
+    CFG_COMMAND_CLASSES
+        .terminates_block
+        .contains(command.trim_start_matches(':'))
+}
+
+/// Whether `command` replaces the current procedure's frame — the
+/// registry's `Traits::REPLACES_FRAME` set (`tailcall`, canonical
+/// `::tailcall`).
 ///
 /// `tailcall` (Tcl 8.6+) replaces the current procedure's frame and never
 /// returns here: `TclNRTailcallObjCmd` (generic/tclBasic.c) always
 /// `return TCL_RETURN` — both bare `tailcall` and `tailcall command ...` exit
 /// the proc; the arg count only decides what runs *after* the frame pops, not
-/// whether this proc continues.  So *any* `tailcall` ends straight-line flow
-/// exactly like `error` / `exit` (with no args guard).
+/// whether this proc continues.  So *any* frame-replacing command ends
+/// straight-line flow exactly like `error` / `exit` (with no args guard).
 fn is_tailcall_command(command: &str) -> bool {
-    command.trim_start_matches(':') == "tailcall"
+    CFG_COMMAND_CLASSES
+        .replaces_frame
+        .contains(command.trim_start_matches(':'))
+}
+
+/// Whether `name` (pre-normalised by the caller — raw at
+/// [`CfgBuilder::lower_loop_jump`], `:`-trimmed elsewhere, matching
+/// what each site historically compared) jumps to the enclosing loop's
+/// post-loop target — the registry's `Traits::BREAKS_LOOP` set.
+fn is_loop_break_command(name: &str) -> bool {
+    CFG_COMMAND_CLASSES.breaks_loop.contains(name)
+}
+
+/// Loop-jump twin of [`is_loop_break_command`] for the next-iteration
+/// target — the registry's `Traits::CONTINUES_LOOP` set.
+fn is_loop_continue_command(name: &str) -> bool {
+    CFG_COMMAND_CLASSES.continues_loop.contains(name)
 }
 
 // Definite-assignment ("flow facts") over un-lowered IR scripts
@@ -1356,7 +1472,7 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion
         } => {
             let canon = canonical_command.as_deref().unwrap_or(command);
             let bare = canon.trim_start_matches(':');
-            let completion = if matches!(bare, "break" | "continue") {
+            let completion = if is_loop_break_command(bare) || is_loop_continue_command(bare) {
                 // A loop jump leaves to the enclosing loop's target — it still
                 // reaches the code after that loop, just without later defs.
                 Completion::LoopJump
@@ -1489,9 +1605,9 @@ pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
                     .as_deref()
                     .unwrap_or(command)
                     .trim_start_matches(':');
-                if bare == "break" {
+                if is_loop_break_command(bare) {
                     can_break = true;
-                } else if bare == "continue" {
+                } else if is_loop_continue_command(bare) {
                     can_continue = true;
                 }
             }
@@ -1648,6 +1764,13 @@ impl CfgBuilder {
             _ => return None,
         };
         for s in self.apply_upvar_invalidation(stmt.clone()) {
+            // A widening barrier means the callee can write ANY caller
+            // variable (an `upvar` with a dynamic caller-side name) — no
+            // per-name set exists, so report "can't tell" and let the
+            // caller drop every constant binding.
+            if matches!(s, Statement::Barrier { .. }) {
+                return None;
+            }
             if let Statement::Call { defs, .. } = &s {
                 for d in defs {
                     if !names.contains(d) {
@@ -1719,11 +1842,14 @@ fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
     EnvValue::Str(text.to_owned())
 }
 
-/// Whether `command` raises a *catchable* exception (`error` / `throw`) —
-/// `exit` terminates the process and is not caught by `try`. Throw points
-/// of this kind source an enclosing `try`'s on-error edge.
+/// Whether `command` raises a *catchable* exception — the registry's
+/// `Traits::CATCHABLE_THROW` set (`error` / `throw`); `exit` terminates
+/// the process and is not caught by `try`. Throw points of this kind
+/// source an enclosing `try`'s on-error edge.
 fn is_catchable_throw(command: &str) -> bool {
-    matches!(command.trim_start_matches(':'), "error" | "throw")
+    CFG_COMMAND_CLASSES
+        .catchable_throw
+        .contains(command.trim_start_matches(':'))
 }
 
 /// Lex *text* into Tcl words, accumulating contiguous tokens between
@@ -1784,6 +1910,52 @@ mod tests {
     use super::*;
     use crate::ir::{ForeachIterator, IfClause, Script};
     use tcl_lexer::Span;
+
+    /// Drift guard: the registry-derived classification sets must equal
+    /// the name lists this file used to hardcode, so a future trait
+    /// stamping change is a conscious CFG-shape decision rather than a
+    /// silent one.
+    #[test]
+    fn registry_derived_cfg_classes_match_previous_hardcodes() {
+        let sorted = |set: &HashSet<&'static str>| -> Vec<&'static str> {
+            let mut v: Vec<&'static str> = set.iter().copied().collect();
+            v.sort_unstable();
+            v
+        };
+        let classes = &*CFG_COMMAND_CLASSES;
+        // `return` carries TERMINATES_BLOCK but lowers to
+        // `Statement::Return`, so the name-keyed terminator set excludes it.
+        assert_eq!(
+            sorted(&classes.terminates_block),
+            ["error", "exit", "throw"]
+        );
+        assert_eq!(sorted(&classes.catchable_throw), ["error", "throw"]);
+        assert_eq!(sorted(&classes.replaces_frame), ["tailcall"]);
+        assert_eq!(sorted(&classes.breaks_loop), ["break"]);
+        assert_eq!(sorted(&classes.continues_loop), ["continue"]);
+    }
+
+    /// The classification helpers keep each site's historical name
+    /// normalisation: the terminator / throw / tailcall checks trim
+    /// leading `:` runs (so canonical `::error` classifies), while
+    /// [`CfgBuilder::lower_loop_jump`] matches the raw word (so
+    /// `::break` stays a plain call there).
+    #[test]
+    fn cfg_class_helpers_keep_site_normalisation() {
+        assert!(is_block_terminating_command("error"));
+        assert!(is_block_terminating_command("::throw"));
+        assert!(is_block_terminating_command("exit"));
+        assert!(!is_block_terminating_command("return"));
+        assert!(!is_block_terminating_command("break"));
+        assert!(is_catchable_throw("::error"));
+        assert!(!is_catchable_throw("exit"));
+        assert!(is_tailcall_command("::tailcall"));
+        assert!(!is_tailcall_command("error"));
+        assert!(is_loop_break_command("break"));
+        assert!(!is_loop_break_command("::break"));
+        assert!(is_loop_continue_command("continue"));
+        assert!(!is_loop_continue_command("break"));
+    }
 
     #[test]
     fn empty_script_produces_entry_exit() {

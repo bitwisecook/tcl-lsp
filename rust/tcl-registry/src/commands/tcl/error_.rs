@@ -18,6 +18,7 @@
 
 //! `error` — generate an error.
 
+use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -43,6 +44,7 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::TERMINATES_BLOCK
+            | Traits::CATCHABLE_THROW
             | Traits::NEEDS_START_CMD,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::String),
@@ -60,6 +62,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        inline_codegen_hook: Some(InlineCodegenHookId::Error),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }
