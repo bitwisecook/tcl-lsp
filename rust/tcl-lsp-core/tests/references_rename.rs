@@ -824,6 +824,27 @@ fn rename_proc_updates_definition_and_all_call_sites() {
 }
 
 #[test]
+fn rename_parent_proc_does_not_edit_a_child_interp_body() {
+    // `interp eval child { proc foo }` runs in a child interpreter, so its
+    // `proc foo` is isolated from the parent's `::foo`.  Renaming the parent
+    // `foo` rewrites the parent decl (line 0) and its call (line 2) but must
+    // never touch the child body on line 1.
+    let src = "proc foo {} {}\ninterp eval child { proc foo {} {} }\nfoo\n";
+    let analysis = analyse(src);
+    // Cursor on the parent `foo` declaration (line 0, col 6).
+    let edits = rename(src, "tcl", 0, 6, "bar", &analysis, None);
+    assert!(
+        edits.iter().all(|e| e.range.start_line != 1),
+        "the isolated child interp body must be untouched: {edits:?}",
+    );
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&0) && lines.contains(&2),
+        "the parent decl and call are still rewritten: {edits:?}",
+    );
+}
+
+#[test]
 fn rename_proc_from_call_site_rewrites_declaration_too() {
     // Renaming from a call site rewrites the declaration as well — same set.
     let src = "proc greet {} { return hi }\ngreet\ngreet\n";

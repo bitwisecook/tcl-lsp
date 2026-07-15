@@ -186,6 +186,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp eval path arg ?arg ...?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::Body)],
+        // The script runs in a *child* interpreter — a separate command /
+        // variable space — so the analyser opens an isolated scope for it
+        // rather than merging the child's definitions into the parent (a
+        // parent `rename foo` must not edit a child `proc foo`).
+        analyser_hook: Some(crate::hooks::AnalyserHookId::InterpEval),
         // Runs an arbitrary script — dynamic-dispatch consumers (memory-SSA
         // clobber classification, side-effect analysis) key off this.
         traits: Traits::EVALUATES_CODE,

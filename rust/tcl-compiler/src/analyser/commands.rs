@@ -560,6 +560,10 @@ impl Analyser {
             // Early-return families: the handler owns the whole command
             // (including its body walk) when it returns `true`.
             Hook::Proc => self.handle_proc_command(args, arg_tokens, scope_path),
+            // `interp eval path { … }` — the child interpreter's script is
+            // analysed in an isolated scope; a `{}`/multi-word/dynamic shape
+            // falls through to the generic body walk in the current scope.
+            Hook::InterpEval => self.handle_interp_eval_command(args, arg_tokens, scope_path),
             Hook::OoDefine => self.handle_oo_define_command(cmd_name, args, arg_tokens, scope_path),
             Hook::NamespaceEval => self.handle_namespace_eval_command(args, arg_tokens, scope_path),
             // uplevel #0 { body } — opens a global-frame child scope so

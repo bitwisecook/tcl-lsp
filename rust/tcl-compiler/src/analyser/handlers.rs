@@ -975,6 +975,65 @@ impl Analyser {
         true
     }
 
+    /// Handle `interp eval PATH SCRIPT`: the script runs in a **child**
+    /// interpreter — a separate command / variable space — so its `proc` /
+    /// `oo::class` / variable definitions and calls must not merge into the
+    /// parent namespace (a parent `rename foo` must not rewrite a child `proc
+    /// foo`; [`tcl_vm::interp`] isolates the child at run time).
+    ///
+    /// Only the single-script form (`interp eval child { … }`) is isolated: an
+    /// **empty** path (`interp eval {} script`) targets the *current*
+    /// interpreter — its definitions belong here — and a multi-word /
+    /// non-literal script cannot be statically re-assembled, so both fall back
+    /// to the generic body recursion by returning `false`.  Otherwise an
+    /// isolated child scope is opened, named for the interpreter path so the
+    /// child's definitions home under it (`::<path>::foo`) and the child's own
+    /// calls still resolve within the block; a dynamic path (`$i`) can't
+    /// collide with a real namespace, so it stays conservatively isolated too.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpEval`]
+    /// (stamped on `interp`'s `eval` subcommand); `args[0]` is the subcommand
+    /// word.
+    pub fn handle_interp_eval_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        // `interp eval PATH SCRIPT` — the subcommand word, the path, and one
+        // script word.
+        if args.len() != 3 {
+            return false;
+        }
+        // An empty path runs in the current interpreter — not isolated.
+        if args[1].is_empty() {
+            return false;
+        }
+        let body_span = arg_tokens.get(2).map(|t| t.span);
+        let body_text = args[2].clone();
+        let body_tok = arg_tokens.get(2).copied();
+
+        let outer = scope_path.to_vec();
+        let child_scope_idx = {
+            let mut child =
+                super::types::Scope::new(super::types::ScopeKind::Namespace, args[1].clone());
+            child.body_span = body_span;
+            let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &outer)
+            else {
+                return false;
+            };
+            parent.children.push(child);
+            parent.children.len() - 1
+        };
+        let mut child_path = outer;
+        child_path.push(child_scope_idx);
+
+        if let Some(tok) = body_tok {
+            self.analyse_body(&body_text, tok, &child_path);
+        }
+        true
+    }
+
     /// Handle `namespace path {…}`: record the current namespace's
     /// command-resolution search path for the post-walk settlement
     /// ([`Self::finalise_invocation_resolutions`]).
@@ -3324,6 +3383,38 @@ mod tests {
             !candidates("tcl8.4").iter().any(|c| c == "::mymod::helper"),
             "8.4 has no path tier, so it must not: {:?}",
             candidates("tcl8.4"),
+        );
+    }
+
+    /// `interp eval child { proc foo }` runs in a child interpreter, so `foo`
+    /// is isolated from the parent's `::foo` — the two stay distinct commands,
+    /// so a parent rename of `::foo` can never reach the child body.
+    #[test]
+    fn interp_eval_child_isolates_definitions_from_the_parent() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc foo {} {}\ninterp eval child { proc foo {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(r.all_procs.contains_key("::foo"), "parent proc: {keys:?}");
+        assert!(
+            r.all_procs.contains_key("::child::foo"),
+            "child proc isolated under the interp path: {keys:?}",
+        );
+    }
+
+    /// `interp eval {} { proc foo }` targets the *current* interpreter, so
+    /// `foo` is the parent's `::foo` (no isolation, no synthetic namespace).
+    #[test]
+    fn interp_eval_empty_path_is_the_current_interpreter() {
+        let mut a = Analyser::new();
+        let r = a.analyse("interp eval {} { proc foo {} {} }\n", "tcl8.6");
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(r.all_procs.contains_key("::foo"), "current-interp proc: {keys:?}");
+        assert!(
+            !keys.iter().any(|k| k.contains("::::")),
+            "an empty path must not open a synthetic namespace: {keys:?}",
         );
     }
 
