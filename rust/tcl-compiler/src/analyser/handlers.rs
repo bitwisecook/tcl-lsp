@@ -598,7 +598,15 @@ impl Analyser {
         }
 
         let raw_name = &args[0];
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // Home the proc to the *command-resolution* namespace, not the purely
+        // lexical one: a proc defined inside another proc's body homes to that
+        // enclosing proc's **defining** namespace (the prefix of its qualified
+        // name), the way Tcl resolves the `proc` command at run time.  The
+        // lexical `namespace_from_scope_path` skips proc scopes and so homed a
+        // nested `proc helper` under `proc a::outer` to `::helper`, overwriting
+        // the real global `::helper` in `all_procs`; the command-resolution
+        // namespace homes it to `::a::helper`.
+        let ns_prefix = self.command_resolution_namespace(scope_path);
         // Strip the leading `::` for the qualify helper, which
         // expects an unprefixed namespace.
         let ns_for_qualify = ns_prefix.trim_start_matches(':');
@@ -1959,7 +1967,12 @@ impl Analyser {
             return false;
         }
         let raw_name = &args[1];
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // Home the class to the command-resolution namespace (see the same
+        // reasoning in `handle_proc_command`): a class created inside a
+        // qualified-name proc's body homes to that proc's defining namespace,
+        // not the lexical global, so it can't overwrite a same-named global
+        // class in `all_classes`.
+        let ns_prefix = self.command_resolution_namespace(scope_path);
         let ns_for_qualify = ns_prefix.trim_start_matches(':');
         let qualified = qualify(ns_for_qualify, raw_name);
         let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
@@ -4751,6 +4764,48 @@ mod tests {
             .expect("isolated uplevel scope");
         assert_eq!(up.name, "1", "the level word tags the frame");
         assert!(up.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn nested_def_in_qualified_encloser_does_not_overwrite_global() {
+        // `proc a::outer { proc helper ... }`: the nested `helper` homes to the
+        // encloser's *defining* namespace (`::a::helper`), not the lexical
+        // global — so the real global `proc helper` is preserved rather than
+        // overwritten in `all_procs`.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc helper {} { puts global }\nproc a::outer {} {\n    proc helper {} { puts nested }\n}\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.all_procs.contains_key("::a::helper"),
+            "nested helper must home to ::a::helper: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+        let global = r
+            .all_procs
+            .get("::helper")
+            .expect("global ::helper preserved");
+        assert_eq!(
+            global.name_span.start(),
+            5,
+            "::helper must remain the global declaration (line 0), not the nested one",
+        );
+        // The same for a nested class.
+        let mut b = crate::analyser::Analyser::new();
+        let rc = b.analyse(
+            "oo::class create Widget {}\nproc a::outer {} {\n    oo::class create Widget {}\n}\n",
+            "tcl8.6",
+        );
+        assert!(
+            rc.all_classes.contains_key("::a::Widget"),
+            "nested class homes to ::a::Widget: {:?}",
+            rc.all_classes.keys().collect::<Vec<_>>(),
+        );
+        assert!(
+            rc.all_classes.contains_key("::Widget"),
+            "global ::Widget preserved",
+        );
     }
 
     #[test]
