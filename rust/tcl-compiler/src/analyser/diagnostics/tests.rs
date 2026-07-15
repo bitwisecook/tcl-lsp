@@ -1406,6 +1406,28 @@ fn info_frame_is_dialect_gated_to_8_5_plus() {
 }
 
 #[test]
+fn namespace_unknown_is_dialect_gated_to_8_5_plus() {
+    // `namespace unknown` was added in 8.5, like the sibling `namespace path`;
+    // 8.4's `namespace` ensemble has no `unknown` subcommand.  Using it under
+    // 8.4 is W002 (disabled-in-dialect), not W001 (the subcommand exists), and
+    // it is clean from 8.5 on.
+    assert!(
+        has_code("namespace unknown handler\n", "tcl8.4", "W002"),
+        "namespace unknown should be disabled-in-dialect (W002) in tcl8.4"
+    );
+    assert!(
+        !has_code("namespace unknown handler\n", "tcl8.4", "W001"),
+        "namespace unknown is a real subcommand, so not W001 in tcl8.4"
+    );
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert!(
+            !has_code("namespace unknown handler\n", dialect, "W002"),
+            "namespace unknown should be enabled in {dialect}"
+        );
+    }
+}
+
+#[test]
 fn e001_fires_for_bare_subcommand_command() {
     // A subcommand-dispatch command (`string`, `dict`, `info`) invoked
     // with no subcommand at all is E001.

@@ -292,7 +292,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Sets or returns the unknown command handler for the current namespace.",
         synopsis: "namespace unknown ?script?",
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        // Added in 8.5 (`NamespaceUnknownCmd`, tclNamesp.c), like the sibling
+        // `namespace path`; 8.4's `namespace` ensemble has no `unknown`
+        // subcommand.  Gate it the same as `path` so an 8.4 document flags it.
+        dialects: Some(DialectSet::TCL85_PLUS),
         // The optional handler (index 0 after `unknown` → arg 1) is a command
         // prefix invoked with the unknown command name + its args appended
         // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
