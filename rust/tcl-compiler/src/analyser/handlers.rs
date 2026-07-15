@@ -193,7 +193,11 @@ impl Analyser {
         // Tcl + completion's expectation of both `$v` and `$::ns::v`).
         for (i, name) in args.iter().enumerate() {
             let local = name.rsplit("::").next().unwrap_or(name);
-            if let Some(tok) = arg_tokens.get(i) {
+            // A dynamic name (`global $dyn`) computes its name at runtime — not
+            // a static declaration.
+            if let Some(tok) = arg_tokens.get(i)
+                && !crate::naming::is_dynamic_word(name)
+            {
                 self.define_var(local, *tok, scope_path, false, None);
                 // `global v` aliases the global cell `::v`; `global ::ns::v`
                 // aliases `::ns::v` as written.  Record the target so every
@@ -228,7 +232,13 @@ impl Analyser {
         let ns_prefix = ns.trim_end_matches("::");
         let mut i = 0;
         while i < args.len() {
-            if let Some(tok) = arg_tokens.get(i) {
+            // A dynamic name (`variable $dyn` / `variable [f]`) is computed at
+            // runtime — its literal text is not the variable's name, so it is
+            // not a static declaration.  Skip it rather than record the
+            // substitution text as a variable.
+            if let Some(tok) = arg_tokens.get(i)
+                && !crate::naming::is_dynamic_word(&args[i])
+            {
                 self.define_var(&args[i], *tok, scope_path, false, None);
                 let tail = args[i].rsplit("::").next().unwrap_or(&args[i]);
                 let target = if args[i].starts_with("::") {
@@ -1532,7 +1542,11 @@ impl Analyser {
         let pair_start = usize::from(args.len() % 2 == 1);
         let mut i = pair_start + 1;
         while i < args.len() && i < arg_tokens.len() {
-            self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+            // The local alias name may be dynamic (`upvar 1 x $local`) — skip
+            // it rather than record the substitution text.
+            if !crate::naming::is_dynamic_word(&args[i]) {
+                self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+            }
             i += 2;
         }
     }
@@ -1567,13 +1581,16 @@ impl Analyser {
         };
         let mut i = 3;
         while i < args.len() && i < arg_tokens.len() {
-            self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
-            let other = &args[i - 1];
-            let target = format!(
-                "{target_ns}::{}",
-                other.rsplit("::").next().unwrap_or(other)
-            );
-            self.set_var_link_target(&args[i], scope_path, target);
+            // Skip a dynamic local alias name (`namespace upvar ns x $local`).
+            if !crate::naming::is_dynamic_word(&args[i]) {
+                self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+                let other = &args[i - 1];
+                let target = format!(
+                    "{target_ns}::{}",
+                    other.rsplit("::").next().unwrap_or(other)
+                );
+                self.set_var_link_target(&args[i], scope_path, target);
+            }
             i += 2;
         }
     }
@@ -4734,6 +4751,44 @@ mod tests {
             .expect("isolated uplevel scope");
         assert_eq!(up.name, "1", "the level word tags the frame");
         assert!(up.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn variable_global_upvar_skip_dynamic_names() {
+        // A `variable` / `global` / `upvar` / `namespace upvar` whose name word
+        // is computed (`$dyn` / `[f]`) is not a static declaration — the literal
+        // substitution text must not be recorded as a variable.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "namespace eval ns {\n    variable $dyn\n    variable realvar 1\n}\nproc p {} {\n    global $g\n    upvar 1 other $loc\n}\n",
+            "tcl8.6",
+        );
+        let ns = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "ns")
+            .expect("ns scope");
+        assert!(
+            ns.variables.contains_key("realvar"),
+            "a static `variable` name is still recorded",
+        );
+        assert!(
+            !ns.variables.contains_key("dyn"),
+            "`variable $dyn` must not record `dyn`: {:?}",
+            ns.variables.keys().collect::<Vec<_>>(),
+        );
+        let p = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "p")
+            .expect("p scope");
+        assert!(
+            !p.variables.contains_key("g") && !p.variables.contains_key("loc"),
+            "dynamic `global`/`upvar` names must not be recorded: {:?}",
+            p.variables.keys().collect::<Vec<_>>(),
+        );
     }
 
     #[test]
