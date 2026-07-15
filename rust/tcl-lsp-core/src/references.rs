@@ -429,8 +429,12 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let (inst, method, is_dollar) =
         crate::definition::instance_method_at_cursor(source, line, character)?;
     let class_q = crate::definition::receiver_instance_class(analysis, &inst, is_dollar)?;
-    let (decl_span, call_spans) =
+    let (decl_span, mut call_spans) =
         method_references_for_class(source, dialect, analysis, class_q, &method)?;
+    // `next` / `nextto` super-dispatch is a reference (but never a rename site).
+    call_spans.extend(method_next_dispatch_spans(
+        analysis, source, dialect, class_q, &method,
+    ));
     Some(build_member_ranges(
         source,
         line_index,
@@ -556,6 +560,33 @@ pub(crate) fn method_references_for_class(
     Some((decl_span, call_spans))
 }
 
+/// The `next` / `nextto` super-dispatch spans inside `class_q`'s own `method`
+/// body — polymorphic **references** to `method`.  Kept out of
+/// [`method_references_for_class`] because that set also drives *rename*, and
+/// `next` / `nextto` are keywords that must never be rewritten to the new
+/// name; only the reference paths add these.  Empty when `class_q` does not
+/// define `method`.
+#[must_use]
+pub fn method_next_dispatch_spans(
+    analysis: &AnalysisResult,
+    source: &str,
+    dialect: &str,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    let Some(class_def) = analysis.all_classes.get(class_q) else {
+        return Vec::new();
+    };
+    let Some(m) = class_def
+        .methods
+        .get(method)
+        .or_else(|| class_def.class_methods.get(method))
+    else {
+        return Vec::new();
+    };
+    scan_next_dispatch_sites(source, dialect, m.body_span)
+}
+
 /// The external `$obj method` / bare `objcmd method` call sites for `method`
 /// on instances of `class_q` **within `source`**, independent of whether
 /// `class_q` is *defined* in this document.
@@ -600,6 +631,11 @@ pub fn method_reference_spans_in_document(
             if include_decl {
                 calls.push(decl);
             }
+            // `next` / `nextto` super-dispatch is a reference (references path
+            // only; rename uses `method_spans_in_document`, which excludes it).
+            calls.extend(method_next_dispatch_spans(
+                analysis, source, dialect, class_q, method,
+            ));
             calls
         }
         None => Vec::new(),
@@ -671,6 +707,57 @@ fn scan_my_method_sites(
     out
 }
 
+/// Re-segment a single `method`-named method `body` and return the head-token
+/// span of every `next` / `nextto` command.  `TclOO`'s super-dispatch invokes
+/// the next `method` of the same name up the MRO, so a `next` / `nextto` inside
+/// a `method` body is a polymorphic reference to `method` itself.
+///
+/// Like [`scan_my_method_sites`], this walks the body's top-level commands
+/// only (a `next` nested inside an `if`/`while` body is not reached — the same
+/// bound the intra-class `my method` scan carries).
+fn scan_next_dispatch_sites(
+    source: &str,
+    dialect: &str,
+    body: tcl_lexer::Span,
+) -> Vec<tcl_lexer::Span> {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    let mut out: Vec<tcl_lexer::Span> = Vec::new();
+    if body.is_empty() {
+        return out;
+    }
+    let mut start = body.start() as usize;
+    let mut end = body.end() as usize;
+    if start >= source.len() || end > source.len() || start > end {
+        return out;
+    }
+    if source.as_bytes().get(start) == Some(&b'{') {
+        start += 1;
+    }
+    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+        end -= 1;
+    }
+    let body_text = &source[start..end];
+    let commands = segment_commands_with_offset_and_config(
+        body_text,
+        u32::try_from(start).unwrap_or(0),
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
+    for cmd in &commands {
+        let Some(head) = cmd.argv.first() else {
+            continue;
+        };
+        let (h_start, h_end) = (head.span.start() as usize, head.span.end() as usize);
+        if h_end > source.len() || h_start >= h_end {
+            continue;
+        }
+        let h = &source[h_start..h_end];
+        if h == "next" || h == "nextto" {
+            out.push(head.span);
+        }
+    }
+    out
+}
+
 /// Call sites of an **inherited** `method` inside `class_q`, a class that
 /// does *not* declare `method` itself but inherits it (its MRO resolves
 /// `method` to an ancestor).  Returns the intra-class `my method` sites in
@@ -727,13 +814,24 @@ fn find_class_member_references(
         // any subclass that inherits (does not override) this definition
         // (which the class-local scan below would miss).
         if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
-            return method_references_for_class(
+            let (decl, mut calls) = method_references_for_class(
                 source,
                 dialect,
                 analysis,
                 &class_def.qualified_name,
                 word,
-            );
+            )?;
+            // `next` / `nextto` super-dispatch is a reference / highlight (both
+            // callers are read-only); rename resolves methods elsewhere and
+            // must not see these keyword tokens.
+            calls.extend(method_next_dispatch_spans(
+                analysis,
+                source,
+                dialect,
+                &class_def.qualified_name,
+                word,
+            ));
+            return Some((decl, calls));
         }
         // Properties: no `$obj prop` dispatch and no inheritance model, so a
         // class-local `my <prop>` scan is the whole story.
@@ -1271,6 +1369,24 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(references(src, "tcl", 0, 6, &analysis, true).is_empty());
+    }
+
+    #[test]
+    fn method_references_include_next_dispatch() {
+        // `Sub::greet`'s body invokes the super via `next`; that dispatch is a
+        // polymorphic reference to `greet` and must appear among its
+        // references.
+        let src = "oo::class create Base {\n    method greet {} {}\n}\noo::class create Sub {\n    superclass Base\n    method greet {} { next }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `greet` in Sub's declaration (line 5).
+        let refs = references(src, "tcl", 5, 13, &analysis, true);
+        // The `next` token sits on line 5, past the method's own `greet` name
+        // (col 11) — inside the `{ next }` body.
+        assert!(
+            refs.iter()
+                .any(|r| r.start_line == 5 && r.start_character > 15),
+            "expected the `next` dispatch among refs: {refs:?}",
+        );
     }
 
     #[test]

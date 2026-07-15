@@ -1625,6 +1625,26 @@ mod tests {
     }
 
     #[test]
+    fn rename_method_does_not_rewrite_next_dispatch() {
+        // `next` is a keyword, not the method name.  Find-references counts the
+        // super-dispatch as a reference, but a rename must never rewrite it —
+        // the reference paths add `next` sites, the rename path must not.
+        let src = "oo::class create Base {\n    method greet {} {}\n}\noo::class create Sub {\n    superclass Base\n    method greet {} { next }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `Sub::greet`'s declaration (line 5, col 11).
+        let edits = rename(src, "tcl", 5, 11, "salute", &analysis, None);
+        assert!(!edits.is_empty(), "{edits:?}");
+        // The declaration (line 5, col 11) is rewritten; nothing in the `{ next
+        // }` body region (col >= 20 on line 5) is.
+        assert!(
+            edits
+                .iter()
+                .all(|e| !(e.range.start_line == 5 && e.range.start_character >= 20)),
+            "a rename edit landed on the `next` keyword: {edits:?}",
+        );
+    }
+
+    #[test]
     fn rename_method_at_call_site_also_works() {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
