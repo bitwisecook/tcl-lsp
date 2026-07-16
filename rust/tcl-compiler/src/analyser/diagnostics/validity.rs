@@ -3102,13 +3102,13 @@ in the active dialect ({}).",
     /// no documented `expr`-grammar base version, or neither TIP is
     /// gated (nothing for W003 to check).
     fn w003_gates(&self) -> Option<(bool, bool)> {
-        use tcl_dialect::DialectSet;
-        let active = DialectSet::expr_grammar_base_version(&self.dialect)?;
-        // Pre-Tcl-8.5 dialects don't accept `in` / `ni` (TIP 201).
-        let pre_85 = !DialectSet::TCL85_PLUS.contains(active);
-        // Pre-Tcl-9.0 dialects don't accept `lt` / `le` / `gt` / `ge`
+        use tcl_dialect::{DialectProfile, TclVersion};
+        let base = DialectProfile::by_name(&self.dialect).expr_grammar_base?;
+        // Pre-Tcl-8.5 runtimes don't accept `in` / `ni` (TIP 201).
+        let pre_85 = base < TclVersion::V8_5;
+        // Pre-Tcl-9.0 runtimes don't accept `lt` / `le` / `gt` / `ge`
         // (TIP 461); 9.0 and 9.1 both do.
-        let pre_90 = !DialectSet::TCL90_PLUS.contains(active);
+        let pre_90 = base < TclVersion::V9_0;
         (pre_85 || pre_90).then_some((pre_85, pre_90))
     }
 }

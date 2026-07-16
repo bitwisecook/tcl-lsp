@@ -46,7 +46,7 @@ mod version;
 pub use dialect_set::{DialectSet, KNOWN_DIALECTS, available_dialects};
 pub use grammar::{BracedVarStyle, LexerGrammar};
 pub use profile::DialectProfile;
-pub use version::TclVersion;
+pub use version::{TclVersion, Ternary};
 
 /// Crate version string.
 ///

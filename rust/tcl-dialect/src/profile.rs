@@ -26,9 +26,13 @@
 //! This is the compositional model of `docs/design/dialect-profile-model.md`
 //! landing milestone by milestone: identity (Milestone 1), the availability
 //! axis — masks, disable list, load layers, grammar unions (Milestone 2) —
-//! with the behaviour axis and the versioned-library axis following.
+//! and the behaviour/runtime axis — base versions, octal policy, expr
+//! grammar, lexer grammar, the per-dialect predicates (Milestone 3). The
+//! versioned-library axis follows.
 
 use crate::dialect_set::DialectSet;
+use crate::grammar::{BracedVarStyle, LexerGrammar};
+use crate::version::{TclVersion, Ternary};
 
 /// The commands F5's TMM interpreter removes from iRules: the K36322151
 /// bans (file system, process, channel-config, event-loop, and
@@ -102,12 +106,50 @@ const IRULES_DISABLED_COMMANDS: &[&str] = &[
     "vwait",
 ];
 
+/// The Tcl 8.4 lexing grammar: no `{*}` expansion (TIP 157 is 8.5), the
+/// 8.x first-close `${…}` rule.
+const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
+    expand_syntax: false,
+    irules_brace_separator: false,
+    braced_var: BracedVarStyle::FirstClose,
+};
+
+/// The 8.5/8.6-family lexing grammar (plain 8.5/8.6, iApps, tmsh, Expect,
+/// the EDA shells): `{*}` expansion, the 8.x first-close `${…}` rule.
+const GRAMMAR_TCL8X: LexerGrammar = LexerGrammar {
+    expand_syntax: true,
+    irules_brace_separator: false,
+    braced_var: BracedVarStyle::FirstClose,
+};
+
+/// The modern 9.x grammar (also the permissive default): `{*}` expansion,
+/// Tcl 9's nesting `${…}` rule.
+const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
+    expand_syntax: true,
+    irules_brace_separator: false,
+    braced_var: BracedVarStyle::Tcl9Nesting,
+};
+
+/// The iRules lexing grammar: a Tcl 8.4 base (no `{*}`) plus the
+/// iRules-only `}{` ghost word separator.
+const GRAMMAR_IRULES: LexerGrammar = LexerGrammar {
+    expand_syntax: false,
+    irules_brace_separator: true,
+    braced_var: BracedVarStyle::FirstClose,
+};
+
 /// One resolved dialect. `'static`, interned in [`DialectProfile::all`],
 /// keyed by canonical name.
 ///
 /// Equality of profiles is pointer identity — there is exactly one profile
 /// per canonical dialect, plus the [`DialectProfile::plain_tcl`] fallback
 /// every unknown name resolves to.
+///
+/// The behaviour fields are **derived data fixed at catalog-construction
+/// time** from the §7 table of the design doc (`signature_base` /
+/// `runtime_base` / the vendor bit drive the rest); the derivation rules
+/// (§7.1) are enforced by this module's invariant tests so the hand-laid
+/// values can never drift from the model.
 #[derive(Debug)]
 pub struct DialectProfile {
     /// The canonical dialect name (`"tcl8.6"`, `"f5-irules"`, …). Stable:
@@ -121,8 +163,10 @@ pub struct DialectProfile {
     /// the canonical spelling the way the string-keyed tables used to
     /// (design doc §2.4).
     pub aliases: &'static [&'static str],
-    /// AXIS A: the **precise** availability mask commands / subcommands /
-    /// options / special variables are membership-tested against
+
+    // AXIS A: availability.
+    /// The **precise** availability mask commands / subcommands / options /
+    /// special variables are membership-tested against
     /// (`spec.supports_dialect(intersects)`). Composed as
     /// `(signature-base Tcl version bits) | (vendor bit)` for the additive
     /// vendor dialects (`TCL85|IAPPS`, `TCL86|EXPECT`, …).
@@ -133,12 +177,15 @@ pub struct DialectProfile {
     pub availability_mask: DialectSet,
     /// Subtractive disable list, applied AFTER the mask query by every
     /// availability consumer. Non-empty only for `f5-irules` (the 42
-    /// K36322151 commands). Empty for additive dialects.
+    /// K36322151 commands plus modelled internals). Empty for additive
+    /// dialects.
     pub disabled_commands: &'static [&'static str],
     /// The registry command packs `load_dialect` applies for this profile,
-    /// in order. Empty for the plain Tcl versions (the default build) and
-    /// for the config-only dialects that have no pack yet (`f5-tmsh`,
-    /// `f5-bigip` — first-class in Milestone 6).
+    /// in order. The plain Tcl versions carry their own version bit (a
+    /// spec-less "pack" that records the version on the registry's
+    /// `loaded_dialects`); empty only for the config-only dialects that
+    /// have no pack yet (`f5-tmsh`, `f5-bigip` — first-class in
+    /// Milestone 6).
     pub base_layers: &'static [DialectSet],
     /// Coarse over-approximating union for **static** grammars only
     /// (tree-sitter / tmLanguage first-paint highlighting). Deliberately
@@ -147,20 +194,72 @@ pub struct DialectProfile {
     /// the exception: its static grammar is scoped to the bare `IRULES`
     /// bit (the shipped highlight fix this model preserves).
     pub grammar_union: DialectSet,
+
+    // AXIS B: behaviour / runtime.
+    /// The Tcl version whose command/subcommand/option *signatures* this
+    /// dialect exposes. Feeds the availability mask's version half. `None`
+    /// for a non-Tcl surface (`f5-bigip`) and the permissive fallback.
+    pub signature_base: Option<TclVersion>,
+    /// The Tcl version whose *evaluation semantics* apply: octal, expr
+    /// grammar (TIP 201/461), mathfunc ceiling, number parsing, const-fold.
+    /// Equal to [`Self::signature_base`] for every ordinary Tcl version;
+    /// both are `V8_4` for iRules (D3: a genuine embedded Tcl 8.4.6,
+    /// nothing backported at any BIG-IP version). Kept structurally
+    /// distinct from `signature_base` because the const-fold and
+    /// expr-grammar paths key off different projections (§2.1).
+    pub runtime_base: Option<TclVersion>,
+    /// Whether a bare leading-zero integer literal reads as octal.
+    /// Derived: `runtime_base < V9_0` (Tcl 9.0 dropped the rule, TIP
+    /// 114/472); [`Ternary::Inert`] — not a silent default — when there is
+    /// no Tcl runtime to have an opinion (§11.1).
+    pub leading_zero_is_octal: Ternary,
+    /// The Tcl core-grammar version the dialect's `expr` evaluator behaves
+    /// like — gates TIP 201 (`in`/`ni`, 8.5+) and TIP 461
+    /// (`lt`/`le`/`gt`/`ge`, 9.0+) and the mathfunc tiers. Always equal to
+    /// [`Self::runtime_base`] (§7.1); `None` means the validators return
+    /// only the dialect-invariant subset.
+    pub expr_grammar_base: Option<TclVersion>,
+    /// The dialect-derived lexing grammar (`{*}` expansion, the iRules
+    /// `}{` separator, the `${…}` delimiting rule). The single source
+    /// `LexerConfig::for_dialect` reads (Milestone 3) — derived from
+    /// `runtime_base` (8.x → first-close, 9.x → nesting) plus the
+    /// per-dialect quirks.
+    pub grammar: LexerGrammar,
+    /// Whether the math-operator command heads (`+`, `eq`,
+    /// `tcl::mathop::*`) exist as callable commands. False for iRules —
+    /// operators there live only inside `expr` (§9's second conflated
+    /// fact; `tk` is modelled as a library, not a profile).
+    pub operators_as_commands: bool,
+    /// Whether `TclOO` (`oo::*`) is part of this dialect's surface. Explicit
+    /// per profile and invariant-tested against the availability mask
+    /// (§11.2) so it can never drift from the mask-resolved `oo::*`
+    /// availability.
+    pub tcloo: bool,
+    /// Whether the dialect's ensemble commands are *fixed* — a closed
+    /// subcommand set with no user-extensible ensembles — so the minifier
+    /// may shorten subcommands to unambiguous prefixes. Exactly the F5
+    /// family `{f5-irules, f5-iapps, f5-bigip}` — NOT f5-tmsh (§7.1).
+    pub has_fixed_ensembles: bool,
+    /// The Tcl version whose number/expr grammar the bytecode VM emulates
+    /// when executing this dialect. Defaults to `V9_0` everywhere until
+    /// the VM-parity milestone threads it (M8 / VM parity M16).
+    pub vm_runtime_version: TclVersion,
 }
 
 /// The catalog: one profile per canonical dialect, in
 /// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
 ///
-/// Mask values follow the per-dialect table in
+/// Mask and behaviour values follow the per-dialect table in
 /// `docs/design/dialect-profile-model.md` §7. Interim values that the
 /// milestone plan tightens later are commented at the entry.
 static CATALOG: [DialectProfile; 16] = [
-    // bpf embeds a genuine Tcl 9.0 (design doc D7). Until Milestone 6 gives
-    // it the precise `TCL90|BPF` mask (with its reverse-regression golden
-    // budget), the mask over-approximates with every Tcl version so no core
-    // command is falsely unknown — strictly fewer false positives than the
-    // pre-profile bare-`BPF` view, never more.
+    // bpf embeds a genuine Tcl 9.0 (design doc D7): 9.0 runtime semantics —
+    // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule.
+    // Until Milestone 6 gives it the precise `TCL90|BPF` availability mask
+    // (with its reverse-regression golden budget), the mask over-
+    // approximates with every Tcl version so no core command is falsely
+    // unknown — strictly fewer false positives than the pre-profile
+    // bare-`BPF` view, never more.
     DialectProfile {
         name: "bpf",
         aliases: &[],
@@ -168,6 +267,15 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[DialectSet::BPF],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::BPF),
+        signature_base: Some(TclVersion::V9_0),
+        runtime_base: Some(TclVersion::V9_0),
+        leading_zero_is_octal: Ternary::No,
+        expr_grammar_base: Some(TclVersion::V9_0),
+        grammar: GRAMMAR_TCL9X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "cadence-eda-tcl",
@@ -176,7 +284,19 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[DialectSet::CADENCE],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::CADENCE),
+        signature_base: Some(TclVersion::V8_6),
+        runtime_base: Some(TclVersion::V8_6),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_6),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
+    // Expect embeds Tcl 8.6 — including the 8.x first-close `${…}` rule,
+    // which the old string-keyed lexer table missed (it fell through to
+    // the modern-9.x default; Milestone 3 flips it).
     DialectProfile {
         name: "expect",
         aliases: &[],
@@ -184,10 +304,20 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[DialectSet::EXPECT],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::EXPECT),
+        signature_base: Some(TclVersion::V8_6),
+        runtime_base: Some(TclVersion::V8_6),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_6),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     // f5-bigip is a config parser, not a Tcl surface; it has no command
-    // pack. Until Milestone 6 models it first-class, resolution stays as
-    // permissive as the pre-profile fallback so nothing regresses.
+    // pack, no Tcl runtime (behaviour axis inert — §11.1), and no expr
+    // grammar. Until Milestone 6 models it first-class, availability stays
+    // as permissive as the pre-profile fallback so nothing regresses.
     DialectProfile {
         name: "f5-bigip",
         aliases: &[],
@@ -195,10 +325,19 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[],
         grammar_union: DialectSet::ALL_TCL,
+        signature_base: None,
+        runtime_base: None,
+        leading_zero_is_octal: Ternary::Inert,
+        expr_grammar_base: None,
+        grammar: GRAMMAR_TCL9X,
+        operators_as_commands: false,
+        tcloo: false,
+        has_fixed_ensembles: true,
+        vm_runtime_version: TclVersion::V9_0,
     },
     // iApps run a real Tcl 8.5.13 *host* interpreter (not the TMM sandbox):
     // full 8.5 core (dict, lassign, apply) plus the iApp surface; nothing
-    // disabled. `TCL85|IAPPS` is the W123/W002 fix this milestone lands.
+    // disabled. `TCL85|IAPPS` is the W123/W002 fix Milestone 2 landed.
     DialectProfile {
         name: "f5-iapps",
         aliases: &[],
@@ -206,12 +345,22 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[DialectSet::IAPPS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::IAPPS),
+        signature_base: Some(TclVersion::V8_5),
+        runtime_base: Some(TclVersion::V8_5),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_5),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: false,
+        has_fixed_ensembles: true,
+        vm_runtime_version: TclVersion::V9_0,
     },
     // iRules is SUBTRACTIVE (§9): a genuine embedded Tcl 8.4.6 whose F5
-    // command surface carries the IRULES tag, minus the 42 K36322151
-    // disables. The mask stays the BARE bit — `TCL84|IRULES` would re-admit
-    // exactly the disabled commands through their (until Milestone 5)
-    // `NON_IRULES_OPERATORS` tags.
+    // command surface carries the IRULES tag, minus the K36322151
+    // disables. The mask stays the BARE bit — `TCL84|IRULES` would
+    // re-admit exactly the disabled commands through their (until
+    // Milestone 5) `NON_IRULES_OPERATORS` tags. Signature and runtime
+    // base are both 8.4 (D3) and math operators are not command heads.
     DialectProfile {
         name: "f5-irules",
         aliases: &["irules", "tcl-irule"],
@@ -219,10 +368,23 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: IRULES_DISABLED_COMMANDS,
         base_layers: &[DialectSet::IRULES],
         grammar_union: DialectSet::IRULES,
+        signature_base: Some(TclVersion::V8_4),
+        runtime_base: Some(TclVersion::V8_4),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_4),
+        grammar: GRAMMAR_IRULES,
+        operators_as_commands: false,
+        tcloo: false,
+        has_fixed_ensembles: true,
+        vm_runtime_version: TclVersion::V9_0,
     },
-    // f5-tmsh has no DialectSet bit or command pack yet (first-class in
-    // Milestone 6, D8, with the reverse-regression budget); until then it
-    // resolves as permissively as the pre-profile fallback did.
+    // f5-tmsh runs on a Tcl 8.5 base (behaviour axis: octal, 8.5 expr
+    // grammar, the 8.x first-close `${…}` rule — a Milestone 3 flip). It
+    // has no DialectSet bit or command pack yet (first-class availability
+    // in Milestone 6, D8, with the reverse-regression budget); until then
+    // it resolves as permissively as the pre-profile fallback did, and
+    // `tcloo` tracks that interim mask (Milestone 6 flips it to the 8.5
+    // truth alongside the mask).
     DialectProfile {
         name: "f5-tmsh",
         aliases: &[],
@@ -230,6 +392,15 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[],
         grammar_union: DialectSet::ALL_TCL,
+        signature_base: Some(TclVersion::V8_5),
+        runtime_base: Some(TclVersion::V8_5),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_5),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "intel-quartus-eda-tcl",
@@ -238,6 +409,15 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[DialectSet::QUARTUS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::QUARTUS),
+        signature_base: Some(TclVersion::V8_5),
+        runtime_base: Some(TclVersion::V8_5),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_5),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: false,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "mentor-eda-tcl",
@@ -246,6 +426,15 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[DialectSet::MENTOR],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::MENTOR),
+        signature_base: Some(TclVersion::V8_5),
+        runtime_base: Some(TclVersion::V8_5),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_5),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: false,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "synopsys-eda-tcl",
@@ -254,38 +443,99 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[DialectSet::SYNOPSYS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::SYNOPSYS),
+        signature_base: Some(TclVersion::V8_6),
+        runtime_base: Some(TclVersion::V8_6),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_6),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "tcl8.4",
         aliases: &[],
         availability_mask: DialectSet::TCL84,
         disabled_commands: &[],
-        base_layers: &[],
+        // The version "pack" loads no specs, but registering the version bit
+        // on the registry preserves its `loaded_dialects` introspection
+        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
+        // `DialectSet::parse` + `load_dialect` always did.
+        base_layers: &[DialectSet::TCL84],
         grammar_union: DialectSet::ALL_TCL,
+        signature_base: Some(TclVersion::V8_4),
+        runtime_base: Some(TclVersion::V8_4),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_4),
+        grammar: GRAMMAR_TCL84,
+        operators_as_commands: true,
+        tcloo: false,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "tcl8.5",
         aliases: &[],
         availability_mask: DialectSet::TCL85,
         disabled_commands: &[],
-        base_layers: &[],
+        // The version "pack" loads no specs, but registering the version bit
+        // on the registry preserves its `loaded_dialects` introspection
+        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
+        // `DialectSet::parse` + `load_dialect` always did.
+        base_layers: &[DialectSet::TCL85],
         grammar_union: DialectSet::ALL_TCL,
+        signature_base: Some(TclVersion::V8_5),
+        runtime_base: Some(TclVersion::V8_5),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_5),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: false,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "tcl8.6",
         aliases: &[],
         availability_mask: DialectSet::TCL86,
         disabled_commands: &[],
-        base_layers: &[],
+        // The version "pack" loads no specs, but registering the version bit
+        // on the registry preserves its `loaded_dialects` introspection
+        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
+        // `DialectSet::parse` + `load_dialect` always did.
+        base_layers: &[DialectSet::TCL86],
         grammar_union: DialectSet::ALL_TCL,
+        signature_base: Some(TclVersion::V8_6),
+        runtime_base: Some(TclVersion::V8_6),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_6),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "tcl9.0",
         aliases: &[],
         availability_mask: DialectSet::TCL90,
         disabled_commands: &[],
-        base_layers: &[],
+        // The version "pack" loads no specs, but registering the version bit
+        // on the registry preserves its `loaded_dialects` introspection
+        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
+        // `DialectSet::parse` + `load_dialect` always did.
+        base_layers: &[DialectSet::TCL90],
         grammar_union: DialectSet::ALL_TCL,
+        signature_base: Some(TclVersion::V9_0),
+        runtime_base: Some(TclVersion::V9_0),
+        leading_zero_is_octal: Ternary::No,
+        expr_grammar_base: Some(TclVersion::V9_0),
+        grammar: GRAMMAR_TCL9X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     // Tag-level `TCL90_PLUS` unions already give 9.1 its 9.0 inheritance,
     // so the exact bit keeps per-version gating precise.
@@ -294,8 +544,21 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         availability_mask: DialectSet::TCL91,
         disabled_commands: &[],
-        base_layers: &[],
+        // The version "pack" loads no specs, but registering the version bit
+        // on the registry preserves its `loaded_dialects` introspection
+        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
+        // `DialectSet::parse` + `load_dialect` always did.
+        base_layers: &[DialectSet::TCL91],
         grammar_union: DialectSet::ALL_TCL,
+        signature_base: Some(TclVersion::V9_1),
+        runtime_base: Some(TclVersion::V9_1),
+        leading_zero_is_octal: Ternary::No,
+        expr_grammar_base: Some(TclVersion::V9_1),
+        grammar: GRAMMAR_TCL9X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
     DialectProfile {
         name: "xilinx-eda-tcl",
@@ -304,12 +567,22 @@ static CATALOG: [DialectProfile; 16] = [
         disabled_commands: &[],
         base_layers: &[DialectSet::XILINX],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::XILINX),
+        signature_base: Some(TclVersion::V8_5),
+        runtime_base: Some(TclVersion::V8_5),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_5),
+        grammar: GRAMMAR_TCL8X,
+        operators_as_commands: true,
+        tcloo: false,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
     },
 ];
 
 /// The single sink for every unparseable / typo / unset dialect string.
 /// Deliberately permissive so an unknown dialect never flags valid code
-/// (design doc §8): full `ALL_TCL` availability, nothing disabled, no pack.
+/// (design doc §8): full `ALL_TCL` availability, nothing disabled, no pack,
+/// inert octal policy, no expr-grammar opinion, modern lexing grammar.
 static PLAIN_TCL: DialectProfile = DialectProfile {
     name: "tcl",
     aliases: &[],
@@ -317,6 +590,15 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     disabled_commands: &[],
     base_layers: &[],
     grammar_union: DialectSet::ALL_TCL,
+    signature_base: None,
+    runtime_base: None,
+    leading_zero_is_octal: Ternary::Inert,
+    expr_grammar_base: None,
+    grammar: GRAMMAR_TCL9X,
+    operators_as_commands: true,
+    tcloo: true,
+    has_fixed_ensembles: false,
+    vm_runtime_version: TclVersion::V9_0,
 };
 
 impl DialectProfile {
@@ -369,16 +651,38 @@ impl DialectProfile {
         &PLAIN_TCL
     }
 
+    /// Whether this profile IS the iRules profile — the canonical
+    /// "is this iRules?" predicate (pointer identity against the interned
+    /// catalog entry, so aliases are already folded in by resolution).
+    #[must_use]
+    pub fn is_irules(&self) -> bool {
+        std::ptr::eq(self, Self::irules())
+    }
+
     /// Whether this profile's disable list bans `name` (the subtractive
     /// filter every availability consumer applies after its mask query —
     /// §9 of the design doc). Compares the *registry spec name*; callers
     /// normalise any `::` qualification before asking.
     #[must_use]
     pub fn is_command_disabled(&self, name: &str) -> bool {
-        // Binary search is possible (the list is sorted) but a 42-entry
+        // Binary search is possible (the list is sorted) but a 49-entry
         // linear scan of `&str`s is already cheaper than the hash lookups
         // around it, and only iRules has a non-empty list at all.
         self.disabled_commands.contains(&name)
+    }
+
+    /// The version-aware *compile-time fold* projection — the drop-in
+    /// replacement for `TclVersion::from_dialect` and deliberately
+    /// **bit-identical** to it: `Some` only for the plain versioned-Tcl
+    /// profiles, `None` for every vendor dialect (including iRules, whose
+    /// [`Self::runtime_base`] is a real `V8_4`) so versioned const-folds
+    /// keep returning the dialect-invariant subset there until the
+    /// optimiser/SCCP output is verified against real 8.4/8.5/8.6
+    /// interpreters (design doc §12 Milestone 3 guardrail). The modelled
+    /// runtime is `runtime_base`; this accessor is the *fold* policy.
+    #[must_use]
+    pub fn const_fold_version(&self) -> Option<TclVersion> {
+        TclVersion::from_dialect(Some(self.name))
     }
 }
 
@@ -386,6 +690,8 @@ impl DialectProfile {
 mod tests {
     use super::DialectProfile;
     use crate::dialect_set::{DialectSet, KNOWN_DIALECTS};
+    use crate::grammar::BracedVarStyle;
+    use crate::version::{TclVersion, Ternary};
 
     #[test]
     fn catalog_matches_known_dialects_exactly() {
@@ -429,6 +735,8 @@ mod tests {
         let via_name = DialectProfile::by_name("f5-irules");
         assert!(std::ptr::eq(via_handle, via_name));
         assert_eq!(via_handle.name, "f5-irules");
+        assert!(via_handle.is_irules());
+        assert!(!DialectProfile::by_name("tcl8.4").is_irules());
     }
 
     #[test]
@@ -449,10 +757,8 @@ mod tests {
         // profile so profile predicates can never disagree with the
         // canonical spelling.
         for alias in ["irules", "tcl-irule"] {
-            assert!(
-                std::ptr::eq(DialectProfile::by_name(alias), DialectProfile::irules()),
-                "{alias:?} must canonicalise to f5-irules"
-            );
+            let p = DialectProfile::by_name(alias);
+            assert!(p.is_irules(), "{alias:?} must canonicalise to f5-irules");
         }
     }
 
@@ -477,7 +783,7 @@ mod tests {
     #[test]
     fn only_irules_is_subtractive() {
         for p in DialectProfile::all() {
-            if p.name == "f5-irules" {
+            if p.is_irules() {
                 continue;
             }
             assert!(
@@ -564,5 +870,185 @@ mod tests {
         // `grammar_union == availability_mask == IRULES` (§9.1).
         let p = DialectProfile::irules();
         assert_eq!(p.grammar_union, DialectSet::IRULES);
+    }
+
+    // Behaviour axis (Milestone 3) — the §7.1 derivation rules as
+    // invariants, so the hand-laid table can never drift from the model.
+
+    fn all_with_fallback() -> impl Iterator<Item = &'static DialectProfile> {
+        DialectProfile::all()
+            .iter()
+            .chain(std::iter::once(DialectProfile::plain_tcl()))
+    }
+
+    #[test]
+    fn octal_policy_is_derived_from_the_runtime_base() {
+        // §7.1: octal = runtime_base < V9_0; Inert exactly when there is
+        // no Tcl runtime (never a silent default — §11.1).
+        for p in all_with_fallback() {
+            let expected = match p.runtime_base {
+                None => Ternary::Inert,
+                Some(v) if v < TclVersion::V9_0 => Ternary::Yes,
+                Some(_) => Ternary::No,
+            };
+            assert_eq!(p.leading_zero_is_octal, expected, "{}", p.name);
+        }
+    }
+
+    #[test]
+    fn expr_grammar_base_equals_runtime_base() {
+        // §7.1: the expr grammar (TIP 201/461, mathfunc tiers) follows the
+        // runtime, not the signature surface.
+        for p in all_with_fallback() {
+            assert_eq!(p.expr_grammar_base, p.runtime_base, "{}", p.name);
+        }
+    }
+
+    #[test]
+    fn signature_and_runtime_base_agree_everywhere_today() {
+        // Every profile in the current catalog has signature == runtime
+        // (iRules has both at V8_4 — D3). The fields stay structurally
+        // separate because future dialects may split them; this test
+        // documents that no current entry does.
+        for p in all_with_fallback() {
+            assert_eq!(p.signature_base, p.runtime_base, "{}", p.name);
+        }
+    }
+
+    #[test]
+    fn expr_grammar_matches_the_retired_string_table() {
+        // The profile's expr_grammar_base must agree with the (still
+        // shipping) `DialectSet::expr_grammar_base_version` string table
+        // for every canonical name it has an arm for — one source of
+        // truth, two projections, zero drift.
+        for p in DialectProfile::all() {
+            let legacy = DialectSet::expr_grammar_base_version(p.name);
+            let via_profile = p.expr_grammar_base.map(|v| match v {
+                TclVersion::V8_4 => DialectSet::TCL84,
+                TclVersion::V8_5 => DialectSet::TCL85,
+                TclVersion::V8_6 => DialectSet::TCL86,
+                TclVersion::V9_0 => DialectSet::TCL90,
+                TclVersion::V9_1 => DialectSet::TCL91,
+            });
+            // bpf is the one deliberate divergence: the legacy table had no
+            // arm (None), the profile models its Tcl 9.0 core (D7).
+            if p.name == "bpf" {
+                assert_eq!(legacy, None);
+                assert_eq!(via_profile, Some(DialectSet::TCL90));
+                continue;
+            }
+            assert_eq!(via_profile, legacy, "{}", p.name);
+        }
+    }
+
+    #[test]
+    fn tcloo_is_invariant_with_the_availability_mask() {
+        // §11.2: the hand-filled tcloo bool must agree with what the mask
+        // resolves for `oo::*` (gated ~TCL86_PLUS) — otherwise hover and
+        // the oo handler would contradict each other. Documented exception:
+        // f5-bigip has NO Tcl surface (tcloo false is the model truth,
+        // §7) while its availability mask stays interim-permissive until
+        // Milestone 6 makes it first-class — the mask side of the
+        // invariant tightens there.
+        for p in all_with_fallback() {
+            if p.name == "f5-bigip" {
+                assert!(!p.tcloo, "f5-bigip has no Tcl surface at all");
+                continue;
+            }
+            assert_eq!(
+                p.tcloo,
+                p.availability_mask.intersects(DialectSet::TCL86_PLUS),
+                "{}: tcloo must match the mask-resolved oo::* availability",
+                p.name
+            );
+        }
+    }
+
+    #[test]
+    fn fixed_ensembles_cover_exactly_the_f5_family() {
+        // §7.1: {f5-irules, f5-iapps, f5-bigip} — NOT f5-tmsh (a wrong
+        // `true` mis-minifies tmsh scripts).
+        for p in all_with_fallback() {
+            let expected = matches!(p.name, "f5-irules" | "f5-iapps" | "f5-bigip");
+            assert_eq!(p.has_fixed_ensembles, expected, "{}", p.name);
+        }
+    }
+
+    #[test]
+    fn operators_are_commands_everywhere_but_irules() {
+        // §9: the math-operator heads exist in every command dialect except
+        // iRules (operators live only inside expr there). `tk` is a
+        // library pin, not a profile, so it does not appear here. f5-bigip
+        // has no command surface at all.
+        for p in all_with_fallback() {
+            let expected = !(p.is_irules() || p.name == "f5-bigip");
+            assert_eq!(p.operators_as_commands, expected, "{}", p.name);
+        }
+    }
+
+    #[test]
+    fn lexer_grammar_follows_the_runtime_base() {
+        // 8.x runtimes lex `${…}` to the FIRST close brace; 9.x (and the
+        // no-runtime profiles) use the modern nesting rule. `{*}` expansion
+        // is 8.5+; the `}{` ghost separator is iRules-only.
+        for p in all_with_fallback() {
+            let expected_braced = match p.runtime_base {
+                Some(v) if v < TclVersion::V9_0 => BracedVarStyle::FirstClose,
+                _ => BracedVarStyle::Tcl9Nesting,
+            };
+            assert_eq!(p.grammar.braced_var, expected_braced, "{}", p.name);
+            let expected_expand = p.runtime_base.is_none_or(|v| v >= TclVersion::V8_5);
+            assert_eq!(p.grammar.expand_syntax, expected_expand, "{}", p.name);
+            assert_eq!(
+                p.grammar.irules_brace_separator,
+                p.is_irules(),
+                "{}",
+                p.name
+            );
+        }
+    }
+
+    #[test]
+    fn expect_and_tmsh_lex_braced_vars_with_the_8x_rule() {
+        // The Milestone 3 flip the old string-keyed lexer table missed:
+        // expect (8.6) and f5-tmsh (8.5) are 8.x runtimes, so `${a{b}c}`
+        // names `a{b` — not the Tcl 9 nesting read.
+        for name in ["expect", "f5-tmsh"] {
+            assert_eq!(
+                DialectProfile::by_name(name).grammar.braced_var,
+                BracedVarStyle::FirstClose,
+                "{name}"
+            );
+        }
+        // bpf embeds Tcl 9.0: nesting, unchanged.
+        assert_eq!(
+            DialectProfile::by_name("bpf").grammar.braced_var,
+            BracedVarStyle::Tcl9Nesting
+        );
+    }
+
+    #[test]
+    fn const_fold_version_stays_bit_identical_to_from_dialect() {
+        // Milestone 3 guardrail (§12): versioned const-folds keep the
+        // exact `TclVersion::from_dialect` behaviour — plain versioned Tcl
+        // resolves, every vendor dialect (iRules included, despite its
+        // modelled V8_4 runtime) stays None until tclsh-verified.
+        for p in all_with_fallback() {
+            assert_eq!(
+                p.const_fold_version(),
+                TclVersion::from_dialect(Some(p.name)),
+                "{}",
+                p.name
+            );
+        }
+        assert_eq!(
+            DialectProfile::irules().const_fold_version(),
+            None,
+            "iRules const-folds stay dialect-invariant this milestone"
+        );
+        assert_eq!(
+            DialectProfile::by_name("tcl8.4").const_fold_version(),
+            Some(TclVersion::V8_4)
+        );
     }
 }

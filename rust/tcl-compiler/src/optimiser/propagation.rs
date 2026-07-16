@@ -1633,7 +1633,7 @@ fn try_substitute_assign_expr(
     // keep the expression wrapper around the substituted text.
     let parsed = parse_expr(&result.text, ctx.dialect);
     let env = Env::new();
-    let octal = ctx.dialect.map(leading_zero_is_octal);
+    let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if let Some(val) = eval_tcl_expr_with_octal(&parsed, &env, octal) {
         let folded = format_tcl_value(val);
         let needs_quoting = folded.is_empty()
@@ -1886,7 +1886,8 @@ fn try_o103_proc_fold(
             callee,
             &summary.params,
             &args,
-            ctx.dialect.map(crate::tcl_expr_eval::leading_zero_is_octal),
+            ctx.dialect
+                .and_then(crate::tcl_expr_eval::leading_zero_is_octal),
         )
     {
         // Argument-sensitive: re-run SCCP on the pure callee with the call's

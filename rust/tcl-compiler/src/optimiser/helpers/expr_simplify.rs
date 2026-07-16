@@ -249,7 +249,7 @@ pub fn try_fold_expr(expr: &str, dialect: Option<&str>) -> Option<String> {
         return None;
     }
     let env = Env::new();
-    let value = eval_tcl_expr_with_octal(&node, &env, dialect.map(leading_zero_is_octal))?;
+    let value = eval_tcl_expr_with_octal(&node, &env, dialect.and_then(leading_zero_is_octal))?;
     let rendered = format_tcl_value(value);
     if rendered == trimmed {
         return None;
@@ -295,7 +295,7 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
             env.insert(name.clone(), EnvValue::Str(value.clone()));
         }
     }
-    let value = eval_tcl_expr_with_octal(&node, &env, dialect.map(leading_zero_is_octal))?;
+    let value = eval_tcl_expr_with_octal(&node, &env, dialect.and_then(leading_zero_is_octal))?;
     let rendered = format_tcl_value(value);
     if rendered == trimmed {
         return None;

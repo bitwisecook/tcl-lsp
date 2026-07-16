@@ -205,7 +205,7 @@ fn try_rewrite_assign_expr(
     // identities that don't evaluate a call's result, so they're
     // unaffected by a shadowed math function.)
     let env = Env::new();
-    let octal = ctx.dialect.map(leading_zero_is_octal);
+    let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if !expr_uses_shadowed_mathfunc(expr, procedures)
         && let Some(val) = eval_tcl_expr_with_octal(expr, &env, octal)
     {
@@ -319,7 +319,7 @@ fn try_rewrite_expr(
     if matches!(expr, ExprNode::Raw { .. }) {
         return;
     }
-    let octal = ctx.dialect.map(leading_zero_is_octal);
+    let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(expr, procedures)
         && let Some(val) = eval_tcl_expr_with_octal(expr, &env, octal)
     {

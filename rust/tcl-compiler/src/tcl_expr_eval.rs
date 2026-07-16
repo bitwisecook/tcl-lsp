@@ -131,7 +131,7 @@ pub fn eval_tcl_expr_in_dialect(node: &ExprNode, env: &Env, dialect: &str) -> Op
     eval_with_config(
         node,
         env,
-        Some(leading_zero_is_octal(dialect)),
+        leading_zero_is_octal(dialect),
         math_func_ceiling_for_dialect(dialect),
     )
 }
@@ -154,34 +154,39 @@ pub fn eval_tcl_expr_with_octal(
     eval_with_config(node, env, octal, None)
 }
 
-/// Whether the dialect reads a bare leading-zero integer as octal. Only Tcl
-/// 9.x dropped the rule (TIP 472), so everything else — including the F5 and
-/// EDA dialects, which are 8.x-based — keeps octal-by-leading-zero.
+/// Whether the dialect's *runtime* reads a bare leading-zero integer as
+/// octal, from the dialect profile's runtime base: `Some(true)` for the 8.x
+/// runtimes (the F5 and EDA shells included), `Some(false)` for 9.x
+/// runtimes (TIP 114/472 dropped the rule — `bpf` embeds Tcl 9.0, D7), and
+/// `None` — abstain rather than guess — for a profile with no Tcl runtime
+/// (`f5-bigip`) or an unknown dialect string (the permissive fallback,
+/// design doc §11.1).
 #[must_use]
-pub fn leading_zero_is_octal(dialect: &str) -> bool {
-    !dialect.starts_with("tcl9")
+pub fn leading_zero_is_octal(dialect: &str) -> Option<bool> {
+    tcl_dialect::DialectProfile::by_name(dialect)
+        .leading_zero_is_octal
+        .as_bool()
 }
 
 /// The newest `expr` math-function release available in `dialect`, or `None`
-/// when the dialect is unrecognised (don't restrict).  Functions gate on the
-/// *expr grammar* base version — the axis the relational operators use — so a
-/// vendor shell on an 8.5 core has the 8.5 set; 8.6 adds none over 8.5.  The
-/// single mapping the const-folder and the availability diagnostic share.
+/// when the dialect has no expr-grammar base (don't restrict).  Functions
+/// gate on the profile's *expr grammar* base version — the axis the
+/// relational operators use — so a vendor shell on an 8.5 core has the 8.5
+/// set; 8.6 adds none over 8.5.  The single mapping the const-folder and
+/// the availability diagnostic share.
 #[must_use]
 pub fn math_func_ceiling_for_dialect(
     dialect: &str,
 ) -> Option<tcl_syntax::expr::mathfunc::MathFuncSince> {
-    use tcl_registry::prelude::DialectSet;
+    use tcl_dialect::TclVersion;
     use tcl_syntax::expr::mathfunc::MathFuncSince;
-    let base = DialectSet::expr_grammar_base_version(dialect)?;
-    Some(if base.contains(DialectSet::TCL84) {
-        MathFuncSince::Tcl84
-    } else if base.contains(DialectSet::TCL85) || base.contains(DialectSet::TCL86) {
-        MathFuncSince::Tcl85
-    } else if base.contains(DialectSet::TCL90) {
-        MathFuncSince::Tcl90
-    } else {
-        MathFuncSince::Tcl91
+    let base = tcl_dialect::DialectProfile::by_name(dialect).expr_grammar_base?;
+    Some(match base {
+        TclVersion::V8_4 => MathFuncSince::Tcl84,
+        // TIP 232 landed in 8.5; 8.6 added no math functions over 8.5.
+        TclVersion::V8_5 | TclVersion::V8_6 => MathFuncSince::Tcl85,
+        TclVersion::V9_0 => MathFuncSince::Tcl90,
+        TclVersion::V9_1 => MathFuncSince::Tcl91,
     })
 }
 
@@ -1123,13 +1128,59 @@ mod tests {
     }
 
     #[test]
-    fn leading_zero_is_octal_only_excludes_tcl9() {
-        assert!(leading_zero_is_octal("tcl8.4"));
-        assert!(leading_zero_is_octal("tcl8.5"));
-        assert!(leading_zero_is_octal("tcl8.6"));
-        assert!(leading_zero_is_octal("f5-irules"));
-        assert!(leading_zero_is_octal("f5-iapps"));
-        assert!(!leading_zero_is_octal("tcl9.0"));
+    fn bpf_folds_leading_zero_as_decimal_like_its_tcl_9_runtime() {
+        let eval_d = |expr: &str, dialect: &str| {
+            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+        };
+        // bpf embeds Tcl 9.0 (dialect-profile-model.md D7): `010` is decimal
+        // 10 — tclsh9.0-verified (`expr {010 + 1}` → 11, `expr {08 + 1}` →
+        // 9). The old string-prefix heuristic (!starts_with("tcl9")) wrongly
+        // read bpf as octal.
+        assert_eq!(eval_d("010 + 1", "bpf"), Some(TclValue::Int(11)));
+        assert_eq!(eval_d("08 + 1", "bpf"), Some(TclValue::Int(9)));
+        // 8.x runtimes keep the octal rule: tclsh8.6-verified
+        // (`expr {010 + 1}` → 9).
+        assert_eq!(eval_d("010 + 1", "tcl8.6"), Some(TclValue::Int(9)));
+        assert_eq!(eval_d("010 + 1", "f5-irules"), Some(TclValue::Int(9)));
+    }
+
+    #[test]
+    fn no_runtime_profiles_abstain_from_octal_sensitive_folds() {
+        let eval_d = |expr: &str, dialect: &str| {
+            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+        };
+        // f5-bigip has no Tcl runtime and an unknown dialect resolves to the
+        // permissive fallback: leading-zero-sensitive folds abstain (§11.1)
+        // rather than guessing a base, while octal-insensitive arithmetic
+        // still folds.
+        for d in ["f5-bigip", "no-such-dialect"] {
+            assert_eq!(eval_d("010 + 1", d), None, "{d}: abstain on 010");
+            assert_eq!(eval_d("1 + 1", d), Some(TclValue::Int(2)), "{d}");
+        }
+    }
+
+    #[test]
+    fn leading_zero_octal_policy_follows_the_runtime_base() {
+        // 8.x runtimes (plain and vendor) read leading zeros as octal.
+        for d in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+            "expect",
+        ] {
+            assert_eq!(leading_zero_is_octal(d), Some(true), "{d}");
+        }
+        // 9.x runtimes dropped the rule (TIP 114/472) — bpf embeds Tcl 9.0
+        // (D7), so `010` is not octal there either.
+        for d in ["tcl9.0", "tcl9.1", "bpf"] {
+            assert_eq!(leading_zero_is_octal(d), Some(false), "{d}");
+        }
+        // No Tcl runtime / unknown dialect: abstain, never guess (§11.1).
+        assert_eq!(leading_zero_is_octal("f5-bigip"), None);
+        assert_eq!(leading_zero_is_octal("no-such-dialect"), None);
     }
 
     #[test]

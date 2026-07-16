@@ -8956,3 +8956,27 @@ fn w001_subcommand_checks_use_the_profile_mask() {
         "unknown dict subcommand must still draw W001 under f5-iapps"
     );
 }
+
+// Behaviour axis (dialect-profile-model.md, Milestone 3): the expr grammar,
+// mathfunc tiers, and octal policy resolve through the profile — including
+// alias canonicalisation the string-keyed tables missed.
+
+#[test]
+fn w003_irules_alias_gates_like_the_canonical_profile() {
+    // §2.4: `expr_grammar_base_version` had no arm for the legacy "irules"
+    // spelling, so W003 silently never fired there — a false negative the
+    // profile's alias canonicalisation fixes. Both TIPs gate on the 8.4
+    // runtime, exactly as for "f5-irules".
+    assert_eq!(w003_hits("expr {2 in {1 2 3}}", "irules").len(), 1);
+    assert_eq!(w003_hits("if {$x lt $y} { puts hi }", "irules").len(), 1);
+}
+
+#[test]
+fn w003_bpf_accepts_both_tips_on_its_tcl_9_runtime() {
+    // bpf embeds Tcl 9.0 (D7): `in`/`ni` (TIP 201) and `lt`/`le`/`gt`/`ge`
+    // (TIP 461) are all grammatical — no W003. (Previously bpf had no
+    // documented base and W003 skipped it entirely; same outcome, now for
+    // the modelled reason.)
+    assert!(w003_hits("expr {2 in {1 2 3}}", "bpf").is_empty());
+    assert!(w003_hits("if {$x lt $y} { puts hi }", "bpf").is_empty());
+}

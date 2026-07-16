@@ -135,6 +135,11 @@ const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT
 pub struct CommandRegistry {
     by_name: FxHashMap<String, Vec<CommandSpec>>,
     loaded_dialects: DialectSet,
+    /// The dialect profile this registry was built for, when it came from
+    /// `registry_for_profile` / `registry_for_dialect`. `None` for
+    /// hand-assembled registries (tests, ad-hoc tools), which fall back to
+    /// the `loaded_dialects`-derived behaviour answers.
+    profile: Option<&'static tcl_dialect::DialectProfile>,
 }
 
 /// The set of command names registered by *every* dialect, built once and
@@ -243,6 +248,7 @@ impl CommandRegistry {
         let mut registry = Self {
             by_name: FxHashMap::default(),
             loaded_dialects: DialectSet::empty(),
+            profile: None,
         };
         for spec in crate::commands::tcl::tcl_command_specs() {
             registry.insert(spec);
@@ -347,7 +353,38 @@ impl CommandRegistry {
     /// load a Tcl-9 version bit) reads leading zeros as octal.
     #[must_use]
     pub fn leading_zero_is_octal(&self) -> bool {
-        !self.loaded_dialects.intersects(DialectSet::TCL90_PLUS)
+        self.octal_fold_policy().unwrap_or(true)
+    }
+
+    /// The three-valued leading-zero fold policy for this registry's
+    /// dialect. A profile-built registry (`registry_for_profile` /
+    /// `registry_for_dialect`) answers from the profile's runtime base:
+    /// `Some(true)` = 8.x octal, `Some(false)` = 9.x decimal (`bpf`
+    /// included, D7), `None` = abstain — no Tcl runtime to have an opinion
+    /// (`f5-bigip`, the unknown-dialect fallback; §11.1 of the
+    /// dialect-profile model). A hand-assembled registry keeps the
+    /// historical `loaded_dialects` derivation (a version pack records its
+    /// bit, so a 9.x load reads decimal).
+    #[must_use]
+    pub fn octal_fold_policy(&self) -> Option<bool> {
+        match self.profile {
+            Some(p) => p.leading_zero_is_octal.as_bool(),
+            None => Some(!self.loaded_dialects.intersects(DialectSet::TCL90_PLUS)),
+        }
+    }
+
+    /// Stamp the dialect profile this registry serves. Called by the
+    /// per-profile cache (`registry_for_profile`) so behaviour queries
+    /// (`octal_policy`, future runtime projections) answer from the
+    /// profile rather than re-deriving from loaded packs.
+    pub(crate) fn set_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        self.profile = Some(profile);
+    }
+
+    /// The dialect profile this registry was built for, if any.
+    #[must_use]
+    pub fn profile(&self) -> Option<&'static tcl_dialect::DialectProfile> {
+        self.profile
     }
 
     /// Insert a command spec into the registry.
@@ -1414,6 +1451,7 @@ impl std::fmt::Debug for CommandRegistry {
         f.debug_struct("CommandRegistry")
             .field("commands", &self.by_name.len())
             .field("loaded_dialects", &self.loaded_dialects)
+            .field("profile", &self.profile.map(|p| p.name))
             .finish()
     }
 }

@@ -16,7 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The ordered Tcl release enum behaviour semantics key off.
+//! The ordered Tcl release enum behaviour semantics key off, and the
+//! three-valued policy type for behaviours a non-Tcl profile has no
+//! opinion on.
 
 /// A specific Tcl release whose **compile-time** semantics a constant fold may
 /// depend on — e.g. `string is integer` is unbounded on 9.0 but caps at
@@ -59,9 +61,40 @@ impl TclVersion {
     }
 }
 
+/// A three-valued behaviour policy, so a non-Tcl profile (`f5-bigip`) and
+/// the permissive unknown-dialect fallback are **inert** — "no opinion" —
+/// rather than silently defaulted to one of the real behaviours
+/// (dialect-profile-model.md §11.1). Consumers short-circuit on
+/// [`Ternary::Inert`] instead of guessing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Ternary {
+    /// The behaviour applies (e.g. leading-zero integers read as octal).
+    Yes,
+    /// The behaviour does not apply (e.g. Tcl 9.x dropped bare-leading-zero
+    /// octal, TIP 114/472).
+    No,
+    /// No opinion — the profile is not a Tcl runtime, or is the permissive
+    /// unknown-dialect sink. Validators and const-folders abstain.
+    Inert,
+}
+
+impl Ternary {
+    /// The policy as an `Option<bool>`: `Inert` is `None`, so callers that
+    /// already model "undecided" as `None` (the expr const-folder's octal
+    /// input) consume it directly.
+    #[must_use]
+    pub fn as_bool(self) -> Option<bool> {
+        match self {
+            Self::Yes => Some(true),
+            Self::No => Some(false),
+            Self::Inert => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::TclVersion;
+    use super::{TclVersion, Ternary};
 
     #[test]
     fn from_dialect_maps_every_versioned_tcl() {
@@ -98,5 +131,12 @@ mod tests {
         // A `>= V9_0` gate must include 9.1.
         assert!(TclVersion::V9_1 >= TclVersion::V9_0);
         assert!(TclVersion::V9_1 > TclVersion::V8_6);
+    }
+
+    #[test]
+    fn ternary_maps_inert_to_none() {
+        assert_eq!(Ternary::Yes.as_bool(), Some(true));
+        assert_eq!(Ternary::No.as_bool(), Some(false));
+        assert_eq!(Ternary::Inert.as_bool(), None);
     }
 }
