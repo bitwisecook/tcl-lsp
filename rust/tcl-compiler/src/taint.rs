@@ -421,18 +421,19 @@ fn double_encode_label(colour: TaintColour) -> &'static str {
 /// can gate their iRules-only diagnostics on the same predicate.
 #[must_use]
 pub fn is_irules_dialect(dialect: Option<&str>) -> bool {
-    tcl_registry::prelude::DialectSet::is_irules_dialect(dialect)
+    tcl_dialect::DialectProfile::by_opt_name(dialect).is_irules()
 }
 
 fn dialect_to_set(dialect: Option<&str>) -> DialectSet {
-    if is_irules_dialect(dialect) {
-        DialectSet::IRULES
-    } else {
-        match dialect.and_then(DialectSet::parse) {
-            Some(d) => d,
-            None => DialectSet::empty(),
-        }
-    }
+    // The profile's availability mask: bare IRULES for iRules (aliases
+    // canonicalise), the composed (version|vendor) mask for the additive
+    // vendor shells — so version-gated taint/side-effect hints reach a
+    // vendor dialect's embedded Tcl core. An unknown / unset dialect stays
+    // EMPTY (not the permissive fallback): taint hints gated to a specific
+    // dialect must not fire when the dialect is unknown.
+    dialect
+        .and_then(tcl_dialect::DialectProfile::find)
+        .map_or(DialectSet::empty(), |p| p.availability_mask)
 }
 
 fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> bool {

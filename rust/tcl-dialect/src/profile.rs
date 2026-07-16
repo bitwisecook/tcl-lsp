@@ -163,6 +163,14 @@ pub struct DialectProfile {
     /// the canonical spelling the way the string-keyed tables used to
     /// (design doc §2.4).
     pub aliases: &'static [&'static str],
+    /// Native tag of this dialect's own command surface, if any (`IRULES`,
+    /// `IAPPS`, `EXPECT`, an EDA vendor, `BPF`). `None` for the plain
+    /// Tcl-version profiles, the config-only dialects, and the permissive
+    /// fallback. A vendor shell is a *closed world*: desktop libraries
+    /// (Tk) can never be `package require`d into it, which consumers gate
+    /// on via this field until the versioned-library axis models library
+    /// hosting per profile (§7.2).
+    pub vendor_bit: Option<DialectSet>,
 
     // AXIS A: availability.
     /// The **precise** availability mask commands / subcommands / options /
@@ -194,6 +202,14 @@ pub struct DialectProfile {
     /// the exception: its static grammar is scoped to the bare `IRULES`
     /// bit (the shipped highlight fix this model preserves).
     pub grammar_union: DialectSet,
+    /// UPPER-BOUND version guard for option gating (design doc §5.2): the
+    /// highest Tcl version whose options may appear under this profile. A
+    /// version-gated option resolves only when its gate's
+    /// [`DialectSet::min_version`] is at or below this ceiling, so a
+    /// tcl9.0-only option can never leak into an 8.5-superset profile whose
+    /// mask happens to intersect its gate. `None` = no ceiling (the
+    /// permissive fallback and the interim config-only dialects).
+    pub version_ceiling: Option<TclVersion>,
 
     // AXIS B: behaviour / runtime.
     /// The Tcl version whose command/subcommand/option *signatures* this
@@ -263,10 +279,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "bpf",
         aliases: &[],
+        vendor_bit: Some(DialectSet::BPF),
         availability_mask: DialectSet::ALL_TCL.union(DialectSet::BPF),
         disabled_commands: &[],
         base_layers: &[DialectSet::BPF],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::BPF),
+        version_ceiling: Some(TclVersion::V9_0),
         signature_base: Some(TclVersion::V9_0),
         runtime_base: Some(TclVersion::V9_0),
         leading_zero_is_octal: Ternary::No,
@@ -280,10 +298,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "cadence-eda-tcl",
         aliases: &[],
+        vendor_bit: Some(DialectSet::CADENCE),
         availability_mask: DialectSet::TCL86.union(DialectSet::CADENCE),
         disabled_commands: &[],
         base_layers: &[DialectSet::CADENCE],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::CADENCE),
+        version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
         runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
@@ -300,10 +320,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "expect",
         aliases: &[],
+        vendor_bit: Some(DialectSet::EXPECT),
         availability_mask: DialectSet::TCL86.union(DialectSet::EXPECT),
         disabled_commands: &[],
         base_layers: &[DialectSet::EXPECT],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::EXPECT),
+        version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
         runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
@@ -321,10 +343,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "f5-bigip",
         aliases: &[],
+        vendor_bit: None,
         availability_mask: DialectSet::ALL_TCL,
         disabled_commands: &[],
         base_layers: &[],
         grammar_union: DialectSet::ALL_TCL,
+        version_ceiling: None,
         signature_base: None,
         runtime_base: None,
         leading_zero_is_octal: Ternary::Inert,
@@ -341,10 +365,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "f5-iapps",
         aliases: &[],
+        vendor_bit: Some(DialectSet::IAPPS),
         availability_mask: DialectSet::TCL85.union(DialectSet::IAPPS),
         disabled_commands: &[],
         base_layers: &[DialectSet::IAPPS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::IAPPS),
+        version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
@@ -364,10 +390,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "f5-irules",
         aliases: &["irules", "tcl-irule"],
+        vendor_bit: Some(DialectSet::IRULES),
         availability_mask: DialectSet::IRULES,
         disabled_commands: IRULES_DISABLED_COMMANDS,
         base_layers: &[DialectSet::IRULES],
         grammar_union: DialectSet::IRULES,
+        version_ceiling: Some(TclVersion::V8_4),
         signature_base: Some(TclVersion::V8_4),
         runtime_base: Some(TclVersion::V8_4),
         leading_zero_is_octal: Ternary::Yes,
@@ -388,10 +416,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "f5-tmsh",
         aliases: &[],
+        vendor_bit: None,
         availability_mask: DialectSet::ALL_TCL,
         disabled_commands: &[],
         base_layers: &[],
         grammar_union: DialectSet::ALL_TCL,
+        version_ceiling: None,
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
@@ -405,10 +435,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "intel-quartus-eda-tcl",
         aliases: &[],
+        vendor_bit: Some(DialectSet::QUARTUS),
         availability_mask: DialectSet::TCL85.union(DialectSet::QUARTUS),
         disabled_commands: &[],
         base_layers: &[DialectSet::QUARTUS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::QUARTUS),
+        version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
@@ -422,10 +454,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "mentor-eda-tcl",
         aliases: &[],
+        vendor_bit: Some(DialectSet::MENTOR),
         availability_mask: DialectSet::TCL85.union(DialectSet::MENTOR),
         disabled_commands: &[],
         base_layers: &[DialectSet::MENTOR],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::MENTOR),
+        version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
@@ -439,10 +473,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "synopsys-eda-tcl",
         aliases: &[],
+        vendor_bit: Some(DialectSet::SYNOPSYS),
         availability_mask: DialectSet::TCL86.union(DialectSet::SYNOPSYS),
         disabled_commands: &[],
         base_layers: &[DialectSet::SYNOPSYS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::SYNOPSYS),
+        version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
         runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
@@ -456,6 +492,7 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "tcl8.4",
         aliases: &[],
+        vendor_bit: None,
         availability_mask: DialectSet::TCL84,
         disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
@@ -464,6 +501,7 @@ static CATALOG: [DialectProfile; 16] = [
         // `DialectSet::parse` + `load_dialect` always did.
         base_layers: &[DialectSet::TCL84],
         grammar_union: DialectSet::ALL_TCL,
+        version_ceiling: Some(TclVersion::V8_4),
         signature_base: Some(TclVersion::V8_4),
         runtime_base: Some(TclVersion::V8_4),
         leading_zero_is_octal: Ternary::Yes,
@@ -477,6 +515,7 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "tcl8.5",
         aliases: &[],
+        vendor_bit: None,
         availability_mask: DialectSet::TCL85,
         disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
@@ -485,6 +524,7 @@ static CATALOG: [DialectProfile; 16] = [
         // `DialectSet::parse` + `load_dialect` always did.
         base_layers: &[DialectSet::TCL85],
         grammar_union: DialectSet::ALL_TCL,
+        version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
@@ -498,6 +538,7 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "tcl8.6",
         aliases: &[],
+        vendor_bit: None,
         availability_mask: DialectSet::TCL86,
         disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
@@ -506,6 +547,7 @@ static CATALOG: [DialectProfile; 16] = [
         // `DialectSet::parse` + `load_dialect` always did.
         base_layers: &[DialectSet::TCL86],
         grammar_union: DialectSet::ALL_TCL,
+        version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
         runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
@@ -519,6 +561,7 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "tcl9.0",
         aliases: &[],
+        vendor_bit: None,
         availability_mask: DialectSet::TCL90,
         disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
@@ -527,6 +570,7 @@ static CATALOG: [DialectProfile; 16] = [
         // `DialectSet::parse` + `load_dialect` always did.
         base_layers: &[DialectSet::TCL90],
         grammar_union: DialectSet::ALL_TCL,
+        version_ceiling: Some(TclVersion::V9_0),
         signature_base: Some(TclVersion::V9_0),
         runtime_base: Some(TclVersion::V9_0),
         leading_zero_is_octal: Ternary::No,
@@ -542,6 +586,7 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "tcl9.1",
         aliases: &[],
+        vendor_bit: None,
         availability_mask: DialectSet::TCL91,
         disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
@@ -550,6 +595,7 @@ static CATALOG: [DialectProfile; 16] = [
         // `DialectSet::parse` + `load_dialect` always did.
         base_layers: &[DialectSet::TCL91],
         grammar_union: DialectSet::ALL_TCL,
+        version_ceiling: Some(TclVersion::V9_1),
         signature_base: Some(TclVersion::V9_1),
         runtime_base: Some(TclVersion::V9_1),
         leading_zero_is_octal: Ternary::No,
@@ -563,10 +609,12 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "xilinx-eda-tcl",
         aliases: &[],
+        vendor_bit: Some(DialectSet::XILINX),
         availability_mask: DialectSet::TCL85.union(DialectSet::XILINX),
         disabled_commands: &[],
         base_layers: &[DialectSet::XILINX],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::XILINX),
+        version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
@@ -586,10 +634,12 @@ static CATALOG: [DialectProfile; 16] = [
 static PLAIN_TCL: DialectProfile = DialectProfile {
     name: "tcl",
     aliases: &[],
+    vendor_bit: None,
     availability_mask: DialectSet::ALL_TCL,
     disabled_commands: &[],
     base_layers: &[],
     grammar_union: DialectSet::ALL_TCL,
+    version_ceiling: None,
     signature_base: None,
     runtime_base: None,
     leading_zero_is_octal: Ternary::Inert,
@@ -649,6 +699,16 @@ impl DialectProfile {
     #[must_use]
     pub fn plain_tcl() -> &'static DialectProfile {
         &PLAIN_TCL
+    }
+
+    /// Whether this profile is the permissive unknown-dialect fallback
+    /// ([`Self::plain_tcl`]) — i.e. the ingest string named no real
+    /// dialect. Consumers that used to special-case an empty dialect
+    /// string (diagnostic labels, "no specific dialect" paths) key off
+    /// this instead.
+    #[must_use]
+    pub fn is_fallback(&self) -> bool {
+        std::ptr::eq(self, Self::plain_tcl())
     }
 
     /// Whether this profile IS the iRules profile — the canonical
@@ -879,6 +939,63 @@ mod tests {
         DialectProfile::all()
             .iter()
             .chain(std::iter::once(DialectProfile::plain_tcl()))
+    }
+
+    #[test]
+    fn vendor_bit_composes_the_availability_mask() {
+        // §2.2: for the additive vendor profiles the mask is exactly
+        // (version bits | vendor_bit); for the subtractive iRules profile
+        // the mask IS the bare vendor bit; profiles without a vendor bit
+        // carry pure version masks.
+        for p in all_with_fallback() {
+            match p.vendor_bit {
+                Some(bit) => {
+                    assert!(
+                        p.availability_mask.contains(bit),
+                        "{}: mask must contain the vendor bit",
+                        p.name
+                    );
+                    let version_half = p.availability_mask.difference(bit);
+                    assert!(
+                        DialectSet::ALL_TCL.contains(version_half),
+                        "{}: the non-vendor half of the mask is version bits",
+                        p.name
+                    );
+                    if p.is_irules() {
+                        assert_eq!(p.availability_mask, bit, "iRules mask is BARE (§9)");
+                    }
+                }
+                None => {
+                    assert!(
+                        DialectSet::ALL_TCL.contains(p.availability_mask),
+                        "{}: no vendor bit — the mask is pure Tcl versions",
+                        p.name
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn version_ceiling_tracks_the_signature_base() {
+        // §7: the option-gating ceiling is the signature base everywhere a
+        // profile has one — except the interim-permissive config-only
+        // dialects (no ceiling until Milestone 6 makes them first-class)
+        // and the permissive fallback.
+        for p in all_with_fallback() {
+            match p.name {
+                "f5-tmsh" | "f5-bigip" | "tcl" => {
+                    assert_eq!(p.version_ceiling, None, "{}: interim-permissive", p.name);
+                }
+                _ => {
+                    assert_eq!(
+                        p.version_ceiling, p.signature_base,
+                        "{}: ceiling == signature base",
+                        p.name
+                    );
+                }
+            }
+        }
     }
 
     #[test]

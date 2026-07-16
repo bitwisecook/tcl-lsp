@@ -152,26 +152,30 @@ pub fn available_dialects() -> &'static [&'static str] {
 }
 
 impl DialectSet {
-    /// Whether `name` denotes the F5 iRules dialect.  Accepts the
-    /// canonical `f5-irules` and the legacy `irules` alias.  This is
-    /// the single source of truth for the "is this iRules?" check
-    /// that compiler / LSP passes need, replacing the per-module
+    /// Whether `name` denotes the F5 iRules dialect — resolved through the
+    /// profile catalog, so the canonical `f5-irules` and every registered
+    /// alias (`irules`, `tcl-irule`) agree with the profile predicates by
+    /// construction (dialect-profile-model.md §2.4). This is the single
+    /// source of truth for the "is this iRules?" check that compiler / LSP
+    /// passes need, replacing the per-module
     /// `matches!(dialect, Some("f5-irules" | "irules"))` copies.
     #[must_use]
     pub fn is_irules_dialect(name: Option<&str>) -> bool {
-        matches!(name, Some("f5-irules" | "irules"))
+        crate::profile::DialectProfile::by_opt_name(name).is_irules()
     }
 
     /// Whether `name`'s ensemble commands are *fixed* — the dialect
     /// ships a closed set of subcommands with no user-extensible
     /// ensembles — so the minifier may safely shorten subcommands to
     /// their unambiguous prefix.  True for the F5 dialect family
-    /// (`f5-irules` / `f5-iapps` / `f5-bigip`).  Single source of
-    /// truth for the minifier's former `_FIXED_ENSEMBLE_DIALECTS`
-    /// list.
+    /// (`f5-irules` / `f5-iapps` / `f5-bigip`) — resolved through the
+    /// profile catalog, so alias spellings agree with the canonical name
+    /// (§2.4; the old string table said `irules` was NOT fixed while
+    /// `is_irules_dialect` said it WAS iRules — that disagreement is the
+    /// defect this closes).
     #[must_use]
     pub fn has_fixed_ensembles(name: Option<&str>) -> bool {
-        matches!(name, Some("f5-irules" | "f5-iapps" | "f5-bigip"))
+        crate::profile::DialectProfile::by_opt_name(name).has_fixed_ensembles
     }
 
     /// Parse a dialect name string to a single-bit set.
@@ -252,6 +256,29 @@ impl DialectSet {
             .filter(|&&bit| self.contains(bit))
             .filter_map(|&bit| bit.canonical_name())
             .collect()
+    }
+
+    /// The LOWEST Tcl version bit in this set, as a [`TclVersion`] — or
+    /// `None` when the set carries no version bits (a pure vendor gate such
+    /// as `EXPECT` or `IRULES`).
+    ///
+    /// This is the `min_dialect_version()` of the option-gating model
+    /// (dialect-profile-model.md §5.2): a `TCL85_PLUS` gate has minimum
+    /// `V8_5`, so it resolves under any profile whose `version_ceiling` is
+    /// 8.5 or later, while a `TCL90_PLUS` gate (minimum `V9_0`) does not
+    /// resolve under an 8.x ceiling.
+    #[must_use]
+    pub fn min_version(self) -> Option<crate::version::TclVersion> {
+        use crate::version::TclVersion;
+        [
+            (Self::TCL84, TclVersion::V8_4),
+            (Self::TCL85, TclVersion::V8_5),
+            (Self::TCL86, TclVersion::V8_6),
+            (Self::TCL90, TclVersion::V9_0),
+            (Self::TCL91, TclVersion::V9_1),
+        ]
+        .into_iter()
+        .find_map(|(bit, version)| self.intersects(bit).then_some(version))
     }
 
     /// Resolve `name` to the Tcl core-grammar version its `expr` evaluator
@@ -412,7 +439,10 @@ mod tests {
             );
         }
         assert!(!DialectSet::has_fixed_ensembles(Some("tcl8.6")));
-        assert!(!DialectSet::has_fixed_ensembles(Some("irules")));
+        // Alias spellings agree with the canonical name via the profile
+        // catalog (§2.4) — the old string table wrongly said `irules` was
+        // NOT fixed while `is_irules_dialect` said it WAS iRules.
+        assert!(DialectSet::has_fixed_ensembles(Some("irules")));
         assert!(!DialectSet::has_fixed_ensembles(None));
     }
 
@@ -428,6 +458,25 @@ mod tests {
         assert!(!DialectSet::is_irules_dialect(Some("f5-iapps")));
         assert!(!DialectSet::is_irules_dialect(Some("f5-bigip")));
         assert!(!DialectSet::is_irules_dialect(None));
+    }
+
+    #[test]
+    fn min_version_finds_the_lowest_version_bit() {
+        use crate::version::TclVersion;
+        assert_eq!(DialectSet::TCL85_PLUS.min_version(), Some(TclVersion::V8_5));
+        assert_eq!(DialectSet::TCL90_PLUS.min_version(), Some(TclVersion::V9_0));
+        assert_eq!(DialectSet::ALL_TCL.min_version(), Some(TclVersion::V8_4));
+        assert_eq!(DialectSet::TCL91.min_version(), Some(TclVersion::V9_1));
+        // Pure vendor gates carry no version bits.
+        assert_eq!(DialectSet::EXPECT.min_version(), None);
+        assert_eq!(DialectSet::IRULES.min_version(), None);
+        assert_eq!((DialectSet::IAPPS | DialectSet::EXPECT).min_version(), None);
+        // Mixed gates report the lowest version bit.
+        assert_eq!(
+            (DialectSet::TCL86 | DialectSet::EXPECT).min_version(),
+            Some(TclVersion::V8_6)
+        );
+        assert_eq!(DialectSet::empty().min_version(), None);
     }
 
     #[test]

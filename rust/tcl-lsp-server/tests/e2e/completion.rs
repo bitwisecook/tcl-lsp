@@ -791,3 +791,44 @@ fn fuzzy_method_fallback_does_not_hijack_prefix_match() {
         );
     }
 }
+
+// -- Dialect-profile availability in completion (dialect-profile-model.md,
+// Milestone 4): the composed vendor masks, the subtractive iRules disable
+// list, and the §5.1 subcommand gap — end-to-end over JSON-RPC.
+
+#[test]
+fn iapps_completion_offers_embedded_85_core_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("iapp");
+    lsp.open_document_lang(&uri, "dic\n", "tcl-iapp", 1);
+    let got = labels(&mut lsp, &uri, 0, 3);
+    assert!(
+        got.iter().any(|l| l == "dict"),
+        "dict (8.5 core) must complete in an iApp buffer: {got:?}"
+    );
+}
+
+#[test]
+fn irules_completion_never_offers_banned_commands_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("irule");
+    lsp.open_document_lang(&uri, "when HTTP_REQUEST {\n  exe\n}\n", "tcl-irule", 1);
+    let got = labels(&mut lsp, &uri, 1, 5);
+    assert!(
+        !got.iter().any(|l| l == "exec"),
+        "exec is banned in iRules and must not be completed: {got:?}"
+    );
+}
+
+#[test]
+fn subcommand_completion_version_gates_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_document_lang(&uri, "# tcl-dialect: tcl8.6\ndict \n", "tcl", 1);
+    let got = labels(&mut lsp, &uri, 1, 5);
+    assert!(got.iter().any(|l| l == "get"), "{got:?}");
+    assert!(
+        !got.iter().any(|l| l == "getwithdefault"),
+        "dict getwithdefault (9.0+) must be hidden in an 8.6 buffer: {got:?}"
+    );
+}

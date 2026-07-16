@@ -79,7 +79,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         let Some(spec) = registry.get(cmd_name) else {

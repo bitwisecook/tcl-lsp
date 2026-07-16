@@ -2740,7 +2740,13 @@ impl Backend {
                 let Some(dialect) = dialect_val.as_str() else {
                     continue;
                 };
-                if DialectSet::parse(dialect).is_none() {
+                // Valid names: any catalog profile (now including the
+                // config-only f5-tmsh / f5-bigip / bpf, which the old
+                // DialectSet::parse check wrongly rejected) plus `tk`
+                // (a parseable library shell, not a profile — §7.2).
+                if tcl_dialect::DialectProfile::find(dialect).is_none()
+                    && DialectSet::parse(dialect).is_none()
+                {
                     continue;
                 }
                 parsed.push((url, dialect.to_owned()));
@@ -5465,28 +5471,30 @@ impl Backend {
             .to_owned();
         let dialect = self.default_dialect.lock().await.clone();
         let registry = self.registry_for_dialect(&dialect).await;
-        let parsed = DialectSet::parse(&dialect).unwrap_or(DialectSet::ALL_TCL);
-        let mut subs: Vec<serde_json::Value> = registry
-            .get_for_dialect(&name, parsed)
-            .map(|spec| {
-                spec.subcommands
-                    .iter()
-                    .map(|sub| {
-                        serde_json::json!({
-                            "name": sub.name,
-                            "detail": sub.detail,
-                            "synopsis": sub.synopsis,
-                            "pure": sub.pure,
-                            "mutator": sub.mutator,
-                            // The registry tracks deprecation at command level,
-                            // not per subcommand — report the shape with a
-                            // conservative default.
-                            "deprecated": false,
-                        })
+        let profile = tcl_dialect::DialectProfile::by_name(&dialect);
+        let mut subs: Vec<serde_json::Value> = {
+            use tcl_registry::ProfileQueries;
+            profile.resolve_command(&registry, &name)
+        }
+        .map(|spec| {
+            spec.subcommands
+                .iter()
+                .map(|sub| {
+                    serde_json::json!({
+                        "name": sub.name,
+                        "detail": sub.detail,
+                        "synopsis": sub.synopsis,
+                        "pure": sub.pure,
+                        "mutator": sub.mutator,
+                        // The registry tracks deprecation at command level,
+                        // not per subcommand — report the shape with a
+                        // conservative default.
+                        "deprecated": false,
                     })
-                    .collect()
-            })
-            .unwrap_or_default();
+                })
+                .collect()
+        })
+        .unwrap_or_default();
         subs.sort_by(|a, b| {
             a.get("name")
                 .and_then(serde_json::Value::as_str)
@@ -9374,16 +9382,15 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let hover_dialect = tcl_dialect::DialectSet::parse(&doc.dialect)
-            .unwrap_or(tcl_dialect::DialectSet::ALL_TCL);
+        let hover_profile = tcl_dialect::DialectProfile::by_name(&doc.dialect);
         let result = tokio::task::spawn_blocking(move || {
-            core_hover::hover_with_dialect(
+            core_hover::hover_with_profile(
                 &doc.text,
                 pos.line,
                 pos.character,
                 &analysis,
                 Some(&registry),
-                hover_dialect,
+                hover_profile,
             )
         })
         .await

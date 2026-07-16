@@ -418,9 +418,10 @@ impl Analyser {
             return None;
         }
         let all_tcloo = class_names.iter().all(|cls| {
-            self.result.all_classes.get(cls).is_some_and(|cd| {
-                super::validity::is_tcloo_metaclass(self.registry.as_ref(), &cd.metaclass)
-            })
+            self.result
+                .all_classes
+                .get(cls)
+                .is_some_and(|cd| super::validity::is_tcloo_metaclass(self.registry, &cd.metaclass))
         });
         if !all_tcloo {
             return None;
@@ -518,7 +519,7 @@ impl Analyser {
                 break;
             }
             if !bare.contains("::")
-                && let Some(sig) = self.registry.as_ref().and_then(|r| r.get(bare))
+                && let Some(sig) = self.registry.and_then(|r| r.get(bare))
             {
                 arity = Some(sig.arity);
                 break;

@@ -550,14 +550,14 @@ impl Analyser {
         ) {
             return;
         }
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         let bare = cmd_name.trim_start_matches(':');
         if bare.is_empty() {
             return;
         }
-        let profile = tcl_dialect::DialectProfile::by_name(&self.dialect);
+        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
         // EXISTS in the active dialect profile → fine.  UNKNOWN everywhere →
         // W123's concern.  Only DISALLOWED (exists in some dialect, not this
         // one) fires.  Resolution goes through the profile so the composed
@@ -616,15 +616,14 @@ impl Analyser {
     pub(in crate::analyser) fn resolve_command_signature(
         &self,
         cmd_name: &str,
-        dialect: tcl_registry::prelude::DialectSet,
     ) -> Option<super::dispatch::CommandSignature> {
         if let Some(env) = self.body_scope_stack.last()
             && let Some(scoped) = env.command(cmd_name)
         {
             return Some(super::dispatch::signature_for_scoped_command(scoped));
         }
-        let registry = self.registry.as_ref()?;
-        super::dispatch::signature_for_command(registry, cmd_name, dialect)
+        let registry = self.registry?;
+        super::dispatch::signature_for_command(registry, cmd_name, self.profile)
     }
 
     /// **W001.** Emit "Unknown subcommand" warning for commands
@@ -701,17 +700,25 @@ impl Analyser {
         {
             return;
         }
-        // Tk geometry/widget ensemble commands (`grid` / `pack` / `wm` / …)
-        // are recognised for the unknown-subcommand check regardless of the
-        // active Tcl dialect — a `.tcl` script may `package require Tk` at
-        // runtime, and W001 fires on `grid bogus` under every dialect.
-        let dialect =
-            tcl_dialect::DialectProfile::by_name(&self.dialect).availability_mask | DialectSet::TK;
         // Scope-aware resolution: an ensemble scoped command (`top`, `data`)
         // inside a `report::defstyle` body is checked against its scoped
-        // subcommand set, so `top bogus` still draws W001.
-        let Some(CommandSignature::WithSubcommands(sig)) =
-            self.resolve_command_signature(cmd_name, dialect)
+        // subcommand set, so `top bogus` still draws W001. Tk
+        // geometry/widget ensemble commands (`grid` / `pack` / `wm` / …)
+        // are additionally recognised regardless of the active dialect — a
+        // `.tcl` script may `package require Tk` at runtime, so W001 fires
+        // on `grid bogus` under every dialect (the Tk-tagged fallback
+        // below; Tk is a library over a Tcl base, not a profile).
+        let tk_fallback = || {
+            let registry = self.registry?;
+            let spec = registry.get(cmd_name)?;
+            spec.dialects
+                .is_some_and(|d| d.intersects(DialectSet::TK))
+                .then(|| super::dispatch::signature_for_command_any_dialect(registry, cmd_name))
+                .flatten()
+        };
+        let Some(CommandSignature::WithSubcommands(sig)) = self
+            .resolve_command_signature(cmd_name)
+            .or_else(tk_fallback)
         else {
             // Not a registered ensemble — buffer as a widget-dispatch
             // candidate, resolved post-walk (issue #927).
@@ -808,14 +815,13 @@ impl Analyser {
         arg_tokens: &[tcl_lexer::Token],
         scope_path: &[usize],
     ) -> bool {
-        use super::dispatch::{CommandSignature, signature_for_command};
-        use tcl_registry::prelude::DialectSet;
+        use super::dispatch::{CommandSignature, signature_for_command_any_dialect};
 
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return false;
         };
         let Some(CommandSignature::WithSubcommands(any_sig)) =
-            signature_for_command(registry, cmd_name, DialectSet::all())
+            signature_for_command_any_dialect(registry, cmd_name)
         else {
             return false;
         };
@@ -939,11 +945,10 @@ impl Analyser {
         // rather than through the pending/flush queue.
         self.emit_apply_lambda_arity(cmd_name, args, arg_tokens, arg_expand, cmd_tok, scope_path);
 
-        let dialect = tcl_dialect::DialectProfile::by_name(&self.dialect).availability_mask;
         // Scope-aware: a head inside a scoped command environment resolves to
-        // its scoped signature (`top set …`, `columns`), everything else to the
-        // global registry.
-        match self.resolve_command_signature(cmd_name, dialect) {
+        // its scoped signature (`top set …`, `columns`), everything else to
+        // the global registry via the active profile.
+        match self.resolve_command_signature(cmd_name) {
             Some(CommandSignature::Simple(sig)) => {
                 self.check_simple_arity(
                     cmd_name,
@@ -1418,7 +1423,7 @@ impl Analyser {
                 }) else {
                     continue; // not a (yet-defined) class call — nothing to check
                 };
-                if !is_tcloo_metaclass(self.registry.as_ref(), &cd.metaclass) {
+                if !is_tcloo_metaclass(self.registry, &cd.metaclass) {
                     continue; // snit / itcl — `new`/`create` mean something else
                 }
                 // Unlike `new`/`create` (exported by default — only an explicit
@@ -1624,7 +1629,7 @@ impl Analyser {
         ) {
             self.queue_ctor_arity_candidate(cmd_name, words, scope_path);
         }
-        if self.registry.as_ref().is_some_and(|r| {
+        if self.registry.is_some_and(|r| {
             r.get(cmd_name)
                 .is_some_and(|sig| sig.traits.contains(tcl_registry::Traits::TCLOO_NEXT_CHAIN))
         }) {
@@ -1982,7 +1987,7 @@ impl Analyser {
                 // builtin.
                 let bare = cur.strip_prefix("::").unwrap_or(&cur);
                 if !bare.contains("::")
-                    && let Some(sig) = self.registry.as_ref().and_then(|r| r.get(bare))
+                    && let Some(sig) = self.registry.and_then(|r| r.get(bare))
                 {
                     return Some(shift_arity(sig.arity, prepended_total));
                 }
@@ -2221,7 +2226,7 @@ impl Analyser {
     ) {
         use tcl_registry::prelude::DialectSet;
 
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         if args.is_empty() || arg_tokens.is_empty() {
@@ -2430,7 +2435,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
             // The shared per-profile registry cache: same contents as a
             // fresh build_default + load_dialect, without rebuilding the
             // whole registry per analysed document.
-            let registry = tcl_registry::registry_for_dialect(&self.dialect);
+            let registry = tcl_registry::registry_for_dialect(self.dialect());
             let commands: std::collections::HashSet<&str> = registry.command_names().collect();
             let hits: Vec<(String, tcl_lexer::Span)> = self
                 .result
@@ -2452,7 +2457,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
 
         // W117 — stub expr function/operator shadows a built-in.
         if !self.result.stub_expr_defs.is_empty() {
-            let irules = self.dialect == "f5-irules";
+            let irules = self.dialect() == "f5-irules";
             let hits: Vec<(String, String, tcl_lexer::Span)> = self
                 .result
                 .stub_expr_defs
@@ -2499,10 +2504,10 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         cmd_name: &str,
         cmd_tok: tcl_lexer::Token,
     ) {
-        if self.dialect != "f5-irules" {
+        if self.dialect() != "f5-irules" {
             return;
         }
-        let Some(spec) = self.registry.as_ref().and_then(|r| r.get(cmd_name)) else {
+        let Some(spec) = self.registry.and_then(|r| r.get(cmd_name)) else {
             return;
         };
         let Some(replacement) = spec.deprecated_replacement else {
@@ -2537,7 +2542,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         arg_tokens: &[tcl_lexer::Token],
         cmd_tok: tcl_lexer::Token,
     ) {
-        if self.dialect != "f5-irules" || cmd_name != "matchclass" {
+        if self.dialect() != "f5-irules" || cmd_name != "matchclass" {
             return;
         }
         // Auto-fix `matchclass` → `class match`, a 1:1 rename (same argument
@@ -2743,17 +2748,12 @@ before this value so it is treated as data, not an option."
         arg_expand: &[bool],
         scope_path: &[usize],
     ) {
-        use tcl_dialect::DialectSet;
-
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         if args.is_empty() || arg_tokens.is_empty() {
             return;
         }
-        let Some(active) = DialectSet::parse(&self.dialect) else {
-            return;
-        };
         let Some(spec) = registry.get(cmd_name) else {
             return;
         };
@@ -2773,7 +2773,9 @@ before this value so it is treated as data, not an option."
             {
                 return;
             }
-            let Some(sub) = spec.resolve_subcommand_for_dialect(&args[0], active) else {
+            let Some(sub) =
+                spec.resolve_subcommand_for_dialect(&args[0], self.profile.availability_mask)
+            else {
                 return;
             };
             (
@@ -2823,7 +2825,11 @@ before this value so it is treated as data, not an option."
             // it consumes, so a value that itself looks like a flag
             // (`-command -bar`) is not mistakenly tested as an option.
             if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
-                if !opt.supports_dialect(Some(active), parent_dialects) && i < arg_tokens.len() {
+                // Profile gating (§5.2): gate.intersects(mask) plus the
+                // version ceiling — an inherited option on a vendor command
+                // resolves under that vendor's composed profile, and a
+                // later-version option never leaks below its ceiling.
+                if !self.profile.is_option_available(opt, parent_dialects) && i < arg_tokens.len() {
                     let span = arg_tokens[i].span;
                     // Message exactly: `Option 'X' on 'cmd'[ sub] is not
                     // available in the active dialect (D).`
@@ -2836,7 +2842,7 @@ before this value so it is treated as data, not an option."
                         message: format!(
                             "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
 in the active dialect ({}).",
-                            self.dialect
+                            self.dialect()
                         ),
                         severity: Severity::Warning,
                         fixes,
@@ -2931,7 +2937,7 @@ in the active dialect ({}).",
         };
 
         let trimmed = expr_text.trim();
-        let parsed = crate::parse_expr(trimmed, Some(self.dialect.as_str()));
+        let parsed = crate::parse_expr(trimmed, Some(self.dialect()));
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
@@ -2947,7 +2953,7 @@ in the active dialect ({}).",
         // without adding source-position fields to `ExprNode::Binary`
         // (which recursive/optimiser/codegen consumers across the
         // compiler pattern-match on by name, not span).
-        let (tokens, _) = tcl_lexer::tokenise_expr_checked(trimmed, Some(self.dialect.as_str()));
+        let (tokens, _) = tcl_lexer::tokenise_expr_checked(trimmed, Some(self.dialect()));
         let gated: Vec<(&tcl_lexer::ExprToken, &'static str)> = tokens
             .iter()
             .filter(|t| t.kind == tcl_lexer::ExprTokenType::Operator)
@@ -2999,7 +3005,7 @@ in the active dialect ({}).",
                     new_text,
                     description: format!(
                         "Rewrite to a form supported by dialect '{}'",
-                        self.dialect
+                        self.dialect()
                     ),
                 });
             }
@@ -3008,7 +3014,7 @@ in the active dialect ({}).",
                 span: op_span,
                 message: format!(
                     "Expression operator '{op_name}' is not available in dialect '{}'; requires {}.",
-                    self.dialect,
+                    self.dialect(),
                     w003_tip_citation(op_name)
                 ),
                 severity: Severity::Warning,
@@ -3026,7 +3032,7 @@ in the active dialect ({}).",
         &mut self,
         expr_tok: tcl_lexer::Token,
     ) {
-        let Some(ceiling) = crate::tcl_expr_eval::math_func_ceiling_for_dialect(&self.dialect)
+        let Some(ceiling) = crate::tcl_expr_eval::math_func_ceiling_for_dialect(self.dialect())
         else {
             return;
         };
@@ -3040,7 +3046,7 @@ in the active dialect ({}).",
                     span,
                     message: format!(
                         "'::tcl::mathfunc::{name}' is disabled in the active dialect profile ('{}')",
-                        self.dialect
+                        self.dialect()
                     ),
                     severity: Severity::Warning,
                     fixes: Vec::new(),
@@ -3070,7 +3076,7 @@ in the active dialect ({}).",
         let Some((pre_85, pre_90)) = self.w003_gates() else {
             return;
         };
-        let parsed = crate::parse_expr(joined_text.trim(), Some(self.dialect.as_str()));
+        let parsed = crate::parse_expr(joined_text.trim(), Some(self.dialect()));
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
@@ -3083,7 +3089,7 @@ in the active dialect ({}).",
                 span: tok.span,
                 message: format!(
                     "Expression operator '{op_name}' is not available in dialect '{}'; requires {}.",
-                    self.dialect,
+                    self.dialect(),
                     w003_tip_citation(op_name)
                 ),
                 severity: Severity::Warning,
@@ -3103,7 +3109,7 @@ in the active dialect ({}).",
     /// gated (nothing for W003 to check).
     fn w003_gates(&self) -> Option<(bool, bool)> {
         use tcl_dialect::{DialectProfile, TclVersion};
-        let base = DialectProfile::by_name(&self.dialect).expr_grammar_base?;
+        let base = DialectProfile::by_name(self.dialect()).expr_grammar_base?;
         // Pre-Tcl-8.5 runtimes don't accept `in` / `ni` (TIP 201).
         let pre_85 = base < TclVersion::V8_5;
         // Pre-Tcl-9.0 runtimes don't accept `lt` / `le` / `gt` / `ge`

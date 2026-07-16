@@ -4430,7 +4430,7 @@ fn collect_script(
             ctx.object_classes,
             ctx.object_collections,
             ctx.classes,
-            DialectSet::parse(ctx.dialect).unwrap_or(DialectSet::ALL_TCL),
+            tcl_dialect::DialectProfile::by_name(ctx.dialect).availability_mask,
             ctx.extra_var_write,
             ctx.extra_var_read,
             ctx.extra_command,

@@ -649,7 +649,7 @@ fn w216_upvar_local_name_is_indirect_array_idiom() {
 #[test]
 fn variable_name_positions_are_registry_driven() {
     let mut a = Analyser::new();
-    a.registry = Some(tcl_registry::CommandRegistry::build_default());
+    a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
     let pos = |cmd: &str, args: &[&str]| {
         a.variable_name_positions(
             cmd,
@@ -3940,7 +3940,7 @@ fn emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
     let mut a = Analyser::new();
-    a.dialect = "f5-irules".to_string();
+    a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
     // ``HTTP_REQUEST`` writes ``v``, ``HTTP_RESPONSE``
     // reads ``v`` — ``v`` is a cross-event def.  The
     // ``set v 1\nset v 2`` shape inside ``HTTP_REQUEST``
@@ -3969,7 +3969,7 @@ fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged() {
     let mut a = Analyser::new();
-    a.dialect = "f5-irules".to_string();
+    a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
     // ``local`` is only used inside HTTP_REQUEST — not a
     // cross-event var, so W220 should still fire on the
     // overwritten first assignment.
@@ -8979,4 +8979,64 @@ fn w003_bpf_accepts_both_tips_on_its_tcl_9_runtime() {
     // the modelled reason.)
     assert!(w003_hits("expr {2 in {1 2 3}}", "bpf").is_empty());
     assert!(w003_hits("if {$x lt $y} { puts hi }", "bpf").is_empty());
+}
+
+// Option-gating semantics (dialect-profile-model.md §5.2, Milestone 4):
+// intersects membership + version ceiling, replacing the old `contains`
+// rule that silently dropped inherited vendor options and never gated a
+// version-ceiling leak.
+
+#[test]
+fn w004_version_gated_options_follow_the_profile_ceiling() {
+    // TP: switch -nocase (8.5+) flags on the 8.4 base…
+    assert!(
+        has_code("switch -nocase a {a {} default {}}", "tcl8.4", "W004"),
+        "switch -nocase is 8.5+ and must draw W004 under tcl8.4"
+    );
+    // …including the pinned-8.4 iRules runtime.
+    assert!(
+        has_code("switch -nocase a {a {} default {}}", "f5-irules", "W004"),
+        "switch -nocase must draw W004 under f5-irules (8.4 base)"
+    );
+    // FP-fix: it is clean at/above 8.5 — the composed vendor profiles
+    // included (the old contains rule could never satisfy a composed mask).
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "f5-iapps", "expect"] {
+        assert!(
+            !has_code("switch -nocase a {a {} default {}}", dialect, "W004"),
+            "{dialect}: switch -nocase is real 8.5+ core"
+        );
+    }
+}
+
+#[test]
+fn w004_later_version_options_never_leak_into_supersets() {
+    // regsub -command is 9.0+: clean there, flagged below — for plain
+    // versions and composed vendor profiles alike (§5.2's ceiling guard).
+    assert!(!has_code(
+        r#"regsub -command {x} "axb" {string toupper}"#,
+        "tcl9.0",
+        "W004"
+    ));
+    for dialect in ["tcl8.6", "f5-iapps", "expect"] {
+        assert!(
+            has_code(
+                r#"regsub -command {x} "axb" {string toupper}"#,
+                dialect,
+                "W004"
+            ),
+            "{dialect}: regsub -command is 9.0-only and must draw W004"
+        );
+    }
+}
+
+#[test]
+fn vendor_command_inherited_options_resolve_cleanly() {
+    // expect_after's options inherit the command's EXPECT gate — under the
+    // old contains rule every one of them was "unavailable" the moment the
+    // active mask composed (version|vendor). No W004 under expect.
+    let codes = codes_for_dialect("expect_after -re {pattern} {send ok}", "expect");
+    assert!(
+        !codes.iter().any(|c| c == "W004"),
+        "inherited expect options must resolve under expect, got {codes:?}"
+    );
 }

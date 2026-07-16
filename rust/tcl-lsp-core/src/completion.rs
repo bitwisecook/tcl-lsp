@@ -287,7 +287,7 @@ struct SwitchCompletionCtx<'a> {
     character: u32,
     word_idx: usize,
     analysis: &'a AnalysisResult,
-    dialect: Option<tcl_dialect::DialectSet>,
+    profile: &'static tcl_dialect::DialectProfile,
 }
 
 /// Option-flag completion for a `-<cursor>` position: resolves the
@@ -310,16 +310,13 @@ fn switch_completion_items(
         character,
         word_idx,
         analysis,
-        dialect,
+        profile,
     } = *ctx;
     let sub = (word_idx >= 2)
         .then(|| nth_word_on_line(source, line, 1))
         .flatten()
         .and_then(|sub_name| {
-            spec.resolve_subcommand_for_dialect(
-                &sub_name,
-                dialect.unwrap_or(tcl_dialect::DialectSet::all()),
-            )
+            spec.resolve_subcommand_for_dialect(&sub_name, profile.availability_mask)
         });
     let (options, parent_dialects) = match sub {
         Some(sub) => (sub.options, sub.dialects.or(spec.dialects)),
@@ -340,7 +337,7 @@ fn switch_completion_items(
     let floor = package_version_floor(analysis, spec);
     Some(switch_completions(
         options,
-        dialect,
+        profile,
         parent_dialects,
         switch_partial,
         edit,
@@ -360,7 +357,7 @@ fn context_aware_completions(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     partial: &str,
-    dialect: Option<tcl_dialect::DialectSet>,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Vec<CompletionItem>> {
     let (cmd, word_idx) = command_context_on_line(source, line, character)?;
 
@@ -416,7 +413,7 @@ fn context_aware_completions(
                 character,
                 word_idx,
                 analysis,
-                dialect,
+                profile,
             },
             &switch_partial,
         )
@@ -443,7 +440,7 @@ fn context_aware_completions(
         return Some(invoked_proc_completions(analysis, partial));
     }
     if word_idx == 1 && !spec.subcommands.is_empty() {
-        return Some(subcommand_completions(spec, partial));
+        return Some(subcommand_completions(spec, profile, partial));
     }
     // Second-level subcommand completion — the word after a two-level
     // ensemble's first-level subcommand (`info object <op>`, `info class <op>`,
@@ -575,7 +572,7 @@ pub fn completions(
             analysis,
             registry,
             &partial,
-            tcl_dialect::DialectSet::parse(dialect),
+            tcl_dialect::DialectProfile::by_name(dialect),
         )
     {
         return items;
@@ -1345,17 +1342,18 @@ fn switch_partial_at_position(
 
 fn switch_completions(
     options: &[tcl_registry::hover::OptionSpec],
-    dialect: Option<tcl_dialect::DialectSet>,
+    profile: &'static tcl_dialect::DialectProfile,
     parent_dialects: Option<tcl_dialect::DialectSet>,
     partial: &str,
     edit: (u32, u32),
     package_version: Option<&str>,
 ) -> Vec<CompletionItem> {
+    use tcl_registry::ProfileQueries;
     let mut opts: Vec<_> = options
         .iter()
         .filter(|opt| {
             opt.available_for_version(package_version)
-                && opt.supports_dialect(dialect, parent_dialects)
+                && profile.is_option_available(opt, parent_dialects)
         })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
@@ -1446,8 +1444,17 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     items
 }
 
-fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<CompletionItem> {
-    let mut subs: Vec<&tcl_registry::SubCommand> = spec.subcommands.iter().collect();
+fn subcommand_completions(
+    spec: &tcl_registry::CommandSpec,
+    profile: &'static tcl_dialect::DialectProfile,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    use tcl_registry::ProfileQueries;
+    // Only subcommands available under the active profile are offered —
+    // the §5.1 `available_subcommands` gap: `dict getwithdefault` (9.0+)
+    // must not be offered in an 8.6 buffer, and an iRules-only subcommand
+    // must not surface in plain Tcl.
+    let mut subs: Vec<&tcl_registry::SubCommand> = profile.available_subcommands(spec);
     subs.sort_unstable_by_key(|sub| sub.name);
     let FilteredCandidates {
         candidates: subs,
@@ -1676,26 +1683,34 @@ fn builtin_completions(
     tk_loaded: bool,
     analysis: &AnalysisResult,
 ) -> Vec<CompletionItem> {
-    // Version-gate the command list: a command whose spec restricts itself to
-    // later dialects (`try` is Tcl 8.6+, `lseq` is 9.0+, …) must not be offered
-    // in an earlier-dialect buffer.  `load_dialect` only *adds* dialect command
-    // sets (iRules / Tk / …); it never removes a version-gated core command, so
-    // `command_names()` still lists `try` under `tcl8.4`/`tcl8.5` — filter it
-    // here via the same `supports_dialect` check the analyser uses.  An
-    // unparseable dialect (custom / non-Tcl) applies no version filter.
-    let dialect_set = tcl_dialect::DialectSet::parse(dialect);
+    // Availability-gate the command list through the dialect profile: a
+    // command whose spec restricts itself to later dialects (`try` is Tcl
+    // 8.6+, `lseq` is 9.0+, …) must not be offered in an earlier-dialect
+    // buffer, a vendor profile's composed mask admits its embedded Tcl core
+    // (8.5 `dict` under f5-iapps), and the subtractive iRules disable list
+    // filters the banned commands (§9 of the dialect-profile model).
+    // `load_dialect` only *adds* dialect command sets (iRules / Tk / …); it
+    // never removes a version-gated core command, so `command_names()`
+    // still lists `try` under `tcl8.4`/`tcl8.5` — filter here via the same
+    // profile resolution the analyser's W123 uses. An unknown dialect
+    // (custom / non-Tcl) resolves to the permissive fallback profile.
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
         .filter(|n| !SKIP_BUILTIN_NAMES.iter().any(|skip| skip == n))
         .filter(|n| {
-            dialect_set
-                .is_none_or(|ds| registry.get(n).is_none_or(|spec| spec.supports_dialect(ds)))
+            use tcl_registry::ProfileQueries;
+            profile.resolve_command(registry, n).is_some()
         })
-        // Tk commands (`required_package == "Tk"`) are only offered once Tk is
-        // loaded — see the `tk_loaded` computation in `completions`.
+        // Tk commands (`required_package == "Tk"`) are only offered once Tk
+        // is loaded — see the `tk_loaded` computation in `completions` — and
+        // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
+        // world where a desktop library cannot be `package require`d, even
+        // if the source says so (dialect-profile-model.md §7.2; Tk hosting
+        // becomes a first-class library pin on the versioned-library axis).
         .filter(|n| {
-            tk_loaded
+            (tk_loaded && profile.vendor_bit.is_none())
                 || registry
                     .get(n)
                     .is_none_or(|spec| spec.required_package != Some("Tk"))
@@ -3286,5 +3301,84 @@ mod tests {
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["greet"]);
         assert_eq!(items[0].filter_text.as_deref(), Some("gret"));
+    }
+
+    // Dialect-profile availability (dialect-profile-model.md, Milestone 4):
+    // the §5.1 available_subcommands gap and the §5.2 option semantics in
+    // completion.
+
+    #[test]
+    fn subcommand_completion_is_version_gated_by_the_profile() {
+        let src = "dict \n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        // 8.6 buffer: 9.0-only subcommands are not offered.
+        let items = completions(src, 0, 5, &analysis, Some(registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"get"), "{labels:?}");
+        assert!(
+            !labels.contains(&"getwithdefault"),
+            "dict getwithdefault is 9.0+ and must not be offered under tcl8.6: {labels:?}"
+        );
+        // 9.0 buffer: it is offered.
+        let registry90 = tcl_registry::registry_for_dialect("tcl9.0");
+        let items90 = completions(src, 0, 5, &analysis, Some(registry90), None, "tcl9.0");
+        let labels90: Vec<&str> = items90.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels90.contains(&"getwithdefault"), "{labels90:?}");
+    }
+
+    #[test]
+    fn command_completion_uses_profile_availability() {
+        let src = "dic\n";
+        let analysis = analyse(src);
+        // iApps embed Tcl 8.5: dict IS offered (the composed-mask fix)…
+        let registry = tcl_registry::registry_for_dialect("f5-iapps");
+        let items = completions(src, 0, 3, &analysis, Some(registry), None, "f5-iapps");
+        assert!(
+            items.iter().any(|i| i.label == "dict"),
+            "dict must be offered under f5-iapps (Tcl 8.5.13 host)"
+        );
+        // …while the banned iRules commands never surface there.
+        let irules_reg = tcl_registry::registry_for_dialect("f5-irules");
+        let exec_src = "exe\n";
+        let exec_analysis = analyse(exec_src);
+        let irules_items = completions(
+            exec_src,
+            0,
+            3,
+            &exec_analysis,
+            Some(irules_reg),
+            None,
+            "f5-irules",
+        );
+        assert!(
+            !irules_items.iter().any(|i| i.label == "exec"),
+            "exec is banned in iRules and must not be completed"
+        );
+    }
+
+    #[test]
+    fn switch_option_completion_respects_profile_gating() {
+        // Option completion under f5-iapps offers the 8.5+ -nocase (the old
+        // contains rule dropped every version-gated option under a composed
+        // mask) but not the 9.0-only regsub -command.
+        let src = "switch -\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::registry_for_dialect("f5-iapps");
+        let items = completions(src, 0, 8, &analysis, Some(registry), None, "f5-iapps");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"-nocase"),
+            "switch -nocase is 8.5+ core, offered under f5-iapps: {labels:?}"
+        );
+
+        let src9 = "regsub -\n";
+        let analysis9 = analyse(src9);
+        let items9 = completions(src9, 0, 8, &analysis9, Some(registry), None, "f5-iapps");
+        let labels9: Vec<&str> = items9.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels9.contains(&"-command"),
+            "regsub -command is 9.0-only, hidden under f5-iapps: {labels9:?}"
+        );
     }
 }

@@ -155,13 +155,15 @@ fn dialects_json(dialects: Option<DialectSet>) -> Json {
     }
 }
 
-/// Whether `dialect` is allowed for a subcommand (own set wins; else
-/// inherit the parent `CommandSpec.dialects`; else available).
-fn sub_supports_dialect(sub: &SubCommand, dialect: DialectSet, parent: Option<DialectSet>) -> bool {
-    match sub.dialects {
-        Some(own) => own.contains(dialect),
-        None => parent.is_none_or(|p| p.contains(dialect)),
-    }
+/// Whether the subcommand is available under `profile` (own gate wins;
+/// else inherit the parent `CommandSpec.dialects`; else available) — the
+/// same §5.1 intersects membership every other availability consumer uses
+/// (the old `contains` rule hid a vendor profile's embedded-core
+/// subcommands from the dump).
+fn sub_available(profile: &DialectProfile, sub: &SubCommand, parent: Option<DialectSet>) -> bool {
+    sub.dialects
+        .or(parent)
+        .is_none_or(|gate| gate.intersects(profile.availability_mask))
 }
 
 /// Sorted union of every option name declared on `spec` (no dialect
@@ -305,13 +307,13 @@ fn traits_json(spec: &CommandSpec) -> Json {
     Json::Object(m)
 }
 
-/// The `subcommands` block: subcommands available in `dialect`, sorted by
-/// name.
-fn subcommands_json(spec: &CommandSpec, dialect: DialectSet) -> Json {
+/// The `subcommands` block: subcommands available under `profile`, sorted
+/// by name.
+fn subcommands_json(spec: &CommandSpec, profile: &DialectProfile) -> Json {
     let mut subs: Vec<&SubCommand> = spec
         .subcommands
         .iter()
-        .filter(|sub| sub_supports_dialect(sub, dialect, spec.dialects))
+        .filter(|sub| sub_available(profile, sub, spec.dialects))
         .collect();
     subs.sort_by(|a, b| a.name.cmp(b.name));
     let out = subs
@@ -384,11 +386,13 @@ fn resolve_spec<'a>(
         })
 }
 
-/// Full structured snapshot of a single command in `dialect`.
-fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
-    let mut switches: Vec<&str> = spec.switch_names(Some(dialect));
-    // Top-level `switches` preserves declaration order
-    // (`spec.switch_names(dialect)`) — no sort.
+/// Full structured snapshot of a single command under `profile`.
+fn command_entry(spec: &CommandSpec, profile: &DialectProfile) -> Json {
+    let mut switches: Vec<&str> = {
+        use crate::profile_queries::ProfileQueries as _;
+        profile.available_option_names(spec)
+    };
+    // Top-level `switches` preserves declaration order — no sort.
     let switches_json: Vec<Json> = switches.drain(..).map(Json::s).collect();
 
     let mut excluded: Vec<&str> = spec.excluded_events.to_vec();
@@ -399,7 +403,7 @@ fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
     m.insert("dialects".to_owned(), dialects_json(spec.dialects));
     m.insert("arity".to_owned(), arity_json(spec.arity));
     m.insert("switches".to_owned(), Json::Array(switches_json));
-    m.insert("subcommands".to_owned(), subcommands_json(spec, dialect));
+    m.insert("subcommands".to_owned(), subcommands_json(spec, profile));
     m.insert("forms".to_owned(), forms_json(spec));
     m.insert(
         "excludedEvents".to_owned(),
@@ -429,7 +433,7 @@ fn command_names(registry: &CommandRegistry, profile: &DialectProfile) -> Vec<St
 #[must_use]
 pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
     let profile = DialectProfile::by_name(dialect);
-    resolve_spec(registry, name, profile).map(|spec| command_entry(spec, profile.availability_mask))
+    resolve_spec(registry, name, profile).map(|spec| command_entry(spec, profile))
 }
 
 /// Snapshot of every command available in `dialect`.
@@ -444,8 +448,7 @@ pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> J
     let commands: Vec<Json> = names
         .iter()
         .filter_map(|name| {
-            resolve_spec(registry, name, profile)
-                .map(|spec| command_entry(spec, profile.availability_mask))
+            resolve_spec(registry, name, profile).map(|spec| command_entry(spec, profile))
         })
         .collect();
     let mut m = BTreeMap::new();

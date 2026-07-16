@@ -30,7 +30,8 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use tcl_registry::prelude::{DialectSet, OptionSpec};
+use tcl_registry::ProfileQueries;
+use tcl_registry::prelude::OptionSpec;
 use tcl_registry::scoped::ScopedCommand;
 use tcl_registry::{ArgRole, Arity, CommandRegistry, Traits};
 
@@ -163,25 +164,26 @@ pub enum CommandSignature {
 ///   has no subcommands.
 /// - `None` when the registry doesn't know the command.
 ///
-/// The `dialect` argument selects which dialect-specific subcommand
-/// set is materialised; pass `DialectSet::ALL_TCL` when the
-/// caller has no specific dialect context.
+/// The `profile` argument selects which dialect-specific subcommand and
+/// option sets are materialised (availability mask + version ceiling +
+/// the subtractive iRules disable filter); pass
+/// `DialectProfile::plain_tcl()` when the caller has no specific dialect
+/// context.
 #[must_use]
 pub fn signature_for_command(
     registry: &CommandRegistry,
     cmd_name: &str,
-    dialect: DialectSet,
+    profile: &tcl_dialect::DialectProfile,
 ) -> Option<CommandSignature> {
-    let spec = registry.get_for_dialect(cmd_name, dialect)?;
+    let spec = profile.resolve_command(registry, cmd_name)?;
 
     if !spec.subcommands.is_empty() {
         let mut subs: HashMap<String, CommandSig> = HashMap::new();
         for sub in spec.subcommands {
-            // `dialects` filters out subcommands not available in
-            // the current dialect.
-            if let Some(spec_dialects) = sub.dialects
-                && !spec_dialects.intersects(dialect)
-            {
+            // The profile filters out subcommands not available in the
+            // current dialect (own gate falling back to the parent's,
+            // intersected with the availability mask).
+            if !profile.is_subcommand_available(spec, sub) {
                 continue;
             }
             let arg_roles = sub
@@ -193,13 +195,13 @@ pub fn signature_for_command(
             // `file link`) feed the subcommand arity check's leading-
             // option skip.  The option dialect inherits from the
             // subcommand (falling back to the parent command) when it
-            // does not pin its own.
-            let leading_options = sub
-                .switch_names(Some(dialect), spec.dialects)
+            // does not pin its own (§5.2 gating: intersects + ceiling).
+            let leading_options = profile
+                .available_sub_option_names(spec, sub)
                 .into_iter()
                 .map(str::to_string)
                 .collect();
-            let leading_option_specs = sub.option_specs(Some(dialect), spec.dialects);
+            let leading_option_specs = profile.available_sub_option_specs(spec, sub);
             subs.insert(
                 sub.name.to_string(),
                 CommandSig {
@@ -225,12 +227,77 @@ pub fn signature_for_command(
         .iter()
         .map(|(idx, role)| (*idx, *role))
         .collect();
-    let leading_options = spec
-        .switch_names(Some(dialect))
+    let leading_options = profile
+        .available_option_names(spec)
         .into_iter()
         .map(str::to_string)
         .collect();
-    let leading_option_specs = spec.option_specs(Some(dialect));
+    let leading_option_specs = profile.available_option_specs(spec);
+    Some(CommandSignature::Simple(CommandSig {
+        arity: spec.arity,
+        arg_roles,
+        traits: spec.traits,
+        leading_options,
+        leading_option_specs,
+        synopsis: spec.primary_synopsis(),
+    }))
+}
+
+/// Like [`signature_for_command`] but dialect-AGNOSTIC: every declared
+/// subcommand and option is materialised regardless of dialect gates.
+/// For existence checks of the form "is this a subcommand in ANY
+/// dialect" (the W002 disabled-subcommand hint), where filtering by the
+/// active profile would defeat the purpose.
+#[must_use]
+pub fn signature_for_command_any_dialect(
+    registry: &CommandRegistry,
+    cmd_name: &str,
+) -> Option<CommandSignature> {
+    let spec = registry.get(cmd_name)?;
+    if !spec.subcommands.is_empty() {
+        let mut subs: HashMap<String, CommandSig> = HashMap::new();
+        for sub in spec.subcommands {
+            let arg_roles = sub
+                .arg_roles
+                .iter()
+                .map(|(idx, role)| (*idx, *role))
+                .collect();
+            let leading_options = sub
+                .switch_names(None, spec.dialects)
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+            let leading_option_specs = sub.option_specs(None, spec.dialects);
+            subs.insert(
+                sub.name.to_string(),
+                CommandSig {
+                    arity: sub.arity,
+                    arg_roles,
+                    traits: sub.traits,
+                    leading_options,
+                    leading_option_specs,
+                    synopsis: sub.primary_synopsis(),
+                },
+            );
+        }
+        return Some(CommandSignature::WithSubcommands(SubcommandSig {
+            subcommands: subs,
+            allow_unknown: spec.allow_unknown_subcommands,
+            subcommand_required: spec.arity.min > 0,
+            default_form_first_word: spec.default_form_first_word,
+        }));
+    }
+    let arg_roles = spec
+        .arg_roles
+        .iter()
+        .map(|(idx, role)| (*idx, *role))
+        .collect();
+    let leading_options = spec
+        .switch_names(None)
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    let leading_option_specs = spec.option_specs(None);
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
         arg_roles,
@@ -306,14 +373,18 @@ mod tests {
     #[test]
     fn unknown_command_returns_none() {
         let reg = registry();
-        let sig = signature_for_command(&reg, "definitely_not_a_command_xyz", DialectSet::ALL_TCL);
+        let sig = signature_for_command(
+            &reg,
+            "definitely_not_a_command_xyz",
+            tcl_dialect::DialectProfile::plain_tcl(),
+        );
         assert!(sig.is_none());
     }
 
     #[test]
     fn simple_command_returns_simple_sig() {
         let reg = registry();
-        let sig = signature_for_command(&reg, "set", DialectSet::ALL_TCL)
+        let sig = signature_for_command(&reg, "set", tcl_dialect::DialectProfile::plain_tcl())
             .expect("set should be in registry");
         let CommandSignature::Simple(cs) = sig else {
             panic!("expected Simple, got {sig:?}");
@@ -325,7 +396,7 @@ mod tests {
     #[test]
     fn subcommand_command_returns_with_subcommands() {
         let reg = registry();
-        let sig = signature_for_command(&reg, "string", DialectSet::ALL_TCL)
+        let sig = signature_for_command(&reg, "string", tcl_dialect::DialectProfile::plain_tcl())
             .expect("string should be in registry");
         let CommandSignature::WithSubcommands(scs) = sig else {
             panic!("expected WithSubcommands, got {sig:?}");
@@ -341,8 +412,8 @@ mod tests {
     #[test]
     fn proc_returns_simple_sig_with_arity() {
         let reg = registry();
-        let sig =
-            signature_for_command(&reg, "proc", DialectSet::ALL_TCL).expect("proc should be there");
+        let sig = signature_for_command(&reg, "proc", tcl_dialect::DialectProfile::plain_tcl())
+            .expect("proc should be there");
         let CommandSignature::Simple(cs) = sig else {
             panic!("proc should be Simple");
         };
@@ -357,7 +428,8 @@ mod tests {
         // helper returns a non-empty subcommand map under a
         // narrow dialect.
         let sig =
-            signature_for_command(&reg, "info", DialectSet::TCL84).expect("info present in 8.4");
+            signature_for_command(&reg, "info", tcl_dialect::DialectProfile::by_name("tcl8.4"))
+                .expect("info present in 8.4");
         let CommandSignature::WithSubcommands(scs) = sig else {
             panic!("info should have subcommands");
         };

@@ -233,13 +233,10 @@ impl Analyser {
     /// when the enclosing definer (`oo::configurable`, itself 9.0+) is already
     /// flagged: one diagnostic for the version-only construct, not a cascade.
     pub(super) fn command_dialect_disabled(&self, cmd_name: &str) -> bool {
-        let Some(doc) = tcl_registry::prelude::DialectSet::parse(&self.dialect) else {
-            return false;
-        };
+        use tcl_registry::ProfileQueries;
         self.registry
-            .as_ref()
             .and_then(|r| r.get(cmd_name))
-            .is_some_and(|spec| !spec.supports_dialect(doc))
+            .is_some_and(|spec| !self.profile.is_available(spec))
     }
 
     /// Whether the definition-body member `subcmd` is available in the active
@@ -254,8 +251,7 @@ impl Analyser {
         };
         match member.dialects {
             None => true,
-            Some(allowed) => tcl_registry::prelude::DialectSet::parse(&self.dialect)
-                .is_none_or(|doc| allowed.intersects(doc)),
+            Some(allowed) => allowed.intersects(self.profile.availability_mask),
         }
     }
 
@@ -320,7 +316,7 @@ impl Analyser {
                         span: tok.span,
                         message: format!(
                             "'{subcmd}' is disabled in the active dialect profile ('{}')",
-                            self.dialect
+                            self.dialect()
                         ),
                         severity: super::types::Severity::Warning,
                         fixes: Vec::new(),

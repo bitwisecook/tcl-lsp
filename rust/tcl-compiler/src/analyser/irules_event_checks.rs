@@ -46,7 +46,6 @@ use tcl_core_types::DiagCode;
 
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::events::{EventProps, EventRegistry, EventRequires};
-use tcl_registry::prelude::DialectSet;
 use tcl_registry::profiles::ProfileRegistry;
 
 use super::state::Analyser;
@@ -208,7 +207,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        if self.dialect != "f5-irules" {
+        if self.dialect() != "f5-irules" {
             return;
         }
         let event = self.current_event.clone();
@@ -237,7 +236,7 @@ impl Analyser {
     /// registry is built; the result is read immutably by
     /// [`Self::emit_irule1001_command_event_validity`].
     pub(super) fn compute_irules_file_profiles(&mut self) {
-        if self.dialect != "f5-irules" {
+        if self.dialect() != "f5-irules" {
             return;
         }
         self.irules_file_profiles = Some(tcl_registry::profiles::compute_file_profiles(
@@ -267,10 +266,13 @@ impl Analyser {
         cmd_tok: Token,
         event: &str,
     ) {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
-        let Some(spec) = registry.get_for_dialect(cmd_name, DialectSet::IRULES) else {
+        let Some(spec) = ({
+            use tcl_registry::ProfileQueries;
+            tcl_dialect::DialectProfile::irules().resolve_command(registry, cmd_name)
+        }) else {
             return;
         };
         let events = event_registry();
@@ -415,7 +417,7 @@ impl Analyser {
         if self.body_depth != 0 || event.is_some() {
             return;
         }
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         if registry.is_irules_top_level_only(cmd_name) {

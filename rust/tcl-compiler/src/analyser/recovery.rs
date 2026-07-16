@@ -108,18 +108,9 @@ impl Analyser {
         let bracket_off = bracket_tok.span.start() + u32::try_from(bracket_char_idx).unwrap_or(0);
 
         let extra_known = self.user_command_tail_names();
-        let owned_fallback_registry;
-        let registry: &tcl_registry::CommandRegistry = if let Some(r) = self.registry.as_ref() {
-            r
-        } else {
-            use tcl_registry::CommandRegistry;
-            use tcl_registry::prelude::DialectSet;
-            let mut reg = CommandRegistry::build_default();
-            if let Some(d) = DialectSet::parse(&self.dialect) {
-                reg.load_dialect(d);
-            }
-            owned_fallback_registry = reg;
-            &owned_fallback_registry
+        let registry: &tcl_registry::CommandRegistry = match self.registry {
+            Some(r) => r,
+            None => tcl_registry::cache::registry_for_profile(self.profile),
         };
         let Some(insert_off) = super::syntax_checks::find_bracket_insertion_point(
             cmd,
@@ -574,16 +565,13 @@ impl Analyser {
     /// registry build when the cache is cold so the recovery
     /// path doesn't need exclusive access to the analyser.
     fn builtin_command_names_const(&self) -> std::collections::HashSet<String> {
-        use tcl_registry::CommandRegistry;
-        use tcl_registry::prelude::DialectSet;
         if let Some(cached) = self.builtin_names.as_ref() {
             return cached.clone();
         }
-        let mut registry = CommandRegistry::build_default();
-        if let Some(d) = DialectSet::parse(&self.dialect) {
-            registry.load_dialect(d);
-        }
-        registry.command_names().map(str::to_string).collect()
+        tcl_registry::cache::registry_for_profile(self.profile)
+            .command_names()
+            .map(str::to_string)
+            .collect()
     }
 }
 
@@ -639,7 +627,7 @@ mod tests {
     fn analyser_with_source(source: &str) -> Analyser {
         let mut a = Analyser::new();
         a.source = source.to_string();
-        a.dialect = "tcl".to_string();
+        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
         a
     }
 

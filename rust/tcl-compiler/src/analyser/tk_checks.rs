@@ -131,7 +131,7 @@ impl Analyser {
     /// second source of truth invites (issue #927;
     /// `docs/design/tk-widget-instance-typing.md`).
     fn is_widget_command(&self, name: &str) -> bool {
-        self.registry.as_ref().is_some_and(|r| {
+        self.registry.is_some_and(|r| {
             r.get(name).is_some_and(|s| {
                 s.creates_instance_at.is_some() && s.required_package == Some("Tk")
             })
@@ -213,7 +213,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         let Some(spec) = registry.get(cmd_name) else {
@@ -290,7 +290,7 @@ impl Analyser {
         let pending = std::mem::take(&mut self.tk_pending_diags);
         self.tk_created_widgets.clear();
 
-        if self.dialect != "tk" && !self.has_tk_require() {
+        if !self.tk_dialect && !self.has_tk_require() {
             return;
         }
 

@@ -135,13 +135,7 @@ impl Analyser {
     /// then walks the top-level + every procedure, dispatching
     /// per-function emitters.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
-        use tcl_registry::CommandRegistry;
-        use tcl_registry::prelude::DialectSet;
-
-        let mut registry = CommandRegistry::build_default();
-        if let Some(d) = DialectSet::parse(&self.dialect) {
-            registry.load_dialect(d);
-        }
+        let registry = tcl_registry::cache::registry_for_profile(self.profile);
         // Seed each proc's SCCP with caller-side parameter constants so a
         // branch on a param every caller passes the same literal folds (the
         // `if {$x}` body is provably taken under uniform `q 1` callers, so a
@@ -151,14 +145,13 @@ impl Analyser {
         // rebuilding the whole-file unit.  Equal by construction to the
         // freshly-built unit.
         if let Some(cu) = self.cu_override.take() {
-            self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
+            self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
             return;
         }
-        // Own the dialect so the firewall closure below doesn't hold an
-        // immutable borrow of `self` (via `self.dialect`) while it also needs
-        // `&mut self` for the emission.
+        // The profile name is `&'static str`, so no borrow of `self` is held
+        // across the firewall closure below (which needs `&mut self`).
         let dialect_owned: Option<String> =
-            (!self.dialect.is_empty()).then(|| self.dialect.clone());
+            (!self.dialect().is_empty()).then(|| self.dialect().to_string());
         // AN-H1: firewall the lowering→CFG→SSA→interprocedural build (and the
         // emission that consumes it). A panic on adversarial input is contained
         // to "no CFG/SSA diagnostics for this document" instead of crashing the
@@ -168,9 +161,9 @@ impl Analyser {
         // `catch_unwind` cannot contain a SIGABRT.)
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let dialect_opt = dialect_owned.as_deref();
-            let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
-                .with_interprocedural(&registry, dialect_opt);
-            self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
+            let cu = crate::compilation_unit::CompilationUnit::build_for(source, registry, false)
+                .with_interprocedural(registry, dialect_opt);
+            self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
         }));
     }
 
@@ -223,7 +216,7 @@ impl Analyser {
             let ia = crate::interprocedural::build_interprocedural_analysis(
                 &cu.ir_module,
                 registry,
-                Some(self.dialect.as_str()),
+                Some(self.dialect()),
                 crate::interprocedural::ObjectTypeMap::none(),
             );
             crate::interprocedural::build_proc_index_from_summaries(&ia)
@@ -404,7 +397,7 @@ impl Analyser {
         let defined = collect_defined_vars(&function_unit.cfg);
         // Alias recognition is registry-driven; fall back to the cached
         // default registry when the analyser has none loaded.
-        let scan_registry = self.registry.as_ref().map_or_else(
+        let scan_registry = self.registry.map_or_else(
             || tcl_registry::cache::registry_for_dialect("tcl8.6"),
             |r| r,
         );
@@ -425,7 +418,7 @@ impl Analyser {
         // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive —
         // recover those name-level reads so they suppress the dead-store /
         // unused-variable hints.
-        if let Some(registry) = self.registry.as_ref() {
+        if let Some(registry) = self.registry {
             textually_referenced.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
                 function_unit,
                 registry,

@@ -163,7 +163,7 @@ impl Analyser {
         // should also fire — and a vendor profile's embedded Tcl core (8.5
         // `dict` under f5-iapps, 8.6 `coroutine` under expect) would be
         // wrongly unknown, the confirmed bare-bit defect the profile fixes.
-        let profile = tcl_dialect::DialectProfile::by_name(&self.dialect);
+        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
         // A registry command is "known" for W123 whenever the active dialect
         // enables it — including package-gated commands such as ``argparse`` or
         // the Tk widgets, which resolve under a Tcl version and are ambient in a

@@ -624,7 +624,10 @@ fn command_info(args: &Value) -> Value {
             m.insert("synopsis".to_owned(), json!(h.synopsis));
         }
     }
-    let switches = spec.switch_names(Some(DialectSet::IRULES));
+    let switches = {
+        use tcl_registry::ProfileQueries;
+        tcl_dialect::DialectProfile::irules().available_option_names(spec)
+    };
     if !switches.is_empty() {
         m.insert("switches".to_owned(), json!(switches));
     }
