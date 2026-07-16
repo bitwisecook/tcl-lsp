@@ -136,12 +136,17 @@ fn fetch_scf(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, Strin
 
 /// Build the remote artefact name for a fetch started at `fetched_at`.
 ///
-/// Millisecond (not second) resolution: two fetches against the same device
-/// started within the same second would otherwise derive the identical
-/// remote filename and one save/download could clobber or read the other's
-/// artefact.
+/// Millisecond (not second) resolution plus the calling process's PID: two
+/// fetches against the same device — each `f5-query` invocation is its own
+/// process — started within the same millisecond would otherwise still
+/// derive the identical remote filename and one save/download could clobber
+/// or read the other's artefact.
 fn fetch_artefact_name(fetched_at: chrono::DateTime<Utc>) -> String {
-    format!("f5_fetch_{}", fetched_at.timestamp_millis())
+    format!(
+        "f5_fetch_{}_{}",
+        fetched_at.timestamp_millis(),
+        std::process::id()
+    )
 }
 
 /// The live SSH flow: save the config on the device via `tmsh`, pull the
@@ -271,5 +276,14 @@ mod tests {
     fn fetch_artefact_name_is_stable_for_the_same_instant() {
         let at = Utc::now();
         assert_eq!(fetch_artefact_name(at), fetch_artefact_name(at));
+    }
+
+    #[test]
+    fn fetch_artefact_name_embeds_the_process_id() {
+        // Distinguishes concurrent `f5-query` invocations (separate
+        // processes) that land in the same millisecond, e.g. a fast batch
+        // launch of several fetches.
+        let name = fetch_artefact_name(Utc::now());
+        assert!(name.ends_with(&format!("_{}", std::process::id())));
     }
 }

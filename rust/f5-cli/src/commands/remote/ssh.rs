@@ -94,6 +94,46 @@ fn verify_host_key(host: &str, port: u16, key: &ssh_key::PublicKey, path: &Path)
     }
 }
 
+/// Decide whether to proceed with `key` for `host:port`, persisting it to
+/// `path` on first sight. Fails closed (returns `false`) whenever trust can't
+/// actually be established: a recorded mismatch, an unreadable store, *or* a
+/// new key that could not be written — trust-on-first-use only holds if the
+/// key is actually persisted, since a key that silently fails to save would
+/// leave this host looking "unknown" (not "changed") on every later
+/// connection, defeating the check entirely.
+fn accept_host_key(host: &str, port: u16, key: &ssh_key::PublicKey, path: &Path) -> bool {
+    match verify_host_key(host, port, key, path) {
+        HostKeyCheck::Known => true,
+        HostKeyCheck::New => match known_hosts::learn_known_hosts_path(host, port, key, path) {
+            Ok(()) => true,
+            Err(e) => {
+                eprintln!(
+                    "error: could not record host key for {host} in {}: {e} — refusing to \
+                     connect, since the key could not be persisted for future verification",
+                    path.display()
+                );
+                false
+            }
+        },
+        HostKeyCheck::Changed { line } => {
+            eprintln!(
+                "error: host key for {host} does not match the key recorded at {}:{line} — \
+                 refusing to connect. This may indicate a man-in-the-middle attack; if the \
+                 device's key legitimately changed, remove the stale entry from that file.",
+                path.display()
+            );
+            false
+        }
+        HostKeyCheck::Unreadable(e) => {
+            eprintln!(
+                "error: could not verify the host key for {host} against {}: {e}",
+                path.display()
+            );
+            false
+        }
+    }
+}
+
 /// Server-key handler: verifies the presented host key against the persisted
 /// `known_hosts` store (`StrictHostKeyChecking=accept-new` semantics — an
 /// unknown host is trusted on first use and its key recorded; a *known* host
@@ -111,47 +151,12 @@ impl client::Handler for AcceptServerKey {
         &mut self,
         server_public_key: &ssh_key::PublicKey,
     ) -> Result<bool, Self::Error> {
-        match verify_host_key(
+        Ok(accept_host_key(
             &self.host,
             self.port,
             server_public_key,
             &self.known_hosts_path,
-        ) {
-            HostKeyCheck::Known => Ok(true),
-            HostKeyCheck::New => {
-                if let Err(e) = known_hosts::learn_known_hosts_path(
-                    &self.host,
-                    self.port,
-                    server_public_key,
-                    &self.known_hosts_path,
-                ) {
-                    eprintln!(
-                        "warning: could not record host key for {} in {}: {e}",
-                        self.host,
-                        self.known_hosts_path.display()
-                    );
-                }
-                Ok(true)
-            }
-            HostKeyCheck::Changed { line } => {
-                eprintln!(
-                    "error: host key for {} does not match the key recorded at {}:{line} — \
-                     refusing to connect. This may indicate a man-in-the-middle attack; if the \
-                     device's key legitimately changed, remove the stale entry from that file.",
-                    self.host,
-                    self.known_hosts_path.display()
-                );
-                Ok(false)
-            }
-            HostKeyCheck::Unreadable(e) => {
-                eprintln!(
-                    "error: could not verify the host key for {} against {}: {e}",
-                    self.host,
-                    self.known_hosts_path.display()
-                );
-                Ok(false)
-            }
-        }
+        ))
     }
 }
 
@@ -449,5 +454,61 @@ mod tests {
             verify_host_key("bigip.example.com", 2222, &key(KEY_A), &path),
             HostKeyCheck::Known
         );
+    }
+
+    #[test]
+    fn accept_host_key_accepts_and_persists_a_new_host() {
+        let dir = TempDir::new();
+        let path = dir.known_hosts();
+        assert!(accept_host_key("bigip.example.com", 22, &key(KEY_A), &path));
+        assert_eq!(
+            verify_host_key("bigip.example.com", 22, &key(KEY_A), &path),
+            HostKeyCheck::Known
+        );
+    }
+
+    #[test]
+    fn accept_host_key_accepts_a_matching_known_host() {
+        let dir = TempDir::new();
+        let path = dir.known_hosts();
+        known_hosts::learn_known_hosts_path("bigip.example.com", 22, &key(KEY_A), &path)
+            .expect("learn host key");
+        assert!(accept_host_key("bigip.example.com", 22, &key(KEY_A), &path));
+    }
+
+    #[test]
+    fn accept_host_key_rejects_a_changed_key() {
+        let dir = TempDir::new();
+        let path = dir.known_hosts();
+        known_hosts::learn_known_hosts_path("bigip.example.com", 22, &key(KEY_A), &path)
+            .expect("learn host key");
+        assert!(!accept_host_key(
+            "bigip.example.com",
+            22,
+            &key(KEY_B),
+            &path
+        ));
+    }
+
+    #[test]
+    fn accept_host_key_fails_closed_when_the_store_cannot_be_written() {
+        let dir = TempDir::new();
+        // Make the known_hosts *parent* a regular file, so `create_dir_all`
+        // inside `learn_known_hosts_path` cannot succeed regardless of
+        // privilege level (unlike a plain permission bit, this also fails
+        // when tests run as root).
+        let blocked_parent = dir.path.join("blocked");
+        std::fs::write(&blocked_parent, b"not a directory").expect("create blocking file");
+        let path = blocked_parent.join("known_hosts");
+
+        // Without the fail-closed fix this would return `true` despite never
+        // having persisted the key, silently defeating verification on every
+        // later connection to this host.
+        assert!(!accept_host_key(
+            "bigip.example.com",
+            22,
+            &key(KEY_A),
+            &path
+        ));
     }
 }
