@@ -116,6 +116,20 @@ pub(crate) struct Frame {
     /// once per bracket, so a `yield` inside a bracket freezes the whole scan with
     /// the coroutine (`RUST_ISSUE_008`).
     subst: Option<Box<crate::subst::SubstState>>,
+    /// Execution-trace leave contexts this activation settles on completion
+    /// (M16.3): each traced dispatch that deferred its body to this frame.  A
+    /// `tailcall` transfers the issuing frame's contexts to its replacement,
+    /// hence a Vec.  Fired (and step scopes popped) as the frame unwinds.
+    exec_leave: Vec<ExecLeaveCtx>,
+}
+
+/// One traced dispatch's leave-side state: the invoked command string, the
+/// trace-table key to fire `leave` on, and how many step scopes the dispatch
+/// pushed (popped before firing).
+pub(crate) struct ExecLeaveCtx {
+    cmd_string: String,
+    key: String,
+    step_scopes: usize,
 }
 
 /// A `catch`'s bind targets, carried on its activation until it completes.
@@ -171,6 +185,7 @@ impl Frame {
             body_label: None,
             catch: None,
             subst: None,
+            exec_leave: Vec::new(),
         }
     }
 
@@ -283,6 +298,13 @@ pub(crate) enum YieldReq {
     /// `yieldto cmd ?arg …?` — the resume runs `cmd args` in the resumer's
     /// context (a tail-call-flavoured handoff).
     YieldTo(Vec<Value>),
+    /// A child-interp alias whose target lives in the owning parent
+    /// (`Command::ParentAlias`): suspend this interp's whole activation stack
+    /// and hand `cmd args…` to the parent's pump loop
+    /// ([`Vm::pump_hosted`](crate::interp::Vm)), which executes the words in
+    /// the parent and resumes the child with the completion.  Only legal in a
+    /// [`DriveMode::ChildHosted`] top-level drive.
+    ParentCall(Vec<Value>),
 }
 
 /// How [`Vm::drive`](Vm) treats a [`Tick::Suspend`]: `Plain` is an ordinary
@@ -292,6 +314,11 @@ pub(crate) enum YieldReq {
 enum DriveMode {
     Plain,
     CoroDriver,
+    /// A child interpreter's top-level eval, driven by its owning parent's
+    /// pump loop: a [`YieldReq::ParentCall`] freezes the stack and returns
+    /// [`RunExit::Yielded`] so the parent can execute the alias target and
+    /// resume ([`Vm::resume_hosted`](crate::interp::Vm)).
+    ChildHosted,
 }
 
 /// How a [`Vm::drive`](Vm) invocation ended: the activation stack emptied
@@ -299,6 +326,14 @@ enum DriveMode {
 pub(crate) enum RunExit {
     Done(Completion<Value>),
     Yielded(YieldReq),
+}
+
+/// How a **hosted** (child-interp) top-level eval ended: done, or suspended
+/// on a parent-target alias call — the frozen stack is parked on the child
+/// (`Vm::hosted_parked`), resumable via [`Vm::resume_hosted`](Vm).
+pub(crate) enum HostedExit {
+    Done(Completion<Value>),
+    ParentCall(Vec<Value>),
 }
 
 fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
@@ -434,6 +469,18 @@ fn brace_safe(s: &str) -> bool {
         i += 1;
     }
     depth == 0
+}
+
+/// Assemble alias-target words (`target prefix… args…`) into a script whose
+/// re-parse dispatches them as one command — each word quoted for a *script*
+/// context ([`quote_for_script`]) so compiled control commands (`try`, `if`,
+/// …) and brace bodies survive.  Shared by the same-interp and cross-interp
+/// alias dispatch paths.
+pub(crate) fn alias_invoke_script(argv: &[Value]) -> String {
+    argv.iter()
+        .map(|v| quote_for_script(&v.to_str()))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Quote a word for re-parsing in a *script* context: brace-wrap when safe
@@ -712,6 +759,49 @@ impl Vm {
         }
     }
 
+    /// Drive a **hosted** activation stack — a child interpreter's top level,
+    /// pumped by its owning parent (see [`crate::interp::Vm::pump_hosted`]).
+    /// Runs in [`DriveMode::ChildHosted`]: a [`YieldReq::ParentCall`] freezes
+    /// `acts` onto `self.hosted_parked` and surfaces the target words; anything
+    /// else runs to completion.  The error-logged boundary is cleared exactly
+    /// as [`Vm::eval_source`](crate::interp::Vm) does.
+    pub(crate) fn drive_hosted(&mut self, mut acts: Vec<Frame>) -> HostedExit {
+        match self.drive(&mut acts, DriveMode::ChildHosted) {
+            RunExit::Done(c) => {
+                if c.code == Code::Error {
+                    self.clear_error_logged();
+                }
+                HostedExit::Done(c)
+            }
+            RunExit::Yielded(YieldReq::ParentCall(words)) => {
+                self.hosted_parked = Some(acts);
+                HostedExit::ParentCall(words)
+            }
+            RunExit::Yielded(_) => unreachable!("ChildHosted only suspends on ParentCall"),
+        }
+    }
+
+    /// Resume a hosted eval suspended at a [`YieldReq::ParentCall`] with the
+    /// parent-side completion: an ok result is pushed where the alias
+    /// invocation's result belongs (mirroring a coroutine resume value); a
+    /// non-ok completion unwinds from the suspension point — so a `catch` in
+    /// the child traps a parent-side error (tclsh-pinned).
+    pub(crate) fn resume_hosted(&mut self, comp: Completion<Value>) -> HostedExit {
+        let mut acts = self
+            .hosted_parked
+            .take()
+            .expect("a parked hosted eval to resume");
+        if comp.code.is_ok() {
+            acts.last_mut()
+                .expect("frozen stack is non-empty")
+                .stack
+                .push(comp.result);
+        } else if let Some(done) = self.unwind(&mut acts, comp) {
+            return HostedExit::Done(done);
+        }
+        self.drive_hosted(acts)
+    }
+
     /// Drive the NRE trampoline over `acts` until it empties (`RunExit::Done`) or,
     /// in [`DriveMode::CoroDriver`], a `yield`/`yieldto` suspends the coroutine
     /// (`RunExit::Yielded`, `acts` left frozen). Both `run_activation` and a
@@ -754,16 +844,46 @@ impl Vm {
             match tick {
                 Tick::Continue => {}
                 Tick::Call { proc, argv } => match self.enter_proc(&proc, &argv) {
-                    Ok(()) => acts.push(Frame::new(Rc::clone(&proc.body), true)),
+                    Ok(()) => {
+                        let mut fr = Frame::new(Rc::clone(&proc.body), true);
+                        if let Some(ctx) = self.pending_exec_leave.take() {
+                            fr.exec_leave.push(ctx);
+                        }
+                        acts.push(fr);
+                    }
                     Err(c) => {
+                        // A traced dispatch that failed at proc entry (arity)
+                        // still settles its leave with the error.
+                        let c = match self.pending_exec_leave.take() {
+                            Some(ctx) => self.finish_exec_leave(&ctx, &c).unwrap_or(c),
+                            None => c,
+                        };
                         if let Some(done) = self.unwind(acts, c) {
                             return RunExit::Done(done);
                         }
                     }
                 },
-                Tick::PushScript { asm, label } => acts.push(Frame::new_script(asm, label)),
-                Tick::PushCatch(req) => acts.push(Frame::new_catch(req)),
-                Tick::PushSubst(req) => acts.push(Frame::new_subst(req)),
+                Tick::PushScript { asm, label } => {
+                    let mut fr = Frame::new_script(asm, label);
+                    if let Some(ctx) = self.pending_exec_leave.take() {
+                        fr.exec_leave.push(ctx);
+                    }
+                    acts.push(fr);
+                }
+                Tick::PushCatch(req) => {
+                    let mut fr = Frame::new_catch(req);
+                    if let Some(ctx) = self.pending_exec_leave.take() {
+                        fr.exec_leave.push(ctx);
+                    }
+                    acts.push(fr);
+                }
+                Tick::PushSubst(req) => {
+                    let mut fr = Frame::new_subst(req);
+                    if let Some(ctx) = self.pending_exec_leave.take() {
+                        fr.exec_leave.push(ctx);
+                    }
+                    acts.push(fr);
+                }
                 Tick::Return(c) => {
                     // A `break`/`continue` *returned by a command* (`if {…} $z`,
                     // `eval break`) inside an inline loop body: jump to the
@@ -784,13 +904,33 @@ impl Vm {
                         return RunExit::Done(done);
                     }
                 }
-                Tick::Suspend(req) => match mode {
+                Tick::Suspend(req) => match (mode, req) {
                     // Freeze `acts` in place (pc already past the yield) and hand
                     // the request back to `resume`.
-                    DriveMode::CoroDriver => return RunExit::Yielded(req),
+                    (
+                        DriveMode::CoroDriver,
+                        req @ (YieldReq::Yield(_) | YieldReq::YieldTo(_)),
+                    ) => return RunExit::Yielded(req),
+                    // A child→parent alias call at a hosted top level: freeze and
+                    // hand the target words to the owning parent's pump loop.
+                    (DriveMode::ChildHosted, req @ YieldReq::ParentCall(_)) => {
+                        return RunExit::Yielded(req);
+                    }
+                    // A parent-target alias reached across a nested (native)
+                    // drive — a coroutine resume, `lsort -command`, an OO method,
+                    // an `invoke_command` re-entry — cannot suspend across the
+                    // Rust stack, exactly like `yield`'s own boundary.  (C Tcl
+                    // has no such boundary; this is the VM's documented
+                    // suspension limit.)
+                    (_, YieldReq::ParentCall(_)) => {
+                        let c = err("cannot invoke parent-interp alias: C stack busy");
+                        if let Some(done) = self.unwind(acts, c) {
+                            return RunExit::Done(done);
+                        }
+                    }
                     // Defensive: the `yield` builtin's boundary check rejects a
                     // top-level suspend before it reaches here.
-                    DriveMode::Plain => {
+                    (DriveMode::Plain | DriveMode::ChildHosted, _) => {
                         let c = err("cannot yield: C stack busy");
                         if let Some(done) = self.unwind(acts, c) {
                             return RunExit::Done(done);
@@ -902,6 +1042,17 @@ impl Vm {
             }
             if act.is_proc {
                 self.unwind_proc_frame(&act, acts, &mut c);
+            }
+            // Settle any execution-trace leave contexts riding on this frame
+            // (M16.3) — a leave-trace error replaces the completion
+            // (tclsh-pinned).  For a traced `catch` this fires with the
+            // pre-absorb completion (the body's), a documented divergence.
+            if !act.exec_leave.is_empty() {
+                for ctx in act.exec_leave.drain(..).rev() {
+                    if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
+                        c = replacement;
+                    }
+                }
             }
             // A `catch` activation absorbs the body's completion of *any* code:
             // its epilogue binds the result / options variables and yields the
@@ -2661,6 +2812,161 @@ impl Vm {
         f: &mut Frame,
         words: &[Value],
     ) -> Result<Option<Tick>, Completion<Value>> {
+        // M16.3 fast path: no execution traces registered and no step scope
+        // active — dispatch untraced (the common case pays one empty check).
+        if self.exec_traces.is_empty() && self.exec_step_scopes.is_empty() {
+            return self.dispatch_words_inner(f, words);
+        }
+        self.dispatch_words_traced(f, words)
+    }
+
+    /// The traced dispatch path (M16.3): fire `enterstep` for every active
+    /// step scope and `enter` for the command's own execution traces (a trace
+    /// error aborts the command with that error — tclsh-pinned), push the
+    /// command's own step scopes, dispatch, then settle the leave side — for
+    /// synchronous completions here, for deferred bodies when their frame
+    /// unwinds (the context rides on the frame via `pending_exec_leave`).
+    fn dispatch_words_traced(
+        &mut self,
+        f: &mut Frame,
+        words: &[Value],
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        let name = words[0].to_str();
+        let key = self
+            .resolve_command_fqn(self.current_ns(), &name)
+            .unwrap_or_default();
+        // The complete current command, list-merged (tclsh-pinned shape:
+        // `p one {t w o}`).
+        let cmd_string = Value::list(words.to_vec()).to_str().to_string();
+        for scope in self.exec_step_scopes.clone() {
+            if scope.has_op("enterstep") && !scope.firing() {
+                let r = self.run_cmd_trace_callback(
+                    &scope,
+                    &[Value::string(cmd_string.clone()), Value::string("enterstep")],
+                );
+                if !r.code.is_ok() {
+                    return Err(r);
+                }
+            }
+        }
+        let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
+        for entry in &own {
+            if entry.has_op("enter") {
+                let r = self.run_cmd_trace_callback(
+                    entry,
+                    &[Value::string(cmd_string.clone()), Value::string("enter")],
+                );
+                if !r.code.is_ok() {
+                    return Err(r);
+                }
+            }
+        }
+        let mut pushed = 0usize;
+        for entry in &own {
+            if entry.has_op("enterstep") || entry.has_op("leavestep") {
+                self.exec_step_scopes.push(Rc::clone(entry));
+                pushed += 1;
+            }
+        }
+        let ctx = ExecLeaveCtx {
+            cmd_string,
+            key,
+            step_scopes: pushed,
+        };
+        match self.dispatch_words_inner(f, words) {
+            Ok(Some(tick)) => {
+                match &tick {
+                    // The body runs on a pushed frame: the context rides
+                    // along and settles when that frame completes.
+                    Tick::Call { .. }
+                    | Tick::PushScript { .. }
+                    | Tick::PushCatch(_)
+                    | Tick::PushSubst(_) => self.pending_exec_leave = Some(ctx),
+                    // Control shapes with no owning frame (a traced `yield` /
+                    // `tailcall` builtin itself): settle with an empty ok —
+                    // their real result forms elsewhere.
+                    Tick::Continue
+                    | Tick::Return(_)
+                    | Tick::Tailcall(_)
+                    | Tick::Suspend(_) => {
+                        let _ = self.finish_exec_leave(&ctx, &ok(Value::empty()));
+                    }
+                }
+                Ok(Some(tick))
+            }
+            Ok(None) => {
+                // Synchronous completion: the result is on top of `f`'s stack.
+                let result = f.stack.last().cloned().unwrap_or_else(Value::empty);
+                match self.finish_exec_leave(&ctx, &ok(result)) {
+                    None => Ok(None),
+                    Some(replacement) => {
+                        // A leave-trace error replaces the command's result
+                        // (tclsh-pinned: LEAVEFAIL).
+                        f.stack.pop();
+                        Err(replacement)
+                    }
+                }
+            }
+            Err(c) => match self.finish_exec_leave(&ctx, &c) {
+                None => Err(c),
+                Some(replacement) => Err(replacement),
+            },
+        }
+    }
+
+    /// Settle the leave side of one traced dispatch: pop the step scopes it
+    /// pushed, fire its own `leave` traces, then the still-active outer
+    /// scopes' `leavestep` — each as `callback cmd-string code result op`
+    /// (tclsh-pinned shapes).  Returns `Some(error)` when a trace errored —
+    /// the error REPLACES the command's completion (tclsh-pinned) — else
+    /// `None`.
+    pub(crate) fn finish_exec_leave(
+        &mut self,
+        ctx: &ExecLeaveCtx,
+        c: &Completion<Value>,
+    ) -> Option<Completion<Value>> {
+        for _ in 0..ctx.step_scopes {
+            self.exec_step_scopes.pop();
+        }
+        if self.exec_traces.is_empty() && self.exec_step_scopes.is_empty() {
+            return None;
+        }
+        let args = |op: &str| {
+            [
+                Value::string(ctx.cmd_string.clone()),
+                Value::string(c.code.as_int().to_string()),
+                c.result.clone(),
+                Value::string(op),
+            ]
+        };
+        let mut replacement = None;
+        if let Some(entries) = self.exec_traces.get(&ctx.key).cloned() {
+            for e in entries {
+                if e.has_op("leave") {
+                    let r = self.run_cmd_trace_callback(&e, &args("leave"));
+                    if !r.code.is_ok() {
+                        replacement = Some(r);
+                    }
+                }
+            }
+        }
+        for scope in self.exec_step_scopes.clone() {
+            if scope.has_op("leavestep") && !scope.firing() {
+                let r = self.run_cmd_trace_callback(&scope, &args("leavestep"));
+                if !r.code.is_ok() {
+                    replacement = Some(r);
+                }
+            }
+        }
+        replacement
+    }
+
+    /// The untraced dispatch body — see [`Self::dispatch_words`].
+    fn dispatch_words_inner(
+        &mut self,
+        f: &mut Frame,
+        words: &[Value],
+    ) -> Result<Option<Tick>, Completion<Value>> {
         let name = words[0].to_str();
         match self.lookup_command(&name) {
             Some(Command::Proc(p)) => Ok(Some(Tick::Call {
@@ -2701,13 +3007,10 @@ impl Vm {
                 }
             }
             Some(Command::Alias(target)) => {
-                // Evaluate `target prefix… args…` as a command so the alias
-                // works even when the target is a compiled control command
-                // (`try`, `if`, …) that has no runtime builtin. Each word is
-                // quoted for a *script* context: a brace-safe word is wrapped in
-                // braces so a body containing a `\<newline>` line continuation is
-                // re-parsed (and the continuation collapsed) by the target's own
-                // script parsing rather than corrupted by data-style escaping.
+                // Evaluate `target prefix… args…` as one command (see
+                // `alias_invoke_script` — brace-safe script quoting so the
+                // alias works even when the target is a compiled control
+                // command with no runtime builtin).
                 //
                 // The target resolves in the GLOBAL namespace regardless of the
                 // caller's namespace (C's alias handler invokes with
@@ -2715,24 +3018,42 @@ impl Vm {
                 // called from `::ns` dispatches `::tgt` even when `::ns::tgt`
                 // exists) — while the caller's *frame* stays current, so an
                 // alias to `set` still writes the caller's locals (also
-                // pinned). Only the namespace is switched here.
+                // pinned). `invoke_alias_words` switches only the namespace.
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
-                let script = argv
-                    .iter()
-                    .map(|v| quote_for_script(&v.to_str()))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                self.push_ns(String::new());
-                let evaled = self.eval_source(&script);
-                self.pop_ns();
-                match evaled {
-                    Ok(res) if res.code.is_ok() => {
-                        f.stack.push(res.result);
-                        Ok(None)
-                    }
-                    Ok(res) => Err(res),
-                    Err(e) => Err(err(e.message)),
+                let res = self.invoke_alias_words(&argv);
+                if res.code.is_ok() {
+                    f.stack.push(res.result);
+                    Ok(None)
+                } else {
+                    Err(res)
+                }
+            }
+            Some(Command::ParentAlias(target)) => {
+                // Cross-interp alias (this interp is a child; the target runs
+                // in the owning PARENT): trampoline the call out. The parent
+                // executes `target… args…` at its *current* frame from its
+                // *global* namespace — tclsh-pinned: `info level` stacks on
+                // the parent's pending frame, `uplevel 1` sees its locals,
+                // and an error propagates back here catchably. Suspends this
+                // interp's whole activation stack; only a hosted top-level
+                // drive (the parent's pump loop) can carry it.
+                let mut argv: Vec<Value> = (*target).clone();
+                argv.extend_from_slice(&words[1..]);
+                Ok(Some(Tick::Suspend(YieldReq::ParentCall(argv))))
+            }
+            Some(Command::ChildAlias { child, words: target }) => {
+                // Cross-interp alias (source here, target in a direct CHILD):
+                // run `target… args…` in the child at its global frame
+                // (tclsh-pinned via `interp alias {} fwd c inchild`).
+                let mut argv: Vec<Value> = (*target).clone();
+                argv.extend_from_slice(&words[1..]);
+                let res = self.invoke_alias_in_child(&child, &argv);
+                if res.code.is_ok() {
+                    f.stack.push(res.result);
+                    Ok(None)
+                } else {
+                    Err(res)
                 }
             }
             Some(Command::ChildInterp(child)) => {
@@ -2795,6 +3116,63 @@ impl Vm {
     /// to completion in a nested `is_proc` activation (so its call-frame and
     /// `return` are handled), and an alias re-evaluates its target prefix.
     pub(crate) fn invoke_command(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        // M16.3: mirror `dispatch_words`' trace wrapper on this native path —
+        // enter/enterstep before, leave/leavestep after (synchronously: the
+        // completion is known when the inner call returns).
+        if self.exec_traces.is_empty() && self.exec_step_scopes.is_empty() {
+            return self.invoke_command_inner(name, argv);
+        }
+        let key = self
+            .resolve_command_fqn(self.current_ns(), name)
+            .unwrap_or_default();
+        let mut words = Vec::with_capacity(argv.len() + 1);
+        words.push(Value::string(name));
+        words.extend_from_slice(argv);
+        let cmd_string = Value::list(words).to_str().to_string();
+        for scope in self.exec_step_scopes.clone() {
+            if scope.has_op("enterstep") && !scope.firing() {
+                let r = self.run_cmd_trace_callback(
+                    &scope,
+                    &[Value::string(cmd_string.clone()), Value::string("enterstep")],
+                );
+                if !r.code.is_ok() {
+                    return r;
+                }
+            }
+        }
+        let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
+        for entry in &own {
+            if entry.has_op("enter") {
+                let r = self.run_cmd_trace_callback(
+                    entry,
+                    &[Value::string(cmd_string.clone()), Value::string("enter")],
+                );
+                if !r.code.is_ok() {
+                    return r;
+                }
+            }
+        }
+        let mut pushed = 0usize;
+        for entry in &own {
+            if entry.has_op("enterstep") || entry.has_op("leavestep") {
+                self.exec_step_scopes.push(Rc::clone(entry));
+                pushed += 1;
+            }
+        }
+        let ctx = ExecLeaveCtx {
+            cmd_string,
+            key,
+            step_scopes: pushed,
+        };
+        let c = self.invoke_command_inner(name, argv);
+        match self.finish_exec_leave(&ctx, &c) {
+            Some(replacement) => replacement,
+            None => c,
+        }
+    }
+
+    /// The untraced invoke body — see [`Self::invoke_command`].
+    fn invoke_command_inner(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         match self.lookup_command(name) {
             Some(Command::Builtin(bf)) => {
                 self.set_invoked_name(name);
@@ -2831,18 +3209,17 @@ impl Vm {
                 // — see the `dispatch_words` Alias arm for the tclsh pins.
                 let mut full: Vec<Value> = (*target).clone();
                 full.extend_from_slice(argv);
-                let script = full
-                    .iter()
-                    .map(|v| quote_for_script(&v.to_str()))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                self.push_ns(String::new());
-                let evaled = self.eval_source(&script);
-                self.pop_ns();
-                match evaled {
-                    Ok(c) => c,
-                    Err(e) => err(e.message),
-                }
+                self.invoke_alias_words(&full)
+            }
+            // A parent-target alias cannot suspend across this native
+            // (Rust-stack) re-entry — the same boundary `yield` has here.
+            Some(Command::ParentAlias(_)) => {
+                err("cannot invoke parent-interp alias: C stack busy")
+            }
+            Some(Command::ChildAlias { child, words: target }) => {
+                let mut full: Vec<Value> = (*target).clone();
+                full.extend_from_slice(argv);
+                self.invoke_alias_in_child(&child, &full)
             }
             Some(Command::ChildInterp(child)) => self.dispatch_child(&child, argv),
             Some(Command::Ensemble(e)) => self.dispatch_ensemble(name, &e, argv),
@@ -2918,16 +3295,31 @@ impl Vm {
             let c = err("tailcall can only be called from a proc, lambda or method");
             return self.unwind(acts, c);
         }
-        // Pop the issuing proc in tail position.
-        acts.pop();
+        // Pop the issuing proc in tail position.  Its execution-trace leave
+        // contexts (M16.3) transfer to whatever replaces it — C fires a
+        // tailcalling proc's leave trace when the tailcalled command finally
+        // returns.
+        let mut carried = acts
+            .pop()
+            .map(|mut fr| std::mem::take(&mut fr.exec_leave))
+            .unwrap_or_default();
         self.pop_call_frame();
         self.pop_ns();
         if words.is_empty() {
             // `tailcall` with no command is a plain return of "".
+            let mut c = ok(Value::empty());
+            for ctx in carried.drain(..).rev() {
+                if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
+                    c = replacement;
+                }
+            }
+            if !c.code.is_ok() {
+                return self.unwind(acts, c);
+            }
             return match acts.last_mut() {
-                None => Some(ok(Value::empty())),
+                None => Some(c),
                 Some(parent) => {
-                    parent.stack.push(Value::empty());
+                    parent.stack.push(c.result);
                     None
                 }
             };
@@ -2936,17 +3328,66 @@ impl Vm {
         match acts.last_mut() {
             // The issuing proc was the outermost activation: run the tailcall to
             // completion and let it be the overall result.
-            None => Some(self.invoke_command(&name, &words[1..])),
+            None => {
+                let mut c = self.invoke_command(&name, &words[1..]);
+                for ctx in carried.drain(..).rev() {
+                    if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
+                        c = replacement;
+                    }
+                }
+                Some(c)
+            }
             Some(parent) => match self.dispatch_words(parent, words) {
                 Ok(Some(Tick::Call { proc, argv })) => match self.enter_proc(&proc, &argv) {
                     Ok(()) => {
-                        acts.push(Frame::new(Rc::clone(&proc.body), true));
+                        let mut fr = Frame::new(Rc::clone(&proc.body), true);
+                        if let Some(ctx) = self.pending_exec_leave.take() {
+                            fr.exec_leave.push(ctx);
+                        }
+                        fr.exec_leave.extend(carried);
+                        acts.push(fr);
                         None
                     }
-                    Err(c) => self.unwind(acts, c),
+                    Err(c) => {
+                        let c = match self.pending_exec_leave.take() {
+                            Some(ctx) => self.finish_exec_leave(&ctx, &c).unwrap_or(c),
+                            None => c,
+                        };
+                        self.unwind(acts, c)
+                    }
                 },
-                Ok(_) => None,
-                Err(c) => self.unwind(acts, c),
+                Ok(_) => {
+                    // Synchronous tailcall target: its result is on the
+                    // parent's stack; settle the carried contexts with it.
+                    let result = acts
+                        .last()
+                        .and_then(|p| p.stack.last().cloned())
+                        .unwrap_or_else(Value::empty);
+                    let mut c = ok(result);
+                    let mut replaced = false;
+                    for ctx in carried.drain(..).rev() {
+                        if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
+                            c = replacement;
+                            replaced = true;
+                        }
+                    }
+                    if replaced {
+                        if let Some(parent) = acts.last_mut() {
+                            parent.stack.pop();
+                        }
+                        return self.unwind(acts, c);
+                    }
+                    None
+                }
+                Err(c) => {
+                    let mut c = c;
+                    for ctx in carried.drain(..).rev() {
+                        if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
+                            c = replacement;
+                        }
+                    }
+                    self.unwind(acts, c)
+                }
             },
         }
     }

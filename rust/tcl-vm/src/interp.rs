@@ -191,6 +191,16 @@ pub enum RuntimeVersion {
     V9_1,
 }
 
+/// Which interpreter an alias-chain step addresses (`interp` paths are one
+/// level deep in this VM): this Vm, or a direct child by `children`-table key.
+#[derive(Clone, PartialEq, Eq)]
+enum AliasSite {
+    /// This interpreter (`{}` path).
+    Here,
+    /// A direct child, by name.
+    Child(String),
+}
+
 impl RuntimeVersion {
     /// Parse a `<major>.<minor>` Tcl version string (`"8.6"`, `"9.0"`, …) —
     /// the spellings a user would pick a `tclsh<x.y>` binary by.  `None` for
@@ -332,6 +342,33 @@ pub struct Vm {
     /// trace fires regardless of the access path (`upvar` alias, qualified
     /// name, …). Newest trace last; fired newest-first.
     var_traces: HashMap<String, Vec<VarTrace>>,
+    /// `trace add command` registrations (`rename`/`delete` ops), keyed by the
+    /// command's table key.  Entries follow the command through `rename` and
+    /// are dropped when it is deleted or overwritten (M16.3).
+    pub(crate) cmd_traces: HashMap<String, Vec<Rc<CmdTraceEntry>>>,
+    /// `trace add execution` registrations (`enter`/`leave`/`enterstep`/
+    /// `leavestep` ops), keyed like [`Self::cmd_traces`] and moved on rename.
+    pub(crate) exec_traces: HashMap<String, Vec<Rc<CmdTraceEntry>>>,
+    /// Step-trace scopes currently active: one entry per `enterstep`/
+    /// `leavestep`-bearing trace of each traced proc whose body is running.
+    /// Every command dispatched while non-empty fires these (C's step
+    /// semantics); the traced proc's frame pops its own pushes on completion.
+    pub(crate) exec_step_scopes: Vec<Rc<CmdTraceEntry>>,
+    /// A traced dispatch that deferred its body to a pushed frame parks its
+    /// leave context here for `drive_loop` to move onto that frame — set and
+    /// drained within one trampoline step.
+    pub(crate) pending_exec_leave: Option<crate::exec::ExecLeaveCtx>,
+    /// M16.4 — the command-resolution memo: `(epoch, cxt‹U+1›name → key)`.
+    /// C caches a resolution on the name object and invalidates by interp
+    /// epoch (`cmdRefEpoch`); the VM has no per-object intreps, so the memo
+    /// lives here, valid only while its stored epoch equals
+    /// [`Self::cmd_epoch`].  Interior-mutable because resolution is `&self`.
+    cmd_resolve_cache: std::cell::RefCell<(u64, HashMap<String, Option<String>>)>,
+    /// Bumped by every mutation that can change what a name resolves to:
+    /// command registration/removal (any path), `namespace path` writes,
+    /// namespace deletion sweeps, and runtime-version flips (the 8.4 path-
+    /// tier gate).  See `bump_cmd_epoch`.
+    cmd_epoch: std::cell::Cell<u64>,
     /// Re-entrancy guard: `"<key>\0<op>"` entries for traces currently firing.
     active_traces: std::collections::HashSet<String>,
     /// Frame depths at which the currently-executing `namespace eval`/`inscope`
@@ -420,6 +457,12 @@ pub struct Vm {
     /// namespaces, variables, and channels are isolated. A child is reachable
     /// both here and as a command (`Command::ChildInterp`) in this interp.
     children: HashMap<String, Vm>,
+    /// A hosted (parent-pumped) top-level eval suspended at a
+    /// [`crate::exec::YieldReq::ParentCall`]: the frozen activation stack,
+    /// parked between [`crate::exec::HostedExit::ParentCall`] and the owning
+    /// parent's [`Vm::resume_hosted`](crate::exec) call.  `None` whenever this
+    /// interp is not mid-parent-call.
+    pub(crate) hosted_parked: Option<Vec<crate::exec::Frame>>,
     /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
     is_safe: bool,
     /// The Tcl release whose **runtime semantics** this interpreter follows
@@ -553,6 +596,37 @@ struct VarTrace {
     command: String,
 }
 
+/// One `trace add command|execution` registration: the op set
+/// (`rename`/`delete` or `enter`/`leave`/`enterstep`/`leavestep`) and the
+/// callback command prefix.  `firing` disables the entry while its own
+/// callback runs (C's re-entrancy rule).
+pub(crate) struct CmdTraceEntry {
+    pub(crate) ops: Vec<String>,
+    pub(crate) callback: String,
+    firing: std::cell::Cell<bool>,
+}
+
+impl CmdTraceEntry {
+    fn new(ops: Vec<String>, callback: String) -> Self {
+        Self {
+            ops,
+            callback,
+            firing: std::cell::Cell::new(false),
+        }
+    }
+
+    /// Whether this entry fires for `op`.
+    pub(crate) fn has_op(&self, op: &str) -> bool {
+        self.ops.iter().any(|o| o == op)
+    }
+
+    /// Whether this entry's callback is currently running (its firings are
+    /// suppressed while it is).
+    pub(crate) fn firing(&self) -> bool {
+        self.firing.get()
+    }
+}
+
 impl Vm {
     /// A VM writing `puts` output to stdout.
     #[must_use]
@@ -586,6 +660,12 @@ impl Vm {
             cmd_arena: RefCell::new(CmdArena::default()),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
+            cmd_traces: HashMap::new(),
+            exec_traces: HashMap::new(),
+            exec_step_scopes: Vec::new(),
+            pending_exec_leave: None,
+            cmd_resolve_cache: std::cell::RefCell::new((0, HashMap::new())),
+            cmd_epoch: std::cell::Cell::new(0),
             active_traces: std::collections::HashSet::new(),
             ns_script_frames: Vec::new(),
             out,
@@ -604,6 +684,7 @@ impl Vm {
             recursion_depth: 0,
             host: Rc::new(NativeHost::new()),
             children: HashMap::new(),
+            hosted_parked: None,
             is_safe: false,
             runtime_version: RuntimeVersion::V9_0,
             recursion_limit: RECURSION_LIMIT,
@@ -887,6 +968,9 @@ impl Vm {
     /// `tcl_patchLevel` globals to the studied release of that line, so
     /// scripts introspecting the version agree with the behaviour.
     pub fn set_runtime_version(&mut self, version: RuntimeVersion) {
+        // The 8.4 `namespace path` tier gate changes resolution outcomes
+        // (M10.1), so the memo must not survive a version flip.
+        self.bump_cmd_epoch();
         self.runtime_version = version;
         let (ver, patch) = match version {
             RuntimeVersion::V8_4 => ("8.4", "8.4.20"),
@@ -915,8 +999,28 @@ impl Vm {
         // when a namespace is legitimately named `:` (#934), so a strip at
         // this boundary would corrupt it, and a rooted-form caller cannot be
         // told apart from that key textually.
+        //
+        // Overwriting an existing command deletes it (C `Tcl_CreateObjCommand`
+        // does the same), so its `delete` command traces fire and every trace
+        // on it is dropped — tclsh-pinned: redefining a traced proc fires the
+        // delete trace.  (Gated on the trace table so the startup builtin
+        // sweep pays nothing.)
+        if !(self.cmd_traces.is_empty() && self.exec_traces.is_empty())
+            && self.commands.contains_key(name)
+        {
+            self.on_command_removed(name);
+        }
+        self.bump_cmd_epoch();
         self.imported_commands.remove(name);
         self.commands.insert(name.to_owned(), cmd);
+    }
+
+    /// Invalidate the command-resolution memo (M16.4): every command-table /
+    /// `namespace path` / runtime-version mutation routes through here so a
+    /// cached `(namespace, name) → key` can never outlive the state it was
+    /// computed from.
+    pub(crate) fn bump_cmd_epoch(&self) {
+        self.cmd_epoch.set(self.cmd_epoch.get().wrapping_add(1));
     }
 
     /// Resolve and remove the command `name`, returning it (for `rename`).
@@ -927,8 +1031,171 @@ impl Vm {
     /// command).
     pub(crate) fn take_command(&mut self, name: &str) -> Option<Command> {
         let key = self.resolve_command_fqn(self.current_ns(), name)?;
+        self.bump_cmd_epoch();
         self.imported_commands.remove(&key);
         self.commands.remove(&key)
+    }
+
+    /// Remove a command by its exact table key (no name resolution) — the
+    /// rollback path for a refused alias creation / rename.
+    pub(crate) fn remove_command_exact(&mut self, key: &str) -> Option<Command> {
+        self.bump_cmd_epoch();
+        self.imported_commands.remove(key);
+        self.commands.remove(key)
+    }
+
+    /// `interp alias srcPath srcCmd targetPath target…` — route the alias by
+    /// its two one-level interp paths (`{}` = this interp, else a direct
+    /// child), install it in the SOURCE interp's table, and refuse a loop the
+    /// way C's `TclPreventAliasLoop` does: create first, walk the chain, roll
+    /// back on a hit (tclsh-pinned: a failed self-alias also destroys the
+    /// proc it clobbered — C does not restore it).
+    pub(crate) fn interp_alias_create(
+        &mut self,
+        src_path: &str,
+        src_cmd: &str,
+        target_path: &str,
+        target_words: Vec<Value>,
+    ) -> Completion<Value> {
+        let src_site = match self.alias_site(src_path) {
+            Ok(s) => s,
+            Err(c) => return c,
+        };
+        let target_site = match self.alias_site(target_path) {
+            Ok(s) => s,
+            Err(c) => return c,
+        };
+        let words = Rc::new(target_words);
+        let cmd = if src_site == target_site {
+            Command::Alias(Rc::clone(&words))
+        } else {
+            match (&src_site, &target_site) {
+                (AliasSite::Here, AliasSite::Child(c)) => Command::ChildAlias {
+                    child: c.clone(),
+                    words: Rc::clone(&words),
+                },
+                (AliasSite::Child(_), AliasSite::Here) => {
+                    Command::ParentAlias(Rc::clone(&words))
+                }
+                // Sibling-to-sibling would need routing through this shared
+                // parent; C supports it, the VM's one-level tree does not
+                // (yet).  (Here/Here and equal children took the same-interp
+                // arm above.)
+                _ => {
+                    return err(
+                        "cross-child interp aliases are not supported \
+                         (source and target must include this interpreter)",
+                    );
+                }
+            }
+        };
+        // The written source name qualifies in the SOURCE interp to the
+        // canonical unrooted key (`interp alias {} ::a::f {} g` creates
+        // `a::f`; a raw registration would corrupt colon names, #934).
+        let src_key = match &src_site {
+            AliasSite::Here => self.qualify_name(src_cmd),
+            AliasSite::Child(c) => self
+                .children
+                .get(c)
+                .expect("alias_site checked the child exists")
+                .qualify_name(src_cmd),
+        };
+        match &src_site {
+            AliasSite::Here => self.register_command(&src_key, cmd),
+            AliasSite::Child(c) => self
+                .children
+                .get_mut(c)
+                .expect("alias_site checked the child exists")
+                .register_command(&src_key, cmd),
+        }
+        if self.alias_chain_loops(&src_site, &src_key) {
+            match &src_site {
+                AliasSite::Here => {
+                    self.remove_command_exact(&src_key);
+                }
+                AliasSite::Child(c) => {
+                    self.children
+                        .get_mut(c)
+                        .expect("alias_site checked the child exists")
+                        .remove_command_exact(&src_key);
+                }
+            }
+            let tail = key_holder_and_tail_unrooted(&src_key).1;
+            return err(format!(
+                "cannot define or rename alias \"{tail}\": would create a loop"
+            ));
+        }
+        ok(Value::string(src_cmd))
+    }
+
+    /// Resolve a one-level `interp` path: `{}`/empty is this interp, a direct
+    /// child's name is that child, anything else (unknown name, deeper path)
+    /// is C's could-not-find error.
+    fn alias_site(&self, path: &str) -> Result<AliasSite, Completion<Value>> {
+        if path.is_empty() {
+            return Ok(AliasSite::Here);
+        }
+        if self.children.contains_key(path) {
+            return Ok(AliasSite::Child(path.to_string()));
+        }
+        Err(err(format!("could not find interpreter \"{path}\"")))
+    }
+
+    /// The interp an [`AliasSite`] addresses, if it still exists.
+    fn site_vm(&self, site: &AliasSite) -> Option<&Vm> {
+        match site {
+            AliasSite::Here => Some(self),
+            AliasSite::Child(c) => self.children.get(c),
+        }
+    }
+
+    /// C's `TclPreventAliasLoop` (8.6 `tclInterp.c`), on the just-installed
+    /// alias at (`defining_site`, `defining_key`): follow the chain — each hop
+    /// resolves the alias's target name from the TARGET interp's **global**
+    /// namespace at define time; an unresolved target ends the chain (legal —
+    /// aliases late-bind), a non-alias ends it, and a hop landing back on the
+    /// defining command is a loop.  Cross-interp hops walk this one-level
+    /// tree: a `ChildAlias` steps into the child, a child's `ParentAlias`
+    /// steps back here.  Terminates because every *existing* alias already
+    /// passed this check (no pre-existing loops to spin in).
+    fn alias_chain_loops(&self, defining_site: &AliasSite, defining_key: &str) -> bool {
+        let mut site = defining_site.clone();
+        let mut key = defining_key.to_string();
+        loop {
+            let Some(vm) = self.site_vm(&site) else {
+                return false;
+            };
+            let (target_site, target_words) = match vm.commands.get(&key) {
+                Some(Command::Alias(w)) => (site.clone(), Rc::clone(w)),
+                Some(Command::ChildAlias { child, words }) => {
+                    (AliasSite::Child(child.clone()), Rc::clone(words))
+                }
+                // A `ParentAlias` only exists in a direct child, so its
+                // target interp is this Vm.
+                Some(Command::ParentAlias(w)) => (AliasSite::Here, Rc::clone(w)),
+                _ => return false,
+            };
+            let Some(target_name) = target_words.first().map(|v| v.to_str().to_string()) else {
+                return false;
+            };
+            let Some(target_vm) = self.site_vm(&target_site) else {
+                return false;
+            };
+            let Some(next) = target_vm.resolve_command_fqn("", &target_name) else {
+                return false;
+            };
+            if target_site == *defining_site && next == defining_key {
+                return true;
+            }
+            site = target_site;
+            key = next;
+        }
+    }
+
+    /// [`Self::alias_chain_loops`] for a same-interp key — the `rename` gate's
+    /// entry (an alias never renames across interps).
+    pub(crate) fn alias_chain_loops_here(&self, key: &str) -> bool {
+        self.alias_chain_loops(&AliasSite::Here, key)
     }
 
     /// Resolve a command name to its definition, honouring the current
@@ -949,7 +1216,9 @@ impl Vm {
         self.lookup_command(name).map(|c| match c {
             Command::Builtin(_) => "native",
             Command::Proc(_) => "proc",
-            Command::Alias(_) => "alias",
+            // Cross-interp aliases are aliases (C's `info cmdtype` says
+            // `alias` for every `interp alias` product).
+            Command::Alias(_) | Command::ChildAlias { .. } | Command::ParentAlias(_) => "alias",
             Command::ChildInterp(_) => "interp",
             Command::Ensemble(_) => "ensemble",
             Command::Object(_) => "object",
@@ -1287,8 +1556,10 @@ impl Vm {
         let result = match child.hidden_commands.get(cmd).cloned() {
             None => err(format!("invalid hidden command name \"{cmd}\"")),
             Some(hidden) => {
+                child.bump_cmd_epoch();
                 let saved = child.commands.insert(cmd.to_string(), hidden);
                 let r = child.invoke_command(cmd, args);
+                child.bump_cmd_epoch();
                 match saved {
                     Some(prev) => {
                         child.commands.insert(cmd.to_string(), prev);
@@ -1308,6 +1579,7 @@ impl Vm {
     /// hidden command). A no-op if the child does not exist.
     pub(crate) fn child_mark_trusted(&mut self, name: &str) {
         if let Some(child) = self.children.get_mut(name) {
+            child.bump_cmd_epoch();
             for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
                 child.commands.insert(cmd_name, cmd);
             }
@@ -1328,6 +1600,7 @@ impl Vm {
     /// hidden commands, optionally under a new name (`token`).
     pub(crate) fn expose_own_command(&mut self, cmd: &str, token: &str) {
         if let Some(c) = self.hidden_commands.remove(cmd) {
+            self.bump_cmd_epoch();
             self.commands.insert(token.to_string(), c);
         }
     }
@@ -1346,6 +1619,7 @@ impl Vm {
         let Some(child) = self.children.get_mut(name) else {
             return false;
         };
+        child.bump_cmd_epoch();
         if hide {
             if let Some(c) = child.commands.remove(cmd) {
                 child.hidden_commands.insert(token.to_string(), c);
@@ -1393,6 +1667,7 @@ impl Vm {
             "wasiVersion",
             "ebpf",
         ];
+        self.bump_cmd_epoch();
         for &c in UNSAFE {
             if let Some(cmd) = self.commands.remove(c) {
                 self.hidden_commands.insert(c.to_string(), cmd);
@@ -1411,19 +1686,103 @@ impl Vm {
 
     /// Evaluate `script` in the named child interpreter (`interp eval path …` /
     /// `$child eval …`). The child is taken out of the table for the call so the
-    /// parent is free, then restored.
+    /// parent is free, then restored.  Driven **hosted**: a child→parent alias
+    /// (`Command::ParentAlias`) suspends the child and this parent executes the
+    /// target words before resuming it ([`Self::pump_hosted`]).
     pub(crate) fn eval_in_child(&mut self, name: &str, script: &str) -> Completion<Value> {
         let Some(mut child) = self.children.remove(name) else {
             return err(format!("could not find interpreter \"{name}\""));
         };
-        let res = match child.eval_source(script) {
-            Ok(c) => c,
-            Err(e) => err(e.message),
-        };
-        // Restore the child unless it tore itself down (no parent re-entry in
-        // this model, so it is always still present).
+        let first = child.eval_source_hosted(script);
+        let res = self.pump_hosted(&mut child, first);
         self.children.insert(name.to_string(), child);
         res
+    }
+
+    /// Drive a hosted child eval to completion: each
+    /// [`crate::exec::HostedExit::ParentCall`] executes the alias target words
+    /// HERE — at this parent's current frame, from its global namespace (the
+    /// same-interp alias rule; tclsh-pinned: `info level` stacks on the
+    /// parent's pending frame, `uplevel 1` sees its locals) — and resumes the
+    /// child with the completion (an error resumes as a catchable unwind).
+    fn pump_hosted(
+        &mut self,
+        child: &mut Vm,
+        mut exit: crate::exec::HostedExit,
+    ) -> Completion<Value> {
+        loop {
+            match exit {
+                crate::exec::HostedExit::Done(c) => return c,
+                crate::exec::HostedExit::ParentCall(words) => {
+                    let comp = self.invoke_alias_words(&words);
+                    exit = child.resume_hosted(comp);
+                }
+            }
+        }
+    }
+
+    /// Evaluate assembled alias-target words (`target prefix… args…`) as one
+    /// command in THIS interp: current frame kept, target resolved from the
+    /// global namespace (C's `TCL_EVAL_INVOKE` — the tclsh-pinned alias rule).
+    /// Runs as a nested drive, so a `yield` inside cannot cross it (the same
+    /// boundary every `invoke_command` re-entry has).
+    pub(crate) fn invoke_alias_words(&mut self, argv: &[Value]) -> Completion<Value> {
+        let script = crate::exec::alias_invoke_script(argv);
+        self.push_ns(String::new());
+        let evaled = self.eval_source(&script);
+        self.pop_ns();
+        match evaled {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        }
+    }
+
+    /// Run alias-target words in the named direct child (a
+    /// [`Command::ChildAlias`] dispatch): the child executes them at its
+    /// global frame, resolved from its global namespace, itself hosted — so a
+    /// child→parent alias reached *from* the target still trampolines back
+    /// here.  A missing child (deleted, or currently suspended mid-parent-call
+    /// — this VM's interp tree is not re-entrant) is a clean error.
+    pub(crate) fn invoke_alias_in_child(
+        &mut self,
+        child_name: &str,
+        argv: &[Value],
+    ) -> Completion<Value> {
+        let Some(mut child) = self.children.remove(child_name) else {
+            return err(format!("could not find interpreter \"{child_name}\""));
+        };
+        let script = crate::exec::alias_invoke_script(argv);
+        let first = child.eval_source_hosted(&script);
+        let res = self.pump_hosted(&mut child, first);
+        self.children.insert(child_name.to_string(), child);
+        res
+    }
+
+    /// Compile `src` exactly as [`Self::eval_source`] and drive it **hosted**
+    /// ([`crate::exec::Vm::drive_hosted`]) — the child side of the cross-interp
+    /// alias trampoline.  Compile errors surface as an error completion.
+    pub(crate) fn eval_source_hosted(&mut self, src: &str) -> crate::exec::HostedExit {
+        let module = if let Some(m) = self.eval_cache.get(src) {
+            Rc::clone(m)
+        } else {
+            let Some(c) = self.compiler.as_ref() else {
+                return crate::exec::HostedExit::Done(err(
+                    "eval / command substitution requires a CompileService",
+                ));
+            };
+            match c.compile(src) {
+                Ok(m) => {
+                    let m = Rc::new(m);
+                    self.eval_cache.insert(src.to_string(), Rc::clone(&m));
+                    m
+                }
+                Err(e) => return crate::exec::HostedExit::Done(err(e.0)),
+            }
+        };
+        self.merge_procs(&module.procedures);
+        let initial =
+            crate::exec::Frame::new(Rc::new(module.top_level.clone()), false);
+        self.drive_hosted(vec![initial])
     }
 
     /// `interp delete path …` / `$child delete` — destroy a child and its
@@ -1431,6 +1790,7 @@ impl Vm {
     pub(crate) fn delete_child(&mut self, name: &str) -> bool {
         let existed = self.children.remove(name).is_some();
         if existed {
+            self.bump_cmd_epoch();
             self.commands
                 .remove(name.strip_prefix("::").unwrap_or(name));
         }
@@ -1662,6 +2022,7 @@ impl Vm {
     /// Set the current namespace's command resolution path to `path` (canonical
     /// names, no leading `::`).
     pub(crate) fn ns_path_set(&mut self, path: Vec<String>) {
+        self.bump_cmd_epoch();
         let cur = self.current_ns().to_string();
         self.ns_paths.insert(cur, path);
     }
@@ -1748,6 +2109,36 @@ impl Vm {
     /// this plus the command fetch, so the two can never disagree.
     /// `None` if unresolved.
     pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
+        // M16.4 memo — C caches the resolution on the name object and
+        // invalidates by interp epoch; here the memo is a per-Vm map keyed
+        // `cxt␁name`, cleared whenever its stored epoch is stale.
+        let epoch = self.cmd_epoch.get();
+        let memo_key = format!("{cxt}\u{0001}{name}");
+        {
+            let cache = self.cmd_resolve_cache.borrow();
+            if cache.0 == epoch
+                && let Some(hit) = cache.1.get(&memo_key)
+            {
+                return hit.clone();
+            }
+        }
+        let res = self.resolve_command_fqn_uncached(cxt, name);
+        let mut cache = self.cmd_resolve_cache.borrow_mut();
+        if cache.0 != epoch {
+            cache.0 = epoch;
+            cache.1.clear();
+        }
+        // A dynamic-name flood must not grow the memo without bound (C's is
+        // naturally bounded by object lifetimes).
+        if cache.1.len() >= 4096 {
+            cache.1.clear();
+        }
+        cache.1.insert(memo_key, res.clone());
+        res
+    }
+
+    /// The uncached resolution rule — see [`Self::resolve_command_fqn`].
+    fn resolve_command_fqn_uncached(&self, cxt: &str, name: &str) -> Option<String> {
         // Collapse separator runs up front — C treats any colon run as one
         // separator, so `foo:::bar` dispatches `foo::bar` and `quux:::` the
         // `{}` command `quux::` (tclsh8.6-verified). The key form keeps the
@@ -2026,6 +2417,7 @@ impl Vm {
                 .cloned()
                 .collect()
         };
+        self.bump_cmd_epoch();
         for key in victims {
             self.imported_commands.remove(&key);
             self.commands.remove(&key);
@@ -2050,6 +2442,7 @@ impl Vm {
         // Commands and namespace variables are keyed by their fully-qualified
         // (unrooted) name, so a member of the namespace or a descendant begins
         // with `canonical::`.
+        self.bump_cmd_epoch();
         self.commands.retain(|k, _| !k.starts_with(&prefix));
         self.imported_commands
             .retain(|k, _| !k.starts_with(&prefix));
@@ -2154,6 +2547,166 @@ impl Vm {
             if list.is_empty() {
                 self.var_traces.remove(&key);
             }
+        }
+    }
+
+    /// Register a `trace add command|execution` callback on `name` — which,
+    /// unlike a variable trace, must resolve to an existing command
+    /// (tclsh-pinned: `unknown command "missing"`).
+    pub(crate) fn add_cmd_trace(
+        &mut self,
+        execution: bool,
+        name: &str,
+        ops: Vec<String>,
+        callback: String,
+    ) -> Completion<Value> {
+        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
+            return err(format!("unknown command \"{name}\""));
+        };
+        let table = if execution {
+            &mut self.exec_traces
+        } else {
+            &mut self.cmd_traces
+        };
+        table
+            .entry(key)
+            .or_default()
+            .push(Rc::new(CmdTraceEntry::new(ops, callback)));
+        ok(Value::empty())
+    }
+
+    /// Remove a command/execution trace matching `ops` + `callback` (a silent
+    /// no-op when nothing matches, like variable traces).
+    pub(crate) fn remove_cmd_trace(
+        &mut self,
+        execution: bool,
+        name: &str,
+        ops: &[String],
+        callback: &str,
+    ) {
+        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
+            return;
+        };
+        let table = if execution {
+            &mut self.exec_traces
+        } else {
+            &mut self.cmd_traces
+        };
+        if let Some(list) = table.get_mut(&key) {
+            list.retain(|t| !(t.ops == ops && t.callback == callback));
+            if list.is_empty() {
+                table.remove(&key);
+            }
+        }
+    }
+
+    /// The `{ops callback}` pairs registered on command `name` (newest first),
+    /// for `trace info command|execution`.
+    pub(crate) fn cmd_trace_entries(&self, execution: bool, name: &str) -> Value {
+        let table = if execution {
+            &self.exec_traces
+        } else {
+            &self.cmd_traces
+        };
+        let Some(list) = self
+            .resolve_command_fqn(self.current_ns(), name)
+            .and_then(|key| table.get(&key))
+        else {
+            return Value::empty();
+        };
+        Value::list(
+            list.iter()
+                .rev()
+                .map(|t| {
+                    Value::list(vec![
+                        Value::list(t.ops.iter().map(|o| Value::string(o.clone())).collect()),
+                        Value::string(t.callback.clone()),
+                    ])
+                })
+                .collect(),
+        )
+    }
+
+    /// Run one trace callback with `args` appended (list-quoted), in the
+    /// current frame — C evaluates trace callbacks in the context where the
+    /// traced operation occurred.  The entry is disabled while its own
+    /// callback runs (C's re-entrancy rule), a nested fire returning ok.
+    pub(crate) fn run_cmd_trace_callback(
+        &mut self,
+        entry: &CmdTraceEntry,
+        args: &[Value],
+    ) -> Completion<Value> {
+        if entry.firing.get() {
+            return ok(Value::empty());
+        }
+        entry.firing.set(true);
+        let mut script = entry.callback.clone();
+        for a in args {
+            script.push(' ');
+            script.push_str(&tcl_syntax::list::list_element(&a.to_str()));
+        }
+        let res = match self.eval_source(&script) {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        };
+        entry.firing.set(false);
+        res
+    }
+
+    /// Fire the `rename`/`delete` command traces of `key` as
+    /// `callback oldName newName op` — names fully qualified (tclsh-pinned:
+    /// `::victim ::victim2 rename`; a delete passes `{}` for the new name).
+    /// Callback errors are ignored (C: "Any errors in these traces are
+    /// ignored").
+    pub(crate) fn fire_command_traces(&mut self, key: &str, new_display: &str, op: &str) {
+        if self.cmd_traces.is_empty() {
+            return;
+        }
+        let Some(entries) = self.cmd_traces.get(key).cloned() else {
+            return;
+        };
+        let old_display = format!("::{key}");
+        for entry in entries {
+            if entry.ops.iter().any(|o| o == op) {
+                let _ = self.run_cmd_trace_callback(
+                    &entry,
+                    &[
+                        Value::string(old_display.clone()),
+                        Value::string(new_display),
+                        Value::string(op),
+                    ],
+                );
+            }
+        }
+    }
+
+    /// A command at `key` is about to be deleted or overwritten: fire its
+    /// `delete` traces (tclsh-pinned: redefining a traced proc fires them
+    /// too) and drop every trace registered on it.
+    pub(crate) fn on_command_removed(&mut self, key: &str) {
+        if !self.cmd_traces.is_empty() {
+            self.fire_command_traces(key, "", "delete");
+            self.cmd_traces.remove(key);
+        }
+        if !self.exec_traces.is_empty() {
+            self.exec_traces.remove(key);
+        }
+    }
+
+    /// A command moved `old_key` → `new_key` (`rename`): fire its `rename`
+    /// traces with both fully-qualified names, then move every trace with it
+    /// (tclsh-pinned: an execution trace keeps firing under the new name).
+    pub(crate) fn on_command_renamed_traces(&mut self, old_key: &str, new_key: &str) {
+        if !self.cmd_traces.is_empty() {
+            self.fire_command_traces(old_key, &format!("::{new_key}"), "rename");
+            if let Some(entries) = self.cmd_traces.remove(old_key) {
+                self.cmd_traces.insert(new_key.to_owned(), entries);
+            }
+        }
+        if !self.exec_traces.is_empty()
+            && let Some(entries) = self.exec_traces.remove(old_key)
+        {
+            self.exec_traces.insert(new_key.to_owned(), entries);
         }
     }
 
