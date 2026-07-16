@@ -172,7 +172,11 @@ fn has_simple_name_compare(window: &str) -> bool {
             continue;
         }
         let rest = window[from..].trim_start();
-        let before = window[..start].trim_end();
+        // Reversed operand order (`word == c.name`): strip the receiver
+        // expression's trailing identifier path back to the operator.
+        let before = window[..start]
+            .trim_end_matches(|ch: char| ch.is_ascii_alphanumeric() || ch == '_' || ch == '.')
+            .trim_end();
         if rest.starts_with("==") || before.ends_with("==") {
             return true;
         }
