@@ -210,6 +210,42 @@ export async function waitForDeepDiagnostics(
 }
 
 /**
+ * Wait for the LSP server to emit its **master-off** diagnostics marker for
+ * *docUri* — ``[timing] diagnostics master-off 0ms (uri=<docUri>, diags=0)``,
+ * logged by ``run_diagnostics_master_off`` *after* it publishes the empty set
+ * when ``features.diagnostics`` is off.
+ *
+ * This is the reliable signal that the master-switch-off pass actually ran and
+ * cleared this URI.  It exists because the alternative — waiting on
+ * ``onDidChangeDiagnostics`` — is unreliable on this path: publishing an empty
+ * set onto an already-empty collection often fires no change event, so a test
+ * that waited on the publish event would fall through to its timeout and
+ * (with ``nextDiagnosticsPublish``) resolve with the current (empty)
+ * diagnostics — passing *vacuously* whether or not the server ran at all.
+ * Keying on the server's own marker, and throwing on timeout, makes the wait a
+ * true signal with the timeout only as a failure backstop.
+ *
+ * Pass ``opts.since = getServerLogSize()`` captured **before** the triggering
+ * action so the wait matches only the run you care about.
+ */
+export async function waitForMasterOffDiagnostics(
+  docUri: vscode.Uri,
+  opts?: { timeout?: number; since?: number },
+): Promise<void> {
+  const uri = docUri.toString();
+  const hit = await waitForServerLog(
+    (line) => line.includes("[timing] diagnostics master-off") && line.includes(`uri=${uri}`),
+    { since: opts?.since, timeout: opts?.timeout ?? 10_000 },
+  );
+  if (hit === null) {
+    throw new Error(
+      `Timeout waiting for master-off diagnostics on ${uri} ` +
+        `(since=${opts?.since ?? 0}, logSize=${_serverLog.length})`,
+    );
+  }
+}
+
+/**
  * Shape of the value returned by ``tcl-lsp.getEffectiveConfig``.
  *
  * Mirrors ``on_get_effective_config`` in ``lsp/commands.py``; covers the

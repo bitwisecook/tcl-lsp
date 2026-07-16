@@ -722,11 +722,15 @@ impl DeliveryCtx<'_> {
     /// between them — otherwise a `did_close` that lands in that window clears
     /// the squiggles and drops the pull-cache entry, only for this run's late
     /// delivery to re-publish and re-cache them for the now-closed document
-    /// (`RUST_ISSUE_098`).
-    async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
+    /// (`RUST_ISSUE_098`).  Returns whether it published — a superseded (no
+    /// longer current) run returns `false` without touching the client.
+    async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) -> bool {
         let docs = self.documents.lock().await;
         if self.is_current(&docs).await {
             self.cache_and_deliver(diags).await;
+            true
+        } else {
+            false
         }
     }
 
@@ -813,7 +817,26 @@ impl DeliveryCtx<'_> {
 /// so any existing squiggles clear, then settle — the analyser, compiler
 /// checks, and F5 validators are all skipped.  Always settled (`true`).
 async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
-    delivery.deliver_if_current(Vec::new()).await;
+    if delivery.deliver_if_current(Vec::new()).await {
+        // Observability parity with the deep path's `[timing] deep diagnostics`
+        // marker (emitted only after a real publish).  An empty-set publish
+        // onto an already-empty collection may fire no client-side
+        // diagnostics-changed event, so this marker is the reliable signal
+        // that the master-switch-off pass actually ran and cleared this URI —
+        // the VS Code harness' `waitForMasterOffDiagnostics` keys on this exact
+        // line + `uri=`, and it aids field debugging of "why are my squiggles
+        // gone" the same way the deep marker does.
+        delivery
+            .client
+            .log_message(
+                MessageType::LOG,
+                format!(
+                    "[timing] diagnostics master-off 0ms (uri={uri}, diags=0)",
+                    uri = delivery.uri.as_str(),
+                ),
+            )
+            .await;
+    }
     true
 }
 

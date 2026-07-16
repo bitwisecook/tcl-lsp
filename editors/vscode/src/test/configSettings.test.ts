@@ -28,6 +28,7 @@ import {
   waitForDiagnostics,
   waitForEffectiveConfig,
   waitForFeatureToggle,
+  waitForMasterOffDiagnostics,
   setTestContent,
 } from "./helper";
 
@@ -1133,7 +1134,20 @@ suite("Configuration Settings", () => {
   // ── Regression: #104 — diagnostics master switch must clear all
   //    diagnostics even for files opened/analysed after the toggle.
   test("features.diagnostics=false clears all diagnostics (#104)", async () => {
-    const docUri = getDocUri("diagnostics.tcl");
+    // Use a fixture opened by NO other test.  The shared ``diagnostics.tcl``
+    // is left open (and mid-re-analysis) by the two preceding tests — nothing
+    // in this suite ever closes a document — so ``activate`` here would send
+    // the server nothing (already open) and the listener would instead catch
+    // a *transient* full publish from the previous test's edit-triggered deep
+    // analysis, which was computed while the master switch was still on.  The
+    // server converges to empty (its config-change reschedule reruns
+    // master-off), but that stale run lands first and fails the assertion
+    // under load — the flake this test hit.  A never-opened URI has no prior
+    // in-flight analysis, so its open genuinely triggers the master-off path
+    // and every publish for it is empty.
+    const codeOf = (d: vscode.Diagnostic) =>
+      typeof d.code === "object" ? d.code.value : d.code;
+    const docUri = getDocUri("diagnosticsMasterSwitch.tcl");
     const config = vscode.workspace.getConfiguration("tclLsp.features");
 
     // Disable the master switch *before* opening the file, simulating
@@ -1145,20 +1159,47 @@ suite("Configuration Settings", () => {
       // used to pick the right per-folder FeatureConfig.
       await waitForFeatureToggle(docUri, "diagnostics", false);
 
-      // Register the listener *before* opening the file so the
-      // server's first publish for this URI is not missed.  When the
-      // master switch is off, ``_publish_diagnostics`` skips both
-      // passes and emits a single empty publish — there is no
-      // ``[timing]`` server log on this path, so the publish event
-      // itself is the signal.
-      const firstPublish = nextDiagnosticsPublish(docUri, { timeout: 3000 });
+      // Signal-driven, not publish-race-driven: opening the fresh URI runs the
+      // server's master-off path, which publishes the empty set and then logs
+      // the ``[timing] diagnostics master-off (uri=…)`` marker.  Wait on that
+      // marker (captured from ``since`` so an earlier test's marker can't
+      // satisfy it) — it throws on timeout, so a server that never ran fails
+      // loudly instead of the assertion passing vacuously against an
+      // already-empty collection.  The empty publish is sent *before* the
+      // marker over the ordered LSP channel, so by the time the marker lands
+      // the collection reflects the master-off result.
+      const sinceOpen = getServerLogSize();
       await activate(docUri);
-      const diags = await firstPublish;
+      await waitForMasterOffDiagnostics(docUri, { since: sinceOpen });
+      const diags = vscode.languages.getDiagnostics(docUri);
       assert.strictEqual(
         diags.length,
         0,
-        `No diagnostics should appear when master switch is off, got: ${diags.map((d) => (typeof d.code === "object" ? d.code.value : d.code))}`,
+        `No diagnostics should appear when master switch is off, got: ${diags.map(codeOf)}`,
       );
+
+      // Non-vacuousness guard: the same fixture, once the master switch is
+      // back on, *does* produce diagnostics — proving the empty result above
+      // was the switch, not an empty or never-analysed file.  Anchored on the
+      // server's deep-diagnostics marker after an edit (the one action
+      // guaranteed to make the server re-analyse an already-open document),
+      // which also throws on timeout.
+      await config.update("diagnostics", true, undefined);
+      await waitForFeatureToggle(docUri, "diagnostics", true);
+      const editor = vscode.window.activeTextEditor!;
+      const originalText = editor.document.getText();
+      try {
+        const sinceEdit = getServerLogSize();
+        await setTestContent(editor, originalText + " ");
+        await waitForDeepDiagnostics(docUri, { since: sinceEdit });
+        const onDiags = vscode.languages.getDiagnostics(docUri);
+        assert.ok(
+          onDiags.length > 0,
+          `the fixture must be diagnostic-rich with the master switch on, got: ${onDiags.map(codeOf)}`,
+        );
+      } finally {
+        await setTestContent(editor, originalText);
+      }
     } finally {
       await config.update("diagnostics", undefined, undefined);
       await waitForFeatureToggle(docUri, "diagnostics", true);
