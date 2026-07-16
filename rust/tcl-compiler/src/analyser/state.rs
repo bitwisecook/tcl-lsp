@@ -160,6 +160,11 @@ pub struct Analyser {
     /// [`Self::flush_version_gate_diagnostics`] once every `package require` is
     /// known.  See [`super::diagnostics::version_gate`].
     pub(super) version_gate_sites: Vec<super::diagnostics::version_gate::VersionGateSite>,
+    /// Argument-DSL uses gated behind a Tcl release (W137 / W138, design
+    /// doc §6), buffered during the walk and decided post-walk by
+    /// [`Self::flush_dsl_gate_diagnostics`] against the effective Tcl
+    /// version.
+    pub(super) dsl_gate_sites: Vec<super::diagnostics::version_gate::DslGateSite>,
     /// Session/file pins for the keyed library-version axes
     /// (`--bigip-version`-style overrides, dialect-profile-model.md §7.1).
     /// Defaults to empty, in which case each keyed axis falls back to its
@@ -557,6 +562,7 @@ impl Analyser {
             tk_created_widgets: HashSet::new(),
             tk_geometry: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
+            dsl_gate_sites: Vec::new(),
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
             builtin_names: None,
             builtin_dialect: None,
@@ -1393,6 +1399,7 @@ impl Analyser {
         self.flush_widget_dispatch_diagnostics(diag_registry);
         self.flush_tk_geometry_diagnostics();
         self.flush_version_gate_diagnostics();
+        self.flush_dsl_gate_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();

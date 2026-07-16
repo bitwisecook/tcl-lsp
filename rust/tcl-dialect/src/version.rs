@@ -59,6 +59,25 @@ impl TclVersion {
             _ => None,
         }
     }
+
+    /// Map a `package require Tcl` version string (`"8.6"`, `"9.0"`,
+    /// `"8.6.10"`) to the release enum, or `None` for anything the enum
+    /// does not model — callers treat `None` as "no floor", never as an
+    /// error.
+    #[must_use]
+    pub fn from_package_version(version: &str) -> Option<Self> {
+        let mut parts = version.split('.');
+        let major = parts.next()?.parse::<u32>().ok()?;
+        let minor = parts.next().and_then(|m| m.parse::<u32>().ok())?;
+        match (major, minor) {
+            (8, 4) => Some(Self::V8_4),
+            (8, 5) => Some(Self::V8_5),
+            (8, 6) => Some(Self::V8_6),
+            (9, 0) => Some(Self::V9_0),
+            (9, 1) => Some(Self::V9_1),
+            _ => None,
+        }
+    }
 }
 
 /// A three-valued behaviour policy, so a non-Tcl profile (`f5-bigip`) and

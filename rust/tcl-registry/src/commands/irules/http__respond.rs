@@ -25,18 +25,22 @@ const RESPOND_OPTION_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "content",
         detail: "Inline response body.",
+        min_tcl: None,
     },
     ArgValue {
         value: "noserver",
         detail: "Suppress Server header.",
+        min_tcl: None,
     },
     ArgValue {
         value: "reset",
         detail: "Reset server-side connection.",
+        min_tcl: None,
     },
     ArgValue {
         value: "version",
         detail: "Response HTTP version.",
+        min_tcl: None,
     },
 ];
 

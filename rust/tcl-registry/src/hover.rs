@@ -472,6 +472,12 @@ pub struct ArgValue {
     pub value: &'static str,
     /// Short description for the completion list.
     pub detail: &'static str,
+    /// The lowest Tcl release that accepts this value, or `None` for
+    /// every release — the argument-DSL rung of the granularity ladder
+    /// (dialect-profile-model.md §6: `string is dict` raises before 9.0
+    /// even though the `is` subcommand itself is universal). Checked
+    /// against the profile's `effective_tcl_version`.
+    pub min_tcl: Option<tcl_dialect::TclVersion>,
 }
 
 /// Classification of a command invocation form.

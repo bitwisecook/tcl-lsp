@@ -340,8 +340,11 @@ Use braces: {{ \u{2026} }}"
     }
 
     /// W200: a `u` / `s` modifier on a `binary format` / `binary
-    /// scan` integer specifier requires Tcl 8.5+; under 8.4-based
-    /// dialects (incl. F5 iRules / iApps) it is unavailable.
+    /// scan` integer specifier requires Tcl 8.5+ (TIP 275). Sites are
+    /// buffered and decided post-walk against the effective Tcl version
+    /// (§6 argument-DSL rung) — the old hardcoded dialect list wrongly
+    /// included f5-iapps, whose host embeds a real Tcl 8.5.13 where the
+    /// modifiers work.
     pub(in crate::analyser) fn emit_w200_binary_format_modifiers(
         &mut self,
         cmd_name: &str,
@@ -356,9 +359,6 @@ Use braces: {{ \u{2026} }}"
             "scan" if args.len() >= 3 => 2,
             _ => return,
         };
-        if !matches!(self.dialect(), "tcl8.4" | "f5-irules" | "f5-iapps") {
-            return;
-        }
         let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
             return;
         };
@@ -382,15 +382,13 @@ Use braces: {{ \u{2026} }}"
                 && (fmt[i] == b'u' || fmt[i] == b's')
             {
                 let modifier = fmt[i] as char;
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W200,
+                self.dsl_gate_sites.push(super::version_gate::DslGateSite {
                     span: fmt_tok.span,
-                    message: format!(
-                        "signed/unsigned modifier '{modifier}' on binary format specifier \
-                         requires Tcl 8.5+"
+                    code: DiagCode::W200,
+                    what: format!(
+                        "signed/unsigned modifier '{modifier}' on binary format specifier"
                     ),
-                    severity: super::types::Severity::Warning,
-                    fixes: Vec::new(),
+                    min: tcl_dialect::TclVersion::V8_5,
                 });
                 i += 1;
             }

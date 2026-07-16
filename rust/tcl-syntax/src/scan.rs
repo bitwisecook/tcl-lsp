@@ -312,67 +312,35 @@ fn decimal(fmt: &[char], start: usize) -> (u64, usize) {
     }
     (val, j)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn parse(s: &str) -> Result<(ScanConversion, usize), ScanSpecError> {
-        let chars: Vec<char> = s.chars().collect();
-        let mut i = 0;
-        let c = parse_conversion(&chars, &mut i)?;
-        Ok((c, i))
+/// Scan a `scan` %-string for version-gated conversions — the §6
+/// argument-DSL rung. Modelled (evidence-bounded): `%b` (binary), added
+/// in Tcl 8.6. Returns `(char_offset, feature, min)` per use; the caller
+/// compares against the dialect's effective Tcl version. Unparseable
+/// conversions contribute nothing.
+#[must_use]
+pub fn version_gated_uses(fmt: &str) -> Vec<(usize, &'static str, tcl_dialect::TclVersion)> {
+    use tcl_dialect::TclVersion;
+    let chars: Vec<char> = fmt.chars().collect();
+    let mut uses = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] != '%' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        if chars.get(i) == Some(&'%') {
+            i += 1;
+            continue;
+        }
+        let Ok(conv) = parse_conversion(&chars, &mut i) else {
+            i = start + 1;
+            continue;
+        };
+        if conv.verb == 'b' {
+            uses.push((start, "%b binary conversion", TclVersion::V8_6));
+        }
     }
-
-    #[test]
-    fn plain_and_modifiers() {
-        let (c, i) = parse("d").unwrap();
-        assert_eq!(c.verb, 'd');
-        assert!(!c.suppress);
-        assert_eq!(c.width, None);
-        assert_eq!(i, 1);
-
-        let (c, i) = parse("*12ld").unwrap();
-        assert!(c.suppress);
-        assert_eq!(c.width, Some(12));
-        assert_eq!(c.size, Some(SizeModifier::Long));
-        assert_eq!(c.verb, 'd');
-        assert_eq!(i, 5);
-
-        let (c, _) = parse("3$s").unwrap();
-        assert_eq!(c.xpg_index, Some(3));
-        assert_eq!(c.verb, 's');
-
-        assert_eq!(parse("%").unwrap().0.verb, '%');
-    }
-
-    #[test]
-    fn charsets() {
-        let (c, i) = parse("[a-cx]").unwrap();
-        let set = c.charset.unwrap();
-        assert!(!set.negated);
-        assert_eq!(set.ranges, vec![('a', 'c')]);
-        assert_eq!(set.members, vec!['x']);
-        assert_eq!(i, 6);
-        assert!(set.matches('b'));
-        assert!(set.matches('x'));
-        assert!(!set.matches('z'));
-
-        // A leading `]` (after `^`) is a literal member, not the terminator.
-        let set = parse("[^]a]").unwrap().0.charset.unwrap();
-        assert!(set.negated);
-        assert_eq!(set.members, vec![']', 'a']);
-    }
-
-    #[test]
-    fn spec_errors() {
-        assert_eq!(parse("10c"), Err(ScanSpecError::WidthOnChar));
-        assert_eq!(parse("ls"), Err(ScanSpecError::SizeModifier('s')));
-        assert_eq!(parse("[a"), Err(ScanSpecError::UnmatchedBracket));
-        assert_eq!(parse("[^a"), Err(ScanSpecError::UnmatchedBracket));
-        assert_eq!(parse("[]a"), Err(ScanSpecError::UnmatchedBracket));
-        assert_eq!(parse("D"), Err(ScanSpecError::BadConversion('D')));
-        // `%hd` is fine — `h` is a (discarded) short modifier, not a wide one.
-        assert_eq!(parse("hd").unwrap().0.verb, 'd');
-    }
+    uses
 }

@@ -2763,6 +2763,37 @@ fn irules_banned_commands_still_flag_end_to_end() {
 }
 
 #[test]
+fn argument_dsl_rung_gates_format_and_string_is_end_to_end() {
+    // Milestone 7 (§6): the argument mini-languages validate against the
+    // dialect's effective Tcl version. iRules embed Tcl 8.4.6, so the
+    // 8.6-introduced `format %b` and the 9.0-introduced `string is dict`
+    // both flag; the same source is clean on a 9.0 host.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n  set x [format %b 5]\n  set y [string is dict {a 1}]\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        has_code(&diags, "W138") && has_code(&diags, "W137"),
+        "8.4-embedded iRules must flag %b (8.6+) and the dict class (9.0+): {:?}",
+        codes(&diags)
+    );
+    let uri2 = unique_uri("tcl90");
+    let diags2 = lsp.open_ready_lang(
+        &uri2,
+        "set x [format %b 5]\nset y [string is dict {a 1}]\n",
+        "tcl9.0",
+    );
+    assert!(
+        !has_code(&diags2, "W138") && !has_code(&diags2, "W137"),
+        "a 9.0 host accepts both: {:?}",
+        codes(&diags2)
+    );
+}
+
+#[test]
 fn tmsh_first_class_gates_both_directions_end_to_end() {
     // Milestone 6 (D8): a tmsh document analyses under TCL85|TMSH — the
     // tmsh:: surface and the 8.5 core are clean, while 8.6-core draws the

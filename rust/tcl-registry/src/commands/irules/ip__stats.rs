@@ -33,10 +33,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "in",
                     detail: "Packets received.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "out",
                     detail: "Packets sent.",
+                    min_tcl: None,
                 },
             ],
         )],
@@ -60,10 +62,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "in",
                     detail: "Bytes received.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "out",
                     detail: "Bytes sent.",
+                    min_tcl: None,
                 },
             ],
         )],

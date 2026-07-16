@@ -944,6 +944,22 @@ impl DialectProfile {
             LibraryVersion::Keyed(key) => key.default_version(),
         }
     }
+
+    /// The Tcl version an argument mini-language (`format`/`scan`
+    /// conversions, `string is` classes, …) must validate against — the
+    /// argument-DSL rung of the granularity ladder (design doc §6.1).
+    ///
+    /// This is the [`Self::runtime_base`], **raised** to any
+    /// `package require Tcl` floor the caller resolved from the file (a
+    /// file demanding a newer core than the ambient dialect validates
+    /// against what it demands). Permissive (`None`) for the unknown-
+    /// dialect fallback and non-Tcl profiles — the validators abstain
+    /// rather than guess.
+    #[must_use]
+    pub fn effective_tcl_version(&self, package_floor: Option<TclVersion>) -> Option<TclVersion> {
+        let base = self.runtime_base?;
+        Some(package_floor.map_or(base, |floor| base.max(floor)))
+    }
 }
 
 #[cfg(test)]

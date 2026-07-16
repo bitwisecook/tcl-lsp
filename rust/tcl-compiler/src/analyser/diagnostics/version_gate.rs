@@ -16,21 +16,28 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Version-aware diagnostics (**W135** / **W136**).
+//! Version-aware diagnostics (**W135** / **W136**, and the argument-DSL
+//! rung **W137** / **W138** / **W200**).
 //!
 //! A command or option can declare a `min_version` — the lowest version of its
 //! owning package (Tk, a tcllib package, `argparse`, …) that provides it.  When
-//! the document `package require`s that package at a version whose guaranteed
-//! floor is *below* the declared minimum, using the command (W135) or option
-//! (W136) will fail at runtime.
+//! the resolved floor — the profile's library pin (§7.1) raised by any
+//! versioned `package require` — is *below* the declared minimum, using the
+//! command (W135) or option (W136) will fail at runtime.
 //!
-//! The floor is a whole-file fact: `package require` may appear anywhere, so
-//! candidate uses are buffered during the walk
-//! ([`Analyser::record_version_gate_sites`]) and decided post-walk
-//! ([`Analyser::flush_version_gate_diagnostics`]) once every `package require`
-//! is known.  A package required *without* a version is permissive (no floor,
-//! every version accepted), and a package not required at all is the domain of
-//! W120 (missing `package require`); neither draws a version diagnostic.
+//! The argument mini-languages get the same treatment one rung deeper
+//! (design doc §6): a `string is` class ([`ArgValue::min_tcl`], W137), a
+//! `format`/`scan` conversion (W138), or a `binary format`/`scan` size
+//! modifier (W200) can need a newer **Tcl core** than the dialect's
+//! effective version ([`Analyser::effective_dsl_version`]).
+//!
+//! Every floor is a whole-file fact: `package require` may appear anywhere,
+//! so candidate uses are buffered during the walk and decided post-walk once
+//! every `package require` is known.  An unpinned package required *without*
+//! a version is permissive, and a package not required at all is the domain
+//! of W120 (missing `package require`).
+//!
+//! [`ArgValue::min_tcl`]: tcl_registry::ArgValue
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
@@ -283,6 +290,129 @@ enum FloorSource {
     ProfilePin,
 }
 
+/// An argument-DSL use gated behind a Tcl release (design doc §6: a
+/// `string is` class, a `format`/`scan` conversion), buffered during the
+/// walk and decided post-walk against
+/// [`Analyser::effective_dsl_version`] — like [`VersionGateSite`], the
+/// deciding floor (`package require Tcl`) is a whole-file fact.
+#[derive(Debug)]
+pub(in crate::analyser) struct DslGateSite {
+    /// Span the diagnostic anchors to.
+    pub(in crate::analyser) span: Span,
+    /// The W-code to emit (W137 for argument values, W138 for
+    /// format/scan conversions).
+    pub(in crate::analyser) code: DiagCode,
+    /// Fully-formed message minus the version comparison tail.
+    pub(in crate::analyser) what: String,
+    /// The lowest Tcl release that accepts the feature.
+    pub(in crate::analyser) min: tcl_dialect::TclVersion,
+}
+
+impl Analyser {
+    /// The Tcl version the argument mini-languages validate against
+    /// (§6.1): the profile's runtime base, raised to any unconditional
+    /// `package require Tcl` floor in the file. `None` = permissive
+    /// (the unknown-dialect fallback / non-Tcl profiles) — every DSL
+    /// check abstains.
+    pub(in crate::analyser) fn effective_dsl_version(&self) -> Option<tcl_dialect::TclVersion> {
+        let tcl_floor = self
+            .result
+            .package_requires
+            .iter()
+            .filter(|r| r.name == "Tcl" && !r.conditional)
+            .filter_map(|r| r.version.as_deref())
+            .filter_map(|v| {
+                tcl_dialect::TclVersion::from_package_version(
+                    tcl_registry::version::requirement_lower_bound(v),
+                )
+            })
+            .max();
+        self.profile.effective_tcl_version(tcl_floor)
+    }
+
+    /// Buffer format/scan %-string DSL uses at a dispatch site — the
+    /// registry marks the %-string argument positions with
+    /// [`ArgRole::FormatString`] / [`ArgRole::ScanFormat`], so no command
+    /// name is matched here.
+    ///
+    /// [`ArgRole::FormatString`]: tcl_registry::arg_role::ArgRole
+    /// [`ArgRole::ScanFormat`]: tcl_registry::arg_role::ArgRole
+    pub(in crate::analyser) fn record_dsl_format_sites(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        use tcl_registry::arg_role::ArgRole;
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        for (role, is_scan) in [(ArgRole::FormatString, false), (ArgRole::ScanFormat, true)] {
+            for idx in registry.arg_indices_for_role(cmd_name, &arg_strs, role) {
+                let (Some(fmt), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
+                    continue;
+                };
+                // A dynamic token's text is not the literal %-string.
+                if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+                    continue;
+                }
+                if is_scan {
+                    for (_, feature, min) in tcl_syntax::scan::version_gated_uses(fmt) {
+                        self.dsl_gate_sites.push(DslGateSite {
+                            span: tok.span,
+                            code: DiagCode::W138,
+                            what: format!("`scan` conversion {feature} in '{cmd_name}'"),
+                            min,
+                        });
+                    }
+                } else {
+                    for use_ in tcl_syntax::format::version_gated_uses(fmt) {
+                        self.dsl_gate_sites.push(DslGateSite {
+                            span: tok.span,
+                            code: DiagCode::W138,
+                            what: format!("`format` conversion {} in '{cmd_name}'", use_.feature),
+                            min: use_.min,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    /// Emit W137/W138 for each buffered argument-DSL site whose feature
+    /// needs a newer Tcl than the file's effective version (§6).
+    pub(in crate::analyser) fn flush_dsl_gate_diagnostics(&mut self) {
+        if self.dsl_gate_sites.is_empty() {
+            return;
+        }
+        let sites = std::mem::take(&mut self.dsl_gate_sites);
+        let Some(effective) = self.effective_dsl_version() else {
+            return; // permissive profile — abstain
+        };
+        let mut new_diags: Vec<Diagnostic> = Vec::new();
+        for site in sites {
+            if site.min <= effective {
+                continue;
+            }
+            new_diags.push(Diagnostic {
+                code: site.code,
+                span: site.span,
+                message: format!(
+                    "{} requires Tcl {} but {} provides {}.",
+                    site.what,
+                    site.min.as_package_version(),
+                    self.profile.name,
+                    effective.as_package_version()
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+        self.result.diagnostics.extend(new_diags);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::super::state::Analyser;
@@ -404,6 +534,138 @@ mod tests {
             version_diags_for(src, "f5-irules", Some("17.1.0")).is_empty(),
             "a 17.1.0 pin satisfies a 16.1.0 introduction"
         );
+    }
+
+    /// Version-gate + argument-DSL codes for `source` under `dialect`.
+    fn dsl_diags(source: &str, dialect: &str) -> Vec<(String, String)> {
+        Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W137" | "W138" | "W200"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn w138_format_binary_conversion_is_86_gated() {
+        // Oracle-verified surface: `%b` was added in Tcl 8.6.
+        let src = "format %b 5\n";
+        // TP: 8.4/8.5-era runtimes (incl. iRules' embedded 8.4.6).
+        for d in ["tcl8.4", "tcl8.5", "f5-irules", "f5-iapps", "f5-tmsh"] {
+            let diags = dsl_diags(src, d);
+            assert!(
+                diags.iter().any(|(c, m)| c == "W138" && m.contains("%b")),
+                "{d}: %b needs 8.6, got {diags:?}"
+            );
+        }
+        // TN: 8.6+ runtimes.
+        for d in ["tcl8.6", "tcl9.0", "expect", "bpf", "synopsys-eda-tcl"] {
+            assert!(dsl_diags(src, d).is_empty(), "{d}: %b is real on 8.6+");
+        }
+        // FP-guard: `%%b` is a literal percent + `b`, not the conversion;
+        // a dynamic format string abstains.
+        assert!(dsl_diags("format %%b 5\n", "tcl8.4").is_empty());
+        assert!(dsl_diags("format $fmt 5\n", "tcl8.4").is_empty());
+        // The permissive fallback abstains entirely (§8).
+        assert!(dsl_diags(src, "tcl").is_empty());
+    }
+
+    #[test]
+    fn w138_format_unsigned_bignum_is_90_gated() {
+        // Oracle-verified: tclsh8.6 raises "unsigned bignum format is
+        // invalid" for %llu; tclsh9.0.4 renders it.
+        let src = "format %llu 5\n";
+        let diags = dsl_diags(src, "tcl8.6");
+        assert!(
+            diags.iter().any(|(c, m)| c == "W138" && m.contains("%llu")),
+            "tcl8.6: %llu needs 9.0, got {diags:?}"
+        );
+        assert!(dsl_diags(src, "tcl9.0").is_empty(), "9.0 renders %llu");
+        // Plain %lld is fine everywhere the ladder models.
+        assert!(dsl_diags("format %lld 5\n", "tcl8.6").is_empty());
+    }
+
+    #[test]
+    fn w138_scan_binary_conversion_is_86_gated() {
+        let src = "scan 101 %b x\n";
+        let diags = dsl_diags(src, "tcl8.5");
+        assert!(
+            diags.iter().any(|(c, m)| c == "W138" && m.contains("%b")),
+            "tcl8.5: scan %b needs 8.6, got {diags:?}"
+        );
+        assert!(dsl_diags(src, "tcl8.6").is_empty());
+    }
+
+    #[test]
+    fn w137_string_is_class_follows_the_effective_version() {
+        // `string is dict` — oracle-verified 9.0-only (tclsh8.6: bad
+        // class; tclsh9.0: works).
+        let src = "string is dict {a 1}\n";
+        for d in ["tcl8.4", "tcl8.6", "f5-iapps", "f5-tmsh"] {
+            let diags = dsl_diags(src, d);
+            assert!(
+                diags
+                    .iter()
+                    .any(|(c, m)| c == "W137" && m.contains("'dict'")),
+                "{d}: string is dict needs 9.0, got {diags:?}"
+            );
+        }
+        for d in ["tcl9.0", "tcl9.1", "bpf"] {
+            assert!(dsl_diags(src, d).is_empty(), "{d}: dict class is real");
+        }
+        // entier is 8.6+; wideinteger is 8.5+.
+        assert!(
+            dsl_diags("string is entier 5\n", "tcl8.5")
+                .iter()
+                .any(|(c, _)| c == "W137"),
+            "entier needs 8.6"
+        );
+        assert!(dsl_diags("string is entier 5\n", "tcl8.6").is_empty());
+        assert!(
+            dsl_diags("string is wideinteger 5\n", "tcl8.4")
+                .iter()
+                .any(|(c, _)| c == "W137"),
+            "wideinteger needs 8.5"
+        );
+        assert!(dsl_diags("string is wideinteger 5\n", "tcl8.5").is_empty());
+        // FP-guards: an always-available class, a dynamic class, and the
+        // unique-prefix abbreviation of an ungated class stay silent.
+        assert!(dsl_diags("string is alpha abc\n", "tcl8.4").is_empty());
+        assert!(dsl_diags("string is $cls abc\n", "tcl8.4").is_empty());
+        assert!(dsl_diags("string is xd abc\n", "tcl8.4").is_empty());
+    }
+
+    #[test]
+    fn dsl_gates_honour_a_package_require_tcl_floor() {
+        // §6.1: `package require Tcl 9.0` raises the effective version
+        // above the ambient tcl8.6 dialect — the file validates as 9.0.
+        let src = "package require Tcl 9.0\nformat %llu 5\nstring is dict {a 1}\n";
+        assert!(
+            dsl_diags(src, "tcl8.6").is_empty(),
+            "a 9.0 core floor admits 9.0 DSL features"
+        );
+    }
+
+    #[test]
+    fn w200_binary_modifiers_follow_the_effective_version() {
+        // TIP 275: binary format/scan u/s modifiers are 8.5+.
+        let src = "binary format cu 5\n";
+        for d in ["tcl8.4", "f5-irules"] {
+            let diags = dsl_diags(src, d);
+            assert!(
+                diags.iter().any(|(c, _)| c == "W200"),
+                "{d}: binary u modifier needs 8.5, got {diags:?}"
+            );
+        }
+        // The old hardcoded list wrongly flagged f5-iapps — its host is a
+        // real Tcl 8.5.13 where the modifiers work (FP fixed).
+        for d in ["f5-iapps", "tcl8.5", "tcl8.6", "f5-tmsh"] {
+            assert!(
+                dsl_diags(src, d).is_empty(),
+                "{d}: binary u modifier is real on 8.5+"
+            );
+        }
     }
 
     #[test]

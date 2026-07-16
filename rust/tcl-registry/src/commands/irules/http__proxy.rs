@@ -61,10 +61,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "enable",
                     detail: "Enable URI rewriting.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "disable",
                     detail: "Disable URI rewriting.",
+                    min_tcl: None,
                 },
             ],
         )],

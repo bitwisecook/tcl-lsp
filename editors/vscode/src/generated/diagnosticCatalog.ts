@@ -238,6 +238,18 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W137",
+    section: "warning",
+    description: "Argument value requires a newer Tcl version than the dialect provides.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W138",
+    section: "warning",
+    description: "Format/scan conversion requires a newer Tcl version than the dialect provides.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

@@ -499,11 +499,15 @@ fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
 /// (`None`) treats all three as unavailable, since one of the dialects it
 /// could stand for raises.  Every other class exists in every release.
 fn class_available(class: &str, version: Option<TclVersion>) -> bool {
-    match class {
-        "wideinteger" => version.is_some_and(|v| v >= TclVersion::V8_5),
-        "entier" => version.is_some_and(|v| v >= TclVersion::V8_6),
-        "dict" => version >= Some(TclVersion::V9_0),
-        _ => true,
+    // Single source of truth: the `IS_CLASSES` arg-value table carries each
+    // class's introducing release (`min_tcl`, the §6 argument-DSL rung) —
+    // the same data the analyser's version diagnostics read.
+    match IS_CLASSES.iter().find(|av| av.value == class) {
+        Some(av) => match av.min_tcl {
+            Some(min) => version.is_some_and(|v| v >= min),
+            None => true,
+        },
+        None => true,
     }
 }
 
@@ -752,90 +756,112 @@ static IS_CLASSES: &[ArgValue] = &[
     ArgValue {
         value: "alnum",
         detail: "Any Unicode alphabet or digit character.",
+        min_tcl: None,
     },
     ArgValue {
         value: "alpha",
         detail: "Any Unicode alphabet character.",
+        min_tcl: None,
     },
     ArgValue {
         value: "ascii",
         detail: "Any character with a value less than U+0080 (7-bit ASCII).",
+        min_tcl: None,
     },
     ArgValue {
         value: "boolean",
         detail: "Any valid boolean value (true/false/yes/no/on/off/0/1).",
+        min_tcl: None,
     },
     ArgValue {
         value: "control",
         detail: "Any Unicode control character.",
+        min_tcl: None,
     },
     ArgValue {
         value: "dict",
         detail: "Any proper dict structure, with optional surrounding whitespace.",
+        min_tcl: Some(TclVersion::V9_0),
     },
     ArgValue {
         value: "digit",
         detail: "Any Unicode digit character.",
+        min_tcl: None,
     },
     ArgValue {
         value: "double",
         detail: "Any valid floating-point number.",
+        min_tcl: None,
     },
     ArgValue {
         value: "entier",
         detail: "Synonym for integer.",
+        min_tcl: Some(TclVersion::V8_6),
     },
     ArgValue {
         value: "false",
         detail: "Any valid boolean false value.",
+        min_tcl: None,
     },
     ArgValue {
         value: "graph",
         detail: "Any Unicode printing character, except space.",
+        min_tcl: None,
     },
     ArgValue {
         value: "integer",
         detail: "Any valid integer of arbitrary size.",
+        min_tcl: None,
     },
     ArgValue {
         value: "list",
         detail: "Any proper list structure, with optional surrounding whitespace.",
+        min_tcl: None,
     },
     ArgValue {
         value: "lower",
         detail: "Any Unicode lower case alphabet character.",
+        min_tcl: None,
     },
     ArgValue {
         value: "print",
         detail: "Any Unicode printing character, including space.",
+        min_tcl: None,
     },
     ArgValue {
         value: "punct",
         detail: "Any Unicode punctuation character.",
+        min_tcl: None,
     },
     ArgValue {
         value: "space",
         detail: "Any Unicode whitespace character.",
+        min_tcl: None,
     },
     ArgValue {
         value: "true",
         detail: "Any valid boolean true value.",
+        min_tcl: None,
     },
     ArgValue {
         value: "upper",
         detail: "Any upper case alphabet character.",
+        min_tcl: None,
     },
     ArgValue {
         value: "wideinteger",
         detail: "Any valid wide integer.",
+        min_tcl: Some(TclVersion::V8_5),
     },
     ArgValue {
         value: "wordchar",
         detail: "Any Unicode word character (alphanumeric + connector punctuation).",
+        min_tcl: None,
     },
     ArgValue {
         value: "xdigit",
         detail: "Any hexadecimal digit character (0-9, A-F, a-f).",
+        min_tcl: None,
     },
 ];
 

@@ -867,6 +867,9 @@ impl Analyser {
         // W135 / W136 — command/option needs a newer package version than the
         // resolved `package require` floor (buffered, decided post-walk).
         self.record_version_gate_sites(cmd_name, args, arg_tokens, cmd_tok);
+        // W138 — format/scan %-string conversions gated behind a Tcl
+        // release (buffered, decided post-walk — §6 argument-DSL rung).
+        self.record_dsl_format_sites(cmd_name, args, arg_tokens);
         self.emit_arity_diagnostics(
             cmd_name,
             args,

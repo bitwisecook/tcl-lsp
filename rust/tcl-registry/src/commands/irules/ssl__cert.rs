@@ -62,14 +62,17 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "ignore",
                     detail: "Do not request client cert.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "request",
                     detail: "Request client cert.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "require",
                     detail: "Require client cert.",
+                    min_tcl: None,
                 },
             ],
         )],

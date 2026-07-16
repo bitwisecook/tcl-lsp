@@ -34,26 +34,32 @@ static UNITS: [ArgValue; 6] = [
     ArgValue {
         value: "us",
         detail: "Microseconds.",
+        min_tcl: None,
     },
     ArgValue {
         value: "ms",
         detail: "Milliseconds.",
+        min_tcl: None,
     },
     ArgValue {
         value: "s",
         detail: "Seconds.",
+        min_tcl: None,
     },
     ArgValue {
         value: "microseconds",
         detail: "Microseconds.",
+        min_tcl: None,
     },
     ArgValue {
         value: "milliseconds",
         detail: "Milliseconds.",
+        min_tcl: None,
     },
     ArgValue {
         value: "seconds",
         detail: "Seconds.",
+        min_tcl: None,
     },
 ];
 
@@ -61,10 +67,12 @@ static SLEEP_MODE: [ArgValue; 2] = [
     ArgValue {
         value: "for",
         detail: "Sleep for a monotonic duration.",
+        min_tcl: None,
     },
     ArgValue {
         value: "until",
         detail: "Sleep until a wall-clock point.",
+        min_tcl: None,
     },
 ];
 

@@ -35,6 +35,13 @@ profile combines two things:
    they are ordinary Tcl 8.4 core. Commands newer than 8.4 (`dict`,
    `lmap`) are never present in an iRule at any BIG-IP version.
 
+The ladder reaches into **argument mini-languages** too: a command can be
+available while one of its argument values is not. `format %b` (binary)
+needs Tcl 8.6, `format %llu` needs 9.0, and `string is dict` names a
+class that only exists on 9.0 — using them below those releases draws
+W138/W137 naming the dialect's effective Tcl version, which a
+`package require Tcl` line can raise above the ambient dialect.
+
 A third axis covers **library versions**: the F5 surfaces are keyed on
 the BIG-IP (TMOS) release, defaulting to the oldest supported version —
 the conservative choice, so a command introduced in a later TMOS (for

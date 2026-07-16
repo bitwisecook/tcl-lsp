@@ -1024,12 +1024,14 @@ matching time on crafted input."
             for &idx in spec.closed_value_args {
                 let i = idx as usize;
                 let Some(value) = args.get(i) else { continue };
-                let allowed: Vec<&str> =
-                    spec.arg_values_at(idx).iter().map(|av| av.value).collect();
+                let values = spec.arg_values_at(idx);
+                let allowed: Vec<&str> = values.iter().map(|av| av.value).collect();
                 if let Some(hit) =
                     w127_closed_hit(value, span_at(i), &allowed, false, &opt_names, cmd_name)
                 {
                     hits.push(hit);
+                } else {
+                    self.record_w137_gated_value(value, span_at(i), values, false, cmd_name);
                 }
             }
             // Subcommand-level closed value args: the subcommand word occupies
@@ -1057,6 +1059,14 @@ matching time on crafted input."
                         &display,
                     ) {
                         hits.push(hit);
+                    } else {
+                        self.record_w137_gated_value(
+                            value,
+                            span_at(i),
+                            sub.arg_values_at(sub_idx),
+                            sub.arg_values_accept_prefix,
+                            &display,
+                        );
                     }
                 }
             }
@@ -1068,6 +1078,47 @@ matching time on crafted input."
                 message: hit.message,
                 severity: Severity::Warning,
                 fixes: hit.fixes,
+            });
+        }
+    }
+
+    /// Buffer a W137 site when a **valid** closed argument value is
+    /// version-gated ([`ArgValue::min_tcl`], the §6 argument-DSL rung):
+    /// `string is dict` names a real class — on Tcl 9.0; below it the
+    /// class itself raises at runtime. Decided post-walk against the
+    /// effective Tcl version, like every version fact.
+    ///
+    /// [`ArgValue::min_tcl`]: tcl_registry::ArgValue
+    fn record_w137_gated_value(
+        &mut self,
+        value: &str,
+        span: tcl_lexer::Span,
+        values: &'static [tcl_registry::ArgValue],
+        accept_prefix: bool,
+        display_name: &str,
+    ) {
+        if value.contains('$') || value.contains('[') {
+            return;
+        }
+        let matched = values.iter().find(|av| av.value == value).or_else(|| {
+            if !accept_prefix || value.is_empty() {
+                return None;
+            }
+            // C Tcl's abbreviation rule: a unique prefix selects the value.
+            let mut it = values.iter().filter(|av| av.value.starts_with(value));
+            match (it.next(), it.next()) {
+                (Some(av), None) => Some(av),
+                _ => None,
+            }
+        });
+        if let Some(av) = matched
+            && let Some(min) = av.min_tcl
+        {
+            self.dsl_gate_sites.push(super::version_gate::DslGateSite {
+                span,
+                code: DiagCode::W137,
+                what: format!("argument value '{}' of '{display_name}'", av.value),
+                min,
             });
         }
     }
