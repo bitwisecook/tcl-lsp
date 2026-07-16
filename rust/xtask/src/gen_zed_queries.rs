@@ -173,8 +173,12 @@ fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
             continue;
         }
         // Library commands (Tk / tcllib / stdlib packages) load dynamically via
-        // `package require`; the LSP handles those. Keep only ambient commands.
-        if spec.required_package.is_some() {
+        // `package require`; the LSP handles those. Keep only ambient
+        // commands — including packages the profile ships ambiently (§7.1:
+        // the F5 surfaces are the profile's own runtime, not a require).
+        if let Some(pkg) = spec.required_package
+            && !reg.profile().is_some_and(|p| p.is_ambient_package(pkg))
+        {
             continue;
         }
 

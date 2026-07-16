@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::stateless",
-        dialects: Some(DialectSet::IAPPS),
+        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Modifies the behaviour of ``tmsh::create`` and ``tmsh::delete``.",

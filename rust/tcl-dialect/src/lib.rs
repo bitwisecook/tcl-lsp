@@ -28,6 +28,9 @@
 //!   grammar knobs.
 //! - [`DialectProfile`] — one interned profile per canonical dialect,
 //!   resolved once at ingest and threaded everywhere.
+//! - [`LibraryPin`] / [`LibraryVersion`] / [`VersionKey`] — the
+//!   versioned-library axis (§7.1, D5): which packages a profile ships
+//!   ambiently and at what version floor.
 //!
 //! It deliberately depends on nothing (beyond `bitflags`) so every layer —
 //! `tcl-lexer` and `tcl-syntax` *below* the registry included — can consume
@@ -40,11 +43,13 @@
 
 mod dialect_set;
 mod grammar;
+mod library;
 mod profile;
 mod version;
 
 pub use dialect_set::{DialectSet, KNOWN_DIALECTS, available_dialects};
 pub use grammar::{BracedVarStyle, LexerGrammar};
+pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::DialectProfile;
 pub use version::{TclVersion, Ternary};
 

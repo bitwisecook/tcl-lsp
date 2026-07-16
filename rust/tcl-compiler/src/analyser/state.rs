@@ -160,6 +160,12 @@ pub struct Analyser {
     /// [`Self::flush_version_gate_diagnostics`] once every `package require` is
     /// known.  See [`super::diagnostics::version_gate`].
     pub(super) version_gate_sites: Vec<super::diagnostics::version_gate::VersionGateSite>,
+    /// Session/file pins for the keyed library-version axes
+    /// (`--bigip-version`-style overrides, dialect-profile-model.md §7.1).
+    /// Defaults to empty, in which case each keyed axis falls back to its
+    /// D5 oldest-supported default; feeds
+    /// [`tcl_dialect::DialectProfile::library_floor`].
+    pub library_versions: tcl_dialect::LibraryVersionOverrides,
     /// Cached set of built-in command names for redefined-builtin
     /// detection. `None` until first lookup; filled lazily.
     pub builtin_names: Option<HashSet<String>>,
@@ -551,6 +557,7 @@ impl Analyser {
             tk_created_widgets: HashSet::new(),
             tk_geometry: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
+            library_versions: tcl_dialect::LibraryVersionOverrides::default(),
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,

@@ -290,6 +290,10 @@ impl CommandRegistry {
             d if d == DialectSet::BPF => crate::commands::bpf::bpf_command_specs(),
             d if d == DialectSet::IRULES => crate::commands::irules::irules_command_specs(),
             d if d == DialectSet::IAPPS => crate::commands::iapps::iapps_command_specs(),
+            // The tmsh shell's own pack: the `tmsh::` surface shared with
+            // iApps (tagged `IAPPS|TMSH`), without the iApp-only commands
+            // (Milestone 6, D8).
+            d if d == DialectSet::TMSH => crate::commands::iapps::tmsh_command_specs(),
             d if d == DialectSet::TK => crate::commands::tk::tk_command_specs(),
             d if d == DialectSet::EXPECT => crate::commands::expect::expect_command_specs(),
             d if d == DialectSet::SYNOPSYS => {

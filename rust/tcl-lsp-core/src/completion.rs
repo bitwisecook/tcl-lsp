@@ -334,7 +334,7 @@ fn switch_completion_items(
         char_col_to_utf16(line_text, dash_col),
         char_col_to_utf16(line_text, cursor_col),
     );
-    let floor = package_version_floor(analysis, spec);
+    let floor = package_version_floor(analysis, spec, profile);
     Some(switch_completions(
         options,
         profile,
@@ -1307,9 +1307,10 @@ fn registry_method_items(registry: &CommandRegistry, class_q: &str) -> Option<Ve
 fn package_version_floor<'a>(
     analysis: &'a AnalysisResult,
     spec: &tcl_registry::CommandSpec,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<&'a str> {
     let pkg = spec.owning_package()?;
-    analysis
+    let require_floor = analysis
         .package_requires
         .iter()
         // Only *unconditional* requires guarantee the version; an optional
@@ -1318,7 +1319,21 @@ fn package_version_floor<'a>(
         .filter(|req| req.name == pkg && !req.conditional)
         .filter_map(|req| req.version.as_deref())
         .map(tcl_registry::version::requirement_lower_bound)
-        .max_by(|a, b| tcl_registry::version::compare(a, b))
+        .max_by(|a, b| tcl_registry::version::compare(a, b));
+    // The profile's library pin supplies the base floor (§7.1: the shipped
+    // Tk on a plain Tcl base, a keyed vendor surface at its D5
+    // oldest-supported default); an explicit require can only raise it.
+    let pin_floor = profile.library_floor_default(pkg);
+    match (pin_floor, require_floor) {
+        (Some(pin), Some(req)) => {
+            if tcl_registry::version::compare(req, pin).is_gt() {
+                Some(req)
+            } else {
+                Some(pin)
+            }
+        }
+        (pin, require) => pin.or(require),
+    }
 }
 
 fn switch_partial_at_position(
@@ -1722,7 +1737,7 @@ fn builtin_completions(
         // required at all, yields no floor and stays permissive.
         .filter(|n| {
             registry.get(n).is_none_or(|spec| {
-                spec.available_for_version(package_version_floor(analysis, spec))
+                spec.available_for_version(package_version_floor(analysis, spec, profile))
             })
         })
         .collect();
@@ -1736,7 +1751,7 @@ fn builtin_completions(
                 label: name.to_owned(),
                 insert_text: name.to_owned(),
                 kind: CompletionKind::Function,
-                detail: spec.map(command_detail),
+                detail: spec.map(|s| command_detail(s, profile)),
                 sort_text: Some(builtin_sort_text(name, count)),
                 is_snippet: false,
                 filter_text: None,
@@ -1751,11 +1766,18 @@ fn builtin_completions(
 
 /// Completion-detail provenance string for a built-in command:
 /// `tcllib (PKG)` / `stdlib (PKG)` / `Tk` / `built-in`.  Tcllib takes
-/// precedence over a plain `required_package`.
-fn command_detail(spec: &tcl_registry::CommandSpec) -> String {
+/// precedence over a plain `required_package`; a package the profile
+/// ships ambiently (an F5 surface — §7.1 axis C) is part of the runtime
+/// and reads `built-in`, not like a require-gated stdlib package.
+fn command_detail(
+    spec: &tcl_registry::CommandSpec,
+    profile: &tcl_dialect::DialectProfile,
+) -> String {
     if let Some(pkg) = spec.tcllib_package {
         format!("tcllib ({pkg})")
-    } else if let Some(pkg) = spec.required_package {
+    } else if let Some(pkg) = spec.required_package
+        && !profile.is_ambient_package(pkg)
+    {
         if pkg == "Tk" {
             "Tk".to_string()
         } else {
@@ -2266,12 +2288,21 @@ mod tests {
     fn command_detail_formats_each_provenance() {
         use tcl_registry::CommandRegistry;
         let reg = CommandRegistry::build_default();
+        let tcl86 = tcl_dialect::DialectProfile::by_name("tcl8.6");
         // built-in: no package.
-        assert_eq!(command_detail(reg.get("puts").unwrap()), "built-in");
+        assert_eq!(command_detail(reg.get("puts").unwrap(), tcl86), "built-in");
         // stdlib: required_package set.
         if let Some(spec) = reg.get("http::geturl") {
-            assert_eq!(command_detail(spec), "stdlib (http)");
+            assert_eq!(command_detail(spec, tcl86), "stdlib (http)");
         }
+        // An ambient vendor surface reads as part of the runtime, never as
+        // a require-gated stdlib package (§7.1 axis C).
+        let ireg = tcl_registry::registry_for_dialect("f5-irules");
+        let http2 = ireg.get("HTTP2::header").expect("HTTP2::header spec");
+        assert_eq!(
+            command_detail(http2, tcl_dialect::DialectProfile::irules()),
+            "built-in"
+        );
     }
 
     #[test]
@@ -2627,18 +2658,30 @@ mod tests {
 
     #[test]
     fn command_completion_gates_commands_by_package_version() {
-        // `ttk::button` needs Tk 8.5.  A buffer requiring only Tk 8.4 must not
-        // offer it; requiring 8.5 must.
+        // `ttk::button` needs Tk 8.5. On a tcl8.4 host the shipped Tk is
+        // 8.4 (the §7.1 TracksBase pin) and a require cannot raise it —
+        // not offered. On a tcl8.6 host the shipped Tk is 8.6 even when
+        // the file writes `package require Tk 8.4` (a minimum, not a
+        // downgrade) — offered; the old require-only floor wrongly hid it.
         let registry = CommandRegistry::build_default();
         let older = "package require Tk 8.4\nttk::b\n";
         let a1 = analyse(older);
-        let l1: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, "tcl8.6")
+        let l1: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, "tcl8.4")
             .into_iter()
             .map(|i| i.label)
             .collect();
         assert!(
             !l1.iter().any(|l| l == "ttk::button"),
-            "Tk 8.4 must not offer ttk::button: {l1:?}",
+            "a tcl8.4 host (Tk 8.4) must not offer ttk::button: {l1:?}",
+        );
+
+        let l1_86: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            l1_86.iter().any(|l| l == "ttk::button"),
+            "a tcl8.6 host ships Tk 8.6; `require Tk 8.4` does not downgrade it: {l1_86:?}",
         );
 
         let newer = "package require Tk 8.5\nttk::b\n";

@@ -26,10 +26,10 @@ bitflags! {
     /// `None` on a `CommandSpec` means "available in all dialects".
     /// A specific `DialectSet` restricts availability.
     ///
-    /// Backed by `u64`: 15 bits are used today (5 Tcl versions + iRules, iApps,
-    /// Tk, Expect, 5 EDA vendors, BPF), leaving ample headroom for future
-    /// dialect bits (e.g. `f5-tmsh`) and the versioned-library work without
-    /// another width migration.
+    /// Backed by `u64`: 17 bits are used today (5 Tcl versions + iRules, iApps,
+    /// Tk, Expect, 5 EDA vendors, BPF, tmsh, the BIG-IP config surface),
+    /// leaving ample headroom for future dialect bits and the
+    /// versioned-library work without another width migration.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct DialectSet: u64 {
         /// Tcl 8.4
@@ -62,6 +62,13 @@ bitflags! {
         const BPF       = 1 << 13;
         /// Tcl 9.1
         const TCL91     = 1 << 14;
+        /// F5 tmsh scripting (the tmsh shell's Tcl 8.5 host — first-class
+        /// in Milestone 6 of the dialect-profile refactor, D8)
+        const TMSH      = 1 << 15;
+        /// F5 BIG-IP configuration (`bigip.conf` — a config surface with
+        /// no Tcl command surface of its own; the bit exists for profile
+        /// identity and the versioned-library axis)
+        const BIGIP     = 1 << 16;
 
         /// All standard Tcl versions.
         const ALL_TCL = Self::TCL84.bits() | Self::TCL85.bits()
@@ -117,10 +124,10 @@ bitflags! {
 /// Kept pre-sorted so [`available_dialects`] returns them in sorted
 /// order. This
 /// is the single source of truth for the explorer's dialect dropdown and
-/// the CLI's `--dialect` choices. Note it is a *superset* of the names
-/// [`DialectSet::parse`] resolves to a flag — config-only dialects
-/// (`f5-bigip`, `f5-tmsh`) appear here but collapse to plain Tcl when
-/// parsed.
+/// the CLI's `--dialect` choices. Every name here resolves to its own
+/// [`DialectSet::parse`] flag (`f5-tmsh` / `f5-bigip` gained their bits
+/// when Milestone 6 made them first-class, D8; `tk` parses to the
+/// grammar-layer `TK` bit but is a library pin, not a profile — §7.2).
 pub const KNOWN_DIALECTS: &[&str] = &[
     "bpf",
     "cadence-eda-tcl",
@@ -192,6 +199,8 @@ impl DialectSet {
             "xilinx-eda-tcl" => Self::XILINX,
             "intel-quartus-eda-tcl" => Self::QUARTUS,
             "mentor-eda-tcl" => Self::MENTOR,
+            "f5-tmsh" => Self::TMSH,
+            "f5-bigip" => Self::BIGIP,
             _ => return None,
         })
     }
@@ -217,6 +226,8 @@ impl DialectSet {
             Self::XILINX => "xilinx-eda-tcl",
             Self::QUARTUS => "intel-quartus-eda-tcl",
             Self::MENTOR => "mentor-eda-tcl",
+            Self::TMSH => "f5-tmsh",
+            Self::BIGIP => "f5-bigip",
             _ => return None,
         })
     }
@@ -245,6 +256,8 @@ impl DialectSet {
             DialectSet::QUARTUS,
             DialectSet::MENTOR,
             DialectSet::BPF,
+            DialectSet::TMSH,
+            DialectSet::BIGIP,
         ];
         PRIMITIVES
             .iter()

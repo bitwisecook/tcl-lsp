@@ -32,7 +32,44 @@
 
 use crate::dialect_set::DialectSet;
 use crate::grammar::{BracedVarStyle, LexerGrammar};
+use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 use crate::version::{TclVersion, Ternary};
+
+/// Library pins for the 8.4/8.5-era plain Tcl profiles: Tk tracks the
+/// embedded base (`wish` 8.5 ships Tk 8.5), Itcl ships the 3.x line.
+///
+/// tcllib is deliberately NOT pinned here (despite the §7 table's loose
+/// "tcllib `TracksBase`"): tcllib packages version on their own axes
+/// (`struct 1.4`, not the Tcl release), so a Tcl-base floor would compare
+/// apples to oranges — hostability for tcllib is already permissive, and
+/// its version floors keep coming from explicit `package require` alone.
+const LIBS_TCL84_85: &[LibraryPin] = &[
+    LibraryPin {
+        package: "Tk",
+        version: LibraryVersion::TracksBase,
+        ambient: false,
+    },
+    LibraryPin {
+        package: "Itcl",
+        version: LibraryVersion::Pinned("3.4"),
+        ambient: false,
+    },
+];
+
+/// Library pins for the 8.6+/9.x plain Tcl profiles (Itcl moves to the
+/// 4.x line bundled from 8.6).
+const LIBS_TCL86_PLUS: &[LibraryPin] = &[
+    LibraryPin {
+        package: "Tk",
+        version: LibraryVersion::TracksBase,
+        ambient: false,
+    },
+    LibraryPin {
+        package: "Itcl",
+        version: LibraryVersion::Pinned("4.2"),
+        ambient: false,
+    },
+];
 
 /// The commands F5's TMM interpreter removes from iRules: the K36322151
 /// bans (file system, process, channel-config, event-loop, and
@@ -265,6 +302,17 @@ pub struct DialectProfile {
     /// when executing this dialect. Defaults to `V9_0` everywhere until
     /// the VM-parity milestone threads it (M8 / VM parity M16).
     pub vm_runtime_version: TclVersion,
+
+    // AXIS C: versioned libraries (§7.1, D5 — Milestone 6).
+    /// The library packages this profile models, each with its version pin
+    /// (§7 "Libraries" column). An **ambient** pin is part of the modelled
+    /// runtime (the F5 surfaces, an EDA shell's tool commands): no
+    /// `package require` needed, and the pin supplies the version floor
+    /// spec `min_version` gates compare against. A **hosted** pin (Tk /
+    /// Itcl on plain Tcl) still needs its `package require` and only
+    /// refines the floor when the require names no version. Explicit
+    /// versioned requires raise floors, never lower them below the pin.
+    pub libraries: &'static [LibraryPin],
 }
 
 /// The catalog: one profile per canonical dialect, in
@@ -275,17 +323,15 @@ pub struct DialectProfile {
 /// milestone plan tightens later are commented at the entry.
 static CATALOG: [DialectProfile; 16] = [
     // bpf embeds a genuine Tcl 9.0 (design doc D7): 9.0 runtime semantics —
-    // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule.
-    // Until Milestone 6 gives it the precise `TCL90|BPF` availability mask
-    // (with its reverse-regression golden budget), the mask over-
-    // approximates with every Tcl version so no core command is falsely
-    // unknown — strictly fewer false positives than the pre-profile
-    // bare-`BPF` view, never more.
+    // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule —
+    // and, since Milestone 6, the precise `TCL90|BPF` availability mask:
+    // 9.0-core plus the bpf surface resolve; 8.x-only relics (removed at
+    // the 9.0 boundary) are correctly unknown.
     DialectProfile {
         name: "bpf",
         aliases: &[],
         vendor_bit: Some(DialectSet::BPF),
-        availability_mask: DialectSet::ALL_TCL.union(DialectSet::BPF),
+        availability_mask: DialectSet::TCL90.union(DialectSet::BPF),
         disabled_commands: &[],
         base_layers: &[DialectSet::BPF],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::BPF),
@@ -299,6 +345,7 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[],
     },
     DialectProfile {
         name: "cadence-eda-tcl",
@@ -318,6 +365,18 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[
+            LibraryPin {
+                package: "sdc",
+                version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "cadence-genus",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+        ],
     },
     // Expect embeds Tcl 8.6 — including the 8.x first-close `${…}` rule,
     // which the old string-keyed lexer table missed (it fell through to
@@ -340,19 +399,26 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[LibraryPin {
+            package: "Expect",
+            version: LibraryVersion::Pinned("5.45.4"),
+            ambient: true,
+        }],
     },
     // f5-bigip is a config parser, not a Tcl surface; it has no command
     // pack, no Tcl runtime (behaviour axis inert — §11.1), and no expr
-    // grammar. Until Milestone 6 models it first-class, availability stays
-    // as permissive as the pre-profile fallback so nothing regresses.
+    // grammar. First-class since Milestone 6 (D8) as *identity only*: the
+    // bare `BIGIP` bit keys the profile and its versioned schema library —
+    // BIG-IP config documents route to the tcl-bigip validator, never the
+    // Tcl analyser, so this mask is not a Tcl-availability surface.
     DialectProfile {
         name: "f5-bigip",
         aliases: &[],
-        vendor_bit: None,
-        availability_mask: DialectSet::ALL_TCL,
+        vendor_bit: Some(DialectSet::BIGIP),
+        availability_mask: DialectSet::BIGIP,
         disabled_commands: &[],
-        base_layers: &[],
-        grammar_union: DialectSet::ALL_TCL,
+        base_layers: &[DialectSet::BIGIP],
+        grammar_union: DialectSet::BIGIP,
         version_ceiling: None,
         signature_base: None,
         runtime_base: None,
@@ -363,6 +429,11 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: false,
         has_fixed_ensembles: true,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[LibraryPin {
+            package: "f5-bigip-schema",
+            version: LibraryVersion::Keyed(VersionKey::BigipVersion),
+            ambient: true,
+        }],
     },
     // iApps run a real Tcl 8.5.13 *host* interpreter (not the TMM sandbox):
     // full 8.5 core (dict, lassign, apply) plus the iApp surface; nothing
@@ -385,6 +456,11 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: false,
         has_fixed_ensembles: true,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[LibraryPin {
+            package: "f5-iapps-cmds",
+            version: LibraryVersion::Keyed(VersionKey::BigipVersion),
+            ambient: true,
+        }],
     },
     // iRules is SUBTRACTIVE (§9): a genuine embedded Tcl 8.4.6 whose F5
     // command surface carries the IRULES tag, minus the K36322151
@@ -412,32 +488,41 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: false,
         has_fixed_ensembles: true,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[LibraryPin {
+            package: "f5-irules-cmds",
+            version: LibraryVersion::Keyed(VersionKey::BigipVersion),
+            ambient: true,
+        }],
     },
     // f5-tmsh runs on a Tcl 8.5 base (behaviour axis: octal, 8.5 expr
     // grammar, the 8.x first-close `${…}` rule — a Milestone 3 flip). It
-    // has no DialectSet bit or command pack yet (first-class availability
-    // in Milestone 6, D8, with the reverse-regression budget); until then
-    // it resolves as permissively as the pre-profile fallback did, and
-    // `tcloo` tracks that interim mask (Milestone 6 flips it to the 8.5
-    // truth alongside the mask).
+    // first-class since Milestone 6 (D8): the tmsh shell hosts a Tcl 8.5
+    // interpreter plus the `tmsh::` surface (shared spec data with iApps,
+    // tagged `IAPPS|TMSH`). The 8.5 base means no TclOO and no 8.6+/9.x
+    // core — the §7.2 reverse-regression this milestone budgets.
     DialectProfile {
         name: "f5-tmsh",
         aliases: &[],
-        vendor_bit: None,
-        availability_mask: DialectSet::ALL_TCL,
+        vendor_bit: Some(DialectSet::TMSH),
+        availability_mask: DialectSet::TCL85.union(DialectSet::TMSH),
         disabled_commands: &[],
-        base_layers: &[],
-        grammar_union: DialectSet::ALL_TCL,
-        version_ceiling: None,
+        base_layers: &[DialectSet::TMSH],
+        grammar_union: DialectSet::ALL_TCL.union(DialectSet::TMSH),
+        version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_5),
         grammar: GRAMMAR_TCL8X,
         operators_as_commands: true,
-        tcloo: true,
+        tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[LibraryPin {
+            package: "f5-tmsh-cmds",
+            version: LibraryVersion::Keyed(VersionKey::BigipVersion),
+            ambient: true,
+        }],
     },
     DialectProfile {
         name: "intel-quartus-eda-tcl",
@@ -457,6 +542,18 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[
+            LibraryPin {
+                package: "sdc",
+                version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "quartus",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+        ],
     },
     DialectProfile {
         name: "mentor-eda-tcl",
@@ -476,6 +573,18 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[
+            LibraryPin {
+                package: "sdc",
+                version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "questa",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+        ],
     },
     DialectProfile {
         name: "synopsys-eda-tcl",
@@ -495,6 +604,18 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[
+            LibraryPin {
+                package: "sdc",
+                version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "synopsys-dc",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+        ],
     },
     DialectProfile {
         name: "tcl8.4",
@@ -518,6 +639,7 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: LIBS_TCL84_85,
     },
     DialectProfile {
         name: "tcl8.5",
@@ -541,6 +663,7 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: LIBS_TCL84_85,
     },
     DialectProfile {
         name: "tcl8.6",
@@ -564,6 +687,7 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: LIBS_TCL86_PLUS,
     },
     DialectProfile {
         name: "tcl9.0",
@@ -587,6 +711,7 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: LIBS_TCL86_PLUS,
     },
     // Tag-level `TCL90_PLUS` unions already give 9.1 its 9.0 inheritance,
     // so the exact bit keeps per-version gating precise.
@@ -612,6 +737,7 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: LIBS_TCL86_PLUS,
     },
     DialectProfile {
         name: "xilinx-eda-tcl",
@@ -631,6 +757,18 @@ static CATALOG: [DialectProfile; 16] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        libraries: &[
+            LibraryPin {
+                package: "sdc",
+                version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "vivado",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+        ],
     },
 ];
 
@@ -656,6 +794,7 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     tcloo: true,
     has_fixed_ensembles: false,
     vm_runtime_version: TclVersion::V9_0,
+    libraries: &[],
 };
 
 impl DialectProfile {
@@ -751,6 +890,60 @@ impl DialectProfile {
     pub fn const_fold_version(&self) -> Option<TclVersion> {
         TclVersion::from_dialect(Some(self.name))
     }
+
+    /// The [`LibraryPin`] this profile declares for `package`, if any
+    /// (§7.1 axis C).
+    #[must_use]
+    pub fn library_pin(&self, package: &str) -> Option<&'static LibraryPin> {
+        self.libraries.iter().find(|pin| pin.package == package)
+    }
+
+    /// Whether `package` is **ambient** in this profile's runtime — part of
+    /// the modelled interpreter, needing no `package require` (the F5
+    /// surfaces, an EDA shell's tool commands). Ambient packages are exempt
+    /// from missing-require diagnostics and stay in the ambient completion
+    /// / static-highlight surfaces.
+    #[must_use]
+    pub fn is_ambient_package(&self, package: &str) -> bool {
+        self.library_pin(package).is_some_and(|pin| pin.ambient)
+    }
+
+    /// The version floor this profile guarantees for `package` before any
+    /// `package require` is seen, honouring `overrides` for the keyed axes
+    /// (D5: keyed pins default to the **oldest supported** version).
+    ///
+    /// `None` when the package is unpinned (floors come only from explicit
+    /// requires, as before) or when a keyed axis has neither an override
+    /// nor a default (no data authority yet — permissive).
+    #[must_use]
+    pub fn library_floor<'a>(
+        &self,
+        package: &str,
+        overrides: &'a LibraryVersionOverrides,
+    ) -> Option<&'a str> {
+        let pin = self.library_pin(package)?;
+        if let LibraryVersion::Keyed(key) = pin.version
+            && let Some(pinned) = overrides.get(key)
+        {
+            return Some(pinned);
+        }
+        self.library_floor_default(package)
+    }
+
+    /// [`Self::library_floor`] with no session overrides — the statically
+    /// resolvable floor (`TracksBase` → the runtime base, `Pinned` → the
+    /// shipped version, `Keyed` → the D5 oldest-supported default), for
+    /// consumers with no override channel (completion, hover, the CLI
+    /// snapshot).
+    #[must_use]
+    pub fn library_floor_default(&self, package: &str) -> Option<&'static str> {
+        let pin = self.library_pin(package)?;
+        match pin.version {
+            LibraryVersion::TracksBase => self.runtime_base.map(TclVersion::as_package_version),
+            LibraryVersion::Pinned(version) => Some(version),
+            LibraryVersion::Keyed(key) => key.default_version(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -758,7 +951,116 @@ mod tests {
     use super::DialectProfile;
     use crate::dialect_set::{DialectSet, KNOWN_DIALECTS};
     use crate::grammar::BracedVarStyle;
+    use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
     use crate::version::{TclVersion, Ternary};
+
+    #[test]
+    fn library_pins_follow_the_dialect_shape() {
+        // §7 "Libraries" column invariants, derived not enumerated:
+        for p in all_with_fallback() {
+            // Every F5 profile keys its own surface on the BIG-IP release.
+            if p.name.starts_with("f5-") {
+                assert!(
+                    p.libraries.iter().any(|pin| pin.ambient
+                        && pin.version == LibraryVersion::Keyed(VersionKey::BigipVersion)),
+                    "{}: F5 surfaces are keyed on BigipVersion",
+                    p.name
+                );
+            }
+            // Every EDA shell keys sdc + its tool; both ambient.
+            if p.name.ends_with("-eda-tcl") {
+                assert!(
+                    p.libraries.iter().any(|pin| pin.package == "sdc"
+                        && pin.version == LibraryVersion::Keyed(VersionKey::SdcVersion)),
+                    "{}: sdc keyed on SdcVersion",
+                    p.name
+                );
+                assert!(
+                    p.libraries
+                        .iter()
+                        .any(|pin| pin.version == LibraryVersion::Keyed(VersionKey::ToolVersion)),
+                    "{}: tool keyed on ToolVersion",
+                    p.name
+                );
+                assert!(p.libraries.iter().all(|pin| pin.ambient), "{}", p.name);
+            }
+            // Plain versioned Tcl hosts Tk (tracking base) + Itcl (pinned),
+            // neither ambient — `package require` still applies.
+            if p.name.starts_with("tcl") && p.name != "tcl" {
+                let tk = p.library_pin("Tk").expect("plain Tcl hosts Tk");
+                assert_eq!(tk.version, LibraryVersion::TracksBase, "{}", p.name);
+                assert!(!tk.ambient, "{}: Tk still needs its require", p.name);
+                assert!(
+                    p.library_pin("Itcl").is_some_and(
+                        |i| !i.ambient && matches!(i.version, LibraryVersion::Pinned(_))
+                    ),
+                    "{}: Itcl is a pinned hosted library",
+                    p.name
+                );
+            }
+            // Closed vendor worlds never host Tk (§2.2).
+            if p.vendor_bit.is_some() {
+                assert!(
+                    p.library_pin("Tk").is_none(),
+                    "{}: vendor shells never host Tk",
+                    p.name
+                );
+            }
+            // The permissive fallback pins nothing.
+            if p.is_fallback() {
+                assert!(p.libraries.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn library_floor_resolution_covers_all_pin_kinds() {
+        let none = LibraryVersionOverrides::default();
+
+        // TracksBase → the runtime base as a package version.
+        let tcl86 = DialectProfile::by_name("tcl8.6");
+        assert_eq!(tcl86.library_floor("Tk", &none), Some("8.6"));
+        let tcl90 = DialectProfile::by_name("tcl9.0");
+        assert_eq!(tcl90.library_floor("Tk", &none), Some("9.0"));
+
+        // Pinned → the pinned string.
+        assert_eq!(tcl86.library_floor("Itcl", &none), Some("4.2"));
+        assert_eq!(
+            DialectProfile::by_name("tcl8.4").library_floor("Itcl", &none),
+            Some("3.4")
+        );
+        assert_eq!(
+            DialectProfile::by_name("expect").library_floor("Expect", &none),
+            Some("5.45.4")
+        );
+
+        // Keyed → override, else the D5 oldest-supported default.
+        let irules = DialectProfile::irules();
+        assert_eq!(
+            irules.library_floor("f5-irules-cmds", &none),
+            Some("16.1.0"),
+            "BigipVersion defaults to the oldest supported TMOS"
+        );
+        let pinned = LibraryVersionOverrides {
+            bigip_version: Some("17.1.0".to_owned()),
+            ..LibraryVersionOverrides::default()
+        };
+        assert_eq!(
+            irules.library_floor("f5-irules-cmds", &pinned),
+            Some("17.1.0"),
+            "an explicit pin overrides the default"
+        );
+        // Keyed with no default and no override → permissive.
+        let synopsys = DialectProfile::by_name("synopsys-eda-tcl");
+        assert_eq!(synopsys.library_floor("synopsys-dc", &none), None);
+
+        // Unpinned package → no profile floor.
+        assert_eq!(tcl86.library_floor("no-such-lib", &none), None);
+        // Ambience predicate: F5 surface ambient, Tk hosted.
+        assert!(irules.is_ambient_package("f5-irules-cmds"));
+        assert!(!tcl86.is_ambient_package("Tk"));
+        assert!(!tcl86.is_ambient_package("no-such-lib"));
+    }
 
     #[test]
     fn catalog_matches_known_dialects_exactly() {
@@ -901,20 +1203,24 @@ mod tests {
     }
 
     #[test]
-    fn config_only_dialects_stay_permissive_until_first_class() {
-        // f5-tmsh / f5-bigip (Milestone 6, D8) must not regress before their
-        // reverse-regression golden budget lands.
-        for name in ["f5-tmsh", "f5-bigip"] {
-            assert_eq!(
-                DialectProfile::by_name(name).availability_mask,
-                DialectSet::ALL_TCL,
-                "{name}"
-            );
-        }
-        // bpf keeps a strictly-widening interim mask until D7 lands in M6.
+    fn first_class_vendor_masks_are_precise() {
+        // Milestone 6 (D7/D8) made the last interim masks precise. f5-tmsh:
+        // the tmsh shell's 8.5 host plus its own surface.
+        assert_eq!(
+            DialectProfile::by_name("f5-tmsh").availability_mask,
+            DialectSet::TCL85 | DialectSet::TMSH
+        );
+        // f5-bigip: identity only — a config parser with no Tcl surface;
+        // BIG-IP documents route to the tcl-bigip validator, never the Tcl
+        // analyser.
+        assert_eq!(
+            DialectProfile::by_name("f5-bigip").availability_mask,
+            DialectSet::BIGIP
+        );
+        // bpf embeds a genuine Tcl 9.0 (D7).
         assert_eq!(
             DialectProfile::by_name("bpf").availability_mask,
-            DialectSet::ALL_TCL | DialectSet::BPF
+            DialectSet::TCL90 | DialectSet::BPF
         );
     }
 
@@ -985,23 +1291,16 @@ mod tests {
 
     #[test]
     fn version_ceiling_tracks_the_signature_base() {
-        // §7: the option-gating ceiling is the signature base everywhere a
-        // profile has one — except the interim-permissive config-only
-        // dialects (no ceiling until Milestone 6 makes them first-class)
-        // and the permissive fallback.
+        // §7: the option-gating ceiling is the signature base everywhere —
+        // including the Milestone 6 first-class profiles (f5-tmsh V8_5;
+        // f5-bigip has neither, being a non-Tcl surface). Only the
+        // permissive fallback stays unceilinged by design.
         for p in all_with_fallback() {
-            match p.name {
-                "f5-tmsh" | "f5-bigip" | "tcl" => {
-                    assert_eq!(p.version_ceiling, None, "{}: interim-permissive", p.name);
-                }
-                _ => {
-                    assert_eq!(
-                        p.version_ceiling, p.signature_base,
-                        "{}: ceiling == signature base",
-                        p.name
-                    );
-                }
-            }
+            assert_eq!(
+                p.version_ceiling, p.signature_base,
+                "{}: ceiling == signature base",
+                p.name
+            );
         }
     }
 

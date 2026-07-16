@@ -2763,6 +2763,46 @@ fn irules_banned_commands_still_flag_end_to_end() {
 }
 
 #[test]
+fn tmsh_first_class_gates_both_directions_end_to_end() {
+    // Milestone 6 (D8): a tmsh document analyses under TCL85|TMSH — the
+    // tmsh:: surface and the 8.5 core are clean, while 8.6-core draws the
+    // §7.2 reverse-regression diagnostic.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tmsh");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "tmsh::create ltm pool p1\ndict set cfg k v\n",
+        "tcl-tmsh",
+    );
+    assert!(
+        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
+        "tmsh surface + 8.5 core must be clean: {:?}",
+        codes(&diags)
+    );
+    let uri2 = unique_uri("tmsh");
+    let diags2 = lsp.open_ready_lang(&uri2, "lmap x {1 2} {set x}\n", "tcl-tmsh");
+    assert!(
+        has_code(&diags2, "W123") || has_code(&diags2, "W002"),
+        "lmap is 8.6 — unavailable on the tmsh 8.5 base: {:?}",
+        codes(&diags2)
+    );
+}
+
+#[test]
+fn bpf_first_class_admits_90_core_end_to_end() {
+    // Milestone 6 (D7): bpf = TCL90|BPF — 9.0-era core (lmap, dict) is
+    // real, and the bpf surface resolves.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("bpf");
+    let diags = lsp.open_ready_lang(&uri, "dict set cfg k v\nlmap x {1 2} {set x}\n", "tcl-bpf");
+    assert!(
+        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
+        "9.0 core is real under bpf: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
 fn irules_subcommands_named_like_banned_commands_are_clean_end_to_end() {
     // Milestone 5 retag FP-fix: `DNS::header cd` (the DNS Checking-Disabled
     // flag) and `IP::stats in` (inbound stats) are real iRules subcommands

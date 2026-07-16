@@ -8958,6 +8958,85 @@ fn w001_subcommand_checks_use_the_profile_mask() {
 }
 
 #[test]
+fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
+    // Milestone 6 (D8): f5-tmsh = TCL85|TMSH — a Tcl 8.5 host plus the
+    // tmsh:: surface.
+    // TP (the fix): the tmsh:: surface stops drawing unknown-command.
+    for ok in [
+        "tmsh::create ltm pool p1",
+        "tmsh::log local0.info \"hi\"",
+        "tmsh::list ltm virtual",
+    ] {
+        let codes = codes_for_dialect(ok, "f5-tmsh");
+        assert!(
+            !codes.iter().any(|c| c == "W123" || c == "W002"),
+            "f5-tmsh: {ok:?} is the tmsh surface, got {codes:?}"
+        );
+    }
+    // TN: the 8.5 core is real.
+    for ok in [
+        "dict get {a 1} a",
+        "lassign {1 2} a b",
+        "apply {{x} {return $x}} 1",
+    ] {
+        let codes = codes_for_dialect(ok, "f5-tmsh");
+        assert!(
+            !codes.iter().any(|c| c == "W123" || c == "W002"),
+            "f5-tmsh: {ok:?} is 8.5 core, got {codes:?}"
+        );
+    }
+    // Reverse-regression (§7.2, budgeted): 8.6/9.0 core is newly unknown
+    // on the 8.5 base — the old interim ALL_TCL mask hid these.
+    for gated in [
+        "lmap x {1 2} {set x}",
+        "coroutine c ::apply {{} {}}",
+        "zipfs root",
+    ] {
+        let codes = codes_for_dialect(gated, "f5-tmsh");
+        assert!(
+            codes.iter().any(|c| c == "W123" || c == "W002"),
+            "f5-tmsh: {gated:?} is later-than-8.5 core and must flag, got {codes:?}"
+        );
+    }
+    // FP-guard: the iApp-only surface is NOT part of the tmsh shell — it
+    // resolves nowhere under TCL85|TMSH, drawing the disabled-in-dialect
+    // diagnostic (the spec exists, in the *iApps* pack).
+    let codes = codes_for_dialect("iapp::conf save\n", "f5-tmsh");
+    assert!(
+        codes.iter().any(|c| c == "W002" || c == "W123"),
+        "iapp:: is the iApps host surface, not tmsh: {codes:?}"
+    );
+}
+
+#[test]
+fn bpf_precise_mask_keeps_90_core_and_drops_8x_relics() {
+    // Milestone 6 (D7): bpf = TCL90|BPF — a genuine Tcl 9.0 base.
+    // TN: 9.0 core (including 8.5/8.6 additions carried into 9.0) resolves.
+    for ok in [
+        "dict get {a 1} a",
+        "lmap x {1 2} {set x}",
+        "coroutine c ::apply {{} {}}",
+        "zipfs root",
+    ] {
+        let codes = codes_for_dialect(ok, "bpf");
+        assert!(
+            !codes.iter().any(|c| c == "W123" || c == "W002"),
+            "bpf: {ok:?} is real on the 9.0 base, got {codes:?}"
+        );
+    }
+    // TP (reverse-regression, budgeted): 8.x-only relics removed at the
+    // 9.0 boundary are correctly unknown now — the interim ALL_TCL|BPF
+    // mask wrongly admitted them.
+    for relic in ["tcltest::bytestring x", "case $x in a {puts hi}"] {
+        let codes = codes_for_dialect(relic, "bpf");
+        assert!(
+            codes.iter().any(|c| c == "W123" || c == "W002"),
+            "bpf: {relic:?} was removed at the 9.0 boundary, got {codes:?}"
+        );
+    }
+}
+
+#[test]
 fn irules_subcommands_named_like_banned_commands_resolve_cleanly() {
     // FP-fix (the Milestone 5 retag): `DNS::header cd` (the DNS
     // Checking-Disabled flag) and `IP::stats in` (inbound stats) are real

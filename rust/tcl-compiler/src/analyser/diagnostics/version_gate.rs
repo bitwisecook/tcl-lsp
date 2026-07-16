@@ -163,10 +163,14 @@ impl Analyser {
         }
     }
 
-    /// Emit W135/W136 for each buffered site whose package was `package
-    /// require`d at a floor below the required `min_version`.  Sites whose
-    /// package has no version floor (required without a version, or not
-    /// required — the latter handled by W120) are skipped.
+    /// Emit W135/W136 for each buffered site whose package's resolved
+    /// version floor is below the required `min_version`. The floor comes
+    /// from an explicit versioned `package require`, or — for a package the
+    /// active profile pins (§7.1 axis C) — from the profile pin (the shipped
+    /// Tk on a plain Tcl base, a `Keyed` vendor surface at its D5
+    /// oldest-supported default). Sites with no floor at all (unpinned +
+    /// required without a version, or not required — the latter handled by
+    /// W120) are skipped.
     pub(in crate::analyser) fn flush_version_gate_diagnostics(&mut self) {
         if self.version_gate_sites.is_empty() {
             return;
@@ -174,25 +178,30 @@ impl Analyser {
         let sites = std::mem::take(&mut self.version_gate_sites);
         let mut new_diags: Vec<Diagnostic> = Vec::new();
         for site in sites {
-            let Some(floor) = self.package_version_floor(site.package) else {
+            let Some((floor, source)) = self.package_version_floor(site.package) else {
                 continue;
             };
-            if tcl_registry::version::meets_min(floor, site.min_version) {
+            if tcl_registry::version::meets_min(&floor, site.min_version) {
                 continue;
             }
+            let guarantee = match source {
+                FloorSource::Require => format!("`package require` guarantees only {floor}"),
+                FloorSource::ProfilePin => {
+                    format!("{} ships {} {floor}", self.profile.name, site.package)
+                }
+            };
             let (code, message) = match &site.item {
                 VersionGateItem::Command(cmd) => (
                     DiagCode::W135,
                     format!(
-                        "'{cmd}' requires {} {} but `package require` guarantees only {floor}.",
+                        "'{cmd}' requires {} {} but {guarantee}.",
                         site.package, site.min_version
                     ),
                 ),
                 VersionGateItem::Option { command, option } => (
                     DiagCode::W136,
                     format!(
-                        "Option '{option}' on '{command}' requires {} {} but \
-                         `package require` guarantees only {floor}.",
+                        "Option '{option}' on '{command}' requires {} {} but {guarantee}.",
                         site.package, site.min_version
                     ),
                 ),
@@ -208,23 +217,70 @@ impl Analyser {
         self.result.diagnostics.extend(new_diags);
     }
 
-    /// The highest *guaranteed* lower bound among this file's `package require
-    /// <pkg> <req>` lines; `None` when `pkg` is not required, or required
-    /// without a version (permissive — every version is accepted).
+    /// The resolved version floor for `pkg`, and where it came from.
+    ///
+    /// The base is the active profile's library pin (§7.1: `TracksBase` →
+    /// the embedded runtime version, `Pinned` → the shipped version,
+    /// `Keyed` → the session override or the D5 oldest-supported default).
+    /// The highest *guaranteed* lower bound among this file's
+    /// `package require <pkg> <req>` lines can only **raise** that floor —
+    /// an explicit require never lowers what the runtime already ships.
+    /// `None` when `pkg` is unpinned and not required with a version
+    /// (permissive — every version is accepted).
     ///
     /// Conditional requires — an optional probe such as
     /// `catch {package require Tk 8.7}` or a `package require` inside an `if`
     /// arm — are excluded: they do not guarantee the version on every path, so
     /// counting them would raise the floor and wrongly suppress a real W135/W136.
-    fn package_version_floor(&self, pkg: &str) -> Option<&str> {
-        self.result
+    fn package_version_floor(&self, pkg: &str) -> Option<(String, FloorSource)> {
+        let has_unconditional_require = self
+            .result
+            .package_requires
+            .iter()
+            .any(|r| r.name == pkg && !r.conditional);
+        let require_floor = self
+            .result
             .package_requires
             .iter()
             .filter(|r| r.name == pkg && !r.conditional)
             .filter_map(|r| r.version.as_deref())
             .map(tcl_registry::version::requirement_lower_bound)
-            .max_by(|a, b| tcl_registry::version::compare(a, b))
+            .max_by(|a, b| tcl_registry::version::compare(a, b));
+        // An **ambient** pin (the F5 surfaces) is part of the runtime — its
+        // floor always applies. A **hosted** pin (Tk / Itcl on plain Tcl)
+        // floors only once the package is actually in play via a require:
+        // the missing-require case stays W120's alone, never double-flagged
+        // with a version diagnostic.
+        let pin_applies = self
+            .profile
+            .library_pin(pkg)
+            .is_some_and(|pin| pin.ambient || has_unconditional_require);
+        let pin_floor = pin_applies
+            .then(|| self.profile.library_floor(pkg, &self.library_versions))
+            .flatten();
+        match (pin_floor, require_floor) {
+            (Some(pin), Some(req)) => {
+                if tcl_registry::version::compare(req, pin).is_gt() {
+                    Some((req.to_owned(), FloorSource::Require))
+                } else {
+                    Some((pin.to_owned(), FloorSource::ProfilePin))
+                }
+            }
+            (Some(pin), None) => Some((pin.to_owned(), FloorSource::ProfilePin)),
+            (None, Some(req)) => Some((req.to_owned(), FloorSource::Require)),
+            (None, None) => None,
+        }
     }
+}
+
+/// Where a resolved package-version floor came from — an explicit
+/// `package require`, or the active profile's library pin (§7.1).
+#[derive(Debug, Clone, Copy)]
+enum FloorSource {
+    /// A versioned, unconditional `package require` in the file.
+    Require,
+    /// The profile's [`tcl_dialect::LibraryPin`].
+    ProfilePin,
 }
 
 #[cfg(test)]
@@ -283,6 +339,95 @@ mod tests {
         assert!(!fires(src, "W136"), "{:?}", version_diags(src));
     }
 
+    /// `(code, message)` version-gate pairs for an arbitrary dialect with
+    /// optional keyed library-version pins (§7.1 axis C).
+    fn version_diags_for(
+        source: &str,
+        dialect: &str,
+        bigip_version: Option<&str>,
+    ) -> Vec<(String, String)> {
+        let mut a = Analyser::new();
+        a.library_versions.bigip_version = bigip_version.map(str::to_owned);
+        a.analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W135" | "W136"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn tracksbase_tk_pin_floors_an_unversioned_require() {
+        // §7.1: `tcl8.6` ships Tk 8.6, so `package require Tk` *without a
+        // version* still guarantees only 8.6 — the 8.7-introduced
+        // `-placeholder` draws W136 (the old rule was silent here: an
+        // unversioned require yielded no floor at all).
+        let src = "package require Tk\nentry .e -placeholder hi\n";
+        let diags = version_diags_for(src, "tcl8.6", None);
+        assert!(
+            diags
+                .iter()
+                .any(|(c, m)| c == "W136" && m.contains("tcl8.6 ships Tk 8.6")),
+            "TracksBase floor names the runtime as the guarantor: {diags:?}"
+        );
+        // TN: Tk 9.0 (tracking the tcl9.0 base) carries the 8.7 additions.
+        assert!(
+            version_diags_for(src, "tcl9.0", None).is_empty(),
+            "Tk 9.0 meets an 8.7 introduction"
+        );
+        // An explicit require can only RAISE the pin floor, never lower it:
+        // requiring 8.7 on the 8.6 base is satisfied at 8.7.
+        let raised = "package require Tk 8.7\nentry .e -placeholder hi\n";
+        assert!(version_diags_for(raised, "tcl8.6", None).is_empty());
+    }
+
+    #[test]
+    fn keyed_bigip_floor_gates_the_f5_surface() {
+        // HTTP2::header was introduced in BIG-IP 16.1.0 (the backfilled
+        // datum); the iRules profile keys its surface on BigipVersion.
+        let src = "when HTTP_REQUEST {\n  HTTP2::header :path\n}\n";
+        // TN at the D5 oldest-supported default (16.1.0 meets 16.1.0)…
+        assert!(
+            version_diags_for(src, "f5-irules", None).is_empty(),
+            "the default floor admits the 16.1.0 surface"
+        );
+        // …TP pinned below the introduction…
+        let below = version_diags_for(src, "f5-irules", Some("15.1.0"));
+        assert!(
+            below.iter().any(|(c, m)| c == "W135"
+                && m.contains("requires f5-irules-cmds 16.1.0")
+                && m.contains("f5-irules ships f5-irules-cmds 15.1.0")),
+            "a 15.1.0 pin exposes the 16.1.0 introduction: {below:?}"
+        );
+        // …TN pinned above.
+        assert!(
+            version_diags_for(src, "f5-irules", Some("17.1.0")).is_empty(),
+            "a 17.1.0 pin satisfies a 16.1.0 introduction"
+        );
+    }
+
+    #[test]
+    fn ambient_f5_surface_never_draws_missing_require() {
+        // HTTP2::header carries `required_package: f5-irules-cmds`, but the
+        // profile ships that surface ambiently (§7.1) — no W120, and the
+        // command stays resolved (no W123/W002 either).
+        let mut a = Analyser::new();
+        let result = a.analyse(
+            "when HTTP_REQUEST {\n  HTTP2::header :path\n}\n",
+            "f5-irules",
+        );
+        let noisy: Vec<&str> = result
+            .diagnostics
+            .iter()
+            .map(|d| d.code.as_str())
+            .filter(|c| matches!(*c, "W120" | "W123" | "W002"))
+            .collect();
+        assert!(
+            noisy.is_empty(),
+            "ambient vendor surface must not draw require/unknown codes: {noisy:?}"
+        );
+    }
+
     #[test]
     fn ungated_option_is_silent() {
         // `-width` carries no `min_version`, so no version diagnostic.
@@ -291,10 +436,19 @@ mod tests {
     }
 
     #[test]
-    fn require_without_version_is_permissive() {
-        // No version floor to compare against ⇒ nothing flagged.
+    fn require_without_version_is_permissive_for_unpinned_packages() {
+        // No version floor to compare against ⇒ nothing flagged. This is
+        // the contract for a package the profile does NOT pin — under the
+        // permissive fallback profile (`"tcl"`, no library pins) an
+        // unversioned require yields no floor. On a pinned host the
+        // shipped version floors it instead (§7.1 — see
+        // `tracksbase_tk_pin_floors_an_unversioned_require`).
         let src = "package require Tk\nentry .e -placeholder hi\n";
-        assert!(!fires(src, "W136"), "{:?}", version_diags(src));
+        assert!(
+            version_diags_for(src, "tcl", None).is_empty(),
+            "{:?}",
+            version_diags_for(src, "tcl", None)
+        );
     }
 
     #[test]
@@ -306,9 +460,24 @@ mod tests {
 
     #[test]
     fn command_below_floor_fires_w135() {
-        // `ttk::button` needs Tk 8.5; the require guarantees only 8.4.
+        // `ttk::button` needs Tk 8.5. On a tcl8.4 host the shipped Tk is
+        // 8.4 (TracksBase, §7.1) and a `require Tk 8.4` cannot raise it —
+        // W135, named after the runtime guarantor.
         let src = "package require Tk 8.4\nttk::button .b\n";
-        assert!(fires(src, "W135"), "{:?}", version_diags(src));
+        let diags = version_diags_for(src, "tcl8.4", None);
+        assert!(
+            diags
+                .iter()
+                .any(|(c, m)| c == "W135" && m.contains("tcl8.4 ships Tk 8.4")),
+            "{diags:?}"
+        );
+        // On a tcl8.6 host the same source is FINE: `package require Tk
+        // 8.4` states a minimum, it does not downgrade the shipped Tk 8.6 —
+        // the old require-only floor drew a false positive here.
+        assert!(
+            version_diags_for(src, "tcl8.6", None).is_empty(),
+            "the shipped Tk 8.6 satisfies an 8.5 introduction"
+        );
     }
 
     #[test]
