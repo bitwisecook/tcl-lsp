@@ -1,7 +1,34 @@
 # Name resolution — master fix plan
 
-**Status:** execution plan. No code here has landed. This is the actionable
-plan behind four companion studies:
+**Status:** in execution on branch `claude/validate-issue-923-comment-tsajg7`
+(PR #933). Honest completion state, per milestone:
+
+- **Landed, with tests:** M1 (target-selection consolidation), M2 (D1 object-var
+  rename + D2 uplevel guard + alias unification), M3 (command name-links), M4
+  (class one-hop resolution), M5 (workspace resolution oracle — the #923 core),
+  M6 (cross-file TclOO methods), M10 (dialect-aware resolver — analyser side;
+  the VM mirror of 10.1 is deferred to the M16 VM-parity pass), M12 (expr math
+  functions), M13 (TclOO `property` version fidelity), M14 (command-names-as-data
+  + ensembles — see 14.2 for the one reverted sub-item), M15 (interp/inscope
+  isolation, per-object methods, `zipfs`).
+- **Partial:** M8 §8.1 — the **go-to-definition** autoload tier has landed;
+  merging lazily-analysed library files into the shared index so *references /
+  rename* also reach them is the remaining half.
+- **Not started:** M7 (command-names-in-variables / SCCP), M9 (source-site
+  namespace propagation), M11 (cross-version namespace-var fallback — needs a
+  `tclsh8.6`/`tclsh9.0` vector), M16 (VM behavioural parity — out of resolution
+  scope).
+- **Review hardening (PR #933):** a review pass — the automated Codex reviewer
+  plus the branch's first full CI run (including the vscode integration suite)
+  — surfaced latent defects in stages previously ticked done, now fixed and
+  called out inline as "**Review fix (PR #933)**": qualified-name aliasing in
+  `variable` / `namespace upvar` (M2), completion best-effort inside `uplevel 1`
+  (M2 D2), and a `namespace which -command` probe wrongly drawing W123 (M14.2,
+  the reverted sub-item). "Done" therefore means *implemented and passing the
+  stage's own tests*; these three show a stage can still carry a defect its own
+  tests missed until the cross-cutting review runs.
+
+This is the actionable plan behind four companion studies:
 [name-resolution-centralization.md](name-resolution-centralization.md) (the
 duplication audit), [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md)
 (#923 cross-file work), [name-resolution-tcl-version-and-c-source.md](name-resolution-tcl-version-and-c-source.md)
@@ -149,7 +176,9 @@ target ([9.0 `tclVar.c:4737`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32
 **Stage 2.2 — the analyser link model** — instance vars + namespace/global aliases ✅ **DONE**
 - [x] TclOO instance variables unify across methods: `definition::linked_var_reference_spans` walks the scope tree and unions the uses of every `VarDef` sharing one `variable v` declaration span, wired into `references`, `rename`, and `document_highlight`.
 - [x] Namespace/global aliases unify: added `VarDef::link_target` (the qualified cell name), populated by `handle_global_command` (`::v`), `handle_variable_command` (`<current-ns>::v`), and `handle_namespace_upvar_command` (`<ns>::otherVar`); the same union helper links every alias of a cell — across procs, plus the namespace-level declaration — into one variable. Survives the incremental graft (`merge_one_var` keeps the link). Verified: `variable count` across procs + the namespace-level decl unify; `global g` across procs unify; **FP guard** — `variable count` in `::a` vs `::b` stay distinct; unit + e2e + rename.
-- [x] **`upvar` + non-`#0` `uplevel` abstention:** `upvar ?level? otherVar local` already abstains (`handle_upvar_command` defines the local alias with **no** `link_target` — the caller frame is unknown, so it never mis-links). Fixed the non-`#0` `uplevel N { … }` mis-attribution: every single-braced-body `uplevel` now opens an isolated `Uplevel` child scope tagged with the level word, and `uplevel_hides_scope` resolves `#0` outward to the global frame but a non-`#0` level **only within the body** (abstaining on the enclosing proc *and* the global). Tests: compiler scope isolation, lsp-core reference abstention + body-local resolution, e2e completion abstention.
+  - **Review fix (PR #933):** the `variable` and `namespace upvar` target builders kept only the tail after the last `::`, so a *qualified* name aliased the wrong cell — a relative `variable child::v` targeted `<ns>::v` (not `<ns>::child::v`) and `namespace upvar ::a b::c local` targeted `::a::c` (not `::a::b::c`), unifying with the wrong namespace variable. Both now keep the full qualified path (mirroring the `global` handler, which was already correct), and `variable` keys the local link on the unqualified tail so a later `$v` shares it. The simple-name common case is unchanged.
+- [x] **`upvar` + non-`#0` `uplevel` abstention:** `upvar ?level? otherVar local` already abstains (`handle_upvar_command` defines the local alias with **no** `link_target` — the caller frame is unknown, so it never mis-links). Fixed the non-`#0` `uplevel N { … }` mis-attribution: every single-braced-body `uplevel` now opens an isolated `Uplevel` child scope tagged with the level word, and `uplevel_hides_scope` resolves `#0` outward to the global frame but a non-`#0` level **only within the body** (abstaining on the enclosing proc *and* the global). Tests: compiler scope isolation, lsp-core reference abstention + body-local resolution.
+  - **Review fix (PR #933):** the same `uplevel_hides_scope` walk backed *completion*'s `visible_variable_names`, so the non-`#0` abstention wrongly *blanked* the enclosing proc's locals from the `$var` completion list too (the `uplevel 1: best-effort … leaves caller proc's locals in scope` e2e test). Resolution must be sound (abstain), but completion is advisory, so `uplevel_hides_scope` gained a `best_effort` flag: resolution passes `false` (abstain), completion passes `true` (keep the enclosing proc's locals offered). The `#0` case — drop proc-locals, keep globals + body locals — is shared. Test: `completion_uplevel_one_offers_enclosing_proc_local`.
 
 **Stage 2.3 — hygiene** ✅ **DONE**
 - [x] **`$`-prefix-exclusion gap:** the `variable` / `global` / `upvar` / `namespace upvar` declaration handlers recorded a *dynamic* name (`variable $dyn` → a phantom variable `dyn`). Gated each on `naming::is_dynamic_word` (the shared `$`/`[` test `rename`/`proc` use), so a computed name is skipped rather than recorded — matching `set`'s existing behaviour. (The plan's `var_scoping.rs` reference predates a reorg; the fix lands directly in the handlers.)
@@ -316,7 +345,7 @@ C-source trace finding (D11) with the dynamic-surface introspection/ensemble
 findings.
 
 **Stage 14.1 — the role** ✅ **DONE** — added `ArgRole::CommandName` (the whole word is a bare command name held as data, introspected not invoked — distinct from `CommandPrefix`, which appends args and carries a callback arity).  The analyser's `record_command_name_invocations` records each such literal argument as a `command_invocation` (`argc`/`callback_arity` both `None` — a reference with no arity to check), so find-references / go-to-definition / rename / call-hierarchy reach the named command through the ordinary invocation machinery.  A dynamic word (`info body $p`) is skipped.
-**Stage 14.2 — apply it** ◐ **MOSTLY DONE** — applied `CommandName` to `info args` / `info body` / `info default PROC` (proc introspected by name), `namespace origin NAME` (command resolved by name), and `trace add`/`trace remove` `command`/`execution NAME` (the traced command — via `trace_add_arg_roles`'s existing per-type resolver, leaving the trailing callback its separate `CommandPrefix`).  Tests: `references_proc_named_in_info_body_include_the_introspection_site`, `references_proc_named_in_trace_add_execution_include_the_trace_site`, `arg_indices_for_role_trace_add_command_name_reference`.  `namespace which ?-command? NAME` now carries a flag-conditional `arg_role_resolver` — the `name` is a `CommandName` in the default / `-command` form and a `VarRead` under `-variable`.  Test: `references_proc_named_in_namespace_which_command`.  The `coroutine NAME` created command is already handled by `defines_command_at`.
+**Stage 14.2 — apply it** ◐ **MOSTLY DONE** — applied `CommandName` to `info args` / `info body` / `info default PROC` (proc introspected by name), `namespace origin NAME` (command resolved by name), and `trace add`/`trace remove` `command`/`execution NAME` (the traced command — via `trace_add_arg_roles`'s existing per-type resolver, leaving the trailing callback its separate `CommandPrefix`).  Tests: `references_proc_named_in_info_body_include_the_introspection_site`, `references_proc_named_in_trace_add_execution_include_the_trace_site`, `arg_indices_for_role_trace_add_command_name_reference`.  `namespace which ?-command? NAME` carries a flag-conditional `arg_role_resolver`, but only the `-variable` form's `VarRead` is applied: an initial `CommandName` on the `-command` form was **reverted** in review — `namespace which` is an existence *probe* (returns `""` for an unknown command), so feeding the name into the W123 unresolved-command pass wrongly flagged a legitimate `[namespace which -command foo] eq ""` check.  Navigating a *probed command* needs a reference role that records the link without asserting existence, which the model does not have yet, so the `-command` form contributes no role.  Tests: `namespace_which_command_probe_does_not_flag_unknown`, `namespace_which_command_probe_is_not_a_reference`.  The `coroutine NAME` created command is already handled by `defines_command_at`.
 **Stage 14.3 — ensembles** ✅ **DONE** — `handle_namespace_ensemble` now parses `namespace ensemble create -map {sub target …}` (each odd *target* element is a command reference, resolved in the ensemble's namespace) and `-subcommands {a b …}` (each name maps to the command `<ns>::a`), recording both as command references so navigation reaches the implementing procs.  Element spans are located inside the list-word token via a shared `list_word_elements` helper; a dynamic element is skipped.  The four command-reference recorders (`forward` target, expr math function, `CommandName` argument, ensemble target) now share one `push_command_reference` sink.  Test: `namespace_ensemble_map_and_subcommands_record_command_references`. **Depends on:** M3.
 
 ---
