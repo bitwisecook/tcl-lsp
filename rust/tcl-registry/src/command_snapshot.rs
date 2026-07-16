@@ -100,28 +100,13 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("wasm_emits_nothing", Traits::WASM_EMITS_NOTHING),
 ];
 
-/// Every dialect bit paired with its canonical name string (the
-/// dialect identifiers). Used to serialise `CommandSpec.dialects`.
-const DIALECT_NAMES: &[(DialectSet, &str)] = &[
-    (DialectSet::CADENCE, "cadence-eda-tcl"),
-    (DialectSet::EXPECT, "expect"),
-    (DialectSet::IAPPS, "f5-iapps"),
-    (DialectSet::IRULES, "f5-irules"),
-    (DialectSet::QUARTUS, "intel-quartus-eda-tcl"),
-    (DialectSet::MENTOR, "mentor-eda-tcl"),
-    (DialectSet::SYNOPSYS, "synopsys-eda-tcl"),
-    (DialectSet::TCL84, "tcl8.4"),
-    (DialectSet::TCL85, "tcl8.5"),
-    (DialectSet::TCL86, "tcl8.6"),
-    (DialectSet::TCL90, "tcl9.0"),
-    // `tcl9.1` and `bpf` were missing, so a `TCL90_PLUS` spec dropped its 9.1
-    // membership and a BPF-only spec serialised `"dialects": []`
-    // (indistinguishable from "available nowhere") — RUST_ISSUE_082.
-    (DialectSet::TCL91, "tcl9.1"),
-    (DialectSet::BPF, "bpf"),
-    (DialectSet::TK, "tk"),
-    (DialectSet::XILINX, "xilinx-eda-tcl"),
-];
+// `CommandSpec.dialects` serialisation derives from
+// `DialectSet::member_names` — the same canonical-name table `parse`
+// inverts — rather than a parallel hand-list. A hand-list here missed
+// `tcl9.1`/`bpf` once (RUST_ISSUE_082: a `TCL90_PLUS` spec dropped its 9.1
+// membership and a BPF-only spec serialised `[]`, indistinguishable from
+// "available nowhere") and the Milestone 6 `TMSH`/`BIGIP` bits a second
+// time, so new primitive bits can never be forgotten again.
 
 /// Serialise an [`Arity`] as `{"min", "max"}` (`max` null = unbounded).
 fn arity_json(arity: Arity) -> Json {
@@ -139,16 +124,13 @@ fn arity_json(arity: Arity) -> Json {
 }
 
 /// The spec's dialect set: `null` for "all dialects", else the sorted
-/// list of dialect-name strings.
+/// list of canonical dialect-name strings (every primitive bit the set
+/// carries, via `DialectSet::member_names`).
 fn dialects_json(dialects: Option<DialectSet>) -> Json {
     match dialects {
         None => Json::Null,
         Some(set) => {
-            let mut names: Vec<&str> = DIALECT_NAMES
-                .iter()
-                .filter(|(bit, _)| set.contains(*bit))
-                .map(|(_, name)| *name)
-                .collect();
+            let mut names = set.member_names();
             names.sort_unstable();
             Json::Array(names.into_iter().map(Json::s).collect())
         }
