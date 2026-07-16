@@ -42,6 +42,15 @@ class that only exists on 9.0 — using them below those releases draws
 W138/W137 naming the dialect's effective Tcl version, which a
 `package require Tcl` line can raise above the ambient dialect.
 
+The F5 data is declared against a **BIG-IP 15.0 baseline with an open
+maximum**: an F5 command, iRules event, LTM profile type, or config-schema
+entry with no explicit introduction release is asserted present since
+15.0 and not yet removed. Explicit knowledge (`HTTP2::header` →
+16.1.0) overrides the baseline, and targets below it flag the whole
+declared surface — the honest reading of "we model 15.0+". The target
+release comes from `tclLsp.bigipVersion`, `--bigip-version` on the CLI
+verbs, or the oldest-supported default.
+
 A third axis covers **library versions**: the F5 surfaces are keyed on
 the BIG-IP (TMOS) release, defaulting to the oldest supported version —
 the conservative choice, so a command introduced in a later TMOS (for

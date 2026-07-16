@@ -454,7 +454,7 @@ fn http_header_legal_in_http_request() {
     let (reg, _) = reg_and_set("f5-irules");
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
-    let valid = reg.valid_irules_commands_for_event("HTTP_REQUEST", &events, &profiles);
+    let valid = reg.valid_irules_commands_for_event("HTTP_REQUEST", &events, &profiles, None);
     assert!(valid.contains(&"HTTP::header"));
     assert!(reg.is_irules_command_legal_in_event(
         "HTTP::header",
@@ -474,7 +474,7 @@ fn http_header_not_legal_in_rule_init() {
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
     assert!(!reg.is_irules_command_legal_in_event("HTTP::header", "RULE_INIT", &events, &profiles));
-    let valid = reg.valid_irules_commands_for_event("RULE_INIT", &events, &profiles);
+    let valid = reg.valid_irules_commands_for_event("RULE_INIT", &events, &profiles, None);
     assert!(!valid.contains(&"HTTP::header"));
 }
 
@@ -495,7 +495,7 @@ fn unknown_event_is_illegal_for_all() {
         &profiles
     ));
     assert!(
-        reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles)
+        reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
             .is_empty()
     );
 }
@@ -539,7 +539,7 @@ fn legality_matches_valid_command_listing() {
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
     for event in events.all_event_names() {
-        let listed = reg.valid_irules_commands_for_event(event, &events, &profiles);
+        let listed = reg.valid_irules_commands_for_event(event, &events, &profiles, None);
         // Spot-check a handful per event rather than the full cross-product
         // (the full product is large; the invariant is per-command).
         for cmd in listed.iter().take(20) {
@@ -592,7 +592,7 @@ fn event_info_for_known_events() {
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
 
-    let http = reg.event_info("http_request", &events, &profiles);
+    let http = reg.event_info("http_request", &events, &profiles, None);
     assert_eq!(http.event, "HTTP_REQUEST", "name is upper-cased");
     assert!(http.known);
     assert!(http.valid_command_count() >= 1);
@@ -608,7 +608,7 @@ fn event_info_for_known_events() {
         http.side
     );
 
-    let ca = reg.event_info("client_accepted", &events, &profiles);
+    let ca = reg.event_info("client_accepted", &events, &profiles, None);
     assert_eq!(ca.transport.as_deref(), Some("tcp/udp"));
 }
 
@@ -621,7 +621,7 @@ fn event_info_for_unknown_event() {
     let (reg, _) = reg_and_set("f5-irules");
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
-    let info = reg.event_info("totally_fake_event", &events, &profiles);
+    let info = reg.event_info("totally_fake_event", &events, &profiles, None);
     assert_eq!(info.event, "TOTALLY_FAKE_EVENT");
     assert!(!info.known);
     assert!(info.valid_commands.is_empty());

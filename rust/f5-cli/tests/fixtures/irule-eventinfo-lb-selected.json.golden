@@ -7,6 +7,8 @@
   "side": "client-side and server-side",
   "transport": "tcp/udp",
   "impliedProfiles": [],
+  "bigipMinVersion": "15.0.0",
+  "bigipMaxVersion": null,
   "validCommandCount": 788,
   "validCommands": [
     "AAA::acct_result",

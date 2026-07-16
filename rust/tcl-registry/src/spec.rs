@@ -583,6 +583,11 @@ pub struct CommandSpec {
     /// the owning package. Gated against the version resolved from
     /// `package require` via [`CommandSpec::available_for_version`].
     pub min_version: Option<&'static str>,
+    /// The last package version that still provides this command, or
+    /// `None` while it remains present (the open maximum — nothing
+    /// modelled is removed yet). Checked alongside `min_version` by
+    /// [`CommandSpec::available_for_version`].
+    pub max_version: Option<&'static str>,
 
     /// Whether W120 (missing-import) fires when this package-gated
     /// command is used without a `package require`. Default `true`; set
@@ -763,6 +768,7 @@ impl CommandSpec {
         format_string_type: None,
         tcllib_package: None,
         min_version: None,
+        max_version: None,
         warn_missing_import: true,
         is_namespace_exported: false,
         xc_translatable: None,
@@ -1049,6 +1055,11 @@ impl CommandSpec {
     /// available.
     #[must_use]
     pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        if let (Some(max), Some(version)) = (self.max_version, package_version)
+            && crate::version::compare(version, max).is_gt()
+        {
+            return false;
+        }
         match (self.min_version, package_version) {
             (Some(min), Some(have)) => crate::version::meets_min(have, min),
             _ => true,

@@ -805,7 +805,7 @@ fn sweep_event_command_legality_consistent() {
     );
 
     for event in &all_events {
-        let listed = reg.valid_irules_commands_for_event(event, &events, &profiles);
+        let listed = reg.valid_irules_commands_for_event(event, &events, &profiles, None);
         // Listing is sorted + unique (the accessor sorts).
         let mut sorted = listed.clone();
         sorted.sort_unstable();
@@ -822,7 +822,7 @@ fn sweep_event_command_legality_consistent() {
         }
 
         // event_info agrees with the listing on known-ness and count.
-        let info = reg.event_info(event, &events, &profiles);
+        let info = reg.event_info(event, &events, &profiles, None);
         assert!(info.known, "{event}: listed event reports known=false");
         assert_eq!(
             info.event,
@@ -865,10 +865,10 @@ fn sweep_event_command_legality_consistent() {
 
     // An unknown event is illegal for everything and yields an empty listing.
     assert!(
-        reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles)
+        reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles, None)
             .is_empty()
     );
-    let unknown = reg.event_info("__fake__", &events, &profiles);
+    let unknown = reg.event_info("__fake__", &events, &profiles, None);
     assert!(!unknown.known);
     assert_eq!(unknown.side, "unknown");
 }

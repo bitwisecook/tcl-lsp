@@ -421,6 +421,7 @@ diagnostic_codes! {
     W136 => "W136", diag(Warning, true, "Option requires a newer package version than the resolved `package require`.");
     W137 => "W137", diag(Warning, true, "Argument value requires a newer Tcl version than the dialect provides.");
     W138 => "W138", diag(Warning, true, "Format/scan conversion requires a newer Tcl version than the dialect provides.");
+    W139 => "W139", diag(Warning, true, "Command/option removed at the resolved package version (present only in earlier releases).");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");

@@ -41,6 +41,7 @@
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
+use tcl_registry::ProfileQueries as _;
 
 use super::super::state::Analyser;
 use super::super::types::{Diagnostic, Severity};
@@ -55,10 +56,23 @@ pub(in crate::analyser) struct VersionGateSite {
     ///
     /// [`owning_package`]: tcl_registry::CommandSpec::owning_package
     package: &'static str,
-    /// The minimum package version the command/option needs.
+    /// The bounding package version (introducing release for
+    /// [`VersionBound::Introduced`], last-providing release for
+    /// [`VersionBound::Removed`]).
     min_version: &'static str,
+    /// Which bound this site checks.
+    bound: VersionBound,
     /// What is gated — a command, or an option on one.
     item: VersionGateItem,
+}
+
+/// Which side of the declared version range a site checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VersionBound {
+    /// The floor must reach the introducing release (W135/W136).
+    Introduced,
+    /// The floor must not exceed the last providing release (W139).
+    Removed,
 }
 
 /// Payload distinguishing a gated command (W135) from a gated option (W136).
@@ -92,16 +106,36 @@ impl Analyser {
         let Some(spec) = registry.get(cmd_name) else {
             return;
         };
-        let Some(pkg) = spec.owning_package() else {
+        // Command-level gate. On a keyed ambient axis (the F5 surfaces)
+        // the effective range applies — an explicit introduction release,
+        // or the declared 15.0 baseline, plus any removal release (W139) —
+        // and a vendor-own spec needs no `required_package` to sit on the
+        // axis (its pin resolves through the profile's vendor bit).
+        let keyed = self.profile.keyed_version_range(spec);
+        let Some(pkg) = self
+            .profile
+            .keyed_pin_for(spec)
+            .map(|pin| pin.package)
+            .or_else(|| spec.owning_package())
+        else {
             return;
         };
-
-        // Command-level gate.
-        if let Some(min) = spec.min_version {
+        let effective_min = keyed.map_or(spec.min_version, |(min, _)| min);
+        if let Some(min) = effective_min {
             self.version_gate_sites.push(VersionGateSite {
                 span: cmd_tok.span,
                 package: pkg,
                 min_version: min,
+                bound: VersionBound::Introduced,
+                item: VersionGateItem::Command(cmd_name.to_owned()),
+            });
+        }
+        if let Some(max) = keyed.and_then(|(_, max)| max).or(spec.max_version) {
+            self.version_gate_sites.push(VersionGateSite {
+                span: cmd_tok.span,
+                package: pkg,
+                min_version: max,
+                bound: VersionBound::Removed,
                 item: VersionGateItem::Command(cmd_name.to_owned()),
             });
         }
@@ -153,6 +187,7 @@ impl Analyser {
                         span: arg_tokens[i].span,
                         package: pkg,
                         min_version: min,
+                        bound: VersionBound::Introduced,
                         item: VersionGateItem::Option {
                             command: cmd_name.to_owned(),
                             option: arg.to_owned(),
@@ -188,7 +223,15 @@ impl Analyser {
             let Some((floor, source)) = self.package_version_floor(site.package) else {
                 continue;
             };
-            if tcl_registry::version::meets_min(&floor, site.min_version) {
+            let violated = match site.bound {
+                VersionBound::Introduced => {
+                    !tcl_registry::version::meets_min(&floor, site.min_version)
+                }
+                VersionBound::Removed => {
+                    tcl_registry::version::compare(&floor, site.min_version).is_gt()
+                }
+            };
+            if !violated {
                 continue;
             }
             let guarantee = match source {
@@ -197,18 +240,33 @@ impl Analyser {
                     format!("{} ships {} {floor}", self.profile.name, site.package)
                 }
             };
-            let (code, message) = match &site.item {
-                VersionGateItem::Command(cmd) => (
+            let (code, message) = match (&site.item, site.bound) {
+                (VersionGateItem::Command(cmd), VersionBound::Introduced) => (
                     DiagCode::W135,
                     format!(
                         "'{cmd}' requires {} {} but {guarantee}.",
                         site.package, site.min_version
                     ),
                 ),
-                VersionGateItem::Option { command, option } => (
+                (VersionGateItem::Command(cmd), VersionBound::Removed) => (
+                    DiagCode::W139,
+                    format!(
+                        "'{cmd}' was removed after {} {} but {guarantee}.",
+                        site.package, site.min_version
+                    ),
+                ),
+                (VersionGateItem::Option { command, option }, VersionBound::Introduced) => (
                     DiagCode::W136,
                     format!(
                         "Option '{option}' on '{command}' requires {} {} but {guarantee}.",
+                        site.package, site.min_version
+                    ),
+                ),
+                (VersionGateItem::Option { command, option }, VersionBound::Removed) => (
+                    DiagCode::W139,
+                    format!(
+                        "Option '{option}' on '{command}' was removed after {} {} but \
+                         {guarantee}.",
                         site.package, site.min_version
                     ),
                 ),
@@ -666,6 +724,88 @@ mod tests {
                 "{d}: binary u modifier is real on 8.5+"
             );
         }
+    }
+
+    #[test]
+    fn baseline_floor_declares_the_f5_surface_15_0_plus() {
+        // M9: F5 specs with no explicit introduction inherit the declared
+        // 15.0 baseline. TN at the 16.1 default and any 15.0+ pin…
+        let src = "when HTTP_REQUEST {\n  pool p\n  HTTP::uri\n}\n";
+        for pin in [None, Some("15.0.0"), Some("17.1.0")] {
+            let mut a = Analyser::new();
+            a.library_versions.bigip_version = pin.map(str::to_owned);
+            let w135: Vec<String> = a
+                .analyse(src, "f5-irules")
+                .diagnostics
+                .iter()
+                .filter(|d| d.code.as_str() == "W135")
+                .map(|d| d.message.clone())
+                .collect();
+            assert!(
+                w135.is_empty(),
+                "pin {pin:?}: baseline is met, got {w135:?}"
+            );
+        }
+        // …TP below the baseline: the whole modelled surface is declared
+        // 15.0+, so a 14.x target flags it.
+        let mut a = Analyser::new();
+        a.library_versions.bigip_version = Some("14.1.0".to_owned());
+        let diags = a.analyse(src, "f5-irules").diagnostics;
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "W135" && d.message.contains("15.0.0")),
+            "a pre-baseline pin flags the declared floor: {:?}",
+            diags
+                .iter()
+                .filter(|d| d.code.as_str() == "W135")
+                .map(|d| &d.message)
+                .collect::<Vec<_>>()
+        );
+        // Explicit data still wins over the baseline: HTTP2::header is
+        // 16.1.0-introduced, so a 15.1 pin flags it while `pool` is fine.
+        let mut a = Analyser::new();
+        a.library_versions.bigip_version = Some("15.1.0".to_owned());
+        let diags = a
+            .analyse(
+                "when HTTP_REQUEST {\n  HTTP2::header :path\n}\n",
+                "f5-irules",
+            )
+            .diagnostics;
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "W135" && d.message.contains("16.1.0")),
+            "explicit introduction data outranks the baseline"
+        );
+    }
+
+    #[test]
+    fn event_version_clause_follows_the_declared_range() {
+        // Known event at the default target: clean (baseline 15.0 ≤ 16.1).
+        let mut a = Analyser::new();
+        let diags = a
+            .analyse("when HTTP_REQUEST {\n}\n", "f5-irules")
+            .diagnostics;
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "IRULE1002" && d.message.contains("target release")),
+            "events at the default target stay clean"
+        );
+        // Pinned below the baseline: the event's declared range excludes it.
+        let mut a = Analyser::new();
+        a.library_versions.bigip_version = Some("14.1.0".to_owned());
+        let diags = a
+            .analyse("when HTTP_REQUEST {\n}\n", "f5-irules")
+            .diagnostics;
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "IRULE1002" && d.message.contains("15.0.0")),
+            "a pre-baseline target flags the event's declared range: {:?}",
+            diags.iter().map(|d| d.code.as_str()).collect::<Vec<_>>()
+        );
     }
 
     #[test]

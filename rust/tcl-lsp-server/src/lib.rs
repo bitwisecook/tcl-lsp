@@ -1834,6 +1834,9 @@ pub struct Backend {
     /// known by the unknown-command (W123) check; mirrored onto the salsa
     /// `AnalyserConfig`.
     extra_commands: Mutex<Vec<String>>,
+    /// `tclLsp.bigipVersion` — the session's target BIG-IP release for the
+    /// keyed library-version axis (`None` = the oldest-supported default).
+    bigip_version: Mutex<Option<String>>,
     /// Generic `static::` variable-name patterns for IRULE4002
     /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` keeps the built-in
     /// default set; `Some(list)` replaces it (an empty list disables the check).
@@ -2270,6 +2273,7 @@ impl Backend {
             NonAsciiMode::Default,
             Vec::new(),
             None,
+            None,
         );
         Self {
             client,
@@ -2287,6 +2291,7 @@ impl Backend {
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
+            bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
@@ -2489,6 +2494,8 @@ impl Backend {
         config.set_non_ascii_mode(&mut *db).to(mode);
         config.set_extra_commands(&mut *db).to(extra);
         config.set_generic_variable_patterns(&mut *db).to(generic);
+        let bigip = self.bigip_version.lock().await.clone();
+        config.set_bigip_version(&mut *db).to(bigip);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -4723,7 +4730,7 @@ impl Backend {
             let profiles = tcl_registry::profiles::ProfileRegistry::build();
             // Every f5-irules command valid
             // in the event, not just those that carry `event_requires`.
-            let names = registry.valid_irules_commands_for_event(&event, &events, &profiles);
+            let names = registry.valid_irules_commands_for_event(&event, &events, &profiles, None);
             let count = names.len();
             let sample: Vec<String> = names.into_iter().take(80).map(str::to_owned).collect();
             (count, sample)
@@ -5285,6 +5292,13 @@ impl Backend {
                 .collect();
             *self.extra_commands.lock().await = extra;
         }
+        // `tclLsp.bigipVersion` — the target BIG-IP release for the keyed
+        // library-version axis (an empty string clears the pin back to the
+        // oldest-supported default).
+        if let Some(version) = cfg.get("bigipVersion").and_then(serde_json::Value::as_str) {
+            let version = version.trim();
+            *self.bigip_version.lock().await = (!version.is_empty()).then(|| version.to_owned());
+        }
         // `tclLsp.diagnostics.genericVariablePatterns` — replaces the built-in
         // IRULE4002 generic-name set (an explicit empty list disables the
         // check; an absent key leaves the default).
@@ -5370,7 +5384,7 @@ impl Backend {
                     next.push((folder.clone(), *handle));
                 } else {
                     let handle =
-                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic);
+                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic, None);
                     next.push((folder.clone(), handle));
                 }
             }
@@ -14403,6 +14417,7 @@ mod tests {
             NonAsciiMode::Default,
             Vec::new(),
             None,
+            None,
         );
         Backend {
             client: service.inner().client.clone(),
@@ -14420,6 +14435,7 @@ mod tests {
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
+            bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),

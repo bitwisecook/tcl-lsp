@@ -250,6 +250,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W139",
+    section: "warning",
+    description:
+      "Command/option removed at the resolved package version (present only in earlier releases).",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

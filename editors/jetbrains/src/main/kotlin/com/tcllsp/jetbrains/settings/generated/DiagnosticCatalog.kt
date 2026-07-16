@@ -70,6 +70,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W136", "warning", "W136: Option requires a newer package version than the res...", true),
         DiagnosticDef("W137", "warning", "W137: Argument value requires a newer Tcl version than the...", true),
         DiagnosticDef("W138", "warning", "W138: Format/scan conversion requires a newer Tcl version ...", true),
+        DiagnosticDef("W139", "warning", "W139: Command/option removed at the resolved package versi...", true),
         DiagnosticDef("W200", "warning", "W200: exec result not captured or binary format modifier r...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),

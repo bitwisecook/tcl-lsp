@@ -75,7 +75,7 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
-use tcl_registry::CommandRegistry;
+use tcl_registry::{CommandRegistry, ProfileQueries};
 
 use crate::definition::utf16_col_to_char_col;
 
@@ -1363,7 +1363,6 @@ fn switch_completions(
     edit: (u32, u32),
     package_version: Option<&str>,
 ) -> Vec<CompletionItem> {
-    use tcl_registry::ProfileQueries;
     let mut opts: Vec<_> = options
         .iter()
         .filter(|opt| {
@@ -1464,7 +1463,6 @@ fn subcommand_completions(
     profile: &'static tcl_dialect::DialectProfile,
     partial: &str,
 ) -> Vec<CompletionItem> {
-    use tcl_registry::ProfileQueries;
     // Only subcommands available under the active profile are offered —
     // the §5.1 `available_subcommands` gap: `dict getwithdefault` (9.0+)
     // must not be offered in an 8.6 buffer, and an iRules-only subcommand
@@ -1714,10 +1712,7 @@ fn builtin_completions(
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
         .filter(|n| !SKIP_BUILTIN_NAMES.iter().any(|skip| skip == n))
-        .filter(|n| {
-            use tcl_registry::ProfileQueries;
-            profile.resolve_command(registry, n).is_some()
-        })
+        .filter(|n| profile.resolve_command(registry, n).is_some())
         // Tk commands (`required_package == "Tk"`) are only offered once Tk
         // is loaded — see the `tk_loaded` computation in `completions` — and
         // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
@@ -1737,7 +1732,16 @@ fn builtin_completions(
         // required at all, yields no floor and stays permissive.
         .filter(|n| {
             registry.get(n).is_none_or(|spec| {
-                spec.available_for_version(package_version_floor(analysis, spec, profile))
+                let floor = package_version_floor(analysis, spec, profile);
+                // On a keyed ambient axis (the F5 surfaces) the declared
+                // range applies: explicit introduction or the 15.0
+                // baseline, plus any removal release.
+                match (profile.keyed_version_range(spec), floor) {
+                    (Some((min, max)), Some(floor)) => {
+                        tcl_registry::version::within_range(floor, min, max)
+                    }
+                    _ => spec.available_for_version(floor),
+                }
             })
         })
         .collect();

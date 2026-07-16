@@ -70,6 +70,25 @@ impl VersionKey {
             Self::ToolVersion | Self::SdcVersion => None,
         }
     }
+
+    /// The **declared baseline** of the modelled data on this axis: an
+    /// item (command, event, LTM profile type, config-schema entry) that
+    /// carries no explicit `min_version` is asserted present since this
+    /// release — and no later than "still present" (open maximum). The
+    /// modelled F5 surfaces are declared against BIG-IP 15.0: pinning an
+    /// older release means every baseline item reports as too new, which
+    /// is the honest reading of "we only model 15.0+".
+    ///
+    /// Distinct from [`Self::default_version`] (the D5 oldest-supported
+    /// *query* default): the baseline is about what the DATA claims, the
+    /// default about what the USER targets when they pin nothing.
+    #[must_use]
+    pub const fn baseline_version(self) -> Option<&'static str> {
+        match self {
+            Self::BigipVersion => Some("15.0.0"),
+            Self::ToolVersion | Self::SdcVersion => None,
+        }
+    }
 }
 
 /// How a profile pins one shipped library's version (§7 "Libraries"

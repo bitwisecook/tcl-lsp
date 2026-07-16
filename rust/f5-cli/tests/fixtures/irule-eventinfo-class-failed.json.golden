@@ -9,6 +9,8 @@
   "impliedProfiles": [
     "HTTP"
   ],
+  "bigipMinVersion": "15.0.0",
+  "bigipMaxVersion": null,
   "validCommandCount": 855,
   "validCommands": [
     "AAA::acct_result",

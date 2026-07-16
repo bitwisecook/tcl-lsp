@@ -50,6 +50,13 @@ const FRAME_SENSITIVE_TRAITS: Traits = Traits::TERMINATES_BLOCK
 pub struct EventInfo {
     /// The upper-cased event name as queried.
     pub event: String,
+    /// The BIG-IP release this event is declared present from — explicit
+    /// data, or the axis baseline (15.0.0) for a known event with none.
+    /// `None` only for unknown events.
+    pub bigip_min_version: Option<&'static str>,
+    /// The last BIG-IP release providing this event; `None` = still
+    /// present (the open maximum).
+    pub bigip_max_version: Option<&'static str>,
     /// Whether the event is a recognised iRules event.
     pub known: bool,
     /// Whether the event is deprecated (always `false`; see
@@ -670,9 +677,23 @@ impl CommandRegistry {
         event: &str,
         events: &crate::events::EventRegistry,
         profiles: &crate::profiles::ProfileRegistry,
+        bigip_version: Option<&str>,
     ) -> Vec<&'a str> {
         let Some(props) = events.get_props(event) else {
             return Vec::new();
+        };
+        // The declared version range for an F5-surface spec: explicit
+        // introduction/removal data, or the axis baseline (15.0) for a
+        // spec with none. `bigip_version: None` keeps the pre-version
+        // behaviour (no filtering) so digest-stable callers opt in.
+        let version_ok = |spec: &CommandSpec| {
+            let Some(version) = bigip_version else {
+                return true;
+            };
+            let min = spec
+                .min_version
+                .or(tcl_dialect::VersionKey::BigipVersion.baseline_version());
+            crate::version::within_range(version, min, spec.max_version)
         };
         let mut names: Vec<&str> = self
             .by_name
@@ -681,6 +702,9 @@ impl CommandRegistry {
                 // Best spec for the dialect — the §5.3 most-specific rule,
                 // matching `get_for_dialect`.
                 let spec = self.best_visible(specs, DialectSet::IRULES)?;
+                if !version_ok(spec) {
+                    return None;
+                }
                 if spec.excluded_events.contains(&event) {
                     return None;
                 }
@@ -762,11 +786,16 @@ impl CommandRegistry {
         event: &str,
         events: &crate::events::EventRegistry,
         profiles: &crate::profiles::ProfileRegistry,
+        bigip_version: Option<&str>,
     ) -> EventInfo {
         let name = event.trim().to_uppercase();
-        let known = !name.is_empty() && events.is_known(&name);
+        let target = bigip_version
+            .or(tcl_dialect::VersionKey::BigipVersion.default_version())
+            .unwrap_or("16.1.0");
+        let known =
+            !name.is_empty() && events.is_known(&name) && events.event_available_at(&name, target);
         let valid_commands: Vec<String> = if known {
-            self.valid_irules_commands_for_event(&name, events, profiles)
+            self.valid_irules_commands_for_event(&name, events, profiles, Some(target))
                 .into_iter()
                 .map(ToOwned::to_owned)
                 .collect()
@@ -774,7 +803,12 @@ impl CommandRegistry {
             Vec::new()
         };
         let props = events.get_props(&name);
+        let (bigip_min_version, bigip_max_version) = events
+            .event_version_range(&name)
+            .map_or((None, None), |(min, max)| (min, max));
         EventInfo {
+            bigip_min_version,
+            bigip_max_version,
             known,
             deprecated: false,
             multiplicity: events.multiplicity(&name),

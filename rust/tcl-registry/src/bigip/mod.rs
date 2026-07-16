@@ -445,6 +445,53 @@ pub fn default_registry() -> &'static BigipRegistry {
     REGISTRY.get_or_init(BigipRegistry::build)
 }
 
+/// Sparse explicit BIG-IP version knowledge for the config schema — the
+/// enrichment point for `(kind, property)` version ranges. The schema's
+/// ~13k spec literals are declared against the BIG-IP 15.0 axis baseline
+/// (`VersionKey::BigipVersion.baseline_version()`), so only entries whose
+/// introduction/removal release is explicitly known appear here; a
+/// property key of `""` records the object kind itself. Query through
+/// [`BigipRegistry::object_version_range`] /
+/// [`BigipRegistry::property_version_range`], never by reading this table
+/// directly.
+const BIGIP_SCHEMA_VERSIONS: &[(&str, &str, Option<&str>, Option<&str>)] = &[];
+
+impl BigipRegistry {
+    /// The declared BIG-IP version range of object `kind`: explicit
+    /// knowledge from the sparse overlay, else the 15.0 axis baseline
+    /// with an open maximum.
+    #[must_use]
+    pub fn object_version_range(kind: &str) -> (Option<&'static str>, Option<&'static str>) {
+        Self::schema_version_range(kind, "")
+    }
+
+    /// The declared BIG-IP version range of `property` on object `kind`
+    /// (baseline semantics as [`Self::object_version_range`]).
+    #[must_use]
+    pub fn property_version_range(
+        kind: &str,
+        property: &str,
+    ) -> (Option<&'static str>, Option<&'static str>) {
+        Self::schema_version_range(kind, property)
+    }
+
+    fn schema_version_range(
+        kind: &str,
+        property: &str,
+    ) -> (Option<&'static str>, Option<&'static str>) {
+        BIGIP_SCHEMA_VERSIONS
+            .iter()
+            .find(|(k, p, _, _)| *k == kind && *p == property)
+            .map_or(
+                (
+                    tcl_dialect::VersionKey::BigipVersion.baseline_version(),
+                    None,
+                ),
+                |&(_, _, min, max)| (min, max),
+            )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

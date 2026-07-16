@@ -38,6 +38,27 @@ pub struct ProfileSpec {
     pub conflicts: &'static [&'static str],
     /// Profile capabilities (e.g. `"sni"`, `"cipher"`, `"cert"`).
     pub capabilities: &'static [&'static str],
+    /// The BIG-IP release that introduced this profile type, when
+    /// explicitly known; `None` inherits the axis baseline (BIG-IP 15.0).
+    pub bigip_min_version: Option<&'static str>,
+    /// The last BIG-IP release providing it; `None` = still present.
+    pub bigip_max_version: Option<&'static str>,
+}
+
+impl ProfileSpec {
+    /// Base for the table literals: no explicit version knowledge, so
+    /// both bounds inherit the axis baseline. Identity fields are
+    /// placeholders — every literal overrides them.
+    const DEFAULT: Self = Self {
+        name: "",
+        layer: "",
+        side: "",
+        requires: &[],
+        conflicts: &[],
+        capabilities: &[],
+        bigip_min_version: None,
+        bigip_max_version: None,
+    };
 }
 
 /// iRules protocol command namespace availability.
@@ -76,6 +97,29 @@ pub struct ProfileRegistry {
 }
 
 impl ProfileRegistry {
+    /// The BIG-IP version range of profile type `name` (explicit data,
+    /// absent minimum inheriting the BIG-IP 15.0 baseline). `None` for an
+    /// unknown profile type.
+    #[must_use]
+    pub fn profile_version_range(
+        &self,
+        name: &str,
+    ) -> Option<(Option<&'static str>, Option<&'static str>)> {
+        let spec = self.get_profile(name)?;
+        let min = spec
+            .bigip_min_version
+            .or(tcl_dialect::VersionKey::BigipVersion.baseline_version());
+        Some((min, spec.bigip_max_version))
+    }
+
+    /// Whether profile type `name` exists at BIG-IP `version` per the
+    /// declared data (baseline semantics).
+    #[must_use]
+    pub fn profile_available_at(&self, name: &str, version: &str) -> bool {
+        self.profile_version_range(name)
+            .is_some_and(|(min, max)| crate::version::within_range(version, min, max))
+    }
+
     /// Build the profile registry from static data.
     #[must_use]
     pub fn build() -> Self {
@@ -352,6 +396,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "ANTIFRAUD",
@@ -360,6 +405,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "ASM",
@@ -368,6 +414,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "AUTH",
@@ -376,6 +423,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "AVR",
@@ -384,6 +432,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "BOTDEFENSE",
@@ -392,6 +441,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "CACHE",
@@ -400,6 +450,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "CATEGORY",
@@ -408,6 +459,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "CLASSIFICATION",
@@ -416,6 +468,7 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
     ]
 }
@@ -437,6 +490,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
                 "tls_control",
                 "tls_data",
             ],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "CONNECTOR",
@@ -445,6 +499,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DATAGRAM",
@@ -453,6 +508,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             requires: &["UDP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DIAMETER",
@@ -461,6 +517,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DIAMETERSESSION",
@@ -469,6 +526,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             requires: &["DIAMETER"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DIAMETER_ENDPOINT",
@@ -477,6 +535,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             requires: &["DIAMETER"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DNS",
@@ -485,6 +544,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DOSL7",
@@ -493,6 +553,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "ECA",
@@ -501,6 +562,7 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
     ]
 }
@@ -514,6 +576,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "FASTL4",
@@ -522,6 +585,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "FIX",
@@ -530,6 +594,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "FLOW",
@@ -538,6 +603,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "GENERICMSG",
@@ -546,6 +612,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "GTP",
@@ -554,6 +621,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "HTML",
@@ -562,6 +630,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "HTTP",
@@ -570,6 +639,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "HTTP2",
@@ -578,6 +648,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "HTTP_PROXY_CONNECT",
@@ -586,6 +657,7 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
     ]
 }
@@ -599,6 +671,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "IPS",
@@ -607,6 +680,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["PROTOCOL_INSPECTION"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "IVS_ENTRY",
@@ -615,6 +689,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "JSON",
@@ -623,6 +698,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "L7CHECK",
@@ -631,6 +707,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "LSN",
@@ -639,6 +716,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "MQTT",
@@ -647,6 +725,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "MR",
@@ -655,6 +734,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "MSSQL",
@@ -663,6 +743,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["TDS"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "NAME",
@@ -671,6 +752,7 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
     ]
 }
@@ -684,6 +766,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "PEM",
@@ -692,6 +775,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "PERSIST",
@@ -702,6 +786,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "PROTOCOL_INSPECTION",
@@ -710,6 +795,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "QOE",
@@ -718,6 +804,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "RADIUS",
@@ -726,6 +813,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "RADIUS_AAA",
@@ -734,6 +822,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &["RADIUS"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "REQUESTADAPT",
@@ -742,6 +831,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "RESPONSEADAPT",
@@ -750,6 +840,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "REWRITE",
@@ -758,6 +849,7 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
     ]
 }
@@ -771,6 +863,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SCTP",
@@ -779,6 +872,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SERVERSSL",
@@ -795,6 +889,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
                 "tls_control",
                 "tls_data",
             ],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SIP",
@@ -803,6 +898,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SIPROUTER",
@@ -811,6 +907,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             requires: &["SIP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SIPSESSION",
@@ -819,6 +916,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             requires: &["SIP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SOCKS",
@@ -827,6 +925,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SSE",
@@ -835,6 +934,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SSL_PERSISTENCE",
@@ -845,6 +945,7 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &["extensions", "sessionid", "sni"],
+            ..ProfileSpec::DEFAULT
         },
     ]
 }
@@ -858,6 +959,7 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "TAP",
@@ -866,6 +968,7 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "TCP",
@@ -874,6 +977,7 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "TDS",
@@ -882,6 +986,7 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             requires: &["TCP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "UDP",
@@ -890,6 +995,7 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             requires: &[],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "WEBACCELERATION",
@@ -898,6 +1004,7 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "WS",
@@ -906,6 +1013,7 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "XML",
@@ -914,6 +1022,7 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             requires: &["HTTP"],
             conflicts: &[],
             capabilities: &[],
+            ..ProfileSpec::DEFAULT
         },
     ]
 }

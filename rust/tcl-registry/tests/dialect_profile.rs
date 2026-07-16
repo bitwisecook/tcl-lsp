@@ -500,7 +500,7 @@ fn commands_for_event_excludes_banned_commands() {
     let reg = registry_for_dialect("f5-irules");
     let events = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
-    let cmds = reg.valid_irules_commands_for_event("HTTP_REQUEST", &events, &profiles);
+    let cmds = reg.valid_irules_commands_for_event("HTTP_REQUEST", &events, &profiles, None);
     for banned in ["exec", "file", "socket", "exit"] {
         assert!(
             !cmds.contains(&banned),

@@ -45,6 +45,7 @@ fn main() {
         tcl_compiler::analyser::NonAsciiMode::Default,
         Vec::new(),
         None,
+        None,
     );
     let memo = compiler_check_diagnostics(&db, file, cfg);
     let reg = db.registry(&dialect);

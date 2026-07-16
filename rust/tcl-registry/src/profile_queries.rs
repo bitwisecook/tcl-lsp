@@ -128,6 +128,27 @@ pub trait ProfileQueries {
     /// surface of their own. Feeds generated consumers (the AI prompt's
     /// F5-surface summary) so prose can never drift from the data.
     fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface>;
+
+    /// The **declared version range** of `spec` on this profile's keyed
+    /// library axis, when `spec` belongs to one of the profile's ambient
+    /// `Keyed` pins (the F5 surfaces): the explicit introduction release,
+    /// or the axis **baseline** (BIG-IP 15.0 — "the data is declared
+    /// against 15.0+") when none is recorded, plus the removal release
+    /// (`None` = still present). `None` for specs outside a keyed pin —
+    /// their plain `min_version` semantics are untouched.
+    fn keyed_version_range(
+        &self,
+        spec: &CommandSpec,
+    ) -> Option<(Option<&'static str>, Option<&'static str>)>;
+
+    /// The ambient `Keyed` [`tcl_dialect::LibraryPin`] `spec` belongs to
+    /// under this profile: by its `owning_package`, or — for a
+    /// **vendor-own** spec (its gate carries the profile's vendor bit and
+    /// no plain-Tcl version, the same membership rule
+    /// [`ProfileQueries::vendor_surface`] uses) — the profile's single
+    /// ambient keyed pin, so the F5 packs need no per-spec
+    /// `required_package` backfill to sit on the version axis.
+    fn keyed_pin_for(&self, spec: &CommandSpec) -> Option<&'static tcl_dialect::LibraryPin>;
 }
 
 /// A profile's vendor command surface summary (see
@@ -270,6 +291,39 @@ impl ProfileQueries for DialectProfile {
                 .flat_map(|f| f.options.iter())
                 .find(matches)
         })
+    }
+
+    fn keyed_version_range(
+        &self,
+        spec: &CommandSpec,
+    ) -> Option<(Option<&'static str>, Option<&'static str>)> {
+        let pin = self.keyed_pin_for(spec)?;
+        let tcl_dialect::LibraryVersion::Keyed(key) = pin.version else {
+            return None;
+        };
+        Some((
+            spec.min_version.or(key.baseline_version()),
+            spec.max_version,
+        ))
+    }
+
+    fn keyed_pin_for(&self, spec: &CommandSpec) -> Option<&'static tcl_dialect::LibraryPin> {
+        let keyed_ambient = |pin: &&'static tcl_dialect::LibraryPin| {
+            pin.ambient && matches!(pin.version, tcl_dialect::LibraryVersion::Keyed(_))
+        };
+        if let Some(pkg) = spec.owning_package()
+            && let Some(pin) = self.library_pin(pkg)
+        {
+            return keyed_ambient(&pin).then_some(pin);
+        }
+        let vendor = self.vendor_bit?;
+        let vendor_own = spec
+            .dialects
+            .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL));
+        if !vendor_own {
+            return None;
+        }
+        self.libraries.iter().find(keyed_ambient)
     }
 
     fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {

@@ -866,6 +866,10 @@ pub enum IruleCommand {
     EventInfo {
         /// iRules event name (for example: HTTP_REQUEST).
         event: String,
+        /// Target BIG-IP (TMOS) release for version-aware availability
+        /// (defaults to the oldest supported release, 16.1.0).
+        #[arg(long, value_name = "VERSION")]
+        bigip_version: Option<String>,
         /// Emit event metadata as JSON.
         #[arg(long)]
         json: bool,

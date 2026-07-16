@@ -617,6 +617,15 @@ impl Analyser {
         self
     }
 
+    /// Pin the session's target BIG-IP release (`tclLsp.bigipVersion` /
+    /// `--bigip-version`): the keyed library-version axis every declared
+    /// range compares against (baseline semantics, §7.1).
+    #[must_use]
+    pub fn with_bigip_version(mut self, version: Option<String>) -> Self {
+        self.library_versions.bigip_version = version;
+        self
+    }
+
     /// Set the user-declared extra command names (`tclLsp.extraCommands`),
     /// returning `self` for builder-style configuration. These names are
     /// treated as known commands by the unknown-command (W123) check.

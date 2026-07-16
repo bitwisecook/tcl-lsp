@@ -458,6 +458,38 @@ impl Analyser {
             return;
         }
         if event_registry().is_known(event_name) {
+            // Known event — check the declared BIG-IP version range
+            // (explicit data, or the 15.0 axis baseline) against the
+            // session's target release (the D5 oldest-supported default
+            // when nothing pins it).
+            let target = self.library_versions.bigip_version.clone().or_else(|| {
+                tcl_dialect::VersionKey::BigipVersion
+                    .default_version()
+                    .map(str::to_owned)
+            });
+            if let Some(target) = target
+                && !event_registry().event_available_at(event_name, &target)
+            {
+                let (min, max) = event_registry()
+                    .event_version_range(event_name)
+                    .unwrap_or((None, None));
+                let range = match (min, max) {
+                    (Some(min), Some(max)) => format!("BIG-IP {min} through {max}"),
+                    (Some(min), None) => format!("BIG-IP {min} and later"),
+                    (None, Some(max)) => format!("BIG-IP releases up to {max}"),
+                    (None, None) => "an unknown BIG-IP range".to_owned(),
+                };
+                self.result.diagnostics.push(Diagnostic {
+                    code: DiagCode::Irule1002,
+                    span: tok.span,
+                    message: format!(
+                        "iRules event '{event_name}' exists in {range}, but the target \
+                         release is {target}."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
             return;
         }
         self.result.diagnostics.push(Diagnostic {
