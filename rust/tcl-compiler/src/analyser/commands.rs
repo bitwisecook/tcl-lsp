@@ -2161,15 +2161,14 @@ impl Analyser {
     /// namespace-relative form) to its qualified name when it
     /// names a user-defined class.
     fn resolve_user_class(&self, name: &str) -> Option<String> {
-        if self.result.all_classes.contains_key(name) {
-            return Some(name.to_string());
-        }
-        let qualified = format!("::{name}");
-        if self.result.all_classes.contains_key(&qualified) {
-            return Some(qualified);
-        }
-        if let Some(c) = self.result.all_classes.values().find(|c| c.name == name) {
-            return Some(c.qualified_name.clone());
+        // Exact / canonical-global / unique-tail via the shared call-site
+        // resolver — the former first-`HashMap`-hit `c.name == name` scan
+        // picked an arbitrary same-tailed class across namespaces (M4.2).
+        if let Some(q) = super::class_hierarchy::resolve_written_class_name(
+            name,
+            &self.result.all_classes,
+        ) {
+            return Some(q);
         }
         // Cross-file: a class defined elsewhere in the workspace (the oracle is
         // empty for the normal single-file analysis).  Exact / `::`-prefixed
@@ -2183,6 +2182,14 @@ impl Analyser {
         if self.workspace_classes.contains(name) {
             return Some(name.to_string());
         }
+        // The same canonical global-qualified spelling the shared resolver
+        // tries (colon-run rule, #934).
+        let canonical = crate::naming::canonical_written_command(name);
+        let qualified = if canonical.starts_with("::") {
+            canonical
+        } else {
+            format!("::{canonical}")
+        };
         if self.workspace_classes.contains(&qualified) {
             return Some(qualified);
         }

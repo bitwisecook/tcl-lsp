@@ -1303,18 +1303,14 @@ impl Analyser {
         self.result.command_invocations.extend(new_invocations);
     }
 
-    /// Resolve a possibly-bare class name to its fully-qualified
-    /// form keyed in `result.all_classes`.
+    /// Resolve a possibly-bare class name to its fully-qualified form keyed
+    /// in `result.all_classes` — the shared call-site resolver
+    /// ([`super::class_hierarchy::resolve_written_class_name`]), so this
+    /// keying can never diverge from the LSP's (M4.2).  Falls back to the
+    /// written name on a miss (callers treat an unkeyed class as external).
     fn canonicalise_class_name(&self, name: &str) -> String {
-        if name.starts_with("::") {
-            return name.to_string();
-        }
-        let qualified = format!("::{name}");
-        if self.result.all_classes.contains_key(&qualified) {
-            qualified
-        } else {
-            name.to_string()
-        }
+        super::class_hierarchy::resolve_written_class_name(name, &self.result.all_classes)
+            .unwrap_or_else(|| name.to_string())
     }
 
     /// Decide whether `method` is callable on `class_name`,

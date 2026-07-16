@@ -199,24 +199,27 @@ pub fn prepare_rename(
             placeholder: var_def.name.clone(),
         });
     }
-    // Proc?
+    // Proc?  Declaration-span hit, else the namespace-aware candidate
+    // resolution — never a namespace-blind `p.name == word` first-hit scan
+    // (which could seed the rename with an arbitrary same-named proc).
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, proc_def.name_span),
-                placeholder: proc_def.name.clone(),
-            });
-        }
+    let word_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some((_, proc_def)) =
+        crate::definition::resolve_proc_target_at(analysis, source, word_off, &word, None)
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, proc_def.name_span),
+            placeholder: proc_def.name.clone(),
+        });
     }
-    // Class?  Same as the proc walk above but against `all_classes`.
-    for (qname, class_def) in &analysis.all_classes {
-        if class_def.name == word || qname == &word || qname == &format!("::{word}") {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, class_def.name_span),
-                placeholder: class_def.name.clone(),
-            });
-        }
+    // Class?  Same resolution shape against `all_classes`.
+    if let Some((_, class_def)) =
+        crate::definition::resolve_class_target_at(analysis, word_off, &word)
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, class_def.name_span),
+            placeholder: class_def.name.clone(),
+        });
     }
     // Method / classmethod / property inside a class body?
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);

@@ -309,6 +309,39 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
     }
 }
 
+/// Resolve a class name *as written at a call site* (no owning-class
+/// context — `resolve_class_name` is the owner-aware variant for
+/// superclass / mixin edges) to a key of `classes`: an exact hit, the
+/// global-qualified form of its canonical spelling (colon-run rule, #934),
+/// or — last — the unique class sharing its tail (the `namespace import`
+/// idiom).  `None` when unresolved or the tail is ambiguous, so callers
+/// stay sound-by-abstention.  The single implementation behind the
+/// analyser's method-validation keying and the LSP's definer-head
+/// resolution (M4.2 dedup — three near-copies once drifted here).
+pub fn resolve_written_class_name<V, S: std::hash::BuildHasher>(
+    name: &str,
+    classes: &HashMap<String, V, S>,
+) -> Option<String> {
+    if classes.contains_key(name) {
+        return Some(name.to_owned());
+    }
+    let canonical = tcl_syntax::naming::canonical_written_command(name);
+    let qualified = if canonical.starts_with("::") {
+        canonical.clone()
+    } else {
+        format!("::{canonical}")
+    };
+    if classes.contains_key(&qualified) {
+        return Some(qualified);
+    }
+    let tail = name.rsplit("::").next().unwrap_or(name);
+    let mut matches = classes
+        .keys()
+        .filter(|k| tcl_syntax::naming::key_tail(k) == tail);
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first.clone())
+}
+
 /// Build the simple-name (tail) → qualified-names index that
 /// [`resolve_class_name`] consults for the unique-tail fallback.
 pub fn build_tail_index<'a>(

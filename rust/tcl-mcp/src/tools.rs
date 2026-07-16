@@ -951,6 +951,9 @@ fn generate_docstring(args: &Value) -> Value {
         .values()
         .find(|p| p.qualified_name == qualified || p.qualified_name == proc_name)
         .or_else(|| {
+            // drift-ok: a user-typed bare name with no cursor context — the
+            // deterministic (lexicographically-least) simple-name fallback,
+            // the same discipline as definition.rs::fallback_proc_by_simple_name.
             analysis
                 .all_procs
                 .values()
