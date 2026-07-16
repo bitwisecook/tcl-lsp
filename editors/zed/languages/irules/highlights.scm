@@ -54,17 +54,14 @@
 (command
   name: (simple_word) @keyword.control
   (#any-of? @keyword.control
-    "foreachLine" "lfilter" "lmap"))
+    "\u0000never"))
 
 ; --- generated from tcl-registry: language keywords ---
 (command
   name: (simple_word) @keyword
   (#any-of? @keyword
-    "apply" "break" "classvariable" "continue" "coroutine" "error"
-    "global" "interp" "my" "next" "nextto" "oo::abstract"
-    "oo::class" "oo::configurable" "oo::define" "oo::objdefine" "oo::singleton" "package"
-    "rename" "return" "self" "source" "tailcall" "throw"
-    "uplevel" "upvar" "variable" "when" "yield" "yieldto"))
+    "break" "continue" "error" "global" "return" "uplevel"
+    "upvar" "variable" "when"))
 
 ; --- generated from tcl-registry: built-in commands ---
 (command
@@ -221,43 +218,31 @@
     "XLAT::src_endpoint_reservation" "XLAT::src_nat_valid_range" "XLAT::src_port" "XML::address" "XML::collect" "XML::disable"
     "XML::element" "XML::enable" "XML::event" "XML::eventid" "XML::parse" "XML::payload"
     "XML::release" "XML::soap" "XML::subscribe" "accumulate" "active_members" "active_nodes"
-    "after" "append" "array" "auto_execok" "auto_import" "auto_load"
-    "auto_load_index" "auto_mkindex" "auto_mkindex_old" "auto_qualify" "auto_reset" "b64decode"
-    "b64encode" "bgerror" "binary" "call" "cd" "chan"
-    "check" "class" "client_addr" "client_port" "clientside" "clock"
-    "clone" "close" "concat" "connect" "const" "coroinject"
-    "coroprobe" "cpu" "crc32" "decode_uri" "dict" "discard"
-    "divmod" "domain" "drop" "encoding" "eof" "eq"
-    "eval" "event" "exec" "exit" "fasthash" "fblocked"
-    "fconfigure" "fcopy" "file" "fileevent" "filename" "findclass"
-    "findstr" "flush" "format" "forward" "frexp" "getfield"
-    "gets" "gettimes" "glob" "history" "html_encode" "html_escape"
-    "htmlencode" "htonl" "htons" "http" "http_client_ip" "http_content_len_max"
-    "http_cookie" "http_header" "http_host" "http_method" "http_uri" "http_version"
-    "ifile" "imid" "in" "incr" "info" "ip_addr"
-    "ip_protocol" "ip_tos" "ip_ttl" "join" "lappend" "lassign"
-    "lasthop" "ledit" "lgen" "lindex" "link_qos" "linsert"
-    "list" "listen" "llength" "llookup" "load" "local_addr"
-    "local_port" "log" "lpop" "lrange" "lremove" "lrepeat"
-    "lreplace" "lreverse" "lsearch" "lseq" "lset" "lsort"
-    "lstring" "matchclass" "md4" "md5" "members" "memory"
-    "modf" "ne" "nexthop" "ni" "node" "nodes"
-    "noop" "ntohl" "ntohs" "oo::copy" "oo::object" "open"
-    "parray" "peer" "pem_dtos" "persist" "pid" "pkg::create"
-    "pkg_mkIndex" "pkg_mkindex" "pool" "priority" "puts" "pwd"
-    "radius_authenticate" "rateclass" "re_quote" "read" "readFile" "recv"
-    "redirect" "regex::quote" "regex_quote" "regexp" "regexp::quote" "registry"
-    "regsub" "reject" "relate_client" "relate_server" "remote_addr" "remote_port"
-    "remquo" "rmd160" "scan" "seek" "send" "server_addr"
-    "server_port" "serverside" "session" "sha1" "sha256" "sha384"
-    "sha512" "sharedvar" "snat" "snatpool" "socket" "split"
-    "string" "subst" "substr" "table" "tclLog" "tclPkgSetup"
-    "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter"
-    "tcl_wordBreakBefore" "tcpdump" "tell" "time" "timer" "timerate"
-    "timing" "trace" "traffic_group" "translate" "unicode" "uniq_ordered_ip_list"
-    "uniq_sorted_ip_list" "unknown" "unload" "unset" "update" "urlcatblindquery"
-    "urlcatquery" "use" "virtual" "vlan_id" "vwait" "whereis"
-    "writeFile" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list" "zipfs" "zlib"))
+    "after" "append" "array" "b64decode" "b64encode" "binary"
+    "call" "chan" "check" "class" "client_addr" "client_port"
+    "clientside" "clock" "clone" "close" "concat" "connect"
+    "const" "cpu" "crc32" "decode_uri" "discard" "domain"
+    "drop" "encoding" "eval" "event" "fasthash" "findclass"
+    "findstr" "format" "forward" "getfield" "gettimes" "history"
+    "html_encode" "html_escape" "htmlencode" "htonl" "htons" "http_client_ip"
+    "http_content_len_max" "http_cookie" "http_header" "http_host" "http_method" "http_uri"
+    "http_version" "ifile" "imid" "incr" "info" "ip_addr"
+    "ip_protocol" "ip_tos" "ip_ttl" "join" "lappend" "lasthop"
+    "lgen" "lindex" "link_qos" "linsert" "list" "listen"
+    "llength" "llookup" "local_addr" "local_port" "log" "lrange"
+    "lreplace" "lsearch" "lset" "lsort" "lstring" "matchclass"
+    "md4" "md5" "members" "nexthop" "node" "nodes"
+    "noop" "ntohl" "ntohs" "parray" "peer" "pem_dtos"
+    "persist" "pkg_mkIndex" "pool" "priority" "puts" "radius_authenticate"
+    "rateclass" "read" "recv" "redirect" "regexp" "regsub"
+    "reject" "relate_client" "relate_server" "remote_addr" "remote_port" "rmd160"
+    "scan" "send" "server_addr" "server_port" "serverside" "session"
+    "sha1" "sha256" "sha384" "sha512" "sharedvar" "snat"
+    "snatpool" "split" "string" "subst" "substr" "table"
+    "tcl_endOfWord" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tcpdump"
+    "timing" "trace" "traffic_group" "translate" "uniq_ordered_ip_list" "uniq_sorted_ip_list"
+    "unset" "urlcatblindquery" "urlcatquery" "use" "virtual" "vlan_id"
+    "whereis" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list"))
 
 ; Highlight unset / variable arguments as variables
 (command
