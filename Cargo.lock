@@ -4151,6 +4151,7 @@ dependencies = [
  "serde_json",
  "tcl-bytecode",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-registry",
  "tcl-vm",
 ]
@@ -4221,6 +4222,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-bytecode",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-registry",
  "tcl-syntax",
  "tcl-vm",
@@ -4405,6 +4407,7 @@ dependencies = [
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-host-native",
  "tcl-platform",
  "tcl-regex",
@@ -4419,6 +4422,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
  "tcl-vm",

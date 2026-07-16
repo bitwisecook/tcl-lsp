@@ -134,6 +134,9 @@ fn usage() {
 /// Build a VM with the compiler-backed `CompileService` and stdout host output.
 fn new_vm() -> Vm {
     let mut vm = Vm::with_output(Box::new(Stdout));
+    // The CLI shell runs the plain-Tcl profile's pinned VM release
+    // (dialect-profile model §5.4).
+    vm.set_runtime_version(tcl_dialect::DialectProfile::by_name("tcl9.0").vm_runtime_version);
     vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
     // Enable the real `thread` package: a Send factory each worker calls to
     // build its own compiler, and a thread-safe shared stdout for `puts`.

@@ -40,6 +40,7 @@ name = "tclvm"
 path = "src/main.rs"
 
 [dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-vm = { path = "../tcl-vm" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }

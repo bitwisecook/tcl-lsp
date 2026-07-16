@@ -127,6 +127,10 @@ impl LiveSession {
         }
         let output = Rc::new(RefCell::new(Vec::new()));
         let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&output))));
+        // The harness VM emulates the release the iRules profile pins for
+        // VM execution (dialect-profile model §5.4) — the orchestrator's
+        // own Tcl, not the TMM's embedded 8.4.
+        vm.set_runtime_version(tcl_dialect::DialectProfile::irules().vm_runtime_version);
         vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
         let mut session = Self { vm, output };
         session.bootstrap(lib_dir)?;

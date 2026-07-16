@@ -119,6 +119,27 @@ pub trait ProfileQueries {
         option_name: &str,
         package_version: Option<&str>,
     ) -> Option<&'r OptionSpec>;
+
+    /// The profile's **own vendor command surface**, summarised from
+    /// registry data (§5.4 "out-of-registry vendor knowledge"): the
+    /// available commands carrying this profile's vendor bit, grouped by
+    /// `NS::` namespace prefix (bare names group under `""`), sorted by
+    /// descending size then name. `None` for profiles with no vendor
+    /// surface of their own. Feeds generated consumers (the AI prompt's
+    /// F5-surface summary) so prose can never drift from the data.
+    fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface>;
+}
+
+/// A profile's vendor command surface summary (see
+/// [`ProfileQueries::vendor_surface`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VendorSurface {
+    /// Total vendor-tagged commands available under the profile.
+    pub command_count: usize,
+    /// `(namespace_prefix, command_count)` per `NS::` prefix, sorted by
+    /// descending count then name; bare (un-namespaced) commands group
+    /// under an empty prefix.
+    pub namespaces: Vec<(String, usize)>,
 }
 
 impl ProfileQueries for DialectProfile {
@@ -248,6 +269,40 @@ impl ProfileQueries for DialectProfile {
                 .iter()
                 .flat_map(|f| f.options.iter())
                 .find(matches)
+        })
+    }
+
+    fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {
+        let vendor = self.vendor_bit?;
+        let mut by_ns: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
+        let mut command_count = 0usize;
+        for name in registry.command_names() {
+            let Some(spec) = self.resolve_command(registry, name) else {
+                continue;
+            };
+            // Vendor-OWN means the vendor bit is the discriminating tag: a
+            // gate that also spans the plain Tcl versions is shared library
+            // data (tcllib's complement-shaped "everywhere but the closed
+            // sandboxes" gates), not the vendor's own surface.
+            if !spec
+                .dialects
+                .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL))
+            {
+                continue;
+            }
+            command_count += 1;
+            let ns = name.split_once("::").map_or("", |(ns, _)| ns);
+            *by_ns.entry(ns.to_owned()).or_insert(0) += 1;
+        }
+        if command_count == 0 {
+            return None;
+        }
+        let mut namespaces: Vec<(String, usize)> = by_ns.into_iter().collect();
+        namespaces.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        Some(VendorSurface {
+            command_count,
+            namespaces,
         })
     }
 }

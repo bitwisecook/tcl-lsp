@@ -42,6 +42,7 @@ name = "tcl_vm"
 
 [dependencies]
 tcl-bytecode = { path = "../tcl-bytecode" }
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }

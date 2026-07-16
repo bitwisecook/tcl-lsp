@@ -452,6 +452,47 @@ fn bare_irules_mask_queries_apply_the_disable_filter() {
     );
 }
 
+/// §5.4 out-of-registry vendor knowledge: the vendor surface summary is
+/// registry-derived (never hand-listed prose), honours the subtractive
+/// rules, and abstains for profiles without a vendor surface.
+#[test]
+fn vendor_surface_summarises_the_registry_truth() {
+    let reg = registry_for_dialect("f5-irules");
+    let surface = DialectProfile::irules()
+        .vendor_surface(reg)
+        .expect("iRules has a vendor surface");
+    assert!(
+        surface.command_count > 900,
+        "the modelled F5 surface is large: {}",
+        surface.command_count
+    );
+    let ns_names: Vec<&str> = surface
+        .namespaces
+        .iter()
+        .map(|(ns, _)| ns.as_str())
+        .collect();
+    for expected in ["HTTP", "TCP", "SSL", "LB", "DNS"] {
+        assert!(ns_names.contains(&expected), "{expected}:: in the surface");
+    }
+    // Sorted by descending size.
+    assert!(
+        surface.namespaces.windows(2).all(|w| w[0].1 >= w[1].1),
+        "namespaces sort by descending count"
+    );
+    // No vendor bit → no surface (plain Tcl); a vendor bit with an
+    // identity-only mask (f5-bigip has no command pack) also abstains.
+    assert!(
+        DialectProfile::by_name("tcl8.6")
+            .vendor_surface(registry_for_dialect("tcl8.6"))
+            .is_none()
+    );
+    assert!(
+        DialectProfile::by_name("f5-bigip")
+            .vendor_surface(registry_for_dialect("f5-bigip"))
+            .is_none()
+    );
+}
+
 /// The iRules event/command cross-product never lists banned commands —
 /// `commands_for_event` routes through the same subtractive filter.
 #[test]

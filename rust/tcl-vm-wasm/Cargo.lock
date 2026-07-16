@@ -302,6 +302,7 @@ dependencies = [
  "num-traits",
  "tcl-bytecode",
  "tcl-cmd-core",
+ "tcl-dialect",
  "tcl-host-native",
  "tcl-platform",
  "tcl-regex",

@@ -313,6 +313,14 @@ pub struct DialectProfile {
     /// refines the floor when the require names no version. Explicit
     /// versioned requires raise floors, never lower them below the pin.
     pub libraries: &'static [LibraryPin],
+
+    // AXIS D: out-of-registry vendor knowledge (§5.4 — Milestone 8).
+    /// Lower-case substring terms that select this dialect's entries in
+    /// the KCS help index (`tcl help --dialect`). Empty = no filtering
+    /// (the permissive fallback). Resolution through the catalog means
+    /// alias spellings (`irules`) filter exactly like the canonical name
+    /// — the old string-keyed table silently applied no filter to them.
+    pub help_terms: &'static [&'static str],
 }
 
 /// The catalog: one profile per canonical dialect, in
@@ -346,6 +354,7 @@ static CATALOG: [DialectProfile; 16] = [
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
         libraries: &[],
+        help_terms: &["bpf", "ebpf"],
     },
     DialectProfile {
         name: "cadence-eda-tcl",
@@ -377,6 +386,14 @@ static CATALOG: [DialectProfile; 16] = [
                 ambient: true,
             },
         ],
+        help_terms: &[
+            "cadence",
+            "genus",
+            "innovus",
+            "tempus",
+            "xcelium",
+            "encounter",
+        ],
     },
     // Expect embeds Tcl 8.6 — including the 8.x first-close `${…}` rule,
     // which the old string-keyed lexer table missed (it fell through to
@@ -404,6 +421,7 @@ static CATALOG: [DialectProfile; 16] = [
             version: LibraryVersion::Pinned("5.45.4"),
             ambient: true,
         }],
+        help_terms: &["expect", "spawn", "interact"],
     },
     // f5-bigip is a config parser, not a Tcl surface; it has no command
     // pack, no Tcl runtime (behaviour axis inert — §11.1), and no expr
@@ -434,6 +452,7 @@ static CATALOG: [DialectProfile; 16] = [
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
             ambient: true,
         }],
+        help_terms: &["bigip", "big-ip", "bigip.conf", "f5", "ltm", "gtm"],
     },
     // iApps run a real Tcl 8.5.13 *host* interpreter (not the TMM sandbox):
     // full 8.5 core (dict, lassign, apply) plus the iApp surface; nothing
@@ -461,6 +480,7 @@ static CATALOG: [DialectProfile; 16] = [
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
             ambient: true,
         }],
+        help_terms: &["iapps", "iapp", "f5", "big-ip"],
     },
     // iRules is SUBTRACTIVE (§9): a genuine embedded Tcl 8.4.6 whose F5
     // command surface carries the IRULES tag, minus the K36322151
@@ -493,6 +513,7 @@ static CATALOG: [DialectProfile; 16] = [
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
             ambient: true,
         }],
+        help_terms: &["irules", "irule", "f5", "big-ip", "tmm", "event"],
     },
     // f5-tmsh runs on a Tcl 8.5 base (behaviour axis: octal, 8.5 expr
     // grammar, the 8.x first-close `${…}` rule — a Milestone 3 flip). It
@@ -523,6 +544,7 @@ static CATALOG: [DialectProfile; 16] = [
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
             ambient: true,
         }],
+        help_terms: &["tmsh", "f5", "big-ip", "bigip"],
     },
     DialectProfile {
         name: "intel-quartus-eda-tcl",
@@ -554,6 +576,7 @@ static CATALOG: [DialectProfile; 16] = [
                 ambient: true,
             },
         ],
+        help_terms: &["quartus", "intel", "altera", "fpga", "quartus_sh"],
     },
     DialectProfile {
         name: "mentor-eda-tcl",
@@ -585,6 +608,7 @@ static CATALOG: [DialectProfile; 16] = [
                 ambient: true,
             },
         ],
+        help_terms: &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
     },
     DialectProfile {
         name: "synopsys-eda-tcl",
@@ -616,6 +640,14 @@ static CATALOG: [DialectProfile; 16] = [
                 ambient: true,
             },
         ],
+        help_terms: &[
+            "synopsys",
+            "dc_shell",
+            "design_compiler",
+            "primetime",
+            "icc2",
+            "formality",
+        ],
     },
     DialectProfile {
         name: "tcl8.4",
@@ -640,6 +672,7 @@ static CATALOG: [DialectProfile; 16] = [
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
         libraries: LIBS_TCL84_85,
+        help_terms: &["tcl", "tk"],
     },
     DialectProfile {
         name: "tcl8.5",
@@ -664,6 +697,7 @@ static CATALOG: [DialectProfile; 16] = [
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
         libraries: LIBS_TCL84_85,
+        help_terms: &["tcl", "tk"],
     },
     DialectProfile {
         name: "tcl8.6",
@@ -688,6 +722,7 @@ static CATALOG: [DialectProfile; 16] = [
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
         libraries: LIBS_TCL86_PLUS,
+        help_terms: &["tcl", "tk"],
     },
     DialectProfile {
         name: "tcl9.0",
@@ -712,6 +747,7 @@ static CATALOG: [DialectProfile; 16] = [
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
         libraries: LIBS_TCL86_PLUS,
+        help_terms: &["tcl", "tk"],
     },
     // Tag-level `TCL90_PLUS` unions already give 9.1 its 9.0 inheritance,
     // so the exact bit keeps per-version gating precise.
@@ -738,6 +774,7 @@ static CATALOG: [DialectProfile; 16] = [
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
         libraries: LIBS_TCL86_PLUS,
+        help_terms: &["tcl", "tk"],
     },
     DialectProfile {
         name: "xilinx-eda-tcl",
@@ -769,6 +806,7 @@ static CATALOG: [DialectProfile; 16] = [
                 ambient: true,
             },
         ],
+        help_terms: &["xilinx", "vivado", "vitis", "amd", "fpga", "ise"],
     },
 ];
 
@@ -795,6 +833,7 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     has_fixed_ensembles: false,
     vm_runtime_version: TclVersion::V9_0,
     libraries: &[],
+    help_terms: &[],
 };
 
 impl DialectProfile {
@@ -1076,6 +1115,42 @@ mod tests {
         assert!(irules.is_ambient_package("f5-irules-cmds"));
         assert!(!tcl86.is_ambient_package("Tk"));
         assert!(!tcl86.is_ambient_package("no-such-lib"));
+    }
+
+    #[test]
+    fn help_terms_cover_every_real_dialect() {
+        // §5.4: every catalog profile carries help-filter terms; only the
+        // permissive fallback filters nothing. The versioned-Tcl profiles
+        // (tcl9.1 included — the old string table missed it) share the
+        // tcl/tk terms; every vendor profile's terms include a
+        // vendor-identifying string.
+        for p in DialectProfile::all() {
+            assert!(
+                !p.help_terms.is_empty(),
+                "{}: catalog profiles carry help terms",
+                p.name
+            );
+            if p.name.starts_with("tcl") {
+                assert_eq!(p.help_terms, &["tcl", "tk"], "{}", p.name);
+            }
+        }
+        assert!(
+            DialectProfile::plain_tcl().help_terms.is_empty(),
+            "the fallback applies no filter"
+        );
+        // Alias canonicalisation (§2.4): the legacy `irules` spelling
+        // resolves to the same terms as the canonical profile — the old
+        // string-keyed table silently applied no filter to it.
+        assert_eq!(
+            DialectProfile::by_name("irules").help_terms,
+            DialectProfile::by_name("f5-irules").help_terms
+        );
+        assert!(
+            DialectProfile::by_name("f5-tmsh")
+                .help_terms
+                .contains(&"tmsh")
+        );
+        assert!(DialectProfile::by_name("bpf").help_terms.contains(&"bpf"));
     }
 
     #[test]

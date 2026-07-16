@@ -139,7 +139,7 @@ pub use dialects::{
 };
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
-pub use profile_queries::ProfileQueries;
+pub use profile_queries::{ProfileQueries, VendorSurface};
 pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
 pub use spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ObjectClassSpec, SubCommand,
