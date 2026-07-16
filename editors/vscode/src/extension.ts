@@ -72,6 +72,7 @@ import {
 } from "./compilerExplorer";
 import { openTkPreview, tkPreviewDocChanged, tkPreviewEditorChanged } from "./tkPreviewPanel";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
+import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { TCL_LANGUAGE_IDS, isTclLanguage } from "./languageIds";
 
 const execFileAsync = promisify(execFile);
@@ -356,6 +357,13 @@ export async function activate(context: ExtensionContext) {
     options: { cwd: path.dirname(rustBin) },
   };
 
+  // Optional suppression of diagnostics for files viewed only in a diff editor
+  // (Git changes, "Compare With…"); gated by
+  // `tclLsp.diagnostics.suppressInDiffEditors` (default off). Installed as the
+  // `handleDiagnostics` middleware below.
+  const diffSuppressor = new DiffDiagnosticsSuppressor();
+  context.subscriptions.push(diffSuppressor);
+
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
       ...[...TCL_LANGUAGE_IDS].flatMap((lang) => [
@@ -373,6 +381,8 @@ export async function activate(context: ExtensionContext) {
       ],
     },
     middleware: {
+      handleDiagnostics: (uri, diagnostics, next) =>
+        diffSuppressor.handleDiagnostics(uri, diagnostics, next),
       workspace: {
         // Pull path: server requests configuration via workspace/configuration
         // for each workspace folder (plus an unscoped fallback request).

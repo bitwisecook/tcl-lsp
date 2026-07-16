@@ -3057,6 +3057,13 @@
             "default": true,
             "description": "Warn when semantic highlighting can't reach a Tcl file (wrong language association, or semantic highlighting disabled), which leaves grammar-only colouring that mis-highlights keywords inside braced string arguments. Each notice can also be dismissed permanently via its 'Don't show again' button.",
             "order": 5
+          },
+          "tclLsp.diagnostics.suppressInDiffEditors": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": false,
+            "description": "Hide Tcl diagnostics (errors and warnings) for a file while it is shown only in a diff editor — a Git change in Source Control, 'Compare With…', or 'Compare with Saved'. The file keeps its diagnostics when it is also open in a normal editor, so analysis of files you are editing is never affected. Purely a client-side display choice; the server keeps analysing.",
+            "order": 6
           }
         }
       },
