@@ -357,7 +357,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "update",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         // `dictionaryVariable key varName ?key varName ...? body` — an
         // even count from 4 (1 dict var + 2n key/varName pairs, n >= 1,
         // + 1 body — confirmed against tclsh 8.6.14: `dict update d k v

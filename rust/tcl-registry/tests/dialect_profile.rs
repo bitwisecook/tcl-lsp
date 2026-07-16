@@ -21,15 +21,16 @@
 //! (`docs/design/dialect-profile-model.md` §5/§9).
 //!
 //! The iRules profile is SUBTRACTIVE: bare `IRULES` mask + an explicit
-//! disable list. Until the Milestone 5 retag, the per-spec
-//! `NON_IRULES_OPERATORS` tags encode the same exclusion, so these tests
-//! prove the two encodings agree *by data*, not by convention — and they
-//! keep protecting the banned surface after the retag flips which side is
-//! load-bearing.
-
-use std::collections::BTreeSet;
+//! disable list. Before the Milestone 5 retag the per-spec
+//! `NON_IRULES_OPERATORS` tags encoded the same exclusion and these tests
+//! proved the two encodings agreed *by data*; since the retag the profile
+//! side is load-bearing (specs are `dialects: None`, the disable list and
+//! the `OPERATOR_COMMAND` trait do the excluding) and these tests prove the
+//! retired encoding never creeps back while the banned surface stays
+//! banned.
 
 use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_registry::traits::Traits;
 use tcl_registry::{ProfileQueries, registry_for_dialect};
 
 /// Whether `name` is a `tcl::mathop` operator-command spelling (bare `+`,
@@ -43,42 +44,155 @@ fn is_mathop_spelling(name: &str) -> bool {
         || !reg.specs(&format!("tcl::mathop::{name}")).is_empty()
 }
 
-/// The disable list authored on the f5-irules profile must equal, exactly,
-/// the set of command-level specs the registry data currently excludes from
-/// iRules via a `NON_IRULES_OPERATORS` tag (minus the math-operator heads,
-/// which are excluded because operators are not command heads in iRules —
-/// modelled separately by the Milestone 5 `operators_as_commands` toggle,
-/// not by the disable list).
-///
-/// Direction matters both ways: a command in the profile list that the data
-/// doesn't exclude would make the profile *stricter* than shipped behaviour;
-/// a tagged command missing from the profile list would be silently
-/// re-admitted by profile-driven consumers after the Milestone 5 retag.
+/// The Milestone 5 retag is complete and stays complete: no spec gate at
+/// any level (command, subcommand, option, form option, subcommand option)
+/// in any profile's registry is the retired `NON_IRULES_OPERATORS` union —
+/// "every dialect except iRules/Tk/BPF", reconstructed here because the
+/// constant itself was deleted from `DialectSet`. Exclusion from iRules is
+/// modelled on the profile (disable list / operator trait), never by
+/// enumerating the complement of the excluded dialects.
 #[test]
-fn irules_disabled_commands_match_the_spec_data() {
-    let reg = registry_for_dialect("f5-irules");
-    let derived: BTreeSet<&str> = reg
-        .command_names()
-        .flat_map(|name| reg.specs(name))
-        .filter(|spec| spec.dialects == Some(DialectSet::NON_IRULES_OPERATORS))
-        .map(|spec| spec.name)
-        .filter(|name| !is_mathop_spelling(name))
-        .collect();
-    let authored: BTreeSet<&str> = DialectProfile::irules()
-        .disabled_commands
-        .iter()
-        .copied()
-        .collect();
+fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
+    let retired = DialectSet::ALL_TCL
+        | DialectSet::IAPPS
+        | DialectSet::EXPECT
+        | DialectSet::SYNOPSYS
+        | DialectSet::CADENCE
+        | DialectSet::XILINX
+        | DialectSet::QUARTUS
+        | DialectSet::MENTOR;
+    let check = |gate: Option<DialectSet>, what: &str| {
+        assert_ne!(
+            gate,
+            Some(retired),
+            "{what}: the retired NON_IRULES_OPERATORS union must not be a \
+             spec gate — model iRules exclusion on the profile instead \
+             (disabled_commands / Traits::OPERATOR_COMMAND)"
+        );
+    };
+    for profile in DialectProfile::all() {
+        let reg = registry_for_dialect(profile.name);
+        for name in reg.command_names() {
+            for spec in reg.specs(name) {
+                check(spec.dialects, spec.name);
+                for opt in spec.options {
+                    check(opt.dialects, &format!("{} {}", spec.name, opt.name));
+                }
+                for form in spec.command_forms {
+                    for opt in form.options {
+                        check(opt.dialects, &format!("{} {}", spec.name, opt.name));
+                    }
+                }
+                for sub in spec.subcommands {
+                    check(sub.dialects, &format!("{} {}", spec.name, sub.name));
+                    for opt in sub.options {
+                        check(
+                            opt.dialects,
+                            &format!("{} {} {}", spec.name, sub.name, opt.name),
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
 
-    let missing: Vec<&&str> = derived.difference(&authored).collect();
-    let extra: Vec<&&str> = authored.difference(&derived).collect();
-    assert!(
-        missing.is_empty() && extra.is_empty(),
-        "profile disable list and spec data disagree.\n\
-         tagged in data but missing from profile: {missing:?}\n\
-         in profile but not tagged in data: {extra:?}\n\
-         full derived set: {derived:?}"
-    );
+/// Post-retag, the profile disable list is **load-bearing**: every banned
+/// name still exists in the f5-irules registry as spec data that the bare
+/// `IRULES` mask alone would admit (universal `dialects: None` after the
+/// retag), so the §9 disable filter — not a version tag, not a mask bit —
+/// is the only thing keeping it out. A list entry the mask already
+/// excludes would be dead weight hiding a modelling error on the wrong
+/// axis.
+#[test]
+fn irules_disable_list_is_load_bearing() {
+    let reg = registry_for_dialect("f5-irules");
+    for banned in DialectProfile::irules().disabled_commands {
+        let specs = reg.specs(banned);
+        assert!(
+            !specs.is_empty(),
+            "{banned}: disable-list entry names no registered spec"
+        );
+        assert!(
+            specs.iter().any(|s| s.supports_dialect(DialectSet::IRULES)),
+            "{banned}: the bare IRULES mask already excludes this spec, so \
+             the disable-list entry is not load-bearing — if it is version \
+             gating, it belongs on the version axis, not in the ban list"
+        );
+    }
+}
+
+/// The math-operator heads are excluded from iRules by dialect *shape*
+/// (`operators_as_commands == false` + `Traits::OPERATOR_COMMAND`), not by
+/// the disable list. Both directions of the trait marking are data-bound:
+/// a spec carries the trait iff it is a `tcl::mathop` spelling.
+#[test]
+fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
+    let reg = registry_for_dialect("tcl9.0");
+    for name in reg.command_names() {
+        for spec in reg.specs(name) {
+            assert_eq!(
+                spec.traits.contains(Traits::OPERATOR_COMMAND),
+                is_mathop_spelling(spec.name),
+                "{}: OPERATOR_COMMAND must mark exactly the tcl::mathop \
+                 spellings",
+                spec.name
+            );
+        }
+    }
+    // TP: operator heads resolve where operators are command heads…
+    let tcl90 = DialectProfile::by_name("tcl9.0");
+    for op in ["+", "eq", "tcl::mathop::+"] {
+        assert!(
+            tcl90.resolve_command(reg, op).is_some(),
+            "{op} resolves under tcl9.0"
+        );
+    }
+    // …TN: and never under iRules (operators live only inside expr there) —
+    // through the profile query, a bare mask query on the stamped registry
+    // (§9.2), and the snapshot's independent most-specific resolver alike.
+    let ireg = registry_for_dialect("f5-irules");
+    let irules = DialectProfile::irules();
+    for op in ["+", "eq", "tcl::mathop::+"] {
+        assert!(
+            irules.resolve_command(ireg, op).is_none(),
+            "{op} must not resolve under f5-irules"
+        );
+        assert!(
+            ireg.get_for_dialect(op, DialectSet::IRULES).is_none(),
+            "{op} must not resolve via a bare mask query either (§9.2)"
+        );
+        assert!(
+            !irules.is_command_disabled(op),
+            "{op}: operator heads are excluded by shape, not the ban list — \
+             keep the mechanisms separate"
+        );
+    }
+}
+
+/// The retag's false-negative fix: iRules subcommands whose *names* collide
+/// with a banned command or an operator spelling (`DNS::header cd` — the
+/// DNS Checking-Disabled flag; `IP::stats in` — inbound stats) were bulk
+/// mis-tagged `NON_IRULES_OPERATORS` and thus wrongly unavailable under
+/// f5-irules. Name-keyed exclusion must never leak into unrelated
+/// subcommands again.
+#[test]
+fn irules_subcommands_named_like_banned_commands_stay_available() {
+    let reg = registry_for_dialect("f5-irules");
+    let irules = DialectProfile::irules();
+    for (cmd, sub_name) in [("DNS::header", "cd"), ("IP::stats", "in")] {
+        let spec = irules
+            .resolve_command(reg, cmd)
+            .unwrap_or_else(|| panic!("{cmd} resolves under f5-irules"));
+        assert!(
+            irules
+                .available_subcommands(spec)
+                .iter()
+                .any(|s| s.name == sub_name),
+            "{cmd} {sub_name}: a real iRules subcommand must not be hidden \
+             by its name colliding with a banned command / operator"
+        );
+    }
 }
 
 /// The user-facing contract the disable list exists for: the banned
@@ -302,4 +416,59 @@ fn available_subcommands_follow_the_profile_mask() {
     for sub in ["get", "set", "keys"] {
         assert!(subs_86.contains(&sub) && subs_90.contains(&sub), "{sub}");
     }
+}
+
+/// §9.2 pre-retag gate, enforced BY CONSTRUCTION: a bare `IRULES` mask
+/// query on the profile-built f5-irules registry can never re-admit a
+/// banned command — the registry applies its stamped profile's subtractive
+/// rules inside `get_for_dialect` itself, so every low-level consumer
+/// (`defines_symbol` / `resolve_call` / `resolve_terminator` / the CLI
+/// snapshot's `command_names`) is covered without per-caller audits. This
+/// is the test that must hold BEFORE and AFTER the Milestone 5 data retag.
+#[test]
+fn bare_irules_mask_queries_apply_the_disable_filter() {
+    let reg = registry_for_dialect("f5-irules");
+    for banned in DialectProfile::irules().disabled_commands {
+        assert!(
+            reg.get_for_dialect(banned, DialectSet::IRULES).is_none(),
+            "{banned}: a bare-mask query on the f5-irules registry must not \
+             re-admit a banned command (§9.2)"
+        );
+    }
+    // The F5 surface and universal core still resolve through the same path.
+    for ok in ["set", "pool", "when", "HTTP::header"] {
+        assert!(
+            reg.get_for_dialect(ok, DialectSet::IRULES).is_some(),
+            "{ok} must resolve under the bare IRULES mask"
+        );
+    }
+    // A hand-assembled registry (no profile stamp) keeps raw tag semantics —
+    // the subtractive rules belong to profile-built registries only.
+    let mut raw = tcl_registry::CommandRegistry::build_default();
+    raw.load_dialect(DialectSet::IRULES);
+    assert!(
+        raw.get_for_dialect("set", DialectSet::IRULES).is_some(),
+        "raw registries keep working"
+    );
+}
+
+/// The iRules event/command cross-product never lists banned commands —
+/// `commands_for_event` routes through the same subtractive filter.
+#[test]
+fn commands_for_event_excludes_banned_commands() {
+    let reg = registry_for_dialect("f5-irules");
+    let events = tcl_registry::events::EventRegistry::build();
+    let profiles = tcl_registry::profiles::ProfileRegistry::build();
+    let cmds = reg.valid_irules_commands_for_event("HTTP_REQUEST", &events, &profiles);
+    for banned in ["exec", "file", "socket", "exit"] {
+        assert!(
+            !cmds.contains(&banned),
+            "{banned} must not appear in the HTTP_REQUEST command set"
+        );
+    }
+    assert!(
+        cmds.contains(&"pool"),
+        "the F5 surface is present: {}",
+        cmds.len()
+    );
 }

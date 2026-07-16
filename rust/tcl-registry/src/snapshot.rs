@@ -442,13 +442,13 @@ fn event_props_json(props: &crate::events::EventProps) -> Json {
 #[must_use]
 pub fn event_graph_snapshot() -> Json {
     use crate::events::EventRegistry;
-    use crate::registry::CommandRegistry;
 
     let dialect = "f5-irules";
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
-    let mut cmds = CommandRegistry::build_default();
-    cmds.load_irules();
+    // The profile-stamped registry: the §9 subtractive rules govern the
+    // per-event valid-command digests, exactly as they govern `event-info`.
+    let cmds = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
     // Sorted event names.
     let mut names = events.all_event_names();

@@ -32,14 +32,21 @@ use tcl_dialect::{DialectProfile, DialectSet};
 use crate::hover::OptionSpec;
 use crate::registry::CommandRegistry;
 use crate::spec::{CommandSpec, SubCommand};
+use crate::traits::Traits;
 
 /// Availability queries a resolved [`DialectProfile`] answers against
 /// registry data (design doc §5.1/§5.2). Implemented for `DialectProfile`
 /// here because the spec types live above the foundational crate.
 pub trait ProfileQueries {
     /// Whether `spec` is available under this profile: the membership test
-    /// against [`DialectProfile::availability_mask`] **and** the subtractive
-    /// disable filter ([`DialectProfile::is_command_disabled`], §9).
+    /// against [`DialectProfile::availability_mask`], the subtractive
+    /// disable filter ([`DialectProfile::is_command_disabled`], §9), and —
+    /// for a profile whose math operators are not command heads
+    /// (`f5-irules`) — the [`Traits::OPERATOR_COMMAND`] exclusion.
+    ///
+    /// This is the same trio [`CommandRegistry::spec_visible`] enforces
+    /// inside profile-stamped registries; it lives here too so profile-side
+    /// queries agree with mask queries on any registry.
     fn is_available(&self, spec: &CommandSpec) -> bool;
 
     /// Resolve `name` to its command spec under this profile — the single
@@ -116,7 +123,9 @@ pub trait ProfileQueries {
 
 impl ProfileQueries for DialectProfile {
     fn is_available(&self, spec: &CommandSpec) -> bool {
-        spec.supports_dialect(self.availability_mask) && !self.is_command_disabled(spec.name)
+        spec.supports_dialect(self.availability_mask)
+            && !self.is_command_disabled(spec.name)
+            && (self.operators_as_commands || !spec.traits.contains(Traits::OPERATOR_COMMAND))
     }
 
     fn resolve_command<'r>(
@@ -126,7 +135,7 @@ impl ProfileQueries for DialectProfile {
     ) -> Option<&'r CommandSpec> {
         registry
             .get_for_dialect(name, self.availability_mask)
-            .filter(|spec| !self.is_command_disabled(spec.name))
+            .filter(|spec| self.is_available(spec))
     }
 
     fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool {

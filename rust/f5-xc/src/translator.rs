@@ -29,7 +29,6 @@ use std::collections::BTreeMap;
 use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode, when_event_name};
 use tcl_compiler::lowering::lower_to_ir_with_config;
 use tcl_compiler::segmenter::segment_commands;
-use tcl_dialect::DialectSet;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp, expr_text};
@@ -1559,12 +1558,11 @@ fn walk_call(
 
 // Public API
 
-/// Build a [`CommandRegistry`] with the iRules dialect loaded, suitable for
-/// lowering and translating an iRule.
-fn irules_registry() -> CommandRegistry {
-    let mut registry = CommandRegistry::build_default();
-    registry.load_dialect(DialectSet::IRULES);
-    registry
+/// The profile-stamped iRules [`CommandRegistry`], suitable for lowering
+/// and translating an iRule (the §9 subtractive rules apply to every
+/// dialect-availability query made through it).
+fn irules_registry() -> &'static CommandRegistry {
+    tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules())
 }
 
 /// Translate an iRule to F5 XC configuration. Analyses the iRule source,
@@ -1572,8 +1570,7 @@ fn irules_registry() -> CommandRegistry {
 /// service policies, origin pools, header actions, and a coverage report.
 #[must_use]
 pub fn translate_irule(source: &str) -> XCTranslationResult {
-    let registry = irules_registry();
-    translate_irule_with_registry(source, &registry)
+    translate_irule_with_registry(source, irules_registry())
 }
 
 /// [`translate_irule`] against a caller-provided registry (must have the

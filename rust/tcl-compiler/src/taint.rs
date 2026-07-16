@@ -1306,13 +1306,15 @@ fn propagate_statement_taints(
 /// `expr`).
 ///
 /// `classify_taint_sinks` is asked with an empty dialect (no
-/// `supports_dialect` filtering) so a dialect-restricted non-iRules sink
-/// (`exec` declares `NON_IRULES_OPERATORS`) keeps its T100 classification
-/// even in a registry that also has iRules specs loaded. The iRules-only
-/// sink codes (`IRULE…`, from `taint_output_sink` / `taint_log_sink` on
-/// iRules specs) are instead gated explicitly on the active document
-/// dialect via [`DiagCode::family`] — the same explicit `is_irules_dialect`
-/// gate [`find_setter_constraint_warnings`] uses for IRULE3101, rather than
+/// `supports_dialect` filtering) so a sink the active profile *bans*
+/// (`exec` under f5-irules — excluded by the §9 disable list, not by any
+/// mask, since the Milestone 5 retag made it `dialects: None`) keeps its
+/// T100 classification: a banned command that appears in source anyway is
+/// still a code-execution sink. The iRules-only sink codes (`IRULE…`, from
+/// `taint_output_sink` / `taint_log_sink` on iRules specs) are instead
+/// gated explicitly on the active document dialect via
+/// [`DiagCode::family`] — the same explicit `is_irules_dialect` gate
+/// [`find_setter_constraint_warnings`] uses for IRULE3101, rather than
 /// relying on whether the shared registry happens to have those specs
 /// loaded.
 ///
@@ -4599,12 +4601,13 @@ mod tests {
 
     #[test]
     fn classify_sink_exec_stays_t100_under_irules_dialect() {
-        // `exec` declares `dialects: Some(NON_IRULES_OPERATORS)`, so it does
-        // not "support" the iRules `DialectSet`. T100 classification must
-        // not depend on `supports_dialect` — it's a plain trait fact,
-        // independent of the active document dialect — or `exec` would lose
-        // its T100 sink status the moment a registry also carries iRules
-        // specs and the document declares the iRules dialect.
+        // `exec` is universal spec data (`dialects: None` since the
+        // Milestone 5 retag); under f5-irules it is *banned* by the
+        // profile's §9 disable list, not by any dialect mask. T100
+        // classification must not route through profile availability —
+        // it's a plain trait fact, independent of the active document
+        // dialect — or `exec` would lose its T100 sink status in exactly
+        // the dialect where flagging it matters most.
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let hit = classify_sink(&registry, "exec", &["$cmd".to_owned()], Some("f5-irules"));

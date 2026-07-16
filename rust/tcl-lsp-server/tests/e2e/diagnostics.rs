@@ -2761,3 +2761,25 @@ fn irules_banned_commands_still_flag_end_to_end() {
         codes(&diags)
     );
 }
+
+#[test]
+fn irules_subcommands_named_like_banned_commands_are_clean_end_to_end() {
+    // Milestone 5 retag FP-fix: `DNS::header cd` (the DNS Checking-Disabled
+    // flag) and `IP::stats in` (inbound stats) are real iRules subcommands
+    // whose names collide with the banned `cd` command and the `in`
+    // operator spelling. The old bulk name-keyed tagging hid them and drew
+    // spurious availability/subcommand diagnostics; exclusion is keyed on
+    // the resolved spec now, never on a bare name.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when DNS_REQUEST {\n  DNS::header cd\n}\nwhen CLIENT_ACCEPTED {\n  IP::stats in\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        !has_code(&diags, "W001") && !has_code(&diags, "W002") && !has_code(&diags, "W123"),
+        "real iRules subcommands must not be hidden by name collisions: {:?}",
+        codes(&diags)
+    );
+}

@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::any(),
         hover: Some(HoverSnippet {
             summary: "HTTP client implementation (package http)",

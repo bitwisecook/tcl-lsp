@@ -28,7 +28,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "::tcl::unsupported::corotype",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet::brief(

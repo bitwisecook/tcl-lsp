@@ -105,7 +105,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Channel)],

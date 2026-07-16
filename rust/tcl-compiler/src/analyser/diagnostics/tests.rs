@@ -8957,6 +8957,32 @@ fn w001_subcommand_checks_use_the_profile_mask() {
     );
 }
 
+#[test]
+fn irules_subcommands_named_like_banned_commands_resolve_cleanly() {
+    // FP-fix (the Milestone 5 retag): `DNS::header cd` (the DNS
+    // Checking-Disabled flag) and `IP::stats in` (inbound stats) are real
+    // iRules subcommands that were bulk mis-tagged by name collision with
+    // the banned `cd` command and the `in` operator spelling, and so drew
+    // spurious subcommand diagnostics. Exclusion is keyed on the resolved
+    // spec, never on a bare name.
+    for snippet in ["DNS::header cd", "IP::stats in"] {
+        let codes = codes_for_dialect(snippet, "f5-irules");
+        assert!(
+            !codes
+                .iter()
+                .any(|c| c == "W001" || c == "W002" || c == "W123"),
+            "f5-irules: {snippet:?} is a real subcommand and must stay \
+             clean, got {codes:?}"
+        );
+    }
+    // TP retained: a genuinely unknown subcommand of the same commands
+    // still flags.
+    assert!(
+        has_code("DNS::header zzznotasub", "f5-irules", "W001"),
+        "unknown DNS::header subcommand must still draw W001"
+    );
+}
+
 // Behaviour axis (dialect-profile-model.md, Milestone 3): the expr grammar,
 // mathfunc tiers, and octal policy resolve through the profile — including
 // alias canonicalisation the string-keyed tables missed.

@@ -77,7 +77,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "in",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::exact(0),
         detail: "Get all inbound stats.",
         synopsis: "IP::stats in",

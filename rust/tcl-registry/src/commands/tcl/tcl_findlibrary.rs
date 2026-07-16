@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl_findLibrary",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         arity: Arity::new(5, 6),
         hover: Some(HoverSnippet {

@@ -29,7 +29,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::BYTE_COMPILED | Traits::OPENS_CHANNEL,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::Channel),

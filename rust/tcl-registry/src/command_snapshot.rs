@@ -362,36 +362,9 @@ fn info_json(spec: &CommandSpec) -> Json {
     Json::Object(m)
 }
 
-/// Deterministically pick the `CommandSpec` for `name` under `profile`.
-/// Among specs available in the profile (mask membership plus the
-/// subtractive disable filter — §9 of the dialect-profile model), prefer
-/// the most dialect-specific (scoped beats catch-all, then the smallest
-/// scope).
-fn resolve_spec<'a>(
-    registry: &'a CommandRegistry,
-    name: &str,
-    profile: &DialectProfile,
-) -> Option<&'a CommandSpec> {
-    registry
-        .specs(name)
-        .iter()
-        .filter(|s| s.supports_dialect(profile.availability_mask))
-        .filter(|s| !profile.is_command_disabled(s.name))
-        .min_by_key(|s| {
-            let scoped = u8::from(s.dialects.is_none());
-            let size = s
-                .dialects
-                .map_or(1_000_000, |d| d.bits().count_ones() as usize);
-            (scoped, size)
-        })
-}
-
 /// Full structured snapshot of a single command under `profile`.
 fn command_entry(spec: &CommandSpec, profile: &DialectProfile) -> Json {
-    let mut switches: Vec<&str> = {
-        use crate::profile_queries::ProfileQueries as _;
-        profile.available_option_names(spec)
-    };
+    let mut switches: Vec<&str> = profile.available_option_names(spec);
     // Top-level `switches` preserves declaration order — no sort.
     let switches_json: Vec<Json> = switches.drain(..).map(Json::s).collect();
 
@@ -433,7 +406,9 @@ fn command_names(registry: &CommandRegistry, profile: &DialectProfile) -> Vec<St
 #[must_use]
 pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
     let profile = DialectProfile::by_name(dialect);
-    resolve_spec(registry, name, profile).map(|spec| command_entry(spec, profile))
+    profile
+        .resolve_command(registry, name)
+        .map(|spec| command_entry(spec, profile))
 }
 
 /// Snapshot of every command available in `dialect`.
@@ -448,7 +423,9 @@ pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> J
     let commands: Vec<Json> = names
         .iter()
         .filter_map(|name| {
-            resolve_spec(registry, name, profile).map(|spec| command_entry(spec, profile))
+            profile
+                .resolve_command(registry, name)
+                .map(|spec| command_entry(spec, profile))
         })
         .collect();
     let mut m = BTreeMap::new();

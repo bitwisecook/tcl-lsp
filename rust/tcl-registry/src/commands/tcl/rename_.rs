@@ -33,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_RenameObjCmd` → `TclRenameCommand`
         // (tclNamesp.c / tclBasic.c) deletes `oldName` (an empty `newName`
         // deletes the command outright) and errors when `oldName` doesn't

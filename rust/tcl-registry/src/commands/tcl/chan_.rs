@@ -197,7 +197,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "eof",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::exact(1),
         detail: "Test for end of file.",
         synopsis: "chan eof channelId",
@@ -229,7 +229,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "flush",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::exact(1),
         detail: "Flush buffered output.",
         synopsis: "chan flush channelId",
@@ -245,7 +245,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "gets",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         detail: "Read a line.",
@@ -378,7 +378,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "seek",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::new(2, 3),
         detail: "Set access position.",
         synopsis: "chan seek channelId offset ?origin?",
@@ -394,7 +394,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tell",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::exact(1),
         detail: "Return current position.",
         synopsis: "chan tell channelId",

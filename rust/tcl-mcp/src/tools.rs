@@ -24,7 +24,7 @@
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
-use tcl_dialect::{DialectSet, KNOWN_DIALECTS};
+use tcl_dialect::KNOWN_DIALECTS;
 use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
 use tcl_registry::events::EventRegistry;
@@ -609,7 +609,10 @@ fn event_info(args: &Value) -> Value {
 fn command_info(args: &Value) -> Value {
     let command = arg_str(args, "command_name").trim();
     let reg = registry(IRULES_DIALECT);
-    let Some(spec) = reg.get_for_dialect(command, DialectSet::IRULES) else {
+    let Some(spec) = ({
+        use tcl_registry::ProfileQueries;
+        tcl_dialect::DialectProfile::irules().resolve_command(reg, command)
+    }) else {
         return json!({ "command": command, "found": false });
     };
     let events = EventRegistry::build();

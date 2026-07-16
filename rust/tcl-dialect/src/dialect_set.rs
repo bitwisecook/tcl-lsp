@@ -101,19 +101,14 @@ bitflags! {
         /// top by the LSP, not by this dialect set.
         const TK_AND_TCL = Self::ALL_TCL.bits() | Self::TK.bits();
 
-        /// Every modelled dialect *except* F5 iRules and Tk.
-        ///
-        /// The math-operator commands
-        /// (`+`, `eq`, `tcl::mathop::*`, …) are valid in every command
-        /// dialect *except* `f5-irules` (in iRules, operators live
-        /// inside `expr`, never as standalone command heads) and
-        /// `tk`. This set captures that membership so the iRules
-        /// event/command cross-product (`commands_for_event`) excludes them.
-        const NON_IRULES_OPERATORS = Self::ALL_TCL.bits()
-            | Self::IAPPS.bits() | Self::EXPECT.bits()
-            | Self::SYNOPSYS.bits() | Self::CADENCE.bits()
-            | Self::XILINX.bits() | Self::QUARTUS.bits()
-            | Self::MENTOR.bits();
+        // `NON_IRULES_OPERATORS` (every dialect except iRules/Tk/BPF) was
+        // retired in Milestone 5 of the dialect-profile refactor: specs it
+        // tagged are plain universal data (`dialects: None`) now, and the
+        // exclusions it encoded live on `DialectProfile` instead — the §9
+        // `disabled_commands` list for the K36322151 bans, and
+        // `Traits::OPERATOR_COMMAND` + `operators_as_commands` for the
+        // math-operator heads. The `dialect_profile.rs` contract tests
+        // assert the union never reappears as a spec gate.
     }
 }
 

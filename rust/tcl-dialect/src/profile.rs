@@ -47,12 +47,17 @@ use crate::version::{TclVersion, Ternary};
 /// `TCL84|IRULES` union — the union re-admits exactly these commands (see
 /// §9 of the design doc, the subtractive-iRules trap).
 ///
-/// Membership is data-bound, not hand-curated: until the Milestone 5 data
-/// retag the per-spec `NON_IRULES_OPERATORS` tags encode the same exclusion,
-/// and `tcl-registry`'s `irules_disabled_commands_match_the_spec_data`
-/// contract test keeps this list and the spec data in lock-step from both
-/// sides. (8.5+/8.6 core such as `dict`/`lmap` is deliberately NOT here —
-/// that is version-gating on the pinned 8.4 base, a different axis.)
+/// Since the Milestone 5 data retag this list is **load-bearing**: the
+/// specs it names are plain universal data (`dialects: None`) and only this
+/// list bans them. It was derived from — and is contract-tested against —
+/// the retired per-spec `NON_IRULES_OPERATORS` tags that encoded the same
+/// exclusion before the retag (`tcl-registry`'s `dialect_profile.rs` suite
+/// proves every entry still resolves by mask alone and is excluded only
+/// here). (8.5+/8.6 core such as `dict`/`lmap` is deliberately NOT here —
+/// that is version-gating on the pinned 8.4 base, a different axis. The
+/// math-operator heads are not here either: they are excluded by
+/// `Traits::OPERATOR_COMMAND` + [`DialectProfile::operators_as_commands`],
+/// a dialect *shape* fact, not a K36322151 ban.)
 const IRULES_DISABLED_COMMANDS: &[&str] = &[
     "::tcl::build-info",
     "::tcl::unsupported::corotype",
@@ -383,10 +388,12 @@ static CATALOG: [DialectProfile; 16] = [
     },
     // iRules is SUBTRACTIVE (§9): a genuine embedded Tcl 8.4.6 whose F5
     // command surface carries the IRULES tag, minus the K36322151
-    // disables. The mask stays the BARE bit — `TCL84|IRULES` would
-    // re-admit exactly the disabled commands through their (until
-    // Milestone 5) `NON_IRULES_OPERATORS` tags. Signature and runtime
-    // base are both 8.4 (D3) and math operators are not command heads.
+    // disables. The mask stays the BARE bit: everything iRules embeds is
+    // either universal (`dialects: None`) or IRULES-tagged, so a version
+    // bit adds nothing — it would only re-admit 8.x-only specs (removed
+    // test-harness commands and the like) that the TMM build never had.
+    // Signature and runtime base are both 8.4 (D3) and math operators are
+    // not command heads.
     DialectProfile {
         name: "f5-irules",
         aliases: &["irules", "tcl-irule"],

@@ -12444,11 +12444,10 @@ mod tests {
     /// registry path must surface it through `lift_compiler_diagnostics`.
     #[test]
     fn lift_compiler_diagnostics_surfaces_irules_taint_flow() {
-        let mut registry = CommandRegistry::build_default();
-        registry.load_irules();
+        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
-            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules", None);
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None);
         let diags = lift_compiler_diagnostics(
             src,
             &cdiags,
@@ -12474,11 +12473,10 @@ mod tests {
     /// leaving other codes untouched.
     #[test]
     fn lift_compiler_diagnostics_honours_per_check_disable() {
-        let mut registry = CommandRegistry::build_default();
-        registry.load_irules();
+        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
-            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules", None);
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None);
         let is_irule3001 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001");
         // Baseline: IRULE3001 is present with no disabled codes.
         let baseline = lift_compiler_diagnostics(
