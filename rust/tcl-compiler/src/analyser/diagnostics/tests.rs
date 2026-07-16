@@ -9030,3 +9030,66 @@ fn dict_set_table_value_becomes_a_reference_when_consumed_m7() {
             .collect::<Vec<_>>(),
     );
 }
+
+// -- M9: source-site namespace propagation (seeded analysis) --------------
+
+#[test]
+fn seeded_analysis_homes_relative_defs_under_the_source_namespace_m9() {
+    // `source` evaluates the file in the caller's namespace: analysing with
+    // a seed must behave exactly like wrapping the file in
+    // `namespace eval ::x { ... }` — relative names re-home, absolute stay.
+    let mut a = Analyser::new();
+    let r = a.analyse_with_source_namespace(
+        "proc helper {} {}\nproc ::abs::keep {} {}\nnamespace eval rel { proc deep {} {} }\nhelper\n",
+        "tcl",
+        "::x",
+    );
+    assert!(
+        r.all_procs.contains_key("::x::helper"),
+        "{:?}",
+        r.all_procs.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        r.all_procs.contains_key("::abs::keep"),
+        "an absolute definition is not re-homed"
+    );
+    assert!(
+        r.all_procs.contains_key("::x::rel::deep"),
+        "a relative namespace nests under the seed: {:?}",
+        r.all_procs.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        r.command_invocations
+            .iter()
+            .any(|i| i.name == "helper"
+                && i.resolved_qualified_name.as_deref() == Some("::x::helper")),
+        "a bare call settles inside the seeded namespace first"
+    );
+}
+
+#[test]
+fn seeded_analysis_records_composed_source_site_namespaces_m9() {
+    // A nested `source` inside the seeded file composes: its recorded site
+    // namespace already carries the seed, so transitive re-homing needs no
+    // separate composition step.
+    let mut a = Analyser::new();
+    let r = a.analyse_with_source_namespace(
+        "source plain.tcl\nnamespace eval sub { source nested.tcl }\n",
+        "tcl",
+        "::x",
+    );
+    let sites: Vec<(&str, &str)> = r
+        .source_targets
+        .iter()
+        .map(|s| (s.raw_path.as_str(), s.site_namespace.as_str()))
+        .collect();
+    assert!(sites.contains(&("plain.tcl", "::x")), "{sites:?}");
+    assert!(sites.contains(&("nested.tcl", "::x::sub")), "{sites:?}");
+}
+
+#[test]
+fn global_seed_is_the_plain_analysis_m9() {
+    let mut a = Analyser::new();
+    let r = a.analyse_with_source_namespace("proc helper {} {}\n", "tcl", "::");
+    assert!(r.all_procs.contains_key("::helper"));
+}

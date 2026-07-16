@@ -139,6 +139,11 @@ pub struct WorkspaceSource {
     pub range: Span,
     /// `true` when the path is a plain literal (no `$` / `[`).
     pub is_literal: bool,
+    /// Command-resolution namespace at the `source` call site (a constructed
+    /// `::`-rooted key).  `source` evaluates the file in the caller's current
+    /// namespace (M9), so the sourced document's definitions re-home under
+    /// this namespace — see [`WorkspaceIndex::source_seed_map`].
+    pub site_namespace: String,
 }
 
 /// One `package require NAME` declaration recorded in the index.
@@ -261,6 +266,7 @@ impl WorkspaceIndex {
             self.sources.push(WorkspaceSource {
                 uri: uri.to_owned(),
                 raw_path: target.raw_path.clone(),
+                site_namespace: target.site_namespace.clone(),
                 range: target.range,
                 is_literal: target.is_literal,
             });
@@ -396,6 +402,51 @@ impl WorkspaceIndex {
                 .push(pr.name.clone());
         }
         crate::source_graph::ancestor_requires(target_uri, &edges, &requires)
+    }
+
+    /// The **source-site namespace seeds** per sourced document (M9): for
+    /// every `source` statement `resolve` can place (the closure maps
+    /// `(parent-uri, raw-path, is_literal)` to the child's URI — handling
+    /// relative literals and, for stage 9.2, statically-foldable computed
+    /// paths), the child URI maps to the set of namespaces it is sourced
+    /// under.  `source` runs the file in the caller's namespace, so a child
+    /// sourced from `namespace eval ::x` must be (re-)analysed seeded with
+    /// `::x` for the index to hold its true runtime names.
+    ///
+    /// Transitivity needs no composition here: once a child's *seeded*
+    /// analysis is merged into the index, its own recorded `source` sites
+    /// already carry the composed namespace.
+    #[must_use]
+    pub fn source_seed_map(
+        &self,
+        resolve: impl Fn(&str, &str, bool) -> Option<String>,
+    ) -> std::collections::HashMap<String, std::collections::BTreeSet<String>> {
+        let mut out: std::collections::HashMap<String, std::collections::BTreeSet<String>> =
+            std::collections::HashMap::new();
+        for src in &self.sources {
+            let Some(child) = resolve(&src.uri, &src.raw_path, src.is_literal) else {
+                continue;
+            };
+            // Self-sourcing carries no new namespace view.
+            if child == src.uri {
+                continue;
+            }
+            let seed = if src.site_namespace.is_empty() {
+                "::".to_owned()
+            } else {
+                src.site_namespace.clone()
+            };
+            out.entry(child).or_default().insert(seed);
+        }
+        out
+    }
+
+    /// Whether any `source` statement is indexed at all — the cheap guard
+    /// that lets the server skip the M9 re-homing pass entirely for
+    /// workspaces that never `source`.
+    #[must_use]
+    pub fn has_source_edges(&self) -> bool {
+        !self.sources.is_empty()
     }
 
     /// Every indexed proc.

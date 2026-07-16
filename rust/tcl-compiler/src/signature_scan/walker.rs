@@ -140,7 +140,7 @@ pub(super) fn scan(
             "package" => {
                 handlers::handle_package(texts, argv, conditional, ctx.registry, &mut ctx.result);
             }
-            "source" => handlers::handle_source(texts, argv, &mut ctx.result),
+            "source" => handlers::handle_source(texts, argv, ns_prefix, &mut ctx.result),
             "interp" => handlers::handle_interp(texts, ctx.registry, &mut ctx.result),
             "rename" => handlers::handle_rename(texts, ns_prefix, &mut ctx.result),
             "if" => handle_if(texts, argv, ns_prefix, known_commands, ctx),

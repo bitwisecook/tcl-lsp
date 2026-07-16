@@ -247,6 +247,13 @@ pub struct Analyser {
     /// dispatched command); an unresolvable value is dropped (abstention —
     /// the documented non-const limit stays intact and no new W123 arises).
     pub(super) pending_const_dispatches: Vec<ConstDispatchSite>,
+    /// M9: the namespace key a seeded analysis wraps the whole file in (set
+    /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it
+    /// creates becomes the top-level walk's base path.
+    pub(super) seed_namespace_key: Option<String>,
+    /// Scope path of the innermost seeded namespace scope (empty when not
+    /// seeded) — the base path for the top-level walk.
+    pub(super) seed_scope_path: Vec<usize>,
     /// Tk widget instance-dispatch candidates (`.t instate …`, `$w tag
     /// configure …`) whose head the ordinary registry-command resolution
     /// could not resolve; resolved post-walk by
@@ -569,6 +576,8 @@ impl Analyser {
             namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
             pending_const_dispatches: Vec::new(),
+            seed_namespace_key: None,
+            seed_scope_path: Vec::new(),
             widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
             ns_cache: HashMap::new(),
@@ -679,6 +688,27 @@ impl Analyser {
     /// 3. Walks each segmented command through
     ///    [`Self::process_command`].
     ///
+    /// As [`Self::analyse`], but the whole file is walked **inside**
+    /// `source_namespace` (a constructed `::`-rooted key) — the static
+    /// equivalent of C Tcl evaluating a `source`d file in the caller's
+    /// current namespace (M9).  Relative definitions home under the seed
+    /// (`proc helper` → `<seed>::helper`), absolute ones are unaffected, and
+    /// bare call sites gain the seeded namespace as their first resolution
+    /// candidate — exactly the `namespace eval <seed> { <file> }` semantics,
+    /// via the ordinary scope machinery.
+    pub fn analyse_with_source_namespace(
+        &mut self,
+        source: &str,
+        dialect: &str,
+        source_namespace: &str,
+    ) -> AnalysisResult {
+        if source_namespace.is_empty() || source_namespace == "::" {
+            return self.analyse(source, dialect);
+        }
+        self.seed_namespace_key = Some(source_namespace.to_owned());
+        self.analyse(source, dialect)
+    }
+
     /// `source` is consumed by reference so the analyser can hold
     /// per-walk references back into it; `dialect` is one of
     /// `"tcl"`, `"f5-irules"`, `"irules"`, `"iapps"`, etc. (kept in
@@ -790,6 +820,25 @@ impl Analyser {
         // ``recover_missing_open_brace`` (for switch with a forgotten
         // body brace), ``detect_stolen_close_brace`` (E103), and the
         // generic E200 partial-command emitter.
+        // M9: a seeded analysis (`analyse_with_source_namespace`) walks the
+        // whole file inside the source-site namespace, exactly as if wrapped
+        // in `namespace eval <ns> { ... }` — relative definitions re-home,
+        // absolute ones stay put, and call-site candidates gain the seeded
+        // tier, all through the ordinary scope machinery.
+        if let Some(seed) = self.seed_namespace_key.take() {
+            let end = u32::try_from(source.len()).unwrap_or(u32::MAX);
+            let mut base: Vec<usize> = Vec::new();
+            for segment in crate::naming::key_segments(&seed) {
+                let mut child =
+                    super::types::Scope::new(super::types::ScopeKind::Namespace, &segment);
+                child.body_span = Some(tcl_lexer::Span::new(0, end));
+                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &base)
+                    .expect("seed scope path is self-built");
+                parent.children.push(child);
+                base.push(parent.children.len() - 1);
+            }
+            self.seed_scope_path = base;
+        }
         let file_env_pushed = self.seed_file_scope_env(source);
         self.walk_commands_top_level(&commands, ghost_recovery_applied);
         if file_env_pushed {
@@ -884,15 +933,16 @@ impl Analyser {
             // (proc, oo::class) ``std::mem::take`` it; everything else
             // clears it on the next command.
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
+            let base_path = self.seed_scope_path.clone();
             self.process_command(
                 &cmd.texts,
                 &cmd.argv,
                 &single,
                 cmd.expand_word.as_deref().unwrap_or(&[]),
-                &[],
+                &base_path,
             );
             self.emit_w216_brace_then_paren(&cmd);
-            self.record_arg_var_reads(&cmd, &[]);
+            self.record_arg_var_reads(&cmd, &base_path);
             cmd_idx += 1 + consumed;
         }
     }
@@ -1482,6 +1532,8 @@ impl Analyser {
     /// ``analyse_commands``).
     pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
+        self.seed_namespace_key = None;
+        self.seed_scope_path.clear();
         self.recovery_known_commands.clear();
         self.line_offsets = None;
         self.defer_proc_bodies = false;

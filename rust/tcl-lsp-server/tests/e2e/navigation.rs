@@ -22,6 +22,7 @@
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
+use serde_json::Value;
 
 // -- TestTypeDefinition --------------------------------------------------
 
@@ -112,5 +113,44 @@ fn dispatch_table_literal_resolves_to_the_proc_m7() {
     assert!(
         refs.contains(&1),
         "table literal is a reference site: {refs:?}"
+    );
+}
+
+// M9: `source` evaluates the file in the caller's namespace — a bare
+// `proc helper` in a file sourced inside `namespace eval ::x` is really
+// `::x::helper`, so a correctly-qualified cross-file call resolves to it and
+// the sourced declaration's references reach the qualified callers.
+#[test]
+fn sourced_file_resolves_under_the_source_site_namespace_m9() {
+    let mut lsp = Lsp::tcl();
+    let b = unique_uri("tcl");
+    let b_name = b.rsplit('/').next().unwrap().to_owned();
+    lsp.open_ready(&b, "proc helper {} {}\n");
+    let a = unique_uri("tcl");
+    let a_src = format!("namespace eval ::x {{ source {b_name} }}\n::x::helper\n");
+    lsp.open_ready(&a, &a_src);
+
+    // Go-to-definition on the `::x::helper` call jumps into the sourced file.
+    let defs = crate::common::helpers::locations(&lsp.definition(&a, 1, 4));
+    assert!(
+        defs.iter().any(|l| l.uri == b
+            && l.range
+                .get("start")
+                .and_then(|s| s.get("line"))
+                .and_then(Value::as_i64)
+                == Some(0)),
+        "::x::helper must resolve into the sourced file: {defs:?}"
+    );
+
+    // References from the sourced declaration reach the qualified caller.
+    let refs = crate::common::helpers::locations(&lsp.references(&b, 0, 6, false));
+    assert!(
+        refs.iter().any(|l| l.uri == a
+            && l.range
+                .get("start")
+                .and_then(|s| s.get("line"))
+                .and_then(Value::as_i64)
+                == Some(1)),
+        "the qualified call is a reference of the sourced declaration: {refs:?}"
     );
 }

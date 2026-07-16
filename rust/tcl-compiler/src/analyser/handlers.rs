@@ -2463,7 +2463,12 @@ impl Analyser {
     /// Record `source ?-encoding ENC? FILE` invocations.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Source`].
-    pub fn handle_source_command(&mut self, args: &[String], arg_tokens: &[Token]) {
+    pub fn handle_source_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
         if args.is_empty() {
             return;
         }
@@ -2480,12 +2485,17 @@ impl Analyser {
         let is_lit = !matches!(st.kind, TokenType::Var | TokenType::Cmd)
             && !path.contains('$')
             && !path.contains('[');
+        // `source` evaluates the file in the caller's current namespace (M9):
+        // record the command-resolution namespace at this call site so the
+        // workspace index can re-home the sourced document's definitions.
+        let site_namespace = self.command_resolution_namespace(scope_path);
         self.result
             .source_targets
             .push(crate::signature_scan::types::SignatureSource {
                 raw_path: path.clone(),
                 range: st.span,
                 is_literal: is_lit,
+                site_namespace,
             });
     }
 

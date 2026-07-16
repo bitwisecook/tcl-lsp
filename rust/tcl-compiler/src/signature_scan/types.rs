@@ -117,6 +117,13 @@ pub struct SignatureSource {
     pub range: Span,
     /// `true` when the path is a plain literal (no `$` or `[`).
     pub is_literal: bool,
+    /// Command-resolution namespace at the `source` call site (a constructed
+    /// `::`-rooted key).  `source` evaluates the file **in the caller's
+    /// current namespace** (M9): a bare `proc helper` in a file sourced
+    /// inside `namespace eval ::x` lands in `::x::helper`, so the workspace
+    /// index re-homes the sourced document's definitions under this
+    /// namespace.
+    pub site_namespace: String,
 }
 
 /// A local-interpreter `interp alias` recorded by the signature scanner.
