@@ -2694,3 +2694,70 @@ fn w003_f5_tmsh_flags_string_relational_operators() {
     let diags = lsp.open_ready(&uri, "# tcl-dialect: f5-tmsh\nif {$a lt $b} { puts hi }\n");
     assert!(has_code(&diags, "W003"), "{diags:?}");
 }
+
+// -- Dialect-profile availability (dialect-profile-model.md, Milestone 2):
+// vendor dialects resolve their embedded Tcl core end-to-end — server →
+// JSON-RPC → publishDiagnostics — via the composed (version|vendor) profile
+// masks; the version ladder and the subtractive iRules view still hold.
+
+#[test]
+fn iapps_embedded_85_core_is_clean_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("iapp");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "dict set cfg pool p1\nlassign {a b} x y\napply {{v} {return $v}} 1\n",
+        "tcl-iapp",
+    );
+    assert!(
+        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
+        "iApps (Tcl 8.5.13 host) must resolve 8.5 core cleanly: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn iapps_86_core_still_draws_w123_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("iapp");
+    let diags = lsp.open_ready_lang(&uri, "lmap x {1 2} {set x}\n", "tcl-iapp");
+    assert!(
+        has_code(&diags, "W123"),
+        "lmap is 8.6 — unavailable on the iApps 8.5 base: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn expect_embedded_86_core_is_clean_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("exp");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "spawn ssh host\ndict set cfg k v\ncoroutine pump ::apply {{} {}}\n",
+        "tcl-expect",
+    );
+    assert!(
+        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
+        "expect (Tcl 8.6 base) must resolve 8.6 core + expect surface cleanly: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn irules_banned_commands_still_flag_end_to_end() {
+    // The subtractive iRules profile is unchanged by the composed-mask fix:
+    // banned 8.4 core still draws W002 in a `when` handler.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n  exec /bin/true\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        has_code(&diags, "W002"),
+        "exec is banned in iRules: {:?}",
+        codes(&diags)
+    );
+}

@@ -44,18 +44,22 @@ use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
-use tcl_dialect::DialectSet;
+use tcl_dialect::{DialectProfile, DialectSet};
 use tcl_registry::CommandRegistry;
 use tcl_registry::traits::Traits;
 
 use crate::util::{self, repo_root};
 
-/// A language directory we emit a query for, and the dialect surface it covers.
+/// A language directory we emit a query for, and the dialect profile whose
+/// static-grammar surface it covers.
 struct Target {
     /// Directory under `editors/zed/languages/`.
     dir: &'static str,
-    /// The dialect union this language's first-paint layer should recognise.
-    dialects: DialectSet,
+    /// The dialect profile this language renders. The first-paint layer
+    /// takes the profile's `grammar_union` — the deliberately coarse
+    /// over-approximation for static grammars (dialect-profile-model.md
+    /// §10) — and its `base_layers` command packs.
+    profile: &'static DialectProfile,
 }
 
 /// Command words the tree-sitter-tcl grammar parses as dedicated node types
@@ -79,19 +83,12 @@ const GRAMMAR_NODE_WORDS: &[&str] = &[
     "switch",
 ];
 
-/// Non-core dialects the registry loads on demand (`build_default` carries
-/// core Tcl + stdlib + tcllib + Tk only). We load whichever of these a target
-/// asks for before projecting its commands.
-const LOADABLE_DIALECTS: &[DialectSet] =
-    &[DialectSet::IRULES, DialectSet::IAPPS, DialectSet::EXPECT];
-
-/// Build a registry with the on-demand dialects for `dialects` loaded in.
-fn registry_for(dialects: DialectSet) -> CommandRegistry {
+/// Build a registry with `profile`'s on-demand command packs loaded in
+/// (`build_default` carries core Tcl + stdlib + tcllib + Tk only).
+fn registry_for(profile: &DialectProfile) -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
-    for &flag in LOADABLE_DIALECTS {
-        if dialects.contains(flag) {
-            reg.load_dialect(flag);
-        }
+    for &layer in profile.base_layers {
+        reg.load_dialect(layer);
     }
     reg
 }
@@ -102,32 +99,36 @@ fn registry_for(dialects: DialectSet) -> CommandRegistry {
 fn targets() -> Vec<Target> {
     vec![
         Target {
-            // Tk is filtered out by `required_package` (it needs `package
+            // The PLAIN_TCL profile: grammar_union == ALL_TCL.  Tk is
+            // filtered out by `required_package` (it needs `package
             // require Tk`), so the ambient Tcl core is just ALL_TCL here.
             dir: "tcl",
-            dialects: DialectSet::ALL_TCL,
+            profile: DialectProfile::plain_tcl(),
         },
         Target {
-            // iRules are Tcl 8.4 with a long list of disabled commands plus the
-            // F5 command surface — NOT the full Tcl-version union.  Scope to the
-            // `IRULES` dialect alone: a command is projected iff
-            // `supports_dialect(IRULES)` — i.e. it is dialect-agnostic (`None`,
-            // e.g. `set`/`if`/`const`, which is deliberately kept valid in
-            // iRules) or carries the `IRULES` bit (the F5 surface).  Commands
-            // disabled in iRules gate to `NON_IRULES_OPERATORS` (no `IRULES`
-            // bit) and post-8.4 commands gate to `TCL85_PLUS` / `TCL86_PLUS` /
-            // `TCL90_PLUS` (e.g. `dict`, `lassign`, `zipfs`), so both are
-            // correctly excluded — iRules is the Tcl 8.4 base, not 8.5+.
+            // iRules are SUBTRACTIVE (dialect-profile-model.md §9): a Tcl
+            // 8.4 base with a long list of disabled commands plus the F5
+            // command surface — NOT the full Tcl-version union.  The
+            // profile's grammar_union is deliberately the bare `IRULES`
+            // bit (the shipped highlight fix): a command is projected iff
+            // `supports_dialect(IRULES)` — i.e. it is dialect-agnostic
+            // (`None`, e.g. `set`/`if`/`const`, which is deliberately kept
+            // valid in iRules) or carries the `IRULES` bit (the F5
+            // surface).  Commands disabled in iRules gate to
+            // `NON_IRULES_OPERATORS` (no `IRULES` bit) and post-8.4
+            // commands gate to `TCL85_PLUS` / `TCL86_PLUS` / `TCL90_PLUS`
+            // (e.g. `dict`, `lassign`, `zipfs`), so both are correctly
+            // excluded — iRules is the Tcl 8.4 base, not 8.5+.
             dir: "irules",
-            dialects: DialectSet::IRULES,
+            profile: DialectProfile::by_name("f5-irules"),
         },
         Target {
             dir: "iapps",
-            dialects: DialectSet::ALL_TCL.union(DialectSet::IAPPS),
+            profile: DialectProfile::by_name("f5-iapps"),
         },
         Target {
             dir: "expect",
-            dialects: DialectSet::ALL_TCL.union(DialectSet::EXPECT),
+            profile: DialectProfile::by_name("expect"),
         },
     ]
 }
@@ -320,10 +321,10 @@ fn generated_files() -> Vec<(String, String)> {
     targets()
         .into_iter()
         .map(|t| {
-            let reg = registry_for(t.dialects);
+            let reg = registry_for(t.profile);
             (
                 format!("editors/zed/languages/{}/highlights.scm", t.dir),
-                render(&reg, t.dialects),
+                render(&reg, t.profile.grammar_union),
             )
         })
         .collect()
@@ -335,8 +336,8 @@ pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
 
     for t in targets() {
-        let reg = registry_for(t.dialects);
-        let b = classify(&reg, t.dialects);
+        let reg = registry_for(t.profile);
+        let b = classify(&reg, t.profile.grammar_union);
         eprintln!(
             "  {:<7} {:>4} commands ({} control, {} keyword, {} builtin)",
             t.dir,
@@ -387,7 +388,9 @@ mod tests {
 
     #[test]
     fn tcl_bucket_dwarfs_the_old_hand_list_and_is_disjoint() {
-        let reg = registry_for(DialectSet::TK_AND_TCL);
+        // build_default already carries the Tk surface, so the plain-Tcl
+        // profile's registry classifies the TK_AND_TCL union directly.
+        let reg = registry_for(DialectProfile::plain_tcl());
         let b = classify(&reg, DialectSet::TK_AND_TCL);
         assert!(
             b.builtin.len() > 100,
@@ -409,8 +412,12 @@ mod tests {
         // core Tcl — the whole point of dialect scoping.
         let tcl_dialects = DialectSet::TK_AND_TCL;
         let irules_dialects = DialectSet::ALL_TCL.union(DialectSet::IRULES);
-        let tcl = classify(&registry_for(tcl_dialects), tcl_dialects).total();
-        let irules = classify(&registry_for(irules_dialects), irules_dialects).total();
+        let tcl = classify(&registry_for(DialectProfile::plain_tcl()), tcl_dialects).total();
+        let irules = classify(
+            &registry_for(DialectProfile::by_name("f5-irules")),
+            irules_dialects,
+        )
+        .total();
         assert!(
             irules > tcl,
             "iRules ({irules}) should exceed plain Tcl ({tcl}) once F5 commands load"
@@ -464,9 +471,9 @@ mod tests {
     /// fails here even if someone hand-edited the file to look plausible.
     #[test]
     fn committed_command_data_equals_live_registry() {
-        for Target { dir, dialects } in targets() {
-            let reg = registry_for(dialects);
-            let b = classify(&reg, dialects);
+        for Target { dir, profile } in targets() {
+            let reg = registry_for(profile);
+            let b = classify(&reg, profile.grammar_union);
             let mut expected = BTreeSet::new();
             expected.extend(b.control.iter().cloned());
             expected.extend(b.keyword.iter().cloned());

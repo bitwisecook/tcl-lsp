@@ -30,31 +30,41 @@
 use std::sync::{Mutex, OnceLock};
 
 use rustc_hash::FxHashMap;
+use tcl_dialect::DialectProfile;
 
-use crate::dialects::DialectSet;
 use crate::registry::CommandRegistry;
 
-/// Return the cached registry for `dialect`, building it on first use.
-pub fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
-    static REGISTRIES: OnceLock<Mutex<FxHashMap<String, &'static CommandRegistry>>> =
+/// Return the cached registry for `profile`, building it on first use.
+///
+/// The registry is the default build plus the profile's
+/// [`base_layers`](DialectProfile::base_layers) command packs, keyed by the
+/// profile's canonical name — so aliases share their canonical entry and
+/// every unknown dialect string shares the one `PLAIN_TCL` entry.
+pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
+    static REGISTRIES: OnceLock<Mutex<FxHashMap<&'static str, &'static CommandRegistry>>> =
         OnceLock::new();
-
-    let parsed = DialectSet::parse(dialect);
-    // Canonicalise the cache key: parseable dialects keep their string;
-    // unparseable ones share the plain-Tcl entry.
-    let key = if parsed.is_some() { dialect } else { "" };
 
     let map = REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let mut guard = map.lock().expect("registry cache mutex");
-    if let Some(r) = guard.get(key) {
+    if let Some(r) = guard.get(profile.name) {
         return r;
     }
 
     let mut registry = CommandRegistry::build_default();
-    if let Some(d) = parsed {
-        registry.load_dialect(d);
+    for &layer in profile.base_layers {
+        registry.load_dialect(layer);
     }
     let leaked: &'static CommandRegistry = Box::leak(Box::new(registry));
-    guard.insert(key.to_owned(), leaked);
+    guard.insert(profile.name, leaked);
     leaked
+}
+
+/// Return the cached registry for `dialect`, building it on first use.
+///
+/// String-keyed convenience over [`registry_for_profile`]: the name is
+/// resolved through [`DialectProfile::by_name`], so a stream of typos
+/// cannot leak one registry per typo (they all share the plain-Tcl entry).
+#[must_use]
+pub fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
+    registry_for_profile(DialectProfile::by_name(dialect))
 }

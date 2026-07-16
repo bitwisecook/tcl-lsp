@@ -28,10 +28,13 @@
 
 use std::collections::BTreeMap;
 
+use tcl_dialect::DialectProfile;
+
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
 use crate::hover::FormKind;
+use crate::profile_queries::ProfileQueries;
 use crate::registry::CommandRegistry;
 use crate::side_effects::StorageType;
 use crate::snapshot::Json;
@@ -357,19 +360,21 @@ fn info_json(spec: &CommandSpec) -> Json {
     Json::Object(m)
 }
 
-/// Deterministically pick the `CommandSpec` for `name` in `dialect`.
-/// Among specs supporting the dialect,
-/// prefer the most dialect-specific (scoped beats catch-all, then the
-/// smallest scope).
+/// Deterministically pick the `CommandSpec` for `name` under `profile`.
+/// Among specs available in the profile (mask membership plus the
+/// subtractive disable filter — §9 of the dialect-profile model), prefer
+/// the most dialect-specific (scoped beats catch-all, then the smallest
+/// scope).
 fn resolve_spec<'a>(
     registry: &'a CommandRegistry,
     name: &str,
-    dialect: DialectSet,
+    profile: &DialectProfile,
 ) -> Option<&'a CommandSpec> {
     registry
         .specs(name)
         .iter()
-        .filter(|s| s.supports_dialect(dialect))
+        .filter(|s| s.supports_dialect(profile.availability_mask))
+        .filter(|s| !profile.is_command_disabled(s.name))
         .min_by_key(|s| {
             let scoped = u8::from(s.dialects.is_none());
             let size = s
@@ -406,12 +411,12 @@ fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
     Json::Object(m)
 }
 
-/// Sorted command names available in `dialect` (no package filtering:
+/// Sorted command names available under `profile` (no package filtering:
 /// with no active-package set, every package-gated command is visible).
-fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String> {
+fn command_names(registry: &CommandRegistry, profile: &DialectProfile) -> Vec<String> {
     let mut names: Vec<String> = registry
         .command_names()
-        .filter(|name| registry.get_for_dialect(name, dialect).is_some())
+        .filter(|name| profile.resolve_command(registry, name).is_some())
         .map(str::to_owned)
         .collect();
     names.sort_unstable();
@@ -423,18 +428,25 @@ fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String>
 /// individual command entries.
 #[must_use]
 pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
-    let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
-    resolve_spec(registry, name, dset).map(|spec| command_entry(spec, dset))
+    let profile = DialectProfile::by_name(dialect);
+    resolve_spec(registry, name, profile).map(|spec| command_entry(spec, profile.availability_mask))
 }
 
 /// Snapshot of every command available in `dialect`.
+///
+/// Dialect resolution goes through the profile catalog: an unknown dialect
+/// string dumps the permissive `PLAIN_TCL` (`ALL_TCL`) view — the one
+/// unified fallback (design doc §8) — rather than the old ad-hoc `TCL86`.
 #[must_use]
 pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> Json {
-    let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
-    let names = command_names(registry, dset);
+    let profile = DialectProfile::by_name(dialect);
+    let names = command_names(registry, profile);
     let commands: Vec<Json> = names
         .iter()
-        .filter_map(|name| resolve_spec(registry, name, dset).map(|spec| command_entry(spec, dset)))
+        .filter_map(|name| {
+            resolve_spec(registry, name, profile)
+                .map(|spec| command_entry(spec, profile.availability_mask))
+        })
         .collect();
     let mut m = BTreeMap::new();
     m.insert("dialect".to_owned(), Json::s(dialect));

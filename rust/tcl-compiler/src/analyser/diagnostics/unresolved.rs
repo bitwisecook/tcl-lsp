@@ -28,6 +28,7 @@
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
+use tcl_registry::ProfileQueries;
 
 use rustc_hash::FxHashSet;
 
@@ -151,17 +152,18 @@ impl Analyser {
     /// suggestion candidate list.
     fn build_w123_known_names(&self, registry: &tcl_registry::CommandRegistry) -> W123KnownNames {
         // Only commands
-        // *enabled in the active dialect* count as "known" for W123.  The
-        // registry's `command_names()` returns every loaded spec —
+        // *enabled in the active dialect profile* count as "known" for W123.
+        // The registry's `command_names()` returns every loaded spec —
         // including base tcl commands like `exec`/`glob` that `build_default`
         // loads but the active dialect (e.g. f5-irules) disables — so filter
-        // by dialect support.  Without this, `exec`/`glob` under f5-irules
-        // would draw W002 (disabled) but not the W123 (unknown-in-dialect)
-        // that should also fire.  Base commands valid everywhere (`set`/`if`,
-        // `dialects: None`) still pass `get_for_dialect`, so they are not
-        // spuriously flagged.
-        let active_dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect)
-            .unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
+        // through the profile's availability query: the precise
+        // (version|vendor) mask membership plus the subtractive iRules
+        // disable list.  Without this, `exec`/`glob` under f5-irules would
+        // draw W002 (disabled) but not the W123 (unknown-in-dialect) that
+        // should also fire — and a vendor profile's embedded Tcl core (8.5
+        // `dict` under f5-iapps, 8.6 `coroutine` under expect) would be
+        // wrongly unknown, the confirmed bare-bit defect the profile fixes.
+        let profile = tcl_dialect::DialectProfile::by_name(&self.dialect);
         // A registry command is "known" for W123 whenever the active dialect
         // enables it — including package-gated commands such as ``argparse`` or
         // the Tk widgets, which resolve under a Tcl version and are ambient in a
@@ -171,7 +173,7 @@ impl Analyser {
         // would double-report and would false-positive on ambient Tk widgets.
         let registry_names: HashSet<String> = registry
             .command_names()
-            .filter(|name| registry.get_for_dialect(name, active_dialect).is_some())
+            .filter(|name| profile.resolve_command(registry, name).is_some())
             .map(str::to_string)
             .collect();
         // Inline ``# tcl-lsp: stub NAME ...``

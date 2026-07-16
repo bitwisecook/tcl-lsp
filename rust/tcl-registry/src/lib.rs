@@ -72,6 +72,7 @@ pub mod hooks;
 pub mod hover;
 pub mod patterns;
 pub mod profile_defaults;
+pub mod profile_queries;
 pub mod profiles;
 pub mod registry;
 pub mod scoped;
@@ -138,6 +139,7 @@ pub use dialects::{
 };
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
+pub use profile_queries::ProfileQueries;
 pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
 pub use spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ObjectClassSpec, SubCommand,

@@ -31,7 +31,7 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
-use tcl_registry::Arity;
+use tcl_registry::{Arity, ProfileQueries};
 
 use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
@@ -542,7 +542,6 @@ impl Analyser {
         cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
-        use tcl_registry::prelude::DialectSet;
         // A dynamic command head (`$obj method`, `[lookup] arg`) is resolved at
         // runtime — W307 handles it, not W002.
         if matches!(
@@ -558,14 +557,17 @@ impl Analyser {
         if bare.is_empty() {
             return;
         }
-        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
-        // EXISTS in the active dialect → fine.  UNKNOWN everywhere → W123's
-        // concern.  Only DISALLOWED (exists in some dialect, not this one)
-        // fires.  Existence must be checked *dialect-agnostically*: the
+        let profile = tcl_dialect::DialectProfile::by_name(&self.dialect);
+        // EXISTS in the active dialect profile → fine.  UNKNOWN everywhere →
+        // W123's concern.  Only DISALLOWED (exists in some dialect, not this
+        // one) fires.  Resolution goes through the profile so the composed
+        // (version|vendor) mask admits the dialect's embedded Tcl core and
+        // the subtractive iRules disable list stays applied after the mask
+        // query.  Existence must be checked *dialect-agnostically*: the
         // analyser registry only loads the active dialect, so `get(bare)`
         // misses an iRules command like `when`/`log`/`session` under
         // tcl8.6, so use the dialect-independent `known_in_any_dialect`.
-        if registry.get_for_dialect(bare, dialect).is_some() || !registry.known_in_any_dialect(bare)
+        if profile.resolve_command(registry, bare).is_some() || !registry.known_in_any_dialect(bare)
         {
             return;
         }
@@ -704,7 +706,7 @@ impl Analyser {
         // active Tcl dialect — a `.tcl` script may `package require Tk` at
         // runtime, and W001 fires on `grid bogus` under every dialect.
         let dialect =
-            DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL) | DialectSet::TK;
+            tcl_dialect::DialectProfile::by_name(&self.dialect).availability_mask | DialectSet::TK;
         // Scope-aware resolution: an ensemble scoped command (`top`, `data`)
         // inside a `report::defstyle` body is checked against its scoped
         // subcommand set, so `top bogus` still draws W001.
@@ -895,7 +897,6 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         use super::dispatch::CommandSignature;
-        use tcl_registry::prelude::DialectSet;
 
         // `arg_expand_in` is parallel to the full argv (command name at
         // index 0); drop that slot so it lines up with `args`.
@@ -938,7 +939,7 @@ impl Analyser {
         // rather than through the pending/flush queue.
         self.emit_apply_lambda_arity(cmd_name, args, arg_tokens, arg_expand, cmd_tok, scope_path);
 
-        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        let dialect = tcl_dialect::DialectProfile::by_name(&self.dialect).availability_mask;
         // Scope-aware: a head inside a scoped command environment resolves to
         // its scoped signature (`top set …`, `columns`), everything else to the
         // global registry.
@@ -2426,12 +2427,10 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         // W116 — stub command shadows a built-in command.  Build the
         // dialect command-name set locally.
         if !self.result.stub_commands.is_empty() {
-            use tcl_registry::CommandRegistry;
-            use tcl_registry::prelude::DialectSet;
-            let mut registry = CommandRegistry::build_default();
-            if let Some(d) = DialectSet::parse(&self.dialect) {
-                registry.load_dialect(d);
-            }
+            // The shared per-profile registry cache: same contents as a
+            // fresh build_default + load_dialect, without rebuilding the
+            // whole registry per analysed document.
+            let registry = tcl_registry::registry_for_dialect(&self.dialect);
             let commands: std::collections::HashSet<&str> = registry.command_names().collect();
             let hits: Vec<(String, tcl_lexer::Span)> = self
                 .result
