@@ -80,6 +80,25 @@ pub fn ends_with_separator(name: &[u8]) -> bool {
     name.len() >= 2 && name[name.len() - 1] == b':' && name[name.len() - 2] == b':'
 }
 
+/// The simple (tail) part of a **written** command name, for the
+/// *definition* direction: empty when the name is empty or ends in a
+/// separator run — such a spelling addresses the empty-string `{}` command
+/// inside its full qualifier chain (`proc x:: {} {}` defines `::x::`;
+/// `rename foo x::` binds `::x::`; `rename bar ::` the global `{}` command
+/// — all tclsh 8.6/9.0-pinned, #934) — otherwise the last colon-run
+/// segment, or the whole name when unqualified.  The resolution-direction
+/// counterparts apply the same rule (`Namespaces::home_of` in the runtime,
+/// `canonical_cmd_key` in the VM), so definition and dispatch can never
+/// disagree about which command a trailing-separator spelling names.
+#[must_use]
+pub fn written_command_tail(name: &[u8]) -> &[u8] {
+    if name.is_empty() || ends_with_separator(name) {
+        b""
+    } else {
+        qualifier_segments(name).last().copied().unwrap_or(name)
+    }
+}
+
 /// [`qualifier_segments`] over a `&str`, as owned `String`s — the one shared
 /// segment split for consumers that hold qualified names as strings (the
 /// compiler's interprocedural/optimiser namespace walks). Same colon-run rule:
@@ -963,6 +982,25 @@ pub mod conformance {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn written_command_tail_follows_the_trailing_separator_rule() {
+        use super::written_command_tail as tail;
+        // Trailing separator run → the empty-string `{}` command (#934,
+        // tclsh 8.6/9.0-pinned: `proc x:: {} {}` defines `::x::`).
+        assert_eq!(tail(b"x::"), b"");
+        assert_eq!(tail(b"::x::"), b"");
+        assert_eq!(tail(b"a::b:::"), b"");
+        assert_eq!(tail(b"::"), b"");
+        assert_eq!(tail(b":::"), b"");
+        assert_eq!(tail(b""), b"");
+        // Ordinary spellings keep the last colon-run segment.
+        assert_eq!(tail(b"cmd"), b"cmd");
+        assert_eq!(tail(b"::a::b"), b"b");
+        assert_eq!(tail(b"a:::b"), b"b");
+        // A lone colon is an ordinary name character.
+        assert_eq!(tail(b":"), b":");
+        assert_eq!(tail(b"a:b"), b"a:b");
+    }
 
     #[test]
     fn qualify_joins_relative_names_under_rooted_and_unrooted_prefixes() {

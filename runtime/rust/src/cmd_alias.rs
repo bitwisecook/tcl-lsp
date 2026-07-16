@@ -906,4 +906,46 @@ mod tests {
             assert_eq!(i.result_bytes(), b"invalid command name \"set\"");
         });
     }
+
+    /// #934 definition-direction parity: a written trailing separator names
+    /// the empty-string `{}` command inside its full qualifier chain — for
+    /// `proc`, `rename`'s NEW name, and dispatch alike (`proc x:: {} {…}`
+    /// defines `::x::` and `x::` invokes it; `rename foo x::` / `rename bar
+    /// ::` rebind the `{}` command — all tclsh 8.6.16/9.0.4-pinned).
+    /// Previously the definition split dropped the empty tail, so the proc
+    /// just defined could not be invoked.
+    #[test]
+    fn trailing_separator_definitions_match_resolution() {
+        leak_free(|i| {
+            // proc with a trailing separator: defined AND callable.
+            assert_eq!(
+                i.eval_str(b"namespace eval x {}; proc x:: {} { return EMPTYTAIL }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"x::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"EMPTYTAIL");
+            // … and reachable via any separator-run spelling.
+            assert_eq!(i.eval_str(b"::x::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"EMPTYTAIL");
+            // rename TO a trailing-separator name binds the `{}` command.
+            assert_eq!(
+                i.eval_str(b"proc foo {} { return F }; rename foo y::"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"y::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"F");
+            // rename to `::` binds the GLOBAL `{}` command.
+            assert_eq!(
+                i.eval_str(b"proc bar {} { return B }; rename bar ::"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"B");
+            // The `{}` command can be renamed AWAY from its spelling too.
+            assert_eq!(i.eval_str(b"rename y:: plain"), Code::Ok);
+            assert_eq!(i.eval_str(b"plain"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"F");
+            assert_eq!(i.eval_str(b"y::"), Code::Error);
+        });
+    }
 }

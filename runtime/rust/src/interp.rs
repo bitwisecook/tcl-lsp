@@ -1161,11 +1161,9 @@ impl Interp {
             .namespaces
             .borrow_mut()
             .command_home_ns(self.current_ns.get(), name);
-        let tail = tcl_syntax::naming::qualifier_segments(name)
-            .last()
-            .copied()
-            .unwrap_or(name)
-            .to_vec();
+        // Written-name tail: empty for a trailing separator run (the `{}`
+        // command, #934) — must match `home_of`'s resolution split.
+        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
         self.namespaces
             .borrow_mut()
             .bind(ns, &tail, Command::Ensemble(cfg));
@@ -1181,11 +1179,11 @@ impl Interp {
             .namespaces
             .borrow_mut()
             .command_home_ns(self.current_ns.get(), name);
-        let tail = tcl_syntax::naming::qualifier_segments(name)
-            .last()
-            .copied()
-            .unwrap_or(name)
-            .to_vec();
+        // Written-name tail: empty for a trailing separator run (`proc x::`
+        // defines `::x::`, the `{}` command in `::x` — tclsh-pinned, #934);
+        // must match `home_of`'s resolution split or the proc just defined
+        // could not be invoked.
+        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
         // The proc's FQN (`info frame` `proc` key): `<ns>::<tail>`, the global ns
         // contributing just the leading `::`.
         let qn = self.namespaces.borrow().qualified_name(ns);
