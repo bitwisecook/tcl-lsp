@@ -134,12 +134,22 @@ fn fetch_scf(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, Strin
     }
 }
 
+/// Build the remote artefact name for a fetch started at `fetched_at`.
+///
+/// Millisecond (not second) resolution: two fetches against the same device
+/// started within the same second would otherwise derive the identical
+/// remote filename and one save/download could clobber or read the other's
+/// artefact.
+fn fetch_artefact_name(fetched_at: chrono::DateTime<Utc>) -> String {
+    format!("f5_fetch_{}", fetched_at.timestamp_millis())
+}
+
 /// The live SSH flow: save the config on the device via `tmsh`, pull the
 /// artefact back over the SFTP subsystem, and (for a UCS-only fetch) reconstruct
 /// the SCF locally.
 fn via_ssh(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String> {
     let fetched_at = Utc::now();
-    let name = format!("f5_fetch_{}", fetched_at.timestamp());
+    let name = fetch_artefact_name(fetched_at);
     let (scf_text, ucs_data) = ssh::fetch(creds, args.fmt, args.timeout, &name)?;
     Ok(FetchResult {
         host: creds.host.clone(),
@@ -157,7 +167,7 @@ fn via_ssh(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, String>
 /// failure (propagate).
 fn via_rest(creds: &Credentials, args: &FetchArgs) -> Result<FetchResult, RestError> {
     let fetched_at = Utc::now();
-    let name = format!("f5_fetch_{}", fetched_at.timestamp());
+    let name = fetch_artefact_name(fetched_at);
     rest::save_ucs(creds, &name, args.insecure, args.timeout)?;
     let ucs_data = rest::download(
         creds,
@@ -240,4 +250,26 @@ fn write_result(result: &FetchResult, out_dir: &Path) -> Result<(), String> {
     );
     std::fs::write(out_dir.join("fetch.meta"), meta).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fetch_artefact_name_differs_within_the_same_second() {
+        let base = Utc::now();
+        let a = fetch_artefact_name(base);
+        let b = fetch_artefact_name(base + chrono::Duration::milliseconds(1));
+        assert_ne!(
+            a, b,
+            "two fetches within the same second must not derive the same remote artefact name"
+        );
+    }
+
+    #[test]
+    fn fetch_artefact_name_is_stable_for_the_same_instant() {
+        let at = Utc::now();
+        assert_eq!(fetch_artefact_name(at), fetch_artefact_name(at));
+    }
 }
