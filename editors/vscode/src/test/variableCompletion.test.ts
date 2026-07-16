@@ -265,12 +265,30 @@ suite("Variable Completion", () => {
     // Cursor goes between ``(`` and ``)`` -- one char before the end.
     const completionPos = doc.positionAt(insertOffset + insertion.length - 1);
     try {
-      const result = (await vscode.commands.executeCommand(
-        "vscode.executeCompletionItemProvider",
-        docUri,
-        completionPos,
-      )) as vscode.CompletionList;
-      const labels = result.items.map(labelOf);
+      // Poll the completion request until the re-indexed array data lands,
+      // mirroring the file's `completionItems` helper: firing once right after
+      // applyEdit races the analysis-snapshot rebuild and returned only
+      // keyword/command items under load.  pollUntil throws on timeout, so a
+      // genuine "array indices never offered" regression still fails loudly.
+      const items = await pollUntil(
+        async () => {
+          const result = (await vscode.commands.executeCommand(
+            "vscode.executeCompletionItemProvider",
+            docUri,
+            completionPos,
+          )) as vscode.CompletionList;
+          return result.items;
+        },
+        (candidates) => {
+          const labels = candidates.map(labelOf);
+          return labels.includes("$arr(name)") && labels.includes("$arr(age)");
+        },
+        {
+          timeout: 10_000,
+          label: `array element completions at ${completionPos.line}:${completionPos.character}`,
+        },
+      );
+      const labels = items.map(labelOf);
       assert.ok(
         labels.includes("$arr(name)"),
         `Expected $arr(name): ${labels.slice(0, 30).join(", ")}`,

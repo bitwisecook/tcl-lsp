@@ -376,11 +376,18 @@ suite("Error Recovery (known-command generality)", () => {
   test("a proc defined in a different workspace file recovers the tail", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    await setTestContent(editor, "set q {\n  aaa\nworkspace_helper 1; string\n");
-    const diags = await waitForDiagnostics(docUri, {
-      timeout: 15_000,
-      predicate: (ds) => ds.some((d) => codeOf(d) === "E001"),
-    });
+    // Route through setContentAndWait so nextDiagnosticsPublish is registered
+    // BEFORE the edit and acts as a fresh-publish barrier: a raw
+    // setTestContent + waitForDiagnostics reads the current set first and can
+    // latch onto the *previous* test's stale E001 (the renamed-command test
+    // just above also publishes E001 on this shared fixture), passing without
+    // ever analysing this content.
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      "set q {\n  aaa\nworkspace_helper 1; string\n",
+      (ds) => hasRecoveryError(ds) && ds.some((d) => codeOf(d) === "E001"),
+    );
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     assert.ok(
       diags.some((d) => codeOf(d) === "E001"),
@@ -392,11 +399,14 @@ suite("Error Recovery (known-command generality)", () => {
   test("a command from a package-required library recovers the tail", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    await setTestContent(editor, "package require mypkg\nset q {\n  aaa\nmypkg_helper 1; string\n");
-    const diags = await waitForDiagnostics(docUri, {
-      timeout: 15_000,
-      predicate: (ds) => ds.some((d) => codeOf(d) === "E001"),
-    });
+    // Same fresh-publish barrier as the sibling-file test above: avoid latching
+    // onto the previous test's stale E001 on this shared fixture.
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      "package require mypkg\nset q {\n  aaa\nmypkg_helper 1; string\n",
+      (ds) => hasRecoveryError(ds) && ds.some((d) => codeOf(d) === "E001"),
+    );
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     assert.ok(
       diags.some((d) => codeOf(d) === "E001"),

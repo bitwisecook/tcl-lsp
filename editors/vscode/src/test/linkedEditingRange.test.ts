@@ -19,7 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
-import { activate, getDocUri, sleep } from "./helper";
+import { activate, getDocUri, waitForFeatureToggle } from "./helper";
 
 interface TclLspApi {
   getClient(): LanguageClient;
@@ -31,9 +31,17 @@ suite("Linked Editing Range", () => {
   // editor.linkedEditing defaults to false in VS Code, so the tri-state
   // null default inherits "off".  Explicitly enable for these tests.
   suiteSetup(async () => {
+    // Activate first so the extension's `tcl-lsp.getEffectiveConfig` command is
+    // registered for the toggle wait below.
+    await activate(docUri);
     const cfg = vscode.workspace.getConfiguration("tclLsp.features");
     await cfg.update("linkedEditingRange", true, undefined);
-    await sleep(500);
+    // Message-passing wait on the server's resolved config (throws on timeout as
+    // a backstop) instead of racing a fixed sleep against the async
+    // didChangeConfiguration round-trip — the enable is load-bearing (the
+    // provider is off until the server sees it), so a slow apply under parallel
+    // load could otherwise make the recursive-fib test flake.
+    await waitForFeatureToggle(docUri, "linkedEditingRange", true, { timeout: 20_000 });
   });
 
   suiteTeardown(async () => {

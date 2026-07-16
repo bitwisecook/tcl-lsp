@@ -264,32 +264,47 @@ suite("Configuration Settings", () => {
   test("editor.parameterHints.enabled=false suppresses signature help via null inheritance", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
-    // Position inside the `fib` call where signature help would trigger
-    const pos = new vscode.Position(5, 38);
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeSignatureHelpProvider",
-      docUri,
-      pos,
-    )) as vscode.SignatureHelp | undefined;
-    const hadSignatures = before && before.signatures && before.signatures.length > 0;
+    // Probe on a self-contained untitled doc whose content + position is proven
+    // to fire signature help at the server level (the Rust e2e probe
+    // `disabling_signature_help_suppresses_provider`, config.rs: a call to a
+    // known proc with the cursor in its argument region).  The old probe used
+    // procs.tcl:(5,38), a position that never fires, so the suppression check
+    // was gated behind an always-false `hadSignatures` and never ran.
+    const probe = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "proc greet {name greeting} { return }\ngreet World\n",
+    });
+    await vscode.window.showTextDocument(probe);
+    const pos = new vscode.Position(1, 12);
+    const signatureCount = async () => {
+      const r = (await vscode.commands.executeCommand(
+        "vscode.executeSignatureHelpProvider",
+        probe.uri,
+        pos,
+      )) as vscode.SignatureHelp | undefined;
+      return r?.signatures.length ?? 0;
+    };
 
     const editorCfg = vscode.workspace.getConfiguration("editor");
     try {
+      // Baseline: poll until signature help actually fires (throws on timeout),
+      // so the suppression assertion can never pass vacuously against an empty
+      // baseline.
+      await pollUntil(signatureCount, (n) => n > 0, {
+        timeout: 10_000,
+        label: "baseline signature help before disabling parameterHints",
+      });
+
       await editorCfg.update("parameterHints.enabled", false, undefined);
       await waitForFeatureToggle(docUri, "signatureHelp", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeSignatureHelpProvider",
-        docUri,
-        pos,
-      )) as vscode.SignatureHelp | undefined;
-      if (hadSignatures) {
-        assert.ok(
-          !after || !after.signatures || after.signatures.length === 0,
-          "Signature help should be suppressed when editor.parameterHints.enabled=false",
-        );
-      }
+      // Assert suppression unconditionally now that the baseline is proven.
+      assert.strictEqual(
+        await signatureCount(),
+        0,
+        "Signature help should be suppressed when editor.parameterHints.enabled=false",
+      );
     } finally {
       await editorCfg.update("parameterHints.enabled", undefined, undefined);
       await waitForFeatureToggle(docUri, "signatureHelp", true);
@@ -852,34 +867,45 @@ suite("Configuration Settings", () => {
   test("disabling features.signatureHelp suppresses signatures", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
-    // Position inside "expr {" on line 6
-    const pos = new vscode.Position(5, 10);
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeSignatureHelpProvider",
-      docUri,
-      pos,
-    )) as vscode.SignatureHelp | undefined;
-    // Signature help may or may not fire depending on exact position;
-    // just verify no crash. The real test is that disabling suppresses it.
-    const hadSignatures = before && before.signatures && before.signatures.length > 0;
+    // Probe on a self-contained untitled doc whose content + position is proven
+    // to fire at the server level (the Rust e2e probe, config.rs).  The old
+    // probe used procs.tcl:(5,10) — the space after `return`, which never fires
+    // — so the suppression check was gated behind an always-false
+    // `hadSignatures` and the test was a permanent green no-op.
+    const probe = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "proc greet {name greeting} { return }\ngreet World\n",
+    });
+    await vscode.window.showTextDocument(probe);
+    const pos = new vscode.Position(1, 12);
+    const signatureCount = async () => {
+      const r = (await vscode.commands.executeCommand(
+        "vscode.executeSignatureHelpProvider",
+        probe.uri,
+        pos,
+      )) as vscode.SignatureHelp | undefined;
+      return r?.signatures.length ?? 0;
+    };
 
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
+      // Baseline: poll until signature help fires (throws on timeout) so the
+      // suppression assertion cannot pass vacuously against an empty baseline.
+      await pollUntil(signatureCount, (n) => n > 0, {
+        timeout: 10_000,
+        label: "baseline signature help before disabling signatureHelp",
+      });
+
       await config.update("signatureHelp", false, undefined);
       await waitForFeatureToggle(docUri, "signatureHelp", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeSignatureHelpProvider",
-        docUri,
-        pos,
-      )) as vscode.SignatureHelp | undefined;
-      if (hadSignatures) {
-        assert.ok(
-          !after || !after.signatures || after.signatures.length === 0,
-          "Signature help should be suppressed when disabled",
-        );
-      }
+      // Assert suppression unconditionally now that the baseline is proven.
+      assert.strictEqual(
+        await signatureCount(),
+        0,
+        "Signature help should be suppressed when features.signatureHelp is disabled",
+      );
     } finally {
       await config.update("signatureHelp", undefined, undefined);
       await waitForFeatureToggle(docUri, "signatureHelp", true);
@@ -1145,8 +1171,7 @@ suite("Configuration Settings", () => {
     // under load — the flake this test hit.  A never-opened URI has no prior
     // in-flight analysis, so its open genuinely triggers the master-off path
     // and every publish for it is empty.
-    const codeOf = (d: vscode.Diagnostic) =>
-      typeof d.code === "object" ? d.code.value : d.code;
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
     const docUri = getDocUri("diagnosticsMasterSwitch.tcl");
     const config = vscode.workspace.getConfiguration("tclLsp.features");
 

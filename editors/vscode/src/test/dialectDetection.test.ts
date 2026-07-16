@@ -73,12 +73,20 @@ suite("Dialect Detection", () => {
     const uri = getDocUri("dialect-shebang85.tcl");
     await activate(uri);
 
-    // Dialect detection sends a config notification asynchronously;
-    // poll until the server reflects the tclsh8.5 dialect (no "try").
+    // Dialect detection sends a config notification asynchronously; poll until
+    // the server reflects the tclsh8.5 dialect.  Gate on a POSITIVE settle
+    // signal (`trace`, a real 8.0+ command present in 8.5 and matching the `tr`
+    // prefix) as well as the negative, so an empty/transient completion set —
+    // which trivially satisfies a bare `!includes("try")` — cannot let this
+    // pass vacuously while proving nothing about the 8.5 catalog.
     const labels = await waitForCompletions(
       uri,
       new vscode.Position(1, 2),
-      (l) => !l.includes("try"),
+      (l) => l.includes("trace") && !l.includes("try"),
+    );
+    assert.ok(
+      labels.includes("trace"),
+      'Expected "trace" — the tclsh8.5 command catalog must have loaded',
     );
     assert.ok(!labels.includes("try"), 'Did not expect "try" completion for shebang tclsh8.5');
   });

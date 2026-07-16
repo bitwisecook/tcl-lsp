@@ -52,9 +52,20 @@ suite("Shimmer precision (S100 deep review)", () => {
 
   async function s100Diagnostics(): Promise<vscode.Diagnostic[]> {
     await activate(docUri);
-    return waitForDiagnostics(docUri, {
+    const diags = await waitForDiagnostics(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S100"),
     });
+    // `waitForDiagnostics` resolves (does NOT throw) on timeout, returning the
+    // current set.  Assert the "analysis ran" settle signal here, once, so a
+    // timeout fails loudly in the shared helper instead of letting the
+    // false-case tests below (lines 13/42/49) pass vacuously against a set that
+    // never received the deep shimmer pass — an empty/S100-free set trivially
+    // satisfies every `!linesWithCode(...).includes(N)` assertion.
+    assert.ok(
+      diags.some((d) => codeOf(d) === "S100"),
+      `shimmer analysis did not settle (no S100 published); got [${linesWithCode(diags, "S100")}]`,
+    );
+    return diags;
   }
 
   test("plain string shimmered by lindex fires S100 with a tight span (true case)", async () => {
