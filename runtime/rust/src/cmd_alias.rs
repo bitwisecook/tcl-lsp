@@ -962,6 +962,26 @@ mod tests {
             );
             assert_eq!(i.eval_str(b"e:: go"), Code::Ok);
             assert_eq!(i.result_bytes(), b"GO");
+            // A proc named `:` inside a namespace named `:` has NO absolute
+            // spelling (W314's case) but IS reachable by relative dispatch
+            // from inside its namespace — `namespace eval : { : }` and
+            // `namespace inscope : :` both invoke it, while every absolute
+            // spelling misses (tclsh 8.6.16/9.0.4-pinned).
+            assert_eq!(
+                i.eval_str(b"namespace eval : { proc : args { return hello } }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"namespace eval : { : }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"hello");
+            assert_eq!(i.eval_str(b"namespace inscope : :"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"hello");
+            // Every all-colon spelling is separator runs around an empty
+            // tail — it can only ever reach the GLOBAL `{}` command (bound
+            // above by `rename bar ::`), never the `:`-named proc
+            // (tclsh-pinned: prints B here, and errors once no global `{}`
+            // exists).
+            assert_eq!(i.eval_str(b":::::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"B");
         });
     }
 }

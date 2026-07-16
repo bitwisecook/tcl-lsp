@@ -794,3 +794,21 @@ fn definition_proc_body_bare_var_keeps_the_lenient_walk_m11() {
         );
     }
 }
+
+#[test]
+fn definition_reaches_the_colon_proc_via_relative_dispatch_934() {
+    // The W314 case — `proc :` inside `namespace eval :` has no absolute
+    // spelling — but `namespace eval : { : }` dispatches it RELATIVELY
+    // (tclsh 8.6/9.0-pinned: → hello; `namespace inscope : :` too), so
+    // navigation from the relative call site must reach the definition.
+    let src = "namespace eval : { proc : args { return hello } }\nnamespace eval : { : }\n";
+    let analysis = analyse(src);
+    let call_col =
+        u32::try_from(src.lines().nth(1).unwrap().rfind(':').unwrap()).expect("tiny test source");
+    let locs = definition(src, 1, call_col, &analysis);
+    assert_eq!(
+        start_lines(&locs),
+        vec![0],
+        "the relative `:` call resolves to the unaddressable-but-reachable proc: {locs:?}"
+    );
+}
