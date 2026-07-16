@@ -88,8 +88,9 @@ suite("Rename Symbol", () => {
     const ooUri = getDocUri("tclooVariableRename.tcl");
     await activate(ooUri);
 
-    // `$n` in `method get {} { return $n }` — line 2 (0-based), on the `n`.
-    const pos = new vscode.Position(2, 30);
+    // `$n` in `method get {} { return $n }` — line 2 (0-based); `$` is at
+    // column 27 and `n` at 28 (the `}` is column 30), so put the cursor on `n`.
+    const pos = new vscode.Position(2, 28);
 
     const edit = (await vscode.commands.executeCommand(
       "vscode.executeDocumentRenameProvider",
