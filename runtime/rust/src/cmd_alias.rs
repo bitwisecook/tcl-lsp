@@ -946,6 +946,22 @@ mod tests {
             assert_eq!(i.eval_str(b"plain"), Code::Ok);
             assert_eq!(i.result_bytes(), b"F");
             assert_eq!(i.eval_str(b"y::"), Code::Error);
+            // Variables share the rule: `set vx:: V` writes the `{}` variable
+            // in `::vx` (tclsh: `info vars ::vx::*` lists `::vx::`).
+            assert_eq!(i.eval_str(b"namespace eval vx {}; set vx:: V"), Code::Ok);
+            assert_eq!(i.eval_str(b"set vx::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"V");
+            // And ensembles: `namespace ensemble create -command ::e::` binds
+            // the `{}` command in `::e` (tclsh-pinned: `e:: go` dispatches).
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval e { proc go {} {return GO}; namespace export go; \
+                       namespace ensemble create -command ::e:: }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"e:: go"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"GO");
         });
     }
 }
