@@ -24,6 +24,8 @@ import {
   setTestContent,
   nextDiagnosticsPublish,
   waitForDiagnostics,
+  getServerLogSize,
+  waitForDeepDiagnostics,
 } from "./helper";
 
 /**
@@ -230,19 +232,31 @@ suite("Error Recovery (contract)", () => {
   test("C3: deeply nested unterminated input does not hang or crash", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, "set x [a [b [c [d [e\nputs tail\n");
-    assert.ok(Array.isArray(diags), "server returned promptly with a diagnostics array");
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      "set x [a [b [c [d [e\nputs tail\n",
+      hasRecoveryError,
+    );
+    // A real hang publishes no recovery error inside the 15s budget, so the wait
+    // times out with an empty/stale set and this assertion fails loudly — making
+    // "does not hang" a genuine check rather than a vacuous Array.isArray pass.
+    assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
   // C4 ----------------------------------------------------------------------
   test("C4: no exact-duplicate diagnostics are published", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(
-      editor,
-      docUri,
-      'set x "\nif {1} {\n  puts [foo\n}\nset\n',
-    );
+    const since = getServerLogSize();
+    const fresh = nextDiagnosticsPublish(docUri, { timeout: 15_000 });
+    await setTestContent(editor, 'set x "\nif {1} {\n  puts [foo\n}\nset\n');
+    await fresh;
+    // Wait for the deep pass's marker (throws on timeout) so dedup runs over the
+    // fully-settled basic+deep set. Reading the first publish alone would dedup a
+    // partial set and pass "no duplicates" vacuously.
+    await waitForDeepDiagnostics(docUri, { since });
+    const diags = vscode.languages.getDiagnostics(docUri);
     const seen = new Set<string>();
     for (const d of diags) {
       const ident = JSON.stringify([
@@ -291,6 +305,7 @@ suite("Error Recovery (known-command generality)", () => {
       editor,
       docUri,
       "proc my_helper {x} {puts $x}\n\nset q {\n  aaa\nmy_helper\n",
+      (ds) => hasRecoveryError(ds) && ds.some((d) => codeOf(d) === "E002"),
     );
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     assert.ok(
@@ -348,6 +363,7 @@ suite("Error Recovery (known-command generality)", () => {
       editor,
       docUri,
       "rename puts my_puts\n\nset q {\n  aaa\nmy_puts hi; string\n",
+      (ds) => hasRecoveryError(ds) && ds.some((d) => codeOf(d) === "E001"),
     );
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     assert.ok(
@@ -402,28 +418,38 @@ suite("Error Recovery (short-form unterminated quote / brace)", () => {
   test("a same-line unterminated quote with no newline is flagged", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, 'set x "hello');
+    const diags = await setContentAndWait(editor, docUri, 'set x "hello', hasRecoveryError);
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
   test("a same-line unterminated brace with no newline is flagged", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, "set x {hello");
+    const diags = await setContentAndWait(editor, docUri, "set x {hello", hasRecoveryError);
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
   test("content before a single line break still flags an unterminated quote", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, 'set x "hello\nworld\n');
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      'set x "hello\nworld\n',
+      hasRecoveryError,
+    );
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
   test("content before a single line break still flags an unterminated brace", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, "set x {hello\nworld\n");
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      "set x {hello\nworld\n",
+      hasRecoveryError,
+    );
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
@@ -451,7 +477,7 @@ suite("Error Recovery (E200 tight highlighting)", () => {
     // routes detection to the generic fallback rather than the precise
     // E203 path.
     const src = "oo::class create Foo {\n  method bar {} {\n    puts hi\n";
-    const diags = await setContentAndWait(editor, docUri, src);
+    const diags = await setContentAndWait(editor, docUri, src, hasRecoveryError);
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     const nLines = src.split("\n").length;
     for (const d of diags.filter(isRecoveryError)) {
