@@ -452,6 +452,20 @@ mod diagnostics {
     }
 
     #[test]
+    fn namespace_which_command_probe_does_not_flag_unknown() {
+        // `namespace which -command foo` is an existence PROBE — it returns ""
+        // for an unknown command rather than failing, so probing a name no
+        // command defines must NOT draw W123.  (Navigation to a command that
+        // *does* exist still works; that's a separate reference.)
+        let src = "namespace which -command no_such_command_xyz\n";
+        assert!(
+            !fires(src, D, "W123"),
+            "namespace which probe must not W123: {:?}",
+            analyser_diags(src, D),
+        );
+    }
+
+    #[test]
     fn proc_shadowing_ensemble_command_suppresses_w001() {
         // tclsh8.6: `proc string {op args} {...}` completely replaces the
         // builtin `string` ensemble at the call site — `string reverse x`

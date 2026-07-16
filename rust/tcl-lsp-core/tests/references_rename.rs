@@ -161,16 +161,20 @@ fn references_proc_called_inside_oo_objdefine_method_body() {
 }
 
 #[test]
-fn references_proc_named_in_namespace_which_command() {
-    // `namespace which -command greet` resolves the command `greet` by name —
-    // a reference, so Find-All-References from the declaration includes it.
+fn namespace_which_command_probe_is_not_a_reference() {
+    // `namespace which -command greet` is an existence PROBE (it returns "" for
+    // an unknown command), not a call or a navigable reference.  Recording it
+    // as a command reference fed the probe into the W123 unresolved-command
+    // pass, flagging a legitimate `[namespace which -command foo] eq ""`
+    // existence check.  So Find-All-References from the declaration does NOT
+    // include the probe site — only the decl itself.
     let src = "proc greet {} {}\nnamespace which -command greet\n";
     let analysis = analyse(src);
     let refs = references(src, "tcl", 0, 6, &analysis, true);
     assert_eq!(
         ref_lines(&refs),
-        vec![0, 1],
-        "decl + the `namespace which` site expected; got {refs:?}",
+        vec![0],
+        "only the decl; the probe is not a reference: got {refs:?}",
     );
 }
 

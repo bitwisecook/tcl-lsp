@@ -86,27 +86,34 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
 ];
 
 /// `namespace which ?-command? ?-variable? name` — the two leading flags select
-/// what to resolve `name` as. They are bare (value-less) flags; declaring them
-/// lets the arity check skip them so `exact(1)` counts only the trailing `name`
-/// (catching `namespace which foo bar`), and lights up their completion/hover.
-/// `namespace which ?-command|-variable? name` — the sole positional `name`
-/// resolves as a command unless `-variable` (any unique prefix) selects a
-/// variable.  So it is a `CommandName` reference in the default / `-command`
-/// form and a `VarRead` reference under `-variable`.  `args` are the words
+/// what to resolve `name` as. They are bare (value-less) flags declared in
+/// `WHICH_OPTIONS`, so the arity check skips them and `exact(1)` counts only the
+/// trailing `name` (catching `namespace which foo bar`).
+///
+/// `namespace which` is an existence **probe**: it returns `""` for an unknown
+/// name rather than failing.  Under `-variable` the positional `name` is a
+/// `VarRead` reference — navigation only, and variables draw no
+/// unknown-variable diagnostic, so a probe of an absent variable is harmless.
+///
+/// The default / `-command` form is deliberately **not** marked as a
+/// `CommandName` reference: that role feeds the name into the W123
+/// unresolved-command pass, which would flag a perfectly valid existence check
+/// (`if {[namespace which -command foo] eq ""} …`) of a command the analyser
+/// cannot see.  Navigating a probed *command* needs a reference role that
+/// records the link without asserting existence, which the model does not have
+/// yet — so the `-command` form contributes no role.  `args` are the words
 /// after the `which` subcommand.
 fn namespace_which_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let Some(idx) = args.iter().rposition(|a| !a.starts_with('-')) else {
-        return Vec::new();
-    };
     let is_variable = args
         .iter()
         .any(|a| a.len() > 1 && "-variable".starts_with(*a));
-    let role = if is_variable {
-        ArgRole::VarRead
-    } else {
-        ArgRole::CommandName
+    if !is_variable {
+        return Vec::new();
+    }
+    let Some(idx) = args.iter().rposition(|a| !a.starts_with('-')) else {
+        return Vec::new();
     };
-    u8::try_from(idx).map_or_else(|_| Vec::new(), |i| vec![(i, role)])
+    u8::try_from(idx).map_or_else(|_| Vec::new(), |i| vec![(i, ArgRole::VarRead)])
 }
 
 static WHICH_OPTIONS: &[OptionSpec] = &[

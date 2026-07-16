@@ -239,14 +239,20 @@ impl Analyser {
             if let Some(tok) = arg_tokens.get(i)
                 && !crate::naming::is_dynamic_word(&args[i])
             {
-                self.define_var(&args[i], *tok, scope_path, false, None);
-                let tail = args[i].rsplit("::").next().unwrap_or(&args[i]);
+                // Mirror `global` above: the *unqualified tail* is the local
+                // alias name, but the target keeps the FULL qualified path so a
+                // relative `variable child::v` aliases `<ns>::child::v` (and an
+                // absolute `variable ::x::v` aliases `::x::v`), never the
+                // tail-collapsed `<ns>::v`.  Keying the link on the tail is what
+                // lets a later `$v` reference share the target and unify.
+                let local = args[i].rsplit("::").next().unwrap_or(&args[i]);
+                self.define_var(local, *tok, scope_path, false, None);
                 let target = if args[i].starts_with("::") {
                     args[i].clone()
                 } else {
-                    format!("{ns_prefix}::{tail}")
+                    format!("{ns_prefix}::{}", args[i])
                 };
-                self.set_var_link_target(&args[i], scope_path, target);
+                self.set_var_link_target(local, scope_path, target);
             }
             i += if i + 1 < args.len() { 2 } else { 1 };
         }
@@ -1737,11 +1743,16 @@ impl Analyser {
             // Skip a dynamic local alias name (`namespace upvar ns x $local`).
             if !crate::naming::is_dynamic_word(&args[i]) {
                 self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+                // `otherVar` is resolved *within* the target namespace, so keep
+                // its full path: `namespace upvar ::a b::c local` aliases `local`
+                // to `::a::b::c`, not the tail-collapsed `::a::c`.  An absolute
+                // `otherVar` names its cell directly.
                 let other = &args[i - 1];
-                let target = format!(
-                    "{target_ns}::{}",
-                    other.rsplit("::").next().unwrap_or(other)
-                );
+                let target = if other.starts_with("::") {
+                    other.clone()
+                } else {
+                    format!("{target_ns}::{other}")
+                };
                 self.set_var_link_target(&args[i], scope_path, target);
             }
             i += 2;
