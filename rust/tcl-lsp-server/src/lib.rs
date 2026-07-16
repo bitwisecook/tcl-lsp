@@ -3616,7 +3616,11 @@ impl Backend {
                 continue;
             };
             let file_analysis = self
-                .analysis_for(&target_uri, target_doc.text.clone(), target_doc.dialect.clone())
+                .analysis_for(
+                    &target_uri,
+                    target_doc.text.clone(),
+                    target_doc.dialect.clone(),
+                )
                 .await;
             // The library file defines the command as a proc under one of the
             // auto-qualified names; jump to the first that its analysis indexes.

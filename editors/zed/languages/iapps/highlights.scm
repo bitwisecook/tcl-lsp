@@ -98,7 +98,7 @@
     "tmsh::list" "tmsh::log" "tmsh::log_dest" "tmsh::log_level" "tmsh::modify" "tmsh::pwd"
     "tmsh::reset_stats" "tmsh::show" "tmsh::stateless" "tmsh::version" "trace" "unicode"
     "unknown" "unload" "unset" "update" "vwait" "writeFile"
-    "zlib"))
+    "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

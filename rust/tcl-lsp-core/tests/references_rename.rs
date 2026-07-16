@@ -176,8 +176,7 @@ fn references_proc_named_in_trace_add_execution_include_the_trace_site() {
     // reference, so Find-All-References from the declaration includes the
     // `greet` word in the trace (the trailing `handler` is a separate
     // callback prefix, not part of greet's set).
-    let src =
-        "proc greet {} {}\nproc handler {args} {}\ntrace add execution greet enter handler\n";
+    let src = "proc greet {} {}\nproc handler {args} {}\ntrace add execution greet enter handler\n";
     let analysis = analyse(src);
     // Cursor on `greet` in the declaration (line 0, col 6).
     let refs = references(src, "tcl", 0, 6, &analysis, true);

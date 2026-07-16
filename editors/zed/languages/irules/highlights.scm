@@ -257,7 +257,7 @@
     "timing" "trace" "traffic_group" "translate" "unicode" "uniq_ordered_ip_list"
     "uniq_sorted_ip_list" "unknown" "unload" "unset" "update" "urlcatblindquery"
     "urlcatquery" "use" "virtual" "vlan_id" "vwait" "whereis"
-    "writeFile" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list" "zlib"))
+    "writeFile" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list" "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

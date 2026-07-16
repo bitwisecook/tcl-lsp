@@ -95,7 +95,7 @@
     "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
     "time" "timer" "timerate" "timestamp" "trace" "trap"
     "unicode" "unknown" "unload" "unset" "update" "vwait"
-    "wait" "writeFile" "zlib"))
+    "wait" "writeFile" "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

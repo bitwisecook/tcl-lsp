@@ -89,7 +89,8 @@
     "string" "subst" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord"
     "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
     "time" "timer" "timerate" "trace" "unicode" "unknown"
-    "unload" "unset" "update" "vwait" "writeFile" "zlib"))
+    "unload" "unset" "update" "vwait" "writeFile" "zipfs"
+    "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

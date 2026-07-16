@@ -1739,7 +1739,10 @@ impl Analyser {
             .into_iter()
             .map(|(name, rel_start, argc)| {
                 let name_start = content_start + trim_base + rel_start;
-                let span = Span::new(name_start, name_start + u32::try_from(name.len()).unwrap_or(0));
+                let span = Span::new(
+                    name_start,
+                    name_start + u32::try_from(name.len()).unwrap_or(0),
+                );
                 (name.to_owned(), span, argc)
             })
             .collect()
@@ -3160,7 +3163,10 @@ mod tests {
                 .any(|d| d.code == DiagCode::W002)
         };
         assert!(flags("expr {min(1, 2)}\n", "tcl8.4"), "min() is 8.5+");
-        assert!(!flags("expr {min(1, 2)}\n", "tcl8.6"), "min() exists in 8.6");
+        assert!(
+            !flags("expr {min(1, 2)}\n", "tcl8.6"),
+            "min() exists in 8.6"
+        );
         assert!(flags("expr {isinf(1.0)}\n", "tcl8.6"), "isinf() is 9.0+");
         assert!(
             !flags("expr {isinf(1.0)}\n", "tcl9.0"),

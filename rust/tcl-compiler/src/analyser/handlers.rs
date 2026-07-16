@@ -3533,8 +3533,7 @@ mod tests {
     /// must not (8.4 has no path tier, so the call never reaches it).
     #[test]
     fn bare_call_honours_namespace_path_only_from_8_5() {
-        let src =
-            "namespace eval ::app { namespace path ::mymod\n    proc run {} { helper } }\n";
+        let src = "namespace eval ::app { namespace path ::mymod\n    proc run {} { helper } }\n";
         let candidates = |dialect: &str| {
             let mut a = Analyser::new();
             a.analyse(src, dialect)
@@ -3616,7 +3615,10 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("interp eval {} { proc foo {} {} }\n", "tcl8.6");
         let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
-        assert!(r.all_procs.contains_key("::foo"), "current-interp proc: {keys:?}");
+        assert!(
+            r.all_procs.contains_key("::foo"),
+            "current-interp proc: {keys:?}"
+        );
         assert!(
             !keys.iter().any(|k| k.contains("::::")),
             "an empty path must not open a synthetic namespace: {keys:?}",
