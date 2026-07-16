@@ -85,6 +85,10 @@
 //! 0-based UTF-16 units). `declaration` additionally needs a `CommandRegistry`
 //! (`build_default`) and a dialect string.
 
+// Test column math indexes tiny in-memory sources; a `find`/`len` result
+// always fits u32, so the pedantic truncation the lint warns of can't occur.
+#![allow(clippy::cast_possible_truncation)]
+
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::declaration::declaration;
 use tcl_lsp_core::definition::{LspRange, definition};

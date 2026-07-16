@@ -53,6 +53,10 @@
 //!   * renamed forms still run: `salute`/`salute`, `$y`/`$y`,
 //!     `::myns::hello` + short `hello` -> identical output to the original.
 
+// Test column math indexes tiny in-memory sources; a `find`/`len` result
+// always fits u32, so the pedantic truncation the lint warns of can't occur.
+#![allow(clippy::cast_possible_truncation)]
+
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::references::references;
@@ -1355,7 +1359,7 @@ fn object_var_references_are_token_sized() {
     }
 }
 
-/// TN: an ordinary proc-local variable (no TclOO) still renames across its
+/// TN: an ordinary proc-local variable (no `TclOO`) still renames across its
 /// own decl + uses — the fix must not disturb the common path.
 #[test]
 fn plain_proc_local_rename_unaffected() {
@@ -1384,8 +1388,8 @@ fn uplevel_zero_resolves_global_not_proc_local() {
     let src = "set g 1\nproc p {} {\n    set g 99\n    uplevel #0 { puts $g }\n}\n";
     let analysis = analyse(src);
     // cursor on `$g` inside the uplevel body (line 3)
-    let line3 = src.lines().nth(3).unwrap();
-    let col = line3.find("$g").unwrap() as u32 + 1; // on the `g`
+    let body_line = src.lines().nth(3).unwrap();
+    let col = body_line.find("$g").unwrap() as u32 + 1; // on the `g`
     let refs = references(src, "tcl", 3, col, &analysis, true);
     let lines = ref_lines(&refs);
     assert!(
@@ -1404,8 +1408,8 @@ fn uplevel_zero_resolves_global_not_proc_local() {
 fn non_uplevel_proc_local_still_resolves_locally() {
     let src = "set g 1\nproc p {} {\n    set g 99\n    puts $g\n}\n";
     let analysis = analyse(src);
-    let line3 = src.lines().nth(3).unwrap();
-    let col = line3.find("$g").unwrap() as u32 + 1;
+    let body_line = src.lines().nth(3).unwrap();
+    let col = body_line.find("$g").unwrap() as u32 + 1;
     let refs = references(src, "tcl", 3, col, &analysis, true);
     let lines = ref_lines(&refs);
     assert!(
@@ -1422,8 +1426,8 @@ fn non_uplevel_proc_local_still_resolves_locally() {
 fn uplevel_nonzero_abstains_from_proc_and_global() {
     let src = "set g 1\nproc p {} {\n    set g 99\n    uplevel 1 { puts $g }\n}\n";
     let analysis = analyse(src);
-    let line3 = src.lines().nth(3).unwrap();
-    let col = line3.find("$g").unwrap() as u32 + 1; // on the `g`
+    let body_line = src.lines().nth(3).unwrap();
+    let col = body_line.find("$g").unwrap() as u32 + 1; // on the `g`
     let refs = references(src, "tcl", 3, col, &analysis, true);
     let lines = ref_lines(&refs);
     assert!(
@@ -1443,8 +1447,8 @@ fn uplevel_nonzero_body_local_resolves_within_body() {
     let src = "proc p {} {\n    uplevel 1 {\n        set h 5\n        puts $h\n    }\n}\n";
     let analysis = analyse(src);
     // cursor on `$h` (line 3)
-    let line3 = src.lines().nth(3).unwrap();
-    let col = line3.find("$h").unwrap() as u32 + 1;
+    let body_line = src.lines().nth(3).unwrap();
+    let col = body_line.find("$h").unwrap() as u32 + 1;
     let refs = references(src, "tcl", 3, col, &analysis, true);
     let lines = ref_lines(&refs);
     assert!(

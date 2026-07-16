@@ -897,9 +897,9 @@ mod tests {
     // global), never an ancestor walk.  `resolve_from` mirrors the analyser's
     // real call.
     fn resolve_from(name: &str, owner: &str, keys: &[&str]) -> Option<String> {
-        let known: std::collections::HashSet<String> = keys.iter().map(|s| s.to_string()).collect();
-        let owned: Vec<String> = keys.iter().map(|s| s.to_string()).collect();
-        let tail_index = build_tail_index(owned.iter());
+        let key_strings: Vec<String> = keys.iter().copied().map(String::from).collect();
+        let known: std::collections::HashSet<String> = key_strings.iter().cloned().collect();
+        let tail_index = build_tail_index(key_strings.iter());
         resolve_class_name(name, owner, |q| known.contains(q), &tail_index)
     }
 

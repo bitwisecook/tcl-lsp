@@ -23,6 +23,10 @@
 //! `starts(&result)` gives the `(line, character)` start set and
 //! `start_lines(&result)` the set of start lines.
 
+// Test column math indexes tiny in-memory sources; a `find`/`len` result
+// always fits u32, so the pedantic truncation the lint warns of can't occur.
+#![allow(clippy::cast_possible_truncation)]
+
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -256,7 +260,7 @@ fn superclass_and_mixin_references() {
     assert!(s.contains(&(8, 10)), "mixin: {s:?}");
 }
 
-/// End-to-end (real server): a TclOO instance variable's uses unify across
+/// End-to-end (real server): a `TclOO` instance variable's uses unify across
 /// every method body — Find-References on `$n` in one method reaches its
 /// declaration and the sibling method's use.
 #[test]

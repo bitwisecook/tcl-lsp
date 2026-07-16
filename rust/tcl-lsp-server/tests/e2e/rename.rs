@@ -25,6 +25,10 @@
 //! registered server-side and returns a `{range, placeholder}` (or `null` to
 //! reject).
 
+// Test column math indexes tiny in-memory sources; a `find`/`len` result
+// always fits u32, so the pedantic truncation the lint warns of can't occur.
+#![allow(clippy::cast_possible_truncation)]
+
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -287,7 +291,7 @@ fn rejects_var_collision_in_same_scope() {
 
 // -- TclOO instance-variable rename must not corrupt the body --
 
-/// End-to-end (real server / incremental path): renaming a TclOO
+/// End-to-end (real server / incremental path): renaming a `TclOO`
 /// instance variable rewrites its `variable` declaration and its `$var`
 /// uses — and NEVER the whole method body.  Before the fix the declaration
 /// edit spanned `{return $n}`, replacing the body with the new name.
