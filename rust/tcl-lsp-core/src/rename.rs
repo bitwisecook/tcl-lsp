@@ -1103,6 +1103,36 @@ pub fn cross_document_symbol_edits(
     edits
 }
 
+/// Compute the **whole-workspace** edit set for renaming the command whose
+/// qualified name is `qualified_name` — every call site, name-link word, and
+/// definition site the index knows, the current document included.
+///
+/// This is the consumer-document rename path (M8): the cursor sits on a call
+/// whose definition lives in another document (a workspace sibling, or a
+/// library file the autoload tier merged), so the in-document rename had no
+/// local definition to resolve against and produced nothing.  The index
+/// supplies everything instead.  Returns `None` when the rename would shadow
+/// an existing workspace command — the same collision discipline as the
+/// in-document rename's local gate.
+#[must_use]
+pub fn workspace_symbol_rename_edits(
+    qualified_name: &str,
+    new_name: &str,
+    index: &crate::workspace_index::WorkspaceIndex,
+) -> Option<Vec<WorkspaceTextEdit>> {
+    let namespace_prefix = namespace_prefix_of(qualified_name);
+    let (new_qualified, _) = qualified_and_decl_text(namespace_prefix, new_name);
+    if index.workspace_command_exists(&new_qualified) {
+        return None;
+    }
+    Some(cross_document_symbol_edits(
+        qualified_name,
+        new_name,
+        index,
+        "",
+    ))
+}
+
 /// Build a replacement string for a variable reference span.
 ///
 /// The reference span covers the full Var token (`$x`,

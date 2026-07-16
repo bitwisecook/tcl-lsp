@@ -1820,6 +1820,12 @@ pub struct Backend {
     /// `package require myTkPackage` (transitively) pulls in Tk (#723).
     /// Rebuilt by `scan_workspace_folders`.
     package_resolver: Arc<RwLock<PackageResolver>>,
+    /// Library files the autoload tier (M8) has merged into the workspace
+    /// index on demand, so references / rename keep reaching them.  Cleared
+    /// (and their index entries dropped) whenever the package database is
+    /// rebuilt, so a `libraryPaths` change cannot leave stale library
+    /// definitions behind.
+    autoloaded_library_uris: Arc<Mutex<HashSet<String>>>,
     /// Tcl installations discovered by scanning common install locations on
     /// disk (never by executing `tclsh`). Cached once per session. The package
     /// database scans these (plus configured `libraryPaths`) so it can see
@@ -2284,6 +2290,7 @@ impl Backend {
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -3581,10 +3588,11 @@ impl Backend {
     /// workspace index cannot place to the library file the auto-load / package
     /// database says defines it, then jump to that proc's declaration.
     ///
-    /// The library file need not be open — [`Self::read_document`] reads it from
-    /// disk, and [`Self::analysis_for`] memoises the analysis so repeated jumps
-    /// (and later references / hover) reuse it.  Only fires on a genuine miss,
-    /// so it never overrides an in-workspace definition.
+    /// The library file need not be open — [`Self::ensure_autoload_indexed`]
+    /// reads it from disk, analyses it, and merges it into the workspace index,
+    /// so the jump (and every later references / rename / definition query)
+    /// answers from the shared index.  Only fires on a genuine miss, so it
+    /// never overrides an in-workspace definition.
     async fn autoload_definition(
         &self,
         source: &str,
@@ -3599,15 +3607,72 @@ impl Backend {
         ) else {
             return Ok(Vec::new());
         };
-        // Which library file(s) the auto-load / package database resolves the
-        // command to, and the qualified names it would auto-load under.
+        let Some(qualified) = self.ensure_autoload_indexed(&word, &namespace).await else {
+            return Ok(Vec::new());
+        };
+        let targets: Vec<(String, tcl_lexer::Span)> = {
+            let index = self.workspace_index.read().await;
+            index
+                .proc_definitions_qualified(&qualified, "")
+                .into_iter()
+                .map(|p| (p.uri.clone(), p.name_span))
+                .chain(
+                    index
+                        .class_definitions_qualified(&qualified, "")
+                        .into_iter()
+                        .map(|c| (c.uri.clone(), c.name_span)),
+                )
+                .collect()
+        };
+        Ok(self.resolve_target_locations(targets).await)
+    }
+
+    /// Merge the library file(s) the auto-load / package database says define
+    /// `word` into the shared workspace index (M8's second half): references,
+    /// rename, and definition then reach library definitions through the same
+    /// index queries that serve workspace files.
+    ///
+    /// Returns the qualified name the command auto-loads under once it is
+    /// indexed.  Idempotent — when any auto-qualified candidate already
+    /// resolves in the index (a previous merge, or a real workspace
+    /// definition), it answers from the index without touching the disk, so a
+    /// workspace definition always wins over a same-named library one and
+    /// repeated queries stay cheap.  The merged URIs are remembered so a
+    /// package-database rebuild can drop them (see
+    /// [`Self::scan_workspace_folders`]).
+    async fn ensure_autoload_indexed(&self, word: &str, namespace: &str) -> Option<String> {
         let (files, candidates) = {
             let resolver = self.package_resolver.read().await;
             (
-                resolver.resolve_auto_command(&word, &namespace),
-                tcl_lsp_core::package_resolver::auto_qualify(&word, &namespace),
+                resolver.resolve_auto_command(word, namespace),
+                tcl_lsp_core::package_resolver::auto_qualify(word, namespace),
             )
         };
+        if files.is_empty() {
+            return None;
+        }
+        // The index and `all_procs` key absolute (`::`-prefixed) names, while
+        // `auto_qualify` yields a bare name for a global command.
+        let absolute: Vec<String> = candidates
+            .iter()
+            .map(|cand| {
+                if cand.starts_with("::") {
+                    cand.clone()
+                } else {
+                    format!("::{cand}")
+                }
+            })
+            .collect();
+        {
+            let index = self.workspace_index.read().await;
+            if let Some(existing) = absolute
+                .iter()
+                .find(|cand| index.workspace_command_exists(cand))
+            {
+                return Some(existing.clone());
+            }
+        }
+        let mut resolved = None;
         for path in files {
             let Some(target_uri) = Uri::from_file_path(&path) else {
                 continue;
@@ -3622,32 +3687,26 @@ impl Backend {
                     target_doc.dialect.clone(),
                 )
                 .await;
-            // The library file defines the command as a proc under one of the
-            // auto-qualified names; jump to the first that its analysis indexes.
-            // `all_procs` keys are absolute (`::`-prefixed), while `auto_qualify`
-            // yields a bare name for a global command, so normalise before the
-            // lookup (and still try the raw form for safety).
-            for cand in &candidates {
-                let absolute = if cand.starts_with("::") {
-                    cand.clone()
-                } else {
-                    format!("::{cand}")
-                };
-                if let Some(p) = file_analysis
-                    .all_procs
-                    .get(&absolute)
-                    .or_else(|| file_analysis.all_procs.get(cand))
-                {
-                    return Ok(self
-                        .resolve_target_locations(vec![(
-                            target_uri.as_str().to_owned(),
-                            p.name_span,
-                        )])
-                        .await);
-                }
+            {
+                let mut index = self.workspace_index.write().await;
+                index.remove_document(target_uri.as_str());
+                index.add_document(target_uri.as_str(), &file_analysis);
+            }
+            self.autoloaded_library_uris
+                .lock()
+                .await
+                .insert(target_uri.as_str().to_owned());
+            if resolved.is_none() {
+                resolved = absolute
+                    .iter()
+                    .find(|cand| {
+                        file_analysis.all_procs.contains_key(*cand)
+                            || file_analysis.all_classes.contains_key(*cand)
+                    })
+                    .cloned();
             }
         }
-        Ok(Vec::new())
+        resolved
     }
 
     /// Resolve the symbol at `pos` against the workspace index
@@ -3774,20 +3833,33 @@ impl Backend {
             .command_invocations
             .iter()
             .find(|i| covers(i.range))?;
-        let index = self.workspace_index.read().await;
-        inv.resolution_candidates
-            .iter()
-            .find(|cand| {
+        {
+            let index = self.workspace_index.read().await;
+            if let Some(cand) = inv.resolution_candidates.iter().find(|cand| {
                 let cand = cand.as_str();
                 analysis.all_procs.contains_key(cand)
                     || analysis.all_classes.contains_key(cand)
                     || index.workspace_command_exists(cand)
-            })
-            // A candidate that resolves through an `interp alias` / `rename` /
-            // `namespace import` names the linked command locally; follow the
-            // link so the cursor resolves to the command it ultimately runs,
-            // gathering its references with that command's.
-            .map(|cand| index.resolve_command_target(cand))
+            }) {
+                // A candidate that resolves through an `interp alias` /
+                // `rename` / `namespace import` names the linked command
+                // locally; follow the link so the cursor resolves to the
+                // command it ultimately runs, gathering its references with
+                // that command's.
+                return Some(index.resolve_command_target(cand));
+            }
+        }
+        // Autoload tier (M8): the command resolves nowhere in the open
+        // workspace.  Ask the auto-load / package database, merging the
+        // defining library file into the index so this query — and every
+        // later references / rename / definition — sees its definitions.
+        let (word, namespace) = core_definition::command_head_and_namespace_at(
+            source,
+            analysis,
+            pos.line,
+            pos.character,
+        )?;
+        self.ensure_autoload_indexed(&word, &namespace).await
     }
 
     /// Cross-document references for the proc / class at `pos`:
@@ -4324,6 +4396,46 @@ impl Backend {
             let index = self.workspace_index.read().await;
             core_rename::cross_document_symbol_edits(&qualified, new_name, &index, uri.as_str())
         };
+        self.merge_rename_intents(intents, changes).await;
+    }
+
+    /// Consumer-document rename (M8): the cursor's command has no local
+    /// definition, so the in-document rename had nothing to resolve against —
+    /// not a *rejection* when the workspace (or a library file the autoload
+    /// tier merges on demand) defines the symbol.  Resolve through the
+    /// workspace oracle and build the whole edit set from the index, the
+    /// current document's own call sites included.  Adds nothing when the new
+    /// name would shadow an existing workspace command (the same collision
+    /// discipline as the in-document rename).
+    async fn add_workspace_resolved_rename_edits(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+        changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
+    ) {
+        let Some(qualified) = self.resolve_workspace_symbol(source, analysis, pos).await else {
+            return;
+        };
+        let intents = {
+            let index = self.workspace_index.read().await;
+            core_rename::workspace_symbol_rename_edits(&qualified, new_name, &index)
+        };
+        let Some(intents) = intents else {
+            return;
+        };
+        self.merge_rename_intents(intents, changes).await;
+    }
+
+    /// Resolve each byte-span edit intent to an LSP range against its target
+    /// document's source (open buffer or on-disk fallback) and merge it into
+    /// the per-URI edit map, deduping identical ranges.
+    async fn merge_rename_intents(
+        &self,
+        intents: Vec<core_rename::WorkspaceTextEdit>,
+        changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
+    ) {
         for intent in intents {
             let Ok(parsed) = Uri::from_str(&intent.uri) else {
                 continue;
@@ -6351,6 +6463,18 @@ impl Backend {
         // Publish the freshly-scanned package database for the diagnostics
         // worker, then merge the per-file analysis into the index + salsa db.
         *self.package_resolver.write().await = resolver;
+        // The package database changed: drop the library files the autoload
+        // tier (M8) merged under the previous database.  A stale entry would
+        // keep answering for a library no longer on the resolved `auto_path`;
+        // dropping is cheap and the next query re-merges on demand.
+        let stale_library_uris: Vec<String> =
+            self.autoloaded_library_uris.lock().await.drain().collect();
+        if !stale_library_uris.is_empty() {
+            let mut index = self.workspace_index.write().await;
+            for uri in &stale_library_uris {
+                index.remove_document(uri);
+            }
+        }
         self.merge_workspace_scan_results(&analysed).await;
         // Now that the `Project` covers the whole workspace, warm the salsa
         // per-file analysis in parallel (#844 Gap 3) so the first cross-file /
@@ -9173,12 +9297,29 @@ impl LanguageServer for Backend {
         // (`is_safe_symbol_name`, no built-in shadow) so a
         // cross-doc rename can't produce an unsafe edit set — and
         // skipped entirely when the in-document rename was rejected.
-        if !local_rejected
-            && core_rename::is_safe_symbol_name(&new_name)
-            && !core_rename::is_builtin_command_name(&new_name, &registry)
-        {
+        let new_name_safe = core_rename::is_safe_symbol_name(&new_name)
+            && !core_rename::is_builtin_command_name(&new_name, &registry);
+        if !local_rejected && new_name_safe {
             self.add_cross_document_rename_edits(
                 &uri,
+                &doc.text,
+                &analysis,
+                pos,
+                &new_name,
+                &mut changes,
+            )
+            .await;
+        } else if local_rejected && new_name_safe {
+            // An empty in-document result also covers the *consumer document*
+            // shape: the cursor's command is defined in a sibling document (or
+            // a library file the autoload tier can merge — M8), so there was
+            // no local definition to resolve against.  The workspace oracle
+            // distinguishes that from a genuine rejection: when it resolves
+            // the symbol, build the edit set from the index (current
+            // document's call sites included); a real rejection (collision,
+            // unrenameable cursor) resolves to nothing — or to a collision the
+            // workspace-level gate refuses — and still aborts wholesale.
+            self.add_workspace_resolved_rename_edits(
                 &doc.text,
                 &analysis,
                 pos,
@@ -14407,6 +14548,7 @@ mod tests {
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -17151,6 +17293,158 @@ mod tests {
         assert!(cross.iter().all(|l| l.uri == consumer));
     }
 
+    /// Build an on-disk autoload library (`tclIndex` + defining file, like a
+    /// `TCLLIBPATH` entry) whose `Rbc_Wire` also calls `Rbc_ActiveLegend`
+    /// internally, and point the backend's package database at it.  Returns
+    /// the library file's URI.
+    async fn seed_autoload_library(backend: &Backend, tag: &str) -> Uri {
+        let libdir = unique_scratch_dir(tag);
+        std::fs::write(
+            libdir.join("graph.tcl"),
+            "proc Rbc_ActiveLegend {graph} {}\nproc Rbc_Wire {} { Rbc_ActiveLegend .g }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            libdir.join("tclIndex"),
+            "# Tcl autoload index file, version 2.0\n\
+             set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]]\n\
+             set auto_index(Rbc_Wire) [list source [file join $dir graph.tcl]]\n",
+        )
+        .unwrap();
+        *backend.package_resolver.write().await = build_package_resolver(
+            &[],
+            &[libdir.display().to_string()],
+            &[],
+            WORKSPACE_SCAN_DIR_CAP,
+        );
+        Uri::from_file_path(libdir.join("graph.tcl")).expect("library uri")
+    }
+
+    /// M8's second half: the autoload tier merges the defining library file
+    /// into the workspace index, so cross-document **references** reach the
+    /// library declaration and the library's own internal call sites — not
+    /// just go-to-definition.
+    #[tokio::test]
+    async fn autoload_merge_makes_references_reach_the_library_m8() {
+        let backend = test_backend();
+        let lib_uri = seed_autoload_library(&backend, "autoload-refs").await;
+        // The workspace document only *calls* the library command.
+        let app = Uri::from_str("file:///app.tcl").unwrap();
+        let app_src = "Rbc_ActiveLegend .g\n";
+        register(&backend, &app, app_src).await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(app_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&app, app_src, &analysis, Position::new(0, 3), true)
+            .await;
+        assert!(
+            refs.iter()
+                .any(|l| l.uri == lib_uri && l.range.start.line == 0),
+            "declaration in the library file: {refs:?}"
+        );
+        assert!(
+            refs.iter()
+                .any(|l| l.uri == lib_uri && l.range.start.line == 1),
+            "library-internal call site: {refs:?}"
+        );
+    }
+
+    /// M8's second half, rename leg: a rename triggered from the workspace
+    /// call site rewrites the library declaration and the library-internal
+    /// call site, so the whole family stays consistent.
+    #[tokio::test]
+    async fn autoload_merge_makes_rename_reach_the_library_m8() {
+        let backend = test_backend();
+        let lib_uri = seed_autoload_library(&backend, "autoload-rename").await;
+        let app = Uri::from_str("file:///app.tcl").unwrap();
+        let app_src = "Rbc_ActiveLegend .g\n";
+        register(&backend, &app, app_src).await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(app_src, "tcl8.6").clone()
+        };
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        backend
+            .add_cross_document_rename_edits(
+                &app,
+                app_src,
+                &analysis,
+                Position::new(0, 3),
+                "Rbc_Shiny",
+                &mut changes,
+            )
+            .await;
+        let lib_edits = changes.get(&lib_uri).cloned().unwrap_or_default();
+        assert_eq!(
+            lib_edits.len(),
+            2,
+            "library declaration + internal call: {lib_edits:?}"
+        );
+    }
+
+    /// FP guard: when the workspace itself defines the command, the autoload
+    /// tier must not fire — the workspace definition wins and no library file
+    /// is merged into the index.
+    #[tokio::test]
+    async fn autoload_merge_abstains_when_the_workspace_defines_the_command() {
+        let backend = test_backend();
+        let lib_uri = seed_autoload_library(&backend, "autoload-abstain").await;
+        let def = Uri::from_str("file:///def.tcl").unwrap();
+        register(&backend, &def, "proc Rbc_ActiveLegend {graph} {}\n").await;
+        let app = Uri::from_str("file:///app.tcl").unwrap();
+        let app_src = "Rbc_ActiveLegend .g\n";
+        register(&backend, &app, app_src).await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(app_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&app, app_src, &analysis, Position::new(0, 3), true)
+            .await;
+        assert!(
+            refs.iter().all(|l| l.uri != lib_uri),
+            "the same-named library must stay unmerged: {refs:?}"
+        );
+        assert!(
+            backend.autoloaded_library_uris.lock().await.is_empty(),
+            "no library merge may be recorded"
+        );
+    }
+
+    /// A package-database rebuild drops previously-merged library files from
+    /// the index (they may no longer be on the resolved `auto_path`); the next
+    /// query re-merges on demand.
+    #[tokio::test]
+    async fn autoload_merge_is_dropped_when_the_package_database_rebuilds() {
+        let backend = test_backend();
+        seed_autoload_library(&backend, "autoload-rebuild").await;
+        let resolved = backend
+            .ensure_autoload_indexed("Rbc_ActiveLegend", "::")
+            .await;
+        assert_eq!(resolved.as_deref(), Some("::Rbc_ActiveLegend"));
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::Rbc_ActiveLegend")
+        );
+        // Rebuild with no library paths: the merged entries must be dropped.
+        backend.scan_workspace_folders().await;
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::Rbc_ActiveLegend"),
+            "stale library definitions must not survive a package-database rebuild"
+        );
+        assert!(backend.autoloaded_library_uris.lock().await.is_empty());
+    }
+
     /// Build the three-file #923 workspace: `::mymod::helper`, an unrelated
     /// `::other::helper`, and an `app.tcl` that reaches `::mymod::helper` via
     /// `namespace path`.  Returns the backend and the three URIs.
@@ -17503,6 +17797,69 @@ mod tests {
         let consumer_edits = &changes[&consumer];
         assert_eq!(consumer_edits.len(), 2, "{consumer_edits:?}");
         assert!(consumer_edits.iter().all(|e| e.new_text == "do_it"));
+    }
+
+    /// A rename triggered from a **consumer** document — the command's
+    /// definition lives only in a sibling — resolves through the workspace
+    /// oracle and rewrites the sibling declaration plus every call site,
+    /// including the consumer's own (M8's rename leg).
+    #[tokio::test]
+    async fn rename_from_a_consumer_document_rewrites_the_defining_sibling() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
+        register(&backend, &lib, "proc helper {} {}\nhelper\n").await;
+        register(&backend, &consumer, "helper\nhelper\n").await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: consumer.clone(),
+                },
+                position: Position::new(0, 2),
+            },
+            new_name: "do_it".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok").expect("some");
+        let changes = edit.changes.expect("changes");
+        // lib.tcl: declaration + its own call site; consumer.tcl: both calls.
+        assert_eq!(
+            changes.get(&lib).map(Vec::len),
+            Some(2),
+            "lib decl + call: {changes:?}"
+        );
+        assert_eq!(
+            changes.get(&consumer).map(Vec::len),
+            Some(2),
+            "consumer call sites: {changes:?}"
+        );
+    }
+
+    /// Collision discipline holds on the consumer-document path: renaming onto
+    /// a name the workspace already defines is refused wholesale — no partial
+    /// edit set leaks out.
+    #[tokio::test]
+    async fn rename_from_a_consumer_document_refuses_a_workspace_collision() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
+        register(&backend, &lib, "proc helper {} {}\nproc do_it {} {}\n").await;
+        register(&backend, &consumer, "helper\n").await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: consumer.clone(),
+                },
+                position: Position::new(0, 2),
+            },
+            new_name: "do_it".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok");
+        assert!(
+            edit.is_none(),
+            "a collision with an existing workspace command must refuse: {edit:?}"
+        );
     }
 
     #[tokio::test]
