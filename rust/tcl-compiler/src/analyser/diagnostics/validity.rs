@@ -3018,6 +3018,38 @@ in the active dialect ({}).",
         }
     }
 
+    /// **W002** for a math function used before its introducing release —
+    /// `min(…)` under 8.4, an `is*(…)` classification under 8.6.  The function
+    /// dispatches to `::tcl::mathfunc::<name>`, a command that simply does not
+    /// exist in the older core, so the same disabled-in-dialect diagnostic the
+    /// command path emits applies to the function token in the expression.
+    pub(in crate::analyser) fn emit_expr_function_dialect_diagnostics(
+        &mut self,
+        expr_tok: tcl_lexer::Token,
+    ) {
+        let Some(ceiling) = crate::tcl_expr_eval::math_func_ceiling_for_dialect(&self.dialect)
+        else {
+            return;
+        };
+        for (name, span, _argc) in self.expr_function_calls(expr_tok) {
+            let Some(since) = tcl_syntax::expr::mathfunc::added_in(&name) else {
+                continue;
+            };
+            if since > ceiling {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: DiagCode::W002,
+                    span,
+                    message: format!(
+                        "'::tcl::mathfunc::{name}' is disabled in the active dialect profile ('{}')",
+                        self.dialect
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
     /// **W003** for the multi-word `expr a b c …` form. Tcl's `expr`
     /// is the only EXPR-role command whose expression can be spread
     /// across several unbraced words (`if`/`while`/`for` require

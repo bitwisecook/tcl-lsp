@@ -90,6 +90,9 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("namespace", "eval", H::NamespaceEval),
         ("namespace", "ensemble", H::NamespaceEnsemble),
         ("namespace", "import", H::NamespaceImport),
+        // `inscope` shares the namespace-eval handler: same `[subcmd, ns,
+        // body]` shape, body analysed in the named namespace's scope.
+        ("namespace", "inscope", H::NamespaceEval),
         ("namespace", "path", H::NamespacePath),
         ("namespace", "unknown", H::NamespaceUnknown),
         ("namespace", "upvar", H::NamespaceUpvar),
@@ -109,6 +112,9 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         // `cmd_name != "interp" || args[0] != "alias"` in
         // crate::alias's detectors, dispatched by handle_interp_alias.
         ("interp", "alias", H::InterpAlias),
+        // `interp eval CHILD SCRIPT` — the child interpreter's script is
+        // analysed in an isolated scope (handle_interp_eval_command).
+        ("interp", "eval", H::InterpEval),
         ("rename", "", H::Rename),
         ("oo::define", "", H::OoDefine),
         ("oo::objdefine", "", H::OoObjdefine),

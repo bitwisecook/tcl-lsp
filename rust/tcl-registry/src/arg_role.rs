@@ -80,6 +80,16 @@ pub enum ArgRole {
     /// option's [`crate::hover::OptionArg::appended_arity`]), never in the
     /// compiler.
     CommandPrefix,
+    /// A bare command **name** held as a data argument — introspected or
+    /// manipulated, never invoked here.  Unlike [`Self::CommandPrefix`] the
+    /// word is the *whole* name (no arguments are appended and no callback
+    /// arity applies): `info body PROC` / `info args PROC` / `info default
+    /// PROC` read a proc, `namespace which -command NAME` / `namespace origin
+    /// NAME` resolve one.  Like `CommandPrefix` it is a first-class command
+    /// **reference** — the compiler records the word as a call site so
+    /// find-references / go-to-definition / rename / call-hierarchy reach the
+    /// named command — but it carries no arity to check.
+    CommandName,
 }
 
 impl ArgRole {
@@ -102,6 +112,7 @@ impl ArgRole {
         Self::Index,
         Self::Keyword,
         Self::CommandPrefix,
+        Self::CommandName,
     ];
 
     /// Whether an argument in this role carries **executable Tcl** that a
@@ -133,6 +144,7 @@ impl ArgRole {
         match self {
             Self::Body | Self::Expr => true,
             Self::CommandPrefix
+            | Self::CommandName
             | Self::VarWrite
             | Self::VarRead
             | Self::LoopVarList

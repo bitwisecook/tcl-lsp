@@ -327,6 +327,12 @@ pub enum AnalyserHookId {
     /// the four-word form, deletes) a current-interpreter alias
     /// (stamped on `interp`'s `alias` subcommand).
     InterpAlias,
+    /// `interp eval path script` — evaluates the script in a *child*
+    /// interpreter (a separate command/variable space).  The analyser opens
+    /// an isolated scope so the child's `proc`/`var` definitions and calls do
+    /// not merge into the parent namespace (stamped on `interp`'s `eval`
+    /// subcommand).
+    InterpEval,
     /// `rename oldName newName` — records a static rename / deletion;
     /// a dynamic operand reports back so the caller can widen the
     /// dynamic-providers flag.

@@ -41,6 +41,10 @@ pub fn spec() -> CommandSpec {
         // (`TclNRCoroutineObjCmd`, `tclBasic.c`) — later calls to a literal
         // NAME resolve to the coroutine, not an unknown command.
         defines_command_at: Some(0),
+        // Arg 1 is the command the coroutine runs, invoked with the trailing
+        // args appended (a variable count) — a command prefix, so the proc it
+        // names is seen by references / go-to-definition / rename.
+        command_prefixes: &[(1, AppendedArity::Unknown)],
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Create and produce values from coroutines",

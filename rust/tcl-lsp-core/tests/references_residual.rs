@@ -249,6 +249,7 @@ fn document_highlights_dedup_keeps_write_over_read_on_collision() {
             references: vec![Span::new(13, 14)], // identical span -> collision
             warn_if_unused: false,
             array_indices: std::collections::BTreeSet::new(),
+            link_target: None,
         },
     );
     let analysis = R {
@@ -386,16 +387,21 @@ fn references_property_decl_resolves_to_declaration_only() {
     // tclsh-proof for the backing class: `oo::class create P {variable color;
     //   constructor {} {set color red}; method show {} {return $color}};
     //   puts [[P new] show]` -> red (the property/var is a live member).
+    // `property` is a 9.0 `TclOO` member, so the vector runs under a 9.0
+    // dialect (under 8.6 it would be flagged disabled and record nothing).
     let src = "oo::class create P {\n    property color\n    method show {} { return color }\n}\n";
-    let analysis = analyse(src);
+    let analysis = {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl9.0").clone()
+    };
     // Cursor on the `color` property declaration (line 1, col 14).
-    let refs = references(src, "tcl", 1, 14, &analysis, true);
+    let refs = references(src, "tcl9.0", 1, 14, &analysis, true);
     assert!(
         ref_lines(&refs).contains(&1),
         "property declaration (line 1) must resolve; got {refs:?}",
     );
     // Excluding the declaration leaves no external `$obj color` dispatch sites.
-    let without_decl = references(src, "tcl", 1, 14, &analysis, false);
+    let without_decl = references(src, "tcl9.0", 1, 14, &analysis, false);
     assert!(
         !without_decl.iter().any(|r| r.start_line == 1),
         "the decl span itself must be gone when excluded; got {without_decl:?}",

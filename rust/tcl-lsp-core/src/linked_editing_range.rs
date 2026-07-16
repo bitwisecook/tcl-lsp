@@ -87,15 +87,18 @@ pub fn linked_editing_ranges(
     ranges.push(span_to_range(source, &line_index, proc.name_span));
 
     for inv in &analysis.command_invocations {
-        let resolved_matches = inv
-            .resolved_qualified_name
-            .as_deref()
-            .is_some_and(|q| q == proc.qualified_name);
-        if !matches_self_call(inv.name.as_str(), proc) && !resolved_matches {
-            // Resolved-qualified-name case: a relative
-            // call inside `namespace eval ::ns { ... }` to its
-            // own proc surfaces with `name = "greet"` and
-            // `resolved_qualified_name = Some("::ns::greet")`.
+        // The call's resolved qualified name is authoritative when the analyser
+        // settled one: a bare `greet` inside `namespace eval ::b { … }` nested
+        // in `proc ::a::greet` resolves to `::b::greet`, so it must NOT link to
+        // `::a::greet` even though its text equals `greet` (the old OR of the
+        // name match with the resolved match wrongly linked it, corrupting the
+        // unrelated call under rename-as-you-type).  Only when no qualified name
+        // was settled do we fall back to the literal self-name match.
+        let links_to_proc = match inv.resolved_qualified_name.as_deref() {
+            Some(q) => q == proc.qualified_name,
+            None => matches_self_call(inv.name.as_str(), proc),
+        };
+        if !links_to_proc {
             continue;
         }
         if !span_contains(proc.body_span, inv.range.start()) {

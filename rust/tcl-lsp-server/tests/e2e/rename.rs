@@ -25,6 +25,10 @@
 //! registered server-side and returns a `{range, placeholder}` (or `null` to
 //! reject).
 
+// Test column math indexes tiny in-memory sources; a `find`/`len` result
+// always fits u32, so the pedantic truncation the lint warns of can't occur.
+#![allow(clippy::cast_possible_truncation)]
+
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -283,4 +287,112 @@ fn rejects_var_collision_in_same_scope() {
     lsp.open_ready(&uri, src);
     let result = lsp.rename(&uri, 3, 10, "y");
     assert!(rename_edits(&result).is_empty());
+}
+
+// -- TclOO instance-variable rename must not corrupt the body --
+
+/// End-to-end (real server / incremental path): renaming a `TclOO`
+/// instance variable rewrites its `variable` declaration and its `$var`
+/// uses — and NEVER the whole method body.  Before the fix the declaration
+/// edit spanned `{return $n}`, replacing the body with the new name.
+#[test]
+fn rename_tcloo_instance_variable_does_not_rewrite_body() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 0: oo::class create C {
+    // line 1:     variable n
+    // line 2:     method get {} {return $n}
+    // line 3:     method set {x} {set n $x}
+    // line 4: }
+    let src = "oo::class create C {\n    variable n\n    method get {} {return $n}\n    method set {x} {set n $x}\n}\n";
+    lsp.open_ready(&uri, src);
+    // cursor on `$n` in `get` (line 2). `    method get {} {return $n}`
+    let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let result = lsp.rename(&uri, 2, col, "w");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    assert!(!for_uri.is_empty(), "expected a rename: {result:?}");
+    for e in &for_uri {
+        let sl = e["range"]["start"]["line"].as_u64().unwrap();
+        let el = e["range"]["end"]["line"].as_u64().unwrap();
+        assert_eq!(sl, el, "no edit may span lines (body-destroying): {e:?}");
+        // No edit may cover the method body `{return $n}` (line 2, cols 18..28).
+        let sc = e["range"]["start"]["character"].as_u64().unwrap();
+        let ec = e["range"]["end"]["character"].as_u64().unwrap();
+        let covers_body = sl == 2 && sc <= 18 && ec >= 28;
+        assert!(!covers_body, "edit covers the whole method body: {e:?}");
+    }
+    // The `variable n` declaration (line 1) is renamed.
+    assert!(
+        for_uri
+            .iter()
+            .any(|e| e["range"]["start"]["line"] == 1 && e["newText"] == "w"),
+        "expected the `variable n` declaration to be renamed: {for_uri:?}"
+    );
+}
+
+/// End-to-end: go-to-definition on `$g` inside `uplevel #0 { … }`
+/// resolves to the GLOBAL `set g` (line 0), not the same-named proc-local.
+#[test]
+fn definition_uplevel_zero_var_resolves_global() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 0: set g 1
+    // line 2:     set g 99   (proc-local)
+    // line 3:     uplevel #0 { puts $g }
+    let src = "set g 1\nproc p {} {\n    set g 99\n    uplevel #0 { puts $g }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(3).unwrap().find("$g").unwrap() as u32 + 1;
+    let result = lsp.definition(&uri, 3, col);
+    // definition returns a Location or [Location]; extract the target line(s).
+    let locs = match &result {
+        Value::Array(a) => a.clone(),
+        Value::Null => vec![],
+        other => vec![other.clone()],
+    };
+    let lines: Vec<u64> = locs
+        .iter()
+        .filter_map(|l| l["range"]["start"]["line"].as_u64())
+        .collect();
+    assert!(
+        lines.contains(&0),
+        "uplevel #0 `$g` must go to the global `set g` (line 0); got {result:?}"
+    );
+    assert!(
+        !lines.contains(&2),
+        "must NOT go to the proc-local `set g 99` (line 2); got {result:?}"
+    );
+}
+
+// -- rename from a call site targets the caller's namespace --
+
+/// End-to-end: renaming from the `helper` call site inside `::a::run` renames
+/// `::a::helper` and its call, never the same-named `::b::helper`.
+#[test]
+fn rename_from_callsite_does_not_touch_same_named_proc_in_other_namespace() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 1: ::a::helper decl; line 2: the `helper` call; line 5: ::b::helper decl
+    let src = "namespace eval ::a {\n    proc helper {} { return 1 }\n    proc run {} { helper }\n}\nnamespace eval ::b {\n    proc helper {} { return 2 }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(2).unwrap().find("{ helper }").unwrap() as u32 + 2;
+    let result = lsp.rename(&uri, 2, col, "assist");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<u64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_u64())
+        .collect();
+    assert!(
+        lines.contains(&1),
+        "::a::helper decl (line 1) must rename: {for_uri:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "the call (line 2) must rename: {for_uri:?}"
+    );
+    assert!(
+        !lines.contains(&5),
+        "must NOT rename ::b::helper (line 5): {for_uri:?}"
+    );
 }

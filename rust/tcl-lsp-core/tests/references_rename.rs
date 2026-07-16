@@ -53,6 +53,10 @@
 //!   * renamed forms still run: `salute`/`salute`, `$y`/`$y`,
 //!     `::myns::hello` + short `hello` -> identical output to the original.
 
+// Test column math indexes tiny in-memory sources; a `find`/`len` result
+// always fits u32, so the pedantic truncation the lint warns of can't occur.
+#![allow(clippy::cast_possible_truncation)]
+
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::references::references;
@@ -118,6 +122,76 @@ fn references_proc_from_call_site_finds_the_same_set() {
         ref_lines(&refs),
         vec![0, 1, 2],
         "call-site Find-References should match the proc's whole set; got {refs:?}",
+    );
+}
+
+#[test]
+fn references_proc_named_in_info_body_include_the_introspection_site() {
+    // `info body PROC` names the proc as data (introspected, not called); it
+    // is a command reference, so Find-All-References from the declaration must
+    // include the `greet` word inside `info body greet`.
+    let src = "proc greet {} { return hi }\ninfo body greet\n";
+    let analysis = analyse(src);
+    // Cursor on `greet` in the declaration (line 0, col 6).
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![0, 1],
+        "decl + the `info body` introspection site expected; got {refs:?}",
+    );
+}
+
+#[test]
+fn references_proc_called_inside_oo_objdefine_method_body() {
+    // A per-object method body (`oo::objdefine $o { method … { helper } }`) is
+    // now analysed like any method body, so a proc it calls is found by
+    // Find-All-References from the proc's declaration.
+    let src = "proc helper {} {}\n\
+               oo::class create Foo {}\n\
+               set o [Foo new]\n\
+               oo::objdefine $o {\n    \
+                   method greet {} { helper }\n\
+               }\n";
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert!(
+        ref_lines(&refs).contains(&4),
+        "the call in the per-object method body (line 4) should be a reference: {refs:?}",
+    );
+}
+
+#[test]
+fn namespace_which_command_probe_is_not_a_reference() {
+    // `namespace which -command greet` is an existence PROBE (it returns "" for
+    // an unknown command), not a call or a navigable reference.  Recording it
+    // as a command reference fed the probe into the W123 unresolved-command
+    // pass, flagging a legitimate `[namespace which -command foo] eq ""`
+    // existence check.  So Find-All-References from the declaration does NOT
+    // include the probe site — only the decl itself.
+    let src = "proc greet {} {}\nnamespace which -command greet\n";
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![0],
+        "only the decl; the probe is not a reference: got {refs:?}",
+    );
+}
+
+#[test]
+fn references_proc_named_in_trace_add_execution_include_the_trace_site() {
+    // `trace add execution PROC …` names the traced command; it is a
+    // reference, so Find-All-References from the declaration includes the
+    // `greet` word in the trace (the trailing `handler` is a separate
+    // callback prefix, not part of greet's set).
+    let src = "proc greet {} {}\nproc handler {args} {}\ntrace add execution greet enter handler\n";
+    let analysis = analyse(src);
+    // Cursor on `greet` in the declaration (line 0, col 6).
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![0, 2],
+        "decl + the trace site expected; got {refs:?}",
     );
 }
 
@@ -790,6 +864,27 @@ fn rename_proc_updates_definition_and_all_call_sites() {
 }
 
 #[test]
+fn rename_parent_proc_does_not_edit_a_child_interp_body() {
+    // `interp eval child { proc foo }` runs in a child interpreter, so its
+    // `proc foo` is isolated from the parent's `::foo`.  Renaming the parent
+    // `foo` rewrites the parent decl (line 0) and its call (line 2) but must
+    // never touch the child body on line 1.
+    let src = "proc foo {} {}\ninterp eval child { proc foo {} {} }\nfoo\n";
+    let analysis = analyse(src);
+    // Cursor on the parent `foo` declaration (line 0, col 6).
+    let edits = rename(src, "tcl", 0, 6, "bar", &analysis, None);
+    assert!(
+        edits.iter().all(|e| e.range.start_line != 1),
+        "the isolated child interp body must be untouched: {edits:?}",
+    );
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&0) && lines.contains(&2),
+        "the parent decl and call are still rewritten: {edits:?}",
+    );
+}
+
+#[test]
 fn rename_proc_from_call_site_rewrites_declaration_too() {
     // Renaming from a call site rewrites the declaration as well — same set.
     let src = "proc greet {} { return hi }\ngreet\ngreet\n";
@@ -1187,4 +1282,421 @@ fn is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest() {
     ] {
         assert!(!is_safe_symbol_name(bad), "{bad:?} should be rejected");
     }
+}
+
+// ===================================================================
+// Renaming a TclOO instance variable must NOT rewrite the method body, and
+// `uplevel #0` var resolution must skip proc locals.  TP/FP/TN/FN coverage.
+// ===================================================================
+
+/// The `oo::class create C { variable n; method get {} {return $n} … }`
+/// fixture used across the object-variable tests.  `$n` in `get` sits at line 2.
+const OBJECT_VAR_SRC: &str = "oo::class create C {\n    variable n\n    method get {} {return $n}\n    method set {x} {set n $x}\n}\n";
+
+/// FP-guard (the corruption regression): a rename edit must never span more
+/// than one line, and must never cover the whole `{return $n}` method body.
+/// Before the fix the declaration edit was `2:18-2:28 → "w"`, destroying the
+/// body.
+#[test]
+fn object_var_rename_never_rewrites_method_body() {
+    let analysis = analyse(OBJECT_VAR_SRC);
+    let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let edits = rename(OBJECT_VAR_SRC, "tcl8.6", 2, col, "w", &analysis, None);
+    assert!(!edits.is_empty(), "expected a rename to be produced");
+    for e in &edits {
+        assert_eq!(
+            e.range.start_line, e.range.end_line,
+            "no rename edit may span multiple lines (body-destroying): {e:?}"
+        );
+        // The method body `{return $n}` starts at col 18 on line 2.  No edit
+        // may start at the brace and run to end-of-body.
+        let spans_body =
+            e.range.start_line == 2 && e.range.start_character <= 18 && e.range.end_character >= 28;
+        assert!(!spans_body, "edit covers the whole method body: {e:?}");
+    }
+}
+
+/// TP: the declaration edit lands on the `variable n` name token (line 1),
+/// and the `$n` read (line 2) is rewritten — the correct, non-destructive
+/// rename.
+#[test]
+fn object_var_rename_edits_declaration_and_use() {
+    let analysis = analyse(OBJECT_VAR_SRC);
+    let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let edits = rename(OBJECT_VAR_SRC, "tcl8.6", 2, col, "w", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&1),
+        "expected the `variable n` declaration (line 1) to be renamed; got {edits:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "expected the `$n` use (line 2) to be renamed; got {edits:?}"
+    );
+    // The declaration edit is exactly the `n` token, not a wide span.
+    let decl = edits
+        .iter()
+        .find(|e| e.range.start_line == 1)
+        .expect("declaration edit");
+    assert_eq!(decl.new_text, "w");
+    assert_eq!(
+        decl.range.end_character - decl.range.start_character,
+        1,
+        "declaration edit must cover just the `n` token: {decl:?}"
+    );
+}
+
+/// FN-that-must-hold: `references` on the object variable surfaces the
+/// declaration + the use without a body-wide span (the reference set feeds
+/// document-highlight; a whole-body highlight was the visible symptom).
+#[test]
+fn object_var_references_are_token_sized() {
+    let analysis = analyse(OBJECT_VAR_SRC);
+    let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let refs = references(OBJECT_VAR_SRC, "tcl", 2, col, &analysis, true);
+    assert!(!refs.is_empty());
+    for r in &refs {
+        assert_eq!(
+            r.start_line, r.end_line,
+            "reference span crosses lines: {r:?}"
+        );
+    }
+}
+
+/// TN: an ordinary proc-local variable (no `TclOO`) still renames across its
+/// own decl + uses — the fix must not disturb the common path.
+#[test]
+fn plain_proc_local_rename_unaffected() {
+    let src = "proc p {} {\n    set count 0\n    incr count\n    return $count\n}\n";
+    let analysis = analyse(src);
+    // cursor on `$count` (line 3)
+    let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
+    let edits = rename(src, "tcl8.6", 3, col, "total", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&1),
+        "decl `set count` should rename: {edits:?}"
+    );
+    assert!(lines.contains(&3), "`$count` use should rename: {edits:?}");
+    for e in &edits {
+        assert_eq!(e.range.start_line, e.range.end_line);
+    }
+}
+
+/// TP: inside `uplevel #0 { … }` the body runs in the global frame, so a
+/// `$g` there resolves to the GLOBAL `g`, not a same-named proc-local.
+/// References on `$g` in the uplevel body must include the global definition
+/// (line 0), not the proc-local (`set g 99`, line 1).
+#[test]
+fn uplevel_zero_resolves_global_not_proc_local() {
+    let src = "set g 1\nproc p {} {\n    set g 99\n    uplevel #0 { puts $g }\n}\n";
+    let analysis = analyse(src);
+    // cursor on `$g` inside the uplevel body (line 3)
+    let body_line = src.lines().nth(3).unwrap();
+    let col = body_line.find("$g").unwrap() as u32 + 1; // on the `g`
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        lines.contains(&0),
+        "uplevel #0 `$g` must resolve to the global `set g` on line 0; got {refs:?}"
+    );
+    assert!(
+        !lines.contains(&2),
+        "uplevel #0 `$g` must NOT resolve to the proc-local `set g 99` on line 2; got {refs:?}"
+    );
+}
+
+/// TN: a non-uplevel `$g` inside the proc still resolves to the proc-local
+/// (the guard must only fire inside an uplevel scope).
+#[test]
+fn non_uplevel_proc_local_still_resolves_locally() {
+    let src = "set g 1\nproc p {} {\n    set g 99\n    puts $g\n}\n";
+    let analysis = analyse(src);
+    let body_line = src.lines().nth(3).unwrap();
+    let col = body_line.find("$g").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        lines.contains(&2),
+        "plain proc-body `$g` must resolve to the proc-local on line 2; got {refs:?}"
+    );
+}
+
+/// FP-guard: inside a non-`#0` `uplevel N { … }` the body runs in the caller's
+/// frame — statically unknown — so a `$g` it does not itself declare abstains:
+/// it must link neither the enclosing proc-local (a definite mis-attribution)
+/// nor the global (the frame is not necessarily global, unlike `#0`).
+#[test]
+fn uplevel_nonzero_abstains_from_proc_and_global() {
+    let src = "set g 1\nproc p {} {\n    set g 99\n    uplevel 1 { puts $g }\n}\n";
+    let analysis = analyse(src);
+    let body_line = src.lines().nth(3).unwrap();
+    let col = body_line.find("$g").unwrap() as u32 + 1; // on the `g`
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        !lines.contains(&2),
+        "uplevel 1 `$g` must NOT link the proc-local (line 2); got {refs:?}"
+    );
+    assert!(
+        !lines.contains(&0),
+        "uplevel 1 `$g` must NOT link the global (line 0) — the frame is unknown; got {refs:?}"
+    );
+}
+
+/// A variable declared *inside* a non-`#0` `uplevel` body resolves to itself
+/// (the abstention drops only the frames outside the body).
+#[test]
+fn uplevel_nonzero_body_local_resolves_within_body() {
+    let src = "proc p {} {\n    uplevel 1 {\n        set h 5\n        puts $h\n    }\n}\n";
+    let analysis = analyse(src);
+    // cursor on `$h` (line 3)
+    let body_line = src.lines().nth(3).unwrap();
+    let col = body_line.find("$h").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        lines.contains(&2),
+        "the body's own `set h` (line 2) must be a reference; got {refs:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "the `$h` use (line 3) must be a reference; got {refs:?}"
+    );
+}
+
+// ===================================================================
+// Target selection: rename / references triggered from a bareword
+// CALL SITE must resolve namespace-aware (the proc/class C Tcl would
+// dispatch), never a namespace-blind `name == word` scan that picks an
+// arbitrary same-named symbol in another namespace.
+// ===================================================================
+
+/// Two same-named procs in disjoint namespaces; `::a::run` calls `helper`.
+const NS_COLLISION_PROC_SRC: &str = "namespace eval ::a {\n    proc helper {} { return 1 }\n    proc run {} { helper }\n}\nnamespace eval ::b {\n    proc helper {} { return 2 }\n}\n";
+
+/// TP + FP: renaming from the `helper` call site inside `::a::run` renames
+/// `::a::helper` (decl line 1 + call line 2) and NEVER `::b::helper` (line 5).
+#[test]
+fn proc_rename_from_callsite_targets_caller_namespace() {
+    let analysis = analyse(NS_COLLISION_PROC_SRC);
+    let col = NS_COLLISION_PROC_SRC
+        .lines()
+        .nth(2)
+        .unwrap()
+        .find("{ helper }")
+        .unwrap() as u32
+        + 2;
+    let edits = rename(
+        NS_COLLISION_PROC_SRC,
+        "tcl8.6",
+        2,
+        col,
+        "assist",
+        &analysis,
+        None,
+    );
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&1),
+        "::a::helper decl (line 1) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "the call (line 2) must rename: {edits:?}"
+    );
+    assert!(
+        !lines.contains(&5),
+        "must NOT rename ::b::helper (line 5): {edits:?}"
+    );
+}
+
+/// TP + FP: Find-References from the same call site returns `::a::helper`'s
+/// set (decl + call), never `::b::helper`.
+#[test]
+fn proc_references_from_callsite_targets_caller_namespace() {
+    let analysis = analyse(NS_COLLISION_PROC_SRC);
+    let col = NS_COLLISION_PROC_SRC
+        .lines()
+        .nth(2)
+        .unwrap()
+        .find("{ helper }")
+        .unwrap() as u32
+        + 2;
+    let refs = references(NS_COLLISION_PROC_SRC, "tcl", 2, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "decl line 1 expected: {refs:?}");
+    assert!(lines.contains(&2), "call line 2 expected: {refs:?}");
+    assert!(
+        !lines.contains(&5),
+        "must NOT include ::b::helper (line 5): {refs:?}"
+    );
+}
+
+/// TN: a single unambiguous proc still renames correctly from its call site.
+#[test]
+fn proc_rename_unambiguous_callsite_unaffected() {
+    let src = "proc greet {} { return hi }\ngreet\ngreet\n";
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl8.6", 1, 0, "welcome", &analysis, None);
+    assert!(edits.len() >= 3, "decl + 2 calls: {edits:?}");
+    assert!(edits.iter().all(|e| e.new_text == "welcome"));
+}
+
+/// Two same-named classes in disjoint namespaces; `::a::mk` constructs
+/// `Widget`.  Renaming from that constructor call targets `::a::Widget`,
+/// never `::b::Widget`.
+#[test]
+fn class_rename_from_callsite_targets_caller_namespace() {
+    let src = "namespace eval ::a {\n    oo::class create Widget {}\n    proc mk {} { Widget new }\n}\nnamespace eval ::b {\n    oo::class create Widget {}\n}\n";
+    let analysis = analyse(src);
+    // cursor on `Widget` in `Widget new` inside ::a::mk (line 2)
+    let col = src.lines().nth(2).unwrap().find("Widget new").unwrap() as u32 + 1;
+    let edits = rename(src, "tcl8.6", 2, col, "Panel", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&1),
+        "::a::Widget decl (line 1) must rename: {edits:?}"
+    );
+    assert!(
+        !lines.contains(&5),
+        "must NOT rename ::b::Widget (line 5): {edits:?}"
+    );
+}
+
+#[test]
+fn object_var_references_unify_across_methods() {
+    // `$n` used in `get` and written in `bump`; both are the one instance
+    // variable declared by `variable n`.  Find-References on `$n` in `get`
+    // must reach the declaration (line 1) and the sibling-method use.
+    let src = "oo::class create C {\n    variable n\n    method get {} { return $n }\n    method bump {} { incr n }\n}\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 2, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(
+        lines.contains(&1),
+        "declaration (line 1) expected: {refs:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "`$n` in get (line 2) expected: {refs:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "the sibling-method use `incr n` (line 3) must unify: {refs:?}"
+    );
+}
+
+#[test]
+fn object_var_rename_unifies_declaration_and_all_method_uses() {
+    // Renaming the instance variable rewrites its `variable` declaration and
+    // every method's use as one variable — not just the method under the cursor.
+    let src = "oo::class create C {\n    variable n\n    method get {} { return $n }\n    method bump {} { incr n }\n}\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let edits = rename(src, "tcl8.6", 2, col, "count", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&1),
+        "declaration (line 1) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "`$n` in get (line 2) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "`incr n` in bump (line 3) must rename: {edits:?}"
+    );
+    // No edit spans the body (the earlier corruption guard still holds).
+    assert!(
+        edits.iter().all(|e| e.range.start_line == e.range.end_line),
+        "{edits:?}"
+    );
+}
+
+#[test]
+fn namespace_variable_unifies_across_procs() {
+    // `variable count` in two procs plus the namespace-level declaration are
+    // one cell (`::app::count`); Find-References on `$count` must reach them all.
+    let src = "namespace eval ::app {\n    variable count 0\n    proc bump {} { variable count; incr count }\n    proc get {} { variable count; return $count }\n}\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 3, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    eprintln!("namespace-variable reference lines = {lines:?}");
+    assert!(
+        lines.contains(&1),
+        "namespace-level `variable count 0` (line 1): {refs:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "`variable count`/`incr count` in bump (line 2): {refs:?}"
+    );
+    assert!(lines.contains(&3), "`$count` in get (line 3): {refs:?}");
+}
+
+#[test]
+fn global_variable_unifies_across_procs() {
+    // `global g` in a proc aliases `::g`; the top-level `set g` and another
+    // proc's `global g` are the same cell.
+    let src = "set g 0\nproc a {} { global g; incr g }\nproc b {} { global g; return $g }\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(2).unwrap().find("$g").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 2, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    eprintln!("global-variable reference lines = {lines:?}");
+    assert!(
+        lines.contains(&1),
+        "`global g`/`incr g` in a (line 1): {refs:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "`global g`/`$g` in b (line 2): {refs:?}"
+    );
+}
+
+#[test]
+fn namespace_variable_rename_unifies_all_aliases() {
+    // Renaming the namespace variable rewrites its declaration and every
+    // `variable count` alias + use across procs, as one variable.
+    let src = "namespace eval ::app {\n    variable count 0\n    proc bump {} { variable count; incr count }\n    proc get {} { variable count; return $count }\n}\n";
+    let analysis = analyse(src);
+    let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
+    let edits = rename(src, "tcl8.6", 3, col, "total", &analysis, None);
+    let lines = edit_lines(&edits);
+    assert!(
+        lines.contains(&1),
+        "namespace decl (line 1) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "bump's alias + use (line 2) must rename: {edits:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "get's alias + use (line 3) must rename: {edits:?}"
+    );
+    assert!(
+        edits.iter().all(|e| e.new_text.contains("total")),
+        "{edits:?}"
+    );
+}
+
+#[test]
+fn namespace_variables_in_different_namespaces_do_not_unify() {
+    // FP guard: `variable count` in ::a and ::b are distinct cells
+    // (`::a::count` vs `::b::count`) and must NOT be unified.
+    let src = "namespace eval ::a {\n    proc p {} { variable count; return $count }\n}\nnamespace eval ::b {\n    proc q {} { variable count; incr count }\n}\n";
+    let analysis = analyse(src);
+    // `$count` in ::a::p (line 1)
+    let col = src.lines().nth(1).unwrap().find("$count").unwrap() as u32 + 1;
+    let refs = references(src, "tcl", 1, col, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "::a's own use (line 1): {refs:?}");
+    assert!(
+        !lines.contains(&4),
+        "::b::count (line 4) is a different cell and must NOT unify: {refs:?}"
+    );
 }

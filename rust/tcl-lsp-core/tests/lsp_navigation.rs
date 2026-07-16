@@ -85,6 +85,10 @@
 //! 0-based UTF-16 units). `declaration` additionally needs a `CommandRegistry`
 //! (`build_default`) and a dialect string.
 
+// Test column math indexes tiny in-memory sources; a `find`/`len` result
+// always fits u32, so the pedantic truncation the lint warns of can't occur.
+#![allow(clippy::cast_possible_truncation)]
+
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::declaration::declaration;
 use tcl_lsp_core::definition::{LspRange, definition};
@@ -132,6 +136,74 @@ fn definition_proc_call_jumps_to_proc_definition() {
         "should jump to `proc greet`: {locs:?}"
     );
     assert_eq!(locs[0].start_character, 5, "name follows `proc `: {locs:?}");
+}
+
+#[test]
+fn definition_instance_method_prefers_per_object_override() {
+    // tclsh: `oo::class create Foo {method greet {} {return class}}; set o [Foo
+    // new]; oo::objdefine $o {method greet {} {return obj}}; $o greet` -> obj.
+    // TclOO layers a per-object method ahead of the class method, so
+    // go-to-definition on `$o greet` must land on the per-object override (the
+    // `oo::objdefine` body, line 5), not the same-named class method (line 1).
+    let src = "oo::class create Foo {\n    \
+                   method greet {} { return class }\n\
+               }\n\
+               set o [Foo new]\n\
+               oo::objdefine $o {\n    \
+                   method greet {} { return obj }\n\
+               }\n\
+               $o greet\n";
+    let analysis = analyse(src);
+    let locs = definition(src, 7, 4, &analysis);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].start_line, 5,
+        "`$o greet` must resolve to the per-object override (line 5), not the class method (line 1): {locs:?}",
+    );
+}
+
+#[test]
+fn definition_bare_call_honours_namespace_path_over_global() {
+    // `::helper` at global and `::mymod::helper`; `::app` declares `namespace
+    // path ::mymod`.  A bare `helper` call in `::app` resolves (like C Tcl) to
+    // the path target `::mymod::helper`, not the same-named global `::helper` —
+    // definition must honour the path the way call-site settling does.
+    let src = "proc helper {} { puts global }\nnamespace eval mymod {\n    proc helper {} { puts mymod }\n}\nnamespace eval app {\n    namespace path ::mymod\n    proc run {} { helper }\n}\n";
+    let analysis = analyse(src);
+    // Cursor on the `helper` call inside run's body (line 6).
+    let call = src.lines().nth(6).unwrap();
+    let col = call.find("helper").unwrap() as u32 + 1;
+    let locs = definition(src, 6, col, &analysis);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].start_line, 2,
+        "bare call must resolve via `namespace path` to ::mymod::helper (line 2), not global (line 0): {locs:?}"
+    );
+}
+
+#[test]
+fn definition_through_tailcall_and_coroutine_command_prefix() {
+    // `tailcall foo` (arg 0) and `coroutine c helper` (arg 1) name a command to
+    // run; declared as command prefixes, go-to-definition on that command
+    // resolves to its `proc`.
+    let src = "proc foo {} {}\nproc bar {} { tailcall foo }\n";
+    let analysis = analyse(src);
+    let line1 = src.lines().nth(1).unwrap();
+    let col = line1.rfind("foo").unwrap() as u32 + 1;
+    let locs = definition(src, 1, col, &analysis);
+    assert_eq!(locs.len(), 1, "tailcall foo: {locs:?}");
+    assert_eq!(locs[0].start_line, 0, "tailcall foo -> proc foo: {locs:?}");
+
+    let src2 = "proc helper {} {}\ncoroutine c helper\n";
+    let analysis2 = analyse(src2);
+    let line1 = src2.lines().nth(1).unwrap();
+    let col = line1.rfind("helper").unwrap() as u32 + 1;
+    let locs2 = definition(src2, 1, col, &analysis2);
+    assert_eq!(locs2.len(), 1, "coroutine helper: {locs2:?}");
+    assert_eq!(
+        locs2[0].start_line, 0,
+        "coroutine c helper -> proc helper: {locs2:?}"
+    );
 }
 
 #[test]

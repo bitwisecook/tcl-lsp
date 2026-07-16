@@ -61,13 +61,15 @@ pub fn prepare(
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
-    for class_def in analysis.all_classes.values() {
-        if class_def.name == word
-            || class_def.qualified_name == word
-            || class_def.qualified_name == format!("::{word}")
-        {
-            return vec![item_for(class_def, source, &line_index)];
-        }
+    // Resolve the class the cursor denotes namespace-aware (declaration under
+    // the cursor, else the caller-namespace candidate order) rather than by a
+    // namespace-blind name scan that could seed the hierarchy from a same-named
+    // class in another namespace.
+    let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some((_, class_def)) =
+        crate::definition::resolve_class_target_at(analysis, cursor_off, &word)
+    {
+        return vec![item_for(class_def, source, &line_index)];
     }
     Vec::new()
 }
@@ -204,6 +206,73 @@ mod tests {
         if !items.is_empty() {
             assert!(items[0].name.contains("Greeter"));
         }
+    }
+
+    /// `pos_of` — (line, character) of the `occurrence`-th `needle`.
+    fn pos_of(src: &str, needle: &str, occurrence: usize) -> (u32, u32) {
+        let mut start = 0;
+        for _ in 0..occurrence {
+            let idx = src[start..].find(needle).expect("needle not found") + start;
+            start = idx + 1;
+        }
+        let idx = start - 1;
+        let prefix = &src[..idx];
+        let line = u32::try_from(prefix.matches('\n').count()).unwrap();
+        let col = u32::try_from(idx - prefix.rfind('\n').map_or(0, |n| n + 1)).unwrap();
+        (line, col)
+    }
+
+    #[test]
+    fn prepare_disambiguates_same_name_across_namespaces() {
+        // `::A::Shape` and `::B::Shape` share a simple name.  The cursor on a
+        // bare `Shape` written inside `::A` must prepare `::A::Shape`, not the
+        // arbitrary first same-named class a namespace-blind scan would pick.
+        let src = "namespace eval A {\n\
+                       oo::class create Shape {}\n\
+                       oo::class create Circle {\n\
+                           superclass Shape\n\
+                       }\n\
+                   }\n\
+                   namespace eval B {\n\
+                       oo::class create Shape {}\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Occurrence 2 is `superclass Shape` inside `::A::Circle`.
+        let (l, c) = pos_of(src, "Shape", 2);
+        let items = prepare(src, l, c, &analysis);
+        assert_eq!(items.len(), 1, "{items:?}");
+        assert_eq!(items[0].name, "::A::Shape", "{items:?}");
+    }
+
+    #[test]
+    fn prepare_of_non_class_word_is_empty() {
+        // A word that names nothing resolvable as a class prepares nothing.
+        let src = "oo::class create Shape {}\nputs hello\n";
+        let analysis = analyse(src);
+        let (l, c) = pos_of(src, "hello", 1);
+        assert!(prepare(src, l, c, &analysis).is_empty());
+    }
+
+    #[test]
+    fn subtypes_disambiguate_same_name_across_namespaces() {
+        // Direct subtypes of `::A::Shape` are `::A`'s subclasses only; `::B`'s
+        // same-named class and its subclass never leak in.
+        let src = "namespace eval A {\n\
+                       oo::class create Shape {}\n\
+                       oo::class create Circle {\n\
+                           superclass Shape\n\
+                       }\n\
+                   }\n\
+                   namespace eval B {\n\
+                       oo::class create Shape {}\n\
+                       oo::class create Square {\n\
+                           superclass Shape\n\
+                       }\n\
+                   }\n";
+        let analysis = analyse(src);
+        let sub = subtypes("::A::Shape", src, &analysis);
+        let names: Vec<&str> = sub.iter().map(|i| i.name.as_str()).collect();
+        assert_eq!(names, vec!["::A::Circle"], "{names:?}");
     }
 
     #[test]

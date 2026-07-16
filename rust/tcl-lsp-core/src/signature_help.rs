@@ -104,7 +104,16 @@ pub fn signature_help(
     registry: Option<&CommandRegistry>,
 ) -> Option<SignatureHelp> {
     let (command, args, active_param) = command_context_with_args(source, line, character)?;
-    if let Some(proc_def) = lookup_proc(analysis, &command) {
+    // Resolve the command from the namespace the cursor sits in, the way C
+    // Tcl's own command resolution would (caller namespace, then global), so a
+    // same-named proc in an unrelated namespace never hijacks the signature and
+    // a same-named builtin keeps its synopsis unless a proc is actually visible.
+    let namespace = {
+        let line_index = tcl_lexer::LineIndex::new(source);
+        let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+        crate::definition::namespace_context_at(&analysis.global_scope, cursor_off)
+    };
+    if let Some(proc_def) = lookup_proc(analysis, source, &namespace, &command, registry) {
         return Some(proc_signature_help(proc_def, active_param));
     }
     let registry = registry?;
@@ -299,25 +308,23 @@ fn subcommand_signature_help(
     })
 }
 
-fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcDef> {
-    if let Some(proc_def) = direct_proc_lookup(analysis, name) {
+fn lookup_proc<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    namespace: &str,
+    name: &str,
+    registry: Option<&CommandRegistry>,
+) -> Option<&'a ProcDef> {
+    if let Some(proc_def) =
+        crate::definition::resolve_called_proc(analysis, source, namespace, name, registry)
+    {
         return Some(proc_def);
     }
-    // Alias resolution.  When the
-    // cursor's command isn't a user proc, check whether it
-    // matches an `interp alias {} ALIAS {} TARGET` record and
-    // follow the chain to the target proc.
+    // Alias resolution.  When the cursor's command isn't a visible proc, check
+    // whether it matches an `interp alias {} ALIAS {} TARGET` record and follow
+    // the chain, resolving the target the same namespace-aware way.
     let resolved_target = resolve_alias_chain(analysis, name)?;
-    direct_proc_lookup(analysis, &resolved_target)
-}
-
-fn direct_proc_lookup<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcDef> {
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == name || qname == name || qname == &format!("::{name}") {
-            return Some(proc_def);
-        }
-    }
-    None
+    crate::definition::resolve_called_proc(analysis, source, namespace, &resolved_target, registry)
 }
 
 /// Follow the alias chain from `name` to its terminal
@@ -625,6 +632,81 @@ mod tests {
                 .any(|p| p.label == "custom_arg"),
             "expected user param `custom_arg`; got {:?}",
             h.signatures[0].parameters,
+        );
+    }
+
+    /// (line, character) just past the `occurrence`-th `needle`.
+    fn pos_after(src: &str, needle: &str, occurrence: usize) -> (u32, u32) {
+        let mut start = 0;
+        for _ in 0..occurrence {
+            let idx = src[start..].find(needle).expect("needle not found") + start;
+            start = idx + needle.len();
+        }
+        let prefix = &src[..start];
+        let line = u32::try_from(prefix.matches('\n').count()).unwrap();
+        let col = u32::try_from(start - prefix.rfind('\n').map_or(0, |n| n + 1)).unwrap();
+        (line, col)
+    }
+
+    #[test]
+    fn qualified_call_resolves_to_namespaced_proc() {
+        // A `A::greet` call resolves to the proc in `::A`, surfacing its
+        // parameter list — the qualified name is honoured, not tail-matched to
+        // an arbitrary same-named proc.
+        let src = "namespace eval A {\n    proc greet {alpha} {}\n}\nA::greet \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let (l, c) = pos_after(src, "A::greet ", 1);
+        let h = signature_help(src, l, c, &analysis, Some(&registry)).expect("signature help");
+        assert!(
+            h.signatures[0]
+                .parameters
+                .iter()
+                .any(|p| p.label == "alpha"),
+            "{:?}",
+            h.signatures[0].parameters
+        );
+    }
+
+    #[test]
+    fn namespaced_proc_does_not_hijack_builtin_from_global() {
+        // A `proc puts` buried in `::foo` must not shadow the builtin `puts`
+        // when `puts` is called from the global namespace — C Tcl resolves the
+        // builtin there, so the builtin synopsis (never the proc's `custom`
+        // param) surfaces.
+        let src = "namespace eval foo {\n    proc puts {custom} {}\n}\nputs \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let (l, c) = pos_after(src, "puts ", 2);
+        let h = signature_help(src, l, c, &analysis, Some(&registry)).expect("signature help");
+        assert!(
+            !h.signatures[0]
+                .parameters
+                .iter()
+                .any(|p| p.label == "custom"),
+            "namespaced proc hijacked the builtin: {:?}",
+            h.signatures[0].parameters
+        );
+    }
+
+    #[test]
+    fn bare_call_with_two_namespace_procs_picks_deterministically() {
+        // Two namespaces define `greet`; a bare `greet` at global scope names
+        // neither directly, so the lenient fallback picks one — and it must be
+        // stable (lexicographically smallest qualified name), never `HashMap`
+        // iteration order.  `::A::greet` (param `alpha`) wins over `::B::greet`.
+        let src = "namespace eval A {\n    proc greet {alpha} {}\n}\nnamespace eval B {\n    proc greet {beta} {}\n}\ngreet \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let (l, c) = pos_after(src, "greet ", 3);
+        let h = signature_help(src, l, c, &analysis, Some(&registry)).expect("signature help");
+        assert!(
+            h.signatures[0]
+                .parameters
+                .iter()
+                .any(|p| p.label == "alpha"),
+            "{:?}",
+            h.signatures[0].parameters
         );
     }
 

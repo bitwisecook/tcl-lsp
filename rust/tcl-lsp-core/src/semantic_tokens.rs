@@ -2929,6 +2929,11 @@ fn insert_command_role_overrides(
     for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::CommandPrefix) {
         retag(i);
     }
+    // A bare command name held as data (`info body PROC`, `namespace origin
+    // NAME`) is a command reference too, so paint it as a `Function`.
+    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::CommandName) {
+        retag(i);
+    }
     if let Some(indices) = extra_command.get(head) {
         for &i in indices {
             retag(i as usize);

@@ -295,6 +295,14 @@ pub struct VarDef {
     /// Array element indices observed for this variable (`set arr(name) …`
     /// / `$arr(name)`).  Used by completion to offer `$arr(name)`.
     pub array_indices: std::collections::BTreeSet<String>,
+    /// For a local that aliases a namespace/global cell (`global v`,
+    /// `variable v`, `namespace upvar ns v local`), the qualified name of that
+    /// cell (`::v`, `::ns::v`, …).  Every alias of the same cell — across
+    /// procs, and the namespace-level declaration itself — carries the same
+    /// target, so Find-References / Rename can unify them into one variable
+    /// (the analyser analogue of Tcl's `VAR_LINK`).  `None` for an ordinary
+    /// local or a directly-defined variable.
+    pub link_target: Option<String>,
 }
 
 /// How a proc parameter is used inside the proc body.
@@ -528,6 +536,14 @@ pub struct ClassDef {
     /// Doc-comment text harvested from the line(s) above the
     /// ``oo::class create`` / ``oo::define`` statement.
     pub doc: String,
+    /// `true` when this record originates from an ``oo::define`` on a class
+    /// **not** created in this file — a cross-file extension "stub" (it adds
+    /// members / a `superclass` to a class defined elsewhere) rather than the
+    /// class's own ``oo::class create`` definition.  Go-to-definition prefers a
+    /// real creation site over such a stub; `false` for `oo::class create` and
+    /// for an ``oo::define`` that extends a class created earlier in the same
+    /// file.
+    pub via_define: bool,
 }
 
 impl Default for ClassDef {
@@ -561,6 +577,7 @@ impl Default for ClassDef {
             exports: HashSet::new(),
             unexports: HashSet::new(),
             doc: String::new(),
+            via_define: false,
         }
     }
 }
@@ -774,8 +791,20 @@ pub struct AnalysisResult {
     /// [`super::state::Analyser::renamed_commands`] for why a dynamic
     /// rename is deliberately absent here.
     pub renamed_commands: HashMap<String, String>,
+    /// Source span of the `OLD` word of each static `rename OLD NEW`, keyed
+    /// by `new_qname` (the same key as [`Self::renamed_commands`]). `OLD`
+    /// names the command being moved, so it is a reference to it that rename
+    /// rewrites; kept beside the name map rather than in it so the existing
+    /// consumers of `renamed_commands` are untouched.
+    pub rename_target_spans: HashMap<String, Span>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// Recorded `namespace path {…}` declarations, keyed by the declaring
+    /// namespace's fully-qualified name (`::` for global).  Each entry is the
+    /// path list *as written*; a relative entry roots against the declaring
+    /// namespace.  Consumed by command resolution so a bare call reaches a proc
+    /// on the namespace path before falling through to global.
+    pub namespace_paths: HashMap<String, Vec<String>>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
     pub auto_path_entries: Vec<AutoPathEntry>,
     /// Inline ``# stub: NAME ARGS BODY`` directive captures.
@@ -825,6 +854,16 @@ pub struct AnalysisResult {
     /// binding sites, not by the `TclOO` user-class paths in
     /// `record_instance_creation`.
     pub ambiguous_instance_names: std::collections::HashSet<String>,
+    /// Per-object method declarations added by
+    /// `oo::objdefine $obj { method … }` (or its inline form), keyed by the
+    /// object variable's simple name (`$obj` / `${obj}` / bare `obj` all key
+    /// as `obj`).  `TclOO` layers a per-object method *ahead* of the object's
+    /// class methods, so `$obj m` navigation resolves the per-object override
+    /// recorded here before falling back to the class.  The method **bodies**
+    /// are walked into the scope tree at analysis time (so in-body diagnostics
+    /// and variable/command resolution work); this map carries only each
+    /// declaration's `name_span` for the receiver-dispatch name lookup.
+    pub object_methods: HashMap<String, Vec<MethodDef>>,
     /// Call sites of unresolved (unknown) commands — `(span, bare name)`, the
     /// same set the W123 diagnostic is emitted for, but recorded **regardless of
     /// whether W123 is disabled** (only the *diagnostic* honours the toggle).

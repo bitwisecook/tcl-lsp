@@ -1192,8 +1192,19 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
         && !barrier_scopes.contains(scope_label);
 
     if rename_scope {
+        // Identify the proc this scope belongs to by its body span — unique per
+        // proc — not a namespace-blind `pd.name == scope.name` scan.  The scope
+        // name is the proc name *as written* (a bare `dup` inside two different
+        // namespaces), so the simple-name scan matched an arbitrary same-named
+        // proc in `HashMap` order and handed `rename_params_in_list` the wrong
+        // declaration's parameter region, corrupting the output on a collision
+        // (renaming one proc's `$use` sites while leaving its parameter — or a
+        // colliding local — under the other proc's name).  The body span keys
+        // straight to this proc regardless of name collisions.
         let proc_def = if scope.kind == ScopeKind::Proc {
-            analysis.all_procs.values().find(|pd| pd.name == scope.name)
+            scope
+                .body_span
+                .and_then(|bs| analysis.all_procs.values().find(|pd| pd.body_span == bs))
         } else {
             None
         };
@@ -3361,6 +3372,25 @@ mod tests {
         assert_eq!(res.original_length, src.len());
         assert_eq!(res.minified_length(), res.source.len());
         assert!(res.savings_pct() > 0.0);
+    }
+
+    #[test]
+    fn compact_two_namespace_same_proc_name_is_deterministic_and_intact() {
+        // Two namespaces define a `dup` proc.  `::a::dup` has a local
+        // (`collidevar`) whose name equals `::b::dup`'s *parameter*.  Keying the
+        // proc by simple name matched whichever `dup` came first in `HashMap`
+        // order, so `rename_params_in_list` was handed the wrong declaration's
+        // parameter region — renaming one proc's `$use` sites while leaving its
+        // definition (or the colliding local) under the other proc's name.  The
+        // corruption surfaced non-deterministically, so drive it many times and
+        // require every run to produce the same intact output.
+        let registry = CommandRegistry::build_default();
+        let src = "namespace eval a {\n    proc dup {arg} { set collidevar [expr {$arg + 1}]; return $collidevar }\n}\nnamespace eval b {\n    proc dup {collidevar} { return $collidevar }\n}\n";
+        let expected = "namespace eval a {proc a {a} {set b [expr {$a+1}];return $b}};namespace eval b {proc b {a} {return $a}}";
+        for _ in 0..32 {
+            let res = minify_tcl_aggressive(src, "tcl8.6", false, &registry);
+            assert_eq!(res.source, expected, "collision corrupted the output");
+        }
     }
 
     #[test]

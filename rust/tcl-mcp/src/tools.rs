@@ -938,13 +938,25 @@ fn generate_docstring(args: &Value) -> Value {
     };
     let decoration = arg_bool(args, "decoration");
     let analysis = analyse(source, &dialect);
-    // Mirror `AnalysisResult.find_proc`: qualified (`::name`), then bare-name.
+    // Resolve `proc_name` to its `ProcDef`: the qualified spelling (`::name`,
+    // or the exact name as given) first, then — for a bare name that names a
+    // proc in some namespace — the lexicographically smallest qualified name
+    // among the same-named procs.  The tool has no call-site namespace to
+    // resolve against, so an ambiguous bare name resolves *deterministically*
+    // rather than in `HashMap` iteration order (which picked an arbitrary
+    // same-named proc across namespaces run to run).
     let qualified = format!("::{proc_name}");
     let proc = analysis
         .all_procs
         .values()
         .find(|p| p.qualified_name == qualified || p.qualified_name == proc_name)
-        .or_else(|| analysis.all_procs.values().find(|p| p.name == proc_name));
+        .or_else(|| {
+            analysis
+                .all_procs
+                .values()
+                .filter(|p| p.name == proc_name)
+                .min_by(|a, b| a.qualified_name.cmp(&b.qualified_name))
+        });
     match proc {
         Some(proc) => {
             let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
@@ -1668,4 +1680,45 @@ pub fn dispatch(name: &str, args: &Value) -> Option<Value> {
         .iter()
         .find(|t| t.name == name)
         .map(|t| (t.handler)(args))
+}
+
+#[cfg(test)]
+mod docstring_tests {
+    use super::*;
+
+    /// Two namespaces defining a `dup` proc with distinct parameter names, so a
+    /// docstring reveals which one was resolved.
+    const TWO_NS_DUP: &str = "namespace eval a {\n    proc dup {alphaparam} { return $alphaparam }\n}\nnamespace eval z {\n    proc dup {omegaparam} { return $omegaparam }\n}\n";
+
+    fn docstring_for(proc_name: &str) -> String {
+        let args = json!({
+            "source": TWO_NS_DUP,
+            "proc_name": proc_name,
+            "style": "doxygen",
+        });
+        let res = generate_docstring(&args);
+        res["docstring"].as_str().unwrap_or_default().to_owned()
+    }
+
+    #[test]
+    fn qualified_name_resolves_to_that_namespace() {
+        // `z::dup` names `::z::dup` exactly — its `omegaparam` shows, never
+        // `::a::dup`'s `alphaparam`.
+        let ds = docstring_for("z::dup");
+        assert!(ds.contains("omegaparam"), "{ds}");
+        assert!(!ds.contains("alphaparam"), "{ds}");
+    }
+
+    #[test]
+    fn ambiguous_bare_name_is_deterministic() {
+        // A bare `dup` names a proc in two namespaces; with no call-site
+        // namespace to resolve against, the smallest qualified name
+        // (`::a::dup`) wins — and it must win on every run, never in `HashMap`
+        // iteration order.
+        for _ in 0..32 {
+            let ds = docstring_for("dup");
+            assert!(ds.contains("alphaparam"), "{ds}");
+            assert!(!ds.contains("omegaparam"), "{ds}");
+        }
+    }
 }

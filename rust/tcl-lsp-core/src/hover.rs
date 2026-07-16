@@ -267,7 +267,9 @@ pub fn hover_with_dialect(
         return Some(Hover::markdown(proc_hover_text(proc_def)));
     }
 
-    if let Some(class_def) = lookup_class(analysis, &word) {
+    if let Some((_, class_def)) =
+        crate::definition::resolve_class_target_at(analysis, cursor_offset, &word)
+    {
         return Some(Hover::markdown(class_hover_text(analysis, class_def)));
     }
 
@@ -2195,18 +2197,6 @@ fn braced_var_around(chars: &[char], cursor: usize) -> Option<String> {
     None
 }
 
-fn lookup_class<'a>(analysis: &'a AnalysisResult, word: &str) -> Option<&'a ClassDef> {
-    for class_def in analysis.all_classes.values() {
-        if class_def.name == word
-            || class_def.qualified_name == word
-            || class_def.qualified_name == format!("::{word}")
-        {
-            return Some(class_def);
-        }
-    }
-    None
-}
-
 fn proc_hover_text(proc_def: &ProcDef) -> String {
     let params: Vec<String> = proc_def
         .params
@@ -3263,6 +3253,49 @@ mod tests {
         );
     }
 
+    /// `pos_of` — (line, character) of the `occurrence`-th `needle`.
+    fn pos_of(src: &str, needle: &str, occurrence: usize) -> (u32, u32) {
+        let mut start = 0;
+        for _ in 0..occurrence {
+            let idx = src[start..].find(needle).expect("needle not found") + start;
+            start = idx + 1;
+        }
+        let idx = start - 1;
+        let prefix = &src[..idx];
+        let line = u32::try_from(prefix.matches('\n').count()).unwrap();
+        let col = u32::try_from(idx - prefix.rfind('\n').map_or(0, |n| n + 1)).unwrap();
+        (line, col)
+    }
+
+    #[test]
+    fn class_hover_disambiguates_same_name_across_namespaces() {
+        // `::A::Shape` and `::B::Shape` share a simple name and each has a
+        // distinct subclass.  A bare `Shape` written inside `::A` must hover
+        // `::A::Shape` (with `::A::Circle` among its subclasses), never the
+        // arbitrary first same-named class a namespace-blind scan would pick.
+        let src = "namespace eval A {\n\
+                       oo::class create Shape {}\n\
+                       oo::class create Circle {\n\
+                           superclass Shape\n\
+                       }\n\
+                   }\n\
+                   namespace eval B {\n\
+                       oo::class create Shape {}\n\
+                       oo::class create Square {\n\
+                           superclass Shape\n\
+                       }\n\
+                   }\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        // Occurrence 2 is `superclass Shape` inside `::A::Circle`.
+        let (l, c) = pos_of(src, "Shape", 2);
+        let h = hover(src, l, c, &analysis, Some(&registry)).expect("hover");
+        assert!(h.value.contains("::A::Shape"), "{}", h.value);
+        assert!(h.value.contains("::A::Circle"), "{}", h.value);
+        assert!(!h.value.contains("::B::Shape"), "{}", h.value);
+        assert!(!h.value.contains("::B::Square"), "{}", h.value);
+    }
+
     #[test]
     fn method_hover_notes_inheritance_and_override() {
         let src = "oo::class create A {\n    method greet {} {}\n}\noo::class create B {\n    superclass A\n    method greet {} {}\n}\noo::class create C {\n    superclass A\n}\n";
@@ -3305,6 +3338,7 @@ mod tests {
             references: Vec::new(),
             warn_if_unused: false,
             array_indices: std::collections::BTreeSet::new(),
+            link_target: None,
         };
         let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"));
         assert!(text.contains("**Inferred intrep**: int"), "{text}");

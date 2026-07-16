@@ -338,6 +338,10 @@ impl Analyser {
         // `::outer::inner`, never `::inner` — tclsh-pinned; see
         // `command_resolution_candidates`).
         let paths = self.namespace_paths.clone();
+        // Expose the recorded paths on the result so command-resolution
+        // consumers (definition / hover / signature help) can honour a
+        // `namespace path` the same way call-site settling does.
+        self.result.namespace_paths.clone_from(&paths);
         // A builtin renamed away (`rename puts ::a::p`) or deleted
         // (`rename puts ""` / alias deletion) is no longer callable under
         // its original name — C raises `invalid command name` — so the
@@ -367,12 +371,14 @@ impl Analyser {
                     && !renamed_away.contains(qualified))
         };
         for inv in &mut result.command_invocations {
-            // Absolute names are exact; `None` means a background scan that
-            // skipped the scope walk — nothing to settle either way.
+            // Absolute names are exact — the sole candidate is the name itself.
+            // `None` means a background scan that skipped the scope walk; leave
+            // its (empty) candidate list untouched.
             if inv.name.starts_with("::") {
+                inv.resolution_candidates = vec![inv.name.clone()];
                 continue;
             }
-            let Some(resolved) = inv.resolved_qualified_name.as_deref() else {
+            let Some(resolved) = inv.resolved_qualified_name.clone() else {
                 continue;
             };
             // The walk stored the local-first candidate (`{ns}::{name}`);
@@ -384,20 +390,32 @@ impl Analyser {
             // catch settles to the path candidate, exactly as it
             // dispatches at run time.
             let suffix = format!("::{}", inv.name);
-            let ns = match resolved.strip_suffix(suffix.as_str()) {
-                Some("") => "::",
-                Some(prefix) => prefix,
-                // Not the `{ns}::{name}` shape the walk produces — leave it.
-                None => continue,
+            let ns: String = match resolved.strip_suffix(suffix.as_str()) {
+                Some("") => "::".to_owned(),
+                Some(prefix) => prefix.to_owned(),
+                // Not the `{ns}::{name}` shape the walk produces (an unusual
+                // spelling); the settled name is then the sole candidate.
+                None => {
+                    inv.resolution_candidates = vec![resolved];
+                    continue;
+                }
             };
-            let path: &[String] = paths.get(ns).map_or(&[], Vec::as_slice);
-            if let Some(winner) = crate::naming::resolve_command_with(ns, path, &inv.name, &known)
+            let path: &[String] = paths.get(&ns).map_or(&[], Vec::as_slice);
+            // Record the full ordered candidate list so a cross-document
+            // consumer can re-settle this call against a *workspace-wide*
+            // existence check — the local-first guess below only sees this
+            // file, so a call resolving (via `namespace path`) to a proc
+            // defined in another file cannot settle correctly here.
+            inv.resolution_candidates =
+                crate::naming::command_resolution_candidates(&ns, path, &inv.name);
+            if let Some(winner) = crate::naming::resolve_command_with(&ns, path, &inv.name, &known)
                 && winner != resolved
             {
                 inv.resolved_qualified_name = Some(winner);
             }
-            // No candidate known: keep the local-first guess for cross-file
-            // consumers (the reference matchers treat it as a candidate).
+            // No candidate known in this file: keep the local-first guess for
+            // cross-file consumers (the reference matchers treat it, and the
+            // candidate list above, as candidates rather than ground truth).
         }
     }
 
@@ -753,10 +771,25 @@ impl Analyser {
                 references: Vec::new(),
                 warn_if_unused,
                 array_indices: indices,
+                link_target: None,
             };
             scope.variables.insert(base_owned.clone(), var.clone());
             let key = format!("{}::{base_owned}", scope.name);
             self.result.all_variables.insert(key, var);
+        }
+    }
+
+    /// Record that the local `name` in the scope at `scope_path` aliases the
+    /// namespace/global cell `target` (a `global` / `variable` / `namespace
+    /// upvar` binding), so Find-References / Rename can unify every alias of the
+    /// same cell.  A no-op if the variable wasn't defined (call after
+    /// [`Self::define_var`]).
+    pub fn set_var_link_target(&mut self, name: &str, scope_path: &[usize], target: String) {
+        let base = crate::naming::normalise_var_name(name).to_string();
+        if let Some(scope) = scope_at_mut(&mut self.result.global_scope, scope_path)
+            && let Some(v) = scope.variables.get_mut(&base)
+        {
+            v.link_target = Some(target);
         }
     }
 

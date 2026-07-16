@@ -92,6 +92,11 @@ pub struct WorkspaceClass {
     /// method rename.  Spans aren't stored — the server re-analyses each
     /// family member's document to collect the precise decl / call sites.
     pub defined_methods: Vec<String>,
+    /// `true` when this record is a cross-file `oo::define` extension stub
+    /// rather than the class's own `oo::class create` site (see
+    /// [`tcl_compiler::analyser::ClassDef::via_define`]).  Go-to-definition
+    /// prefers a real creation site over a stub.
+    pub via_define: bool,
 }
 
 /// One command-invocation (call) site recorded in the index.
@@ -105,9 +110,12 @@ pub struct WorkspaceInvocation {
     /// Command head as written at the call site (no namespace
     /// resolution).
     pub name: String,
-    /// Scope-resolved qualified name when the analyser computed
-    /// one, else `None`.
-    pub resolved_qualified_name: Option<String>,
+    /// The full ordered command-resolution candidate list for this call
+    /// (caller namespace, then each `namespace path` entry, then global — Tcl's
+    /// real priority order).  Run through the workspace-wide existence oracle to
+    /// settle which definition the call names, wherever it lives — see
+    /// [`WorkspaceIndex::invocations_of`].
+    pub resolution_candidates: Vec<String>,
     /// Byte span of the command-head token in `uri`'s source.
     pub range: Span,
 }
@@ -142,9 +150,38 @@ pub struct WorkspacePackageRequire {
     pub name: String,
 }
 
+/// One command name-link recorded in the index.
+///
+/// A `namespace import`, `interp alias`, or `rename` introduces a *new*
+/// callable name that resolves to another command: an imported `helper`
+/// runs the exporting namespace's `helper`, an alias runs its target, a
+/// `rename OLD NEW` makes `NEW` run what `OLD` denoted.  A call reaching the
+/// new name is a reference to the ultimate target; the token that *names*
+/// the target in the declaration (the import pattern, the alias `TARGET`
+/// word, the `rename` `OLD` word) is itself a reference and a rename must
+/// rewrite it.  Ground truth: the VM re-resolves an alias from `::` at call
+/// time ([`tcl_vm::exec`]); a rename is a pure name move.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceCommandLink {
+    /// Document the link declaration is in.
+    pub uri: String,
+    /// Fully-qualified name the link introduces (`::`-rooted): the imported
+    /// `<ns>::<tail>`, the alias name, or the `rename` `NEW`.
+    pub linked_qname: String,
+    /// Fully-qualified name (`::`-rooted) the link resolves *to*: the import
+    /// pattern's source, the alias `TARGET`, or the `rename` `OLD` — the
+    /// command whose references a call through `linked_qname` joins.
+    pub target_qname: String,
+    /// Byte span of the token naming the target in the declaration (import
+    /// pattern, alias `TARGET`, `rename` `OLD`).  A reference to the target;
+    /// rename rewrites it.  `None` when the source scan did not record a span
+    /// for this link kind.
+    pub target_span: Option<Span>,
+}
+
 /// Cross-document aggregate of proc / class definitions,
-/// command-invocation sites, `source` references, and
-/// `package require` declarations.
+/// command-invocation sites, `source` references, command
+/// name-links, and `package require` declarations.
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceIndex {
     procs: Vec<WorkspaceProc>,
@@ -152,6 +189,7 @@ pub struct WorkspaceIndex {
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
     package_requires: Vec<WorkspacePackageRequire>,
+    command_links: Vec<WorkspaceCommandLink>,
 }
 
 impl WorkspaceIndex {
@@ -203,13 +241,14 @@ impl WorkspaceIndex {
                     .chain(class_def.class_methods.keys())
                     .cloned()
                     .collect(),
+                via_define: class_def.via_define,
             });
         }
         for inv in &analysis.command_invocations {
             self.invocations.push(WorkspaceInvocation {
                 uri: uri.to_owned(),
                 name: inv.name.clone(),
-                resolved_qualified_name: inv.resolved_qualified_name.clone(),
+                resolution_candidates: inv.resolution_candidates.clone(),
                 range: inv.range,
             });
         }
@@ -227,6 +266,59 @@ impl WorkspaceIndex {
                 name: pr.name.clone(),
             });
         }
+        self.index_command_links(uri, analysis);
+    }
+
+    /// Lift a document's `namespace import` / `interp alias` / `rename`
+    /// records into flat [`WorkspaceCommandLink`] entries the cross-document
+    /// reference walk can follow.  Each becomes `linked_qname → target_qname`:
+    /// the new callable name and the command it ultimately runs.
+    fn index_command_links(&mut self, uri: &str, analysis: &AnalysisResult) {
+        use tcl_syntax::naming::normalise_qualified_name;
+        // `namespace import ::mod::helper` inside `::app` binds `::app::helper`
+        // to the exporting `::mod::helper`.  A glob pattern names no single
+        // command, so it introduces no link.
+        for imp in &analysis.namespace_imports {
+            if imp.pattern.contains(['*', '?', '[']) {
+                continue;
+            }
+            let Some(tail) = imp.pattern.rsplit("::").find(|s| !s.is_empty()) else {
+                continue;
+            };
+            self.command_links.push(WorkspaceCommandLink {
+                uri: uri.to_owned(),
+                linked_qname: tcl_syntax::naming::qualify(&imp.ns, tail),
+                target_qname: normalise_qualified_name(&imp.pattern),
+                target_span: Some(imp.range),
+            });
+        }
+        // `interp alias {} a {} ::mod::helper` binds `a` to `::mod::helper`;
+        // the alias target resolves from `::` at call time, so root it there.
+        // The `TARGET` word itself is already a first-class command invocation
+        // (the registry marks it a command prefix), so it needs no
+        // `target_span` here — the ordinary reference/rename path covers it;
+        // this link only lets a call through the *alias name* resolve.
+        for alias in analysis.command_aliases.values() {
+            if alias.target.is_empty() {
+                continue;
+            }
+            self.command_links.push(WorkspaceCommandLink {
+                uri: uri.to_owned(),
+                linked_qname: normalise_qualified_name(&alias.qualified_name),
+                target_qname: normalise_qualified_name(&alias.target),
+                target_span: None,
+            });
+        }
+        // `rename OLD NEW` makes `NEW` run what `OLD` denoted.  The recorded
+        // map is `NEW → OLD`, both already `::`-normalised.
+        for (new, old) in &analysis.renamed_commands {
+            self.command_links.push(WorkspaceCommandLink {
+                uri: uri.to_owned(),
+                linked_qname: normalise_qualified_name(new),
+                target_qname: normalise_qualified_name(old),
+                target_span: analysis.rename_target_spans.get(new).copied(),
+            });
+        }
     }
 
     /// Drop every entry that came from `uri` (used before
@@ -237,6 +329,7 @@ impl WorkspaceIndex {
         self.invocations.retain(|i| i.uri != uri);
         self.sources.retain(|s| s.uri != uri);
         self.package_requires.retain(|pr| pr.uri != uri);
+        self.command_links.retain(|l| l.uri != uri);
     }
 
     /// Every indexed `source FILE` reference.
@@ -352,6 +445,34 @@ impl WorkspaceIndex {
         (known, tail_index)
     }
 
+    /// The owner-aware direct parents (superclasses + mixins) of `qname`,
+    /// unioned across **every** indexed definition of the class.  A cross-file
+    /// `oo::define ::C { ... }` records a second `::C` entry that names no
+    /// `superclass`; unioning here keeps the real class's parent edges from
+    /// being hidden when such a stub happens to be the first match (the parent
+    /// walk otherwise picked an arbitrary duplicate and silently dropped the
+    /// hierarchy).
+    fn resolved_parents_of(
+        &self,
+        qname: &str,
+        known: &std::collections::HashSet<&str>,
+        tail_index: &std::collections::HashMap<String, Vec<String>>,
+    ) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for c in self.classes.iter().filter(|c| c.qualified_name == qname) {
+            for s in c.superclasses.iter().chain(c.mixins.iter()) {
+                if let Some(p) =
+                    resolve_class_name(s, qname, |cand| known.contains(cand), tail_index)
+                    && seen.insert(p.clone())
+                {
+                    out.push(p);
+                }
+            }
+        }
+        out
+    }
+
     /// The workspace classes that `wc`'s written superclasses + mixins
     /// resolve to, **owner-aware** — each name is resolved relative to
     /// `wc.qualified_name`'s namespace (ancestry → global → unique tail) via
@@ -458,21 +579,7 @@ impl WorkspaceIndex {
         let family_set: std::collections::HashSet<&str> =
             family.iter().map(String::as_str).collect();
         let (known, tail_index) = self.class_name_universe();
-        let parents = |qname: &str| -> Vec<String> {
-            self.classes
-                .iter()
-                .find(|c| c.qualified_name == qname)
-                .map(|c| {
-                    c.superclasses
-                        .iter()
-                        .chain(c.mixins.iter())
-                        .filter_map(|s| {
-                            resolve_class_name(s, qname, |cand| known.contains(cand), &tail_index)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
+        let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
         let defines = |qname: &str| {
             self.classes
                 .iter()
@@ -518,22 +625,10 @@ impl WorkspaceIndex {
     /// `seed_class`.
     fn method_family_qnames(&self, seed_class: &str, method: &str) -> Vec<String> {
         let (known, tail_index) = self.class_name_universe();
-        // Owner-aware direct parents (superclasses + mixins) of each class.
-        let parents = |qname: &str| -> Vec<String> {
-            self.classes
-                .iter()
-                .find(|c| c.qualified_name == qname)
-                .map(|c| {
-                    c.superclasses
-                        .iter()
-                        .chain(c.mixins.iter())
-                        .filter_map(|s| {
-                            resolve_class_name(s, qname, |cand| known.contains(cand), &tail_index)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
+        // Owner-aware direct parents (superclasses + mixins) of each class,
+        // unioned across every indexed definition (a cross-file `oo::define`
+        // stub must not hide the real class's parents).
+        let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
         // `parent` is a (transitive) ancestor of `child`.
         let is_ancestor = |child: &str, parent: &str| -> bool {
             let mut stack = parents(child);
@@ -695,24 +790,6 @@ impl WorkspaceIndex {
             .collect()
     }
 
-    /// Whether some proc or class *other than* the target `qualified_name`
-    /// shares the `simple_name` under a different namespace anywhere in the
-    /// workspace. When true, a bare simple-name call site is ambiguous and
-    /// cross-document rename must not rewrite it by simple name alone.
-    #[must_use]
-    fn simple_name_defined_elsewhere(&self, simple_name: &str, qualified_name: &str) -> bool {
-        let target = qualified_name.trim_start_matches("::");
-        let differs =
-            |name: &str, qn: &str| name == simple_name && qn.trim_start_matches("::") != target;
-        self.procs
-            .iter()
-            .any(|p| differs(&p.name, &p.qualified_name))
-            || self
-                .classes
-                .iter()
-                .any(|c| differs(&c.name, &c.qualified_name))
-    }
-
     /// Every indexed invocation site.
     #[must_use]
     pub fn invocations(&self) -> &[WorkspaceInvocation] {
@@ -743,39 +820,232 @@ impl WorkspaceIndex {
     /// `exclude_uri` (the caller's own document, whose call
     /// sites the single-doc provider already surfaces).
     ///
-    /// Matches the call-site head against the proc's qualified name, the
-    /// `::`-stripped qualified name, or the call site's
-    /// `resolved_qualified_name`.
+    /// Each call site is settled against a **workspace-wide** command-existence
+    /// oracle: its [`resolution_candidates`](WorkspaceInvocation::resolution_candidates)
+    /// (caller namespace, then each `namespace path` entry, then global — Tcl's
+    /// real priority order) are walked, and the first that names a proc/class
+    /// defined *anywhere in the workspace* is the call's true target.  A call is
+    /// a reference iff that target is `qualified_name`.
     ///
-    /// A **bare simple-name** call is matched only when the simple name is
-    /// unambiguous across the workspace — i.e. no *other* namespace defines a
-    /// proc/class of the same simple name (`RUST_ISSUE_036`). When two files
-    /// define `::a::helper` and `::b::helper`, a bare `helper` call could
-    /// resolve to either, so cross-document rename rewrites only the explicitly
-    /// qualified or resolution-confirmed call sites — never an ambiguous bare
-    /// call that might belong to the *other* proc.
+    /// This is the canonical resolver ([`tcl_syntax::naming::resolve_command_with`])
+    /// widened from one file to the whole project: a bare call reaching a
+    /// namespaced proc in another file via `namespace path` resolves correctly
+    /// (the file-local guess could not settle it), and a call whose simple name
+    /// collides with an unrelated proc resolves to the one it actually names —
+    /// no textual heuristic, no ambiguity gate.
     #[must_use]
     pub fn invocations_of<'a>(
         &'a self,
-        simple_name: &str,
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceInvocation> {
-        let qname_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
-        let target_norm = qualified_name.trim_start_matches("::");
-        let bare_is_safe = !self.simple_name_defined_elsewhere(simple_name, qualified_name);
+        self.invocations_settling_to(qualified_name, exclude_uri, false)
+    }
+
+    /// Invocation sites that reach `qualified_name` **through** a command
+    /// name-link — an `interp alias`, a `rename`, or a `namespace import`.
+    ///
+    /// The same candidate settling as [`Self::invocations_of`], but the
+    /// existence oracle also admits the linked names an import / alias /
+    /// rename introduces, and the winning candidate is followed along those
+    /// links to its ultimate target before matching.  So a bare `helper` call
+    /// in a namespace that `namespace import`ed `::mod::helper` counts as a
+    /// reference to `::mod::helper`, and a call through an alias counts as a
+    /// reference to the aliased command.  Used by find-references, which shows
+    /// every use; **not** by rename, which must not text-rewrite a call that
+    /// names the local imported / aliased command (the token follows the
+    /// source rename at runtime, it is not edited).
+    #[must_use]
+    pub fn linked_invocations_of<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceInvocation> {
+        self.invocations_settling_to(qualified_name, exclude_uri, true)
+    }
+
+    /// Shared core of [`Self::invocations_of`] / [`Self::linked_invocations_of`]:
+    /// call sites whose settled target is `qualified_name`, excluding
+    /// `exclude_uri`.  With `follow_links`, the existence oracle admits linked
+    /// names and the winning candidate is chased along the link map to its
+    /// ultimate target; without it, only real proc/class definitions settle a
+    /// call (the direct-reference behaviour rename relies on).
+    fn invocations_settling_to<'a>(
+        &'a self,
+        qualified_name: &str,
+        exclude_uri: &str,
+        follow_links: bool,
+    ) -> Vec<&'a WorkspaceInvocation> {
+        let target = qualified_name.trim_start_matches("::");
+        // Build the workspace command set once (normalised qualified names of
+        // every proc and class, plus linked names when following), so each
+        // candidate existence check is O(1).
+        let defined = self.defined_command_names(follow_links);
+        let links = follow_links.then(|| self.command_link_map());
         self.invocations
             .iter()
             .filter(|i| i.uri != exclude_uri)
-            .filter(|i| {
-                i.name == qualified_name
-                    || i.name == qname_no_prefix
-                    || i.resolved_qualified_name
-                        .as_deref()
-                        .is_some_and(|r| r.trim_start_matches("::") == target_norm)
-                    || (bare_is_safe && i.name == simple_name)
+            .filter(|i| Self::invocation_resolves_to(i, &defined, links.as_ref(), target))
+            .collect()
+    }
+
+    /// Whether call site `inv` resolves to the command whose `::`-stripped
+    /// qualified name is `target`: the first of its candidates defined anywhere
+    /// in the workspace is the call's true target, chased along `links` (when
+    /// supplied) to the command it ultimately names.
+    fn invocation_resolves_to(
+        inv: &WorkspaceInvocation,
+        defined: &std::collections::HashSet<&str>,
+        links: Option<&std::collections::HashMap<&str, &str>>,
+        target: &str,
+    ) -> bool {
+        inv.resolution_candidates
+            .iter()
+            .find(|c| defined.contains(c.trim_start_matches("::")))
+            .is_some_and(|winner| {
+                let winner = winner.trim_start_matches("::");
+                let settled = links.map_or(winner, |m| Self::follow_links(m, winner));
+                settled == target
+            })
+    }
+
+    /// The command name-link map (`::`-stripped `linked → immediate target`)
+    /// used to chase an import / alias / rename to the command it names.
+    fn command_link_map(&self) -> std::collections::HashMap<&str, &str> {
+        self.command_links
+            .iter()
+            .map(|l| {
+                (
+                    l.linked_qname.trim_start_matches("::"),
+                    l.target_qname.trim_start_matches("::"),
+                )
             })
             .collect()
+    }
+
+    /// Chase `start` along the link map to its ultimate target, stopping at a
+    /// name that is not itself a linked name.  Bounded by cycle detection (an
+    /// alias-of-an-alias loop) so a malformed chain cannot spin.
+    fn follow_links<'a>(
+        links: &std::collections::HashMap<&'a str, &'a str>,
+        start: &'a str,
+    ) -> &'a str {
+        let mut cur = start;
+        let mut seen = std::collections::HashSet::new();
+        while let Some(&next) = links.get(cur) {
+            if !seen.insert(cur) {
+                break;
+            }
+            cur = next;
+        }
+        cur
+    }
+
+    /// The ultimate command `name` denotes after following every
+    /// import / alias / rename link, `::`-rooted.  A name that is not linked
+    /// (an ordinary proc/class, or an unknown) returns unchanged.  Lets a
+    /// cursor sitting on an imported / aliased call resolve to the command it
+    /// really names, so its references gather with that command's.
+    #[must_use]
+    pub fn resolve_command_target(&self, name: &str) -> String {
+        let links = self.command_link_map();
+        let settled = Self::follow_links(&links, name.trim_start_matches("::"));
+        format!("::{settled}")
+    }
+
+    /// The declaration spans that *name* the command `qualified_name` in an
+    /// `interp alias` / `rename` / `namespace import` — the alias `TARGET`
+    /// word, the `rename` `OLD` word, the import pattern.  Each is a reference
+    /// to the command that a rename of it must rewrite.  Excludes
+    /// `exclude_uri` (the caller's own document, whose spans the single-doc
+    /// provider already surfaces) and any link whose source scan recorded no
+    /// span.
+    #[must_use]
+    pub fn link_target_spans(
+        &self,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<(String, Span)> {
+        let target = qualified_name.trim_start_matches("::");
+        self.command_links
+            .iter()
+            .filter(|l| l.uri != exclude_uri)
+            .filter(|l| l.target_qname.trim_start_matches("::") == target)
+            .filter_map(|l| l.target_span.map(|sp| (l.uri.clone(), sp)))
+            .collect()
+    }
+
+    /// The fully-qualified names of every indexed class — the workspace class
+    /// set the cross-file analysis feeds to
+    /// [`tcl_compiler::analyser::Analyser::with_workspace_classes`] so a
+    /// consumer document's `set d [::other::Cls new]` resolves cross-file.
+    #[must_use]
+    pub fn all_class_qnames(&self) -> std::collections::HashSet<String> {
+        self.classes
+            .iter()
+            .map(|c| c.qualified_name.clone())
+            .collect()
+    }
+
+    /// The URIs of documents that invoke (a constructor of) any class in
+    /// `class_qnames` — the *candidate consumer* documents whose `$obj method`
+    /// sites a cross-file method reference must scan.  A call qualifies when any
+    /// of its resolution candidates names one of the classes (leading `::`
+    /// ignored), which catches `Cls new` / `Cls create obj` however the class
+    /// was spelled at the call site.  Bounds the consumer scan to documents that
+    /// actually mention a family class rather than the whole workspace.
+    #[must_use]
+    pub fn documents_invoking_classes(
+        &self,
+        class_qnames: &std::collections::HashSet<&str>,
+    ) -> std::collections::HashSet<String> {
+        self.invocations
+            .iter()
+            .filter(|i| {
+                i.resolution_candidates
+                    .iter()
+                    .any(|c| class_qnames.contains(c.trim_start_matches("::")))
+            })
+            .map(|i| i.uri.clone())
+            .collect()
+    }
+
+    /// Whether the command `qualified_name` (leading `::` ignored) resolves
+    /// anywhere in the workspace — either a real proc/class definition, or a
+    /// name an `interp alias` / `rename` / `namespace import` introduces.  The
+    /// existence oracle that widens the single-file command resolver to the
+    /// whole project; the linked names are admitted so a cursor on an
+    /// imported / aliased call still finds a symbol to resolve.
+    #[must_use]
+    pub fn workspace_command_exists(&self, qualified_name: &str) -> bool {
+        self.defined_command_names(true)
+            .contains(qualified_name.trim_start_matches("::"))
+    }
+
+    /// The set of `::`-stripped qualified names of every indexed proc and
+    /// class, for O(1) membership in the candidate-resolution loop of
+    /// [`Self::invocations_of`].  With `include_links`, the names an import /
+    /// alias / rename introduces join the set, so a call reaching one of them
+    /// settles (and is then chased to its ultimate target).
+    fn defined_command_names(&self, include_links: bool) -> std::collections::HashSet<&str> {
+        let mut names: std::collections::HashSet<&str> = self
+            .procs
+            .iter()
+            .map(|p| p.qualified_name.trim_start_matches("::"))
+            .chain(
+                self.classes
+                    .iter()
+                    .map(|c| c.qualified_name.trim_start_matches("::")),
+            )
+            .collect();
+        if include_links {
+            names.extend(
+                self.command_links
+                    .iter()
+                    .map(|l| l.linked_qname.trim_start_matches("::")),
+            );
+        }
+        names
     }
 }
 
@@ -1037,7 +1307,7 @@ mod tests {
         let b = analyse("helper\nhelper\n");
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         // From a.tcl's view, the two calls live in b.tcl.
-        let calls = index.invocations_of("helper", "::helper", "file:///a.tcl");
+        let calls = index.invocations_of("::helper", "file:///a.tcl");
         assert_eq!(calls.len(), 2, "{calls:?}");
         assert!(calls.iter().all(|c| c.uri == "file:///b.tcl"));
     }
@@ -1048,9 +1318,264 @@ mod tests {
         let b = analyse("helper\n");
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         // Excluding a.tcl leaves only b.tcl's call.
-        let calls = index.invocations_of("helper", "::helper", "file:///a.tcl");
+        let calls = index.invocations_of("::helper", "file:///a.tcl");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].uri, "file:///b.tcl");
+    }
+
+    #[test]
+    fn invocations_of_finds_namespaced_call_all_spellings() {
+        // A namespaced proc in a.tcl, called three ways from b.tcl: fully
+        // qualified, relative-qualified, and bare from inside the namespace.
+        let a = analyse("namespace eval ns {\n    proc helper {} {}\n}\n");
+        let b = analyse("::ns::helper\nns::helper\nnamespace eval ns {\n    helper\n}\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        let calls = index.invocations_of("::ns::helper", "file:///a.tcl");
+        assert_eq!(calls.len(), 3, "{calls:?}");
+    }
+
+    #[test]
+    fn invocations_of_resolves_namespace_path_across_files() {
+        // The confirmed #923 trigger: a bare call reaches a namespaced proc in
+        // *another* file via `namespace path`, while an unrelated file defines
+        // the same simple name (which used to disable the bare-name fallback).
+        // The file-local guess settles to `::app::helper` (the caller's
+        // namespace), so only the workspace-wide candidate resolution finds it.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let other = analyse("namespace eval ::other { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace path ::mymod\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///other.tcl", &other),
+            ("file:///app.tcl", &app),
+        ]);
+        // The call resolves to `::mymod::helper` via the namespace path.
+        let refs = index.invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert_eq!(refs.len(), 1, "{refs:?}");
+        assert_eq!(refs[0].uri, "file:///app.tcl");
+    }
+
+    #[test]
+    fn invocations_of_does_not_cross_link_the_colliding_namespace() {
+        // The same call must NOT be reported as a reference of the *other*
+        // same-named proc: `namespace path ::mymod` resolves it to
+        // `::mymod::helper`, never `::other::helper`.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let other = analyse("namespace eval ::other { proc helper {} {} }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace path ::mymod\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///other.tcl", &other),
+            ("file:///app.tcl", &app),
+        ]);
+        let refs = index.invocations_of("::other::helper", "file:///other.tcl");
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn bare_call_without_path_does_not_reach_unrelated_namespace() {
+        // A bare `helper` in `::app` with no `namespace path` and no local
+        // `::app::helper` resolves to nothing (real tclsh: invalid command
+        // name), so it is a reference of neither namespaced proc.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse("namespace eval ::app {\n    proc run {} { helper }\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let refs = index.invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn namespace_import_call_site_references_the_source_command() {
+        // `::app` imports `::mymod::helper`, then calls a bare `helper`.  The
+        // call names the local imported `::app::helper`, which runs
+        // `::mymod::helper` — so it is a reference to the source command.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::helper\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        // Following the import link, the bare call resolves to the source.
+        let refs = index.linked_invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert_eq!(refs.len(), 1, "{refs:?}");
+        assert_eq!(refs[0].uri, "file:///app.tcl");
+        // The direct-only resolver (which rename uses) must NOT rewrite that
+        // call: it names the local imported command, not the source.
+        assert!(
+            index
+                .invocations_of("::mymod::helper", "file:///mymod.tcl")
+                .is_empty(),
+            "direct resolver must not claim the imported call site",
+        );
+        // The import pattern token is a defining-side reference rename rewrites.
+        let spans = index.link_target_spans("::mymod::helper", "file:///mymod.tcl");
+        assert_eq!(spans.len(), 1, "{spans:?}");
+        assert_eq!(spans[0].0, "file:///app.tcl");
+    }
+
+    #[test]
+    fn interp_alias_call_site_references_the_target_command() {
+        // `a` aliases `::mymod::helper`; a bare `a` call runs the target.  The
+        // alias `TARGET` word is itself a first-class invocation (a command
+        // prefix), so references see two sites: the `TARGET` word and the `a`
+        // call reaching the target through the alias link.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse("interp alias {} a {} ::mymod::helper\na\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let refs = index.linked_invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert!(
+            refs.iter().any(|r| r.name == "a"),
+            "the aliased call should reference the target: {refs:?}",
+        );
+        // The direct-only resolver (rename) sees just the `TARGET` word, never
+        // the `a` call — that call names the alias, which keeps its own name.
+        let direct = index.invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert!(
+            direct.iter().all(|r| r.name != "a"),
+            "rename must not rewrite the alias call site: {direct:?}",
+        );
+        // The alias `TARGET` word needs no separate link span — it is already
+        // an invocation the ordinary reference/rename path covers.
+        assert!(
+            index
+                .link_target_spans("::mymod::helper", "file:///mymod.tcl")
+                .is_empty(),
+        );
+    }
+
+    #[test]
+    fn rename_new_name_call_site_references_the_old_command() {
+        // `rename ::mymod::helper h` makes `h` run what `::mymod::helper` was.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse("rename ::mymod::helper h\nh\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let refs = index.linked_invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert_eq!(refs.len(), 1, "{refs:?}");
+        assert_eq!(refs[0].uri, "file:///app.tcl");
+        // The `OLD` word of the rename is a reference rename rewrites.
+        let spans = index.link_target_spans("::mymod::helper", "file:///mymod.tcl");
+        assert_eq!(spans.len(), 1, "{spans:?}");
+        assert_eq!(spans[0].0, "file:///app.tcl");
+    }
+
+    #[test]
+    fn resolve_command_target_follows_a_chain_and_leaves_plain_names() {
+        // `b` aliases `a`, `a` aliases `::mymod::helper`: `b` ultimately runs
+        // the source.  A name with no link is returned unchanged.
+        let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
+        let app = analyse("interp alias {} a {} ::mymod::helper\ninterp alias {} b {} a\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        assert_eq!(index.resolve_command_target("::b"), "::mymod::helper");
+        assert_eq!(index.resolve_command_target("::a"), "::mymod::helper");
+        assert_eq!(
+            index.resolve_command_target("::mymod::helper"),
+            "::mymod::helper"
+        );
+        // A bare call through the two-hop alias still resolves to the source.
+        let app2 = analyse("interp alias {} a {} ::mymod::helper\ninterp alias {} b {} a\nb\n");
+        let index2 = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app2),
+        ]);
+        let refs = index2.linked_invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert!(
+            refs.iter().any(|r| r.name == "b"),
+            "two-hop aliased call should reference the source: {refs:?}",
+        );
+    }
+
+    #[test]
+    fn glob_import_introduces_no_command_link() {
+        // `namespace import ::mymod::*` names no single command, so it must
+        // not manufacture a link that a bare call could resolve through.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        // A glob import records no `::app::helper` link, so the bare call does
+        // not resolve to the source through a (non-existent) link.
+        assert!(
+            index
+                .link_target_spans("::mymod::helper", "file:///mymod.tcl")
+                .is_empty(),
+            "glob import should record no link span",
+        );
+    }
+
+    #[test]
+    fn oo_forward_target_is_a_reference_to_the_command() {
+        // A `forward` method delegates to `::logger::write`; that `TARGET` word
+        // is a reference to the command, so finding references (and rename) of
+        // `::logger::write` must include it — like a direct call.
+        let logger = analyse("namespace eval ::logger { proc write {} {} }\n");
+        let widget = analyse("oo::class create ::Widget {\n    forward log ::logger::write\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///logger.tcl", &logger),
+            ("file:///widget.tcl", &widget),
+        ]);
+        let refs = index.invocations_of("::logger::write", "file:///logger.tcl");
+        assert_eq!(refs.len(), 1, "{refs:?}");
+        assert_eq!(refs[0].uri, "file:///widget.tcl");
+    }
+
+    #[test]
+    fn cross_file_oo_define_stub_does_not_hide_superclass() {
+        // `::B` defines `greet`; `::C` (superclass `::B`) inherits it; a
+        // cross-file `oo::define ::C` adds `extra` and names no superclass,
+        // recording a second `::C` entry with empty parents.  The parent walk
+        // must union both entries — otherwise the stub hides the `::B` edge and
+        // `::C` is wrongly dropped from `greet`'s inheritor set.
+        let b = analyse("oo::class create B {\n    method greet {} {}\n}\n");
+        let c = analyse("oo::class create C {\n    superclass B\n}\n");
+        let stub = analyse("oo::define C {\n    method extra {} {}\n}\n");
+        // The stub is indexed *before* the real class, so a first-match parent
+        // lookup would pick the stub's empty superclasses — the adversarial
+        // ordering the union guards against.
+        let index = WorkspaceIndex::from_documents([
+            ("file:///b.tcl", &b),
+            ("file:///ext.tcl", &stub),
+            ("file:///c.tcl", &c),
+        ]);
+        let inheritors: Vec<&str> = index
+            .method_inheritor_classes("::B", "greet")
+            .iter()
+            .map(|wc| wc.qualified_name.as_str())
+            .collect();
+        assert!(inheritors.contains(&"::C"), "{inheritors:?}");
+    }
+
+    #[test]
+    fn workspace_command_exists_covers_procs_and_classes() {
+        let a = analyse("namespace eval ns { proc p {} {} }\noo::class create ::C {}\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        assert!(index.workspace_command_exists("::ns::p"));
+        assert!(index.workspace_command_exists("ns::p")); // leading `::` optional
+        assert!(index.workspace_command_exists("::C"));
+        assert!(!index.workspace_command_exists("::ns::missing"));
     }
 
     #[test]

@@ -193,8 +193,21 @@ impl Analyser {
         // Tcl + completion's expectation of both `$v` and `$::ns::v`).
         for (i, name) in args.iter().enumerate() {
             let local = name.rsplit("::").next().unwrap_or(name);
-            if let Some(tok) = arg_tokens.get(i) {
+            // A dynamic name (`global $dyn`) computes its name at runtime — not
+            // a static declaration.
+            if let Some(tok) = arg_tokens.get(i)
+                && !crate::naming::is_dynamic_word(name)
+            {
                 self.define_var(local, *tok, scope_path, false, None);
+                // `global v` aliases the global cell `::v`; `global ::ns::v`
+                // aliases `::ns::v` as written.  Record the target so every
+                // `global` alias and the global declaration unify.
+                let target = if name.starts_with("::") {
+                    name.clone()
+                } else {
+                    format!("::{name}")
+                };
+                self.set_var_link_target(local, scope_path, target);
             }
         }
     }
@@ -212,10 +225,34 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         // `variable name ?value? name ?value? ...`
+        // Each `name` aliases the cell `<current-namespace>::<name>`; every
+        // `variable name` across that namespace's procs, plus the namespace
+        // -level declaration, shares that target and so unifies.
+        let ns = self.command_resolution_namespace(scope_path);
+        let ns_prefix = ns.trim_end_matches("::");
         let mut i = 0;
         while i < args.len() {
-            if let Some(tok) = arg_tokens.get(i) {
-                self.define_var(&args[i], *tok, scope_path, false, None);
+            // A dynamic name (`variable $dyn` / `variable [f]`) is computed at
+            // runtime — its literal text is not the variable's name, so it is
+            // not a static declaration.  Skip it rather than record the
+            // substitution text as a variable.
+            if let Some(tok) = arg_tokens.get(i)
+                && !crate::naming::is_dynamic_word(&args[i])
+            {
+                // Mirror `global` above: the *unqualified tail* is the local
+                // alias name, but the target keeps the FULL qualified path so a
+                // relative `variable child::v` aliases `<ns>::child::v` (and an
+                // absolute `variable ::x::v` aliases `::x::v`), never the
+                // tail-collapsed `<ns>::v`.  Keying the link on the tail is what
+                // lets a later `$v` reference share the target and unify.
+                let local = args[i].rsplit("::").next().unwrap_or(&args[i]);
+                self.define_var(local, *tok, scope_path, false, None);
+                let target = if args[i].starts_with("::") {
+                    args[i].clone()
+                } else {
+                    format!("{ns_prefix}::{}", args[i])
+                };
+                self.set_var_link_target(local, scope_path, target);
             }
             i += if i + 1 < args.len() { 2 } else { 1 };
         }
@@ -567,7 +604,15 @@ impl Analyser {
         }
 
         let raw_name = &args[0];
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // Home the proc to the *command-resolution* namespace, not the purely
+        // lexical one: a proc defined inside another proc's body homes to that
+        // enclosing proc's **defining** namespace (the prefix of its qualified
+        // name), the way Tcl resolves the `proc` command at run time.  The
+        // lexical `namespace_from_scope_path` skips proc scopes and so homed a
+        // nested `proc helper` under `proc a::outer` to `::helper`, overwriting
+        // the real global `::helper` in `all_procs`; the command-resolution
+        // namespace homes it to `::a::helper`.
+        let ns_prefix = self.command_resolution_namespace(scope_path);
         // Strip the leading `::` for the qualify helper, which
         // expects an unprefixed namespace.
         let ns_for_qualify = ns_prefix.trim_start_matches(':');
@@ -936,6 +981,65 @@ impl Analyser {
         true
     }
 
+    /// Handle `interp eval PATH SCRIPT`: the script runs in a **child**
+    /// interpreter — a separate command / variable space — so its `proc` /
+    /// `oo::class` / variable definitions and calls must not merge into the
+    /// parent namespace (a parent `rename foo` must not rewrite a child `proc
+    /// foo`; [`tcl_vm::interp`] isolates the child at run time).
+    ///
+    /// Only the single-script form (`interp eval child { … }`) is isolated: an
+    /// **empty** path (`interp eval {} script`) targets the *current*
+    /// interpreter — its definitions belong here — and a multi-word /
+    /// non-literal script cannot be statically re-assembled, so both fall back
+    /// to the generic body recursion by returning `false`.  Otherwise an
+    /// isolated child scope is opened, named for the interpreter path so the
+    /// child's definitions home under it (`::<path>::foo`) and the child's own
+    /// calls still resolve within the block; a dynamic path (`$i`) can't
+    /// collide with a real namespace, so it stays conservatively isolated too.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpEval`]
+    /// (stamped on `interp`'s `eval` subcommand); `args[0]` is the subcommand
+    /// word.
+    pub fn handle_interp_eval_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        // `interp eval PATH SCRIPT` — the subcommand word, the path, and one
+        // script word.
+        if args.len() != 3 {
+            return false;
+        }
+        // An empty path runs in the current interpreter — not isolated.
+        if args[1].is_empty() {
+            return false;
+        }
+        let body_span = arg_tokens.get(2).map(|t| t.span);
+        let body_text = args[2].clone();
+        let body_tok = arg_tokens.get(2).copied();
+
+        let outer = scope_path.to_vec();
+        let child_scope_idx = {
+            let mut child =
+                super::types::Scope::new(super::types::ScopeKind::Namespace, args[1].clone());
+            child.body_span = body_span;
+            let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &outer)
+            else {
+                return false;
+            };
+            parent.children.push(child);
+            parent.children.len() - 1
+        };
+        let mut child_path = outer;
+        child_path.push(child_scope_idx);
+
+        if let Some(tok) = body_tok {
+            self.analyse_body(&body_text, tok, &child_path);
+        }
+        true
+    }
+
     /// Handle `namespace path {…}`: record the current namespace's
     /// command-resolution search path for the post-walk settlement
     /// ([`Self::finalise_invocation_resolutions`]).
@@ -959,6 +1063,18 @@ impl Analyser {
         if tcl_syntax::naming::is_dynamic_word(&args[1]) {
             return;
         }
+        // The `namespace path` command-resolution tier is an 8.5 addition
+        // (`NamespacePathCmd`, tclNamesp.c); 8.4 has no path tier, so a bare
+        // call there never reaches a path namespace.  Recording the path under
+        // a pre-8.5 dialect would make command resolution / definition / hover
+        // falsely settle a call onto a path entry the runtime never consults —
+        // so skip it, matching the `namespace path` subcommand's own dialect
+        // gate (which already flags the command W002 there).
+        let dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect)
+            .unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
+        if !dialect.intersects(tcl_registry::prelude::DialectSet::TCL85_PLUS) {
+            return;
+        }
         let ns = self.command_resolution_namespace(scope_path);
         let entries = args[1].split_whitespace().map(str::to_string).collect();
         self.namespace_paths.insert(ns, entries);
@@ -971,32 +1087,49 @@ impl Analyser {
     /// completion / definition treat it as a global frame and ignore the
     /// proc's locals) and analyse the body there.
     ///
-    /// Returns `true` only for the `#0` (global-frame) form; every other
-    /// `uplevel` form (numeric level, level-relative, or no explicit
-    /// level) falls through to the generic body recursion, which keeps
-    /// the enclosing proc scope.
+    /// Returns `true` for every single-braced-body `uplevel` form; a
+    /// multi-word / non-literal script is left to the generic recursion (the
+    /// W301 injection check already flags that shape).
+    ///
+    /// The frame the body runs in depends on the level word: `#0` is the global
+    /// frame; `N` / `#N` / an implicit level is a *caller* frame that is
+    /// statically unknown.  Either way the body's locals do **not** belong to
+    /// the enclosing proc, so both open an [`ScopeKind::Uplevel`] child scope
+    /// (tagged with the level word so variable resolution can tell global-frame
+    /// from unknown-frame: `#0` resolves outward to the global namespace, a
+    /// non-`#0` level abstains — the true frame can't be named).  Without the
+    /// child scope the body's variables merged into the enclosing proc's
+    /// locals, silently unifying two variables in different frames.
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Uplevel`];
-    /// the `#0` level word is a shape check, not a command name.
+    /// the level word is a shape check, not a command name.
     pub fn handle_uplevel_command(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        // `uplevel #0 SCRIPT` — exactly the global-frame, single-braced
-        // body form.  `uplevel #0` with multiple concatenated script
-        // words is left to the generic recursion (the W301 injection
-        // check already flags that shape).
-        if args.len() != 2 || args[0] != "#0" {
-            return false;
-        }
-        let Some(body_tok) = arg_tokens.get(1).copied() else {
-            return false;
+        // Two literal-body shapes: `uplevel LEVEL {body}` (level word + single
+        // braced body) and `uplevel {body}` (implicit level 1).  A `#0` level
+        // records the global frame; anything else records an unknown caller
+        // frame.  Multi-word scripts (`args.len() > 2`) fall through.
+        let (level_word, body_tok, body_text) = match args.len() {
+            2 => {
+                let Some(bt) = arg_tokens.get(1).copied() else {
+                    return false;
+                };
+                (args[0].clone(), bt, args[1].clone())
+            }
+            1 => {
+                let Some(bt) = arg_tokens.first().copied() else {
+                    return false;
+                };
+                ("1".to_owned(), bt, args[0].clone())
+            }
+            _ => return false,
         };
         if body_tok.kind != TokenType::Str {
             return false;
         }
-        let body_text = args[1].clone();
 
         let path = scope_path.to_vec();
         let child_idx = {
@@ -1004,8 +1137,10 @@ impl Analyser {
             else {
                 return false;
             };
-            let mut child =
-                super::types::Scope::new(super::types::ScopeKind::Uplevel, String::new());
+            // The scope name carries the level word so `lookup_var_in_scope_chain`
+            // can distinguish the `#0` global frame (resolve outward) from a
+            // non-`#0` unknown caller frame (abstain outward).
+            let mut child = super::types::Scope::new(super::types::ScopeKind::Uplevel, level_word);
             child.body_span = Some(body_tok.span);
             parent.children.push(child);
             parent.children.len() - 1
@@ -1044,7 +1179,12 @@ impl Analyser {
     /// (stamped on `namespace`'s `ensemble` subcommand); `args[0]` is
     /// still the subcommand word, and only the `create` form (checked
     /// on `args[1]`) mutates anything.
-    pub fn handle_namespace_ensemble(&mut self, args: &[String], scope_path: &[usize]) {
+    pub fn handle_namespace_ensemble(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
         if args.len() < 2 {
             return;
         }
@@ -1055,7 +1195,7 @@ impl Analyser {
         if !ns.is_empty() && ns != "::" {
             self.ensemble_namespaces.insert(ns.clone());
         }
-        let ns_prefix = ns.trim_start_matches(':');
+        let ns_prefix = ns.trim_start_matches(':').to_owned();
 
         let dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect);
         let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
@@ -1067,24 +1207,93 @@ impl Analyser {
             .unwrap_or_default();
 
         let opts = &args[2..];
+        let opt_tokens = arg_tokens.get(2..).unwrap_or(&[]);
         let mut i = 0usize;
         while i < opts.len() {
             let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
                 i += 1;
                 continue;
             };
-            if spec.name == "-command"
-                && let Some(value) = opts.get(i + 1)
-            {
-                // A dynamic value (`$var` / `[cmd]`) can't be resolved
-                // statically — leave it unrecorded, same convention as
-                // every other literal-only command-name extraction in
-                // this module.
-                if !(value.is_empty() || value.starts_with('$') || value.starts_with('[')) {
-                    self.ensemble_namespaces.insert(qualify(ns_prefix, value));
+            let value = opts.get(i + 1);
+            let value_tok = opt_tokens.get(i + 1).copied();
+            match spec.name {
+                // `-command NAME` names the ensemble command — its namespace
+                // is recorded so `<ns> sub` calls resolve.  A dynamic value
+                // (`$var` / `[cmd]`) can't be resolved statically.
+                "-command" => {
+                    if let Some(value) = value
+                        && !value.is_empty()
+                        && !value.starts_with('$')
+                        && !value.starts_with('[')
+                    {
+                        self.ensemble_namespaces.insert(qualify(&ns_prefix, value));
+                    }
                 }
+                // `-map {sub target sub target …}` — every *target* (an
+                // odd-indexed element) is a command the ensemble dispatches to,
+                // recorded so it is reached by references / definition / rename.
+                "-map" => {
+                    if let (Some(value), Some(tok)) = (value, value_tok) {
+                        self.record_ensemble_map_targets(value, tok, scope_path);
+                    }
+                }
+                // `-subcommands {a b c}` — each subcommand `a` dispatches to
+                // the command `<ns>::a` in the ensemble's namespace.
+                "-subcommands" => {
+                    if let (Some(value), Some(tok)) = (value, value_tok) {
+                        self.record_ensemble_subcommands(value, tok, &ns_prefix);
+                    }
+                }
+                _ => {}
             }
             i += 1 + spec.value_word_count(opts, i);
+        }
+    }
+
+    /// The `(element, span)` pairs of a whitespace-separated list word, with
+    /// each element's span located inside the token's content (`content_offset`
+    /// skips the opening delimiter).  Shared by the ensemble `-map` /
+    /// `-subcommands` extraction; a dynamic element is left for the caller to
+    /// skip.
+    fn list_word_elements(list_text: &str, tok: Token) -> Vec<(String, Span)> {
+        let content_start = tok.span.start() + u32::from(tok.content_offset);
+        let mut out = Vec::new();
+        let mut search_start = 0usize;
+        for elem in list_text.split_whitespace() {
+            if let Some(rel) = list_text[search_start..].find(elem) {
+                let idx = search_start + rel;
+                let start = content_start + u32::try_from(idx).unwrap_or(0);
+                let end = start + u32::try_from(elem.len()).unwrap_or(0);
+                out.push((elem.to_owned(), Span::new(start, end)));
+                search_start = idx + elem.len();
+            }
+        }
+        out
+    }
+
+    /// Record every `-map` target (the odd elements of the `sub target …`
+    /// list) as a command reference resolved in the caller's namespace.
+    fn record_ensemble_map_targets(&mut self, list_text: &str, tok: Token, scope_path: &[usize]) {
+        for (idx, (elem, span)) in Self::list_word_elements(list_text, tok)
+            .into_iter()
+            .enumerate()
+        {
+            if idx % 2 == 1 && !crate::naming::is_dynamic_word(&elem) {
+                let resolved = self.resolve_command_qualified_name(&elem, scope_path);
+                self.push_command_reference(elem, span, resolved, None);
+            }
+        }
+    }
+
+    /// Record each `-subcommands` name as a reference to the command
+    /// `<ns>::<name>` the ensemble maps it to.
+    fn record_ensemble_subcommands(&mut self, list_text: &str, tok: Token, ns_prefix: &str) {
+        for (elem, span) in Self::list_word_elements(list_text, tok) {
+            if crate::naming::is_dynamic_word(&elem) {
+                continue;
+            }
+            let resolved = qualify(ns_prefix, &elem);
+            self.push_command_reference(elem, span, resolved, None);
         }
     }
 
@@ -1492,7 +1701,11 @@ impl Analyser {
         let pair_start = usize::from(args.len() % 2 == 1);
         let mut i = pair_start + 1;
         while i < args.len() && i < arg_tokens.len() {
-            self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+            // The local alias name may be dynamic (`upvar 1 x $local`) — skip
+            // it rather than record the substitution text.
+            if !crate::naming::is_dynamic_word(&args[i]) {
+                self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+            }
             i += 2;
         }
     }
@@ -1515,9 +1728,33 @@ impl Analyser {
         if args.len() < 4 {
             return;
         }
+        // `namespace upvar nsname otherVar myVar ?otherVar myVar ...?`: `myVar`
+        // (indices 3, 5, …) aliases `nsname::otherVar` (`otherVar` at 2, 4, …).
+        // Resolve a relative `nsname` against the current namespace.
+        let cur = self.command_resolution_namespace(scope_path);
+        let cur_prefix = cur.trim_end_matches("::");
+        let target_ns = if args[1].starts_with("::") {
+            args[1].trim_end_matches("::").to_string()
+        } else {
+            format!("{cur_prefix}::{}", args[1].trim_end_matches("::"))
+        };
         let mut i = 3;
         while i < args.len() && i < arg_tokens.len() {
-            self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+            // Skip a dynamic local alias name (`namespace upvar ns x $local`).
+            if !crate::naming::is_dynamic_word(&args[i]) {
+                self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+                // `otherVar` is resolved *within* the target namespace, so keep
+                // its full path: `namespace upvar ::a b::c local` aliases `local`
+                // to `::a::b::c`, not the tail-collapsed `::a::c`.  An absolute
+                // `otherVar` names its cell directly.
+                let other = &args[i - 1];
+                let target = if other.starts_with("::") {
+                    other.clone()
+                } else {
+                    format!("{target_ns}::{other}")
+                };
+                self.set_var_link_target(&args[i], scope_path, target);
+            }
             i += 2;
         }
     }
@@ -1652,7 +1889,7 @@ impl Analyser {
     /// command name" afterwards) — there is no `NEW` to map it to.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Rename`].
-    pub fn handle_rename(&mut self, args: &[String], offset: u32) -> bool {
+    pub fn handle_rename(&mut self, args: &[String], arg_tokens: &[Token], offset: u32) -> bool {
         if args.len() != 2 {
             return false;
         }
@@ -1671,27 +1908,123 @@ impl Analyser {
         self.renamed_commands.insert(new.clone(), old.clone());
         self.rename_offsets.insert(new.clone(), offset);
         self.deleted_commands.insert(old.clone(), offset);
+        // `OLD` (`args[0]`, token `arg_tokens[0]`) names the command being
+        // moved — a reference to it that rename rewrites.
+        if let Some(tok) = arg_tokens.first() {
+            self.result
+                .rename_target_spans
+                .insert(new.clone(), tok.span);
+        }
         self.result.renamed_commands.insert(new, old);
         false
     }
 
     /// Handle `oo::objdefine $obj …` — record the object variable
-    /// so later W308 (unknown method on object) checks can suppress
-    /// false positives from per-instance method extensions.
+    /// (so W308 can suppress unknown-method false positives from
+    /// per-instance extensions) **and** walk the per-object
+    /// definition so its method bodies are analysed exactly like an
+    /// `oo::define` class's.
+    ///
+    /// `oo::objdefine` shares the `oo::define` member grammar, so the
+    /// body / inline forms are parsed with the same helpers.  The
+    /// members are collected into a *throwaway* `ClassDef` whose only
+    /// purpose is to drive [`Self::parse_oo_definition_body`]'s
+    /// method-body walk (variable / command resolution and in-body
+    /// diagnostics light up as a side effect).  The `ClassDef` is
+    /// deliberately **not** registered in `all_classes`: a per-object
+    /// extension is not a class and must never surface in class
+    /// listings, hover, rename, or completion.  Its method bodies
+    /// home under a private synthetic name so the duplicate detector
+    /// never confuses them with the object's real class methods.
+    ///
+    /// Returns `true` when it owns the command's body walk (an object
+    /// name is present), mirroring [`Self::handle_oo_define_command`],
+    /// so the generic body recursion does not also descend the body.
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::OoObjdefine`].
-    pub fn handle_oo_objdefine(&mut self, args: &[String]) {
+    pub fn handle_oo_objdefine(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
         if args.is_empty() {
-            return;
+            return false;
         }
         let mut obj_name = args[0].trim().to_string();
         if let Some(stripped) = obj_name.strip_prefix('$') {
             obj_name = stripped.trim_matches(|c| c == '{' || c == '}').to_string();
         }
         if !obj_name.is_empty() {
-            self.objdefined_vars.insert(obj_name);
+            self.objdefined_vars.insert(obj_name.clone());
         }
+
+        // `oo::objdefine $obj` with no definition script — the object variable
+        // is recorded above; there is nothing more to walk.
+        if args.len() < 2 {
+            return true;
+        }
+
+        let cmd_name = "oo::objdefine";
+        // A throwaway holder for the walked members.  The method bodies home
+        // under a private synthetic name (`@objdefine@…`, unrepresentable in
+        // real Tcl) so a per-object `greet` never collides with the same-named
+        // class method in the duplicate detector or the scope-name key.
+        let synthetic = if obj_name.is_empty() {
+            "::@objdefine@".to_string()
+        } else {
+            format!("::@objdefine@::{obj_name}")
+        };
+        let mut object_class = super::types::ClassDef {
+            name: obj_name.clone(),
+            qualified_name: synthetic,
+            ..Default::default()
+        };
+
+        // Body-form vs inline-form is the same registry-grammar test as
+        // `oo::define`: `args[1]` being a known member keyword means the
+        // inline form (`oo::objdefine $o method m {} {}`).
+        let inline_form = self
+            .definition_grammar(cmd_name)
+            .is_some_and(|g| g.is_member(&args[1]));
+
+        if inline_form {
+            let inline_args: Vec<String> = args[1..].to_vec();
+            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
+            if let Some(grammar) = self.definition_grammar(cmd_name) {
+                super::oo::parse_oo_define_inline(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    &mut object_class,
+                );
+            }
+        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
+            let grammar = self.definition_grammar(cmd_name);
+            let definer_disabled = self.command_dialect_disabled(cmd_name);
+            self.parse_oo_definition_body(
+                &args[1],
+                body_tok,
+                &mut object_class,
+                scope_path,
+                grammar,
+                definer_disabled,
+            );
+        }
+
+        // Record the per-object method declarations so `$obj m` navigation
+        // resolves the per-object override ahead of a same-named class method.
+        // Accumulate across multiple `oo::objdefine` blocks on the same object.
+        if !obj_name.is_empty() && !object_class.methods.is_empty() {
+            self.result
+                .object_methods
+                .entry(obj_name)
+                .or_default()
+                .extend(object_class.methods.into_values());
+        }
+
+        true
     }
 
     /// Handle ``package require`` (and ``package provide``) —
@@ -1886,7 +2219,12 @@ impl Analyser {
             return false;
         }
         let raw_name = &args[1];
-        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // Home the class to the command-resolution namespace (see the same
+        // reasoning in `handle_proc_command`): a class created inside a
+        // qualified-name proc's body homes to that proc's defining namespace,
+        // not the lexical global, so it can't overwrite a same-named global
+        // class in `all_classes`.
+        let ns_prefix = self.command_resolution_namespace(scope_path);
         let ns_for_qualify = ns_prefix.trim_start_matches(':');
         let qualified = qualify(ns_for_qualify, raw_name);
         let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
@@ -1908,8 +2246,14 @@ impl Analyser {
         // ``class_methods`` from the OO-define subcommands.
         if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
             let grammar = self.definition_grammar(cmd_name);
+            let definer_disabled = self.command_dialect_disabled(cmd_name);
             self.parse_oo_definition_body(
-                body_text, body_tok, &mut class, &qualified, scope_path, grammar,
+                body_text,
+                body_tok,
+                &mut class,
+                scope_path,
+                grammar,
+                definer_disabled,
             );
         }
         // Register globally and in the current scope, the same as
@@ -1998,6 +2342,9 @@ impl Analyser {
                     qualified_name: qualified.clone(),
                     name_span,
                     body_span: name_span,
+                    // An `oo::define` on a class not created in this file — a
+                    // cross-file extension stub, not the class's definition.
+                    via_define: true,
                     ..Default::default()
                 }
             });
@@ -2020,13 +2367,14 @@ impl Analyser {
             // ``oo::define Class { body }`` — args[1] is the
             // body text, arg_tokens[1] is the body token.
             let grammar = self.definition_grammar(cmd_name);
+            let definer_disabled = self.command_dialect_disabled(cmd_name);
             self.parse_oo_definition_body(
                 &args[1],
                 body_tok,
                 &mut class_def,
-                &qualified,
                 scope_path,
                 grammar,
+                definer_disabled,
             );
         }
 
@@ -3191,6 +3539,103 @@ mod tests {
         );
     }
 
+    /// The `namespace path` resolution tier is 8.5+: a bare call under a path
+    /// gains the path namespace as a candidate from 8.5 on, but under 8.4 it
+    /// must not (8.4 has no path tier, so the call never reaches it).
+    #[test]
+    fn bare_call_honours_namespace_path_only_from_8_5() {
+        let src = "namespace eval ::app { namespace path ::mymod\n    proc run {} { helper } }\n";
+        let candidates = |dialect: &str| {
+            let mut a = Analyser::new();
+            a.analyse(src, dialect)
+                .command_invocations
+                .iter()
+                .find(|i| i.name == "helper")
+                .map(|i| i.resolution_candidates.clone())
+                .unwrap_or_default()
+        };
+        assert!(
+            candidates("tcl8.6").iter().any(|c| c == "::mymod::helper"),
+            "8.6 should add the path namespace as a candidate: {:?}",
+            candidates("tcl8.6"),
+        );
+        assert!(
+            !candidates("tcl8.4").iter().any(|c| c == "::mymod::helper"),
+            "8.4 has no path tier, so it must not: {:?}",
+            candidates("tcl8.4"),
+        );
+    }
+
+    /// `interp eval child { proc foo }` runs in a child interpreter, so `foo`
+    /// is isolated from the parent's `::foo` — the two stay distinct commands,
+    /// so a parent rename of `::foo` can never reach the child body.
+    #[test]
+    fn interp_eval_child_isolates_definitions_from_the_parent() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc foo {} {}\ninterp eval child { proc foo {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(r.all_procs.contains_key("::foo"), "parent proc: {keys:?}");
+        assert!(
+            r.all_procs.contains_key("::child::foo"),
+            "child proc isolated under the interp path: {keys:?}",
+        );
+    }
+
+    /// `namespace inscope ::x { proc foo }` runs the body in `::x`, so `foo`
+    /// homes to `::x::foo` — the same namespace frame as `namespace eval`, not
+    /// the caller's scope.
+    #[test]
+    fn namespace_inscope_runs_the_body_in_the_named_namespace() {
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace inscope ::x { proc foo {} {} }\n", "tcl8.6");
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::x::foo"),
+            "inscope body should home to the named namespace: {keys:?}",
+        );
+        assert!(
+            !r.all_procs.contains_key("::foo"),
+            "the body must not resolve in the caller's global scope: {keys:?}",
+        );
+    }
+
+    /// `namespace code { proc foo }` captures the *current* namespace, so its
+    /// script is analysed in this scope — inside `::x`, `foo` homes to
+    /// `::x::foo`.
+    #[test]
+    fn namespace_code_analyses_the_script_in_the_current_namespace() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::x { namespace code { proc foo {} {} } }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::x::foo"),
+            "namespace code script should analyse in the current namespace: {keys:?}",
+        );
+    }
+
+    /// `interp eval {} { proc foo }` targets the *current* interpreter, so
+    /// `foo` is the parent's `::foo` (no isolation, no synthetic namespace).
+    #[test]
+    fn interp_eval_empty_path_is_the_current_interpreter() {
+        let mut a = Analyser::new();
+        let r = a.analyse("interp eval {} { proc foo {} {} }\n", "tcl8.6");
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::foo"),
+            "current-interp proc: {keys:?}"
+        );
+        assert!(
+            !keys.iter().any(|k| k.contains("::::")),
+            "an empty path must not open a synthetic namespace: {keys:?}",
+        );
+    }
+
     #[test]
     fn handle_namespace_eval_creates_child_scope() {
         let mut a = Analyser::new();
@@ -3244,7 +3689,7 @@ mod tests {
             .global_scope
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
-        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[0]);
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[], &[0]);
         assert!(a.ensemble_namespaces.contains("::myns"));
     }
 
@@ -3265,6 +3710,7 @@ mod tests {
                 "-command".to_string(),
                 "::ens".to_string(),
             ],
+            &[],
             &[0],
         );
         assert!(a.ensemble_namespaces.contains("::myns"));
@@ -3288,6 +3734,7 @@ mod tests {
                 "-command".to_string(),
                 "ens".to_string(),
             ],
+            &[],
             &[0],
         );
         assert!(a.ensemble_namespaces.contains("::myns::ens"));
@@ -3308,11 +3755,39 @@ mod tests {
                 "-command".to_string(),
                 "$dyn".to_string(),
             ],
+            &[],
             &[0],
         );
         assert_eq!(
             a.ensemble_namespaces,
             std::collections::HashSet::from(["::myns".to_string()])
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_map_and_subcommands_record_command_references() {
+        // `-map {get ::foo::getImpl}` — the odd element is the target command;
+        // `-subcommands {show}` maps `show` to `::foo::show`.  Both become
+        // command references so navigation reaches the implementing procs.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::foo {\n    \
+                   proc getImpl {} {}\n    \
+                   proc show {} {}\n    \
+                   namespace ensemble create -map {get ::foo::getImpl} -subcommands {show}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::foo::getImpl"),
+            "the -map target should be a command reference: {resolved:?}",
+        );
+        assert!(
+            resolved.contains(&"::foo::show"),
+            "the -subcommands name should map to `<ns>::show`: {resolved:?}",
         );
     }
 
@@ -3344,6 +3819,7 @@ mod tests {
                 "-command".to_string(),
                 "::real::target".to_string(),
             ],
+            &[],
             &[0],
         );
         assert_eq!(
@@ -3357,7 +3833,7 @@ mod tests {
     #[test]
     fn handle_namespace_ensemble_global_scope_no_op() {
         let mut a = Analyser::new();
-        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[]);
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[], &[]);
         assert!(a.ensemble_namespaces.is_empty());
     }
 
@@ -3369,7 +3845,7 @@ mod tests {
             .global_scope
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
-        a.handle_namespace_ensemble(&["eval".to_string(), "myns".to_string()], &[0]);
+        a.handle_namespace_ensemble(&["eval".to_string(), "myns".to_string()], &[], &[0]);
         assert!(a.ensemble_namespaces.is_empty());
     }
 
@@ -4053,7 +4529,7 @@ mod tests {
     #[test]
     fn handle_rename_records_static_move() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["target".to_string(), "target_orig".to_string()], 42);
+        let dynamic = a.handle_rename(&["target".to_string(), "target_orig".to_string()], &[], 42);
         assert!(!dynamic, "a fully static rename is not dynamic");
         assert_eq!(
             a.renamed_commands.get("::target_orig").map(String::as_str),
@@ -4080,7 +4556,7 @@ mod tests {
         // itself must be recorded as gone (confirmed against tclsh
         // 9.0.4: also "invalid command name" afterwards).
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["target".to_string(), String::new()], 7);
+        let dynamic = a.handle_rename(&["target".to_string(), String::new()], &[], 7);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert_eq!(a.deleted_commands.get("::target"), Some(&7));
@@ -4089,7 +4565,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_old_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], 0);
+        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], &[], 0);
         assert!(dynamic, "rename $x y cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -4098,7 +4574,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_new_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], 0);
+        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], &[], 0);
         assert!(dynamic, "rename x y[z] cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -4107,7 +4583,7 @@ mod tests {
     #[test]
     fn handle_rename_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["onlyone".to_string()], 0);
+        let dynamic = a.handle_rename(&["onlyone".to_string()], &[], 0);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -4118,22 +4594,45 @@ mod tests {
     #[test]
     fn handle_oo_objdefine_records_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["$obj".to_string()]);
+        a.handle_oo_objdefine(&["$obj".to_string()], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_braced_dollar_var() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["${obj}".to_string()]);
+        a.handle_oo_objdefine(&["${obj}".to_string()], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
     }
 
     #[test]
     fn handle_oo_objdefine_records_bare_name() {
         let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["obj".to_string()]);
+        a.handle_oo_objdefine(&["obj".to_string()], &[], &[]);
         assert!(a.objdefined_vars.contains("obj"));
+    }
+
+    #[test]
+    fn oo_objdefine_body_methods_are_analysed() {
+        // Before: the `oo::objdefine` body was never parsed, so nothing inside
+        // a per-object method resolved.  Now the body walks like any method
+        // body — the call it makes is recorded as an invocation.
+        let mut a = Analyser::new();
+        let src = "proc helper {} {}\n\
+                   oo::class create Foo {}\n\
+                   set o [Foo new]\n\
+                   oo::objdefine $o {\n    \
+                       method greet {} { helper }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.command_invocations.iter().any(|i| i.name == "helper"),
+            "the call inside the per-object method body should be analysed: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| &i.name)
+                .collect::<Vec<_>>(),
+        );
     }
 
     // resolve_alias
@@ -4644,6 +5143,139 @@ mod tests {
             shallow_traits, deep_traits,
             "deep + shallow should match for top-level-only bodies",
         );
+    }
+
+    #[test]
+    fn uplevel_nonzero_isolates_body_vars_from_proc() {
+        // `uplevel 1 {set x 5}` runs in the caller's frame, not the enclosing
+        // proc's — its `x` must not merge into the proc's locals (they are
+        // different variables), and it lands in an isolated `Uplevel` child
+        // scope tagged with the level word.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc f {} {\n    uplevel 1 {set x 5}\n    set y 1\n}\n",
+            "tcl8.6",
+        );
+        let f_scope = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "f")
+            .expect("f proc scope");
+        assert!(f_scope.variables.contains_key("y"), "y is a proc local");
+        assert!(
+            !f_scope.variables.contains_key("x"),
+            "uplevel body's `x` must not merge into the proc scope",
+        );
+        let up = f_scope
+            .children
+            .iter()
+            .find(|c| c.kind == crate::analyser::ScopeKind::Uplevel)
+            .expect("isolated uplevel scope");
+        assert_eq!(up.name, "1", "the level word tags the frame");
+        assert!(up.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn nested_def_in_qualified_encloser_does_not_overwrite_global() {
+        // `proc a::outer { proc helper ... }`: the nested `helper` homes to the
+        // encloser's *defining* namespace (`::a::helper`), not the lexical
+        // global — so the real global `proc helper` is preserved rather than
+        // overwritten in `all_procs`.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc helper {} { puts global }\nproc a::outer {} {\n    proc helper {} { puts nested }\n}\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.all_procs.contains_key("::a::helper"),
+            "nested helper must home to ::a::helper: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+        let global = r
+            .all_procs
+            .get("::helper")
+            .expect("global ::helper preserved");
+        assert_eq!(
+            global.name_span.start(),
+            5,
+            "::helper must remain the global declaration (line 0), not the nested one",
+        );
+        // The same for a nested class.
+        let mut b = crate::analyser::Analyser::new();
+        let rc = b.analyse(
+            "oo::class create Widget {}\nproc a::outer {} {\n    oo::class create Widget {}\n}\n",
+            "tcl8.6",
+        );
+        assert!(
+            rc.all_classes.contains_key("::a::Widget"),
+            "nested class homes to ::a::Widget: {:?}",
+            rc.all_classes.keys().collect::<Vec<_>>(),
+        );
+        assert!(
+            rc.all_classes.contains_key("::Widget"),
+            "global ::Widget preserved",
+        );
+    }
+
+    #[test]
+    fn variable_global_upvar_skip_dynamic_names() {
+        // A `variable` / `global` / `upvar` / `namespace upvar` whose name word
+        // is computed (`$dyn` / `[f]`) is not a static declaration — the literal
+        // substitution text must not be recorded as a variable.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "namespace eval ns {\n    variable $dyn\n    variable realvar 1\n}\nproc p {} {\n    global $g\n    upvar 1 other $loc\n}\n",
+            "tcl8.6",
+        );
+        let ns = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "ns")
+            .expect("ns scope");
+        assert!(
+            ns.variables.contains_key("realvar"),
+            "a static `variable` name is still recorded",
+        );
+        assert!(
+            !ns.variables.contains_key("dyn"),
+            "`variable $dyn` must not record `dyn`: {:?}",
+            ns.variables.keys().collect::<Vec<_>>(),
+        );
+        let p = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "p")
+            .expect("p scope");
+        assert!(
+            !p.variables.contains_key("g") && !p.variables.contains_key("loc"),
+            "dynamic `global`/`upvar` names must not be recorded: {:?}",
+            p.variables.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn uplevel_zero_still_resets_to_global_frame() {
+        // `uplevel #0` keeps the global-frame tag so variable resolution
+        // resolves outward to the global namespace (not the caller-frame
+        // abstention a non-`#0` level uses).
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc g {} {\n    uplevel #0 {set z 5}\n}\n", "tcl8.6");
+        let g_scope = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "g")
+            .expect("g proc scope");
+        let up = g_scope
+            .children
+            .iter()
+            .find(|c| c.kind == crate::analyser::ScopeKind::Uplevel)
+            .expect("uplevel scope");
+        assert_eq!(up.name, "#0");
+        assert!(up.variables.contains_key("z"));
     }
 
     // stub-overlay end-to-end

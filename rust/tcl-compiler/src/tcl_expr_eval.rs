@@ -114,7 +114,7 @@ const MAX_EXPONENT: i64 = (1 << 28) - 1;
 /// [`FoldOps`]. A `None` result means "can't fold".
 #[must_use]
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
-    eval_with_octal(node, env, None)
+    eval_with_config(node, env, None, None)
 }
 
 /// Like [`eval_tcl_expr`] but resolves the *dialect* so a leading-zero decimal
@@ -122,9 +122,18 @@ pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
 /// octal in Tcl 8.x (`08`/`09` invalid → string; `010` → 8), decimal in
 /// Tcl 9.0 (`08` → 8, `010` → 10). All non-9.x dialects (tcl8.4/8.5/8.6,
 /// f5-irules ≈ 8.4, f5-iapps ≈ 8.5/8.6, EDA) use the 8.x octal rule.
+///
+/// The dialect also bounds the math functions that fold: `min`/`max` (8.5) or
+/// an `is*` classification (9.0) used in an older core folds nothing, since
+/// the `::tcl::mathfunc::*` command it would call does not exist there.
 #[must_use]
 pub fn eval_tcl_expr_in_dialect(node: &ExprNode, env: &Env, dialect: &str) -> Option<TclValue> {
-    eval_with_octal(node, env, Some(leading_zero_is_octal(dialect)))
+    eval_with_config(
+        node,
+        env,
+        Some(leading_zero_is_octal(dialect)),
+        math_func_ceiling_for_dialect(dialect),
+    )
 }
 
 /// Like [`eval_tcl_expr`] but takes the leading-zero octal policy directly:
@@ -132,13 +141,17 @@ pub fn eval_tcl_expr_in_dialect(node: &ExprNode, env: &Env, dialect: &str) -> Op
 /// `None` = decline to fold dialect-ambiguous leading-zero operands. Callers
 /// that hold a `CommandRegistry` rather than a dialect string derive the flag
 /// via `CommandRegistry::leading_zero_is_octal`.
+///
+/// Without a dialect the math-function set is unbounded (any known function
+/// folds) — the caller has already decided the octal policy but not the
+/// version tier, so this path never over-restricts.
 #[must_use]
 pub fn eval_tcl_expr_with_octal(
     node: &ExprNode,
     env: &Env,
     octal: Option<bool>,
 ) -> Option<TclValue> {
-    eval_with_octal(node, env, octal)
+    eval_with_config(node, env, octal, None)
 }
 
 /// Whether the dialect reads a bare leading-zero integer as octal. Only Tcl
@@ -149,11 +162,40 @@ pub fn leading_zero_is_octal(dialect: &str) -> bool {
     !dialect.starts_with("tcl9")
 }
 
-fn eval_with_octal(node: &ExprNode, env: &Env, octal: Option<bool>) -> Option<TclValue> {
+/// The newest `expr` math-function release available in `dialect`, or `None`
+/// when the dialect is unrecognised (don't restrict).  Functions gate on the
+/// *expr grammar* base version — the axis the relational operators use — so a
+/// vendor shell on an 8.5 core has the 8.5 set; 8.6 adds none over 8.5.  The
+/// single mapping the const-folder and the availability diagnostic share.
+#[must_use]
+pub fn math_func_ceiling_for_dialect(
+    dialect: &str,
+) -> Option<tcl_syntax::expr::mathfunc::MathFuncSince> {
+    use tcl_registry::prelude::DialectSet;
+    use tcl_syntax::expr::mathfunc::MathFuncSince;
+    let base = DialectSet::expr_grammar_base_version(dialect)?;
+    Some(if base.contains(DialectSet::TCL84) {
+        MathFuncSince::Tcl84
+    } else if base.contains(DialectSet::TCL85) || base.contains(DialectSet::TCL86) {
+        MathFuncSince::Tcl85
+    } else if base.contains(DialectSet::TCL90) {
+        MathFuncSince::Tcl90
+    } else {
+        MathFuncSince::Tcl91
+    })
+}
+
+fn eval_with_config(
+    node: &ExprNode,
+    env: &Env,
+    octal: Option<bool>,
+    math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
+) -> Option<TclValue> {
     let mut ops = FoldOps {
         env,
         ambiguous: false,
         octal,
+        math_since,
     };
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
@@ -223,6 +265,12 @@ struct FoldOps<'a> {
     /// string, `010` → 8), `Some(false)` = decimal (Tcl 9.0 — `08` → 8,
     /// `010` → 10), `None` = dialect unknown → decline (see [`Self::ambiguous`]).
     octal: Option<bool>,
+    /// The newest math-function release the active dialect provides.  A call
+    /// to a function introduced *after* this tier folds nothing — the
+    /// `::tcl::mathfunc::*` command it would dispatch to does not exist in that
+    /// core, so the runtime would error rather than produce a constant.
+    /// `None` leaves the set unbounded (dialect not resolved).
+    math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
 }
 
 /// A comparison operand's numeric classification under the active dialect.
@@ -297,10 +345,18 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         Err(()) // command substitution is opaque at compile time
     }
     fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ()> {
-        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, dispatch};
+        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, added_in, dispatch};
         let name = function.to_ascii_lowercase();
         if matches!(name.as_str(), "rand" | "srand") {
             return Err(()); // non-deterministic
+        }
+        // A function newer than the dialect provides has no `::tcl::mathfunc`
+        // command to run — folding it would invent a value the real
+        // interpreter never yields (it would error), so decline.
+        if let (Some(ceiling), Some(since)) = (self.math_since, added_in(&name))
+            && since > ceiling
+        {
+            return Err(());
         }
         // Math functions are the shared `tcl_syntax::expr::mathfunc` (the same
         // dispatch the runtime evaluates). Map `TclValue` → `Num` → result.
@@ -866,6 +922,22 @@ mod tests {
 
     fn eval_irules_env(expr: &str, env: &Env) -> Option<TclValue> {
         eval_tcl_expr(&parse_expr(expr, Some("f5-irules")), env)
+    }
+
+    #[test]
+    fn math_functions_fold_only_from_their_introducing_release() {
+        let env = Env::new();
+        let fold = |expr: &str, dialect: &str| {
+            eval_tcl_expr_in_dialect(&parse_expr(expr, Some(dialect)), &env, dialect)
+        };
+        // `min`/`max` are 8.5+: fold from 8.5, decline under 8.4.
+        assert_eq!(fold("min(3, 1, 2)", "tcl8.6"), Some(TclValue::Int(1)));
+        assert_eq!(fold("min(3, 1, 2)", "tcl8.4"), None);
+        // The `is*` classification family is 9.0+.
+        assert_eq!(fold("isinf(1.0)", "tcl9.0"), Some(TclValue::Int(0)));
+        assert_eq!(fold("isinf(1.0)", "tcl8.6"), None);
+        // An 8.4-era function folds everywhere.
+        assert_eq!(fold("abs(-5)", "tcl8.4"), Some(TclValue::Int(5)));
     }
 
     #[test]

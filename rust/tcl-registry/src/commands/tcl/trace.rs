@@ -60,28 +60,33 @@ fn resolve_trace_type(word: &str) -> Option<&'static str> {
 /// `trace add execution` and `trace add command` (which take a
 /// command name, not a variable) don't appear as SSA defs.
 fn trace_add_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args
-        .first()
-        .is_some_and(|w| resolve_trace_type(w) == Some("variable"))
-        && args.len() >= 2
-    {
-        return vec![(1, ArgRole::VarWrite)];
+    if args.len() < 2 {
+        return Vec::new();
     }
-    Vec::new()
+    match args.first().and_then(|w| resolve_trace_type(w)) {
+        // The traced variable can be rewritten by the handler, so SSA must see
+        // `name` as a definition site.
+        Some("variable") => vec![(1, ArgRole::VarWrite)],
+        // `command` / `execution` trace a command by name — a reference
+        // navigation follows to the named command (not invoked here; the
+        // handler prefix that follows is a separate `CommandPrefix`).
+        Some("command" | "execution") => vec![(1, ArgRole::CommandName)],
+        _ => Vec::new(),
+    }
 }
 
 /// Same arg-role pattern for `trace remove variable` — keeps
 /// registry consistency with `trace add variable` so consumers can
 /// query both spellings via the same `ArgRole::VarWrite` lookup.
 fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args
-        .first()
-        .is_some_and(|w| resolve_trace_type(w) == Some("variable"))
-        && args.len() >= 2
-    {
-        return vec![(1, ArgRole::VarWrite)];
+    if args.len() < 2 {
+        return Vec::new();
     }
-    Vec::new()
+    match args.first().and_then(|w| resolve_trace_type(w)) {
+        Some("variable") => vec![(1, ArgRole::VarWrite)],
+        Some("command" | "execution") => vec![(1, ArgRole::CommandName)],
+        _ => Vec::new(),
+    }
 }
 
 /// The invoked arity of a `trace add/remove <type> name ops cmdPrefix`

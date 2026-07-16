@@ -64,24 +64,35 @@ pub fn implementation(
     // offset so the response is deterministic.
     let mut spans: BTreeSet<(u32, u32)> = BTreeSet::new();
 
-    // Case 1: the word names a class
-    let target_qnames: Vec<&str> = analysis
-        .all_classes
-        .values()
-        .filter(|cd| class_matches(cd, &word))
-        .map(|cd| cd.qualified_name.as_str())
-        .collect();
-    if !target_qnames.is_empty() {
-        for cd in analysis.all_classes.values() {
-            if parents_of(cd).any(|p| qname_matches_any(p, &target_qnames)) {
-                spans.insert((cd.name_span.start(), cd.name_span.end()));
+    let cursor = byte_offset_at(&line_index, source, line, character);
+
+    // Case 1: the word names a class — resolve the single class the cursor
+    // denotes namespace-aware (declaration under the cursor, else the
+    // caller-namespace candidate order), not every same-named class across
+    // namespaces, then list its direct subclasses as the implementations.
+    //
+    // The subclass edges come from the shared class-hierarchy index rather
+    // than a local `superclasses`/`mixins` scan: those fields hold the names
+    // *as written* (a bare `superclass Shape` inside `::A` stays `"Shape"`),
+    // so a leading-`::`-only tail comparison never matches the resolved
+    // `::A::Shape` target and every namespaced subclass is missed.  The index
+    // already resolves each written super/mixin owner-aware (the same
+    // `normalise` the MRO builder uses) and unions super + mixin edges, so
+    // it is the single source of truth `type_hierarchy::subtypes` shares.
+    if let Some((target_qname, _target)) =
+        crate::definition::resolve_class_target_at(analysis, cursor, &word)
+    {
+        if let Some(subs) = analysis.class_hierarchy().subclasses.get(target_qname) {
+            for sub_qname in subs {
+                if let Some(cd) = analysis.all_classes.get(sub_qname) {
+                    spans.insert((cd.name_span.start(), cd.name_span.end()));
+                }
             }
         }
         return finish(source, &line_index, spans);
     }
 
     // Case 2/3: the word names a method
-    let cursor = byte_offset_at(&line_index, source, line, character);
     let enclosing = enclosing_class(analysis, cursor);
 
     match enclosing {
@@ -124,28 +135,12 @@ fn finish(source: &str, line_index: &LineIndex, spans: BTreeSet<(u32, u32)>) -> 
         .collect()
 }
 
-/// `word` names `cd` if it matches the bare name or either spelling
-/// of the qualified name (with / without the leading `::`).
-fn class_matches(cd: &ClassDef, word: &str) -> bool {
-    cd.name == word
-        || cd.qualified_name == word
-        || cd.qualified_name == format!("::{word}")
-        || strip_colons(&cd.qualified_name) == strip_colons(word)
-}
-
 /// Iterate a class's direct parents — superclasses then mixins.
 fn parents_of(cd: &ClassDef) -> impl Iterator<Item = &str> {
     cd.superclasses
         .iter()
         .chain(cd.mixins.iter())
         .map(String::as_str)
-}
-
-/// True when `parent` equals any of `targets`, comparing on the
-/// `::`-stripped tail so bare and qualified spellings unify.
-fn qname_matches_any(parent: &str, targets: &[&str]) -> bool {
-    let p = strip_colons(parent);
-    targets.iter().any(|t| strip_colons(t) == p)
 }
 
 fn qname_eq(a: &str, b: &str) -> bool {
@@ -292,5 +287,87 @@ mod tests {
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "hello", 1);
         assert!(implementation(src, l, c, &analysis).is_empty());
+    }
+
+    /// Two namespaces each define a class named `Shape`, each with its own
+    /// subclass.  With the cursor on `::A::Shape`, only `::A`'s subclass is an
+    /// implementation — the namespace-blind scan used to pool both namespaces'
+    /// subclasses together.
+    fn two_namespace_shapes() -> &'static str {
+        "namespace eval A {\n\
+             oo::class create Shape {}\n\
+             oo::class create Circle {\n\
+                 superclass Shape\n\
+             }\n\
+         }\n\
+         namespace eval B {\n\
+             oo::class create Shape {}\n\
+             oo::class create Square {\n\
+                 superclass Shape\n\
+             }\n\
+         }\n"
+    }
+
+    #[test]
+    fn class_in_namespace_returns_only_that_namespaces_subclass() {
+        let src = two_namespace_shapes();
+        let analysis = analyse(src);
+        // Cursor on the first `Shape` — its declaration inside `::A`.
+        let (l, c) = pos_of(src, "Shape", 1);
+        let locs = implementation(src, l, c, &analysis);
+        // Exactly `::A::Circle` (line 2), not `::B::Square` (line 8).
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 2, "{locs:?}");
+    }
+
+    #[test]
+    fn other_namespace_class_returns_its_own_subclass() {
+        let src = two_namespace_shapes();
+        let analysis = analyse(src);
+        // `Shape` occurrences: (1) `::A`'s decl, (2) `::A::Circle`'s
+        // `superclass Shape`, (3) `::B`'s decl.  Occurrence 3 is `::B::Shape`.
+        let (l, c) = pos_of(src, "Shape", 3);
+        let locs = implementation(src, l, c, &analysis);
+        // Exactly `::B::Square` (line 8), not `::A::Circle` (line 2).
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 8, "{locs:?}");
+    }
+
+    #[test]
+    fn namespaced_class_with_no_subclasses_returns_empty() {
+        // A class that no one subclasses yields no implementations — the
+        // resolver must not fall back to a same-tail class elsewhere.
+        let src = "namespace eval A {\n\
+                       oo::class create Widget {}\n\
+                   }\n\
+                   namespace eval B {\n\
+                       oo::class create Widget {}\n\
+                       oo::class create Button {\n\
+                           superclass Widget\n\
+                       }\n\
+                   }\n";
+        let analysis = analyse(src);
+        // Cursor on `::A::Widget`, which nothing subclasses.
+        let (l, c) = pos_of(src, "Widget", 1);
+        let locs = implementation(src, l, c, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn namespaced_subclass_via_mixin_is_an_implementation() {
+        // The subclass map unions superclass and mixin edges, so a mixin of a
+        // namespaced class counts as an implementation the same way a
+        // subclass does.
+        let src = "namespace eval A {\n\
+                       oo::class create Trait {}\n\
+                       oo::class create User {\n\
+                           mixin Trait\n\
+                       }\n\
+                   }\n";
+        let analysis = analyse(src);
+        let (l, c) = pos_of(src, "Trait", 1);
+        let locs = implementation(src, l, c, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 2, "{locs:?}");
     }
 }

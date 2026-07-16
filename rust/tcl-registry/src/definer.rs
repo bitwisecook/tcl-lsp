@@ -100,6 +100,11 @@ pub struct MemberSpec {
     /// recognised inner member and this is set, argument 0 is the member's
     /// [`ArgRole::Body`] script.  Ignored for non-wrapper members.
     pub wrapper_block_body: bool,
+    /// The dialects the member keyword is available in, or `None` when it is
+    /// version-independent (the common case).  `property` is 9.0+ — it does
+    /// not exist in the 8.6 `TclOO` definition grammar — so a document using it
+    /// under an older core is flagged rather than silently accepted.
+    pub dialects: Option<crate::dialects::DialectSet>,
 }
 
 impl MemberSpec {
@@ -113,6 +118,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Flat,
             wrapper_block_body: false,
+            dialects: None,
         }
     }
 
@@ -127,6 +133,7 @@ impl MemberSpec {
             all_args_ref: Some(kind),
             kind: MemberKind::Flat,
             wrapper_block_body: false,
+            dialects: None,
         }
     }
 
@@ -140,6 +147,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Flat,
             wrapper_block_body: false,
+            dialects: None,
         }
     }
 
@@ -154,6 +162,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Flat,
             wrapper_block_body: false,
+            dialects: None,
         }
     }
 
@@ -169,6 +178,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Wrapper,
             wrapper_block_body: false,
+            dialects: None,
         }
     }
 
@@ -187,7 +197,17 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Wrapper,
             wrapper_block_body: true,
+            dialects: None,
         }
+    }
+
+    /// Restrict this member to `dialects` (a builder over the constructors
+    /// above): `property` is 9.0+, so it carries `TCL90_PLUS` while every other
+    /// `TclOO` member stays version-independent.
+    #[must_use]
+    const fn with_dialects(mut self, dialects: crate::dialects::DialectSet) -> Self {
+        self.dialects = Some(dialects);
+        self
     }
 
     /// A [`MemberKind::FlagKeyed`] member (`property`).
@@ -200,6 +220,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::FlagKeyed,
             wrapper_block_body: false,
+            dialects: None,
         }
     }
 
@@ -318,7 +339,9 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     // flag-keyed body form (`property … -get/-set …`); their body indices come
     // from the walker's `MemberKind`-driven handling, not a hardcoded name.
     MemberSpec::wrapper_or_body("self"),
-    MemberSpec::flag_keyed("property"),
+    // `property` (and its configurable-class accessor machinery) is a 9.0
+    // addition; the 8.6 `TclOO` definition grammar has no such member.
+    MemberSpec::flag_keyed("property").with_dialects(crate::dialects::DialectSet::TCL90_PLUS),
 ];
 
 /// The definition-body grammar for every `TclOO` metaclass and the bare

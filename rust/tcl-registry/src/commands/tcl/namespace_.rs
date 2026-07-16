@@ -86,9 +86,36 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
 ];
 
 /// `namespace which ?-command? ?-variable? name` — the two leading flags select
-/// what to resolve `name` as. They are bare (value-less) flags; declaring them
-/// lets the arity check skip them so `exact(1)` counts only the trailing `name`
-/// (catching `namespace which foo bar`), and lights up their completion/hover.
+/// what to resolve `name` as. They are bare (value-less) flags declared in
+/// `WHICH_OPTIONS`, so the arity check skips them and `exact(1)` counts only the
+/// trailing `name` (catching `namespace which foo bar`).
+///
+/// `namespace which` is an existence **probe**: it returns `""` for an unknown
+/// name rather than failing.  Under `-variable` the positional `name` is a
+/// `VarRead` reference — navigation only, and variables draw no
+/// unknown-variable diagnostic, so a probe of an absent variable is harmless.
+///
+/// The default / `-command` form is deliberately **not** marked as a
+/// `CommandName` reference: that role feeds the name into the W123
+/// unresolved-command pass, which would flag a perfectly valid existence check
+/// (`if {[namespace which -command foo] eq ""} …`) of a command the analyser
+/// cannot see.  Navigating a probed *command* needs a reference role that
+/// records the link without asserting existence, which the model does not have
+/// yet — so the `-command` form contributes no role.  `args` are the words
+/// after the `which` subcommand.
+fn namespace_which_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let is_variable = args
+        .iter()
+        .any(|a| a.len() > 1 && "-variable".starts_with(*a));
+    if !is_variable {
+        return Vec::new();
+    }
+    let Some(idx) = args.iter().rposition(|a| !a.starts_with('-')) else {
+        return Vec::new();
+    };
+    u8::try_from(idx).map_or_else(|_| Vec::new(), |i| vec![(i, ArgRole::VarRead)])
+}
+
 static WHICH_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-command",
@@ -125,6 +152,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace code script",
         pure: true,
         return_type: Some(TclType::String),
+        // The captured script runs in the *current* namespace when the
+        // callback fires, so analyse it in this scope — a `Body` — for its
+        // references / definitions.
+        arg_roles: &[(0, ArgRole::Body)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -235,7 +266,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace inscope namespace script ?arg ...?",
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
         return_type: Some(TclType::String),
-        // Like `eval`, the script runs in the namespace frame.
+        // Like `eval`, the script runs in the namespace frame — the `[subcmd,
+        // namespace, body]` shape is identical, so the same analyser hook
+        // opens the namespace scope and walks the body there (rather than the
+        // caller's scope, where a bare command would resolve wrongly).
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         body_kind: BodyKind::Structural,
         traits: Traits::EVALUATES_CODE,
         ..SubCommand::DEFAULT
@@ -247,6 +282,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace origin command",
         pure: true,
         return_type: Some(TclType::String),
+        // The single argument is a command name resolved (not called), so it
+        // is a command reference navigation follows.
+        arg_roles: &[(0, ArgRole::CommandName)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -292,7 +330,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Sets or returns the unknown command handler for the current namespace.",
         synopsis: "namespace unknown ?script?",
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        // Added in 8.5 (`NamespaceUnknownCmd`, tclNamesp.c), like the sibling
+        // `namespace path`; 8.4's `namespace` ensemble has no `unknown`
+        // subcommand.  Gate it the same as `path` so an 8.4 document flags it.
+        dialects: Some(DialectSet::TCL85_PLUS),
         // The optional handler (index 0 after `unknown` → arg 1) is a command
         // prefix invoked with the unknown command name + its args appended
         // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
@@ -320,6 +361,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Looks up name as either a command or variable.",
         synopsis: "namespace which ?-command? ?-variable? name",
         options: WHICH_OPTIONS,
+        arg_role_resolver: Some(namespace_which_arg_roles),
         pure: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT

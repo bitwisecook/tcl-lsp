@@ -633,12 +633,21 @@ fn rename_var(
         range: span_to_range(source, line_index, var_def.definition_span),
         new_text: def_new_text,
     });
-    for r in &var_def.references {
+    // Rewrite every alias Tcl treats as one cell together — namespace/global
+    // aliases (`global`/`variable`/`namespace upvar`) and a class instance
+    // variable's per-method copies — so a rename never leaves a sibling use or
+    // an aliasing declaration pointing at the old name.
+    let ref_spans = crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def);
+    let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
+    for r in ref_spans {
+        if !seen.insert((r.start(), r.end())) {
+            continue;
+        }
         // Brace-ref escaping — see
         // [`build_var_ref_replacement`].
-        let replacement = build_var_ref_replacement(source, *r, new_name);
+        let replacement = build_var_ref_replacement(source, r, new_name);
         edits.push(TextEdit {
-            range: span_to_range(source, line_index, *r),
+            range: span_to_range(source, line_index, r),
             new_text: replacement,
         });
     }
@@ -660,20 +669,14 @@ fn rename_proc(
     registry: Option<&CommandRegistry>,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
-    // Prefer the proc whose declaration name span covers the cursor, so renaming
-    // `::b::helper` from its own decl resolves to *that* proc and not a
-    // same-named proc in another namespace (matches `references::references`).
-    // Fall back to the first proc matching the word for call-site / unqualified
-    // cursors that don't sit on a declaration.
-    let (qname, proc_def) = analysis
-        .all_procs
-        .iter()
-        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
-        .or_else(|| {
-            analysis.all_procs.iter().find(|(qname, p)| {
-                p.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
-            })
-        })?;
+    // Resolve the target the same way go-to-definition does: the proc whose
+    // declaration covers the cursor, else C Tcl's namespace-aware call-site
+    // resolution — never a namespace-blind `p.name == word` scan, which let a
+    // rename from a bareword call site pick an arbitrary same-named proc in
+    // another namespace and rewrite the wrong definition (matches
+    // `references::references`).
+    let (qname, proc_def) =
+        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, registry)?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
@@ -741,15 +744,11 @@ fn rename_class(
     registry: Option<&CommandRegistry>,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
-    let (qname, class_def) = analysis
-        .all_classes
-        .iter()
-        .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
-        .or_else(|| {
-            analysis.all_classes.iter().find(|(qname, c)| {
-                c.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
-            })
-        })?;
+    // Declaration under the cursor, else namespace-aware resolution — never a
+    // namespace-blind `c.name == word` scan (which from a call site could
+    // rename the wrong same-named class in another namespace).
+    let (qname, class_def) =
+        crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
@@ -1051,7 +1050,6 @@ pub struct WorkspaceTextEdit {
 /// against the target document's source.
 #[must_use]
 pub fn cross_document_symbol_edits(
-    simple_name: &str,
     qualified_name: &str,
     new_name: &str,
     index: &crate::workspace_index::WorkspaceIndex,
@@ -1061,13 +1059,28 @@ pub fn cross_document_symbol_edits(
     let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
     let mut edits = Vec::new();
     // Call sites.
-    for inv in index.invocations_of(simple_name, qualified_name, current_uri) {
+    for inv in index.invocations_of(qualified_name, current_uri) {
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
         edits.push(WorkspaceTextEdit {
             uri: inv.uri.clone(),
             span: inv.range,
             new_text: replacement,
+        });
+    }
+    // Name-link declarations that reference the command by qualified name —
+    // the `rename OLD NEW` `OLD` word, the `namespace import` pattern.  Each
+    // names the renamed command and must follow it to stay bound; the new
+    // fully-qualified name is always a valid replacement for a qualified
+    // reference.  (The `interp alias` `TARGET` word is already a call site
+    // rewritten above, so it is not among these spans.)  The local imported /
+    // aliased *usages* are deliberately left alone — they name the local
+    // command, which keeps its own name.
+    for (link_uri, span) in index.link_target_spans(qualified_name, current_uri) {
+        edits.push(WorkspaceTextEdit {
+            uri: link_uri,
+            span,
+            new_text: new_qualified.clone(),
         });
     }
     // Definition sites (proc + class) in other documents — matched by
@@ -1217,6 +1230,39 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(rename(src, "tcl", 0, 6, "x", &analysis, None).is_empty());
+    }
+
+    #[test]
+    fn cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word() {
+        use crate::workspace_index::WorkspaceIndex;
+        // `::mymod::helper` is imported by `::app` and renamed-away in a third
+        // file; renaming the source must rewrite the `namespace import` pattern
+        // and the `rename` OLD word so both stay bound to the new name — but
+        // never the local imported/renamed *usages*.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse("namespace eval ::app {\n    namespace import ::mymod::helper\n}\n");
+        let ren = analyse("rename ::mymod::helper legacy\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+            ("file:///ren.tcl", &ren),
+        ]);
+        let edits =
+            cross_document_symbol_edits("::mymod::helper", "helper2", &index, "file:///mymod.tcl");
+        // The import pattern (app.tcl) and the rename OLD word (ren.tcl) both
+        // become the new fully-qualified name.
+        assert_eq!(edits.len(), 2, "{edits:?}");
+        let app_edit = edits
+            .iter()
+            .find(|e| e.uri == "file:///app.tcl")
+            .expect("import pattern edit");
+        assert_eq!(app_edit.new_text, "::mymod::helper2");
+        let ren_edit = edits
+            .iter()
+            .find(|e| e.uri == "file:///ren.tcl")
+            .expect("rename OLD edit");
+        assert_eq!(ren_edit.new_text, "::mymod::helper2");
     }
 
     #[test]
@@ -1624,6 +1670,26 @@ mod tests {
         for e in &edits {
             assert_eq!(e.new_text, "salute");
         }
+    }
+
+    #[test]
+    fn rename_method_does_not_rewrite_next_dispatch() {
+        // `next` is a keyword, not the method name.  Find-references counts the
+        // super-dispatch as a reference, but a rename must never rewrite it —
+        // the reference paths add `next` sites, the rename path must not.
+        let src = "oo::class create Base {\n    method greet {} {}\n}\noo::class create Sub {\n    superclass Base\n    method greet {} { next }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `Sub::greet`'s declaration (line 5, col 11).
+        let edits = rename(src, "tcl", 5, 11, "salute", &analysis, None);
+        assert!(!edits.is_empty(), "{edits:?}");
+        // The declaration (line 5, col 11) is rewritten; nothing in the `{ next
+        // }` body region (col >= 20 on line 5) is.
+        assert!(
+            edits
+                .iter()
+                .all(|e| !(e.range.start_line == 5 && e.range.start_character >= 20)),
+            "a rename edit landed on the `next` keyword: {edits:?}",
+        );
     }
 
     #[test]

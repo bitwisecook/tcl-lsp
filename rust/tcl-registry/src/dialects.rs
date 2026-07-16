@@ -25,8 +25,13 @@ bitflags! {
     ///
     /// `None` on a `CommandSpec` means "available in all dialects".
     /// A specific `DialectSet` restricts availability.
+    ///
+    /// Backed by `u64`: 15 bits are used today (5 Tcl versions + iRules, iApps,
+    /// Tk, Expect, 5 EDA vendors, BPF), leaving ample headroom for future
+    /// dialect bits (e.g. `f5-tmsh`) and the versioned-library work without
+    /// another width migration.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct DialectSet: u16 {
+    pub struct DialectSet: u64 {
         /// Tcl 8.4
         const TCL84     = 1 << 0;
         /// Tcl 8.5

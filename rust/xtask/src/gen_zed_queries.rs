@@ -108,9 +108,18 @@ fn targets() -> Vec<Target> {
             dialects: DialectSet::ALL_TCL,
         },
         Target {
-            // iRules run a Tcl core plus the F5 command surface.
+            // iRules are Tcl 8.4 with a long list of disabled commands plus the
+            // F5 command surface — NOT the full Tcl-version union.  Scope to the
+            // `IRULES` dialect alone: a command is projected iff
+            // `supports_dialect(IRULES)` — i.e. it is dialect-agnostic (`None`,
+            // e.g. `set`/`if`/`const`, which is deliberately kept valid in
+            // iRules) or carries the `IRULES` bit (the F5 surface).  Commands
+            // disabled in iRules gate to `NON_IRULES_OPERATORS` (no `IRULES`
+            // bit) and post-8.4 commands gate to `TCL85_PLUS` / `TCL86_PLUS` /
+            // `TCL90_PLUS` (e.g. `dict`, `lassign`, `zipfs`), so both are
+            // correctly excluded — iRules is the Tcl 8.4 base, not 8.5+.
             dir: "irules",
-            dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
+            dialects: DialectSet::IRULES,
         },
         Target {
             dir: "iapps",

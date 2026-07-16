@@ -193,6 +193,7 @@ mod tests {
             references: Vec::new(),
             warn_if_unused: true,
             array_indices: std::collections::BTreeSet::new(),
+            link_target: None,
         }
     }
 

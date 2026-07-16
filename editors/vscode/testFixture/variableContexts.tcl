@@ -62,11 +62,12 @@ namespace eval ::ctxtests {
     }
 
     proc test_uplevel_one {} {
-        # ``uplevel 1`` body can't be analysed against the dynamic caller;
-        # best-effort behaviour lets the body see the calling proc's
-        # locals.  The probe checks that completion still works.
+        # ``uplevel 1`` runs its body in the dynamic caller's frame, so this
+        # proc's ``up1_local`` is NOT in scope there — completion abstains on
+        # the enclosing proc's locals while still offering the body's own.
         set up1_local 1
         uplevel 1 {
+            set body_var 5
             # PROBE_UPLEVEL_ONE
         }
     }

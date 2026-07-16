@@ -210,6 +210,16 @@ pub struct SignatureCommandInvocation {
     /// (which skip the scope walk); `Some("::ns::name")` from
     /// the full analyser.
     pub resolved_qualified_name: Option<String>,
+    /// The full ordered command-resolution candidate list for this call —
+    /// every qualified name it could name, in Tcl priority order (caller
+    /// namespace, then each `namespace path` entry, then global), as produced
+    /// by `command_resolution_candidates`.  Populated by
+    /// `finalise_invocation_resolutions` once the namespace/path context is
+    /// known; empty from background scans.  A cross-document consumer runs
+    /// these through a *workspace-wide* existence check to settle a call the
+    /// single file could not (the local-first `resolved_qualified_name` is only
+    /// a within-file guess).
+    pub resolution_candidates: Vec<String>,
     /// Number of **argument** words at the call site (the words after the command
     /// head).  Used by cross-file arity checking: a call
     /// to a workspace-defined proc whose `argc` fits none of that proc's

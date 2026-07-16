@@ -392,6 +392,59 @@ impl ExprNode {
         out
     }
 
+    /// Every math-function application in this expression, innermost included,
+    /// as `(name, name_start_offset, arg_count)`.  A `sin($x)` dispatches to
+    /// the command `::tcl::mathfunc::sin`, so a consumer maps the offset back
+    /// to source to reach that command (definition, references, arity) and to
+    /// gate the function against the dialect's available set.  The offset is
+    /// the function-name token's start within the expression text this node
+    /// was parsed from; the name is returned verbatim because mathfunc lookup
+    /// is case-sensitive.
+    #[must_use]
+    pub fn function_calls(&self) -> Vec<(&str, ExprOffset, usize)> {
+        let mut out = Vec::new();
+        self.collect_function_calls(&mut out);
+        out
+    }
+
+    fn collect_function_calls<'a>(&'a self, out: &mut Vec<(&'a str, ExprOffset, usize)>) {
+        match self {
+            Self::Call {
+                function,
+                args,
+                start,
+                ..
+            } => {
+                out.push((function.as_str(), *start, args.len()));
+                for arg in args {
+                    arg.collect_function_calls(out);
+                }
+            }
+            Self::Binary { left, right, .. } => {
+                left.collect_function_calls(out);
+                right.collect_function_calls(out);
+            }
+            Self::Unary { operand, .. } => operand.collect_function_calls(out),
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                condition.collect_function_calls(out);
+                true_branch.collect_function_calls(out);
+                false_branch.collect_function_calls(out);
+            }
+            // A `[cmd …]` substitution is an opaque boundary (its own commands
+            // are walked at the script level); literals, strings, variables,
+            // and unparsed fallback text hold no function calls.
+            Self::Command { .. }
+            | Self::Literal { .. }
+            | Self::String { .. }
+            | Self::Var { .. }
+            | Self::Raw { .. } => {}
+        }
+    }
+
     fn collect_command_texts(&self, out: &mut Vec<String>) {
         match self {
             Self::Command { text, .. } => {

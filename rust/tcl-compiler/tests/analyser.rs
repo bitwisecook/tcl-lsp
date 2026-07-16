@@ -437,6 +437,35 @@ mod diagnostics {
     }
 
     #[test]
+    fn zipfs_is_a_9_0_ensemble_gated_out_of_earlier_dialects() {
+        // `zipfs` ships in Tcl 9.0 (TIP 430); the 8.x profiles have no such
+        // command.  Under 9.0 a real subcommand resolves cleanly, and a bogus
+        // one is W001 (unknown subcommand) — proving the subcommand set is
+        // modelled.  Under 8.6 the whole command is dialect-gated, so it is
+        // W002 ("disabled in the active dialect profile"), which points the
+        // user at the version rather than a bare "unknown command".
+        assert!(!fires("zipfs mount archive.zip /mnt", "tcl9.0", "W123"));
+        assert!(!fires("zipfs mount archive.zip /mnt", "tcl9.0", "W001"));
+        assert!(!fires("zipfs mount archive.zip /mnt", "tcl9.0", "W002"));
+        assert!(fires("zipfs bogus x", "tcl9.0", "W001"));
+        assert!(fires("zipfs mount archive.zip /mnt", "tcl8.6", "W002"));
+    }
+
+    #[test]
+    fn namespace_which_command_probe_does_not_flag_unknown() {
+        // `namespace which -command foo` is an existence PROBE — it returns ""
+        // for an unknown command rather than failing, so probing a name no
+        // command defines must NOT draw W123.  (Navigation to a command that
+        // *does* exist still works; that's a separate reference.)
+        let src = "namespace which -command no_such_command_xyz\n";
+        assert!(
+            !fires(src, D, "W123"),
+            "namespace which probe must not W123: {:?}",
+            analyser_diags(src, D),
+        );
+    }
+
+    #[test]
     fn proc_shadowing_ensemble_command_suppresses_w001() {
         // tclsh8.6: `proc string {op args} {...}` completely replaces the
         // builtin `string` ensemble at the call site — `string reverse x`
@@ -1764,6 +1793,36 @@ mod tcloo_classes {
     fn class_superclass() {
         let src = "oo::class create Animal {\n    method speak {} { error \"abstract\" }\n}\noo::class create Dog {\n    superclass Animal\n    method bark {} { return \"woof\" }\n}\n";
         assert_eq!(class(src, "::Dog").superclasses, ["Animal"]);
+    }
+
+    /// Integration (full analyse → resolved hierarchy): a bare
+    /// `superclass Base` in a deeply-nested `::a::b::Sub`, where `Base` exists
+    /// only in an *ancestor* namespace (`::a::Base`) and the tail is ambiguous
+    /// (a second `::x::Base`), must NOT resolve — real Tcl errors there.  The
+    /// former ancestor walk manufactured a `Sub ⊂ ::a::Base` edge.
+    #[test]
+    fn class_superclass_no_ancestor_namespace_walk() {
+        let src = "namespace eval ::a {\n    oo::class create Base {}\n}\nnamespace eval ::x {\n    oo::class create Base {}\n}\nnamespace eval ::a::b {\n    oo::class create Sub {\n        superclass Base\n    }\n}\n";
+        let analysis = Analyser::new().analyse(src, D).clone();
+        let h = analysis.class_hierarchy();
+        assert!(
+            !h.is_subtype("::a::b::Sub", "::a::Base"),
+            "must not manufacture an ancestor-namespace inheritance edge"
+        );
+    }
+
+    /// TP: a base in the class's own namespace resolves, so
+    /// the inheritance edge is real.
+    #[test]
+    fn class_superclass_same_namespace_resolves() {
+        let src = "namespace eval ::a {\n    oo::class create Base {}\n    oo::class create Sub {\n        superclass Base\n    }\n}\n";
+        let analysis = Analyser::new().analyse(src, D).clone();
+        assert!(
+            analysis
+                .class_hierarchy()
+                .is_subtype("::a::Sub", "::a::Base"),
+            "a same-namespace superclass must resolve"
+        );
     }
 
     #[test]

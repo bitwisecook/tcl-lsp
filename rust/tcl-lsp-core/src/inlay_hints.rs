@@ -155,7 +155,12 @@ pub fn inlay_hints(
                 continue;
             }
             let cmd_name = &seg.texts[0];
-            if let Some(proc_def) = lookup_proc(analysis, cmd_name) {
+            // Resolve the call from the namespace its command token sits in, the
+            // way C Tcl would (caller namespace, then global): a proc buried in
+            // an unrelated namespace never captures the argument hints, and a
+            // same-named builtin keeps its own hints unless a proc is visible.
+            let cmd_off = seg.argv[0].span.start();
+            if let Some(proc_def) = lookup_proc(analysis, source, cmd_off, cmd_name, registry) {
                 emit_hints_for_call(source, seg, proc_def, &line_index, range, &mut out);
                 continue;
             }
@@ -908,13 +913,21 @@ fn synopsis_groups(synopsis: &str) -> Vec<String> {
     groups
 }
 
-fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcDef> {
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == name || qname == name || qname == &format!("::{name}") {
-            return Some(proc_def);
-        }
-    }
-    None
+/// Resolve the proc a call `name` at byte offset `cmd_off` denotes, using C
+/// Tcl's namespace-aware command resolution (the caller's namespace first, then
+/// global; `registry`, when `Some`, gates a same-named builtin so a proc in an
+/// unrelated namespace can't shadow it).  Replaces a namespace-blind
+/// simple-name scan that emitted the wrong proc's parameter hints whenever two
+/// namespaces shared a proc name.
+fn lookup_proc<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    cmd_off: u32,
+    name: &str,
+    registry: Option<&CommandRegistry>,
+) -> Option<&'a ProcDef> {
+    let ns = crate::definition::namespace_context_at(&analysis.global_scope, cmd_off);
+    crate::definition::resolve_called_proc(analysis, source, &ns, name, registry)
 }
 
 /// Walk a single segmented command, emit a hint per argument
@@ -1087,6 +1100,52 @@ mod tests {
         // Only the `first` arg gets a hint.
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "first:");
+    }
+
+    #[test]
+    fn qualified_call_hints_from_namespaced_proc() {
+        // A qualified `A::greet` call at global scope resolves to the proc in
+        // `::A`, so its parameter name (`alpha`) drives the hint — the
+        // qualified name is honoured, not tail-matched to a same-named proc.
+        let src = "namespace eval A {\n    proc greet {alpha} {}\n}\nA::greet x\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&registry),
+            false,
+            true,
+        );
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert!(labels.contains(&"alpha:"), "{labels:?}");
+    }
+
+    #[test]
+    fn namespaced_proc_does_not_hijack_builtin_hints_from_global() {
+        // A `proc incr` buried in `::foo` must not supply argument hints for an
+        // `incr` call in the global namespace — C Tcl resolves the builtin
+        // there, so the builtin's `varName` hint surfaces, never the proc's
+        // `custom` parameter.
+        let src = "namespace eval foo {\n    proc incr {custom} {}\n}\nincr y\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&registry),
+            false,
+            true,
+        );
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"custom:"),
+            "proc hijacked builtin: {labels:?}"
+        );
     }
 
     #[test]

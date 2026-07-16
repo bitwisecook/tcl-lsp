@@ -23,6 +23,10 @@
 //! `starts(&result)` gives the `(line, character)` start set and
 //! `start_lines(&result)` the set of start lines.
 
+// Test column math indexes tiny in-memory sources; a `find`/`len` result
+// always fits u32, so the pedantic truncation the lint warns of can't occur.
+#![allow(clippy::cast_possible_truncation)]
+
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -254,4 +258,42 @@ fn superclass_and_mixin_references() {
     assert!(s.contains(&(0, 17)), "definition: {s:?}");
     assert!(s.contains(&(4, 15)), "superclass: {s:?}");
     assert!(s.contains(&(8, 10)), "mixin: {s:?}");
+}
+
+/// End-to-end (real server): a `TclOO` instance variable's uses unify across
+/// every method body — Find-References on `$n` in one method reaches its
+/// declaration and the sibling method's use.
+#[test]
+fn references_object_variable_unify_across_methods() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 1: variable n; line 2: `$n` in get; line 3: `incr n` in bump
+    let src = "oo::class create C {\n    variable n\n    method get {} { return $n }\n    method bump {} { incr n }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
+    let lines = start_lines(&lsp.references(&uri, 2, col, true));
+    assert!(lines.contains(&1), "declaration (line 1): {lines:?}");
+    assert!(lines.contains(&2), "`$n` in get (line 2): {lines:?}");
+    assert!(
+        lines.contains(&3),
+        "`incr n` in bump (line 3) must unify: {lines:?}"
+    );
+}
+
+/// End-to-end (real server): a namespace variable's `variable` aliases across
+/// procs and its namespace-level declaration unify into one reference set.
+#[test]
+fn references_namespace_variable_unify_across_procs() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ::app {\n    variable count 0\n    proc bump {} { variable count; incr count }\n    proc get {} { variable count; return $count }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
+    let lines = start_lines(&lsp.references(&uri, 3, col, true));
+    assert!(
+        lines.contains(&1),
+        "namespace-level decl (line 1): {lines:?}"
+    );
+    assert!(lines.contains(&2), "bump alias+use (line 2): {lines:?}");
+    assert!(lines.contains(&3), "get alias+use (line 3): {lines:?}");
 }

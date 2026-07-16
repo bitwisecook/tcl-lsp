@@ -1949,6 +1949,80 @@ fn autoload_library_command_not_unknown_issue_832() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
+/// Per-call counter for the autoload go-to-definition fixture dir.
+static AUTOLOAD_DEF_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[test]
+fn autoload_library_command_go_to_definition_m8() {
+    use std::sync::atomic::Ordering;
+
+    // Same fixture as #832: a library dir whose `tclIndex` auto-loads a global
+    // proc `Rbc_ActiveLegend`, defined on line 0 of `graph.tcl`.  The command
+    // is defined nowhere in the open workspace, so go-to-definition must fall
+    // through to the autoload tier (M8) and jump into the library file.
+    let libdir = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-autoload-def-{}-{}",
+        std::process::id(),
+        AUTOLOAD_DEF_N.fetch_add(1, Ordering::Relaxed)
+    ));
+    let pkgdir = libdir.join("rbc");
+    std::fs::create_dir_all(&pkgdir).expect("mk lib dir");
+    std::fs::write(
+        pkgdir.join("graph.tcl"),
+        "proc Rbc_ActiveLegend {graph} {}\nproc Rbc_ZoomStack {graph args} {}\n",
+    )
+    .expect("write graph.tcl");
+    std::fs::write(
+        pkgdir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]]\n\
+         set auto_index(Rbc_ZoomStack) [list source [file join $dir graph.tcl]]\n",
+    )
+    .expect("write tclIndex");
+
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "libraryPaths": [ libdir.to_string_lossy() ],
+    }));
+
+    let uri = unique_uri("tcl");
+    let src = "Rbc_ActiveLegend .g\n";
+    lsp.open_document(&uri, src);
+
+    // The package database loads asynchronously at startup; poll (via the W123
+    // clearing on the pull path) until it is live, then go-to-definition.
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let mut diags = lsp.pull_diagnostics(&uri);
+    while has_code(&diags, "W123") && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        diags = lsp.pull_diagnostics(&uri);
+    }
+
+    // Cursor on the `Rbc_ActiveLegend` call head (line 0, col 2).
+    let locs = crate::common::helpers::locations(&lsp.definition(&uri, 0, 2));
+    assert!(
+        !locs.is_empty(),
+        "autoload go-to-definition must resolve the library proc (M8); diags {:?}",
+        codes(&diags),
+    );
+    assert!(
+        locs[0].uri.ends_with("graph.tcl"),
+        "must jump into the library file graph.tcl, got {}",
+        locs[0].uri,
+    );
+    let line = locs[0]
+        .range
+        .get("start")
+        .and_then(|s| s.get("line"))
+        .and_then(Value::as_i64);
+    assert_eq!(
+        line,
+        Some(0),
+        "Rbc_ActiveLegend is declared on line 0 of graph.tcl",
+    );
+
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
 // -- #844 progressive (two-tier) diagnostics -----------------------------
 
 /// Build a large Tcl document (~`n` procs, ~10×`n` lines) whose deep

@@ -109,7 +109,7 @@ pub fn code_lenses(
         let mut count = crate::references::proc_reference_spans(analysis, qname, proc_def).len();
         if let Some(index) = workspace {
             count += index
-                .invocations_of(&proc_def.name, &proc_def.qualified_name, current_uri)
+                .invocations_of(&proc_def.qualified_name, current_uri)
                 .len();
         }
         let title = reference_count_title(count);
@@ -142,7 +142,7 @@ pub fn code_lenses(
         let mut count = count_class_references(qname, class_def, analysis);
         if let Some(index) = workspace {
             count += index
-                .invocations_of(&class_def.name, &class_def.qualified_name, current_uri)
+                .invocations_of(&class_def.qualified_name, current_uri)
                 .len();
         }
         let title = reference_count_title(count);

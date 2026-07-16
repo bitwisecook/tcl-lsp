@@ -137,11 +137,17 @@ fn find_proc_for_item<'a>(
     {
         return Some(hit);
     }
-    analysis.all_procs.iter().find(|&(qn, p)| {
-        p.name.as_str() == item.name
-            || qn.as_str() == item.name
-            || qn.trim_start_matches("::") == item.name
-    })
+    // No declaration's name span lines up (a synthetic / hand-built item):
+    // resolve namespace-aware from the item's own location rather than a
+    // namespace-blind `name == item.name` scan, which could bind the item to a
+    // same-named proc in an unrelated namespace.
+    let cursor_off = crate::definition::byte_offset_at(
+        line_index,
+        source,
+        item.selection_range.start_line,
+        item.selection_range.start_character,
+    );
+    crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &item.name, None)
 }
 
 /// Build a [`CallHierarchyItem`] for a class method.

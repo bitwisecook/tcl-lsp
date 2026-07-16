@@ -131,6 +131,53 @@ fn is_var_declaration(member: &MemberSpec) -> bool {
     has_var && !has_body
 }
 
+/// Map each declared instance-variable name in `known` to the span of its
+/// declaration name-token, scanning the class-body `cmds`.  Used to anchor a
+/// seeded object variable's `definition_span` at its `variable v` declaration
+/// instead of the whole method body — a whole-body span would let a
+/// variable rename overwrite the entire method.  Only names already present in
+/// `known` (the authoritative `ClassDef::variables` list) are recorded, so a
+/// non-name argument of a declaration member can never be mistaken for a
+/// variable; the first declaration of a name wins.
+fn collect_var_decl_spans(
+    grammar: &DefinitionBodyGrammar,
+    cmds: &[crate::segmenter::SegmentedCommand],
+    known: &[String],
+) -> std::collections::HashMap<String, Span> {
+    let mut out: std::collections::HashMap<String, Span> = std::collections::HashMap::new();
+    if known.is_empty() {
+        return out;
+    }
+    let known_set: std::collections::HashSet<&str> = known.iter().map(String::as_str).collect();
+    for cmd in cmds {
+        if cmd.is_partial {
+            continue;
+        }
+        let Some((sub, _)) = cmd.texts.split_first() else {
+            continue;
+        };
+        // A command is a variable declaration when the grammar marks it one
+        // (snit `typevariable`/`component`, …) OR it is TclOO's `variable` /
+        // `typevariable`, which `apply_oo_subcommand` handles with a hardcoded
+        // arm rather than through the grammar.  Gating additionally on
+        // `known_set` below means a stray non-declaration match cannot leak.
+        let is_decl = matches!(sub.as_str(), "variable" | "typevariable")
+            || grammar.member(sub).is_some_and(is_var_declaration);
+        if !is_decl {
+            continue;
+        }
+        // argv[0] / texts[0] is the member keyword; the remaining words are the
+        // declared names (`variable a b c`).
+        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()).skip(1) {
+            let base = crate::naming::normalise_var_name(text);
+            if known_set.contains(base) {
+                out.entry(base.to_string()).or_insert(tok.span);
+            }
+        }
+    }
+    out
+}
+
 /// Strip a leading itcl access modifier (`public` / `protected` / `private`, a
 /// registry [`MemberKind::Wrapper`]) from a member call, returning the effective
 /// member keyword, its argument texts + tokens (the words *after* the keyword),
@@ -180,14 +227,46 @@ impl Analyser {
     /// recovery — recovery is top-level only).  Dynamic bodies
     /// (non-`Str` tokens) skip the walk because they can't be
     /// statically re-segmented.
+    /// Whether the command `cmd_name` is *unavailable* in the active dialect —
+    /// its registry spec is dialect-gated and the document's dialect falls
+    /// outside the gate.  Used to suppress member-level dialect diagnostics
+    /// when the enclosing definer (`oo::configurable`, itself 9.0+) is already
+    /// flagged: one diagnostic for the version-only construct, not a cascade.
+    pub(super) fn command_dialect_disabled(&self, cmd_name: &str) -> bool {
+        let Some(doc) = tcl_registry::prelude::DialectSet::parse(&self.dialect) else {
+            return false;
+        };
+        self.registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .is_some_and(|spec| !spec.supports_dialect(doc))
+    }
+
+    /// Whether the definition-body member `subcmd` is available in the active
+    /// dialect.  A member with no dialect restriction (the common case) and an
+    /// unknown member (handled elsewhere, not gated here) both count as
+    /// available; a version-gated member — `property`, 9.0+ — is available
+    /// only when the document's dialect intersects its set.  An unrecognised
+    /// dialect never restricts.
+    fn oo_member_available(&self, grammar: &DefinitionBodyGrammar, subcmd: &str) -> bool {
+        let Some(member) = grammar.member(subcmd) else {
+            return true;
+        };
+        match member.dialects {
+            None => true,
+            Some(allowed) => tcl_registry::prelude::DialectSet::parse(&self.dialect)
+                .is_none_or(|doc| allowed.intersects(doc)),
+        }
+    }
+
     pub(super) fn parse_oo_definition_body(
         &mut self,
         body_text: &str,
         body_tok: Token,
         class_def: &mut ClassDef,
-        class_qualified: &str,
         scope_path: &[usize],
         grammar: Option<&'static DefinitionBodyGrammar>,
+        definer_disabled: bool,
     ) {
         if body_tok.kind != TokenType::Str {
             return;
@@ -198,6 +277,9 @@ impl Analyser {
         let Some(grammar) = grammar else {
             return;
         };
+        // The methods walked below home under the class's qualified name;
+        // capture it before the phase-1 walk mutates `class_def`.
+        let class_qualified = class_def.qualified_name.clone();
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
@@ -220,7 +302,47 @@ impl Analyser {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
             }
+            // A member keyword gated to a newer core — `property` is 9.0+ —
+            // does not exist in this dialect's definition grammar.  Flag it
+            // (the same disabled-in-dialect diagnostic a command draws) and
+            // skip recording a member the runtime lacks.  When the enclosing
+            // definer is itself disabled, its own diagnostic already covers
+            // the construct, so the gate is bypassed entirely and the body is
+            // resolved structurally — a member word never cascades into an
+            // unknown-command warning.
+            if !definer_disabled
+                && let Some(subcmd) = cmd.texts.first()
+                && !self.oo_member_available(grammar, subcmd)
+            {
+                if let Some(tok) = cmd.argv.first() {
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: tcl_core_types::DiagCode::W002,
+                        span: tok.span,
+                        message: format!(
+                            "'{subcmd}' is disabled in the active dialect profile ('{}')",
+                            self.dialect
+                        ),
+                        severity: super::types::Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
+                continue;
+            }
             apply_oo_subcommand(grammar, &cmd.texts, &cmd.argv, class_def);
+            // A `forward NAME TARGET ?arg…?` member names the command `TARGET`
+            // it delegates to (`TclOO`'s `interp alias`).  Record `TARGET` as a
+            // command invocation so references / go-to-definition / rename see
+            // it the same as a direct call — it resolves in the class's
+            // namespace context, exactly as the forward dispatches at run time.
+            if cmd.texts.first().map(String::as_str) == Some("forward")
+                && let (Some(target), Some(tok)) = (cmd.texts.get(2), cmd.argv.get(2))
+                && !crate::naming::is_dynamic_word(target)
+            {
+                // A forwarded command is invoked with a variable number of args
+                // appended, so it carries no fixed call arity.
+                let resolved = self.resolve_command_qualified_name(target, scope_path);
+                self.push_command_reference(target.clone(), tok.span, resolved, None);
+            }
             if let Some(mb) = collect_method_body(grammar, &cmd.texts, &cmd.argv) {
                 method_bodies.push(mb);
             }
@@ -251,12 +373,24 @@ impl Analyser {
         // with the formal parameters and the class's instance variables
         // pre-bound; the `initialise` body walks in the enclosing scope.
         let class_variables = class_def.variables.clone();
+        // Map each declared instance-variable name to its `variable v`
+        // declaration name-token span, so the per-method seeding below anchors
+        // the object variable's definition at the declaration rather than the
+        // whole method body.
+        let var_decl_spans = collect_var_decl_spans(grammar, &cmds, &class_variables);
         // `TclOO` method bodies resolve bare commands globally (object-ns
         // semantics — see `Scope::oo_global_resolution`); snit / itcl
         // members resolve in the type / class namespace.
         let oo_global = matches!(grammar.family, tcl_registry::definer::DefinerFamily::TclOo);
         for mb in method_bodies.iter().chain(accessor_bodies.iter()) {
-            self.walk_method_body(&class_variables, class_qualified, scope_path, mb, oo_global);
+            self.walk_method_body(
+                &class_variables,
+                &var_decl_spans,
+                &class_qualified,
+                scope_path,
+                mb,
+                oo_global,
+            );
         }
         for (body, tok) in init_bodies {
             self.analyse_body(&body, tok, scope_path);
@@ -274,6 +408,7 @@ impl Analyser {
     fn walk_method_body(
         &mut self,
         class_variables: &[String],
+        var_decl_spans: &std::collections::HashMap<String, Span>,
         class_qualified: &str,
         scope_path: &[usize],
         mb: &CollectedMethodBody,
@@ -317,13 +452,23 @@ impl Analyser {
         if let Some(pt) = mb.params_tok {
             self.emit_w218_args_not_final(&mb.params, param_spans.as_deref().unwrap_or(&[]), pt);
         }
-        // Class instance variables — visible in every method body.
+        // Class instance variables — visible in every method body.  Anchor
+        // each one's definition span at its `variable v` declaration token
+        // A seeded var must NEVER take the whole method-body span as its
+        // `definition_span`, or a rename would rewrite the entire body.  When
+        // the declaration span is unknown (e.g. a snit implicit var) fall back
+        // to a zero-width span at the body start — harmless, never destructive.
+        let body_start = mb.body_tok.span.start();
         for var in class_variables {
             let base = crate::naming::normalise_var_name(var);
             if base.is_empty() || mb.params.iter().any(|p| p.name == base) {
                 continue;
             }
-            self.define_var(base, mb.body_tok, &method_path, false, None);
+            let def_span = var_decl_spans
+                .get(base)
+                .copied()
+                .unwrap_or_else(|| Span::new(body_start, body_start));
+            self.define_var(base, mb.body_tok, &method_path, false, Some(def_span));
         }
         // Per-item shell pass: defer the method body for an isolated pass like
         // `handle_proc_command`.  Carry the method's qualified name as
@@ -342,6 +487,9 @@ impl Analyser {
                 namespace,
                 scope_name: method_qn,
                 params: mb.params.clone(),
+                // The shell walk above already seeded these with their real
+                // declaration spans; the graft keeps the shell's span, so
+                // the deferred body pass only needs the names.
                 class_variables: class_variables.to_vec(),
             });
         } else {
@@ -680,7 +828,20 @@ impl Analyser {
                 body_tok: bt,
                 params_tok,
             };
-            self.walk_method_body(seed_vars, ctx.class_qualified, ctx.scope_path, &mb, false);
+            // snit / itcl seed vars are mostly grammar-injected implicits with no
+            // source declaration token; an empty span map makes `walk_method_body`
+            // fall back to a safe zero-width span (never the body span), so a
+            // rename can't overwrite the body.  (Precise snit declaration spans
+            // are a follow-up.)
+            let no_var_spans = std::collections::HashMap::new();
+            self.walk_method_body(
+                seed_vars,
+                &no_var_spans,
+                ctx.class_qualified,
+                ctx.scope_path,
+                &mb,
+                false,
+            );
         }
     }
 
@@ -1691,6 +1852,60 @@ mod tests {
         assert!(!pd.has_setter);
     }
 
+    /// `property` is a 9.0 `TclOO` member: under 8.6 it is flagged
+    /// disabled-in-dialect (W002) and records no property, but from 9.0 on it
+    /// is accepted.
+    #[test]
+    fn property_member_is_gated_to_9_0() {
+        let src = "oo::class create C {\n    property color\n}\n";
+        let mut a86 = Analyser::new();
+        let r86 = a86.analyse(src, "tcl8.6");
+        assert!(
+            r86.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W002),
+            "property should be W002 under 8.6",
+        );
+        assert!(
+            r86.all_classes
+                .get("::C")
+                .is_none_or(|c| c.properties.is_empty()),
+            "a disabled property records nothing",
+        );
+
+        let mut a90 = Analyser::new();
+        let r90 = a90.analyse(src, "tcl9.0");
+        assert!(
+            !r90.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W002),
+            "property is available in 9.0",
+        );
+        assert!(
+            r90.all_classes
+                .get("::C")
+                .is_some_and(|c| c.properties.contains_key("color")),
+            "9.0 records the property",
+        );
+    }
+
+    /// A configurable class answers `configure`/`cget` for its properties, so
+    /// those accessor method words are folded into its known methods even
+    /// though no `method` body defines them.
+    #[test]
+    fn configurable_class_knows_configure_and_cget() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "oo::configurable create C {\n    property color\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        let known = r.class_hierarchy().known_methods("::C");
+        assert!(known.contains(&"configure".to_owned()), "{known:?}");
+        assert!(known.contains(&"cget".to_owned()), "{known:?}");
+    }
+
     #[test]
     fn property_subcommand_with_no_kind_defaults_to_readwrite() {
         let mut cd = class();
@@ -2027,12 +2242,13 @@ mod tests {
     fn oo_property_accessor_bodies_are_walked() {
         // `-get`/`-set` accessor bodies are walked with the instance variable
         // `val` and the implicit `value` visible — no false W210 / W307.
+        // `property` is a 9.0 member, so the vector runs under a 9.0 dialect.
         let src = "oo::configurable create Bar {\n\
                    variable val\n\
                    property color -get { return $val } -set { set val $value }\n\
                    }";
         let mut a = Analyser::new();
-        let r = a.analyse(src, "tcl8.6");
+        let r = a.analyse(src, "tcl9.0");
         assert!(r.all_classes.contains_key("::Bar"));
         assert!(
             !r.diagnostics

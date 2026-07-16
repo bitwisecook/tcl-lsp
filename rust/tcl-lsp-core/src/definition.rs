@@ -149,11 +149,18 @@ pub fn definition(
     // declaration.  Checked before the proc lookup so a method
     // call resolves to the method even when a same-named proc
     // exists.
-    if let Some((inst, method, is_dollar)) = instance_method_at_cursor(source, line, character)
-        && let Some(class_q) = receiver_instance_class(analysis, &inst, is_dollar)
-        && let Some(span) = lookup_method_in_class(analysis, class_q, &method)
-    {
-        return vec![span_to_range(source, &line_index, span)];
+    if let Some((inst, method, is_dollar)) = instance_method_at_cursor(source, line, character) {
+        // A per-object method (`oo::objdefine $obj { method m … }`) is layered
+        // ahead of the object's class methods, so resolve it first — `$obj m`
+        // must reach the per-object override, not a same-named class method.
+        if let Some(span) = lookup_object_method(analysis, &inst, &method) {
+            return vec![span_to_range(source, &line_index, span)];
+        }
+        if let Some(class_q) = receiver_instance_class(analysis, &inst, is_dollar)
+            && let Some(span) = lookup_method_in_class(analysis, class_q, &method)
+        {
+            return vec![span_to_range(source, &line_index, span)];
+        }
     }
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
@@ -283,6 +290,26 @@ fn lookup_class_member(
         }
     }
     None
+}
+
+/// Look up `method` among the per-object methods added to the object named
+/// `receiver` by `oo::objdefine` — the per-object override `TclOO` layers ahead
+/// of the object's class methods.  Returns the declaration's `name_span`.
+///
+/// Keyed by the receiver's simple name; the analyser stores `$obj` / `${obj}`
+/// / bare `obj` all under `obj`, and `instance_method_at_cursor` yields that
+/// same bare name, so a `$`-receiver and a bare object command both match.
+fn lookup_object_method(
+    analysis: &AnalysisResult,
+    receiver: &str,
+    method: &str,
+) -> Option<tcl_lexer::Span> {
+    analysis
+        .object_methods
+        .get(receiver)?
+        .iter()
+        .find(|m| m.name == method)
+        .map(|m| m.name_span)
 }
 
 /// Look up `method` against the class identified by qualified
@@ -549,6 +576,30 @@ pub(crate) fn byte_offset_at(
 ///
 /// Descend into the innermost matching child, then walk the
 /// scope chain outward for the var lookup.
+/// Whether an `uplevel` body's frame semantics hide the scope at index `i` of
+/// the resolution `chain` (outermost-first) from the cursor.
+///
+/// Inside `uplevel #0 { … }` the script runs in the **global** frame, so the
+/// enclosing proc's locals are dropped and resolution reaches the
+/// global/namespace variable (a same-named proc-local must not shadow it).
+/// Inside a non-`#0` `uplevel N { … }` the script runs in a **caller** frame
+/// that is statically unknown, so everything *outside* the uplevel body is
+/// dropped — the body's own locals resolve, but a name it does not declare
+/// abstains rather than mis-attributing to the enclosing proc *or* the global
+/// frame (the level word, recorded as the uplevel scope's name, distinguishes
+/// the two).
+fn uplevel_hides_scope(chain: &[&tcl_compiler::analyser::Scope], i: usize) -> bool {
+    use tcl_compiler::analyser::ScopeKind;
+    let Some(up) = chain.iter().rposition(|sc| sc.kind == ScopeKind::Uplevel) else {
+        return false;
+    };
+    if chain[up].name == "#0" {
+        chain[i].kind == ScopeKind::Proc
+    } else {
+        i < up
+    }
+}
+
 pub(crate) fn lookup_var_in_scope_chain<'a>(
     scope: &'a tcl_compiler::analyser::Scope,
     byte_offset: u32,
@@ -556,13 +607,89 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
     // First, find the innermost scope containing the cursor.
     let chain = scope_chain_at(scope, byte_offset);
-    // Walk outward (innermost-first) looking for the var.
-    for sc in chain.iter().rev() {
+    // Walk outward (innermost-first) looking for the var, honouring the
+    // `uplevel` frame semantics (see [`uplevel_hides_scope`]).
+    for (i, sc) in chain.iter().enumerate().rev() {
+        if uplevel_hides_scope(&chain, i) {
+            continue;
+        }
         if let Some(v) = sc.variables.get(name) {
             return Some(v);
         }
     }
     None
+}
+
+/// Every reference span (other than `var_def`'s own declaration) for the
+/// variable `var_def` denotes, gathered across the whole scope tree by
+/// unifying the aliases Tcl treats as one cell:
+///
+/// * **Namespace / global aliases** — `global v`, `variable v`, `namespace
+///   upvar ns v local` each record a `link_target` (the qualified cell name);
+///   every alias of that cell, and the namespace-level declaration itself,
+///   shares the target, so their declarations (each spells the name) and uses
+///   all unify.  This is the analyser analogue of Tcl's `VAR_LINK`.
+/// * **`TclOO` instance variables** — pre-bound into every method scope with
+///   the *same* `variable v` declaration span; unioning by that shared span
+///   links the per-method copies into the one per-object cell.
+///
+/// A zero-width declaration span (the fallback for a declaration-less
+/// grammar-injected implicit) can't be unioned safely — several such seeds in
+/// one body share it — so that case returns exactly `var_def`'s own
+/// references.  The caller adds `var_def`'s own declaration span itself (when
+/// including the declaration), so it is excluded here.
+#[must_use]
+pub(crate) fn linked_var_reference_spans(
+    scope: &tcl_compiler::analyser::Scope,
+    var_def: &tcl_compiler::analyser::VarDef,
+) -> Vec<tcl_lexer::Span> {
+    let mut out = Vec::new();
+    match var_def.link_target.as_deref() {
+        Some(target) => collect_alias_spans(scope, target, var_def.definition_span, &mut out),
+        None if !var_def.definition_span.is_empty() => {
+            collect_shared_span_refs(scope, var_def.definition_span, &mut out);
+        }
+        None => out.extend(var_def.references.iter().copied()),
+    }
+    out
+}
+
+/// Declarations (other than `own_decl`) and uses of every variable aliasing the
+/// cell `target`.
+fn collect_alias_spans(
+    scope: &tcl_compiler::analyser::Scope,
+    target: &str,
+    own_decl: tcl_lexer::Span,
+    out: &mut Vec<tcl_lexer::Span>,
+) {
+    for v in scope.variables.values() {
+        if v.link_target.as_deref() == Some(target) {
+            if v.definition_span != own_decl {
+                out.push(v.definition_span);
+            }
+            out.extend(v.references.iter().copied());
+        }
+    }
+    for child in &scope.children {
+        collect_alias_spans(child, target, own_decl, out);
+    }
+}
+
+/// Uses of every variable sharing the declaration span `def_span` (the `TclOO`
+/// instance-variable case).
+fn collect_shared_span_refs(
+    scope: &tcl_compiler::analyser::Scope,
+    def_span: tcl_lexer::Span,
+    out: &mut Vec<tcl_lexer::Span>,
+) {
+    for v in scope.variables.values() {
+        if v.definition_span == def_span {
+            out.extend(v.references.iter().copied());
+        }
+    }
+    for child in &scope.children {
+        collect_shared_span_refs(child, def_span, out);
+    }
 }
 
 /// Resolve the *name* of a variable whose declaration occupies
@@ -602,14 +729,13 @@ pub(crate) fn visible_variable_names(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
 ) -> Vec<String> {
-    use tcl_compiler::analyser::ScopeKind;
     let chain = scope_chain_at(scope, byte_offset);
-    let in_uplevel = chain.iter().any(|sc| sc.kind == ScopeKind::Uplevel);
     let mut names: Vec<String> = Vec::new();
-    for sc in chain.iter().rev() {
-        // In a global frame (`uplevel #0`), skip the enclosing proc's
-        // locals — they are not reachable from the global frame.
-        if in_uplevel && sc.kind == ScopeKind::Proc {
+    for (i, sc) in chain.iter().enumerate().rev() {
+        // Honour the `uplevel` frame semantics (see [`uplevel_hides_scope`]):
+        // `#0` drops the enclosing proc's locals, a non-`#0` level drops
+        // everything outside the uplevel body.
+        if uplevel_hides_scope(&chain, i) {
             continue;
         }
         for k in sc.variables.keys() {
@@ -719,18 +845,51 @@ pub(crate) fn namespace_context_at(
     }
 }
 
+/// The bare command word at `(line, character)` together with the
+/// `::`-prefixed namespace in effect there.
+///
+/// For the autoload-definition fallback: when a command head resolves to
+/// nothing in the current document *or* the workspace index, the caller feeds
+/// this `(word, namespace)` to the package / auto-load database
+/// ([`crate::package_resolver::PackageResolver::resolve_auto_command`]) to find
+/// the library file that defines it.  Returns `None` off any word.  The word
+/// is returned verbatim (the resolver auto-qualifies it against the
+/// namespace); `namespace` is `"::"` at global scope.
+#[must_use]
+pub fn command_head_and_namespace_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<(String, String)> {
+    let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
+    let line_index = LineIndex::new(source);
+    let offset = byte_offset_at(&line_index, source, line, character);
+    let namespace = namespace_context_at(&analysis.global_scope, offset);
+    Some((word, namespace))
+}
+
 /// Resolve a written call `word` to the user proc C Tcl's command resolution
-/// would pick (`Tcl_FindCommand`, `tclNamesp.c`): each candidate qualified
-/// name from [`tcl_syntax::naming::bareword_resolution_candidates`] — the
-/// caller's namespace first, then global; an absolute `::`-prefixed word is
-/// exact — looked up in `all_procs`.  `namespace` is the caller's
-/// `::`-prefixed namespace (`"::"` at global scope).
+/// would pick (`Tcl_FindCommand`, `tclNamesp.c`): each candidate qualified name
+/// from [`tcl_syntax::naming::command_resolution_candidates`] — the caller's
+/// namespace, then each `namespace path` entry, then global; an absolute
+/// `::`-prefixed word is exact — looked up in `all_procs`.  `namespace` is the
+/// caller's `::`-prefixed namespace (`"::"` at global scope).
+///
+/// Honouring the caller namespace's recorded `namespace path` (from
+/// `analysis.namespace_paths`) is what lets a bare call reach a proc on the
+/// path before a same-named global — matching how call-site settling already
+/// resolves, so definition / hover / signature help agree with references.
 fn proc_visible_from_namespace<'a>(
     analysis: &'a AnalysisResult,
     namespace: &str,
     word: &str,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
-    tcl_syntax::naming::bareword_resolution_candidates(namespace, word)
+    let path = analysis
+        .namespace_paths
+        .get(namespace)
+        .map_or(&[][..], Vec::as_slice);
+    tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
         .into_iter()
         .find_map(|qname| analysis.all_procs.get(&qname))
 }
@@ -759,6 +918,63 @@ pub(crate) fn resolve_called_proc<'a>(
         return None;
     }
     fallback_proc_by_simple_name(analysis, source, word)
+}
+
+/// Resolve the `(all_procs key, ProcDef)` that a proc-oriented editor
+/// operation (rename / references / call-hierarchy) targets at `cursor_off`:
+///
+/// 1. the proc whose declaration name span covers the cursor (a declaration
+///    -site invocation), else
+/// 2. the namespace-aware call-site resolution ([`resolve_called_proc`], C
+///    Tcl's own rule from the caller's namespace).
+///
+/// It never falls back to a namespace-blind `p.name == word` scan — the shape
+/// that let a rename triggered from a bareword call site pick an *arbitrary*
+/// same-named proc in an unrelated namespace (`HashMap` order) and rewrite the
+/// wrong definition while leaving the one under the cursor untouched.  The
+/// returned key equals `ProcDef::qualified_name` (the map is keyed by it).
+pub(crate) fn resolve_proc_target_at<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    cursor_off: u32,
+    word: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> Option<(&'a String, &'a tcl_compiler::analyser::ProcDef)> {
+    if let Some(hit) = analysis
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
+    {
+        return Some(hit);
+    }
+    let ns = namespace_context_at(&analysis.global_scope, cursor_off);
+    let proc_def = resolve_called_proc(analysis, source, &ns, word, registry)?;
+    analysis.all_procs.get_key_value(&proc_def.qualified_name)
+}
+
+/// The class analogue of [`resolve_proc_target_at`]: the `(all_classes key,
+/// ClassDef)` a class-oriented editor operation targets at `cursor_off` — the
+/// class whose declaration name span covers the cursor, else the
+/// namespace-aware candidate resolution (a class name *is* a command name, so
+/// the same `bareword_resolution_candidates` order applies: caller namespace,
+/// then global).  Never a namespace-blind `c.name == word` scan.  The returned
+/// key equals `ClassDef::qualified_name`.
+pub(crate) fn resolve_class_target_at<'a>(
+    analysis: &'a AnalysisResult,
+    cursor_off: u32,
+    word: &str,
+) -> Option<(&'a String, &'a tcl_compiler::analyser::ClassDef)> {
+    if let Some(hit) = analysis
+        .all_classes
+        .iter()
+        .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
+    {
+        return Some(hit);
+    }
+    let ns = namespace_context_at(&analysis.global_scope, cursor_off);
+    tcl_syntax::naming::bareword_resolution_candidates(&ns, word)
+        .into_iter()
+        .find_map(|cand| analysis.all_classes.get_key_value(&cand))
 }
 
 /// Deterministic replacement for the old first-`HashMap`-hit tail match: of

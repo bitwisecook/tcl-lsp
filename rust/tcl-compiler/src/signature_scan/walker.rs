@@ -113,6 +113,7 @@ pub(super) fn scan(
                 // full analyser fill it in when the same
                 // document is reopened in the foreground.
                 resolved_qualified_name: None,
+                resolution_candidates: Vec::new(),
                 argc: arg_count,
                 callback_arity: None,
                 callback_baked_args: 0,
@@ -250,6 +251,7 @@ fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &m
                 range: inv.span,
                 // Signature scan skips scope resolution (walker contract).
                 resolved_qualified_name: None,
+                resolution_candidates: Vec::new(),
                 // The legacy direct-call arity path always skips a callback
                 // head (`None`); the callback-arity check reads
                 // `callback_baked_args` + `callback_arity`.

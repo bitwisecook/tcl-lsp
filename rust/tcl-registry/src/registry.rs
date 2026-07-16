@@ -2986,6 +2986,29 @@ mod tests {
         assert!(writes.is_empty(), "VarWrite writes={writes:?}");
     }
 
+    /// `trace add command`/`execution` trace a command *by name*, so the name
+    /// argument is a `CommandName` reference (navigation follows it), while a
+    /// `variable` trace's name is not.
+    #[test]
+    fn arg_indices_for_role_trace_add_command_name_reference() {
+        let reg = CommandRegistry::build_default();
+        for kind in ["command", "execution"] {
+            let names = reg.arg_indices_for_role(
+                "trace",
+                &["add", kind, "foo", "enter", "body"],
+                ArgRole::CommandName,
+            );
+            // +1 subcommand offset: `foo` is at full-args index 2.
+            assert!(names.contains(&2), "{kind}: CommandName names={names:?}");
+        }
+        let var = reg.arg_indices_for_role(
+            "trace",
+            &["add", "variable", "x", "write", "body"],
+            ArgRole::CommandName,
+        );
+        assert!(var.is_empty(), "a variable trace names no command: {var:?}");
+    }
+
     /// `trace remove variable` behaves like `trace add variable`:
     /// both alias spellings flow through the same `VarWrite` query.
     #[test]

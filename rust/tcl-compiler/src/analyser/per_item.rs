@@ -87,6 +87,12 @@ pub struct DeferredBody {
     pub params: Vec<crate::signature_scan::types::ParamDef>,
     /// Class instance variables pre-bound in every method body (`variable`
     /// declarations at class level).  Empty for proc bodies.
+    ///
+    /// The seeded var's real `definition_span` (the `variable v` declaration)
+    /// is supplied by the *shell* walk (`oo::walk_method_body`), which the
+    /// graft keeps for shell-owned keys (`merge_one_var`); the isolated body
+    /// pass below only needs the names, so this stays `Vec<String>` (and salsa
+    /// -interning-friendly — see `tcl-lsp-db`'s `ItemBodyKey`).
     pub class_variables: Vec<String>,
 }
 
@@ -420,6 +426,9 @@ impl Analyser {
         }
         self.result.command_aliases.extend(r.command_aliases);
         self.result.renamed_commands.extend(r.renamed_commands);
+        self.result
+            .rename_target_spans
+            .extend(r.rename_target_spans);
         self.result.instance_classes.extend(r.instance_classes);
         self.result
             .created_instance_commands
@@ -632,6 +641,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         if base.is_empty() || db.params.iter().any(|p| p.name == base) {
             continue;
         }
+        // The isolated body only needs the binding to exist so `$v` reads
+        // resolve; the authoritative `definition_span` comes from the shell
+        // walk and is preserved by the graft (`merge_one_var`), so a
+        // `placeholder` here is discarded for this shell-owned key.
         a.define_var(base, dummy, &proc_path, false, Some(placeholder));
     }
     a.suppress_w215 = false;
@@ -692,6 +705,12 @@ fn merge_one_var(
         existing.references.extend(v.references);
         existing.warn_if_unused |= v.warn_if_unused;
         existing.array_indices.extend(v.array_indices);
+        // Keep the namespace/global alias link if the body pass discovered one
+        // the shell didn't (a `global`/`variable`/`namespace upvar` in a
+        // deferred proc body).
+        if existing.link_target.is_none() {
+            existing.link_target = v.link_target;
+        }
     } else {
         dst.insert(k, v);
     }
@@ -795,6 +814,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for x in &mut r.namespace_imports {
         x.range = shift(x.range, d);
+    }
+    for sp in r.rename_target_spans.values_mut() {
+        *sp = shift(*sp, d);
     }
     for x in &mut r.auto_path_entries {
         x.range = shift(x.range, d);

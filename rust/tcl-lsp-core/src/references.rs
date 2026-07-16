@@ -304,9 +304,13 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     if include_declaration {
         out.push(span_to_range(source, line_index, var_def.definition_span));
     }
-    for r in &var_def.references {
-        out.push(span_to_range(source, line_index, *r));
+    // Unify every alias Tcl treats as one cell — namespace/global aliases
+    // (`global`/`variable`/`namespace upvar`) and a class instance variable's
+    // per-method copies — so the reference set spans them all.
+    for r in crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def) {
+        out.push(span_to_range(source, line_index, r));
     }
+    dedup_ranges(&mut out);
     Some(out)
 }
 
@@ -348,15 +352,11 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
         ..
     } = *ctx;
     let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
-    let (qname, class_def) = analysis
-        .all_classes
-        .iter()
-        .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
-        .or_else(|| {
-            analysis.all_classes.iter().find(|(qname, c)| {
-                c.name == word || qname.as_str() == word || *qname == &format!("::{word}")
-            })
-        })?;
+    // Declaration under the cursor, else namespace-aware resolution — never a
+    // namespace-blind `c.name == word` scan (which from a call site could
+    // surface an unrelated same-named class's reference set).
+    let (qname, class_def) =
+        crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
     let simple = class_def.name.clone();
     let qualified = class_def.qualified_name.clone();
     let mut out = Vec::new();
@@ -396,16 +396,11 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
         ..
     } = *ctx;
     let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
-    let proc_match = analysis
-        .all_procs
-        .iter()
-        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
-        .or_else(|| {
-            analysis.all_procs.iter().find(|(qn, p)| {
-                p.name == word || qn.as_str() == word || *qn == &format!("::{word}")
-            })
-        });
-    let (qname, proc_def) = proc_match?;
+    // Declaration under the cursor, else C Tcl's namespace-aware call-site
+    // resolution — never a namespace-blind `p.name == word` scan (which from a
+    // call site could surface an unrelated same-named proc's reference set).
+    let (qname, proc_def) =
+        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, None)?;
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
@@ -434,8 +429,12 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let (inst, method, is_dollar) =
         crate::definition::instance_method_at_cursor(source, line, character)?;
     let class_q = crate::definition::receiver_instance_class(analysis, &inst, is_dollar)?;
-    let (decl_span, call_spans) =
+    let (decl_span, mut call_spans) =
         method_references_for_class(source, dialect, analysis, class_q, &method)?;
+    // `next` / `nextto` super-dispatch is a reference (but never a rename site).
+    call_spans.extend(method_next_dispatch_spans(
+        analysis, source, dialect, class_q, &method,
+    ));
     Some(build_member_ranges(
         source,
         line_index,
@@ -561,6 +560,88 @@ pub(crate) fn method_references_for_class(
     Some((decl_span, call_spans))
 }
 
+/// The `next` / `nextto` super-dispatch spans inside `class_q`'s own `method`
+/// body — polymorphic **references** to `method`.  Kept out of
+/// [`method_references_for_class`] because that set also drives *rename*, and
+/// `next` / `nextto` are keywords that must never be rewritten to the new
+/// name; only the reference paths add these.  Empty when `class_q` does not
+/// define `method`.
+#[must_use]
+pub fn method_next_dispatch_spans(
+    analysis: &AnalysisResult,
+    source: &str,
+    dialect: &str,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    let Some(class_def) = analysis.all_classes.get(class_q) else {
+        return Vec::new();
+    };
+    let Some(m) = class_def
+        .methods
+        .get(method)
+        .or_else(|| class_def.class_methods.get(method))
+    else {
+        return Vec::new();
+    };
+    scan_next_dispatch_sites(source, dialect, m.body_span)
+}
+
+/// The external `$obj method` / bare `objcmd method` call sites for `method`
+/// on instances of `class_q` **within `source`**, independent of whether
+/// `class_q` is *defined* in this document.
+///
+/// The building block for cross-file references from a **pure-consumer**
+/// document — one that only creates and uses instances of a class defined
+/// elsewhere (`set d [::other::Cls new]; $d method`).  Such a document defines
+/// no class body, so [`method_reference_spans_in_document`] /
+/// [`inherited_method_spans_in_document`] (which key off a local class body)
+/// find nothing; this keys off `instance_classes`, which the cross-file
+/// analysis populates from the workspace class set.
+#[must_use]
+pub fn obj_method_call_sites(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    find_obj_method_call_sites(source, dialect, analysis, class_q, method)
+}
+
+/// Reference spans for `method` on `class_q` **within `source`**, for
+/// cross-document aggregation: every `$obj method` / `my method` call site,
+/// plus the declaration when `include_decl`.  Empty when `class_q` does not
+/// define `method` in this document.
+///
+/// The reference analogue of [`crate::rename::method_spans_in_document`]: the
+/// server calls it per definer document in a method's override family (the
+/// current document is already covered by [`references`]).
+#[must_use]
+pub fn method_reference_spans_in_document(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    include_decl: bool,
+) -> Vec<tcl_lexer::Span> {
+    match method_references_for_class(source, dialect, analysis, class_q, method) {
+        Some((decl, mut calls)) => {
+            if include_decl {
+                calls.push(decl);
+            }
+            // `next` / `nextto` super-dispatch is a reference (references path
+            // only; rename uses `method_spans_in_document`, which excludes it).
+            calls.extend(method_next_dispatch_spans(
+                analysis, source, dialect, class_q, method,
+            ));
+            calls
+        }
+        None => Vec::new(),
+    }
+}
+
 /// Re-segment each brace-delimited body span in `bodies` and return the
 /// name-token span of every `my <method>` invocation whose method name is
 /// `method`, skipping the token at `skip` (the declaration site, when the
@@ -626,6 +707,57 @@ fn scan_my_method_sites(
     out
 }
 
+/// Re-segment a single `method`-named method `body` and return the head-token
+/// span of every `next` / `nextto` command.  `TclOO`'s super-dispatch invokes
+/// the next `method` of the same name up the MRO, so a `next` / `nextto` inside
+/// a `method` body is a polymorphic reference to `method` itself.
+///
+/// Like [`scan_my_method_sites`], this walks the body's top-level commands
+/// only (a `next` nested inside an `if`/`while` body is not reached — the same
+/// bound the intra-class `my method` scan carries).
+fn scan_next_dispatch_sites(
+    source: &str,
+    dialect: &str,
+    body: tcl_lexer::Span,
+) -> Vec<tcl_lexer::Span> {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    let mut out: Vec<tcl_lexer::Span> = Vec::new();
+    if body.is_empty() {
+        return out;
+    }
+    let mut start = body.start() as usize;
+    let mut end = body.end() as usize;
+    if start >= source.len() || end > source.len() || start > end {
+        return out;
+    }
+    if source.as_bytes().get(start) == Some(&b'{') {
+        start += 1;
+    }
+    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+        end -= 1;
+    }
+    let body_text = &source[start..end];
+    let commands = segment_commands_with_offset_and_config(
+        body_text,
+        u32::try_from(start).unwrap_or(0),
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
+    for cmd in &commands {
+        let Some(head) = cmd.argv.first() else {
+            continue;
+        };
+        let (h_start, h_end) = (head.span.start() as usize, head.span.end() as usize);
+        if h_end > source.len() || h_start >= h_end {
+            continue;
+        }
+        let h = &source[h_start..h_end];
+        if h == "next" || h == "nextto" {
+            out.push(head.span);
+        }
+    }
+    out
+}
+
 /// Call sites of an **inherited** `method` inside `class_q`, a class that
 /// does *not* declare `method` itself but inherits it (its MRO resolves
 /// `method` to an ancestor).  Returns the intra-class `my method` sites in
@@ -682,13 +814,24 @@ fn find_class_member_references(
         // any subclass that inherits (does not override) this definition
         // (which the class-local scan below would miss).
         if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
-            return method_references_for_class(
+            let (decl, mut calls) = method_references_for_class(
                 source,
                 dialect,
                 analysis,
                 &class_def.qualified_name,
                 word,
-            );
+            )?;
+            // `next` / `nextto` super-dispatch is a reference / highlight (both
+            // callers are read-only); rename resolves methods elsewhere and
+            // must not see these keyword tokens.
+            calls.extend(method_next_dispatch_spans(
+                analysis,
+                source,
+                dialect,
+                &class_def.qualified_name,
+                word,
+            ));
+            return Some((decl, calls));
         }
         // Properties: no `$obj prop` dispatch and no inheritance model, so a
         // class-local `my <prop>` scan is the whole story.
@@ -1033,8 +1176,10 @@ pub fn document_highlights(
             span_to_range(source, &line_index, var_def.definition_span),
             HighlightKind::Write,
         ));
-        for r in &var_def.references {
-            out.push((span_to_range(source, &line_index, *r), HighlightKind::Read));
+        // Highlight every alias Tcl treats as one cell (namespace/global
+        // aliases and a class instance variable's per-method copies).
+        for r in crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def) {
+            out.push((span_to_range(source, &line_index, r), HighlightKind::Read));
         }
         return dedup_kinded(out);
     }
@@ -1227,6 +1372,24 @@ mod tests {
     }
 
     #[test]
+    fn method_references_include_next_dispatch() {
+        // `Sub::greet`'s body invokes the super via `next`; that dispatch is a
+        // polymorphic reference to `greet` and must appear among its
+        // references.
+        let src = "oo::class create Base {\n    method greet {} {}\n}\noo::class create Sub {\n    superclass Base\n    method greet {} { next }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `greet` in Sub's declaration (line 5).
+        let refs = references(src, "tcl", 5, 13, &analysis, true);
+        // The `next` token sits on line 5, past the method's own `greet` name
+        // (col 11) — inside the `{ next }` body.
+        assert!(
+            refs.iter()
+                .any(|r| r.start_line == 5 && r.start_character > 15),
+            "expected the `next` dispatch among refs: {refs:?}",
+        );
+    }
+
+    #[test]
     fn references_to_var_includes_definition_and_uses() {
         let src = "set x 1\nputs $x\nputs $x\n";
         let analysis = analyse(src);
@@ -1286,6 +1449,7 @@ mod tests {
                 references: vec![Span::new(13, 14)],
                 warn_if_unused: false,
                 array_indices: std::collections::BTreeSet::new(),
+                link_target: None,
             },
         );
         let a = Result {
