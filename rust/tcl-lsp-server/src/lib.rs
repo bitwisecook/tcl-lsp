@@ -9377,8 +9377,10 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let text = doc.text.clone();
+        let analysis_for_worker = analysis.clone();
         let result = tokio::task::spawn_blocking(move || {
-            core_rename::prepare_rename(&doc.text, pos.line, pos.character, &analysis)
+            core_rename::prepare_rename(&text, pos.line, pos.character, &analysis_for_worker)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -9386,13 +9388,35 @@ impl LanguageServer for Backend {
             message: format!("prepare_rename worker panicked: {err}").into(),
             data: None,
         })?;
-        let Some(p) = result else {
+        if let Some(p) = result {
+            return Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
+                range: lift_lsp_range(p.range),
+                placeholder: p.placeholder,
+            }));
+        }
+        // Consumer-document fall-through (M8): the local analysis has no
+        // declaration to anchor prepare on, but the cursor symbol may still
+        // resolve through the workspace index (a sibling document or an
+        // autoloaded library defines it) — exactly the case the rename
+        // handler's workspace-resolved branch serves.  VS Code gates every
+        // rename behind prepare, so refusing here would make that branch
+        // unreachable from the editor.  Accept with the call-site word's own
+        // range when the workspace resolves it.
+        let Some(word_p) = core_rename::word_prepare_at(&doc.text, pos.line, pos.character)
+        else {
             return Ok(None);
         };
-        Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
-            range: lift_lsp_range(p.range),
-            placeholder: p.placeholder,
-        }))
+        if self
+            .resolve_workspace_symbol(&uri, &doc.text, &analysis, pos)
+            .await
+            .is_some()
+        {
+            return Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
+                range: lift_lsp_range(word_p.range),
+                placeholder: word_p.placeholder,
+            }));
+        }
+        Ok(None)
     }
 
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {

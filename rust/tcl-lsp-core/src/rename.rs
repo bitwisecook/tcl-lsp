@@ -155,6 +155,26 @@ pub struct PrepareRename {
     pub placeholder: String,
 }
 
+/// The cursor word's own range + text as a [`PrepareRename`] — the
+/// consumer-document fall-through (M8).  [`prepare_rename`] anchors on a
+/// *local* declaration; when the document has none (the symbol is defined in
+/// a sibling / autoloaded library file), the server may still accept the
+/// rename after resolving the word through the workspace index — the range
+/// the editor highlights is then the call-site word itself.
+#[must_use]
+pub fn word_prepare_at(source: &str, line: u32, character: u32) -> Option<PrepareRename> {
+    let (word, start, end) = find_word_span_at_position(source, line, character)?;
+    Some(PrepareRename {
+        range: crate::definition::LspRange {
+            start_line: line,
+            start_character: start,
+            end_line: line,
+            end_character: end,
+        },
+        placeholder: word,
+    })
+}
+
 /// Validate that the cursor sits on a renameable symbol and
 /// return the symbol's range + placeholder text.  Editors
 /// call this before `rename` to determine whether to show the

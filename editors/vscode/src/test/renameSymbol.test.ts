@@ -168,16 +168,24 @@ suite("Rename Symbol", () => {
 
     // The workspace scan / package database loads asynchronously at startup;
     // retry until the rename resolves cross-document (or the deadline).
+    // While the scan is still warming up the server answers `null`, which
+    // VS Code surfaces by THROWING "The element can't be renamed." from the
+    // command — treat that as "not yet" and keep polling rather than dying
+    // on the first early attempt.
     const deadline = Date.now() + 15000;
     let libEntry: [vscode.Uri, vscode.TextEdit[]] | undefined;
     let edit: vscode.WorkspaceEdit | undefined;
     while (Date.now() < deadline && !libEntry) {
-      edit = (await vscode.commands.executeCommand(
-        "vscode.executeDocumentRenameProvider",
-        uri,
-        pos,
-        "Rbc_ShinyLegend",
-      )) as vscode.WorkspaceEdit | undefined;
+      try {
+        edit = (await vscode.commands.executeCommand(
+          "vscode.executeDocumentRenameProvider",
+          uri,
+          pos,
+          "Rbc_ShinyLegend",
+        )) as vscode.WorkspaceEdit | undefined;
+      } catch {
+        edit = undefined; // rejected while the autoload index is still filling
+      }
       libEntry = edit?.entries().find(([u]) => u.path.endsWith("rbclib/graph.tcl"));
       if (!libEntry) {
         await new Promise((r) => setTimeout(r, 250));
