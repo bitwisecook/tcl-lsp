@@ -1,9 +1,12 @@
 # Compositional `DialectProfile` — Design Doc (revised, code-grounded)
 
-Status: **DRAFT for owner sign-off.** Supersedes the initial draft; incorporates
-the adversarial review's must-fixes and correctness-holes, each verified against
-the code before being written down. Every architectural claim below was checked
-against `rust/` at the file:line cited; nothing here is taken on faith.
+Status: **RATIFIED — all owner decisions final (D1–D8, §14).** Supersedes the
+initial draft; incorporates the adversarial review's must-fixes and
+correctness-holes, each verified against the code before being written down.
+Every architectural claim below was checked against `rust/` at the file:line
+cited; nothing here is taken on faith. The plan is expressed in the project's
+**milestone/stage** convention (M1–M8, §12) and carries a **complete consumer
+inventory** (§15).
 
 ---
 
@@ -33,9 +36,15 @@ while `TclVersion::from_dialect("f5-irules")=None` (`hooks.rs:420`), two
 
 ### 0.1 Corrected scope (was understated in the draft)
 
-The consumer surface is **~100 files across 17 crates**, not "~40". Verified by
-grepping `supports_dialect|get_for_dialect|for_dialect|expr_grammar_base_version|DialectSet::parse|from_dialect`
-over `rust/`:
+The consumer surface is **269 files across 22 crates** — far larger than the
+draft's "~40". The **complete, file-level enumeration** (every file, its
+dialect-API usage, an approximate site count, and the migrating milestone/stage)
+is **§15 "Consumer inventory (complete)"**: **1702 query/behaviour consumer
+sites + ~2000 `dialects:` data tags across 269 files / 22 crates**. The table
+below is the original signal-count grep sample (the six primary APIs over
+`rust/`), retained as the first evidence; §15 supersedes it with the full set
+(the five crates it under-counted — `tcl-syntax`, `tcl-vm`, `tcl-bigip`,
+`bpf-tcl-ir`, `tcl-pkg` — are all enumerated there):
 
 | Crate | matches | Crate | matches |
 |---|---|---|---|
@@ -70,14 +79,15 @@ runtime-base split are preserved exactly.
 Four things the review forced into the open. They change the model, so they
 lead.
 
-### 1.1 iRules is SETTLED: pure fixed Tcl 8.4, nothing backported
+### 1.1 iRules is RATIFIED: pure fixed Tcl 8.4, nothing backported
 
-**Decision (owner to ratify): iRules `signature_base = runtime_base = V8_4`.**
+**RATIFIED (owner-final, D3): iRules `signature_base = runtime_base = V8_4`.**
 The F5 command surface (`HTTP::*`, `pool`, `table`, `TCP::*`, …) is a
 **versioned library** keyed by BIG-IP/TMOS version (11.x–17.x), **orthogonal**
 to the pinned 8.4 base — exactly as `Tk`/`tcllib` are versioned libraries over a
 Tcl base. There is **no "classic vs modern 8.5/8.6" framing anywhere** in this
-model.
+model. The stale "iRules loads `tcl8.6` signatures" line
+(`dialects-events.md:74-78`) is **retired** by this ratification (see below).
 
 Concretely, at **every** BIG-IP version:
 - `dict` / `lassign` (8.5), `lmap` / `throw` / `yieldto` (8.6), `zipfs` (9.0)
@@ -336,9 +346,9 @@ cache key (`expr/parser.rs`) changes to a profile-identity key, and
 `dialects.rs`'s detection heuristics either move too or stay in registry
 re-exporting the enum. This is the **only** option that delivers the stated
 single-source-of-truth for the behaviour axis, which is why it was chosen. The
-split lands in its own phase (§12, Phase 0) ahead of any behaviour routing, and
-it **unblocks** the behaviour-axis unification (§12, Phase 2) that a
-registry-hosted profile could not reach.
+split lands in its own milestone (§12, Milestone 1) ahead of any behaviour
+routing, and it **unblocks** the behaviour-axis unification (§12, Milestone 3)
+that a registry-hosted profile could not reach.
 
 ### 3.1 Alternatives considered — Option B (rejected)
 
@@ -368,8 +378,9 @@ prerequisite is **DONE**. What remains under this heading is additive:
 - The combinator constants (`ALL_TCL`, `TCL85_PLUS`, `NON_IRULES_OPERATORS`, …)
   are `.bits()` unions and are width-agnostic — untouched.
 
-New bits land with the profiles that need them (§12, Phase 5: `TMSH`/`BIGIP` for
-first-class f5-tmsh/f5-bigip), not as a standalone width change.
+New bits land with the profiles that need them (§12, Milestone 6:
+`TMSH`/`BIGIP` for first-class f5-tmsh/f5-bigip), not as a standalone width
+change.
 
 ---
 
@@ -430,7 +441,7 @@ an 8.5 profile whose mask contains… nothing 9.0, so in practice the
 `version_ceiling` guard is what prevents the leak the review flagged. This
 change moves the **switch / regsub / option-arity** goldens (options that were
 `contains`-gated flip visibility under vendor masks). Budget those golden
-regens in the phase that lands it (§12, Phase 3) — **not** Phase 1.
+regens in the milestone that lands it (§12, Milestone 4) — **not** Milestone 2.
 
 ### 5.3 Unify the two spec-selection strategies (must-fix + hole)
 
@@ -444,7 +455,7 @@ the golden `tcl registry-dump` snapshots that caught RUST_ISSUE_082/083).
 `resolve_command` primitive (it is strictly more principled — "best spec for
 this profile" — and is already golden-tested), and route `get_for_dialect`
 callers through it. This regenerates registry-dump goldens; do it in its own
-phase (§12, Phase 4) with review, **not** folded into the W123 fix.
+milestone (§12, Milestone 5) with review, **not** folded into the W123 fix.
 
 ### 5.4 Behaviour (axis B)
 
@@ -506,14 +517,14 @@ impl DialectProfile {
 
 ### 6.2 Scoping
 
-The DSL validators are their **own phase** (§12, Phase 6), not part of the
-availability fix. They are new diagnostics (a `format %u on 8.4` warning, a
+The DSL validators are their **own milestone** (§12, Milestone 7), not part of
+the availability fix. They are new diagnostics (a `format %u on 8.4` warning, a
 `string is` class warning) built on `p.effective_tcl_version()`. Because
 `format.rs`/`scan.rs` live in **tcl-syntax below registry**, they can only
-consume the profile once the DECIDED `tcl-dialect` crate (§3, Phase 0) puts the
-catalog **below** tcl-syntax — after Phase 0 the DSL validators read
+consume the profile once the DECIDED `tcl-dialect` crate (§3, Milestone 1) puts
+the catalog **below** tcl-syntax — after Milestone 1 the DSL validators read
 `p.effective_tcl_version()` directly from tcl-syntax with no cycle. This is why
-Phase 6 is scheduled after Phase 0, not before.
+Milestone 7 is scheduled after Milestone 1, not before.
 
 ---
 
@@ -542,7 +553,7 @@ machinery**.
 | `xilinx-eda-tcl` | V8_5 | V8_5 | ✓ | ✗ | ✗ | ✓ | **`TCL85\|XILINX`** | V8_5 | none | sdc `Keyed(SdcVersion)`, vivado `Keyed(ToolVersion)` |
 | `intel-quartus-eda-tcl` | V8_5 | V8_5 | ✓ | ✗ | ✗ | ✓ | **`TCL85\|QUARTUS`** | V8_5 | none | sdc, quartus `Keyed(ToolVersion)` |
 | `mentor-eda-tcl` | V8_5 | V8_5 | ✓ | ✗ | ✗ | ✓ | **`TCL85\|MENTOR`** | V8_5 | none | sdc, questa `Keyed(ToolVersion)` |
-| `bpf` | **?** (owner) | **?** | ? | ✗ | ✗ | ✓ | `BPF` (+base?) | ? | — | bpf-tcl `Pinned` |
+| `bpf` | **V9_0** | **V9_0** | **✗** | ✓ | ✗ | ✓ | **`TCL90\|BPF`** | **V9_0** | — | bpf-tcl `Pinned` |
 | `PLAIN_TCL` (unknown) | permissive | permissive | **Inert** | permissive | ✗ | ✓ | **`ALL_TCL`** (§1.3/§8) | None | — | — |
 
 \* `f5-tmsh` and `f5-bigip` have **no `DialectSet::parse` bit today** (they
@@ -550,7 +561,7 @@ collapse to plain Tcl — verified: `parse` has no arm for them, `dialects.rs:86
 Giving them real profiles requires a new `TMSH` bit (u64 has headroom, §4) or an
 explicit `base_layers` arm in `load_dialect` (currently no arm). This is a
 **user-visible, bidirectionally-regressive** change (§7.2) — gate behind
-Phase 5.
+Milestone 6.
 
 ### 7.1 Derivation rules (must NOT be naive)
 
@@ -567,8 +578,19 @@ Phase 5.
 - `has_fixed_ensembles` is exactly `{f5-irules, f5-iapps, f5-bigip}` — **NOT
   f5-tmsh** (drives `minify.rs:2164` prefix-shortening; a wrong `true`
   mis-minifies). Matches `DialectSet::has_fixed_ensembles` (`dialects.rs:860`).
-- Default `bigip_version` = **latest (e.g. 17.1)** so the migration does not
-  start hiding F5 commands (§14).
+- Default `bigip_version` / `tool_version` / `sdc_version` = **the OLDEST
+  supported version** (owner-final, D5 — the *conservative* choice, reversing the
+  draft's "latest" recommendation). By default only **floor-version** commands
+  are offered; newer F5/EDA commands (a `CMP::*`/`HTTP2::*` introduced in a later
+  TMOS, a newer synthesis-tool subcommand) are **hidden until the file pins a
+  newer version**. Rationale: a default of "latest" would silently mark
+  genuinely-unavailable commands as known on older targets; "oldest" never
+  over-reports availability. A file must explicitly pin a newer BIG-IP/tool
+  version (via `package require`, a config directive, or the `--bigip-version`
+  CLI flag) to surface newer commands.
+- `leading_zero_is_octal` for `bpf` = **No**: bpf's `runtime_base = V9_0` and
+  Tcl 9.0 dropped bare-leading-`0` octal (TIP 114/472), so `0NN` is decimal
+  under bpf — consistent with `runtime_base < V9_0` being false.
 
 ### 7.2 The f5-tmsh / bpf reverse-regression (hole, understated in draft)
 
@@ -577,7 +599,7 @@ Today `parse("f5-tmsh")`/`parse("bpf")` → `None` → W123/W002
 `f5-tmsh` the precise mask `TCL85|TMSH` and `bpf` a base makes **8.6/9.0 core
 commands newly draw W123** in tmsh/bpf files — a false-positive surface on
 *general Tcl commands*, not just "tmsh:: stops drawing W123". This is a real
-regression to budget in Phase 5's golden/test set, not a footnote.
+regression to budget in Milestone 6's golden/test set, not a footnote.
 
 **Not dialects — model as `LibraryPin`, not profiles:** `tk` (express as
 `Tk TracksBase` on a Tcl profile — `wish` = Tcl base + Tk; the standalone `TK`
@@ -655,7 +677,7 @@ Verified un-migrated hazard: the CLI snapshot `command_names()` filters solely
 by `get_for_dialect` (`command_snapshot.rs:411-414`) and is **not** in the LSP
 migration set; several `get_for_dialect(IRULES)` callers exist.
 
-**Pre-retag gate (blocking Phase 4):** *"No consumer resolves iRules
+**Pre-retag gate (blocking Milestone 5):** *"No consumer resolves iRules
 availability via a bare mask query."* Before the retag lands, enumerate and
 migrate **every** `get_for_dialect` / `supports_dialect(IRULES)` caller to apply
 `disabled_commands`:
@@ -665,8 +687,8 @@ migrate **every** `get_for_dialect` / `supports_dialect(IRULES)` caller to apply
 - **the CLI snapshot** `command_names` + `resolve_spec`
   (`command_snapshot.rs:411,427,437`),
 - every other `get_for_dialect(…, IRULES)` / `resolve_dialect("f5-irules")`
-  call across the 17 crates (enumerate with the grep in §0.1, filtered to
-  IRULES).
+  call across the 22 crates (enumerate from the complete inventory in §15,
+  filtered to the IRULES/`get_for_dialect`/`resolve_dialect` columns).
 
 Until this gate is green the retag **must not** land — an un-migrated consumer
 would silently allow the banned commands.
@@ -715,100 +737,180 @@ mask-resolved `oo::*` availability.
 
 ---
 
-## 12. Phased plan (each phase independently shippable, CI green)
+## 12. Milestone plan (each milestone independently shippable, CI green)
 
-Re-ordered so each phase is genuinely shippable and its CI gate list is
-correct. Phase 0 (the `tcl-dialect` crate split) is the material change from the
-draft — it lands Option A and **unblocks** the behaviour-axis unification that a
-registry-hosted profile could not reach. The `DialectSet` width is already u64
-(§1.4/§4), so no width work is scheduled here.
+Uses the project's **milestone / stage** convention (M1..M8, "Stage X.Y"), the
+same as `docs/design/name-resolution-fix-plan.md`'s M1..M16. Re-ordered so each
+milestone is genuinely shippable and its CI-gate list is correct. Milestone 1
+(the `tcl-dialect` crate split) is the material change from the draft — it lands
+Option A and **unblocks** the behaviour-axis unification that a registry-hosted
+profile could not reach. The `DialectSet` width is already u64 (§1.4/§4), so no
+width work is scheduled here. **Each milestone below names its consumer surface;
+the complete file-level list per milestone/stage is §15 "Consumer inventory
+(complete)".** The per-milestone regression surface (the test/golden files that
+re-baseline there) is called out in §15 and summarised in each milestone's
+**Gates**.
 
-**Phase 0 — create the `tcl-dialect` foundational crate (Option A, §3).** Create
-the leaf crate `tcl-dialect` (deps: none), move `DialectSet`, `TclVersion`, and
-the grammar structs (`LexerGrammar`, `BracedVarStyle`) into it, and re-export
-them from tcl-registry so existing `use tcl_registry::…` imports keep compiling.
-Seed the empty `DialectProfile` catalog here. No behaviour change; the move is
-mechanical (hundreds of import sites, plus the `(source, dialect-string)` expr
-cache key → profile identity). This is what makes lexer/syntax/registry/compiler/
-lsp/cli/mcp/f5-xc/tcl-irules — all 17 crates — able to consume **one** source of
-truth, and it removes the layering wall in front of Phase 2. **Gates:**
-whole-workspace build green, no logic goldens move (pure relocation), clippy.
+### Milestone 1 — foundational `tcl-dialect` crate (Option A, §3)
 
-**Phase 1 — smallest W123/W002 fix + the tools-side dump, from ONE source.** Add
-`DialectProfile` (thin: `name`, `aliases`, `availability_mask`,
-`disabled_commands`, `by_name`). Populate masks for the additive dialects
-(`TCL85|IAPPS`, `TCL86|EXPECT`, EDA `TCL8x|vendor`) and the **bare `IRULES`**
-mask + the 42-name `disabled_commands` (generalizing `special_vars::resolve_dialect`,
-`special_vars.rs:189`, the correct widening precedent). Point the confirmed-bug
-sites at it: W123 (`unresolved.rs:164`), W002 (`validity.rs:561,941`),
-`cache.rs::registry_for_dialect`, **AND `command_snapshot`'s independent query**
-(`command_snapshot.rs:426,433` `DialectSet::parse(dialect).unwrap_or(TCL86)`) —
-repoint that to `profile.availability_mask`, or `tcl registry-dump/command-info
---dialect f5-iapps` still under-reports (must-fix #3: repointing only `cache.rs`
-does not fix the query mask). No behaviour-axis changes, no data migration yet
+Create the leaf crate `tcl-dialect` (deps: none), move `DialectSet`,
+`TclVersion`, and the grammar structs (`LexerGrammar`, `BracedVarStyle`) into it,
+and re-export them from tcl-registry so existing `use tcl_registry::…` imports
+keep compiling. No behaviour change; the move is mechanical but touches **every
+file that `use`s these types** across all 22 crates (§15).
+
+- **Stage 1.1 — carve the crate.** Create `tcl-dialect`; move `DialectSet`,
+  `TclVersion`, `LexerGrammar`, `BracedVarStyle` (the `dialects.rs` bitflags +
+  combinators, the `TclVersion` enum). Registry re-exports the enums so
+  detection heuristics stay put.
+- **Stage 1.2 — mechanical import relocation.** Update the hundreds of
+  `use tcl_registry::…DialectSet`/`TclVersion` import sites across all 22 crates
+  (see §15 — this is the M1.2 column: the pass-through `DialectSet::parse` /
+  const-consuming files in tcl-cli, tcl-diagram, tcl-lsp-db, tcl-cli-support,
+  tcl-irules, f5-* and the compiler infrastructure).
+- **Stage 1.3 — seed the catalog + expr cache key.** Seed the empty
+  `DialectProfile` catalog in `tcl-dialect`; convert the expr
+  `(source, dialect-string)` cache key (`expr/parser.rs`) to a profile-identity
+  key. This is what makes lexer/syntax/registry/compiler/lsp/cli/mcp/f5-xc/
+  tcl-irules — all 22 crates — able to consume **one** source of truth, and it
+  removes the layering wall in front of Milestone 3.
+
+**Gates:** whole-workspace build green, **no logic goldens move (pure
+relocation)**, clippy.
+
+### Milestone 2 — smallest W123/W002 availability fix + the tools-side dump, from ONE source
+
+Add `DialectProfile` (thin: `name`, `aliases`, `availability_mask`,
+`disabled_commands`, `by_name`). No behaviour-axis changes, no data migration yet
 (iRules disable list layered on the *unchanged* `NON_IRULES_OPERATORS` tags —
-both agree, iRules goldens don't move). **Gates:** W123/W002 tests re-baselined
-(iApps/expect flip false-positive→clean), **registry-dump/command-info goldens
-for f5-iapps/expect/EDA regenerated**, clippy, xtask-check.
+both agree, iRules goldens don't move).
 
-**Phase 2 — behaviour-axis unification (octal + expr + mathfunc + lexer
-grammar). Unblocked by Phase 0.** Add
-`signature_base`/`runtime_base`/`leading_zero_is_octal`/`expr_grammar_base`/
-`mathfunc_ceiling`/`grammar` to the profile (§7 table). Route `w003_gates`,
-`math_func_ceiling`, both `leading_zero_is_octal` impls, and — now reachable via
-the `tcl-dialect` crate — `LexerConfig::for_dialect` and `parse_expr` through the
-profile. **This changes lexer parse behaviour**: `LexerConfig::for_dialect`'s
-8.x-family list **omits expect/f5-tmsh/bpf** (`lexer.rs:214-217`), so expect
-(8.6) currently gets `BracedVarStyle::Tcl9Nesting`; routing braced-var through
-the profile's 8.6 grammar flips it to `FirstClose` — a real parse-behaviour
-change for expect/tmsh files. Keep `runtime_version`/`from_dialect`
-**bit-identical** for iRules (const-fold stays `None`-equivalent in this phase;
-verify optimiser/SCCP against tclsh 8.4/8.5/8.6 before baselining). **Gates
-(corrected):** optimiser_coverage, pipeline_coverage, SCCP goldens, **PLUS
-segmentation/lexer/parser goldens** (the expect/tmsh braced-var flip), **PLUS the
-~10 cross-crate `for_dialect` callers** (f5-xc, tcl-cli, tcl-cli-support, f5-cli,
-bigip-query-wasm, bigip-report-gen) building and green.
+- **Stage 2.1 — thin profile + masks.** Populate masks for the additive dialects
+  (`TCL85|IAPPS`, `TCL86|EXPECT`, EDA `TCL8x|vendor`) and the **bare `IRULES`**
+  mask + the 42-name `disabled_commands`, generalizing
+  `special_vars::resolve_dialect` (`special_vars.rs:189`, the correct widening
+  precedent); `detect_dialect` routes through `by_name`.
+- **Stage 2.2 — repoint the confirmed-bug availability queries.** W123
+  (`unresolved.rs:164`), W002 (`validity.rs:561,941`),
+  `cache.rs::registry_for_dialect`.
+- **Stage 2.3 — repoint the tools-side query mask.** `command_snapshot`'s
+  independent query (`command_snapshot.rs:426,433`
+  `DialectSet::parse(dialect).unwrap_or(TCL86)`) → `profile.availability_mask`,
+  or `tcl registry-dump/command-info --dialect f5-iapps` still under-reports
+  (must-fix #3: repointing only `cache.rs` does not fix the query mask).
 
-**Phase 3 — thread the profile as ingest identity + fix option-gating +
-subcommand gap.** `state.profile: &'static DialectProfile`;
-`registry_for_profile`. Migrate completion / semantic-tokens / hover /
-side_effects / taint / oo / dispatch to profile methods. Land the **option-gating
-semantics change** (§5.2: `intersects` + `version_ceiling`) — moves switch /
-regsub / option-arity goldens. Close the completion subcommand gap via
-`available_subcommands`. Sweep the open-coded `matches!(dialect,
-Some("irules"|"f5-irules"))` onto `p.is_irules()` (via `by_name` alias
-canonicalization, §2.4). **Gates:** `per_item == analyse` invariant,
-completion/semantic-token goldens, switch/regsub/option-arity goldens.
+**Gates:** W123/W002 tests re-baselined (iApps/expect flip
+false-positive→clean), **registry-dump/command-info goldens for
+f5-iapps/expect/EDA regenerated**, clippy, xtask-check.
 
-**Phase 4 — `NON_IRULES_OPERATORS` data migration + unify spec-selection. GATED
-on §9.2.** Prove the pre-retag gate first (no bare-mask iRules query anywhere,
-including `command_snapshot::command_names`). Then retag the 42 disabled
-commands → `None` + move exclusion into `disabled_commands`; retag operator
-heads universal + `operators_as_commands`; retire the union constant as an
-intrinsic tag. Adopt `resolve_spec` (most-specific) as the single
-`resolve_command` (§5.3); regenerate registry-dump goldens with review.
+### Milestone 3 — behaviour-axis unification (octal + expr + mathfunc + lexer grammar)
+
+**Unblocked by Milestone 1.** Add `signature_base`/`runtime_base`/
+`leading_zero_is_octal`/`expr_grammar_base`/`mathfunc_ceiling`/`grammar` to the
+profile (§7 table). Keep `runtime_version`/`from_dialect` **bit-identical** for
+iRules (const-fold stays `None`-equivalent in this milestone; verify
+optimiser/SCCP against tclsh 8.4/8.5/8.6 before baselining).
+
+- **Stage 3.1 — add the behaviour fields** to the profile and derive them once
+  at catalog build (§2.3/§7.1).
+- **Stage 3.2 — route the const-fold / diagnostic behaviour paths.**
+  `w003_gates`, `math_func_ceiling`, both `leading_zero_is_octal` impls, and the
+  optimiser octal/mathfunc consumers (`tcl_expr_eval.rs`, `optimiser/*` —
+  `expr_simplify`, `propagation`, `structure_elimination`, `manager`, `sccp`,
+  `compilation_unit`) through the profile.
+- **Stage 3.3 — route the grammar/lexer paths, now reachable via `tcl-dialect`.**
+  `LexerConfig::for_dialect` and `parse_expr` through the profile. **This changes
+  lexer parse behaviour**: `LexerConfig::for_dialect`'s 8.x-family list **omits
+  expect/f5-tmsh/bpf** (`lexer.rs:214-217`), so expect (8.6) currently gets
+  `BracedVarStyle::Tcl9Nesting`; routing braced-var through the profile's 8.6
+  grammar flips it to `FirstClose` — a real parse-behaviour change for
+  expect/tmsh files. Covers the **~10 cross-crate `for_dialect` callers** (f5-xc,
+  tcl-cli, tcl-cli-support, f5-cli, bigip-query-wasm, bigip-report-gen,
+  tcl-diagram, tcl-lsp-db, tcl-explorer) and the tcl-syntax expr parser.
+
+**Gates (corrected):** optimiser_coverage, pipeline_coverage, SCCP goldens,
+**PLUS segmentation/lexer/parser goldens** (the expect/tmsh braced-var flip),
+**PLUS the ~10 cross-crate `for_dialect` callers** building and green.
+
+### Milestone 4 — thread the profile as ingest identity + fix option-gating + subcommand gap
+
+- **Stage 4.1 — ingest identity.** `state.profile: &'static DialectProfile`;
+  `registry_for_profile`. Repoints the large `registry_for_dialect` consumer set
+  in the compiler analyser/optimiser/CFG and the LSP/CLI/MCP crates (§15, M4.1).
+- **Stage 4.2 — migrate the availability consumers to profile methods.**
+  completion / semantic-tokens / hover / side_effects / taint / oo / dispatch /
+  irules_event_checks.
+- **Stage 4.3 — option-gating semantics + subcommand gap + is_irules sweep.**
+  Land the **option-gating semantics change** (§5.2: `intersects` +
+  `version_ceiling`) — moves switch / regsub / option-arity goldens. Close the
+  completion subcommand gap via `available_subcommands`. Sweep the open-coded
+  `matches!(dialect, Some("irules"|"f5-irules"))` onto `p.is_irules()` (via
+  `by_name` alias canonicalization, §2.4) — `compiler_checks.rs`,
+  `irules_checks.rs`, `unused_procs.rs`, `uri_split.rs`, `graphs.rs`,
+  `minify.rs`.
+
+**Gates:** `per_item == analyse` invariant, completion/semantic-token goldens,
+switch/regsub/option-arity goldens.
+
+### Milestone 5 — `NON_IRULES_OPERATORS` data migration + unify spec-selection
+
+**GATED on §9.2.**
+
+- **Stage 5.1 — prove the pre-retag gate.** No bare-mask iRules query anywhere,
+  including `command_snapshot::command_names` (§9.2).
+- **Stage 5.2 — the data retag.** Retag the 42 disabled commands → `None` + move
+  exclusion into `disabled_commands`; retag operator heads universal +
+  `operators_as_commands`; retire the union constant as an intrinsic tag. This is
+  the largest single data touchpoint set: **~65 `commands/**` spec files carrying
+  the `dialects: NON_IRULES_OPERATORS` tag** plus `dialects.rs` and the
+  grammar-union consumers (`gen_zed_queries`, `gen_editor_catalogs`,
+  `command_backing`) (§15, M5.2).
+- **Stage 5.3 — unify spec-selection.** Adopt `resolve_spec` (most-specific) as
+  the single `resolve_command` (§5.3); route `get_for_dialect` callers through
+  it (`registry.rs`, `command_snapshot.rs`, `spec.rs`); regenerate registry-dump
+  goldens with review.
+
 **Gates:** full drift suite, dialect_oracle, snapshot.rs, **plus an
 iRules-banned-command test** asserting `exec`/`file`/`socket` remain unavailable
 under `f5-irules` post-retag.
 
-**Phase 5 — versioned-library axis + f5-tmsh/f5-bigip/bpf first-class.** Wire
-`bigip_version`/`tool_version` into `library_version` → `available_for_version`
-(default BIG-IP latest, §14). Backfill F5 `CommandSpec`s with
-`required_package`+`min_version` = introducing BIG-IP version. Add `load_dialect`
-arms + the new `TMSH`/`BIGIP` bits (u64 headroom already in place, §4). **Budget the reverse-regression**
-(§7.2): general 8.6/9.0 core commands newly drawing W123 in tmsh/bpf files.
-Resolve the bpf base (§14). **Gates:** new bigip-version tests, tmsh/bpf
-W123-false-positive goldens, golden regen.
+### Milestone 6 — versioned-library axis + f5-tmsh/f5-bigip/bpf first-class
 
-**Phase 6 — argument-DSL rung.** New DSL validators (`format %u` on 8.4, `string
-is` classes, scan specifiers, regexp/subst flags, clock format) driven by
-`p.effective_tcl_version()` (§6). Dependent on layering (§6.2). **Gates:** new
-DSL-diagnostic goldens.
+- **Stage 6.1 — wire the versioned-library axis.**
+  `bigip_version`/`tool_version`/`sdc_version` into `library_version` →
+  `available_for_version` (**default = OLDEST supported version**, §7.1/§14).
+  Backfill F5/library `CommandSpec`s with `required_package`+`min_version` =
+  introducing BIG-IP/tool version (`spec.rs`, `commands/tk/mod.rs`,
+  `commands/tcllib/mod.rs`).
+- **Stage 6.2 — first-class vendor profiles.** Add `load_dialect` arms + the new
+  `TMSH`/`BIGIP` bits (u64 headroom already in place, §4); f5-tmsh/f5-bigip
+  first-class; **bpf profile = `TCL90|BPF`, `runtime_base=V9_0`,
+  `version_ceiling=V9_0`, octal off** (§7, `commands/bpf/mod.rs`, `bpf-tcl-ir`).
+- **Stage 6.3 — reverse-regression golden budget.** General 8.6/9.0 core
+  commands newly drawing W123 in tmsh/bpf files (§7.2).
 
-**Phase 7 (optional / M16) — VM runtime parity + out-of-registry vendor
-knowledge.** `vm_runtime_version` threaded into the VM number/expr grammar;
-`help.rs::dialect_terms` → `p.help_terms()`; AI F5-surface prompt →
-`p.vendor_surface(&reg)`.
+**Gates:** new bigip-version tests, tmsh/bpf W123-false-positive goldens, golden
+regen.
+
+### Milestone 7 — argument-DSL rung
+
+- **Stage 7.1 — `effective_tcl_version` plumbing** (§6.1) below registry, now
+  reachable from tcl-syntax via `tcl-dialect`.
+- **Stage 7.2 — new DSL validators** (`format %u` on 8.4, `string is` classes,
+  scan specifiers, regexp/subst flags, clock format) driven by
+  `p.effective_tcl_version()` (§6). New code in `tcl-syntax/format.rs` &
+  `scan.rs` (version-agnostic today) + `commands/tcl/string_.rs`. Dependent on
+  layering (§6.2).
+
+**Gates:** new DSL-diagnostic goldens.
+
+### Milestone 8 (optional / VM parity M16) — VM runtime parity + out-of-registry vendor knowledge
+
+- **Stage 8.1 — VM parity.** `vm_runtime_version` threaded into the VM
+  number/expr grammar (`tcl-vm/src/interp.rs`, runtime `number.rs`).
+- **Stage 8.2 — out-of-registry vendor knowledge.** `help.rs::dialect_terms` →
+  `p.help_terms()`; AI/MCP F5-surface prompt → `p.vendor_surface(&reg)`
+  (`tcl-mcp/src/tools.rs`, `tcl-explorer`).
 
 ---
 
@@ -853,47 +955,459 @@ knowledge.** `vm_runtime_version` threaded into the VM number/expr grammar;
   version-agnostic, in tcl-syntax (below registry) — the DSL rung is a GAP.
 - `parse_expr(text, Some(dialect))` = a second behaviour owner below registry —
   `f5-xc/translator.rs:351`, defined in `tcl-syntax/expr/parser.rs`.
-- `minify.rs:2164` consumes `has_fixed_ensembles`. Consumer surface: 100 files,
-  17 crates (§0.1).
+- `minify.rs:2164` consumes `has_fixed_ensembles`. Consumer surface: **269 files,
+  22 crates** — the complete file-level enumeration is §15 (1702 query/behaviour
+  consumer sites + ~2000 `dialects:` data tags). The §0.1 grep is the original
+  signal-count sample.
 
 ---
 
-## 14. OWNER DECISIONS (consolidated)
+## 14. OWNER DECISIONS (consolidated — all decided)
 
-### Already decided (baked into this doc)
+### Decided (baked into this doc)
 
 - **D1 — `DialectSet` width = u64. DECIDED, DONE.** Widened from u16 in commit
   `0655f8a` (`dialects.rs:34`). The width prerequisite is complete; remaining
   work is purely additive new bits (`TMSH`/`BIGIP`/future vendors), landed with
-  Phase 5 (§4). No u32 anywhere.
+  Milestone 6 (§4). No u32 anywhere.
 - **D2 — Crate layering = Option A (`tcl-dialect` foundational crate). DECIDED.**
   A new bottom crate below tcl-lexer holds `DialectSet`, `TclVersion`, the
-  lexer/expr grammar structs, and the `DialectProfile` catalog, so all ~17
-  crates consume ONE source of truth for both axes (§3). Phase 0 creates it and
+  lexer/expr grammar structs, and the `DialectProfile` catalog, so all 22 crates
+  consume ONE source of truth for both axes (§3). Milestone 1 creates it and
   unblocks the behaviour-axis unification. Option B (string-keyed split) is
   rejected (§3.1).
+- **D3 — iRules RATIFIED: pure fixed Tcl 8.4 (§1.1).**
+  `signature_base = runtime_base = V8_4`; nothing backported at any BIG-IP
+  version. The F5 command surface is a **versioned library keyed by BIG-IP
+  version** (`Keyed(BigipVersion)`), orthogonal to the pinned 8.4 base. The
+  stale "iRules loads `tcl8.6` signatures for command availability" line
+  (`dialects-events.md:74-78`) is **retired** by this ratification.
+- **D4 — Behaviour-axis timing: its own milestone AFTER the crate split.
+  DECIDED.** The octal / expr / mathfunc / lexer-grammar routing lands in
+  **Milestone 3**, unblocked by Milestone 1 — **not** pulled earlier into
+  Milestone 2. Milestone 3 flips expect/tmsh braced-var (segmentation goldens,
+  §12/§15). No behaviour bit is pulled forward into the Milestone 2 availability
+  fix.
+- **D5 — Default library versions = OLDEST supported (§7.1). DECIDED — reversing
+  the draft's "latest".** Default `bigip_version` / `tool_version` /
+  `sdc_version` = the **oldest supported version**, the *conservative* choice: by
+  default only floor-version commands are offered, and newer F5/EDA commands
+  require an **explicit version pin** (a file must pin a newer BIG-IP/tool
+  version to see newer commands). "Oldest" never over-reports availability on
+  older targets, whereas "latest" would silently mark unavailable commands as
+  known.
+- **D6 — Adopt `resolve_spec` (most-specific) as the single `resolve_command`
+  (§5.3). DECIDED.** Regenerates registry-dump goldens; routes `get_for_dialect`
+  through it. Lands in **Milestone 5**.
+- **D7 — `bpf` base = Tcl 9.0 (§7). DECIDED.** bpf profile:
+  `signature_base = runtime_base = V9_0`, `availability_mask = TCL90|BPF`,
+  `version_ceiling = V9_0`, `leading_zero_is_octal = No` (9.0 dropped octal).
+  (`tk` remains modelled as a `LibraryPin`, not a profile — §7.2.)
+- **D8 — f5-tmsh / f5-bigip first-class = Milestone 6 (§7.2). DECIDED.** Gated
+  behind Milestone 6 with the reverse-regression golden budget (general-Tcl
+  8.6/9.0 commands newly drawing W123 in tmsh/bpf files, not just "tmsh:: stops
+  drawing W123").
 
 ### Still open
 
-1. **Ratify iRules-settled (§1.1).** `signature_base = runtime_base = V8_4`, pure
-   fixed 8.4, nothing backported; F5 command surface is a versioned library keyed
-   by BIG-IP version. Retire the "8.6-shaped signature" framing in
-   `dialects-events.md`. — *Recommend: ratify.*
-2. **Behaviour-axis timing / Phase-1 scope.** With Option A settled, the
-   lexer/expr routing lands in Phase 2 (unblocked by Phase 0) and flips
-   expect/tmsh braced-var (segmentation goldens). Confirm this is the intended
-   sequencing versus pulling any behaviour bit earlier into Phase 1. — *Owner
-   call.*
-3. **Default `bigip_version` and EDA `tool_version`/`sdc_version` (§7.1).**
-   `bigip_version = latest (17.1)` so the migration hides no F5 commands; EDA
-   tool defaults per vendor. — *Recommend: latest.*
-4. **Adopt `resolve_spec` (most-specific) as the single `resolve_command`
-   (§5.3).** Regenerates registry-dump goldens; routes `get_for_dialect` through
-   it. — *Recommend: yes, Phase 4.*
-5. **`bpf` and `tk` base assignment (§7).** `bpf` base version is open (owner to
-   fix its runtime_base/mask); `tk` is modelled as a `LibraryPin`, not a
-   profile. — *Owner input needed for bpf.*
-6. **f5-tmsh / f5-bigip first-class timing (§7.2).** Gate behind Phase 5 and
-   budget the general-Tcl-command W123 reverse-regression in tmsh/bpf files (not
-   just "tmsh:: stops drawing W123"). — *Recommend: Phase 5, with the regression
-   golden set.*
+*None — plan ratified <date left blank>.* All eight decisions above (D1–D8) are
+owner-final and baked into the model, the §7 table, §12's milestone/stage plan,
+and §15's consumer inventory.
+
+---
+
+## 15. Consumer inventory (complete)
+
+**This is the comprehensive, complete file-level enumeration of every consumer
+of dialect logic** — the authoritative surface the migration must move. Totals:
+**1702 query/behaviour consumer sites + ~2000 `dialects:` data tags across 269
+files / 22 crates** (the `dialects:` tags are the per-command `CommandSpec`
+data in `tcl-registry/src/commands/**`, the largest single retag surface, §9/§12
+Milestone 5). Every file that `use`s `DialectSet`/`TclVersion`/the grammar
+structs is additionally touched by the Milestone 1 crate move (import
+relocation); the **Milestone/Stage** column below records the milestone where the
+file's *logic* changes.
+
+**How to read it.** Each per-crate table is `File | APIs used | ~sites |
+Milestone/Stage`. `~sites` is the approximate consumer-site count (raw grep hits,
+including doc-comments and test scaffolding — an upper bound, not a hand count).
+A `· rgr` suffix marks a **test/golden/example file** — the *regression surface*
+that re-baselines in the named milestone (it does not migrate logic; it locks the
+behaviour that milestone changes). A slash (e.g. `M2.2/M3`) means the file has
+touchpoints in more than one milestone. API labels are the concrete dialect
+entry points: `supports_dialect`, `get_for_dialect`, `resolve_spec`,
+`DialectSet::parse`, `DialectSet::<const>` (bit-union literals),
+`expr_grammar_base_version`, `from_dialect`, `LexerConfig::for_dialect`,
+`registry_for_dialect`, `leading_zero_is_octal`, `is_irules`,
+`has_fixed_ensembles`, `NON_IRULES_OPERATORS`, `parse_expr`, `resolve_dialect`,
+`detect_dialect`, `available_for_version`, `min_version`, `special_var`,
+`available_in`, `dialects: tag`, `mathfunc`/`math_func_ceiling`.
+
+**Milestone legend** (full detail in §12; `Phase N` in the draft → `Milestone
+N+1` here):
+
+| Milestone | Was | Theme | Stages |
+|---|---|---|---|
+| **M1** | Phase 0 | foundational `tcl-dialect` crate (crate split + import relocation) | 1.1 carve · 1.2 imports · 1.3 catalog + expr cache key |
+| **M2** | Phase 1 | W123/W002 availability fix + tools-side dump (from ONE source) | 2.1 thin profile+masks · 2.2 W123/W002/cache · 2.3 command_snapshot query |
+| **M3** | Phase 2 | behaviour-axis unification (octal/expr/mathfunc/lexer grammar) | 3.1 fields · 3.2 const-fold paths · 3.3 grammar + cross-crate `for_dialect`/`parse_expr` |
+| **M4** | Phase 3 | profile as ingest identity + option-gating + subcommand gap | 4.1 `state.profile` threading · 4.2 avail consumers · 4.3 option-gating + `is_irules` sweep |
+| **M5** | Phase 4 | `NON_IRULES_OPERATORS` retag + unify spec-selection | 5.1 pre-retag gate · 5.2 data retag · 5.3 `resolve_spec` |
+| **M6** | Phase 5 | versioned libraries + f5-tmsh/f5-bigip/bpf first-class | 6.1 library axis · 6.2 vendor profiles + bpf 9.0 · 6.3 reverse-regression budget |
+| **M7** | Phase 6 | argument-DSL rung | 7.1 `effective_tcl_version` · 7.2 DSL validators |
+| **M8** | Phase 7 | VM parity + out-of-registry vendor knowledge | 8.1 VM parity · 8.2 help/AI/MCP/explorer vendor surface |
+
+### 15.1 Per-crate totals
+
+| Crate | files | ~sites |
+|---|---|---|
+| `tcl-compiler` | 94 | ~647 |
+| `tcl-registry` | 84 | ~655 |
+| `tcl-lsp-server` | 5 | ~143 |
+| `tcl-lsp-core` | 31 | ~130 |
+| `tcl-syntax` | 7 | ~61 |
+| `tcl-mcp` | 4 | ~52 |
+| `tcl-cli` | 10 | ~33 |
+| `tcl-vm` | 3 | ~28 |
+| `tcl-lexer` | 4 | ~20 |
+| `tcl-explorer` | 3 | ~19 |
+| `xtask` | 4 | ~11 |
+| `tcl-lsp-db` | 2 | ~11 |
+| `tcl-diagram` | 2 | ~8 |
+| `tcl-bigip` | 3 | ~8 |
+| `f5-cli` | 3 | ~7 |
+| `bpf-tcl-ir` | 1 | ~6 |
+| `tcl-cli-support` | 3 | ~5 |
+| `f5-xc` | 1 | ~4 |
+| `bigip-report-gen` | 2 | ~4 |
+| `bigip-query-wasm` | 1 | ~3 |
+| `tcl-irules` | 1 | ~2 |
+| `tcl-pkg` | 1 | ~1 |
+| **Total** | **269** | **~1858 raw hits (≈1702 code-consumer sites + ~2000 `dialects:` data tags)** |
+
+### 15.2 Per-crate file inventory
+
+### `tcl-compiler` — 94 files, ~647 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `examples/incr_experiments.rs` | LexerConfig::for_dialect, DialectSet::parse | 3 | M3.3 · rgr |
+| `examples/optimise_memo_experiments.rs` | DialectSet::parse, LexerConfig::for_dialect | 2 | M3.3 · rgr |
+| `src/analyser/bounds_checks.rs` | registry_for_dialect | 2 | M4.1 |
+| `src/analyser/commands.rs` | parse_expr, mathfunc | 12 | M3 |
+| `src/analyser/diagnostics.rs` | DialectSet::parse, registry_for_dialect | 2 | M4.1 |
+| `src/analyser/diagnostics/dataflow.rs` | registry_for_dialect | 1 | M4.1 |
+| `src/analyser/diagnostics/fp/bnd.rs` | registry_for_dialect | 2 | M4.1 |
+| `src/analyser/diagnostics/fp/inj.rs` | — | 1 | M1.2 |
+| `src/analyser/diagnostics/fp/mod.rs` | registry_for_dialect | 2 | M4.1 |
+| `src/analyser/diagnostics/fp/nab.rs` | registry_for_dialect | 2 | M4.1 |
+| `src/analyser/diagnostics/fp/opt.rs` | registry_for_dialect | 9 | M4.1 |
+| `src/analyser/diagnostics/fp/rch.rs` | registry_for_dialect | 3 | M4.1 |
+| `src/analyser/diagnostics/fp/sh.rs` | — | 4 | M1.2 |
+| `src/analyser/diagnostics/tests.rs` | for_dialect, DialectSet::parse, expr_grammar_base_version, parse_expr, DialectSet::<const> | 115 | M3 · rgr |
+| `src/analyser/diagnostics/unresolved.rs` | get_for_dialect, dialects: tag, DialectSet::parse | 3 | M2.2 |
+| `src/analyser/diagnostics/usage.rs` | parse_expr | 3 | M3 |
+| `src/analyser/diagnostics/validity.rs` | DialectSet::parse, for_dialect, get_for_dialect, availability_hint, supports_dialect, parse_expr, math_func_ceiling, DialectSet::<const>, expr_grammar_base_version | 31 | M2.2/M3 |
+| `src/analyser/diagnostics/version_gate.rs` | — | 9 | M1.2 |
+| `src/analyser/dispatch.rs` | get_for_dialect | 4 | M4.2 |
+| `src/analyser/handlers.rs` | DialectSet::parse | 6 | M1.2 |
+| `src/analyser/irules_event_checks.rs` | DialectSet::<const>, get_for_dialect | 8 | M4.2 |
+| `src/analyser/oo.rs` | DialectSet::parse, supports_dialect | 4 | M4.2 |
+| `src/analyser/param_traits.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/analyser/per_item.rs` | DialectSet::parse | 2 | M1.2 |
+| `src/analyser/recovery.rs` | DialectSet::parse | 2 | M1.2 |
+| `src/analyser/scope.rs` | — | 2 | M1.2 |
+| `src/analyser/state.rs` | DialectSet::parse, LexerConfig::for_dialect, registry_for_dialect | 21 | M4.1 |
+| `src/analyser/utils.rs` | parse_expr | 10 | M3 |
+| `src/cfg_builder/mod.rs` | registry_for_dialect | 4 | M4.1 |
+| `src/codegen/cmd_subst.rs` | parse_expr | 1 | M3 |
+| `src/codegen/control_flow.rs` | parse_expr | 1 | M3 |
+| `src/codegen/expressions.rs` | leading_zero_is_octal | 1 | M3 |
+| `src/compilation_unit.rs` | leading_zero_is_octal | 1 | M3 |
+| `src/compiler_checks.rs` | is_irules | 14 | M4.3 |
+| `src/interprocedural.rs` | LexerConfig::for_dialect | 4 | M3.3 |
+| `src/intervals.rs` | registry_for_dialect, parse_expr | 3 | M3 |
+| `src/ir.rs` | parse_expr | 1 | M3 |
+| `src/ir_helpers.rs` | registry_for_dialect | 1 | M4.1 |
+| `src/irules_checks.rs` | is_irules, LexerConfig::for_dialect | 16 | M4.3 |
+| `src/lib.rs` | parse_expr | 1 | M3 |
+| `src/loops.rs` | registry_for_dialect | 3 | M4.1 |
+| `src/lowering/hooks/control.rs` | parse_expr | 4 | M3 |
+| `src/lowering/mod.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/lowering/structured.rs` | parse_expr | 4 | M3 |
+| `src/lowering_hooks.rs` | parse_expr | 2 | M3 |
+| `src/optimiser/elimination.rs` | registry_for_dialect | 1 | M4.1 |
+| `src/optimiser/end_offset.rs` | parse_expr | 2 | M3 |
+| `src/optimiser/expr_simplify.rs` | leading_zero_is_octal, mathfunc | 6 | M3 |
+| `src/optimiser/helpers/expr_simplify.rs` | parse_expr, leading_zero_is_octal | 16 | M3 |
+| `src/optimiser/manager.rs` | LexerConfig::for_dialect, is_irules | 5 | M3 |
+| `src/optimiser/mod.rs` | — | 1 | M1.2 |
+| `src/optimiser/propagation.rs` | parse_expr, leading_zero_is_octal, mathfunc | 9 | M3 |
+| `src/optimiser/structure_elimination.rs` | leading_zero_is_octal | 4 | M3 |
+| `src/optimiser/tail_call.rs` | — | 6 | M1.2 |
+| `src/optimiser/unused_procs.rs` | is_irules, DialectSet::parse | 18 | M4.3 |
+| `src/regex_source.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/sccp.rs` | parse_expr | 1 | M3 |
+| `src/segmenter.rs` | LexerConfig::for_dialect | 5 | M3.3 |
+| `src/side_effects.rs` | is_irules, supports_dialect, DialectSet::parse | 10 | M3/M4.2 |
+| `src/signature_scan/walker.rs` | registry_for_dialect | 1 | M4.1 |
+| `src/ssa.rs` | parse_expr | 1 | M3 |
+| `src/static_loops.rs` | parse_expr | 13 | M3 |
+| `src/taint.rs` | for_dialect, is_irules, registry_for_dialect, supports_dialect, NON_IRULES_OPERATORS, DialectSet::<const>, DialectSet::parse, special_var, dialects: tag | 43 | M3/M4.2 |
+| `src/tcl_expr_eval.rs` | leading_zero_is_octal, for_dialect, parse_expr, math_func_ceiling, DialectSet::<const>, expr_grammar_base_version | 32 | M3 |
+| `src/type_infer.rs` | parse_expr | 2 | M3 |
+| `src/uri_split.rs` | for_dialect, parse_expr, is_irules, DialectSet::<const>, supports_dialect | 10 | M4.3 |
+| `tests/alias_scoping.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/analyser.rs` | registry_for_dialect | 4 | M4.1 · rgr |
+| `tests/cfg.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/checks.rs` | registry_for_dialect | 5 | M4.1 · rgr |
+| `tests/compiler_analysis_residual.rs` | registry_for_dialect | 3 | M4.1 · rgr |
+| `tests/compiler_residual.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/complexity_guard.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/core_analyses.rs` | registry_for_dialect | 3 | M4.1 · rgr |
+| `tests/dataflow.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/differential_segment.rs` | LexerConfig::for_dialect | 2 | M3.3 · rgr |
+| `tests/fp_depth.rs` | registry_for_dialect | 6 | M4.1 · rgr |
+| `tests/intervals.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/optimiser.rs` | registry_for_dialect | 18 | M4.1 · rgr |
+| `tests/optimiser_coverage.rs` | registry_for_dialect, mathfunc | 13 | M4.1 · rgr |
+| `tests/optimiser_depth.rs` | registry_for_dialect | 5 | M4.1 · rgr |
+| `tests/pipeline_coverage.rs` | parse_expr, registry_for_dialect | 6 | M3 · rgr |
+| `tests/side_effects_binding.rs` | registry_for_dialect, mathfunc | 26 | M4.1 · rgr |
+| `tests/slot_allocation.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/taint.rs` | registry_for_dialect | 3 | M3/M4.2 · rgr |
+| `tests/taint_depth.rs` | registry_for_dialect | 3 | M4.1 · rgr |
+| `tests/tcl_expr_eval.rs` | parse_expr | 7 | M3 · rgr |
+| `tests/tcl_namespace_probe.rs` | mathfunc | 1 | M1.2 · rgr |
+| `tests/type_propagation.rs` | registry_for_dialect | 3 | M4.1 · rgr |
+| `tests/var_escape_cfg.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/var_escape_cfg_catch.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/var_escape_cfg_tree_arms.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/var_escape_residual2.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/var_escape_typeinfer.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+
+### `tcl-registry` — 84 files, ~655 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `examples/dump_specs.rs` | DialectSet::<const> | 6 | M1.2 · rgr |
+| `src/cache.rs` | registry_for_dialect, DialectSet::parse | 2 | M2.2 |
+| `src/command_snapshot.rs` | DialectSet::<const>, supports_dialect, DialectSet::parse, get_for_dialect | 16 | M2.3/M5.3 |
+| `src/commands/bpf/mod.rs` | DialectSet::<const> | 1 | M6.2 |
+| `src/commands/expect/expect_cmd.rs` | — | 1 | M5.2 |
+| `src/commands/tcl/string_.rs` | TclVersion, from_dialect | 1 | M7.2 |
+| `src/commands/tcllib/mod.rs` | — | 5 | M6.1 |
+| `src/commands/tk/mod.rs` | available_for_version | 3 | M6.1 |
+| `src/definer.rs` | — | 1 | M1.2 |
+| `src/dialects.rs` | detect_dialect, DialectSet::<const>, is_irules, DialectSet::parse, has_fixed_ensembles, expr_grammar_base_version, NON_IRULES_OPERATORS | 101 | M1.1/M5.2 |
+| `src/hooks.rs` | from_dialect, TclVersion | 11 | M3 |
+| `src/hover.rs` | supports_dialect, DialectSet::<const>, available_for_version | 15 | M4.2 |
+| `src/lib.rs` | detect_dialect, registry_for_dialect, for_dialect, special_var | 4 | M4.1 |
+| `src/registry.rs` | get_for_dialect, DialectSet::<const>, leading_zero_is_octal, supports_dialect, available_for_version, registry_for_dialect, for_dialect | 36 | M2/M3/M5.3 |
+| `src/snapshot.rs` | — | 1 | M1.2 · rgr |
+| `src/spec.rs` | supports_dialect, available_for_version, for_dialect, TclVersion, from_dialect | 24 | M5.3/M6.1 |
+| `src/special_vars.rs` | special_var, resolve_dialect, available_in, for_dialect, DialectSet::parse, DialectSet::<const> | 29 | M2.1/M4.2 |
+| `src/taint.rs` | supports_dialect | 2 | M3/M4.2 |
+| `tests/analyser_hooks.rs` | DialectSet::parse | 4 | M1.2 · rgr |
+| `tests/detect_dialect.rs` | detect_dialect | 6 | M2.1 · rgr |
+| `tests/dialect_oracle.rs` | get_for_dialect, DialectSet::<const>, supports_dialect | 5 | M5.3 · rgr |
+| `tests/registry.rs` | registry_for_dialect | 8 | M2/M3/M5.3 · rgr |
+| `tests/registry_commands.rs` | get_for_dialect, DialectSet::<const>, is_irules, DialectSet::parse, registry_for_dialect, supports_dialect, detect_dialect | 132 | M5.3 · rgr |
+| `tests/registry_sweep.rs` | registry_for_dialect, get_for_dialect, supports_dialect, DialectSet::parse | 41 | M5.3 · rgr |
+| `tests/snapshot.rs` | registry_for_dialect | 9 | M4.1 · rgr |
+| `tests/tcl91_dialect.rs` | DialectSet::<const>, supports_dialect, DialectSet::parse | 13 | M1.2 · rgr |
+| `tests/tcltest_specs.rs` | DialectSet::<const>, supports_dialect | 37 | M1.2 · rgr |
+| **`commands/**` spec-data files (57 files)** | `dialects: Some(NON_IRULES_OPERATORS)` tag (+ `DialectSet::<const>`) | 141 | **M5.2** (retag → `None` + `disabled_commands`) |
+
+<sub>M5.2 spec-data files (file granularity): `expect/exit.rs`, `irules/dns__header.rs`, `irules/ip__stats.rs`, `tcl/auto_execok.rs`, `tcl/auto_import.rs`, `tcl/auto_load.rs`, `tcl/auto_mkindex.rs`, `tcl/auto_mkindex_old.rs`, `tcl/auto_qualify.rs`, `tcl/auto_reset.rs`, `tcl/bgerror.rs`, `tcl/cd.rs`, `tcl/chan_.rs`, `tcl/dict.rs`, `tcl/eof_.rs`, `tcl/exec_.rs`, `tcl/exit_.rs`, `tcl/fblocked.rs`, `tcl/fconfigure_.rs`, `tcl/fcopy.rs`, `tcl/fcopy_.rs`, `tcl/file_.rs`, `tcl/fileevent.rs`, `tcl/fileevent_.rs`, `tcl/filename.rs`, `tcl/flush_.rs`, `tcl/gets_.rs`, `tcl/glob_.rs`, `tcl/http.rs`, `tcl/interp.rs`, `tcl/load.rs`, `tcl/mathop_generated.rs`, `tcl/memory.rs`, `tcl/namespace_.rs`, `tcl/open_.rs`, `tcl/package_.rs`, `tcl/pid.rs`, `tcl/pkg_mkindex.rs`, `tcl/pwd.rs`, `tcl/re_quote.rs`, `tcl/regex__quote.rs`, `tcl/regex_quote.rs`, `tcl/regexp_quote.rs`, `tcl/rename_.rs`, `tcl/seek_.rs`, `tcl/socket_.rs`, `tcl/source_.rs`, `tcl/tcl__build_info.rs`, `tcl/tcl_findlibrary.rs`, `tcl/tcl_unsupported_corotype.rs`, `tcl/tell_.rs`, `tcl/time.rs`, `tcl/timerate.rs`, `tcl/unknown.rs`, `tcl/unload.rs`, `tcl/update.rs`, `tcl/vwait.rs`</sub>
+
+### `tcl-lsp-server` — 5 files, ~143 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/lib.rs` | registry_for_dialect, DialectSet::parse, detect_dialect, LexerConfig::for_dialect, get_for_dialect, dialect_for_open | 111 | M5.3 |
+| `tests/e2e/code_actions.rs` | — | 12 | M1.2 · rgr |
+| `tests/e2e/diagnostics.rs` | — | 15 | M1.2 · rgr |
+| `tests/e2e/hover.rs` | — | 1 | M4.2 · rgr |
+| `tests/e2e/tcl91.rs` | — | 4 | M1.2 · rgr |
+
+### `tcl-lsp-core` — 31 files, ~130 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `examples/tcloo_diag.rs` | LexerConfig::for_dialect | 1 | M3.3 · rgr |
+| `examples/tcloo_dispatch.rs` | LexerConfig::for_dialect | 1 | M3.3 · rgr |
+| `src/call_hierarchy.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/code_actions.rs` | LexerConfig::for_dialect | 8 | M3.3 |
+| `src/completion.rs` | supports_dialect, DialectSet::parse, available_for_version, for_dialect | 15 | M4.2 |
+| `src/declaration.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/definition.rs` | registry_for_dialect | 2 | M4.1 |
+| `src/document_links.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/folding.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/formatting/config.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/formatting/engine.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/graphs.rs` | is_irules | 2 | M4.3 |
+| `src/hover.rs` | for_dialect, available_in, special_var, supports_dialect | 9 | M4.2 |
+| `src/inlay_hints.rs` | LexerConfig::for_dialect | 3 | M3.3 |
+| `src/irules_context.rs` | LexerConfig::for_dialect | 3 | M3.3 |
+| `src/minify.rs` | parse_expr, is_irules, DialectSet::<const>, has_fixed_ensembles | 7 | M4.3 |
+| `src/references.rs` | LexerConfig::for_dialect | 4 | M3.3 |
+| `src/rename.rs` | LexerConfig::for_dialect | 1 | M3.3 |
+| `src/semantic_tokens.rs` | LexerConfig::for_dialect, for_dialect, registry_for_dialect, DialectSet::parse | 18 | M4.2 |
+| `src/snippets.rs` | — | 3 | M1.2 |
+| `tests/code_actions_depth.rs` | LexerConfig::for_dialect | 7 | M3.3 · rgr |
+| `tests/completion_residual.rs` | — | 9 | M1.2 · rgr |
+| `tests/datagroup_residual.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/folding.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/formatting_engine_residual.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/inlay_hints.rs` | registry_for_dialect | 2 | M4.1 · rgr |
+| `tests/lsp_core_residual.rs` | registry_for_dialect | 3 | M4.1 · rgr |
+| `tests/lsp_edit_workspace.rs` | registry_for_dialect | 4 | M4.1 · rgr |
+| `tests/minify_residual.rs` | registry_for_dialect, has_fixed_ensembles | 6 | M4.1 · rgr |
+| `tests/semantic_tokens.rs` | registry_for_dialect, DialectSet::parse | 5 | M4.2 · rgr |
+| `tests/semantic_tokens_residual.rs` | registry_for_dialect | 5 | M4.1 · rgr |
+
+### `tcl-syntax` — 7 files, ~61 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/expr/ast.rs` | parse_expr | 4 | M3 |
+| `src/expr/eval.rs` | parse_expr | 8 | M3 |
+| `src/expr/mod.rs` | parse_expr | 1 | M3 |
+| `src/expr/parser.rs` | parse_expr | 28 | M3 |
+| `tests/expr_parser.rs` | parse_expr | 5 | M3 · rgr |
+| `tests/expr_parser_coverage.rs` | parse_expr | 7 | M3 · rgr |
+| `tests/expr_parser_depth.rs` | parse_expr | 8 | M3 · rgr |
+
+### `tcl-mcp` — 4 files, ~52 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/bigip.rs` | registry_for_dialect | 1 | M8.2 |
+| `src/datagroup.rs` | registry_for_dialect | 3 | M8.2 |
+| `src/irule_test.rs` | registry_for_dialect, LexerConfig::for_dialect | 6 | M8.2 |
+| `src/tools.rs` | resolve_dialect, detect_dialect, registry_for_dialect, LexerConfig::for_dialect, DialectSet::<const>, get_for_dialect | 42 | M5.3 |
+
+### `tcl-cli` — 10 files, ~33 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/commands/compile.rs` | registry_for_dialect | 3 | M1.2/M3.3 |
+| `src/commands/diag.rs` | registry_for_dialect | 2 | M1.2/M3.3 |
+| `src/commands/diagram.rs` | registry_for_dialect, LexerConfig::for_dialect | 3 | M1.2/M3.3 |
+| `src/commands/diff.rs` | registry_for_dialect | 2 | M1.2/M3.3 |
+| `src/commands/graphs.rs` | registry_for_dialect | 3 | M1.2/M3.3 |
+| `src/commands/help.rs` | — | 3 | M8.2 |
+| `src/commands/lookup.rs` | registry_for_dialect, DialectSet::parse | 3 | M1.2/M3.3 |
+| `src/commands/registry.rs` | registry_for_dialect | 3 | M1.2/M3.3 |
+| `src/commands/transform.rs` | registry_for_dialect, LexerConfig::for_dialect | 5 | M1.2/M3.3 |
+| `tests/cli.rs` | registry_for_dialect | 6 | M1.2/M3.3 · rgr |
+
+### `tcl-vm` — 3 files, ~28 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/interp.rs` | parse_expr | 2 | M8.1 |
+| `tests/cmd_math_expr_e2e.rs` | mathfunc | 24 | M8.1 · rgr |
+| `tests/tricky_resolution_e2e.rs` | mathfunc | 2 | M8.1 · rgr |
+
+### `tcl-lexer` — 4 files, ~20 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/expr_lexer.rs` | — | 1 | M3 |
+| `src/highlight.rs` | LexerConfig::for_dialect | 2 | M3 |
+| `src/lexer.rs` | LexerConfig::for_dialect, for_dialect | 7 | M3 |
+| `tests/lexer_depth.rs` | LexerConfig::for_dialect, parse_expr | 10 | M3.3 · rgr |
+
+### `tcl-explorer` — 3 files, ~19 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/asm.rs` | registry_for_dialect | 2 | M8.2/M1.2 |
+| `src/lib.rs` | registry_for_dialect, LexerConfig::for_dialect | 3 | M8.2/M1.2 |
+| `src/serialise.rs` | registry_for_dialect, LexerConfig::for_dialect | 14 | M8.2/M1.2 |
+
+### `xtask` — 4 files, ~11 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/command_backing.rs` | DialectSet::<const> | 1 | M5.2 |
+| `src/gen_editor_catalogs.rs` | DialectSet::<const>, supports_dialect | 1 | M5.2 |
+| `src/gen_tmlanguage_keywords.rs` | supports_dialect | 1 | M5.2 |
+| `src/gen_zed_queries.rs` | supports_dialect, NON_IRULES_OPERATORS | 8 | M5.2 |
+
+### `tcl-lsp-db` — 2 files, ~11 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `examples/tail_profile.rs` | LexerConfig::for_dialect | 2 | M1.2/M3.3 · rgr |
+| `src/lib.rs` | LexerConfig::for_dialect, is_irules, registry_for_dialect, DialectSet::parse | 9 | M1.2/M3.3 |
+
+### `tcl-diagram` — 2 files, ~8 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/attach.rs` | LexerConfig::for_dialect, registry_for_dialect | 5 | M1.2/M3.3 |
+| `src/graph.rs` | registry_for_dialect, LexerConfig::for_dialect | 3 | M1.2/M3.3 |
+
+### `tcl-bigip` — 3 files, ~8 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/apl/iapp_diagnostics.rs` | — | 5 | M6.1/M1.2 |
+| `src/wireshark_profile.rs` | — | 1 | M6.1/M1.2 |
+| `tests/conf_wrapped_irules.rs` | detect_dialect | 2 | M6.1/M1.2 · rgr |
+
+### `f5-cli` — 3 files, ~7 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/cli.rs` | — | 1 | M6.1/M1.2 |
+| `src/commands/irule.rs` | registry_for_dialect | 4 | M6.1/M1.2 |
+| `src/commands/registry_dump.rs` | registry_for_dialect | 2 | M6.1/M1.2 |
+
+### `bpf-tcl-ir` — 1 files, ~6 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/lower.rs` | parse_expr | 6 | M6.2 |
+
+### `tcl-cli-support` — 3 files, ~5 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/highlight.rs` | registry_for_dialect | 2 | M3 |
+| `src/input.rs` | detect_dialect | 1 | M1.2/M3.3 |
+| `src/lib.rs` | registry_for_dialect | 2 | M1.2/M3.3 |
+
+### `f5-xc` — 1 files, ~4 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/translator.rs` | parse_expr, LexerConfig::for_dialect | 4 | M6.1/M1.2 |
+
+### `bigip-report-gen` — 2 files, ~4 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `python/src/lib.rs` | LexerConfig::for_dialect, registry_for_dialect | 2 | M6.1/M1.2 |
+| `rust/src/model.rs` | LexerConfig::for_dialect, registry_for_dialect | 2 | M6.1/M1.2 |
+
+### `bigip-query-wasm` — 1 files, ~3 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/analyze.rs` | registry_for_dialect, LexerConfig::for_dialect | 3 | M6.1/M1.2 |
+
+### `tcl-irules` — 1 files, ~2 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/walker.rs` | LexerConfig::for_dialect, DialectSet::parse | 2 | M1.2/M3.3 |
+
+### `tcl-pkg` — 1 files, ~1 sites
+
+| File | APIs used | ~sites | Milestone/Stage |
+|---|---|---|---|
+| `src/cas.rs` | — | 1 | M1.2 |
