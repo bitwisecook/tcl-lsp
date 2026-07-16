@@ -2121,23 +2121,6 @@ mod tests {
     }
 
     #[test]
-    fn completion_uplevel_one_offers_enclosing_proc_local() {
-        // `uplevel 1 { … }` runs in the caller's frame (statically unknown), so
-        // completion keeps best-effort behaviour: the lexically-enclosing proc's
-        // locals stay offered inside the body.  The D2 uplevel guard abstains for
-        // *resolution* but must not blank *completion* here.
-        let src = "proc p {} {\n    set up1_local 1\n    uplevel 1 {\n        puts $\n    }\n}\n";
-        let analysis = analyse(src);
-        // Cursor right after `puts $` on line 3 (8 spaces + "puts $" = col 14).
-        let items = completions(src, 3, 14, &analysis, None, None, "tcl8.6");
-        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-        assert!(
-            labels.iter().any(|l| l.contains("up1_local")),
-            "uplevel 1 best-effort should still offer the enclosing proc local: {labels:?}",
-        );
-    }
-
-    #[test]
     fn variable_completion_filters_by_partial() {
         let src = "set apple 1\nset banana 2\nset $b\n";
         let analysis = analyse(src);

@@ -232,18 +232,25 @@ suite("Variable Completion: command contexts", () => {
     }
   });
 
-  test("uplevel 1: best-effort behaviour leaves caller proc's locals in scope", async () => {
-    // ``uplevel 1`` body's effective scope is the runtime caller, which
-    // we can't resolve statically.  We keep best-effort behaviour: the
-    // calling proc's locals stay visible.  Just check that completion
-    // works (returns at least one item) and includes the proc-local.
+  test("uplevel 1 abstains: the caller proc's locals are not offered", async () => {
+    // ``uplevel 1`` runs its body in the dynamic caller's frame, so the
+    // enclosing proc's ``up1_local`` is not in scope there — offering it would
+    // suggest a variable that does not exist at runtime. Completion abstains on
+    // the proc's locals (matching the server-side
+    // ``dollar_completion_uplevel_one_abstains_from_proc_scope``) while still
+    // offering the body's own declarations. Poll for the body-local so the
+    // request has settled, then assert the proc-local is absent.
     const items = await probeAt(docUri, "# PROBE_UPLEVEL_ONE", "\n            puts $", [
-      "$up1_local",
+      "$body_var",
     ]);
     const labels = items.map(labelOf);
     assert.ok(
-      labels.includes("$up1_local"),
-      `Expected $up1_local in uplevel 1 body: ${labels.slice(0, 30).join(", ")}`,
+      labels.includes("$body_var"),
+      `the uplevel body's own var should be offered: ${labels.slice(0, 30).join(", ")}`,
+    );
+    assert.ok(
+      !labels.includes("$up1_local"),
+      `$up1_local must NOT be offered inside an uplevel 1 body: ${labels.slice(0, 30).join(", ")}`,
     );
   });
 });
