@@ -1,26 +1,43 @@
 # Name resolution — master fix plan
 
-**Status:** in execution on branch `claude/validate-issue-923-comment-tsajg7`
-(PR #933). Honest completion state, per milestone:
+**Status: COMPLETE.** All 16 milestones (every stage) are landed with tests.
+M1–M6, M10 (analyser side), M12–M15 shipped via PR #933; the follow-up branch
+(`claude/nifty-pasteur-2bq56k`, based on #933) closed out the remainder:
 
-- **Landed, with tests:** M1 (target-selection consolidation), M2 (D1 object-var
-  rename + D2 uplevel guard + alias unification), M3 (command name-links), M4
-  (class one-hop resolution), M5 (workspace resolution oracle — the #923 core),
-  M6 (cross-file TclOO methods), M10 (dialect-aware resolver — analyser side;
-  the VM mirror of 10.1 is deferred to the M16 VM-parity pass), M12 (expr math
-  functions), M13 (TclOO `property` version fidelity), M14 (command-names-as-data
-  + ensembles — see 14.2 for the one reverted sub-item), M15 (interp/inscope
-  isolation, per-object methods, `zipfs`).
-- **Partial:** M8 §8.1 — the **go-to-definition** autoload tier has landed;
-  merging lazily-analysed library files into the shared index so *references /
-  rename* also reach them is the remaining half.
-- **Not started:** M7 (command-names-in-variables / SCCP), M9 (source-site
-  namespace propagation), M11 (cross-version namespace-var fallback — needs a
-  `tclsh8.6`/`tclsh9.0` vector), M16 (VM behavioural parity — out of resolution
-  scope).
+- **M8 §8.1 (second half)** — lazily-analysed autoload library files merge
+  into the shared workspace index, so *references / rename* reach them (and a
+  consumer-document rename rewrites its call sites), not just
+  go-to-definition.
+- **M7** — command names carried in variables: const-string settlement gives
+  `$cmd` dispatch heads navigation (marked `indirect` so rename never rewrites
+  a `$cmd` span), and dispatch-table value literals consumed by a
+  `$table(...)` head are real, renameable references.
+- **M9** — `source`-site namespace propagation via seeded re-analysis
+  (`analyse_with_source_namespace` — the static `namespace eval <ns> <file>`),
+  with lazy fixpoint re-homing in the server and `auto_path`-eval folding.
+- **M11** — cross-version variable semantics (TIP 278): the Tcl 8.x
+  namespace-scope global fallback is a registry-derived dialect knob
+  (`DialectSet::namespace_var_global_fallback`) honoured by the runtime
+  resolver, the VM (`RuntimeVersion` + `tclvm --tcl-version`), and the
+  analyser/LSP var path — all pinned live against `tclsh8.6` and `tclsh9.0`.
+- **M10 §10.1 (VM mirror)** — the VM's `namespace path` resolution tier is
+  gated to 8.5+ at resolution time.
+- **M16** — VM behavioural parity: `TclPreventAliasLoop`, cross-interp
+  aliases in both directions (child→parent via NRE suspension), command +
+  execution traces with C-faithful shapes, and the command-name epoch cache.
+- **Issue #934** (found mid-execution) — colon-run-faithful name splitting:
+  the written-name vs constructed-key model (`docs/design/contracts/`
+  `colon-names-and-addressability.md`), W314 for unaddressable definitions,
+  and `{}`/`:`-named commands handled end-to-end (analyser, LSP, VM,
+  runtime).
+- **Drift prevention** — the `cargo xtask resolution-drift` gate (in
+  `make xtask-check`) plus the contract-doc corrections.
+
+Historical context (the state PR #933 shipped in, kept for the record):
+
 - **Review hardening (PR #933):** a review pass — the automated Codex reviewer
   plus the branch's first full CI run (including the vscode integration suite)
-  — surfaced latent defects in stages previously ticked done, now fixed and
+  — surfaced latent defects in stages previously ticked done, then fixed and
   called out inline as "**Review fix (PR #933)**": qualified-name aliasing in
   `variable` / `namespace upvar` (M2), completion best-effort inside `uplevel 1`
   (M2 D2), and a `namespace which -command` probe wrongly drawing W123 (M14.2,
@@ -229,7 +246,7 @@ Ground truth: C resolves a bare `superclass`/`mixin` relative to the
 
 **Stage 4.2 — replace** ✅ **DONE**
 - [x] Replaced the ancestor-walk in [`resolve_class_name`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/class_hierarchy.rs#L258) with `crate::naming::bareword_resolution_candidates` (current-ns → global, no intermediate ancestors); kept the sound-by-abstention unique-tail fallback for the cross-file `namespace import` idiom. Reproduced the bug (`superclass Base` in `::a::b::Sub` wrongly linked to ancestor `::a::Base`), then fixed → abstains.
-- [ ] **Deferred (hygiene, not a bug):** the duplicate `canonicalise_class_name` (W308) is a *simpler* heuristic without the ancestor walk, and `class_lattice.rs`'s copy is an unwired experiment — retiring them is dedup, not a correctness fix; left for a follow-up.
+- [x] ✅ **DONE (follow-up landed)** — the deferred hygiene: `canonicalise_class_name` (W308) and `semantic_tokens.rs`'s definer-head copy now delegate to the shared call-site resolver `class_hierarchy::resolve_written_class_name` (exact → canonical global spelling, colon-run rule → unique-tail with abstain-on-ambiguity), and `commands.rs`'s `resolve_user_class` local arm dropped its first-`HashMap`-hit `c.name == name` scan for the same resolver.  `class_lattice.rs`'s richer offset-aware copy stays: it is the A3 cross-file experiment's own oracle with a deliberately different (call-site-offset) contract.
 
 **Stage 4.3 — regression** ✅ **DONE**
 - [x] Green with 0 regressions: compiler lib **4305**, integration `analyser` (196, +2 new full-`analyse`→`is_subtype` tests), `mro_lattice_adversarial` (9), and lsp-core `lsp_navigation`/`lsp_providers`/`references_residual`/`hover_residual`. vscode layer deferred (no type-hierarchy provider in the TS harness; go-to-implementation awaits the M1 Tier-2 `implementation.rs` fix to be a clean vehicle).
@@ -402,5 +419,5 @@ Everything else is *missed* refs/edits (under-delivery, not corruption).
 
 ## Drift prevention (once M1 lands)
 
-- [ ] `xtask` lint (grep-shaped to start) flagging any new `.iter().find(|…| …name == word…)` scan over `all_procs`/`all_classes` outside [`tcl_syntax::naming`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs) and the sanctioned `definition.rs` helpers. The "add a vector" discipline only protects consumers already inside the contract — which is why 17 sites drifted.
-- [ ] Contract-doc corrections: `command-resolution.md`'s WASM-codegen line (inherits the *runtime's* conformance via eval-delegation, not "the VM's"); `tcloo-implementation.md` (stale pre-Rust-port Python modules).
+- [x] ✅ **DONE** — `cargo xtask resolution-drift` (wired into `make xtask-check`): flags any `.name ==` compare in the lexical window of an `all_procs`/`all_classes` mention outside the contract files (`tcl_syntax::naming`, the sanctioned `definition.rs` helpers); reviewed exceptions carry a `// drift-ok: <reason>` comment.  Calibrating the gate surfaced and fixed five surviving drift sites (code-actions inline-proc head, document-highlight class/proc targets, prepare-rename fallbacks, call-hierarchy prepare + method outgoing-call targets) and put `commands.rs`'s class arm on the shared resolver.
+- [x] ✅ **DONE** — Contract-doc corrections: `command-resolution.md`'s WASM-codegen line (inherits the *runtime's* conformance via eval-delegation, not "the VM's"); `tcloo-implementation.md` rewritten to the Rust reality (the stale pre-port Python module inventory dropped).
