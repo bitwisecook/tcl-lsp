@@ -131,9 +131,12 @@ pub fn definition(
     //    then walk back outward looking for the var.
     if let Some(var_name) = find_var_at_position(source, line, character) {
         let cursor_offset = byte_offset_at(&line_index, source, line, character);
-        if let Some(var_def) =
-            lookup_var_in_scope_chain(&analysis.global_scope, cursor_offset, &var_name)
-        {
+        if let Some(var_def) = lookup_var_in_scope_chain(
+            &analysis.global_scope,
+            cursor_offset,
+            &var_name,
+            analysis.ns_var_global_fallback(),
+        ) {
             return vec![span_to_range(source, &line_index, var_def.definition_span)];
         }
         return Vec::new();
@@ -604,9 +607,41 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     scope: &'a tcl_compiler::analyser::Scope,
     byte_offset: u32,
     name: &str,
+    ns_global_fallback: bool,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
+    use tcl_compiler::analyser::ScopeKind;
     // First, find the innermost scope containing the cursor.
     let chain = scope_chain_at(scope, byte_offset);
+    // A bare name at a **namespace frame** (cursor directly in a `namespace
+    // eval` body) follows C Tcl's two-table rule: the namespace's own
+    // variables, then — only under a Tcl 8.x dialect (TIP 278;
+    // `ns_global_fallback`, from
+    // `AnalysisResult::ns_var_global_fallback`) — the global namespace.
+    // Enclosing *intermediate* namespaces are never consulted in **any**
+    // version.  Qualified names and proc-like frames (proc / method /
+    // uplevel bodies) keep the lenient outward walk below.  (An
+    // `interp eval` child scope shares the `Namespace` kind, so under 8.x
+    // the global leg can still cross the interp boundary — a pre-existing
+    // leniency this rule already narrows from "every enclosing scope" to
+    // "the global table only".)
+    if !name.contains("::")
+        && chain.len() > 1
+        && chain.last().is_some_and(|sc| sc.kind == ScopeKind::Namespace)
+    {
+        let ns = chain.last().expect("guarded: chain has a last element");
+        if let Some(v) = ns.variables.get(name) {
+            return Some(v);
+        }
+        return ns_global_fallback
+            .then(|| {
+                chain
+                    .first()
+                    .expect("guarded: chain has a first element")
+                    .variables
+                    .get(name)
+            })
+            .flatten();
+    }
     // Walk outward (innermost-first) looking for the var, honouring the
     // `uplevel` frame semantics (see [`uplevel_hides_scope`]).
     for (i, sc) in chain.iter().enumerate().rev() {
@@ -754,15 +789,25 @@ pub(crate) fn visible_variable_names(
 /// that namespace).  Such a global must be offered `::`-qualified (`$::foo`)
 /// so the inserted reference actually reaches it, matching Tcl's name
 /// resolution.  Returns `None` at global scope, where bare names are correct.
+///
+/// `ns_global_fallback` carries the document dialect's TIP 278 semantics
+/// (`AnalysisResult::ns_var_global_fallback`): under a Tcl 8.x dialect a
+/// bare name at a namespace frame *does* reach an unshadowed global, so a
+/// namespace context only forces qualification under 9.0+ semantics.  Proc
+/// bodies never had the fallback in any version.
 pub(crate) fn global_vars_needing_qualification(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
+    ns_global_fallback: bool,
 ) -> Option<FxHashSet<String>> {
     use tcl_compiler::analyser::ScopeKind;
     let chain = scope_chain_at(scope, byte_offset);
     let in_local_context = chain.iter().any(|sc| {
         matches!(sc.kind, ScopeKind::Proc)
-            || (matches!(sc.kind, ScopeKind::Namespace) && !sc.name.is_empty() && sc.name != "::")
+            || (matches!(sc.kind, ScopeKind::Namespace)
+                && !sc.name.is_empty()
+                && sc.name != "::"
+                && !ns_global_fallback)
     });
     if !in_local_context {
         return None;

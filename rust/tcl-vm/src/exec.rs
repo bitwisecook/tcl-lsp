@@ -650,13 +650,12 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
 
 /// The Tcl `wrong # args` usage message for a proc.
 fn proc_usage(proc: &ProcDef) -> String {
-    let simple = proc
-        .usage_name
-        .as_deref()
-        // `proc.name` is the VM's unrooted key: construction-inverse tail
-        // (#934) — an `rsplit` would misread a lone-colon name.
-        .map(str::to_owned)
-        .unwrap_or_else(|| crate::interp::key_holder_and_tail_unrooted(&proc.name).1);
+    // `proc.name` is the VM's unrooted key: construction-inverse tail
+    // (#934) — an `rsplit` would misread a lone-colon name.
+    let simple = proc.usage_name.as_deref().map_or_else(
+        || crate::interp::key_holder_and_tail_unrooted(&proc.name).1,
+        str::to_owned,
+    );
     // Each desired-arg word is list-quoted (C's `Tcl_WrongNumArgs`), so a param
     // name containing spaces shows as `{a b c}` and an empty name as `{}`
     // (proc-3.6/3.7). A trailing `args` becomes the raw `?arg ...?` suffix — not

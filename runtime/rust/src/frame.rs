@@ -218,6 +218,16 @@ impl VarTable {
                 *slot = obj;
                 Ok(())
             }
+            // The declared-but-undefined marker (a self-link, installed by
+            // `variable` — see `vars::make_variable_mapped`) is exactly the
+            // undefined Var a first write defines; any other link the
+            // coordinator would have followed.
+            Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {
+                // SAFETY: fresh cell takes a +1 (the link owned nothing).
+                unsafe { obj::incr_ref_count(obj) };
+                self.vars.insert(name.to_vec(), Var::Scalar(obj));
+                Ok(())
+            }
             Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
             None => {
                 // SAFETY: fresh cell takes a +1.
@@ -251,6 +261,15 @@ impl VarTable {
                 if let Some(old) = map.insert(key.to_vec(), obj) {
                     unsafe { obj::decr_ref_count(old) };
                 }
+                Ok(())
+            }
+            // The declared-but-undefined marker: the first element write
+            // defines the array over it (see `store_scalar`).
+            Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {
+                let mut map = BTreeMap::new();
+                unsafe { obj::incr_ref_count(obj) };
+                map.insert(key.to_vec(), obj);
+                self.vars.insert(name.to_vec(), Var::Array(map));
                 Ok(())
             }
             Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
@@ -294,6 +313,11 @@ impl VarTable {
         match self.vars.get(name) {
             Some(Var::Array(_)) => Ok(()),
             Some(Var::Scalar(_)) => Err(VarError::IsScalar),
+            // The declared-but-undefined marker defines as an array here.
+            Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {
+                self.vars.insert(name.to_vec(), Var::Array(BTreeMap::new()));
+                Ok(())
+            }
             Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
             None => {
                 self.vars.insert(name.to_vec(), Var::Array(BTreeMap::new()));

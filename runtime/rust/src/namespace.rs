@@ -102,6 +102,13 @@ impl Namespace {
 /// The namespace tree + the command resolver.
 pub struct Namespaces {
     arena: Vec<Namespace>,
+    /// M11: Tcl 8.x resolves an unqualified variable at **namespace scope**
+    /// to the global variable when the namespace has none but the global
+    /// namespace does (reads and writes both); 9.0 removed the fallback
+    /// (TIP 278, `TCL_NAMESPACE_ONLY`).  Defaults to the 9.0 behaviour
+    /// (`false`); an 8.x embedding flips it via
+    /// [`crate::interp::Interp::set_ns_var_global_fallback`].
+    pub(crate) ns_var_global_fallback: bool,
 }
 
 impl Default for Namespaces {
@@ -115,6 +122,7 @@ impl Namespaces {
     #[must_use]
     pub fn new() -> Namespaces {
         Namespaces {
+            ns_var_global_fallback: false,
             arena: vec![Namespace::new(Vec::new(), None)],
         }
     }

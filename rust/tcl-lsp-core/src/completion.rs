@@ -558,6 +558,7 @@ pub fn completions(
             &analysis.global_scope,
             &partial,
             trigger,
+            analysis.ns_var_global_fallback(),
         );
     }
     let partial = word_partial_at_position(source, line, character);
@@ -798,6 +799,7 @@ fn variable_completions(
     scope: &Scope,
     partial: &str,
     trigger: char,
+    ns_global_fallback: bool,
 ) -> Vec<CompletionItem> {
     let line_text = source.split('\n').nth(line as usize).unwrap_or("");
     let chars: Vec<char> = line_text.chars().collect();
@@ -860,15 +862,15 @@ fn variable_completions(
     // indices of `arr` as `$arr(index)`.  A `(` in the partial always
     // resolves here (to suggestions or an empty list); it never falls
     // through to plain-name completion.
-    if let Some(paren) = partial.find('(') {
+    if partial.contains('(') {
         return array_element_completions(
             line_text,
-            paren,
             scope,
             byte_offset,
             partial,
             end,
             edit_start,
+            ns_global_fallback,
         );
     }
 
@@ -879,7 +881,8 @@ fn variable_completions(
     // Inside a proc / nested namespace, a global variable is only reachable
     // via its `::`-qualified name (a bare `$foo` there is a local / namespace
     // lookup), so qualify global-origin names — `foo-bar` → `::foo-bar`.
-    let qualify_globals = crate::definition::global_vars_needing_qualification(scope, byte_offset);
+    let qualify_globals =
+        crate::definition::global_vars_needing_qualification(scope, byte_offset, ns_global_fallback);
 
     let edit = VarEdit {
         start: edit_start,
@@ -1038,17 +1041,25 @@ fn push_cross_namespace_vars(
 /// matching the original short-circuit semantics for array-element context.
 fn array_element_completions(
     line_text: &str,
-    paren: usize,
     scope: &Scope,
     byte_offset: u32,
     partial: &str,
     end: usize,
     edit_start: Option<u32>,
+    ns_global_fallback: bool,
 ) -> Vec<CompletionItem> {
+    // The caller dispatches here exactly when `partial` contains a `(`.
+    let Some(paren) = partial.find('(') else {
+        return Vec::new();
+    };
     let arr_name = partial[..paren].trim_start_matches('{');
     let elem_prefix = &partial[paren + 1..];
-    let Some(arr_def) = crate::definition::lookup_var_in_scope_chain(scope, byte_offset, arr_name)
-    else {
+    let Some(arr_def) = crate::definition::lookup_var_in_scope_chain(
+        scope,
+        byte_offset,
+        arr_name,
+        ns_global_fallback,
+    ) else {
         return Vec::new();
     };
     if arr_def.array_indices.is_empty() || !is_bare_var_name(arr_name) {

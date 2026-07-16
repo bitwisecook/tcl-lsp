@@ -702,3 +702,94 @@ fn type_hierarchy_prepare_out_of_range_and_empty_file_do_not_panic() {
     let empty = analyse("");
     assert!(prepare_type_hierarchy("", 0, 0, &empty).is_empty());
 }
+
+// ===========================================================================
+// M11 (TIP 278) — namespace-scope variable resolution is dialect-gated.
+//
+// C-Tcl facts, pinned live against tclsh8.6 (8.6.16) and tclsh9.0 (9.0.4)
+// (the executable table lives in `rust/tcl-vm/tests/cross_version_vars_e2e.rs`):
+//   * `set g 1; namespace eval foo { set g }`   8.6 → 1, 9.0 → error
+//   * `namespace eval a { set x 1; namespace eval b { set x } }` both → error
+//   * `set v 1; namespace eval bar { variable v; set v }`        both → error
+//   * `set g 1; proc p {} { set g }; p`                          both → error
+// ===========================================================================
+
+/// Analyse under an explicit dialect (both sides of the TIP 278 boundary).
+fn analyse_as(source: &str, dialect: &str) -> AnalysisResult {
+    let mut a = Analyser::new();
+    a.analyse(source, dialect).clone()
+}
+
+#[test]
+fn definition_ns_scope_bare_var_reaches_the_global_only_under_8x_m11() {
+    let src = "set g 1\nnamespace eval foo {\n    puts $g\n}\n";
+    let col = src.lines().nth(2).unwrap().find("$g").unwrap() as u32 + 1;
+    // TP: 8.x — the namespace frame falls back to the global table.
+    let a86 = analyse_as(src, "tcl8.6");
+    let locs = definition(src, 2, col, &a86);
+    assert_eq!(
+        start_lines(&locs),
+        vec![0],
+        "8.x: `$g` at namespace scope resolves to the global `set g`: {locs:?}"
+    );
+    // TN: 9.0 — TIP 278 removed the fallback; the read errors at runtime.
+    let a90 = analyse_as(src, "tcl9.0");
+    let locs = definition(src, 2, col, &a90);
+    assert!(
+        locs.is_empty(),
+        "9.0: no fallback — a definition here would be invented: {locs:?}"
+    );
+}
+
+#[test]
+fn definition_ns_scope_bare_var_never_reaches_an_intermediate_namespace_m11() {
+    // FP guard: `$x` at `::a::b` scope sees `::a::b::x` and (8.x) `::x` —
+    // never `::a::x`.  Both real tclshs error on this script.
+    let src = "namespace eval a {\n    set x 1\n    namespace eval b {\n        puts $x\n    }\n}\n";
+    let col = src.lines().nth(3).unwrap().find("$x").unwrap() as u32 + 1;
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let a = analyse_as(src, dialect);
+        let locs = definition(src, 3, col, &a);
+        assert!(
+            locs.is_empty(),
+            "[{dialect}] `::a::x` is never visible from `::a::b` scope: {locs:?}"
+        );
+    }
+}
+
+#[test]
+fn definition_ns_scope_declared_variable_blocks_the_global_hop_m11() {
+    // `variable v` creates the namespace's own cell, so the read resolves to
+    // its declaration in BOTH versions (tclsh8.6 errors on the read rather
+    // than seeing the global — the declared cell shadows it).
+    let src = "set v 1\nnamespace eval bar {\n    variable v\n    puts $v\n}\n";
+    let col = src.lines().nth(3).unwrap().find("$v").unwrap() as u32 + 1;
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let a = analyse_as(src, dialect);
+        let locs = definition(src, 3, col, &a);
+        assert_eq!(
+            start_lines(&locs),
+            vec![2],
+            "[{dialect}] resolves to the `variable v` declaration: {locs:?}"
+        );
+    }
+}
+
+#[test]
+fn definition_proc_body_bare_var_keeps_the_lenient_walk_m11() {
+    // C Tcl errors here in BOTH versions (proc frames never had the
+    // fallback), but the LSP's proc-context outward walk is a deliberate
+    // navigation leniency (`global`-less quick scripts) that M11 leaves
+    // untouched.  Pinned so the namespace gate can't leak into proc frames.
+    let src = "set g 1\nproc p {} {\n    puts $g\n}\n";
+    let col = src.lines().nth(2).unwrap().find("$g").unwrap() as u32 + 1;
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let a = analyse_as(src, dialect);
+        let locs = definition(src, 2, col, &a);
+        assert_eq!(
+            start_lines(&locs),
+            vec![0],
+            "[{dialect}] proc-context leniency is unchanged by M11: {locs:?}"
+        );
+    }
+}

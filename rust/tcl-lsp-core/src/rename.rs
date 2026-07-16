@@ -174,6 +174,7 @@ pub fn prepare_rename(
             &analysis.global_scope,
             byte_offset,
             &var_name,
+            analysis.ns_var_global_fallback(),
         ) {
             return Some(PrepareRename {
                 range: span_to_range(source, &line_index, var_def.definition_span),
@@ -190,6 +191,7 @@ pub fn prepare_rename(
             &analysis.global_scope,
             def_byte,
             &var_name,
+            analysis.ns_var_global_fallback(),
         )
     {
         return Some(PrepareRename {
@@ -595,17 +597,23 @@ fn rename_var(
     var_name: &str,
 ) -> Vec<TextEdit> {
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    let Some(var_def) =
-        crate::definition::lookup_var_in_scope_chain(&analysis.global_scope, byte_offset, var_name)
-    else {
+    let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+        &analysis.global_scope,
+        byte_offset,
+        var_name,
+        analysis.ns_var_global_fallback(),
+    ) else {
         return Vec::new();
     };
     // Collision gate: refuse when `new_name` already resolves to a *different*
     // variable visible at the cursor (e.g. a sibling `set y` in the same proc
     // scope) — renaming would merge two distinct variables.
-    if let Some(existing) =
-        crate::definition::lookup_var_in_scope_chain(&analysis.global_scope, byte_offset, new_name)
-        && existing.definition_span != var_def.definition_span
+    if let Some(existing) = crate::definition::lookup_var_in_scope_chain(
+        &analysis.global_scope,
+        byte_offset,
+        new_name,
+        analysis.ns_var_global_fallback(),
+    ) && existing.definition_span != var_def.definition_span
     {
         return Vec::new();
     }

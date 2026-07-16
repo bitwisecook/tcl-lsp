@@ -9093,3 +9093,116 @@ fn global_seed_is_the_plain_analysis_m9() {
     let r = a.analyse_with_source_namespace("proc helper {} {}\n", "tcl", "::");
     assert!(r.all_procs.contains_key("::helper"));
 }
+
+// ===========================================================================
+// M11 (TIP 278) — cross-version namespace-scope variable fallback.
+//
+// C-Tcl facts, pinned live against tclsh8.6 (8.6.16) and tclsh9.0 (9.0.4)
+// (the same table `rust/tcl-vm/tests/cross_version_vars_e2e.rs` executes
+// under both binaries):
+//   * `set g 1; namespace eval foo { set g }`      8.6 → 1, 9.0 → error
+//   * `set v 1; namespace eval bar { variable v; set v }`  both → error
+//     (a declared-but-unset `variable` blocks the fallback)
+//   * `namespace eval a { set x 1; namespace eval b { set x } }`
+//     both → error (an *intermediate* namespace is never consulted)
+//   * `set g 1; proc p {} { set g }; p`            both → error
+//     (proc frames never had the fallback)
+// ===========================================================================
+
+/// The recorded reference spans of the global-scope variable `name`.
+fn global_var_refs(result: &crate::analyser::AnalysisResult, name: &str) -> usize {
+    result
+        .global_scope
+        .variables
+        .get(name)
+        .map_or(0, |v| v.references.len())
+}
+
+#[test]
+fn ns_scope_read_attaches_to_the_global_var_under_8x_only_m11() {
+    let src = "set g 1\nnamespace eval foo { puts $g }\n";
+    // TP: 8.x — the namespace-frame read is a genuine use of `::g`.
+    let mut a = Analyser::new();
+    let r86 = a.analyse(src, "tcl8.6");
+    assert_eq!(
+        global_var_refs(&r86, "g"),
+        1,
+        "8.x: the `$g` read at namespace scope resolves to (and must be \
+         recorded on) the global cell"
+    );
+    // TN: 9.0 removed the fallback — the read errors at runtime, so it must
+    // NOT count as a reference of the global.
+    let mut a = Analyser::new();
+    let r90 = a.analyse(src, "tcl9.0");
+    assert_eq!(
+        global_var_refs(&r90, "g"),
+        0,
+        "9.0: no fallback — attaching the read would invent a reference"
+    );
+}
+
+#[test]
+fn ns_scope_declared_variable_blocks_the_8x_attach_m11() {
+    // FP guard: `variable v` creates the cell in the namespace's table, so
+    // even under 8.x the read resolves namespace-locally (tclsh8.6 errors on
+    // the read — it does NOT see the global `v`).
+    let src = "set v 1\nnamespace eval bar { variable v; puts $v }\n";
+    let mut a = Analyser::new();
+    let r86 = a.analyse(src, "tcl8.6");
+    assert_eq!(
+        global_var_refs(&r86, "v"),
+        0,
+        "the declared namespace `v` shadows the global in both versions"
+    );
+}
+
+#[test]
+fn proc_read_never_attaches_via_the_ns_fallback_m11() {
+    // TN: the fallback is a **namespace-frame** rule; a proc frame resolves
+    // bare names locally in every Tcl version (tclsh8.6 and 9.0 both error).
+    let src = "set g 1\nproc p {} { puts $g }\n";
+    let mut a = Analyser::new();
+    let r86 = a.analyse(src, "tcl8.6");
+    assert_eq!(
+        global_var_refs(&r86, "g"),
+        0,
+        "a proc-body read must not be recorded on the global via the \
+         namespace fallback"
+    );
+}
+
+#[test]
+fn ns_scope_read_never_attaches_to_an_intermediate_namespace_m11() {
+    // FP guard: `$x` at `::a::b` scope sees `::a::b::x` and (8.x only) `::x`
+    // — never `::a::x`, in ANY version (both tclshs error on this script).
+    let src = "namespace eval a { set x 1\nnamespace eval b { puts $x } }\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, dialect);
+        let ns_a = r
+            .global_scope
+            .children
+            .iter()
+            .find(|s| s.name == "a")
+            .expect("namespace scope `a` exists");
+        let x_refs = ns_a.variables.get("x").map_or(0, |v| v.references.len());
+        assert_eq!(
+            x_refs, 0,
+            "[{dialect}] `::a::x` must gain no reference from the read at \
+             `::a::b` scope"
+        );
+    }
+}
+
+#[test]
+fn ns_scope_array_element_read_attaches_under_8x_m11() {
+    // The fallback covers array-element reads too (pinned vector: `set
+    // arr(k) AV; namespace eval foo { set arr(k) }` reads AV on 8.6).
+    let src = "set arr(k) AV\nnamespace eval foo { puts $arr(k) }\n";
+    let mut a = Analyser::new();
+    let r86 = a.analyse(src, "tcl8.6");
+    assert_eq!(global_var_refs(&r86, "arr"), 1, "8.x: element read attaches");
+    let mut a = Analyser::new();
+    let r90 = a.analyse(src, "tcl9.0");
+    assert_eq!(global_var_refs(&r90, "arr"), 0, "9.0: no fallback");
+}

@@ -689,9 +689,11 @@ impl Analyser {
     ///
     /// Looks for the variable in the scope at `scope_path`; falls
     /// back to the global scope for ``::``- and ``static::``-prefixed
-    /// names. W210 (read-before-set) is emitted by the SSA-based
-    /// pass elsewhere — this helper only records the reference
-    /// span.
+    /// names, and — under a Tcl 8.x dialect (TIP 278) — for a bare
+    /// name read at a namespace frame whose namespace has no such
+    /// variable but the global namespace does. W210 (read-before-set)
+    /// is emitted by the SSA-based pass elsewhere — this helper only
+    /// records the reference span.
     pub fn record_var_read(&mut self, name: &str, read_span: Span, scope_path: &[usize]) {
         let base_name = normalise_var_name(name);
         if base_name.is_empty() {
@@ -730,6 +732,24 @@ impl Analyser {
                 // the shell's real global scope.  `name` (not `base_owned`)
                 // preserves any `arr(idx)` element for the replay.
                 captured.push((name.to_string(), read_span));
+            }
+        } else if !base_owned.contains("::")
+            && self.result.ns_var_global_fallback()
+            && scope_at(&self.result.global_scope, &path)
+                .is_some_and(|s| s.kind == ScopeKind::Namespace)
+            && let Some(var) = self.result.global_scope.variables.get_mut(&base_owned)
+        {
+            // TIP 278 — at a **namespace frame**, Tcl 8.x resolves a bare
+            // undefined name against the global namespace (never an
+            // intermediate namespace; 9.0 dropped even the global hop), so
+            // attach the read to the global cell for find-references /
+            // rename.  A namespace-local declaration (`variable v`) was
+            // caught by the local-scope branch above, so reaching here means
+            // the namespace table genuinely lacks the name — exactly the C
+            // fallback condition (8.6 `tclVar.c` `TclLookupSimpleVar`).
+            var.references.push(read_span);
+            if let Some(e) = element {
+                var.array_indices.insert(e);
             }
         }
     }

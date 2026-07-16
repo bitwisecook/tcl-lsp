@@ -173,6 +173,42 @@ fn join_segments(name: &str) -> String {
     out
 }
 
+/// The Tcl release whose runtime semantics the VM follows — a lightweight
+/// mirror of the registry's `TclVersion` (the VM deliberately does not depend
+/// on `tcl-registry`; tests map between the two).  Ordered so `< V9_0` means
+/// "an 8.x release".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RuntimeVersion {
+    /// Tcl 8.4.
+    V8_4,
+    /// Tcl 8.5.
+    V8_5,
+    /// Tcl 8.6.
+    V8_6,
+    /// Tcl 9.0.
+    V9_0,
+    /// Tcl 9.1.
+    V9_1,
+}
+
+impl RuntimeVersion {
+    /// Parse a `<major>.<minor>` Tcl version string (`"8.6"`, `"9.0"`, …) —
+    /// the spellings a user would pick a `tclsh<x.y>` binary by.  `None` for
+    /// anything else (no fuzzy matching: an unknown version must not silently
+    /// select different semantics).
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "8.4" => Self::V8_4,
+            "8.5" => Self::V8_5,
+            "8.6" => Self::V8_6,
+            "9.0" => Self::V9_0,
+            "9.1" => Self::V9_1,
+            _ => return None,
+        })
+    }
+}
+
 /// Canonicalise a command name's separators into the VM's key form: a run of
 /// two or more colons is **one** separator (C's `TclGetNamespaceForQualName` —
 /// `foo:::bar` names `foo::bar`), the leading root drops (keys are unrooted),
@@ -386,6 +422,12 @@ pub struct Vm {
     children: HashMap<String, Vm>,
     /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
     is_safe: bool,
+    /// The Tcl release whose **runtime semantics** this interpreter follows
+    /// (`dialect-profile-model.md`'s `vm_runtime_version`).  Defaults to 9.0;
+    /// gates the version-conditioned behaviours — the 8.x namespace-scope
+    /// variable fallback to global (M11, removed in 9.0/TIP 278) and the
+    /// 8.5+ `namespace path` dispatch tier (M10.1).
+    runtime_version: RuntimeVersion,
     /// Per-interp recursion bound (`interp recursionlimit`), default
     /// [`RECURSION_LIMIT`]. A child carries its own, independent of the parent's.
     recursion_limit: usize,
@@ -563,6 +605,7 @@ impl Vm {
             host: Rc::new(NativeHost::new()),
             children: HashMap::new(),
             is_safe: false,
+            runtime_version: RuntimeVersion::V9_0,
             recursion_limit: RECURSION_LIMIT,
             hidden_commands: HashMap::new(),
             interp_counter: 0,
@@ -839,6 +882,32 @@ impl Vm {
         self.register_command(name.strip_prefix("::").unwrap_or(name), Command::Builtin(f));
     }
 
+    /// Select the Tcl release whose runtime semantics this interpreter
+    /// follows (default 9.0).  Also re-stamps the `tcl_version` /
+    /// `tcl_patchLevel` globals to the studied release of that line, so
+    /// scripts introspecting the version agree with the behaviour.
+    pub fn set_runtime_version(&mut self, version: RuntimeVersion) {
+        self.runtime_version = version;
+        let (ver, patch) = match version {
+            RuntimeVersion::V8_4 => ("8.4", "8.4.20"),
+            RuntimeVersion::V8_5 => ("8.5", "8.5.19"),
+            RuntimeVersion::V8_6 => ("8.6", "8.6.16"),
+            RuntimeVersion::V9_0 => ("9.0", "9.0.4"),
+            RuntimeVersion::V9_1 => ("9.1", "9.1.0"),
+        };
+        self.write_scalar_raw("tcl_version", Value::string(ver));
+        self.write_scalar_raw("tcl_patchLevel", Value::string(patch));
+    }
+
+    /// Tcl 8.x resolves an unqualified variable at **namespace scope** to the
+    /// global variable when the namespace has none but the global namespace
+    /// does — reads *and* writes reach the global; 9.0 removed the fallback
+    /// (TIP 278, `TCL_NAMESPACE_ONLY` — 8.6 `tclVar.c:757` vs 9.0 `:935`).
+    /// tclsh 8.6/9.0-pinned in `cross_version_vars_e2e.rs`.
+    fn ns_var_global_fallback(&self) -> bool {
+        self.runtime_version < RuntimeVersion::V9_0
+    }
+
     pub(crate) fn register_command(&mut self, name: &str, cmd: Command) {
         // The table is keyed by canonical *unrooted* keys — callers pass
         // `qualify_name` output (or an unrooted literal) verbatim.  No root
@@ -894,6 +963,7 @@ impl Vm {
         let mut child = Vm::with_shared_output(Rc::clone(&self.out));
         child.compiler.clone_from(&self.compiler);
         child.host = Rc::clone(&self.host);
+        child.set_runtime_version(self.runtime_version);
         child
     }
 
@@ -1694,10 +1764,19 @@ impl Vm {
         // Root them before handing to the shared resolver, whose unrooted
         // entries mean *current-namespace-relative* (the Tcl source form —
         // tclsh-pinned; see `command_resolution_candidates`).
-        let rooted: Vec<String> = self
-            .ns_paths
-            .get(cxt)
-            .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect());
+        //
+        // The path tier itself is a Tcl 8.5 feature (TIP 181): 8.4 resolves
+        // current-namespace → global only (M10.1; 8.4 `tclNamesp.c` has no
+        // path walk).  Gated here at resolution time — not at `ns_path_set`
+        // recording — so flipping `set_runtime_version` mid-life re-applies
+        // the correct tier to paths recorded earlier.
+        let rooted: Vec<String> = if self.runtime_version < RuntimeVersion::V8_5 {
+            Vec::new()
+        } else {
+            self.ns_paths
+                .get(cxt)
+                .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect())
+        };
         // Candidates from the shared resolver are rooted constructed keys;
         // the VM's table is keyed unrooted.  Strip exactly ONE root — a
         // char-pattern trim would collapse a lone-colon key (`":::"`, the
@@ -2550,7 +2629,7 @@ impl Vm {
                     name: tn,
                 }) => {
                     level = *tl;
-                    nm = tn.clone();
+                    nm.clone_from(tn);
                 }
                 _ => break,
             }
@@ -2568,7 +2647,21 @@ impl Vm {
             && !ns.is_empty()
             && !f.locals.contains_key(&nm)
         {
-            return (0, format!("{ns}::{nm}"));
+            let qualified = format!("{ns}::{nm}");
+            // Tcl 8.x namespace-scope fallback (M11): when the namespace has
+            // no such variable but the global namespace does, the bare name
+            // resolves to the GLOBAL variable — reads and writes both (a
+            // `variable` declaration installs a link above, so a declared
+            // name never reaches this redirect and correctly blocks the
+            // fallback).  9.0 always binds in the namespace (TIP 278).
+            if self.ns_var_global_fallback()
+                && let Some(global) = self.frames.first()
+                && !global.locals.contains_key(&qualified)
+                && global.locals.contains_key(&nm)
+            {
+                return (0, nm);
+            }
+            return (0, qualified);
         }
         (level, nm)
     }

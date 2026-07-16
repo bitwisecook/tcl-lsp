@@ -380,4 +380,51 @@ mod tests {
             );
         });
     }
+
+    /// M11: the 8.x namespace-scope fallback to global, off by default (9.0 /
+    /// TIP 278) and on via `set_ns_var_global_fallback` — tclsh 8.6/9.0-pinned
+    /// (reads fall back, writes hit the global, a `variable` declaration
+    /// blocks it, and `info exists` / `unset` agree).
+    #[test]
+    fn ns_scope_unqualified_falls_back_to_global_only_under_8x() {
+        // Default (9.0): no fallback anywhere.
+        leak_free(|i| {
+            i.eval_str(b"set g GLOBAL");
+            assert_eq!(i.eval_str(b"namespace eval foo { set g }"), Code::Error);
+            assert_eq!(i.eval_str(b"namespace eval foo { set g WRITTEN }"), Code::Ok);
+            assert_eq!(i.eval_str(b"set ::foo::g"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"WRITTEN");
+            assert_eq!(i.eval_str(b"set ::g"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"GLOBAL");
+            assert_eq!(i.eval_str(b"namespace eval q { info exists g }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            i.eval_str(b"unset -nocomplain ::g ::foo::g");
+        });
+        // 8.x: reads fall back, writes reach the global, declared names block.
+        leak_free(|i| {
+            i.set_ns_var_global_fallback(true);
+            i.eval_str(b"set g GLOBAL");
+            assert_eq!(i.eval_str(b"namespace eval foo { set g }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"GLOBAL");
+            assert_eq!(i.eval_str(b"namespace eval foo { set g WRITTEN }"), Code::Ok);
+            assert_eq!(i.eval_str(b"info exists ::foo::g"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0", "the write must reach the global");
+            assert_eq!(i.eval_str(b"set ::g"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"WRITTEN");
+            assert_eq!(i.eval_str(b"namespace eval q { info exists g }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            // A declared-but-unset `variable` blocks the fallback.
+            i.eval_str(b"set v GLOBALV");
+            assert_eq!(
+                i.eval_str(b"namespace eval bar { variable v; set v }"),
+                Code::Error,
+                "a declared-but-unset `variable` blocks the fallback"
+            );
+            // With neither cell present, a write creates in the namespace.
+            assert_eq!(i.eval_str(b"namespace eval foo { set fresh NS }"), Code::Ok);
+            assert_eq!(i.eval_str(b"info exists ::foo::fresh"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            i.eval_str(b"unset -nocomplain ::g ::v ::foo::fresh ::bar::v");
+        });
+    }
 }

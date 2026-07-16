@@ -44,7 +44,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_lexer::script_is_complete;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Value, Vm};
+use tcl_vm::{CompileError, CompileService, RuntimeVersion, Value, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
 /// (and for the top-level script the driver runs): the real Rust compiler
@@ -100,24 +100,41 @@ enum Mode {
     Usage(i32),
 }
 
-/// Parse `std::env::args` into a [`Mode`]. Recognises `-c <script>`, `-i`
-/// (force REPL), `-h` / `--help`, and otherwise treats the first non-flag
-/// argument as a script file (everything after it is the script's `argv`,
-/// `tclsh`-style).
-fn parse_args() -> Mode {
+/// Parse `std::env::args` into a [`Mode`] plus an optional Tcl runtime
+/// version. Recognises `--tcl-version <x.y>` (select 8.4–9.1 variable /
+/// resolution semantics, like picking a `tclsh<x.y>` binary), `-c <script>`,
+/// `-i` (force REPL), `-h` / `--help`, and otherwise treats the first
+/// non-flag argument as a script file (everything after it is the script's
+/// `argv`, `tclsh`-style).
+fn parse_args() -> (Mode, Option<RuntimeVersion>) {
+    let mut version = None;
     let mut args = std::env::args().skip(1);
-    match args.next() {
-        None => Mode::Stdin,
-        Some(flag) if flag == "-h" || flag == "--help" => Mode::Usage(0),
-        Some(flag) if flag == "-i" => Mode::Repl,
-        Some(flag) if flag == "-c" => match args.next() {
-            Some(script) => Mode::Command(script),
-            None => Mode::Usage(2),
-        },
-        Some(path) => Mode::File {
-            path,
-            argv: args.collect(),
-        },
+    loop {
+        return match args.next() {
+            None => (Mode::Stdin, version),
+            Some(flag) if flag == "-h" || flag == "--help" => (Mode::Usage(0), version),
+            Some(flag) if flag == "-i" => (Mode::Repl, version),
+            Some(flag) if flag == "--tcl-version" => {
+                match args.next().as_deref().and_then(RuntimeVersion::parse) {
+                    Some(v) => {
+                        version = Some(v);
+                        continue;
+                    }
+                    None => (Mode::Usage(2), version),
+                }
+            }
+            Some(flag) if flag == "-c" => match args.next() {
+                Some(script) => (Mode::Command(script), version),
+                None => (Mode::Usage(2), version),
+            },
+            Some(path) => (
+                Mode::File {
+                    path,
+                    argv: args.collect(),
+                },
+                version,
+            ),
+        };
     }
 }
 
@@ -127,13 +144,20 @@ fn usage() {
          tclvm <file.tcl> [args…]   run a script file\n  \
          tclvm -c <script>         evaluate an inline script\n  \
          tclvm -i                  force the interactive REPL\n  \
-         tclvm                     REPL (TTY) or run piped stdin"
+         tclvm                     REPL (TTY) or run piped stdin\n\n\
+         options:\n  \
+         --tcl-version <x.y>       select 8.4|8.5|8.6|9.0|9.1 runtime\n  \
+                                   semantics (default 9.0)"
     );
 }
 
-/// Build a VM with the compiler-backed `CompileService` and stdout host output.
-fn new_vm() -> Vm {
+/// Build a VM with the compiler-backed `CompileService` and stdout host
+/// output, at the requested runtime version (`None` keeps the VM default).
+fn new_vm(version: Option<RuntimeVersion>) -> Vm {
     let mut vm = Vm::with_output(Box::new(Stdout));
+    if let Some(v) = version {
+        vm.set_runtime_version(v);
+    }
     vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
     // Enable the real `thread` package: a Send factory each worker calls to
     // build its own compiler, and a thread-safe shared stdout for `puts`.
@@ -185,19 +209,20 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
 }
 
 fn run() -> i32 {
-    match parse_args() {
+    let (mode, version) = parse_args();
+    match mode {
         Mode::Usage(code) => {
             usage();
             code
         }
         Mode::Command(script) => {
-            let mut vm = new_vm();
+            let mut vm = new_vm(version);
             run_script(&mut vm, &script)
         }
         Mode::Repl => {
             let stdin = std::io::stdin();
             let mut out = std::io::stdout();
-            repl_loop(&mut new_vm(), &mut stdin.lock(), &mut out)
+            repl_loop(&mut new_vm(version), &mut stdin.lock(), &mut out)
         }
         Mode::File { path, argv } => {
             let src = match std::fs::read_to_string(&path) {
@@ -207,7 +232,7 @@ fn run() -> i32 {
                     return 1;
                 }
             };
-            let mut vm = new_vm();
+            let mut vm = new_vm(version);
             set_argv(&mut vm, &path, &argv);
             run_script(&mut vm, &src)
         }
@@ -215,14 +240,14 @@ fn run() -> i32 {
             if std::io::stdin().is_terminal() {
                 let stdin = std::io::stdin();
                 let mut out = std::io::stdout();
-                repl_loop(&mut new_vm(), &mut stdin.lock(), &mut out)
+                repl_loop(&mut new_vm(version), &mut stdin.lock(), &mut out)
             } else {
                 let mut src = String::new();
                 if let Err(e) = std::io::stdin().read_to_string(&mut src) {
                     eprintln!("tclvm: cannot read stdin: {e}");
                     return 1;
                 }
-                let mut vm = new_vm();
+                let mut vm = new_vm(version);
                 run_script(&mut vm, &src)
             }
         }
@@ -296,7 +321,12 @@ mod tests {
     /// Drive `repl_loop` over a canned input script and return what it wrote to
     /// `out` (prompts + results), with a fresh compiler-backed VM.
     fn drive(input: &str) -> String {
-        let mut vm = new_vm();
+        drive_at(input, None)
+    }
+
+    /// [`drive`] at an explicit runtime version (the `--tcl-version` path).
+    fn drive_at(input: &str, version: Option<RuntimeVersion>) -> String {
+        let mut vm = new_vm(version);
         let mut reader = std::io::Cursor::new(input.as_bytes().to_vec());
         let mut out: Vec<u8> = Vec::new();
         repl_loop(&mut vm, &mut reader, &mut out);
@@ -325,5 +355,17 @@ mod tests {
     fn repl_blank_line_reprompts() {
         let out = drive("\n\nset z 9\n");
         assert!(out.contains("% 9"), "blank lines broke the loop: {out:?}");
+    }
+
+    #[test]
+    fn tcl_version_flag_selects_cross_version_var_semantics() {
+        // M11 pinned vector (tclsh8.6 vs tclsh9.0): `incr` on a bare name at
+        // namespace scope reaches the global under 8.x (41 → 42), but creates
+        // a fresh namespace variable under 9.0 (→ 1).
+        let script = "set g 41\nnamespace eval foo { incr g }\n";
+        let out86 = drive_at(script, Some(RuntimeVersion::V8_6));
+        assert!(out86.contains("42"), "8.6 falls back to the global: {out86:?}");
+        let out90 = drive_at(script, Some(RuntimeVersion::V9_0));
+        assert!(out90.contains("% 1"), "9.0 creates in the namespace: {out90:?}");
     }
 }

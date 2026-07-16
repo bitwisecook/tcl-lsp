@@ -299,6 +299,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         &analysis.global_scope,
         byte_offset,
         &var_name,
+        analysis.ns_var_global_fallback(),
     )?;
     let mut out = Vec::new();
     if include_declaration {
@@ -1168,6 +1169,7 @@ pub fn document_highlights(
             &analysis.global_scope,
             byte_offset,
             &var_name,
+            analysis.ns_var_global_fallback(),
         ) else {
             return Vec::new();
         };

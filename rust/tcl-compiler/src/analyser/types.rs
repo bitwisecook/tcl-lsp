@@ -890,6 +890,14 @@ pub struct AnalysisResult {
     /// `pub` only preserves functional-update construction
     /// (`..Default::default()`); it can't be populated from outside.
     pub hierarchy_cache: HierarchyCache,
+    /// The dialect this document was analysed under (`"tcl9.0"`,
+    /// `"tcl8.6"`, `"f5-irules"`, …) — whatever string the caller passed to
+    /// [`super::Analyser::analyse`].  Carried on the result so downstream
+    /// consumers (the LSP variable-resolution path, completion) can apply
+    /// *version-dependent* semantics — e.g. the TIP 278 namespace-scope
+    /// global fallback ([`Self::ns_var_global_fallback`]) — without
+    /// re-detecting the dialect.  Empty for a default-constructed result.
+    pub dialect: String,
 }
 
 impl AnalysisResult {
@@ -904,6 +912,16 @@ impl AnalysisResult {
         self.hierarchy_cache
             .0
             .get_or_init(|| super::class_hierarchy::build_class_hierarchy(self.all_classes.clone()))
+    }
+
+    /// Whether this document's dialect keeps the TIP 278 namespace-scope
+    /// global variable fallback (Tcl 8.x yes, 9.0+ no) — the registry's
+    /// [`DialectSet::namespace_var_global_fallback`](tcl_registry::prelude::DialectSet::namespace_var_global_fallback)
+    /// applied to [`Self::dialect`].  The default-constructed empty dialect
+    /// answers `false` (the stricter 9.0 semantics).
+    #[must_use]
+    pub fn ns_var_global_fallback(&self) -> bool {
+        tcl_registry::prelude::DialectSet::namespace_var_global_fallback(&self.dialect)
     }
 }
 

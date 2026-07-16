@@ -722,6 +722,7 @@ impl Analyser {
         // emitters) can re-slice it.
         self.source = source.to_string();
         self.dialect = dialect.to_string();
+        self.result.dialect = dialect.to_string();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
@@ -1101,6 +1102,7 @@ impl Analyser {
         use tcl_registry::CommandRegistry;
         self.source = source.to_string();
         self.dialect = dialect.to_string();
+        self.result.dialect = dialect.to_string();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
@@ -1186,6 +1188,7 @@ impl Analyser {
         use tcl_registry::CommandRegistry;
         self.source = source.to_string();
         self.dialect = dialect.to_string();
+        self.result.dialect = dialect.to_string();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
