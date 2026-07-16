@@ -49,6 +49,29 @@ rules for the KCS/documentation split live in
 > migration plans) are kept in [`../archive/`](../archive/) and are
 > not part of the current design surface.
 
+## Name resolution
+
+The workspace-scoped, C-Tcl-faithful command / variable / class
+name-resolution effort (issue #923): the audits behind it, the
+version-sensitive semantics, and the staged fix plan being executed on this
+surface.
+
+- [name-resolution-fix-plan.md](name-resolution-fix-plan.md) — the master
+  execution plan: the staged milestones (M1–M16) for correct, workspace-scoped,
+  dialect-aware resolution, with per-stage status.
+- [name-resolution-centralization.md](name-resolution-centralization.md) — the
+  audit + proposal to consolidate the ad-hoc target-selection sites onto one
+  C-Tcl command-resolution routine so every LSP provider agrees.
+- [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md)
+  — the proposal for the cross-file resolution lattice: settling a call to its
+  defining proc/class across the workspace index, sound by abstention.
+- [name-resolution-tcl-version-and-c-source.md](name-resolution-tcl-version-and-c-source.md)
+  — the version-sensitive resolution semantics (8.4→9.1), each fact pinned to a
+  stable C-Tcl source permalink (`tclNamesp.c` / `tclVar.c`).
+- [tricky-name-resolution-surfaces.md](tricky-name-resolution-surfaces.md) — the
+  navigation-link audit of the hard cases: aliases, renames, imports, forwards,
+  ensembles, per-object methods, and command-names-held-as-data.
+
 ## F5 BIG-IP CLI
 
 - [f5-cli-architecture.md](f5-cli-architecture.md) — verb registry,

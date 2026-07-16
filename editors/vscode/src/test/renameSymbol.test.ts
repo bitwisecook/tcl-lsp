@@ -113,13 +113,8 @@ suite("Rename Symbol", () => {
         `no rename edit may span lines (body-destroying): ${JSON.stringify(te.range)}`,
       );
       const coversBody =
-        te.range.start.line === 2 &&
-        te.range.start.character <= 22 &&
-        te.range.end.character >= 33;
-      assert.ok(
-        !coversBody,
-        `edit must not cover the method body: ${JSON.stringify(te.range)}`,
-      );
+        te.range.start.line === 2 && te.range.start.character <= 22 && te.range.end.character >= 33;
+      assert.ok(!coversBody, `edit must not cover the method body: ${JSON.stringify(te.range)}`);
     }
 
     // The `variable n` declaration (line 1) is renamed.
