@@ -105,8 +105,8 @@ use tcl_core_types::{DiagCode, DiagFamily};
 use bitflags::bitflags;
 use rustc_hash::FxHashSet;
 
+use tcl_dialect::DialectSet;
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -3802,7 +3802,7 @@ mod tests {
         use tcl_lexer::Span;
 
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
 
         // set x [gets stdin]      (taint source)
         // set y [URI::encode $x]  (x tainted → y URL_ENCODED)
@@ -5217,7 +5217,7 @@ mod tests {
             &registry,
             "gets",
             &["stdin"],
-            tcl_registry::dialects::DialectSet::empty(),
+            tcl_dialect::DialectSet::empty(),
         ));
 
         // End-to-end: `gets` → `eval` raises T100. The fact reaches

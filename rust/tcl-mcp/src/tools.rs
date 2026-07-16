@@ -24,9 +24,9 @@
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
+use tcl_dialect::{DialectSet, KNOWN_DIALECTS};
 use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
-use tcl_registry::dialects::{DialectSet, KNOWN_DIALECTS};
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{CommandRegistry, registry_for_dialect};

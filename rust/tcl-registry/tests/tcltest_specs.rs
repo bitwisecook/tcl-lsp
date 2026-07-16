@@ -22,8 +22,8 @@
 //! command surface, per-version dialect gating, and the option surface of
 //! `test` / `configure`.
 
+use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()

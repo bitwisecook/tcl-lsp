@@ -60,11 +60,11 @@ use tcl_compiler::analyser::{
     build_class_hierarchy,
 };
 use tcl_compiler::signature_scan::types::ParamDef;
+use tcl_dialect::DialectSet;
 use tcl_lsp_core::document_symbols::DocumentSymbol;
 use tcl_lsp_core::folding::FoldingRange;
 use tcl_lsp_core::semantic_tokens::{SemanticTokens, VarNameArgRoles};
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 
 /// Database trait exposing the durable (non-salsa) command registry to
 /// tracked queries.

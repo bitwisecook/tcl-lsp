@@ -16,30 +16,36 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+# Foundational dialect vocabulary — the true leaf of the dialect stack.
+#
+# Holds `DialectSet`, `TclVersion`, the lexer/expr grammar structs
+# (`LexerGrammar`, `BracedVarStyle`), and the `DialectProfile` catalog, so
+# every layer (tcl-lexer, tcl-syntax, tcl-registry, the compiler, the LSP,
+# the CLIs) consumes ONE source of truth for both the availability axis and
+# the behaviour/runtime axis of a dialect.
+#
+# Dependency DAG (no cycles):
+#   tcl-dialect  <-  tcl-lexer  <-  tcl-syntax  <-  { tcl-registry, … }
+#
+# It depends only on `bitflags` (which tcl-syntax already carries) so it stays
+# `wasm32`-clean — the runtime (a workspace-excluded wasm32 crate) reaches it
+# through its tcl-lexer / tcl-syntax path-deps.
+#
+# See `docs/design/dialect-profile-model.md` (§3, the DECIDED Option-A
+# foundational crate).
 [package]
-name = "xtask"
+name = "tcl-dialect"
 publish.workspace = true
-description = "Build/check task runner for the workspace"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-
-[[bin]]
-name = "xtask"
-path = "src/main.rs"
+description = "Foundational dialect vocabulary: DialectSet, TclVersion, grammar structs, and the DialectProfile catalog"
 
 [dependencies]
-tcl-dialect = { path = "../tcl-dialect" }
-clap = { version = "4", features = ["derive", "wrap_help"] }
-anyhow = "1"
-regex = "1"
-tcl-core-types = { path = "../tcl-core-types" }
-tcl-registry = { path = "../tcl-registry" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+bitflags = "2"
 
 [lints]
 workspace = true

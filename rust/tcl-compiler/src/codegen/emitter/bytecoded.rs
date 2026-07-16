@@ -26,7 +26,7 @@
 //! codegen-hook resolution. The compiler still owns the per-variant
 //! emitter; the registry decides which variant applies.
 
-use tcl_registry::dialects::DialectSet;
+use tcl_dialect::DialectSet;
 use tcl_registry::hooks::CodegenHookId;
 
 use super::super::CodegenCtx;
@@ -1705,7 +1705,7 @@ mod tests {
             .resolve_call(
                 "dict",
                 &["set", "d", "k", "v"],
-                tcl_registry::dialects::DialectSet::TCL86,
+                tcl_dialect::DialectSet::TCL86,
             )
             .expect("dict set resolves");
         assert_eq!(resolved.codegen_hook, Some(CodegenHookId::Dict));
@@ -1725,11 +1725,7 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let resolved = registry
-            .resolve_call(
-                "HTTP::header",
-                &["names"],
-                tcl_registry::dialects::DialectSet::IRULES,
-            )
+            .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES)
             .expect("HTTP::header resolves under iRules");
         assert_eq!(resolved.spec.name, "HTTP::header");
     }
@@ -1750,11 +1746,7 @@ mod tests {
         let default = CommandRegistry::build_default();
         assert!(
             default
-                .resolve_call(
-                    "HTTP::header",
-                    &["names"],
-                    tcl_registry::dialects::DialectSet::IRULES,
-                )
+                .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES,)
                 .is_none()
         );
 
@@ -1767,11 +1759,7 @@ mod tests {
         let mut irules = CommandRegistry::build_default();
         irules.load_irules();
         let resolved = irules
-            .resolve_call(
-                "HTTP::header",
-                &["names"],
-                tcl_registry::dialects::DialectSet::IRULES,
-            )
+            .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES)
             .expect("HTTP::header resolves once iRules is loaded");
 
         // Wire it through CodegenCtx: the ctx's registry field is

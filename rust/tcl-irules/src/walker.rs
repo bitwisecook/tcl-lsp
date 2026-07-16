@@ -472,8 +472,8 @@ mod tests {
 #[cfg(test)]
 mod case_list_tests {
     use super::extract_irules_object_references;
+    use tcl_dialect::DialectSet;
     use tcl_registry::CommandRegistry;
-    use tcl_registry::dialects::DialectSet;
 
     fn reg() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();

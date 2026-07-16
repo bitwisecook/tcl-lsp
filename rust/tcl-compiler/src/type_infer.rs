@@ -43,7 +43,7 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use tcl_registry::dialects::DialectSet;
+use tcl_dialect::DialectSet;
 use tcl_registry::{CommandRegistry, TclType, VarWriteTyping};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};

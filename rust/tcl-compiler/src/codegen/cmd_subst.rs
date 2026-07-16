@@ -22,7 +22,7 @@
 //! substitutions and emitting specialised bytecode sequences for
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 
-use tcl_registry::dialects::DialectSet;
+use tcl_dialect::DialectSet;
 use tcl_registry::hooks::InlineCodegenHookId;
 
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};

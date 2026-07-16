@@ -287,7 +287,7 @@ struct SwitchCompletionCtx<'a> {
     character: u32,
     word_idx: usize,
     analysis: &'a AnalysisResult,
-    dialect: Option<tcl_registry::dialects::DialectSet>,
+    dialect: Option<tcl_dialect::DialectSet>,
 }
 
 /// Option-flag completion for a `-<cursor>` position: resolves the
@@ -318,7 +318,7 @@ fn switch_completion_items(
         .and_then(|sub_name| {
             spec.resolve_subcommand_for_dialect(
                 &sub_name,
-                dialect.unwrap_or(tcl_registry::dialects::DialectSet::all()),
+                dialect.unwrap_or(tcl_dialect::DialectSet::all()),
             )
         });
     let (options, parent_dialects) = match sub {
@@ -360,7 +360,7 @@ fn context_aware_completions(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     partial: &str,
-    dialect: Option<tcl_registry::dialects::DialectSet>,
+    dialect: Option<tcl_dialect::DialectSet>,
 ) -> Option<Vec<CompletionItem>> {
     let (cmd, word_idx) = command_context_on_line(source, line, character)?;
 
@@ -575,7 +575,7 @@ pub fn completions(
             analysis,
             registry,
             &partial,
-            tcl_registry::dialects::DialectSet::parse(dialect),
+            tcl_dialect::DialectSet::parse(dialect),
         )
     {
         return items;
@@ -1345,8 +1345,8 @@ fn switch_partial_at_position(
 
 fn switch_completions(
     options: &[tcl_registry::hover::OptionSpec],
-    dialect: Option<tcl_registry::dialects::DialectSet>,
-    parent_dialects: Option<tcl_registry::dialects::DialectSet>,
+    dialect: Option<tcl_dialect::DialectSet>,
+    parent_dialects: Option<tcl_dialect::DialectSet>,
     partial: &str,
     edit: (u32, u32),
     package_version: Option<&str>,
@@ -1683,7 +1683,7 @@ fn builtin_completions(
     // `command_names()` still lists `try` under `tcl8.4`/`tcl8.5` — filter it
     // here via the same `supports_dialect` check the analyser uses.  An
     // unparseable dialect (custom / non-Tcl) applies no version filter.
-    let dialect_set = tcl_registry::dialects::DialectSet::parse(dialect);
+    let dialect_set = tcl_dialect::DialectSet::parse(dialect);
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
@@ -2647,7 +2647,7 @@ mod tests {
 
     fn irules_registry() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();
-        r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        r.load_dialect(tcl_dialect::DialectSet::IRULES);
         r
     }
 

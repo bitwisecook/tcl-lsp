@@ -92,9 +92,9 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
+use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
 use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
-use tcl_registry::dialects::DialectSet;
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -8027,7 +8027,7 @@ mod tests {
     #[test]
     fn event_name_classified_as_event() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         let ks = kinds(
             "when HTTP_REQUEST {\n  set x 1\n}\n",
             "f5-irules",
@@ -8042,7 +8042,7 @@ mod tests {
     #[test]
     fn bigip_object_ref_token_in_irules_body() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         // `pool web_pool` inside a multi-line `when` body → `object`.
         let ks = kinds(
             "when HTTP_REQUEST {\n  pool web_pool\n}\n",

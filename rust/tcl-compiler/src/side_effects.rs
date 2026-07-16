@@ -46,7 +46,7 @@
 
 use bitflags::bitflags;
 
-use tcl_registry::dialects::DialectSet;
+use tcl_dialect::DialectSet;
 use tcl_registry::prelude::StorageType as RegistryStorageType;
 use tcl_registry::side_effects::{
     ConnectionSide as RegistryConnectionSide, SideEffect as RegistrySideEffect,
@@ -1181,7 +1181,7 @@ mod tests {
         // `side_effects`, so callgraph/dataflow reported `NONE` instead of
         // `HTTP_STATE`.
         let mut reg = tcl_registry::CommandRegistry::build_default();
-        reg.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
         for cmd in ["HTTP::uri", "HTTP::path", "HTTP::query"] {
             let ci = classify_side_effects(&reg, cmd, &[], None, None);
             let (reads, writes) = ci.to_effect_regions();

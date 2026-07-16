@@ -218,6 +218,7 @@ dependencies = [
  "rustc-hash",
  "tcl-bytecode",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -230,6 +231,13 @@ name = "tcl-core-types"
 version = "0.1.0"
 
 [[package]]
+name = "tcl-dialect"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
@@ -240,6 +248,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "tcl-dialect",
  "thiserror",
 ]
 
@@ -263,6 +272,7 @@ dependencies = [
  "sha2",
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-syntax",
 ]
@@ -279,6 +289,7 @@ name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "tcl-dialect",
  "tcl-lexer",
 ]
 

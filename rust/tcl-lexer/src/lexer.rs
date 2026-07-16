@@ -118,6 +118,7 @@
 //! [`SourcePosition`]: crate::SourcePosition
 //! [`SourcePosition::offset`]: crate::SourcePosition#structfield.offset
 
+use tcl_dialect::BracedVarStyle;
 use thiserror::Error;
 
 use crate::source_map::SourceMap;
@@ -155,30 +156,6 @@ pub struct LexerConfig {
     pub base_line: u32,
     /// Column to add to the first line's character values.
     pub base_col: u32,
-}
-
-/// The dialect's `${…}` variable-name delimiting rule — Tcl 9.0 changed it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum BracedVarStyle {
-    /// Tcl 9.x (and the unversioned default): `Tcl_ParseVarName` tracks
-    /// nested `{…}` pairs and treats `\X` as an inert two-character unit
-    /// inside the braces, so `${a{b}c}` names the variable `a{b}c`
-    /// (tcl9.0.1 `tclParse.c`, the `braceCount` loop).
-    #[default]
-    Tcl9Nesting,
-    /// The 8.x family (8.4–8.6, iRules/iApps, EDA): the name runs to the
-    /// FIRST literal `}` — no nesting, no backslash processing — so
-    /// `${a{b}c}` names `a{b` and `c}` is ordinary word text
-    /// (8.6.14 `tclParse.c:1466`, tclsh-verified).
-    FirstClose,
-}
-
-impl BracedVarStyle {
-    /// Whether this style tracks nested `{…}` / `\X` pairs (the Tcl 9 rule).
-    #[must_use]
-    pub fn nests(self) -> bool {
-        matches!(self, Self::Tcl9Nesting)
-    }
 }
 
 impl Default for LexerConfig {

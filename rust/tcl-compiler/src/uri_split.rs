@@ -40,9 +40,9 @@
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
+use tcl_dialect::DialectSet;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};

@@ -147,7 +147,7 @@ pub fn hover(
         character,
         analysis,
         registry,
-        tcl_registry::dialects::DialectSet::ALL_TCL,
+        tcl_dialect::DialectSet::ALL_TCL,
     )
 }
 
@@ -160,7 +160,7 @@ pub fn hover_with_dialect(
     character: u32,
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: tcl_dialect::DialectSet,
 ) -> Option<Hover> {
     // One index shared by the position conversions below.
     let line_index = tcl_lexer::LineIndex::new(source);
@@ -520,7 +520,7 @@ fn subcommand_hover_text(
     character: u32,
     registry: &CommandRegistry,
     cursor_word: &str,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: tcl_dialect::DialectSet,
 ) -> Option<String> {
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
@@ -632,7 +632,7 @@ fn sub_subcommand_hover_text(
     character: u32,
     registry: &CommandRegistry,
     cursor_word: &str,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: tcl_dialect::DialectSet,
 ) -> Option<String> {
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
@@ -674,7 +674,7 @@ fn option_hover_text(
     character: u32,
     registry: &CommandRegistry,
     _cursor_word: &str,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: tcl_dialect::DialectSet,
 ) -> Option<String> {
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
@@ -2410,7 +2410,7 @@ fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<
 /// and — for arrays — the keys available in the active `dialect`.
 fn special_var_hover_text(
     spec: &tcl_registry::SpecialVarSpec,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: tcl_dialect::DialectSet,
 ) -> String {
     use std::fmt::Write as _;
     use tcl_registry::{SpecialVarKind, VarAccess, VarOrigin};
@@ -2447,7 +2447,7 @@ fn special_var_hover_text(
     }
 
     // CMP-safety note only matters under iRules.
-    if spec.cmp_unsafe && dialect.intersects(tcl_registry::dialects::DialectSet::IRULES) {
+    if spec.cmp_unsafe && dialect.intersects(tcl_dialect::DialectSet::IRULES) {
         let _ = write!(
             text,
             "\n\n⚠️ Accessing `{}` as a plain global demotes the virtual server \
@@ -2730,7 +2730,7 @@ mod tests {
     use tcl_compiler::analyser::Analyser;
 
     /// Dialect-agnostic default for the subcommand-hover helper tests.
-    const ALL: tcl_registry::dialects::DialectSet = tcl_registry::dialects::DialectSet::ALL_TCL;
+    const ALL: tcl_dialect::DialectSet = tcl_dialect::DialectSet::ALL_TCL;
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
@@ -3129,7 +3129,7 @@ mod tests {
     #[test]
     fn irules_command_hover_lists_valid_events() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         if let Some(text) =
             builtin_command_hover_text(&registry, "ASM::is_authenticated", &analyse(""), u32::MAX)
         {
@@ -3146,7 +3146,7 @@ mod tests {
         // `DIAMETER` namespace's profiles, so the hover shows a profile
         // **Requires** line (none would appear without the injection).
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         let text = builtin_command_hover_text(
             &registry,
             "DIAMETER::retransmission_default",
@@ -3359,7 +3359,7 @@ mod tests {
 
     #[test]
     fn special_var_hover_is_dialect_aware() {
-        use tcl_registry::dialects::DialectSet;
+        use tcl_dialect::DialectSet;
         let analysis = analyse("puts $auto_path\n");
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(DialectSet::IRULES);
@@ -3921,7 +3921,7 @@ mod tests {
 
     #[test]
     fn subcommand_hover_prefix_is_dialect_aware() {
-        use tcl_registry::dialects::DialectSet;
+        use tcl_dialect::DialectSet;
         let registry = tcl_registry::CommandRegistry::build_default();
         // `info class def` is `definition` in 8.6 (unique) but ambiguous with
         // `definitionnamespace` in 9.0 (verified against tclsh).
@@ -3953,7 +3953,7 @@ mod tests {
 
     #[test]
     fn option_hover_resolves_subcommand_scoped_option() {
-        use tcl_registry::dialects::DialectSet;
+        use tcl_dialect::DialectSet;
         // `-inputmode` lives only on `chan`'s `configure` SubCommand table —
         // absent from `chan`'s own top-level option table entirely — so
         // hover must resolve the typed subcommand to find it at all.
@@ -3967,7 +3967,7 @@ mod tests {
 
     #[test]
     fn option_hover_notes_dialect_unavailability() {
-        use tcl_registry::dialects::DialectSet;
+        use tcl_dialect::DialectSet;
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "chan configure $chan -inputmode raw\n";
         let old = option_hover_text(src, 0, 30, &registry, "inputmode", DialectSet::TCL86)
@@ -3983,7 +3983,7 @@ mod tests {
 
     #[test]
     fn option_hover_falls_back_to_top_level_options_for_simple_command() {
-        use tcl_registry::dialects::DialectSet;
+        use tcl_dialect::DialectSet;
         // `lsearch` has no subcommands at all — hover must still resolve its
         // own top-level option table (the pre-existing, non-ensemble path).
         let registry = tcl_registry::CommandRegistry::build_default();

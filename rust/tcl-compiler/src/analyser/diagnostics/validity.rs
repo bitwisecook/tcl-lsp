@@ -2744,7 +2744,7 @@ before this value so it is treated as data, not an option."
         arg_expand: &[bool],
         scope_path: &[usize],
     ) {
-        use tcl_registry::dialects::DialectSet;
+        use tcl_dialect::DialectSet;
 
         let Some(registry) = self.registry.as_ref() else {
             return;
@@ -3103,7 +3103,7 @@ in the active dialect ({}).",
     /// no documented `expr`-grammar base version, or neither TIP is
     /// gated (nothing for W003 to check).
     fn w003_gates(&self) -> Option<(bool, bool)> {
-        use tcl_registry::dialects::DialectSet;
+        use tcl_dialect::DialectSet;
         let active = DialectSet::expr_grammar_base_version(&self.dialect)?;
         // Pre-Tcl-8.5 dialects don't accept `in` / `ni` (TIP 201).
         let pre_85 = !DialectSet::TCL85_PLUS.contains(active);

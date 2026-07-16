@@ -45,8 +45,8 @@
 //! arg-role classification are registry-internal metadata, marked
 //! `// registry-metadata`.
 
+use tcl_dialect::DialectSet;
 use tcl_registry::arity::Arity;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{

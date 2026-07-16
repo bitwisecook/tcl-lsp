@@ -44,8 +44,8 @@ use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
+use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::traits::Traits;
 
 use crate::util::{self, repo_root};

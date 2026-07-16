@@ -68,7 +68,7 @@ use tcl_compiler::side_effects::{
     CommandSideEffects, ConnectionSide, EffectRegion, SideEffect, SideEffectTarget, StorageScope,
     StorageType, classify_side_effects,
 };
-use tcl_registry::dialects::DialectSet;
+use tcl_dialect::DialectSet;
 use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ---------------------------------------------------------------------------

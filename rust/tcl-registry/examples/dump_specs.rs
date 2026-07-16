@@ -29,8 +29,8 @@
 
 use std::fmt::Write as _;
 
+use tcl_dialect::DialectSet;
 use tcl_registry::commands;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::spec::CommandSpec;

@@ -43,6 +43,7 @@ use futures_util::future::FutureExt;
 use tcl_compiler::compiler_checks::DiagCode;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
+use tcl_dialect::DialectSet;
 use tcl_lsp_core::bigip as core_bigip;
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
@@ -81,7 +82,6 @@ use tcl_lsp_core::workspace_symbols::{
 };
 use tcl_lsp_db::TclDb as _;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tokio::sync::{Mutex, RwLock, Semaphore};
 use tower_lsp_server::jsonrpc;
 use tower_lsp_server::ls_types::{
@@ -4962,7 +4962,7 @@ impl Backend {
                 "error": "setDialect requires a dialect-name argument",
             })));
         };
-        if !tcl_registry::dialects::available_dialects().contains(&dialect) {
+        if !tcl_dialect::available_dialects().contains(&dialect) {
             return Ok(Some(serde_json::json!({
                 "success": false,
                 "error": format!("unknown dialect: {dialect}"),
@@ -9374,8 +9374,8 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let hover_dialect = tcl_registry::dialects::DialectSet::parse(&doc.dialect)
-            .unwrap_or(tcl_registry::dialects::DialectSet::ALL_TCL);
+        let hover_dialect = tcl_dialect::DialectSet::parse(&doc.dialect)
+            .unwrap_or(tcl_dialect::DialectSet::ALL_TCL);
         let result = tokio::task::spawn_blocking(move || {
             core_hover::hover_with_dialect(
                 &doc.text,

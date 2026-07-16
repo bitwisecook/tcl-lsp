@@ -85,7 +85,7 @@ impl GraphContext {
         let registry = BigipRegistry::build();
         let index = ObjectTypeIndex::build(&registry);
         let mut irules_registry = tcl_registry::CommandRegistry::build_default();
-        irules_registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        irules_registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         Self {
             index,
             irules_registry,

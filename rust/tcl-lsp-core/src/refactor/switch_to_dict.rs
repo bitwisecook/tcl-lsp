@@ -291,7 +291,7 @@ mod tests {
         let source = "when HTTP_REQUEST {\n    switch -exact -- $method {\n        GET { set handler get_h }\n        POST { set handler post_h }\n        PUT { set handler put_h }\n    }\n}";
         // `when`'s body role lives in the iRules dialect.
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
         let li = LineIndex::new(source);
         let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
         let r = switch_to_dict(source, cursor, &reg, &li).expect("nested result");

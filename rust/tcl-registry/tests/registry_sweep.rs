@@ -55,9 +55,9 @@
 
 use std::collections::BTreeSet;
 
+use tcl_dialect::DialectSet;
 use tcl_registry::arity::Arity;
 use tcl_registry::bigip::{BigipRegistry, ValueKind, default_registry};
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::hover::FormKind;
 use tcl_registry::profiles::ProfileRegistry;

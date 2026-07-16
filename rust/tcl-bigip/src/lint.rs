@@ -28,9 +28,9 @@
 
 use std::collections::HashSet;
 
+use tcl_dialect::DialectSet;
 use tcl_irules::extract_irules_object_references;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 
 use crate::model::ModelObject;

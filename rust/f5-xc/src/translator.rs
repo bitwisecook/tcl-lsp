@@ -29,8 +29,9 @@ use std::collections::BTreeMap;
 use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode, when_event_name};
 use tcl_compiler::lowering::lower_to_ir_with_config;
 use tcl_compiler::segmenter::segment_commands;
+use tcl_dialect::DialectSet;
 use tcl_lexer::Span;
-use tcl_registry::{CommandRegistry, dialects::DialectSet};
+use tcl_registry::CommandRegistry;
 use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp, expr_text};
 use tcl_syntax::expr::parse_expr;
 

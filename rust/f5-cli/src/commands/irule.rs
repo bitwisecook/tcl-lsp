@@ -758,7 +758,7 @@ fn run_irule_context(
     let merged = tcl_bigip::lint::merge_configs(&config_refs);
 
     let mut registry = tcl_registry::registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+    registry.load_dialect(tcl_dialect::DialectSet::IRULES);
 
     let filter: std::collections::HashSet<&str> = rule_filter.iter().map(String::as_str).collect();
     let transitive = !no_transitive;
@@ -918,7 +918,7 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
     let merged = tcl_bigip::lint::merge_configs(&config_refs);
 
     let mut registry = tcl_registry::registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+    registry.load_dialect(tcl_dialect::DialectSet::IRULES);
 
     // Match `\bwhen\s+<EVENT>\s*\{`, case-insensitive.
     let block_re = regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
