@@ -44,6 +44,12 @@ rules for the KCS/documentation split live in
   (`.t`, `$w`) resolves back to the widget class, so `.t instate …` / `$w tag
   configure …` reach subcommand-aware highlighting, hover, completion, and
   diagnostics.
+- [dialect-profile-model.md](dialect-profile-model.md) — the compositional
+  `DialectProfile` model: one profile per dialect owning both command/feature
+  availability and runtime/behaviour semantics (octal, expr/lexer grammar,
+  versioned libraries keyed by base/BIG-IP/tool version), replacing
+  per-consumer `DialectSet` arithmetic across the whole stack. Carries the
+  complete consumer inventory and a milestone/stage delivery plan.
 
 > Past project-tracking documents (perf reports, phase trackers,
 > migration plans) are kept in [`../archive/`](../archive/) and are
