@@ -29,7 +29,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "gets",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],

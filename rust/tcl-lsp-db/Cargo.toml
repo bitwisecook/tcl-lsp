@@ -30,6 +30,7 @@ authors.workspace = true
 workspace = true
 
 [dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
 salsa = "0.27"
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }

@@ -252,7 +252,10 @@ impl CodegenCtx<'_> {
             && let Some(TclValue::Int(i)) = eval_tcl_expr_with_octal(
                 node,
                 &Env::new(),
-                Some(self.registry.leading_zero_is_octal()),
+                // Profile-built registries answer from the dialect profile
+                // (octal in 8.x, decimal in 9.x/bpf, abstain with no Tcl
+                // runtime); hand-built ones keep the loaded-packs rule.
+                self.registry.octal_fold_policy(),
             )
         {
             self.push_lit(&i.to_string());

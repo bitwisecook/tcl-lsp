@@ -412,7 +412,8 @@ pub fn run_irule(action: &IruleCommand) -> anyhow::Result<u8> {
             event,
             json,
             output,
-        } => run_event_info(event, *json, output),
+            bigip_version,
+        } => run_event_info(event, bigip_version.as_deref(), *json, output),
         IruleCommand::Lint {
             input,
             json,
@@ -576,12 +577,19 @@ fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
 /// over the reconciled command-registry cross-product
 /// (`CommandRegistry::event_info`). Exit code is `0` for a known event, `1`
 /// otherwise (both streams written).
-fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
-    let mut cmds = tcl_registry::registry::CommandRegistry::build_default();
-    cmds.load_irules();
+fn run_event_info(
+    event: &str,
+    bigip_version: Option<&str>,
+    json: bool,
+    output: &str,
+) -> Result<u8, u8> {
+    // The profile-stamped registry: the §9 subtractive rules (disable list,
+    // operator heads) apply inside the event/command cross-product — a raw
+    // `build_default` registry would re-admit the banned commands.
+    let cmds = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
     let events = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
-    let info = cmds.event_info(event, &events, &profiles);
+    let info = cmds.event_info(event, &events, &profiles, bigip_version);
     let rc = u8::from(!info.known);
 
     if json {
@@ -609,6 +617,16 @@ fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
         }
         out.push_str(",\n  \"impliedProfiles\": ");
         push_json_string_array(&mut out, info.implied_profiles.iter().copied());
+        out.push_str(",\n  \"bigipMinVersion\": ");
+        match info.bigip_min_version {
+            Some(v) => out.push_str(&json_string(v)),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\n  \"bigipMaxVersion\": ");
+        match info.bigip_max_version {
+            Some(v) => out.push_str(&json_string(v)),
+            None => out.push_str("null"),
+        }
         let _ = write!(
             out,
             ",\n  \"validCommandCount\": {}",
@@ -757,8 +775,7 @@ fn run_irule_context(
         .collect();
     let merged = tcl_bigip::lint::merge_configs(&config_refs);
 
-    let mut registry = tcl_registry::registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
     let filter: std::collections::HashSet<&str> = rule_filter.iter().map(String::as_str).collect();
     let transitive = !no_transitive;
@@ -777,7 +794,7 @@ fn run_irule_context(
             if !filter.is_empty() && !filter.contains(placed.full_path.as_str()) {
                 continue;
             }
-            let bundle = build_irule_context(rule, &merged, transitive, src_text, &registry);
+            let bundle = build_irule_context(rule, &merged, transitive, src_text, registry);
             bundles.push((placed.full_path.clone(), bundle));
         }
     }
@@ -917,8 +934,7 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
         .collect();
     let merged = tcl_bigip::lint::merge_configs(&config_refs);
 
-    let mut registry = tcl_registry::registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
     // Match `\bwhen\s+<EVENT>\s*\{`, case-insensitive.
     let block_re = regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
@@ -939,7 +955,7 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
 
         let mut references: Vec<TraceRef> = Vec::new();
         let mut seen: std::collections::HashSet<(&str, String)> = std::collections::HashSet::new();
-        for reference in extract_irules_object_references(&body, None, &registry) {
+        for reference in extract_irules_object_references(&body, None, registry) {
             let Some(kind) = classify_kind(&reference.kinds) else {
                 continue;
             };

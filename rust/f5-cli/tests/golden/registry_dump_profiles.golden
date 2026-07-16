@@ -1,6 +1,8 @@
 {
   "profiles": {
     "ACCESS": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -11,6 +13,8 @@
       "side": "client"
     },
     "ANTIFRAUD": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -21,6 +25,8 @@
       "side": "client"
     },
     "ASM": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -31,6 +37,8 @@
       "side": "both"
     },
     "AUTH": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -41,6 +49,8 @@
       "side": "client"
     },
     "AVR": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -51,6 +61,8 @@
       "side": "both"
     },
     "BOTDEFENSE": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -61,6 +73,8 @@
       "side": "client"
     },
     "CACHE": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -71,6 +85,8 @@
       "side": "both"
     },
     "CATEGORY": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -81,6 +97,8 @@
       "side": "both"
     },
     "CLASSIFICATION": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -91,6 +109,8 @@
       "side": "both"
     },
     "CLIENTSSL": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [
         "cert",
         "cipher",
@@ -109,6 +129,8 @@
       "side": "client"
     },
     "CONNECTOR": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -119,6 +141,8 @@
       "side": "both"
     },
     "DATAGRAM": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -129,6 +153,8 @@
       "side": "both"
     },
     "DIAMETER": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -139,6 +165,8 @@
       "side": "both"
     },
     "DIAMETERSESSION": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -149,6 +177,8 @@
       "side": "both"
     },
     "DIAMETER_ENDPOINT": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -159,6 +189,8 @@
       "side": "both"
     },
     "DNS": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -167,6 +199,8 @@
       "side": "both"
     },
     "DOSL7": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -177,6 +211,8 @@
       "side": "both"
     },
     "ECA": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -187,6 +223,8 @@
       "side": "client"
     },
     "FASTHTTP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -197,6 +235,8 @@
       "side": "both"
     },
     "FASTL4": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "transport",
@@ -205,6 +245,8 @@
       "side": "both"
     },
     "FIX": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -215,6 +257,8 @@
       "side": "both"
     },
     "FLOW": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -223,6 +267,8 @@
       "side": "both"
     },
     "GENERICMSG": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -233,6 +279,8 @@
       "side": "both"
     },
     "GTP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -241,6 +289,8 @@
       "side": "both"
     },
     "HTML": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -251,6 +301,8 @@
       "side": "both"
     },
     "HTTP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -261,6 +313,8 @@
       "side": "both"
     },
     "HTTP2": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -271,6 +325,8 @@
       "side": "both"
     },
     "HTTP_PROXY_CONNECT": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -281,6 +337,8 @@
       "side": "both"
     },
     "ICAP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -291,6 +349,8 @@
       "side": "both"
     },
     "IPS": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -301,6 +361,8 @@
       "side": "both"
     },
     "IVS_ENTRY": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -311,6 +373,8 @@
       "side": "both"
     },
     "JSON": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -321,6 +385,8 @@
       "side": "both"
     },
     "L7CHECK": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -331,6 +397,8 @@
       "side": "both"
     },
     "LSN": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -339,6 +407,8 @@
       "side": "client"
     },
     "MQTT": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -349,6 +419,8 @@
       "side": "both"
     },
     "MR": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -359,6 +431,8 @@
       "side": "both"
     },
     "MSSQL": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -369,6 +443,8 @@
       "side": "both"
     },
     "NAME": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -379,6 +455,8 @@
       "side": "both"
     },
     "PCP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -387,6 +465,8 @@
       "side": "both"
     },
     "PEM": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -397,6 +477,8 @@
       "side": "client"
     },
     "PERSIST": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "tls",
@@ -407,6 +489,8 @@
       "side": "both"
     },
     "PROTOCOL_INSPECTION": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -417,6 +501,8 @@
       "side": "both"
     },
     "QOE": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -427,6 +513,8 @@
       "side": "both"
     },
     "RADIUS": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -435,6 +523,8 @@
       "side": "both"
     },
     "RADIUS_AAA": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -445,6 +535,8 @@
       "side": "both"
     },
     "REQUESTADAPT": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -455,6 +547,8 @@
       "side": "both"
     },
     "RESPONSEADAPT": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -465,6 +559,8 @@
       "side": "both"
     },
     "REWRITE": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -475,6 +571,8 @@
       "side": "both"
     },
     "RTSP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -485,6 +583,8 @@
       "side": "both"
     },
     "SCTP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "transport",
@@ -493,6 +593,8 @@
       "side": "both"
     },
     "SERVERSSL": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [
         "cert",
         "cipher",
@@ -511,6 +613,8 @@
       "side": "server"
     },
     "SIP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -519,6 +623,8 @@
       "side": "both"
     },
     "SIPROUTER": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -529,6 +635,8 @@
       "side": "both"
     },
     "SIPSESSION": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -539,6 +647,8 @@
       "side": "both"
     },
     "SOCKS": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -549,6 +659,8 @@
       "side": "client"
     },
     "SSE": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -559,6 +671,8 @@
       "side": "both"
     },
     "SSL_PERSISTENCE": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [
         "extensions",
         "sessionid",
@@ -573,6 +687,8 @@
       "side": "client"
     },
     "STREAM": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -583,6 +699,8 @@
       "side": "both"
     },
     "TAP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "security",
@@ -593,6 +711,8 @@
       "side": "client"
     },
     "TCP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "transport",
@@ -601,6 +721,8 @@
       "side": "both"
     },
     "TDS": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "application",
@@ -611,6 +733,8 @@
       "side": "both"
     },
     "UDP": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "transport",
@@ -619,6 +743,8 @@
       "side": "both"
     },
     "WEBACCELERATION": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -629,6 +755,8 @@
       "side": "both"
     },
     "WS": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",
@@ -639,6 +767,8 @@
       "side": "both"
     },
     "XML": {
+      "bigipMaxVersion": null,
+      "bigipMinVersion": "15.0.0",
       "capabilities": [],
       "conflicts": [],
       "layer": "acceleration",

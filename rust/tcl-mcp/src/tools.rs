@@ -24,9 +24,9 @@
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
+use tcl_dialect::KNOWN_DIALECTS;
 use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
-use tcl_registry::dialects::{DialectSet, KNOWN_DIALECTS};
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{CommandRegistry, registry_for_dialect};
@@ -590,7 +590,7 @@ fn event_info(args: &Value) -> Value {
     let reg = registry(IRULES_DIALECT);
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
-    let info = reg.event_info(event, &events, &profiles);
+    let info = reg.event_info(event, &events, &profiles, None);
     let valid_command_count = info.valid_commands.len();
     json!({
         "event": info.event,
@@ -609,8 +609,23 @@ fn event_info(args: &Value) -> Value {
 fn command_info(args: &Value) -> Value {
     let command = arg_str(args, "command_name").trim();
     let reg = registry(IRULES_DIALECT);
-    let Some(spec) = reg.get_for_dialect(command, DialectSet::IRULES) else {
+    let Some(spec) = ({
+        use tcl_registry::ProfileQueries;
+        tcl_dialect::DialectProfile::irules().resolve_command(reg, command)
+    }) else {
         return json!({ "command": command, "found": false });
+    };
+    // Optional BIG-IP target release: report the declared version range
+    // (explicit introduction data, or the 15.0 axis baseline) and whether
+    // the command exists at the target.
+    let bigip_version = args
+        .get("bigip_version")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let keyed_range = {
+        use tcl_registry::ProfileQueries;
+        tcl_dialect::DialectProfile::irules().keyed_version_range(spec)
     };
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
@@ -624,13 +639,26 @@ fn command_info(args: &Value) -> Value {
             m.insert("synopsis".to_owned(), json!(h.synopsis));
         }
     }
-    let switches = spec.switch_names(Some(DialectSet::IRULES));
+    let switches = {
+        use tcl_registry::ProfileQueries;
+        tcl_dialect::DialectProfile::irules().available_option_names(spec)
+    };
     if !switches.is_empty() {
         m.insert("switches".to_owned(), json!(switches));
     }
     let valid_events = reg.irules_events_for_command(command, &events, &profiles);
     if !valid_events.is_empty() {
         m.insert("valid_events".to_owned(), json!(valid_events));
+    }
+    if let Some((min, max)) = keyed_range {
+        m.insert("bigip_min_version".to_owned(), json!(min));
+        m.insert("bigip_max_version".to_owned(), json!(max));
+        if let Some(target) = bigip_version {
+            m.insert(
+                "available_at_bigip_version".to_owned(),
+                json!(tcl_registry::version::within_range(target, min, max)),
+            );
+        }
     }
     obj
 }
@@ -1329,7 +1357,14 @@ const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "command_info",
         description: "Registry metadata for a command: summary, synopsis, switches, valid events.",
-        params: &[("command_name", "string", "Command name, e.g. HTTP::uri")],
+        params: &[
+            ("command_name", "string", "Command name, e.g. HTTP::uri"),
+            (
+                "bigip_version",
+                "string",
+                "Optional target BIG-IP release; reports whether the command exists there",
+            ),
+        ],
         required: &["command_name"],
         handler: command_info,
     },

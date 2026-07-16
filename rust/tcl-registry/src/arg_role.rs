@@ -52,6 +52,13 @@ pub enum ArgRole {
     Subcommand,
     /// The `--` option terminator.
     OptionTerminator,
+    /// A `format` %-string — the printf-style mini-language whose
+    /// conversions are version-gated (the §6 argument-DSL rung of the
+    /// dialect-profile model; `%b` is 8.6+, `%ll…u` is 9.0+).
+    FormatString,
+    /// A `scan` %-string — same rung as [`ArgRole::FormatString`], with
+    /// scan's conversion set (`%b` is 8.6+).
+    ScanFormat,
     /// Channel identifier (`stdout`, `stdin`, channel ID).
     Channel,
     /// List/string index expression.
@@ -155,6 +162,8 @@ impl ArgRole {
             | Self::Value
             | Self::Subcommand
             | Self::OptionTerminator
+            | Self::FormatString
+            | Self::ScanFormat
             | Self::Channel
             | Self::Index
             | Self::Keyword => false,

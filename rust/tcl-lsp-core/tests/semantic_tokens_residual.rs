@@ -63,7 +63,7 @@ fn reg() -> &'static CommandRegistry {
 /// default command set) for the `f5-irules` object-overlay tests.
 fn irules_registry() -> CommandRegistry {
     let mut r = CommandRegistry::build_default();
-    r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+    r.load_dialect(tcl_dialect::DialectSet::IRULES);
     r
 }
 

@@ -43,6 +43,7 @@ use futures_util::future::FutureExt;
 use tcl_compiler::compiler_checks::DiagCode;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
+use tcl_dialect::DialectSet;
 use tcl_lsp_core::bigip as core_bigip;
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
@@ -81,7 +82,6 @@ use tcl_lsp_core::workspace_symbols::{
 };
 use tcl_lsp_db::TclDb as _;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tokio::sync::{Mutex, RwLock, Semaphore};
 use tower_lsp_server::jsonrpc;
 use tower_lsp_server::ls_types::{
@@ -1895,6 +1895,9 @@ pub struct Backend {
     /// known by the unknown-command (W123) check; mirrored onto the salsa
     /// `AnalyserConfig`.
     extra_commands: Mutex<Vec<String>>,
+    /// `tclLsp.bigipVersion` — the session's target BIG-IP release for the
+    /// keyed library-version axis (`None` = the oldest-supported default).
+    bigip_version: Mutex<Option<String>>,
     /// Generic `static::` variable-name patterns for IRULE4002
     /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` keeps the built-in
     /// default set; `Some(list)` replaces it (an empty list disables the check).
@@ -2331,6 +2334,7 @@ impl Backend {
             NonAsciiMode::Default,
             Vec::new(),
             None,
+            None,
         );
         Self {
             client,
@@ -2350,6 +2354,7 @@ impl Backend {
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
+            bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
@@ -2552,6 +2557,8 @@ impl Backend {
         config.set_non_ascii_mode(&mut *db).to(mode);
         config.set_extra_commands(&mut *db).to(extra);
         config.set_generic_variable_patterns(&mut *db).to(generic);
+        let bigip = self.bigip_version.lock().await.clone();
+        config.set_bigip_version(&mut *db).to(bigip);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -2803,7 +2810,13 @@ impl Backend {
                 let Some(dialect) = dialect_val.as_str() else {
                     continue;
                 };
-                if DialectSet::parse(dialect).is_none() {
+                // Valid names: any catalog profile (now including the
+                // config-only f5-tmsh / f5-bigip / bpf, which the old
+                // DialectSet::parse check wrongly rejected) plus `tk`
+                // (a parseable library shell, not a profile — §7.2).
+                if tcl_dialect::DialectProfile::find(dialect).is_none()
+                    && DialectSet::parse(dialect).is_none()
+                {
                     continue;
                 }
                 parsed.push((url, dialect.to_owned()));
@@ -2931,11 +2944,16 @@ impl Backend {
             "tcl8.4" => "tcl8.4",
             "tcl8.5" => "tcl8.5",
             "tcl9.0" => "tcl9.0",
+            "tcl9.1" => "tcl9.1",
             "tcl-irule" | "f5-irules" => "f5-irules",
             // `tcl-apl` is the APL (iApp presentation language) editor id — an
             // iApp sublanguage, so it analyses as `f5-iapps` rather than
             // falling through to the default Tcl dialect.
             "tcl-iapp" | "f5-iapps" | "tcl-apl" => "f5-iapps",
+            // First-class since Milestone 6 (D8/D7): tmsh scripts and the
+            // bpf framework dialect analyse under their own profiles.
+            "tcl-tmsh" | "f5-tmsh" => "f5-tmsh",
+            "tcl-bpf" | "bpf" => "bpf",
             "tcl-expect" | "expect" => "expect",
             "tcl-synopsys" | "synopsys-eda-tcl" => "synopsys-eda-tcl",
             "tcl-cadence" | "cadence-eda-tcl" => "cadence-eda-tcl",
@@ -4914,7 +4932,7 @@ impl Backend {
             let profiles = tcl_registry::profiles::ProfileRegistry::build();
             // Every f5-irules command valid
             // in the event, not just those that carry `event_requires`.
-            let names = registry.valid_irules_commands_for_event(&event, &events, &profiles);
+            let names = registry.valid_irules_commands_for_event(&event, &events, &profiles, None);
             let count = names.len();
             let sample: Vec<String> = names.into_iter().take(80).map(str::to_owned).collect();
             (count, sample)
@@ -5164,7 +5182,7 @@ impl Backend {
                 "error": "setDialect requires a dialect-name argument",
             })));
         };
-        if !tcl_registry::dialects::available_dialects().contains(&dialect) {
+        if !tcl_dialect::available_dialects().contains(&dialect) {
             return Ok(Some(serde_json::json!({
                 "success": false,
                 "error": format!("unknown dialect: {dialect}"),
@@ -5476,6 +5494,13 @@ impl Backend {
                 .collect();
             *self.extra_commands.lock().await = extra;
         }
+        // `tclLsp.bigipVersion` — the target BIG-IP release for the keyed
+        // library-version axis (an empty string clears the pin back to the
+        // oldest-supported default).
+        if let Some(version) = cfg.get("bigipVersion").and_then(serde_json::Value::as_str) {
+            let version = version.trim();
+            *self.bigip_version.lock().await = (!version.is_empty()).then(|| version.to_owned());
+        }
         // `tclLsp.diagnostics.genericVariablePatterns` — replaces the built-in
         // IRULE4002 generic-name set (an explicit empty list disables the
         // check; an absent key leaves the default).
@@ -5561,7 +5586,7 @@ impl Backend {
                     next.push((folder.clone(), *handle));
                 } else {
                     let handle =
-                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic);
+                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic, None);
                     next.push((folder.clone(), handle));
                 }
             }
@@ -5667,28 +5692,30 @@ impl Backend {
             .to_owned();
         let dialect = self.default_dialect.lock().await.clone();
         let registry = self.registry_for_dialect(&dialect).await;
-        let parsed = DialectSet::parse(&dialect).unwrap_or(DialectSet::ALL_TCL);
-        let mut subs: Vec<serde_json::Value> = registry
-            .get_for_dialect(&name, parsed)
-            .map(|spec| {
-                spec.subcommands
-                    .iter()
-                    .map(|sub| {
-                        serde_json::json!({
-                            "name": sub.name,
-                            "detail": sub.detail,
-                            "synopsis": sub.synopsis,
-                            "pure": sub.pure,
-                            "mutator": sub.mutator,
-                            // The registry tracks deprecation at command level,
-                            // not per subcommand — report the shape with a
-                            // conservative default.
-                            "deprecated": false,
-                        })
+        let profile = tcl_dialect::DialectProfile::by_name(&dialect);
+        let mut subs: Vec<serde_json::Value> = {
+            use tcl_registry::ProfileQueries;
+            profile.resolve_command(&registry, &name)
+        }
+        .map(|spec| {
+            spec.subcommands
+                .iter()
+                .map(|sub| {
+                    serde_json::json!({
+                        "name": sub.name,
+                        "detail": sub.detail,
+                        "synopsis": sub.synopsis,
+                        "pure": sub.pure,
+                        "mutator": sub.mutator,
+                        // The registry tracks deprecation at command level,
+                        // not per subcommand — report the shape with a
+                        // conservative default.
+                        "deprecated": false,
                     })
-                    .collect()
-            })
-            .unwrap_or_default();
+                })
+                .collect()
+        })
+        .unwrap_or_default();
         subs.sort_by(|a, b| {
             a.get("name")
                 .and_then(serde_json::Value::as_str)
@@ -9749,16 +9776,15 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let hover_dialect = tcl_registry::dialects::DialectSet::parse(&doc.dialect)
-            .unwrap_or(tcl_registry::dialects::DialectSet::ALL_TCL);
+        let hover_profile = tcl_dialect::DialectProfile::by_name(&doc.dialect);
         let result = tokio::task::spawn_blocking(move || {
-            core_hover::hover_with_dialect(
+            core_hover::hover_with_profile(
                 &doc.text,
                 pos.line,
                 pos.character,
                 &analysis,
                 Some(&registry),
-                hover_dialect,
+                hover_profile,
             )
         })
         .await
@@ -12830,11 +12856,10 @@ mod tests {
     /// registry path must surface it through `lift_compiler_diagnostics`.
     #[test]
     fn lift_compiler_diagnostics_surfaces_irules_taint_flow() {
-        let mut registry = CommandRegistry::build_default();
-        registry.load_irules();
+        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
-            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules", None);
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None);
         let diags = lift_compiler_diagnostics(
             src,
             &cdiags,
@@ -12860,11 +12885,10 @@ mod tests {
     /// leaving other codes untouched.
     #[test]
     fn lift_compiler_diagnostics_honours_per_check_disable() {
-        let mut registry = CommandRegistry::build_default();
-        registry.load_irules();
+        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
-            tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules", None);
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None);
         let is_irule3001 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001");
         // Baseline: IRULE3001 is present with no disabled codes.
         let baseline = lift_compiler_diagnostics(
@@ -14786,6 +14810,7 @@ mod tests {
             NonAsciiMode::Default,
             Vec::new(),
             None,
+            None,
         );
         Backend {
             client: service.inner().client.clone(),
@@ -14805,6 +14830,7 @@ mod tests {
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
+            bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),

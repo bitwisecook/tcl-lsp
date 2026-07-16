@@ -173,24 +173,6 @@ fn join_segments(name: &str) -> String {
     out
 }
 
-/// The Tcl release whose runtime semantics the VM follows — a lightweight
-/// mirror of the registry's `TclVersion` (the VM deliberately does not depend
-/// on `tcl-registry`; tests map between the two).  Ordered so `< V9_0` means
-/// "an 8.x release".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum RuntimeVersion {
-    /// Tcl 8.4.
-    V8_4,
-    /// Tcl 8.5.
-    V8_5,
-    /// Tcl 8.6.
-    V8_6,
-    /// Tcl 9.0.
-    V9_0,
-    /// Tcl 9.1.
-    V9_1,
-}
-
 /// Which interpreter an alias-chain step addresses (`interp` paths are one
 /// level deep in this VM): this Vm, or a direct child by `children`-table key.
 #[derive(Clone, PartialEq, Eq)]
@@ -199,24 +181,6 @@ enum AliasSite {
     Here,
     /// A direct child, by name.
     Child(String),
-}
-
-impl RuntimeVersion {
-    /// Parse a `<major>.<minor>` Tcl version string (`"8.6"`, `"9.0"`, …) —
-    /// the spellings a user would pick a `tclsh<x.y>` binary by.  `None` for
-    /// anything else (no fuzzy matching: an unknown version must not silently
-    /// select different semantics).
-    #[must_use]
-    pub fn parse(s: &str) -> Option<Self> {
-        Some(match s {
-            "8.4" => Self::V8_4,
-            "8.5" => Self::V8_5,
-            "8.6" => Self::V8_6,
-            "9.0" => Self::V9_0,
-            "9.1" => Self::V9_1,
-            _ => return None,
-        })
-    }
 }
 
 /// Canonicalise a command name's separators into the VM's key form: a run of
@@ -283,6 +247,14 @@ fn elem_ref(name: &str) -> Option<(&str, &str)> {
 
 /// The bytecode VM's interpreter state.
 pub struct Vm {
+    /// The Tcl release whose number/expr grammar this VM emulates —
+    /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
+    /// model §5.4, VM-parity milestone). Every profile pins `V9_0` today:
+    /// the VM's number parsing, octal rules, and expr tower are re-derived
+    /// from the 9.0 sources, and per-release divergence is the later
+    /// VM-parity work (M16). The field is the single hook those branches
+    /// will consult.
+    runtime_version: tcl_dialect::TclVersion,
     /// Call-frame stack; `frames[0]` is the global scope.
     frames: Vec<CallFrame>,
     /// Command table (builtins + user procs), keyed by canonical name — a
@@ -465,12 +437,6 @@ pub struct Vm {
     pub(crate) hosted_parked: Option<Vec<crate::exec::Frame>>,
     /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
     is_safe: bool,
-    /// The Tcl release whose **runtime semantics** this interpreter follows
-    /// (`dialect-profile-model.md`'s `vm_runtime_version`).  Defaults to 9.0;
-    /// gates the version-conditioned behaviours — the 8.x namespace-scope
-    /// variable fallback to global (M11, removed in 9.0/TIP 278) and the
-    /// 8.5+ `namespace path` dispatch tier (M10.1).
-    runtime_version: RuntimeVersion,
     /// Per-interp recursion bound (`interp recursionlimit`), default
     /// [`RECURSION_LIMIT`]. A child carries its own, independent of the parent's.
     recursion_limit: usize,
@@ -640,11 +606,35 @@ impl Vm {
         Self::with_shared_output(Rc::new(RefCell::new(out)))
     }
 
+    /// Pin the Tcl release this VM's number/expr grammar emulates —
+    /// callers thread `DialectProfile::vm_runtime_version` here, and the
+    /// release-reporting globals (`tcl_version` / `tcl_patchLevel`) are
+    /// re-derived immediately. Every catalog profile pins `V9_0` today
+    /// (the release the VM's semantics are re-derived from); per-release
+    /// grammar divergence is the VM-parity milestone's work and will
+    /// branch on [`Self::runtime_version`].
+    pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
+        // The 8.4 `namespace path` tier gate (M10.1) changes resolution
+        // outcomes, so the command-resolution memo (M16.4) must not survive a
+        // version flip.
+        self.bump_cmd_epoch();
+        self.runtime_version = version;
+        self.write_release_globals();
+    }
+
+    /// The Tcl release this VM emulates (see
+    /// [`Self::set_runtime_version`]).
+    #[must_use]
+    pub fn runtime_version(&self) -> tcl_dialect::TclVersion {
+        self.runtime_version
+    }
+
     /// A VM writing to an already-shared output sink — the path
     /// [`fork_child`](Self::fork_child) uses so a child interpreter's `puts`
     /// reaches the same place as its parent's.
     fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         let mut vm = Self {
+            runtime_version: tcl_dialect::TclVersion::V9_0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
             module_procs: HashMap::new(),
@@ -686,7 +676,6 @@ impl Vm {
             children: HashMap::new(),
             hosted_parked: None,
             is_safe: false,
-            runtime_version: RuntimeVersion::V9_0,
             recursion_limit: RECURSION_LIMIT,
             hidden_commands: HashMap::new(),
             interp_counter: 0,
@@ -741,6 +730,22 @@ impl Vm {
     /// Populate the predefined global variables a fresh interpreter exposes:
     /// the `tcl_platform`/`env` arrays and the `argv`/`argv0`/`argc` scalars,
     /// so library scripts (tcltest) that read them at load time work.
+    /// Write the release-reporting globals derived from the threaded
+    /// runtime version. The patch digit is the 9.0.4 reference the VM's
+    /// semantics were re-derived from; a future non-9.0 runtime
+    /// (VM-parity M16) must pin its own reference release.
+    fn write_release_globals(&mut self) {
+        self.write_scalar_raw(
+            "tcl_version",
+            Value::string(self.runtime_version.as_package_version()),
+        );
+        let patch_level = match self.runtime_version {
+            tcl_dialect::TclVersion::V9_0 => "9.0.4".to_owned(),
+            other => format!("{}.0", other.as_package_version()),
+        };
+        self.write_scalar_raw("tcl_patchLevel", Value::string(patch_level));
+    }
+
     fn bootstrap_globals(&mut self) {
         use tcl_platform::backend::{self, key};
         let plat = [
@@ -800,8 +805,7 @@ impl Vm {
         self.write_scalar_raw("argv", Value::list(Vec::new()));
         self.write_scalar_raw("argv0", Value::string("tcltest"));
         self.write_scalar_raw("argc", Value::int(0));
-        self.write_scalar_raw("tcl_version", Value::string("9.0"));
-        self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.4"));
+        self.write_release_globals();
         self.write_scalar_raw("tcl_interactive", Value::int(0));
         // `tcl_library` is the directory holding the script library; C Tcl's
         // init derives it from `$env(TCL_LIBRARY)` (set when the caller points
@@ -963,33 +967,13 @@ impl Vm {
         self.register_command(name.strip_prefix("::").unwrap_or(name), Command::Builtin(f));
     }
 
-    /// Select the Tcl release whose runtime semantics this interpreter
-    /// follows (default 9.0).  Also re-stamps the `tcl_version` /
-    /// `tcl_patchLevel` globals to the studied release of that line, so
-    /// scripts introspecting the version agree with the behaviour.
-    pub fn set_runtime_version(&mut self, version: RuntimeVersion) {
-        // The 8.4 `namespace path` tier gate changes resolution outcomes
-        // (M10.1), so the memo must not survive a version flip.
-        self.bump_cmd_epoch();
-        self.runtime_version = version;
-        let (ver, patch) = match version {
-            RuntimeVersion::V8_4 => ("8.4", "8.4.20"),
-            RuntimeVersion::V8_5 => ("8.5", "8.5.19"),
-            RuntimeVersion::V8_6 => ("8.6", "8.6.16"),
-            RuntimeVersion::V9_0 => ("9.0", "9.0.4"),
-            RuntimeVersion::V9_1 => ("9.1", "9.1.0"),
-        };
-        self.write_scalar_raw("tcl_version", Value::string(ver));
-        self.write_scalar_raw("tcl_patchLevel", Value::string(patch));
-    }
-
     /// Tcl 8.x resolves an unqualified variable at **namespace scope** to the
     /// global variable when the namespace has none but the global namespace
     /// does — reads *and* writes reach the global; 9.0 removed the fallback
     /// (TIP 278, `TCL_NAMESPACE_ONLY` — 8.6 `tclVar.c:757` vs 9.0 `:935`).
     /// tclsh 8.6/9.0-pinned in `cross_version_vars_e2e.rs`.
     fn ns_var_global_fallback(&self) -> bool {
-        self.runtime_version < RuntimeVersion::V9_0
+        self.runtime_version < tcl_dialect::TclVersion::V9_0
     }
 
     pub(crate) fn register_command(&mut self, name: &str, cmd: Command) {
@@ -1226,6 +1210,7 @@ impl Vm {
     /// channels are otherwise independent (`interp create`).
     fn fork_child(&self) -> Vm {
         let mut child = Vm::with_shared_output(Rc::clone(&self.out));
+        child.runtime_version = self.runtime_version;
         child.compiler.clone_from(&self.compiler);
         child.host = Rc::clone(&self.host);
         child.set_runtime_version(self.runtime_version);
@@ -2156,7 +2141,7 @@ impl Vm {
         // path walk).  Gated here at resolution time — not at `ns_path_set`
         // recording — so flipping `set_runtime_version` mid-life re-applies
         // the correct tier to paths recorded earlier.
-        let rooted: Vec<String> = if self.runtime_version < RuntimeVersion::V8_5 {
+        let rooted: Vec<String> = if self.runtime_version < tcl_dialect::TclVersion::V8_5 {
             Vec::new()
         } else {
             self.ns_paths
@@ -4282,6 +4267,33 @@ fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
 mod family_b_tests {
     use super::*;
     use tcl_runtime_api::GLOBAL_FRAME;
+
+    #[test]
+    fn runtime_version_threads_into_the_release_globals() {
+        // §5.4 VM parity: the default is the 9.0.4 reference release the
+        // VM's semantics are re-derived from…
+        let vm = Vm::new();
+        assert_eq!(vm.runtime_version(), tcl_dialect::TclVersion::V9_0);
+        assert_eq!(
+            vm.get_var("tcl_version").map(|v| v.to_str().to_string()),
+            Some("9.0".to_owned())
+        );
+        assert_eq!(
+            vm.get_var("tcl_patchLevel").map(|v| v.to_str().to_string()),
+            Some("9.0.4".to_owned())
+        );
+        // …and every catalog profile pins exactly that release today, so
+        // threading a profile's value is behaviour-identical.
+        let mut vm = Vm::new();
+        vm.set_runtime_version(
+            tcl_dialect::DialectProfile::by_name("f5-irules").vm_runtime_version,
+        );
+        assert_eq!(vm.runtime_version(), tcl_dialect::TclVersion::V9_0);
+        assert_eq!(
+            vm.get_var("tcl_version").map(|v| v.to_str().to_string()),
+            Some("9.0".to_owned())
+        );
+    }
 
     #[test]
     fn introspect_level_and_argv() {

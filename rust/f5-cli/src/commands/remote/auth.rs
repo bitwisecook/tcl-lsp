@@ -46,8 +46,9 @@ pub struct Credentials {
 }
 
 /// The XDG config directory holding `hosts.toml` (`$XDG_CONFIG_HOME/f5` or
-/// `~/.config/f5`).
-fn xdg_config_dir() -> PathBuf {
+/// `~/.config/f5`). Also used by the SSH transport to persist its
+/// `known_hosts` store (see [`super::ssh`]).
+pub(super) fn xdg_config_dir() -> PathBuf {
     if let Some(base) = env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
         return PathBuf::from(base).join("f5");
     }

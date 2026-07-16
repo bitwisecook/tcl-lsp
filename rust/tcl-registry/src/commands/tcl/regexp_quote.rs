@@ -28,7 +28,7 @@ pub fn spec() -> CommandSpec {
         // The command is `regexp::quote` (`::`, not `_`); the module
         // name uses `_` because `::` is not a legal file-name character.
         name: "regexp::quote",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::PURE,
         arity: Arity::exact(1),
         return_type: Some(TclType::String),

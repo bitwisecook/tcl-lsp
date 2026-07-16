@@ -172,7 +172,7 @@ impl Analyser {
             let stray = super::syntax_checks::stray_closer_diagnostics(
                 cmd_ref,
                 &self.source,
-                self.registry.as_ref(),
+                self.registry,
                 || self.user_command_tail_names(),
             );
             self.result.diagnostics.extend(stray);
@@ -320,7 +320,7 @@ impl Analyser {
             // references, rename, and call-hierarchy see through the
             // indirection.
             if cmd_name == "call"
-                && self.dialect == "f5-irules"
+                && self.dialect() == "f5-irules"
                 && let (Some(target_name), Some(target_tok)) =
                     (args.first(), arg_tokens_in.get(1).copied())
             {
@@ -511,10 +511,7 @@ impl Analyser {
         if cmd_name.starts_with("::") {
             return None;
         }
-        let registry = self
-            .registry
-            .as_ref()
-            .unwrap_or_else(|| fallback_registry());
+        let registry = self.registry.unwrap_or_else(fallback_registry);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         registry
             .resolve_call(
@@ -737,7 +734,7 @@ impl Analyser {
         if resolves_to_proc
             && cmd_name != "call"
             && self.current_event.is_some()
-            && self.dialect == "f5-irules"
+            && self.dialect() == "f5-irules"
         {
             let suffix = if args.is_empty() {
                 String::new()
@@ -848,7 +845,7 @@ impl Analyser {
             cmd_name,
             args,
             arg_tokens,
-            self.registry.as_ref(),
+            self.registry,
         );
         self.result.diagnostics.extend(loop_diags);
         let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
@@ -872,6 +869,9 @@ impl Analyser {
         // W135 / W136 — command/option needs a newer package version than the
         // resolved `package require` floor (buffered, decided post-walk).
         self.record_version_gate_sites(cmd_name, args, arg_tokens, cmd_tok);
+        // W138 — format/scan %-string conversions gated behind a Tcl
+        // release (buffered, decided post-walk — §6 argument-DSL rung).
+        self.record_dsl_format_sites(cmd_name, args, arg_tokens);
         self.emit_arity_diagnostics(
             cmd_name,
             args,
@@ -905,7 +905,7 @@ impl Analyser {
         {
             return;
         }
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -1012,7 +1012,7 @@ impl Analyser {
         } else {
             self.namespace_from_scope_path(scope_path)
         };
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         let body_args: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -1158,7 +1158,7 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         let mut invs = crate::signature_scan::command_prefix::command_prefix_invocations(
@@ -1255,7 +1255,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -1370,7 +1370,7 @@ impl Analyser {
             // unmerged token stream; a single-fragment `[…]` word yields
             // just itself.
             for frag in self.cmd_fragments(arg_tok, config) {
-                collect_substitution_heads(&sm, self.registry.as_ref(), frag, config, &mut heads);
+                collect_substitution_heads(&sm, self.registry, frag, config, &mut heads);
             }
             heads
         };
@@ -1415,7 +1415,7 @@ impl Analyser {
                         for frag in self.cmd_fragments(*arg_tok, config) {
                             collect_substitution_segments(
                                 &sm,
-                                self.registry.as_ref(),
+                                self.registry,
                                 frag,
                                 config,
                                 &mut nested,
@@ -1443,7 +1443,7 @@ impl Analyser {
                             ) {
                                 collect_segment_recursive(
                                     &sm,
-                                    self.registry.as_ref(),
+                                    self.registry,
                                     seg,
                                     config,
                                     &mut nested,
@@ -1474,7 +1474,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        let expr_indices: Vec<usize> = match self.registry.as_ref() {
+        let expr_indices: Vec<usize> = match self.registry {
             Some(r) => {
                 let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
                 r.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::Expr)
@@ -1507,7 +1507,7 @@ impl Analyser {
                         if inner.kind == TokenType::Cmd {
                             collect_substitution_segments(
                                 &sm,
-                                self.registry.as_ref(),
+                                self.registry,
                                 *inner,
                                 config,
                                 &mut nested,
@@ -1613,7 +1613,7 @@ impl Analyser {
         // `warn_if_unused = false`: the binding is a command side effect,
         // not a "set but never used" target (no W211).
         if cmd_name == "catch"
-            && let Some(registry) = self.registry.as_ref()
+            && let Some(registry) = self.registry
         {
             let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
             for i in registry.arg_indices_for_role(&cmd_name, &arg_strs, ArgRole::VarWrite) {
@@ -1707,7 +1707,7 @@ impl Analyser {
         let heads = {
             let sm = SourceMap::new(&self.source);
             let mut heads: Vec<CollectedHead> = Vec::new();
-            collect_expr_substitutions(&sm, self.registry.as_ref(), expr_tok, config, &mut heads);
+            collect_expr_substitutions(&sm, self.registry, expr_tok, config, &mut heads);
             heads
         };
         self.push_collected_heads(heads, scope_path);
@@ -1737,7 +1737,7 @@ impl Analyser {
             return Vec::new();
         }
         let trim_base = u32::try_from(expr_text.len() - expr_text.trim_start().len()).unwrap_or(0);
-        let parsed = crate::parse_expr(trimmed, Some(self.dialect.as_str()));
+        let parsed = crate::parse_expr(trimmed, Some(self.dialect()));
         parsed
             .function_calls()
             .into_iter()
@@ -2066,7 +2066,7 @@ impl Analyser {
     /// -safe`), never a name — a missing name is auto-generated at run time
     /// and needs no recording.
     fn record_registry_defined_command(&mut self, cmd_name: &str, args: &[String]) {
-        let Some(reg) = self.registry.as_ref() else {
+        let Some(reg) = self.registry else {
             return;
         };
         let Some(spec) = reg.get(cmd_name) else {
@@ -2127,7 +2127,7 @@ impl Analyser {
     fn registry_factory_class_from_subst(&self, value: &str) -> Option<String> {
         let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
         let head = inner.split_whitespace().next()?;
-        let reg = self.registry.as_ref()?;
+        let reg = self.registry?;
         if reg
             .get(head)
             .is_some_and(|s| s.creates_instance_at.is_some())
@@ -2225,7 +2225,7 @@ impl Analyser {
         // `creates_instance_at` spec marks a naming factory (`struct::graph
         // ?name?`) whose result is the object command, so the assigned var holds
         // an instance of `class` regardless of whether a name was passed.
-        if let Some(reg) = self.registry.as_ref()
+        if let Some(reg) = self.registry
             && reg.object_class(class).is_some()
             && reg
                 .get(class)

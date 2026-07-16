@@ -63,7 +63,8 @@ fn specs_0() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "!",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(1),
             hover: Some(HoverSnippet {
                 summary: "logical NOT (unary)",
@@ -81,7 +82,8 @@ fn specs_0() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "!=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "numeric inequality",
@@ -99,7 +101,8 @@ fn specs_0() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "%",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "modulo",
@@ -117,7 +120,8 @@ fn specs_0() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "&",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise AND",
@@ -135,7 +139,8 @@ fn specs_0() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "&&",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "logical AND",
@@ -158,7 +163,8 @@ fn specs_1() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "*",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "multiplication",
@@ -176,7 +182,8 @@ fn specs_1() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "**",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "exponentiation",
@@ -194,7 +201,8 @@ fn specs_1() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "+",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "addition",
@@ -212,7 +220,8 @@ fn specs_1() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "-",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(1),
             hover: Some(HoverSnippet {
                 summary: "subtraction or negation",
@@ -230,7 +239,8 @@ fn specs_1() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "/",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(1),
             hover: Some(HoverSnippet {
                 summary: "division",
@@ -253,7 +263,7 @@ fn specs_2() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "::tcl::build-info",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
             arity: Arity::new(0, 1),
             return_type: Some(TclType::String),
             hover: Some(HoverSnippet {
@@ -272,7 +282,8 @@ fn specs_2() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::!",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(1),
             hover: Some(HoverSnippet {
                 summary: "logical NOT (unary)",
@@ -290,7 +301,8 @@ fn specs_2() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::!=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "numeric inequality",
@@ -308,7 +320,8 @@ fn specs_2() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::%",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "modulo",
@@ -326,7 +339,8 @@ fn specs_2() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::&",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise AND",
@@ -349,7 +363,8 @@ fn specs_3() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "::tcl::mathop::&&",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "logical AND",
@@ -367,7 +382,8 @@ fn specs_3() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::*",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "multiplication",
@@ -385,7 +401,8 @@ fn specs_3() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::**",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "exponentiation",
@@ -403,7 +420,8 @@ fn specs_3() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::+",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "addition",
@@ -421,7 +439,8 @@ fn specs_3() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::-",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(1),
             hover: Some(HoverSnippet {
                 summary: "subtraction or negation",
@@ -444,7 +463,8 @@ fn specs_4() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "::tcl::mathop::/",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(1),
             hover: Some(HoverSnippet {
                 summary: "division",
@@ -462,7 +482,8 @@ fn specs_4() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::<",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric less-than",
@@ -480,7 +501,8 @@ fn specs_4() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::<<",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "left shift",
@@ -498,7 +520,8 @@ fn specs_4() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::<=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric less-or-equal",
@@ -516,7 +539,8 @@ fn specs_4() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::==",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric equality",
@@ -539,7 +563,8 @@ fn specs_5() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "::tcl::mathop::>",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric greater-than",
@@ -557,7 +582,8 @@ fn specs_5() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::>=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric greater-or-equal",
@@ -575,7 +601,8 @@ fn specs_5() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::>>",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "right shift",
@@ -593,7 +620,8 @@ fn specs_5() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::@",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list index operator",
@@ -611,7 +639,8 @@ fn specs_5() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::^",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise XOR",
@@ -634,7 +663,8 @@ fn specs_6() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "::tcl::mathop::eq",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "string equality",
@@ -652,7 +682,8 @@ fn specs_6() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::in",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list membership",
@@ -670,7 +701,8 @@ fn specs_6() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::ne",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "string inequality",
@@ -693,7 +725,8 @@ fn specs_7() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "::tcl::mathop::ni",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list non-membership",
@@ -711,7 +744,8 @@ fn specs_7() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::|",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise OR",
@@ -729,7 +763,8 @@ fn specs_7() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::||",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "logical OR",
@@ -747,7 +782,8 @@ fn specs_7() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "::tcl::mathop::~",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(1),
             hover: Some(HoverSnippet {
                 summary: "bitwise NOT (unary)",
@@ -765,7 +801,8 @@ fn specs_7() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "<",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric less-than",
@@ -788,7 +825,8 @@ fn specs_8() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "<<",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "left shift",
@@ -806,7 +844,8 @@ fn specs_8() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "<=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric less-or-equal",
@@ -824,7 +863,8 @@ fn specs_8() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "==",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric equality",
@@ -842,7 +882,8 @@ fn specs_8() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: ">",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric greater-than",
@@ -860,7 +901,8 @@ fn specs_8() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: ">=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric greater-or-equal",
@@ -883,7 +925,8 @@ fn specs_9() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: ">>",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "right shift",
@@ -901,7 +944,8 @@ fn specs_9() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "@",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list index operator",
@@ -919,7 +963,8 @@ fn specs_9() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "^",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise XOR",
@@ -937,7 +982,8 @@ fn specs_9() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "eq",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "string equality",
@@ -955,7 +1001,8 @@ fn specs_9() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "in",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list membership",
@@ -978,7 +1025,8 @@ fn specs_10() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "ne",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "string inequality",
@@ -996,7 +1044,8 @@ fn specs_10() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "ni",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list non-membership",
@@ -1014,7 +1063,8 @@ fn specs_10() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::!",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(1),
             hover: Some(HoverSnippet {
                 summary: "logical NOT (unary)",
@@ -1037,7 +1087,8 @@ fn specs_11() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "tcl::mathop::!=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "numeric inequality",
@@ -1055,7 +1106,8 @@ fn specs_11() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::%",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "modulo",
@@ -1073,7 +1125,8 @@ fn specs_11() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::&",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise AND",
@@ -1091,7 +1144,8 @@ fn specs_11() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::&&",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "logical AND",
@@ -1109,7 +1163,8 @@ fn specs_11() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::*",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "multiplication",
@@ -1132,7 +1187,8 @@ fn specs_12() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "tcl::mathop::**",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "exponentiation",
@@ -1150,7 +1206,8 @@ fn specs_12() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::+",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "addition",
@@ -1168,7 +1225,8 @@ fn specs_12() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::-",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(1),
             hover: Some(HoverSnippet {
                 summary: "subtraction or negation",
@@ -1186,7 +1244,8 @@ fn specs_12() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::/",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(1),
             hover: Some(HoverSnippet {
                 summary: "division",
@@ -1204,7 +1263,8 @@ fn specs_12() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::<",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric less-than",
@@ -1227,7 +1287,8 @@ fn specs_13() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "tcl::mathop::<<",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "left shift",
@@ -1245,7 +1306,8 @@ fn specs_13() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::<=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric less-or-equal",
@@ -1263,7 +1325,8 @@ fn specs_13() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::==",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric equality",
@@ -1281,7 +1344,8 @@ fn specs_13() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::>",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric greater-than",
@@ -1299,7 +1363,8 @@ fn specs_13() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::>=",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "numeric greater-or-equal",
@@ -1322,7 +1387,8 @@ fn specs_14() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "tcl::mathop::>>",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "right shift",
@@ -1340,7 +1406,8 @@ fn specs_14() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::@",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list index operator",
@@ -1358,7 +1425,8 @@ fn specs_14() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::^",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise XOR",
@@ -1376,7 +1444,8 @@ fn specs_14() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::eq",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "string equality",
@@ -1394,7 +1463,8 @@ fn specs_14() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::in",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list membership",
@@ -1417,7 +1487,8 @@ fn specs_15() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "tcl::mathop::ne",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "string inequality",
@@ -1435,7 +1506,8 @@ fn specs_15() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::ni",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "list non-membership",
@@ -1453,7 +1525,8 @@ fn specs_15() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::|",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise OR",
@@ -1476,7 +1549,8 @@ fn specs_16() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "tcl::mathop::||",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "logical OR",
@@ -1494,7 +1568,8 @@ fn specs_16() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "tcl::mathop::~",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(1),
             hover: Some(HoverSnippet {
                 summary: "bitwise NOT (unary)",
@@ -1512,7 +1587,8 @@ fn specs_16() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "|",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "bitwise OR",
@@ -1530,7 +1606,8 @@ fn specs_16() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "||",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::at_least(0),
             hover: Some(HoverSnippet {
                 summary: "logical OR",
@@ -1548,7 +1625,8 @@ fn specs_16() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "~",
-            dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+            dialects: None,
+            traits: Traits::OPERATOR_COMMAND,
             arity: Arity::exact(1),
             hover: Some(HoverSnippet {
                 summary: "bitwise NOT (unary)",

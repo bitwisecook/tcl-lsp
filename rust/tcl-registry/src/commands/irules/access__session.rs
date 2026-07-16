@@ -78,10 +78,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "get",
                     detail: "Get session variable value.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "set",
                     detail: "Set session variable value.",
+                    min_tcl: None,
                 },
             ],
         )],

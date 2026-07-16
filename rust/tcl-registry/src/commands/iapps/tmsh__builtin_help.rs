@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::builtin_help",
-        dialects: Some(DialectSet::IAPPS),
+        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Presents the same results as typing ``?`` while entering a tmsh command.",

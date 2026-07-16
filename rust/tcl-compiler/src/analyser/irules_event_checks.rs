@@ -46,7 +46,6 @@ use tcl_core_types::DiagCode;
 
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::events::{EventProps, EventRegistry, EventRequires};
-use tcl_registry::prelude::DialectSet;
 use tcl_registry::profiles::ProfileRegistry;
 
 use super::state::Analyser;
@@ -208,7 +207,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        if self.dialect != "f5-irules" {
+        if self.dialect() != "f5-irules" {
             return;
         }
         let event = self.current_event.clone();
@@ -237,7 +236,7 @@ impl Analyser {
     /// registry is built; the result is read immutably by
     /// [`Self::emit_irule1001_command_event_validity`].
     pub(super) fn compute_irules_file_profiles(&mut self) {
-        if self.dialect != "f5-irules" {
+        if self.dialect() != "f5-irules" {
             return;
         }
         self.irules_file_profiles = Some(tcl_registry::profiles::compute_file_profiles(
@@ -267,10 +266,13 @@ impl Analyser {
         cmd_tok: Token,
         event: &str,
     ) {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
-        let Some(spec) = registry.get_for_dialect(cmd_name, DialectSet::IRULES) else {
+        let Some(spec) = ({
+            use tcl_registry::ProfileQueries;
+            tcl_dialect::DialectProfile::irules().resolve_command(registry, cmd_name)
+        }) else {
             return;
         };
         let events = event_registry();
@@ -415,7 +417,7 @@ impl Analyser {
         if self.body_depth != 0 || event.is_some() {
             return;
         }
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         if registry.is_irules_top_level_only(cmd_name) {
@@ -456,6 +458,38 @@ impl Analyser {
             return;
         }
         if event_registry().is_known(event_name) {
+            // Known event — check the declared BIG-IP version range
+            // (explicit data, or the 15.0 axis baseline) against the
+            // session's target release (the D5 oldest-supported default
+            // when nothing pins it).
+            let target = self.library_versions.bigip_version.clone().or_else(|| {
+                tcl_dialect::VersionKey::BigipVersion
+                    .default_version()
+                    .map(str::to_owned)
+            });
+            if let Some(target) = target
+                && !event_registry().event_available_at(event_name, &target)
+            {
+                let (min, max) = event_registry()
+                    .event_version_range(event_name)
+                    .unwrap_or((None, None));
+                let range = match (min, max) {
+                    (Some(min), Some(max)) => format!("BIG-IP {min} through {max}"),
+                    (Some(min), None) => format!("BIG-IP {min} and later"),
+                    (None, Some(max)) => format!("BIG-IP releases up to {max}"),
+                    (None, None) => "an unknown BIG-IP range".to_owned(),
+                };
+                self.result.diagnostics.push(Diagnostic {
+                    code: DiagCode::Irule1002,
+                    span: tok.span,
+                    message: format!(
+                        "iRules event '{event_name}' exists in {range}, but the target \
+                         release is {target}."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
             return;
         }
         self.result.diagnostics.push(Diagnostic {

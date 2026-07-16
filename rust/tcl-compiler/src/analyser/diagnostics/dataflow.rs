@@ -163,7 +163,7 @@ file; this call falls through to the 'unknown' handler."
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) -> std::collections::HashSet<(String, i32)> {
-        self.registry.as_ref().map_or_else(Default::default, |reg| {
+        self.registry.map_or_else(Default::default, |reg| {
             crate::place_bridge::element_writes_observed_by_reads(&fu.cfg, &fu.name, reg)
         })
     }
@@ -296,7 +296,7 @@ file; this call falls through to the 'unknown' handler."
             // when the script never reads them back, so ``set auto_path …`` is
             // not a dead store.  Dialect-aware: the iRules set differs (issue
             // #831).
-            if tcl_registry::special_vars::is_externally_read(var, &self.dialect) {
+            if tcl_registry::special_vars::is_externally_read(var, self.dialect()) {
                 continue;
             }
             // Scope-aliased vars (introduced via ``global`` or
@@ -544,7 +544,7 @@ file; this call falls through to the 'unknown' handler."
             // …) are consumed by the runtime even when the script never reads
             // them, so a bare ``set auto_path …`` is not an unused variable.
             // Dialect-aware via the special-variable registry (issue #831).
-            if tcl_registry::special_vars::is_externally_read(var, &self.dialect) {
+            if tcl_registry::special_vars::is_externally_read(var, self.dialect()) {
                 continue;
             }
             // Only emit when no other SSA version of this var is
@@ -1198,7 +1198,7 @@ file; this call falls through to the 'unknown' handler."
         let defined_vars = ctx.defined_vars;
         let considered = ctx.considered;
 
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
 
@@ -1264,7 +1264,8 @@ file; this call falls through to the 'unknown' handler."
                     .and_then(|s| ssa_block.exit_versions.get(&s))
                     .copied()
                     .unwrap_or(0);
-                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, &self.dialect) {
+                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, self.dialect())
+                {
                     continue;
                 }
                 reported.insert(name.clone());
@@ -1685,7 +1686,7 @@ file; this call falls through to the 'unknown' handler."
         let branches = {
             // Scoped borrow: `self.registry` must release before the
             // `&mut self` diagnostic pushes below.
-            let registry = self.registry.as_ref().map_or_else(
+            let registry = self.registry.map_or_else(
                 || tcl_registry::cache::registry_for_dialect("tcl8.6"),
                 |r| r,
             );

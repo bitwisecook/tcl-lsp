@@ -2907,3 +2907,163 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+// -- Dialect-profile availability (dialect-profile-model.md, Milestone 2):
+// vendor dialects resolve their embedded Tcl core end-to-end — server →
+// JSON-RPC → publishDiagnostics — via the composed (version|vendor) profile
+// masks; the version ladder and the subtractive iRules view still hold.
+
+#[test]
+fn iapps_embedded_85_core_is_clean_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("iapp");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "dict set cfg pool p1\nlassign {a b} x y\napply {{v} {return $v}} 1\n",
+        "tcl-iapp",
+    );
+    assert!(
+        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
+        "iApps (Tcl 8.5.13 host) must resolve 8.5 core cleanly: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn iapps_86_core_still_draws_w123_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("iapp");
+    let diags = lsp.open_ready_lang(&uri, "lmap x {1 2} {set x}\n", "tcl-iapp");
+    assert!(
+        has_code(&diags, "W123"),
+        "lmap is 8.6 — unavailable on the iApps 8.5 base: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn expect_embedded_86_core_is_clean_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("exp");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "spawn ssh host\ndict set cfg k v\ncoroutine pump ::apply {{} {}}\n",
+        "tcl-expect",
+    );
+    assert!(
+        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
+        "expect (Tcl 8.6 base) must resolve 8.6 core + expect surface cleanly: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn irules_banned_commands_still_flag_end_to_end() {
+    // The subtractive iRules profile is unchanged by the composed-mask fix:
+    // banned 8.4 core still draws W002 in a `when` handler.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n  exec /bin/true\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        has_code(&diags, "W002"),
+        "exec is banned in iRules: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn argument_dsl_rung_gates_format_and_string_is_end_to_end() {
+    // Milestone 7 (§6): the argument mini-languages validate against the
+    // dialect's effective Tcl version. iRules embed Tcl 8.4.6, so the
+    // 8.6-introduced `format %b` and the 9.0-introduced `string is dict`
+    // both flag; the same source is clean on a 9.0 host.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when HTTP_REQUEST {\n  set x [format %b 5]\n  set y [string is dict {a 1}]\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        has_code(&diags, "W138") && has_code(&diags, "W137"),
+        "8.4-embedded iRules must flag %b (8.6+) and the dict class (9.0+): {:?}",
+        codes(&diags)
+    );
+    let uri2 = unique_uri("tcl90");
+    let diags2 = lsp.open_ready_lang(
+        &uri2,
+        "set x [format %b 5]\nset y [string is dict {a 1}]\n",
+        "tcl9.0",
+    );
+    assert!(
+        !has_code(&diags2, "W138") && !has_code(&diags2, "W137"),
+        "a 9.0 host accepts both: {:?}",
+        codes(&diags2)
+    );
+}
+
+#[test]
+fn tmsh_first_class_gates_both_directions_end_to_end() {
+    // Milestone 6 (D8): a tmsh document analyses under TCL85|TMSH — the
+    // tmsh:: surface and the 8.5 core are clean, while 8.6-core draws the
+    // §7.2 reverse-regression diagnostic.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tmsh");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "tmsh::create ltm pool p1\ndict set cfg k v\n",
+        "tcl-tmsh",
+    );
+    assert!(
+        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
+        "tmsh surface + 8.5 core must be clean: {:?}",
+        codes(&diags)
+    );
+    let uri2 = unique_uri("tmsh");
+    let diags2 = lsp.open_ready_lang(&uri2, "lmap x {1 2} {set x}\n", "tcl-tmsh");
+    assert!(
+        has_code(&diags2, "W123") || has_code(&diags2, "W002"),
+        "lmap is 8.6 — unavailable on the tmsh 8.5 base: {:?}",
+        codes(&diags2)
+    );
+}
+
+#[test]
+fn bpf_first_class_admits_90_core_end_to_end() {
+    // Milestone 6 (D7): bpf = TCL90|BPF — 9.0-era core (lmap, dict) is
+    // real, and the bpf surface resolves.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("bpf");
+    let diags = lsp.open_ready_lang(&uri, "dict set cfg k v\nlmap x {1 2} {set x}\n", "tcl-bpf");
+    assert!(
+        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
+        "9.0 core is real under bpf: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn irules_subcommands_named_like_banned_commands_are_clean_end_to_end() {
+    // Milestone 5 retag FP-fix: `DNS::header cd` (the DNS Checking-Disabled
+    // flag) and `IP::stats in` (inbound stats) are real iRules subcommands
+    // whose names collide with the banned `cd` command and the `in`
+    // operator spelling. The old bulk name-keyed tagging hid them and drew
+    // spurious availability/subcommand diagnostics; exclusion is keyed on
+    // the resolved spec now, never on a bare name.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("irule");
+    let diags = lsp.open_ready_lang(
+        &uri,
+        "when DNS_REQUEST {\n  DNS::header cd\n}\nwhen CLIENT_ACCEPTED {\n  IP::stats in\n}\n",
+        "tcl-irule",
+    );
+    assert!(
+        !has_code(&diags, "W001") && !has_code(&diags, "W002") && !has_code(&diags, "W123"),
+        "real iRules subcommands must not be hidden by name collisions: {:?}",
+        codes(&diags)
+    );
+}

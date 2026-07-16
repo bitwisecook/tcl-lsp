@@ -31,6 +31,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use tcl_core_types::{DiagCode, DocRow, OptCategory};
+use tcl_registry::ProfileQueries;
 
 use crate::util::repo_root;
 
@@ -263,8 +264,34 @@ fn ai_context() -> AiContext {
             ("opt_dce", opt_codes(OptCategory::Dce)),
             ("opt_code_motion", opt_codes(OptCategory::CodeMotion)),
             ("opt_recursion", opt_codes(OptCategory::Recursion)),
+            ("irules_vendor_surface", irules_vendor_surface()),
         ],
     }
+}
+
+/// The modelled F5 iRules command surface, summarised from the registry
+/// (`ProfileQueries::vendor_surface` — dialect-profile model §5.4) so the
+/// prompt's picture of the surface regenerates with the data instead of
+/// drifting as hand-written prose: total command count plus the largest
+/// `NS::` namespaces.
+fn irules_vendor_surface() -> String {
+    let profile = tcl_dialect::DialectProfile::irules();
+    let registry = tcl_registry::registry_for_profile(profile);
+    let Some(surface) = profile.vendor_surface(registry) else {
+        return String::new();
+    };
+    let top: Vec<String> = surface
+        .namespaces
+        .iter()
+        .filter(|(ns, _)| !ns.is_empty())
+        .take(12)
+        .map(|(ns, n)| format!("{ns}:: ({n})"))
+        .collect();
+    format!(
+        "{} modelled commands; largest namespaces: {}",
+        surface.command_count,
+        top.join(", ")
+    )
 }
 
 /// Render one inline `{% for c in NAME %}BODY{% endfor %}` region against

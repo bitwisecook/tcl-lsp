@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_execok",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {

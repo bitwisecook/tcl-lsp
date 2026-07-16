@@ -33,8 +33,8 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 
 /// Run `script` on `tclsh` via stdin, returning stdout (or `None` on spawn
 /// failure).

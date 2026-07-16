@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::commit_transaction",
-        dialects: Some(DialectSet::IAPPS),
+        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet::brief(
             "Runs all commands issued since the last ``tmsh::begin_transaction``.",

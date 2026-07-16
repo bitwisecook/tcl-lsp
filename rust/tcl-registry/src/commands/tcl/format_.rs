@@ -152,6 +152,10 @@ impl Conversion {
             width_star,
             precision_star,
             arg_index,
+            // Version-relevant only (`ll`+`u` is 9.0-gated); the fold layer
+            // already bails on every conversion whose value is
+            // version-dependent, so the modifier itself is irrelevant here.
+            big: _,
         } = parse_spec(fmt, i)?;
         // Decline to fold the unmodelled specifier forms: arg-driven `*` width /
         // `.*` precision, and positional `%n$` selectors. `fold_format` consumes
@@ -567,6 +571,9 @@ pub fn spec() -> CommandSpec {
         name: "format",
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::BYTE_COMPILED | Traits::PURE | Traits::CSE_CANDIDATE,
+        // Index 0 is the %-string (the §6 argument-DSL rung: `%b` is
+        // 8.6+, `%ll…u` is 9.0+).
+        arg_roles: &[(0, ArgRole::FormatString)],
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         const_fold_versioned: Some(fold_format),

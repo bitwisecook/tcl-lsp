@@ -161,10 +161,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "get",
                     detail: "Get AVP flags.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "set",
                     detail: "Set AVP flags.",
+                    min_tcl: None,
                 },
             ],
         )],

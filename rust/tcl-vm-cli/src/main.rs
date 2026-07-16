@@ -42,9 +42,10 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
+use tcl_dialect::TclVersion;
 use tcl_lexer::script_is_complete;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, RuntimeVersion, Value, Vm};
+use tcl_vm::{CompileError, CompileService, Value, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
 /// (and for the top-level script the driver runs): the real Rust compiler
@@ -106,7 +107,7 @@ enum Mode {
 /// `-i` (force REPL), `-h` / `--help`, and otherwise treats the first
 /// non-flag argument as a script file (everything after it is the script's
 /// `argv`, `tclsh`-style).
-fn parse_args() -> (Mode, Option<RuntimeVersion>) {
+fn parse_args() -> (Mode, Option<TclVersion>) {
     let mut version = None;
     let mut args = std::env::args().skip(1);
     loop {
@@ -115,7 +116,11 @@ fn parse_args() -> (Mode, Option<RuntimeVersion>) {
             Some(flag) if flag == "-h" || flag == "--help" => (Mode::Usage(0), version),
             Some(flag) if flag == "-i" => (Mode::Repl, version),
             Some(flag) if flag == "--tcl-version" => {
-                match args.next().as_deref().and_then(RuntimeVersion::parse) {
+                match args
+                    .next()
+                    .as_deref()
+                    .and_then(TclVersion::from_package_version)
+                {
                     Some(v) => {
                         version = Some(v);
                         continue;
@@ -153,11 +158,14 @@ fn usage() {
 
 /// Build a VM with the compiler-backed `CompileService` and stdout host
 /// output, at the requested runtime version (`None` keeps the VM default).
-fn new_vm(version: Option<RuntimeVersion>) -> Vm {
+fn new_vm(version: Option<TclVersion>) -> Vm {
     let mut vm = Vm::with_output(Box::new(Stdout));
-    if let Some(v) = version {
-        vm.set_runtime_version(v);
-    }
+    // Default to the plain-Tcl profile's pinned VM release (dialect-profile
+    // model §5.4); `--tcl-version <x.y>` overrides it.
+    vm.set_runtime_version(
+        version
+            .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name("tcl9.0").vm_runtime_version),
+    );
     vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
     // Enable the real `thread` package: a Send factory each worker calls to
     // build its own compiler, and a thread-safe shared stdout for `puts`.
@@ -325,7 +333,7 @@ mod tests {
     }
 
     /// [`drive`] at an explicit runtime version (the `--tcl-version` path).
-    fn drive_at(input: &str, version: Option<RuntimeVersion>) -> String {
+    fn drive_at(input: &str, version: Option<TclVersion>) -> String {
         let mut vm = new_vm(version);
         let mut reader = std::io::Cursor::new(input.as_bytes().to_vec());
         let mut out: Vec<u8> = Vec::new();
@@ -363,12 +371,12 @@ mod tests {
         // namespace scope reaches the global under 8.x (41 → 42), but creates
         // a fresh namespace variable under 9.0 (→ 1).
         let script = "set g 41\nnamespace eval foo { incr g }\n";
-        let out86 = drive_at(script, Some(RuntimeVersion::V8_6));
+        let out86 = drive_at(script, Some(TclVersion::V8_6));
         assert!(
             out86.contains("42"),
             "8.6 falls back to the global: {out86:?}"
         );
-        let out90 = drive_at(script, Some(RuntimeVersion::V9_0));
+        let out90 = drive_at(script, Some(TclVersion::V9_0));
         assert!(
             out90.contains("% 1"),
             "9.0 creates in the namespace: {out90:?}"

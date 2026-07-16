@@ -430,12 +430,11 @@ fn record_set_binding(full: &str, cmd: &SegmentedCommand, scope: &mut BindingSco
 mod tests {
     use super::*;
 
-    /// Extract object references from `source` against an iRules-aware
-    /// registry (`pool` / `snatpool` / `class` are dialect commands).
+    /// Extract object references from `source` against the profile-stamped
+    /// iRules registry (`pool` / `snatpool` / `class` are dialect commands).
     fn refs(source: &str) -> Vec<IrulesObjectReference> {
-        let mut registry = CommandRegistry::build_default();
-        registry.load_irules();
-        extract_irules_object_references(source, None, &registry)
+        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        extract_irules_object_references(source, None, registry)
     }
 
     #[test]
@@ -472,8 +471,8 @@ mod tests {
 #[cfg(test)]
 mod case_list_tests {
     use super::extract_irules_object_references;
+    use tcl_dialect::DialectSet;
     use tcl_registry::CommandRegistry;
-    use tcl_registry::dialects::DialectSet;
 
     fn reg() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();

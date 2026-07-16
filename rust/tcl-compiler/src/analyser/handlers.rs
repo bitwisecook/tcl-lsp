@@ -360,8 +360,7 @@ impl Analyser {
         cmd_name: &str,
         scope_path: &[usize],
     ) -> Option<tcl_registry::SymbolDef> {
-        use tcl_registry::prelude::DialectSet;
-        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        let dialect = self.profile.availability_mask;
         // `namespace_from_scope_path` needs `&mut self`; compute it before the
         // shared `registry` borrow, and only when imports could matter.
         let cur_ns = if self.result.namespace_imports.is_empty() {
@@ -373,7 +372,7 @@ impl Analyser {
         // definer?  The `registry` borrow is confined to this block so the
         // shadowing check below can re-borrow `self`.
         let sym = {
-            let registry = self.registry.as_ref()?;
+            let registry = self.registry?;
             if let Some(sym) = registry.defines_symbol(cmd_name, dialect) {
                 Some(*sym)
             } else if cmd_name.contains("::") {
@@ -474,7 +473,7 @@ impl Analyser {
         body_text: &str,
     ) -> std::collections::HashMap<String, std::collections::HashSet<super::types::ProcArgTrait>>
     {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return std::collections::HashMap::new();
         };
         let overlay = self.stub_overlay.as_ref();
@@ -539,10 +538,12 @@ impl Analyser {
             !name.contains("::") && !overridable_library_procs().contains(name.as_str())
         });
         if shadow_name.is_some() {
-            let dialect_label = if self.dialect.is_empty() {
+            // The permissive fallback profile means "no specific dialect" —
+            // no parenthetical label (the old empty-string contract).
+            let dialect_label = if self.profile.is_fallback() {
                 String::new()
             } else {
-                format!(" ({})", self.dialect)
+                format!(" ({})", self.dialect())
             };
             let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -1138,9 +1139,11 @@ impl Analyser {
         // falsely settle a call onto a path entry the runtime never consults —
         // so skip it, matching the `namespace path` subcommand's own dialect
         // gate (which already flags the command W002 there).
-        let dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect)
-            .unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
-        if !dialect.intersects(tcl_registry::prelude::DialectSet::TCL85_PLUS) {
+        if !self
+            .profile
+            .availability_mask
+            .intersects(tcl_dialect::DialectSet::TCL85_PLUS)
+        {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
@@ -1265,13 +1268,14 @@ impl Analyser {
         }
         let ns_prefix = ns.trim_start_matches(':').to_owned();
 
-        let dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect);
         let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
             .registry
-            .as_ref()
             .and_then(|r| r.get("namespace"))
-            .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec.dialects, sub)))
-            .map(|(parent_dialects, sub)| sub.option_specs(dialect, parent_dialects))
+            .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec, sub)))
+            .map(|(spec, sub)| {
+                use tcl_registry::ProfileQueries;
+                self.profile.available_sub_option_specs(spec, sub)
+            })
             .unwrap_or_default();
 
         let opts = &args[2..];
@@ -1597,7 +1601,7 @@ impl Analyser {
         // `[catch …]` path in `dispatch_nested_segment`. The literal spec
         // name is sound here: `AnalyserHookId::Catch` dispatch already
         // resolved the head (qualified spellings included) to this spec.
-        if let Some(registry) = self.registry.as_ref() {
+        if let Some(registry) = self.registry {
             let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
             for i in registry.arg_indices_for_role(
                 "catch",
@@ -1659,7 +1663,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         if registry.get(cmd_name).is_none_or(|spec| {
@@ -3205,9 +3209,13 @@ mod tests {
     fn handle_proc_emits_w113_for_builtin_shadow() {
         // ``proc set {} {}`` — the proc name is a built-in.
         // W113 should anchor at the proc-name span and carry
-        // the canonical message shape.
+        // the canonical message shape. A *real* dialect is named in the
+        // parenthetical label; the permissive fallback (both the empty
+        // string and its canonical "tcl" spelling resolve there —
+        // dialect-profile-model.md §8, one sink) carries no label, covered
+        // by the sibling no-label test below.
         let mut a = Analyser::new();
-        a.dialect = "tcl".to_string();
+        a.profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
         a.handle_proc_command(
             &["set".to_string(), String::new(), String::new()],
             &[
@@ -3226,7 +3234,7 @@ mod tests {
         assert_eq!(w113s.len(), 1);
         assert_eq!(w113s[0].span, span(5, 8));
         assert!(w113s[0].message.contains("'set' shadows built-in"));
-        assert!(w113s[0].message.contains("(tcl)"));
+        assert!(w113s[0].message.contains("(tcl8.6)"));
         assert_eq!(w113s[0].severity, crate::analyser::types::Severity::Warning);
     }
 
@@ -3234,7 +3242,7 @@ mod tests {
     fn handle_proc_no_w113_for_non_builtin_name() {
         // ``foo`` is not a built-in — no W113.
         let mut a = Analyser::new();
-        a.dialect = "tcl".to_string();
+        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
         a.handle_proc_command(
             &["foo".to_string(), String::new(), String::new()],
             &[
@@ -3259,7 +3267,7 @@ mod tests {
         // ``set`` because the registry indexes by bare command
         // name (``::`` is trimmed at lookup).
         let mut a = Analyser::new();
-        a.dialect = "tcl".to_string();
+        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
         a.handle_proc_command(
             &["::set".to_string(), String::new(), String::new()],
             &[
@@ -3310,7 +3318,7 @@ mod tests {
         // qualified match is a library/package command living in its own
         // namespace, not a core-global shadow.)
         let mut a = Analyser::new();
-        a.dialect = "f5-irules".to_string();
+        a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
         a.handle_proc_command(
             &["pool".to_string(), String::new(), String::new()],
             &[
@@ -3330,7 +3338,7 @@ mod tests {
 
         // Same proc, plain tcl dialect → no W113.
         let mut b = Analyser::new();
-        b.dialect = "tcl".to_string();
+        b.profile = tcl_dialect::DialectProfile::by_name("tcl");
         b.handle_proc_command(
             &["pool".to_string(), String::new(), String::new()],
             &[
@@ -3355,7 +3363,7 @@ mod tests {
         // is a library/package command in its own namespace, not a
         // core-global shadow — never W113.
         let mut a = Analyser::new();
-        a.dialect = "f5-irules".to_string();
+        a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
         a.handle_proc_command(
             &["HTTP::respond".to_string(), String::new(), String::new()],
             &[
@@ -3777,7 +3785,7 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
-        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
         a.result
             .global_scope
             .children
@@ -3801,7 +3809,7 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
-        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
         a.result
             .global_scope
             .children
@@ -3884,7 +3892,7 @@ mod tests {
         // so only the genuine `-command ::real::target` is recorded.
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
         a.result
             .global_scope
             .children
@@ -4157,7 +4165,7 @@ mod tests {
     fn handle_catch_with_result_var_defines_it() {
         let mut a = Analyser::new();
         // The binding positions come from the registry's VarWrite roles.
-        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string()],
             &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
@@ -4169,7 +4177,7 @@ mod tests {
     #[test]
     fn handle_catch_with_options_var_defines_both() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string(), "opts".to_string()],
             &[
@@ -4742,7 +4750,7 @@ mod tests {
     fn handle_oo_class_create_records_class() {
         let mut a = Analyser::new();
         // Metaclass recognition is now registry-trait-driven (`IS_OO_METACLASS`).
-        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
         let handled = a.handle_oo_class_command(
             "oo::class",
             &["create".to_string(), "MyClass".to_string()],
@@ -4764,7 +4772,7 @@ mod tests {
         // arg_tokens stripped of cmd_name (matching the
         // ``process_command`` dispatch convention).
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::CommandRegistry::build_default());
+        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
         let handled = a.handle_oo_class_command(
             "oo::class",
             &[

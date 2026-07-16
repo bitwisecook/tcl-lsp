@@ -269,28 +269,17 @@ mod tests {
         dialect: Option<&str>,
         ip: InterproceduralAnalysis,
     ) -> Vec<Optimisation> {
-        use tcl_registry::CommandRegistry;
-        use tcl_registry::prelude::DialectSet;
-        let mut registry = CommandRegistry::build_default();
         // `when` (and any other dialect-gated structured command)
         // is registry-resolved, so the test registry must carry the
-        // dialect's command set before lowering iRule code. This
-        // matches how production pairs `build_default()` with the
-        // active dialect.  Both `"irules"` and `"f5-irules"` resolve
-        // to `DialectSet::IRULES` here (the optimiser passes
-        // recognise both aliases via `is_irules_dialect`, so the
-        // registry has to as well).
-        let parsed = dialect.and_then(|d| {
-            if d == "irules" {
-                Some(DialectSet::IRULES)
-            } else {
-                DialectSet::parse(d)
-            }
-        });
-        if let Some(d) = parsed {
-            registry.load_dialect(d);
-        }
-        let cu = CompilationUnit::build_for(source, &registry, false);
+        // dialect's command set before lowering iRule code. The shared
+        // per-profile cache matches how production resolves it — and the
+        // profile catalog canonicalises the `"irules"` alias, so both
+        // spellings load the iRules pack exactly as the optimiser passes
+        // recognise both via `is_irules_dialect`.
+        let registry = tcl_registry::cache::registry_for_profile(
+            tcl_dialect::DialectProfile::by_opt_name(dialect),
+        );
+        let cu = CompilationUnit::build_for(source, registry, false);
         let mut ctx = PassContext::with_dialect(&cu.source, ip, dialect);
         run(&mut ctx, &cu);
         ctx.optimisations

@@ -115,13 +115,14 @@ pub struct Analyser {
     /// entries) and read by handlers that need to re-slice the outer
     /// source — recovery and CFG/SSA diagnostic emission.
     pub source: String,
-    /// Active dialect name (``"tcl"``, ``"f5-irules"``,
-    /// ``"f5-iapps"``, etc.).  Set at the top of
-    /// [`Self::analyse`].  Handlers that need to compute
-    /// dialect-specific command sets (W113 shadow check,
-    /// dialect-only command gating) read this directly.  Empty
-    /// string when dialect was not specified.
-    pub dialect: String,
+    /// The resolved dialect profile — the ingest identity
+    /// (dialect-profile-model.md §2.4). Set once at the top of
+    /// [`Self::analyse`] from the caller's dialect string via
+    /// `DialectProfile::by_name` (aliases canonicalise; unknown names sink
+    /// to the permissive fallback). Handlers derive every dialect-specific
+    /// answer — availability masks, behaviour policies, the lexer grammar —
+    /// from this; the original string round-trips as [`Self::dialect`].
+    pub profile: &'static tcl_dialect::DialectProfile,
     /// Diagnostic codes that should not be emitted.
     pub disabled_diagnostics: HashSet<String>,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
@@ -148,6 +149,11 @@ pub struct Analyser {
     /// the `analyse*` entry points; gates the per-command accumulation so
     /// non-Tk files pay nothing.  See [`super::tk_checks::tk_possibly_active`].
     pub(super) tk_possibly_active: bool,
+    /// Whether the ingest dialect string was literally `"tk"` (a wish
+    /// shell). `tk` is a library over a Tcl base, not a catalog profile
+    /// (dialect-profile-model.md §7.2), so its shell identity is recorded
+    /// here at ingest for the Tk geometry checks.
+    pub(super) tk_dialect: bool,
     /// Tk checks (TK1002 / TK1003): diagnostics buffered during the walk and
     /// emitted post-walk by [`Self::flush_tk_geometry_diagnostics`], once the
     /// `tk` dialect / `package require Tk` activation condition is resolved.
@@ -165,12 +171,23 @@ pub struct Analyser {
     /// [`Self::flush_version_gate_diagnostics`] once every `package require` is
     /// known.  See [`super::diagnostics::version_gate`].
     pub(super) version_gate_sites: Vec<super::diagnostics::version_gate::VersionGateSite>,
+    /// Argument-DSL uses gated behind a Tcl release (W137 / W138, design
+    /// doc §6), buffered during the walk and decided post-walk by
+    /// [`Self::flush_dsl_gate_diagnostics`] against the effective Tcl
+    /// version.
+    pub(super) dsl_gate_sites: Vec<super::diagnostics::version_gate::DslGateSite>,
+    /// Session/file pins for the keyed library-version axes
+    /// (`--bigip-version`-style overrides, dialect-profile-model.md §7.1).
+    /// Defaults to empty, in which case each keyed axis falls back to its
+    /// D5 oldest-supported default; feeds
+    /// [`tcl_dialect::DialectProfile::library_floor`].
+    pub library_versions: tcl_dialect::LibraryVersionOverrides,
     /// Cached set of built-in command names for redefined-builtin
     /// detection. `None` until first lookup; filled lazily.
     pub builtin_names: Option<HashSet<String>>,
     /// The dialect ``builtin_names`` was built for, for cache
     /// invalidation.
-    pub builtin_dialect: Option<String>,
+    pub builtin_dialect: Option<&'static str>,
     /// Conditional-nesting depth — incremented on entry to
     /// `if` / `catch` / `try` arms, used to mark
     /// ``package require`` records as ``conditional=true``.
@@ -283,7 +300,7 @@ pub struct Analyser {
     /// bodies) don't have to rebuild it on every command.  `None`
     /// outside an active analysis run; handlers that need the
     /// registry must check `self.registry.is_some()`.
-    pub registry: Option<tcl_registry::CommandRegistry>,
+    pub registry: Option<&'static tcl_registry::CommandRegistry>,
     /// The "known command" universe for unclosed-delimiter recovery: the
     /// active registry's names plus every proc / class / command-alias the
     /// document itself defines. Populated alongside `registry` at the top
@@ -520,10 +537,17 @@ impl Analyser {
     /// Tcl 8.4 and iRules) and `irules_brace_separator` (`}{` ghost SEP,
     /// iRules-only).  Threaded into every analyser re-segmentation so
     /// tokenisation honours the workspace folder's dialect rather than
-    /// always assuming the Tcl-8.5+ default.  Reads `self.dialect`, set at
+    /// always assuming the Tcl-8.5+ default.  Reads `self.dialect()`, set at
     /// the top of [`Self::analyse`].
     pub(super) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_dialect(&self.dialect)
+        tcl_lexer::LexerConfig::from_grammar(self.profile.grammar)
+    }
+
+    /// The active dialect's canonical name — the string that round-trips
+    /// through configuration and the providers (`self.profile.name`).
+    #[must_use]
+    pub fn dialect(&self) -> &'static str {
+        self.profile.name
     }
 
     /// `true` when `cmd_name`'s registry spec declares its pattern argument
@@ -534,7 +558,7 @@ impl Analyser {
     /// registry data only.  Falls back to the cached default registry when
     /// the analyser has none loaded (direct handler calls in unit tests).
     pub(super) fn command_takes_regex_pattern(&self, cmd_name: &str) -> bool {
-        let registry = self.registry.as_ref().map_or_else(
+        let registry = self.registry.map_or_else(
             || tcl_registry::cache::registry_for_dialect("tcl8.6"),
             |r| r,
         );
@@ -550,7 +574,7 @@ impl Analyser {
             result: AnalysisResult::default(),
             current_scope_path: Vec::new(),
             source: String::new(),
-            dialect: String::new(),
+            profile: tcl_dialect::DialectProfile::plain_tcl(),
             disabled_diagnostics: disabled,
             extra_commands: HashSet::new(),
             last_comment: String::new(),
@@ -559,10 +583,13 @@ impl Analyser {
             regex_vars: HashSet::new(),
             current_event: None,
             tk_possibly_active: false,
+            tk_dialect: false,
             tk_pending_diags: Vec::new(),
             tk_created_widgets: HashSet::new(),
             tk_geometry: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
+            dsl_gate_sites: Vec::new(),
+            library_versions: tcl_dialect::LibraryVersionOverrides::default(),
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,
@@ -616,6 +643,15 @@ impl Analyser {
     #[must_use]
     pub fn with_non_ascii_mode(mut self, mode: NonAsciiMode) -> Self {
         self.non_ascii_mode = mode;
+        self
+    }
+
+    /// Pin the session's target BIG-IP release (`tclLsp.bigipVersion` /
+    /// `--bigip-version`): the keyed library-version axis every declared
+    /// range compares against (baseline semantics, §7.1).
+    #[must_use]
+    pub fn with_bigip_version(mut self, version: Option<String>) -> Self {
+        self.library_versions.bigip_version = version;
         self
     }
 
@@ -716,14 +752,14 @@ impl Analyser {
     /// elsewhere; this entry just records it for future use).
     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {
         use std::collections::HashSet;
-        use tcl_registry::CommandRegistry;
 
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
         self.source = source.to_string();
-        self.dialect = dialect.to_string();
+        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
+        self.tk_dialect = dialect == "tk";
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
@@ -778,11 +814,7 @@ impl Analyser {
         // Build the dialect-aware registry once and stash on
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
-        let mut registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            registry.load_dialect(d);
-        }
-        self.registry = Some(registry);
+        self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
         // Precompute the iRules file-profile stack (no-op off f5-irules) so
         // the per-command IRULE1001 hint can consult it without recomputing.
         self.compute_irules_file_profiles();
@@ -798,7 +830,7 @@ impl Analyser {
         // scan-to-next recovery uses here.
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
-            self.registry.as_ref().expect("registry just stashed"),
+            self.registry.expect("registry just stashed"),
             &self.extra_commands,
         );
         let known_commands: HashSet<&str> = self
@@ -995,7 +1027,7 @@ impl Analyser {
         let stray = super::syntax_checks::stray_closer_diagnostics(
             cmd,
             &self.source,
-            self.registry.as_ref(),
+            self.registry,
             || self.user_command_tail_names(),
         );
         self.result.diagnostics.extend(stray);
@@ -1027,7 +1059,7 @@ impl Analyser {
             cmd,
             &self.source,
             region_end,
-            self.registry.as_ref(),
+            self.registry,
             &self.recovery_known_commands,
         );
         let mut emitted = false;
@@ -1099,11 +1131,11 @@ impl Analyser {
         chunk_commands: Vec<Vec<crate::segmenter::SegmentedCommand>>,
         dialect: &str,
     ) -> (AnalysisResult, Vec<super::snapshot::AnalyserSnapshot>) {
-        use tcl_registry::CommandRegistry;
         self.source = source.to_string();
-        self.dialect = dialect.to_string();
+        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
+        self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
 
@@ -1134,14 +1166,10 @@ impl Analyser {
         // Without this, body recursion silently no-ops.  Same
         // for the ``line_offsets`` index used by
         // ``apply_preceding_noqa``.
-        let mut registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            registry.load_dialect(d);
-        }
-        self.registry = Some(registry);
+        self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
-            self.registry.as_ref().expect("registry just stashed"),
+            self.registry.expect("registry just stashed"),
             &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
@@ -1185,11 +1213,11 @@ impl Analyser {
         dialect: &str,
         finalise: bool,
     ) -> AnalysisResult {
-        use tcl_registry::CommandRegistry;
         self.source = source.to_string();
-        self.dialect = dialect.to_string();
+        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
+        self.tk_dialect = dialect == "tk";
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
 
@@ -1216,14 +1244,10 @@ impl Analyser {
         // these the registry-driven body loop in
         // ``process_command`` silently skips body recursion on
         // the incremental path.
-        let mut registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            registry.load_dialect(d);
-        }
-        self.registry = Some(registry);
+        self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
-            self.registry.as_ref().expect("registry just stashed"),
+            self.registry.expect("registry just stashed"),
             &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
@@ -1292,10 +1316,9 @@ impl Analyser {
         // path would walk, or leaves any partial command.  (This also subsumes
         // the plain-segmentation-metadata check: the recovery segmenter is the
         // authority on the command stream + its attached comments.)
-        let mut registry = tcl_registry::CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(dialect) {
-            registry.load_dialect(d);
-        }
+        let registry = tcl_registry::cache::registry_for_profile(
+            tcl_dialect::DialectProfile::by_name(dialect),
+        );
         let known: std::collections::HashSet<&str> = registry.command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
             new_text,
@@ -1416,23 +1439,15 @@ impl Analyser {
     /// Used by **W113** (proc shadows built-in) at proc-emit time
     /// and the emitters that gate on built-in vs user-defined.
     ///
-    /// The dialect string is parsed via ``DialectSet::parse``;
-    /// unknown dialect names fall through to the core registry
-    /// (TCL / stdlib / tcllib only).
+    /// The dialect resolves through the profile catalog; unknown dialect
+    /// names sink to the permissive fallback profile's registry.
     pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
-        use tcl_registry::CommandRegistry;
-        use tcl_registry::prelude::DialectSet;
-        if self.builtin_dialect.as_deref() != Some(self.dialect.as_str())
-            || self.builtin_names.is_none()
-        {
-            let mut registry = CommandRegistry::build_default();
-            if let Some(d) = DialectSet::parse(&self.dialect) {
-                registry.load_dialect(d);
-            }
+        if self.builtin_dialect != Some(self.profile.name) || self.builtin_names.is_none() {
+            let registry = tcl_registry::cache::registry_for_profile(self.profile);
             let names: std::collections::HashSet<String> =
                 registry.command_names().map(str::to_string).collect();
             self.builtin_names = Some(names);
-            self.builtin_dialect = Some(self.dialect.clone());
+            self.builtin_dialect = Some(self.profile.name);
         }
         // Safe: ``builtin_names`` was just set if it was missing.
         self.builtin_names
@@ -1446,30 +1461,27 @@ impl Analyser {
     /// `analyse` / `analyse_chunked` / `analyse_commands` so the emitter set and
     /// ordering stay identical across every entry point.
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
-        use tcl_registry::CommandRegistry;
         // Settle every invocation's `resolved_qualified_name` with Tcl's
         // existence-checked two-step rule now that the walk has recorded
         // every definition in the file (a local candidate defined later in
         // the file still wins; an absent one falls back to global).
         self.finalise_invocation_resolutions();
-        let mut diag_registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            diag_registry.load_dialect(d);
-        }
-        self.emit_unresolved_command_diagnostics(&diag_registry);
+        let diag_registry = tcl_registry::cache::registry_for_profile(self.profile);
+        self.emit_unresolved_command_diagnostics(diag_registry);
         self.flush_disabled_command_diagnostics();
         self.flush_w304_diagnostics();
         self.flush_arity_diagnostics();
         self.flush_ctor_arity_diagnostics();
         self.flush_next_arity_diagnostics();
-        self.emit_missing_package_require_diagnostics(&diag_registry);
+        self.emit_missing_package_require_diagnostics(diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
-        self.flush_widget_dispatch_diagnostics(&diag_registry);
+        self.flush_widget_dispatch_diagnostics(diag_registry);
         self.flush_tk_geometry_diagnostics();
         self.flush_version_gate_diagnostics();
+        self.flush_dsl_gate_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();
@@ -2389,11 +2401,12 @@ mod tests {
     #[test]
     fn analyse_records_dialect_for_w113_and_emitter_use() {
         // Handlers (W113 shadow check, dialect-only emitters) read
-        // ``self.dialect`` directly.  The field must be populated at
+        // ``self.dialect()`` directly.  The field must be populated at
         // the top of ``analyse``.
         let mut a = Analyser::new();
         let _ = a.analyse("", "f5-irules");
-        assert_eq!(a.dialect, "f5-irules");
+        assert_eq!(a.dialect(), "f5-irules");
+        assert!(a.profile.is_irules());
     }
 
     #[test]
@@ -2401,12 +2414,12 @@ mod tests {
         // First lookup populates the cache; subsequent lookups
         // with the same dialect return the same set.
         let mut a = Analyser::new();
-        a.dialect = "tcl".to_string();
+        a.profile = tcl_dialect::DialectProfile::plain_tcl();
         let initial_len = a.builtin_command_names().len();
         // ``set`` is a core built-in across all dialects.
         assert!(a.builtin_command_names().contains("set"));
         // Cache invalidation: switching dialect rebuilds.
-        a.dialect = "f5-irules".to_string();
+        a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
         let irules_len = a.builtin_command_names().len();
         assert!(
             irules_len > initial_len,
@@ -2480,7 +2493,7 @@ mod tests {
         let source = "proc set {} {}"; // would normally trip W113
         let commands = segment_commands(source);
         let mut a = Analyser::new();
-        a.dialect = "tcl".to_string();
+        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
         let r = a.analyse_commands(source, &commands, "tcl", false);
         // W113 was emitted by handle_proc but the tail didn't
         // run, so apply_disabled_diagnostics / dedupe didn't

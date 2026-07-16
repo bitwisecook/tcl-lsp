@@ -36,8 +36,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// every trailing arg rather than hard-coding a finite slot count, so calls
 /// with 20 / 50 / 100 vars don't false-fire W210 on the unmodelled tail.
 fn scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    (2..args.len())
-        .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
+    // Index 1 is the %-string (the §6 argument-DSL rung: `%b` is 8.6+).
+    std::iter::once((1u8, ArgRole::ScanFormat))
+        .chain((2..args.len()).filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite))))
         .collect()
 }
 

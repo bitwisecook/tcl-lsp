@@ -24,7 +24,7 @@
 //! `TCL_NAMESPACE_ONLY`, `tclVar.c:935`).
 //!
 //! Each vector runs through the bytecode VM **twice** — once at
-//! `RuntimeVersion::V8_6` and once at `V9_0` — and, when the matching real
+//! `TclVersion::V8_6` and once at `V9_0` — and, when the matching real
 //! tclsh is installed (`tclsh8.6` / `tclsh9.0` on PATH, or
 //! `TCL_LSP_TCLSH86` / `TCL_LSP_TCLSH90`), the same script is executed under
 //! it and must agree — so the table can never drift from C Tcl.
@@ -35,8 +35,9 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir;
+use tcl_dialect::TclVersion;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, RuntimeVersion, Vm};
+use tcl_vm::{CompileError, CompileService, Vm};
 
 struct CompilerSvc {
     registry: CommandRegistry,
@@ -71,7 +72,7 @@ impl std::io::Write for Capture {
 /// Run `src` in the VM at `version`; the script's `puts` output is returned
 /// (the vectors communicate through stdout so the tclsh leg is directly
 /// comparable).
-fn vm_output(src: &str, version: RuntimeVersion) -> String {
+fn vm_output(src: &str, version: TclVersion) -> String {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
@@ -188,13 +189,13 @@ const VECTORS: &[Vector] = &[
 fn vm_matches_the_pinned_cross_version_vectors() {
     for v in VECTORS {
         assert_eq!(
-            vm_output(v.script, RuntimeVersion::V8_6),
+            vm_output(v.script, TclVersion::V8_6),
             v.want_8x,
             "[8.6] {}",
             v.name,
         );
         assert_eq!(
-            vm_output(v.script, RuntimeVersion::V9_0),
+            vm_output(v.script, TclVersion::V9_0),
             v.want_90,
             "[9.0] {}",
             v.name,
@@ -237,15 +238,11 @@ fn namespace_path_resolution_tier_is_8_5_plus_m10() {
          namespace eval ::app { namespace path ::mymod }\n\
          namespace eval ::app { puts [helper] }\n";
     assert_eq!(
-        vm_output(script, RuntimeVersion::V8_4),
+        vm_output(script, TclVersion::V8_4),
         "GLOBAL",
         "8.4 has no path tier"
     );
-    for v in [
-        RuntimeVersion::V8_5,
-        RuntimeVersion::V8_6,
-        RuntimeVersion::V9_0,
-    ] {
+    for v in [TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0] {
         assert_eq!(
             vm_output(script, v),
             "MYMOD",

@@ -7,6 +7,8 @@
   "side": "global",
   "transport": null,
   "impliedProfiles": [],
+  "bigipMinVersion": "15.0.0",
+  "bigipMaxVersion": null,
   "validCommandCount": 722,
   "validCommands": [
     "AAA::acct_result",

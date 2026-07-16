@@ -33,10 +33,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "bypass",
                     detail: "Bypass SSL forward proxy.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "intercept",
                     detail: "Intercept SSL forward proxy.",
+                    min_tcl: None,
                 },
             ],
         )],
@@ -60,10 +62,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "response_control",
                     detail: "Control response to cert errors.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "status",
                     detail: "Set server certificate status.",
+                    min_tcl: None,
                 },
             ],
         )],
@@ -87,10 +91,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "enable",
                     detail: "Enable verified handshake.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "disable",
                     detail: "Disable verified handshake.",
+                    min_tcl: None,
                 },
             ],
         )],

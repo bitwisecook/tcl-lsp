@@ -113,8 +113,8 @@ use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
+use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::traits::{CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC, Traits};
 
 use crate::util::{self, repo_root};

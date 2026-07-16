@@ -186,7 +186,7 @@ fn dump_repro_bundle(tag: &str, text: &str, params: &RunParams, failure: &str) {
          \n\
          ```rust\n\
          let db = TclDatabase::default();\n\
-         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);\n\
+         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None, None);\n\
          let text = std::fs::read_to_string(\"fixture.tcl\").unwrap();\n\
          let file = SourceFile::new(&db, text, \"{dialect}\".to_owned());\n\
          let tokens = semantic_tokens(&db, file, cfg);\n\
@@ -445,6 +445,7 @@ fn main() {
         Vec::new(),
         tcl_compiler::analyser::NonAsciiMode::Default,
         Vec::new(),
+        None,
         None,
     );
     let file = SourceFile::new(&db, base_text.clone(), params.dialect.clone(), None);

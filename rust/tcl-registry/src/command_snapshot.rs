@@ -28,10 +28,13 @@
 
 use std::collections::BTreeMap;
 
+use tcl_dialect::DialectProfile;
+
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
 use crate::hover::FormKind;
+use crate::profile_queries::ProfileQueries;
 use crate::registry::CommandRegistry;
 use crate::side_effects::StorageType;
 use crate::snapshot::Json;
@@ -97,28 +100,13 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("wasm_emits_nothing", Traits::WASM_EMITS_NOTHING),
 ];
 
-/// Every dialect bit paired with its canonical name string (the
-/// dialect identifiers). Used to serialise `CommandSpec.dialects`.
-const DIALECT_NAMES: &[(DialectSet, &str)] = &[
-    (DialectSet::CADENCE, "cadence-eda-tcl"),
-    (DialectSet::EXPECT, "expect"),
-    (DialectSet::IAPPS, "f5-iapps"),
-    (DialectSet::IRULES, "f5-irules"),
-    (DialectSet::QUARTUS, "intel-quartus-eda-tcl"),
-    (DialectSet::MENTOR, "mentor-eda-tcl"),
-    (DialectSet::SYNOPSYS, "synopsys-eda-tcl"),
-    (DialectSet::TCL84, "tcl8.4"),
-    (DialectSet::TCL85, "tcl8.5"),
-    (DialectSet::TCL86, "tcl8.6"),
-    (DialectSet::TCL90, "tcl9.0"),
-    // `tcl9.1` and `bpf` were missing, so a `TCL90_PLUS` spec dropped its 9.1
-    // membership and a BPF-only spec serialised `"dialects": []`
-    // (indistinguishable from "available nowhere") — RUST_ISSUE_082.
-    (DialectSet::TCL91, "tcl9.1"),
-    (DialectSet::BPF, "bpf"),
-    (DialectSet::TK, "tk"),
-    (DialectSet::XILINX, "xilinx-eda-tcl"),
-];
+// `CommandSpec.dialects` serialisation derives from
+// `DialectSet::member_names` — the same canonical-name table `parse`
+// inverts — rather than a parallel hand-list. A hand-list here missed
+// `tcl9.1`/`bpf` once (RUST_ISSUE_082: a `TCL90_PLUS` spec dropped its 9.1
+// membership and a BPF-only spec serialised `[]`, indistinguishable from
+// "available nowhere") and the Milestone 6 `TMSH`/`BIGIP` bits a second
+// time, so new primitive bits can never be forgotten again.
 
 /// Serialise an [`Arity`] as `{"min", "max"}` (`max` null = unbounded).
 fn arity_json(arity: Arity) -> Json {
@@ -136,29 +124,28 @@ fn arity_json(arity: Arity) -> Json {
 }
 
 /// The spec's dialect set: `null` for "all dialects", else the sorted
-/// list of dialect-name strings.
+/// list of canonical dialect-name strings (every primitive bit the set
+/// carries, via `DialectSet::member_names`).
 fn dialects_json(dialects: Option<DialectSet>) -> Json {
     match dialects {
         None => Json::Null,
         Some(set) => {
-            let mut names: Vec<&str> = DIALECT_NAMES
-                .iter()
-                .filter(|(bit, _)| set.contains(*bit))
-                .map(|(_, name)| *name)
-                .collect();
+            let mut names = set.member_names();
             names.sort_unstable();
             Json::Array(names.into_iter().map(Json::s).collect())
         }
     }
 }
 
-/// Whether `dialect` is allowed for a subcommand (own set wins; else
-/// inherit the parent `CommandSpec.dialects`; else available).
-fn sub_supports_dialect(sub: &SubCommand, dialect: DialectSet, parent: Option<DialectSet>) -> bool {
-    match sub.dialects {
-        Some(own) => own.contains(dialect),
-        None => parent.is_none_or(|p| p.contains(dialect)),
-    }
+/// Whether the subcommand is available under `profile` (own gate wins;
+/// else inherit the parent `CommandSpec.dialects`; else available) — the
+/// same §5.1 intersects membership every other availability consumer uses
+/// (the old `contains` rule hid a vendor profile's embedded-core
+/// subcommands from the dump).
+fn sub_available(profile: &DialectProfile, sub: &SubCommand, parent: Option<DialectSet>) -> bool {
+    sub.dialects
+        .or(parent)
+        .is_none_or(|gate| gate.intersects(profile.availability_mask))
 }
 
 /// Sorted union of every option name declared on `spec` (no dialect
@@ -302,13 +289,13 @@ fn traits_json(spec: &CommandSpec) -> Json {
     Json::Object(m)
 }
 
-/// The `subcommands` block: subcommands available in `dialect`, sorted by
-/// name.
-fn subcommands_json(spec: &CommandSpec, dialect: DialectSet) -> Json {
+/// The `subcommands` block: subcommands available under `profile`, sorted
+/// by name.
+fn subcommands_json(spec: &CommandSpec, profile: &DialectProfile) -> Json {
     let mut subs: Vec<&SubCommand> = spec
         .subcommands
         .iter()
-        .filter(|sub| sub_supports_dialect(sub, dialect, spec.dialects))
+        .filter(|sub| sub_available(profile, sub, spec.dialects))
         .collect();
     subs.sort_by(|a, b| a.name.cmp(b.name));
     let out = subs
@@ -357,33 +344,10 @@ fn info_json(spec: &CommandSpec) -> Json {
     Json::Object(m)
 }
 
-/// Deterministically pick the `CommandSpec` for `name` in `dialect`.
-/// Among specs supporting the dialect,
-/// prefer the most dialect-specific (scoped beats catch-all, then the
-/// smallest scope).
-fn resolve_spec<'a>(
-    registry: &'a CommandRegistry,
-    name: &str,
-    dialect: DialectSet,
-) -> Option<&'a CommandSpec> {
-    registry
-        .specs(name)
-        .iter()
-        .filter(|s| s.supports_dialect(dialect))
-        .min_by_key(|s| {
-            let scoped = u8::from(s.dialects.is_none());
-            let size = s
-                .dialects
-                .map_or(1_000_000, |d| d.bits().count_ones() as usize);
-            (scoped, size)
-        })
-}
-
-/// Full structured snapshot of a single command in `dialect`.
-fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
-    let mut switches: Vec<&str> = spec.switch_names(Some(dialect));
-    // Top-level `switches` preserves declaration order
-    // (`spec.switch_names(dialect)`) — no sort.
+/// Full structured snapshot of a single command under `profile`.
+fn command_entry(spec: &CommandSpec, profile: &DialectProfile) -> Json {
+    let mut switches: Vec<&str> = profile.available_option_names(spec);
+    // Top-level `switches` preserves declaration order — no sort.
     let switches_json: Vec<Json> = switches.drain(..).map(Json::s).collect();
 
     let mut excluded: Vec<&str> = spec.excluded_events.to_vec();
@@ -394,7 +358,7 @@ fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
     m.insert("dialects".to_owned(), dialects_json(spec.dialects));
     m.insert("arity".to_owned(), arity_json(spec.arity));
     m.insert("switches".to_owned(), Json::Array(switches_json));
-    m.insert("subcommands".to_owned(), subcommands_json(spec, dialect));
+    m.insert("subcommands".to_owned(), subcommands_json(spec, profile));
     m.insert("forms".to_owned(), forms_json(spec));
     m.insert(
         "excludedEvents".to_owned(),
@@ -406,12 +370,12 @@ fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
     Json::Object(m)
 }
 
-/// Sorted command names available in `dialect` (no package filtering:
+/// Sorted command names available under `profile` (no package filtering:
 /// with no active-package set, every package-gated command is visible).
-fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String> {
+fn command_names(registry: &CommandRegistry, profile: &DialectProfile) -> Vec<String> {
     let mut names: Vec<String> = registry
         .command_names()
-        .filter(|name| registry.get_for_dialect(name, dialect).is_some())
+        .filter(|name| profile.resolve_command(registry, name).is_some())
         .map(str::to_owned)
         .collect();
     names.sort_unstable();
@@ -423,18 +387,28 @@ fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String>
 /// individual command entries.
 #[must_use]
 pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
-    let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
-    resolve_spec(registry, name, dset).map(|spec| command_entry(spec, dset))
+    let profile = DialectProfile::by_name(dialect);
+    profile
+        .resolve_command(registry, name)
+        .map(|spec| command_entry(spec, profile))
 }
 
 /// Snapshot of every command available in `dialect`.
+///
+/// Dialect resolution goes through the profile catalog: an unknown dialect
+/// string dumps the permissive `PLAIN_TCL` (`ALL_TCL`) view — the one
+/// unified fallback (design doc §8) — rather than the old ad-hoc `TCL86`.
 #[must_use]
 pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> Json {
-    let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
-    let names = command_names(registry, dset);
+    let profile = DialectProfile::by_name(dialect);
+    let names = command_names(registry, profile);
     let commands: Vec<Json> = names
         .iter()
-        .filter_map(|name| resolve_spec(registry, name, dset).map(|spec| command_entry(spec, dset)))
+        .filter_map(|name| {
+            profile
+                .resolve_command(registry, name)
+                .map(|spec| command_entry(spec, profile))
+        })
         .collect();
     let mut m = BTreeMap::new();
     m.insert("dialect".to_owned(), Json::s(dialect));

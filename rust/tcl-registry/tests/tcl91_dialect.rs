@@ -24,8 +24,8 @@
 //! observable over LSP; the observable completion / W003 behaviour is covered
 //! by the `lsp_e2e` suite.
 
+use tcl_dialect::{DialectSet, available_dialects};
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::{DialectSet, available_dialects};
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()

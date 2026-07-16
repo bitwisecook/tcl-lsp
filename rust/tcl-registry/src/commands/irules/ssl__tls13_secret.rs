@@ -33,14 +33,17 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "app",
                     detail: "Client application traffic secret.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "hs",
                     detail: "Client handshake traffic secret.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "early",
                     detail: "Client early traffic secret.",
+                    min_tcl: None,
                 },
             ],
         )],
@@ -64,10 +67,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "app",
                     detail: "Server application traffic secret.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "hs",
                     detail: "Server handshake traffic secret.",
+                    min_tcl: None,
                 },
             ],
         )],

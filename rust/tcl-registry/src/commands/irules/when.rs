@@ -38,10 +38,12 @@ const WHEN_KEYWORD_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "priority",
         detail: "Declare handler priority.",
+        min_tcl: None,
     },
     ArgValue {
         value: "timing",
         detail: "Enable/disable timing metrics for this handler.",
+        min_tcl: None,
     },
 ];
 
@@ -50,10 +52,12 @@ const WHEN_TIMING_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "enable",
         detail: "Enable timing metrics for this handler.",
+        min_tcl: None,
     },
     ArgValue {
         value: "disable",
         detail: "Disable timing metrics for this handler.",
+        min_tcl: None,
     },
 ];
 

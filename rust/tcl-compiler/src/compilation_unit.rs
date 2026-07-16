@@ -383,14 +383,18 @@ impl FunctionUnit {
         }
         let ssa = build_ssa(&cfg, registry);
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
-        // The registry encodes the analysis dialect's Tcl version, which fixes
+        // The registry carries its dialect profile's octal policy, which fixes
         // how a bare leading-zero literal (`08`, `010`) is read when SCCP folds
-        // `==`/`!=` (octal in tcl8.x / F5 / EDA, decimal in tcl9.0).
+        // `==`/`!=`: octal in the 8.x runtimes (tcl8.x / F5 / EDA), decimal in
+        // the 9.x runtimes (tcl9.0/9.1 and bpf), and `None` — abstain — when
+        // there is no Tcl runtime to have an opinion (f5-bigip, an unknown
+        // dialect). A hand-assembled registry without a profile keeps the
+        // historical loaded-packs derivation via `leading_zero_is_octal`.
         let mut sccp = sccp_with_extra_escaping(
             &cfg,
             &ssa,
             param_constants,
-            Some(registry.leading_zero_is_octal()),
+            registry.octal_fold_policy(),
             extra_global_escaping,
             crate::sccp::TraceInputs {
                 registry,

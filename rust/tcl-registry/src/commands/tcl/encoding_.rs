@@ -55,14 +55,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "strict",
                     detail: "Stop on conversion error. Unicode-conformant.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "tcl8",
                     detail: "Map invalid bytes to equivalent code points. Tcl 8 compatible.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "replace",
                     detail: "Replace invalid data with U+FFFD. Unicode-conformant.",
+                    min_tcl: None,
                 },
             ],
         )],
@@ -92,14 +95,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "strict",
                     detail: "Stop on conversion error. Unicode-conformant.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "tcl8",
                     detail: "Map invalid bytes to equivalent code points. Tcl 8 compatible.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "replace",
                     detail: "Replace invalid data with U+FFFD. Unicode-conformant.",
+                    min_tcl: None,
                 },
             ],
         )],

@@ -29,9 +29,9 @@
 
 use std::collections::HashSet;
 
+use tcl_dialect::DialectSet;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::hooks::LoweringHookId;
 
 use crate::alias::{CommandAliasMap, expr_alias_names};

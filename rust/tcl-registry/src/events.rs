@@ -70,6 +70,13 @@ pub struct EventProps {
     /// because it is not the event's firing side — `SERVER_DATA` fires on
     /// both sides yet requires a *server*-side collect.)
     pub data_collect_side: Option<crate::side_effects::ConnectionSide>,
+    /// The BIG-IP release that introduced this event, when explicitly
+    /// known; `None` inherits the axis baseline (declared present since
+    /// BIG-IP 15.0 — `VersionKey::BigipVersion.baseline_version()`).
+    pub bigip_min_version: Option<&'static str>,
+    /// The last BIG-IP release providing this event; `None` = still
+    /// present (the open maximum).
+    pub bigip_max_version: Option<&'static str>,
 }
 
 impl EventProps {
@@ -98,6 +105,8 @@ impl EventProps {
         setup_event: None,
         data_collect_protocols: &[],
         data_collect_side: None,
+        bigip_min_version: None,
+        bigip_max_version: None,
     };
 }
 
@@ -176,6 +185,31 @@ pub struct EventRegistry {
 }
 
 impl EventRegistry {
+    /// The BIG-IP version range of `event`: the explicit introduction /
+    /// removal releases when known, with an absent minimum inheriting the
+    /// axis baseline (declared present since BIG-IP 15.0). `None` for an
+    /// unknown event.
+    #[must_use]
+    pub fn event_version_range(
+        &self,
+        event: &str,
+    ) -> Option<(Option<&'static str>, Option<&'static str>)> {
+        let props = self.get_props(event)?;
+        let min = props
+            .bigip_min_version
+            .or(tcl_dialect::VersionKey::BigipVersion.baseline_version());
+        Some((min, props.bigip_max_version))
+    }
+
+    /// Whether `event` exists at BIG-IP `version` per the declared data
+    /// (baseline semantics — see [`Self::event_version_range`]). Unknown
+    /// events are `false`.
+    #[must_use]
+    pub fn event_available_at(&self, event: &str, version: &str) -> bool {
+        self.event_version_range(event)
+            .is_some_and(|(min, max)| crate::version::within_range(version, min, max))
+    }
+
     /// Build the event registry from static data.
     ///
     /// Called once at startup — the data is compiled into the binary.

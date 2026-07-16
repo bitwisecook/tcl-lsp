@@ -72,7 +72,7 @@ mod subst;
 pub use cmd_thread::{CompileFactory, ThreadedOutput};
 pub use debug::{DebugAction, DebugFrame, DebugHook, DebugSnapshot, DebugVar};
 pub use error::TclError;
-pub use interp::{RuntimeVersion, Vm};
+pub use interp::Vm;
 pub use value::Value;
 
 pub use tcl_runtime_api::{Code, CompileError, CompileService, Completion};

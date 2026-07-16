@@ -42,7 +42,6 @@ use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -90,8 +89,9 @@ pub type UriFamilies = HashMap<String, (Option<String>, Option<String>)>;
 pub fn uri_families(registry: &CommandRegistry) -> UriFamilies {
     let mut all_names: HashSet<String> = HashSet::new();
     for name in registry.command_names() {
+        use tcl_registry::ProfileQueries;
         if let Some(spec) = registry.get(name)
-            && spec.supports_dialect(DialectSet::IRULES)
+            && tcl_dialect::DialectProfile::irules().is_available(spec)
         {
             all_names.insert(name.to_owned());
         }

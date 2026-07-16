@@ -182,7 +182,7 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
         return;
     };
     if let Some(val) =
-        eval_tcl_expr_with_octal(condition, env, ctx.dialect.map(leading_zero_is_octal))
+        eval_tcl_expr_with_octal(condition, env, ctx.dialect.and_then(leading_zero_is_octal))
         && !val.is_truthy()
     {
         ctx.report(Optimisation::new(
@@ -209,7 +209,7 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
         return;
     };
     if let Some(val) =
-        eval_tcl_expr_with_octal(condition, env, ctx.dialect.map(leading_zero_is_octal))
+        eval_tcl_expr_with_octal(condition, env, ctx.dialect.and_then(leading_zero_is_octal))
         && !val.is_truthy()
     {
         if init.statements.is_empty() {
@@ -279,7 +279,7 @@ fn try_eliminate_if(
     else_span: Option<tcl_lexer::Span>,
     env: &Env,
 ) {
-    let octal = ctx.dialect.map(leading_zero_is_octal);
+    let octal = ctx.dialect.and_then(leading_zero_is_octal);
     for clause in clauses {
         let Some(val) = eval_tcl_expr_with_octal(&clause.condition, env, octal) else {
             return;

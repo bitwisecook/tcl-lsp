@@ -1147,6 +1147,7 @@ dependencies = [
  "regex",
  "serde_json",
  "sha2",
+ "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
@@ -1218,6 +1219,7 @@ dependencies = [
  "rustc-hash",
  "tcl-bytecode",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -1240,6 +1242,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-dialect"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "tcl-f5mku"
 version = "0.1.0"
 dependencies = [
@@ -1255,6 +1264,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -1264,6 +1274,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "tcl-dialect",
  "thiserror",
 ]
 
@@ -1280,6 +1291,7 @@ dependencies = [
  "sha2",
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-syntax",
 ]
@@ -1296,6 +1308,7 @@ name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "tcl-dialect",
  "tcl-lexer",
 ]
 

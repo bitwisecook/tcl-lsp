@@ -163,7 +163,10 @@ struct Inner<'s> {
     b: &'s [u8],
     s: &'s str,
     i: usize,
-    dialect: Option<&'s str>,
+    /// Whether the dialect is iRules — resolved once through the profile
+    /// catalog (so the `irules` / `tcl-irule` alias spellings behave like
+    /// the canonical name), gating the iRules-only word operators.
+    irules_operators: bool,
     unknown: bool,
 }
 
@@ -173,7 +176,7 @@ impl<'s> Inner<'s> {
             b: s.as_bytes(),
             s,
             i: 0,
-            dialect,
+            irules_operators: tcl_dialect::DialectProfile::by_opt_name(dialect).is_irules(),
             unknown: false,
         }
     }
@@ -475,7 +478,7 @@ impl<'s> Inner<'s> {
             .any(|w| text.eq_ignore_ascii_case(w));
         let kind = if is_bool {
             ExprTokenType::Bool
-        } else if self.dialect == Some("f5-irules") && irops.contains(text) {
+        } else if self.irules_operators && irops.contains(text) {
             ExprTokenType::Operator
         } else if matches!(
             text,

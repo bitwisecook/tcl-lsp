@@ -188,8 +188,9 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
     specs.extend(tcl_specs_m_through_z());
     // The `tcl::mathop` operator ensemble (every spelling).
     specs.extend(mathop_generated::specs());
-    // Simple named commands not yet implemented.
-    specs.extend([
+    // Simple named commands not yet implemented. (`vec!` — the spec
+    // table is past clippy's stack-array size threshold.)
+    specs.extend(vec![
         auto_execok::spec(),
         auto_import::spec(),
         auto_load::spec(),

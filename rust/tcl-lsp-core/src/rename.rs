@@ -1711,7 +1711,7 @@ mod tests {
         let src = "oo::class create MyClass {}\nMyClass new\n";
         let analysis = analyse(src);
         let mut r = tcl_registry::CommandRegistry::build_default();
-        r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        r.load_dialect(tcl_dialect::DialectSet::IRULES);
         let edits = rename(src, "tcl", 0, 17, "if", &analysis, Some(&r));
         assert!(
             edits.is_empty(),

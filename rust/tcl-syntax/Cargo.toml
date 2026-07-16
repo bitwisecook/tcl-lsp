@@ -43,6 +43,7 @@ authors.workspace = true
 description = "Shared Tcl parse-tree + byte-exact-semantics layer (lists, subst, expr, format) for the LSP/compiler and the WASM runtime"
 
 [dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 bitflags = "2"
 

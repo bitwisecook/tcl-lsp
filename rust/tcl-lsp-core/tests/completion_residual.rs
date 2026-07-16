@@ -63,7 +63,7 @@ fn registry() -> CommandRegistry {
 /// An iRules-loaded registry (carries `when` / `call` / `HTTP::…`).
 fn irules_registry() -> CommandRegistry {
     let mut r = CommandRegistry::build_default();
-    r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+    r.load_dialect(tcl_dialect::DialectSet::IRULES);
     r
 }
 

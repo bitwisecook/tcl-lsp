@@ -111,6 +111,34 @@ fn caller_text(calls: &[(usize, usize)]) -> String {
     s
 }
 
+/// A whole-project database over the corpus: the synthetic library and
+/// caller sit at fixed indices `[0]`/`[1]`, the real files after them.
+fn build_project(
+    dialect: &str,
+    real: &[(String, String)],
+    lib: &str,
+    caller: &str,
+) -> (TclDatabase, AnalyserConfig, Vec<SourceFile>, Project) {
+    let db = TclDatabase::default();
+    let cfg = AnalyserConfig::new(
+        &db,
+        Vec::new(),
+        NonAsciiMode::Default,
+        Vec::new(),
+        None,
+        None,
+    );
+    let mut files = vec![
+        SourceFile::new(&db, lib.to_owned(), dialect.to_owned(), None),
+        SourceFile::new(&db, caller.to_owned(), dialect.to_owned(), None),
+    ];
+    for (src, dia) in real {
+        files.push(SourceFile::new(&db, src.clone(), dia.clone(), None));
+    }
+    let project = Project::new(&db, files.clone());
+    (db, cfg, files, project)
+}
+
 #[test]
 #[ignore = "slow corpus sweep (~minutes over tmp/); run with --ignored"]
 #[allow(clippy::cast_possible_truncation)] // index modulo a tiny array
@@ -137,23 +165,6 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
         real.len()
     );
 
-    // Build a project: all real corpus files + the synthetic library + caller.
-    // The synthetic pair sits at fixed indices [0] (library) and [1] (caller).
-    let build =
-        |lib: &str, caller: &str| -> (TclDatabase, AnalyserConfig, Vec<SourceFile>, Project) {
-            let db = TclDatabase::default();
-            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None);
-            let mut files = vec![
-                SourceFile::new(&db, lib.to_owned(), dialect.to_owned(), None),
-                SourceFile::new(&db, caller.to_owned(), dialect.to_owned(), None),
-            ];
-            for (src, dia) in &real {
-                files.push(SourceFile::new(&db, src.clone(), dia.clone(), None));
-            }
-            let project = Project::new(&db, files.clone());
-            (db, cfg, files, project)
-        };
-
     // xorshift64 — deterministic, no external rng dependency.
     let mut rng = 0x0bad_c0de_1234_5678_u64;
     let mut next = move || {
@@ -168,7 +179,8 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
     let mut calls: Vec<(usize, usize)> = (0..N_FN).map(|i| (i, i % 3)).collect();
 
     let mut prog = Progress::new("project_diagnostics_fuzz");
-    let (mut db, cfg, files, project) = build(&lib_text(&params), &caller_text(&calls));
+    let (mut db, cfg, files, project) =
+        build_project(dialect, &real, &lib_text(&params), &caller_text(&calls));
     let lib_file = files[0];
     let caller_file = files[1];
     // A real corpus file sampled for incremental==fresh on the side (catches stale
@@ -197,7 +209,7 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
 
         // Fresh: a brand-new whole-project db with the current texts.
         let (fresh_db, fresh_cfg, fresh_files, fresh_project) =
-            build(&lib_text(&params), &caller_text(&calls));
+            build_project(dialect, &real, &lib_text(&params), &caller_text(&calls));
         let fresh_caller = keys(&project_diagnostics(
             &fresh_db,
             fresh_files[1],

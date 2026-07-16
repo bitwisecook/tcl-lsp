@@ -169,38 +169,40 @@ impl SpecialVarSpec {
 }
 
 /// Resolve a dialect *name* to the [`DialectSet`] flag used for membership
-/// tests.
+/// tests — the profile's availability mask
+/// ([`tcl_dialect::DialectProfile::availability_mask`]).
+///
+/// This was the availability-mask widening precedent the compositional
+/// profile generalises (design doc §2.1): special variables and commands now
+/// share ONE per-dialect mask instead of two hand-kept tables. Consequences
+/// worth naming:
 ///
 /// * An unrecognised name — empty, generic (`"tcl"`), or config-only
-///   (`"f5-bigip"` / `"f5-tmsh"`) — resolves to every standard Tcl version, so
-///   plain-Tcl analysis sees the full standard set.
-/// * The **restricted** F5 embedded dialects (iRules, iApps) resolve to only
-///   their own bit: their interpreter does not provide the command-line /
-///   auto-loader / environment globals, so `env` / `argv` / `auto_path` must
-///   *not* be recognised there.
-/// * A specific Tcl version (`tcl8.6`) keeps its exact bit, so per-key version
-///   gating (`tcl_platform(pointerSize)` is 8.6+) stays precise while the
-///   `ALL_TCL`-gated specs still intersect it.
-/// * Every other parseable dialect is a Tcl **superset** — Tk, Expect, the EDA
-///   shells, BPF — that ships the standard interpreter globals on top of its
-///   own commands, so its bit is widened with `ALL_TCL` (the standard globals
-///   are recognised there just as they were before this registry existed).
+///   (`"f5-bigip"` / `"f5-tmsh"`) — resolves to every standard Tcl version,
+///   so plain-Tcl analysis sees the full standard set (the `PLAIN_TCL` sink).
+/// * **iRules** stays restricted to its bare bit: the TMM interpreter does
+///   not provide the command-line / auto-loader / environment globals, so
+///   `env` / `argv` / `auto_path` are *not* recognised there.
+/// * **iApps** now composes `TCL85|IAPPS`: an iApp runs a real Tcl 8.5.13
+///   *host* interpreter (not the TMM sandbox), so the standard interpreter
+///   globals resolve there — the old bare-`IAPPS` view wrongly hid them.
+/// * A specific Tcl version (`tcl8.6`) keeps its exact bit, so per-key
+///   version gating (`tcl_platform(pointerSize)` is 8.6+) stays precise.
+/// * A vendor shell (Expect, the EDA tools) composes its documented embedded
+///   Tcl base with its own bit (`TCL86|EXPECT`, …) — the standard globals
+///   resolve, but keys introduced *after* the embedded base version no
+///   longer leak in.
+/// * `tk` has no profile (it is a library over a Tcl base, not a dialect —
+///   design doc §7.2); its parseable bit keeps the historical
+///   superset-widening behaviour until the versioned-library axis models it.
 #[must_use]
 pub fn resolve_dialect(dialect: &str) -> DialectSet {
-    let Some(parsed) = DialectSet::parse(dialect) else {
-        return DialectSet::ALL_TCL;
-    };
-    if parsed.intersects(DialectSet::IRULES | DialectSet::IAPPS) {
-        // Restricted embedded interpreter — only its own globals.
-        parsed
-    } else if parsed.intersects(DialectSet::ALL_TCL) {
-        // A specific Tcl version — keep the exact bit for per-key gating.
-        parsed
-    } else {
-        // A Tcl superset (Tk / Expect / EDA / BPF) — provides the standard
-        // globals in addition to its own.
-        parsed | DialectSet::ALL_TCL
+    if let Some(profile) = tcl_dialect::DialectProfile::find(dialect) {
+        return profile.availability_mask;
     }
+    // Parseable but not a catalog profile — today exactly `tk`: a Tcl
+    // superset that provides the standard globals on top of its own.
+    DialectSet::parse(dialect).map_or(DialectSet::ALL_TCL, |bit| bit | DialectSet::ALL_TCL)
 }
 
 /// Look up a special variable by bare name, ignoring dialect.
@@ -836,10 +838,16 @@ mod tests {
                 "{dialect}",
             );
         }
-        // The restricted F5 embedded dialects still do NOT get them.
+        // The restricted TMM sandbox (iRules) still does NOT get them.
         assert!(!is_special_var("env", "f5-irules"));
         assert!(!is_special_var("argv", "f5-irules"));
-        assert!(!is_special_var("auto_path", "f5-iapps"));
+        assert!(!is_special_var("auto_path", "f5-irules"));
+        // iApps are NOT the TMM sandbox: they run a real Tcl 8.5.13 *host*
+        // interpreter (dialect-profile-model.md §7, D3-adjacent ratification),
+        // so the standard interpreter globals resolve there like any other
+        // Tcl superset. The old bare-`IAPPS` view wrongly hid them.
+        assert!(is_special_var("env", "f5-iapps"));
+        assert!(is_special_var("auto_path", "f5-iapps"));
     }
 
     #[test]

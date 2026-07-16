@@ -43,7 +43,7 @@ impl Analyser {
     /// the command is unknown).  Shared lookup for the trait-gated security
     /// checks below — none of them match on command-name strings.
     fn security_spec(&self, cmd_name: &str) -> Option<&tcl_registry::CommandSpec> {
-        self.registry.as_ref().and_then(|r| r.get(cmd_name))
+        self.registry.and_then(|r| r.get(cmd_name))
     }
 
     /// W101's gate: a command that concatenates **all** of its arguments
@@ -148,7 +148,7 @@ impl Analyser {
         // ``catch {<cmd>}`` is the canonical Tcl idiom for "do this if
         // possible, ignore if not".
         if let Some(body) = args.first()
-            && catch_body_is_fire_and_forget(body, self.registry.as_ref())
+            && catch_body_is_fire_and_forget(body, self.registry)
         {
             return;
         }
@@ -348,7 +348,7 @@ word as one argument; no re-parsing)"
         if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
             return false;
         }
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return false;
         };
         let start = tok.span.start() as usize + tok.content_offset as usize;
@@ -1013,7 +1013,7 @@ matching time on crafted input."
         cmd_tok: tcl_lexer::Token,
     ) {
         let mut hits: Vec<W127Hit> = Vec::new();
-        if let Some(registry) = self.registry.as_ref() {
+        if let Some(registry) = self.registry {
             let Some(spec) = registry.get(cmd_name) else {
                 return;
             };
@@ -1024,12 +1024,14 @@ matching time on crafted input."
             for &idx in spec.closed_value_args {
                 let i = idx as usize;
                 let Some(value) = args.get(i) else { continue };
-                let allowed: Vec<&str> =
-                    spec.arg_values_at(idx).iter().map(|av| av.value).collect();
+                let values = spec.arg_values_at(idx);
+                let allowed: Vec<&str> = values.iter().map(|av| av.value).collect();
                 if let Some(hit) =
                     w127_closed_hit(value, span_at(i), &allowed, false, &opt_names, cmd_name)
                 {
                     hits.push(hit);
+                } else {
+                    self.record_w137_gated_value(value, span_at(i), values, false, cmd_name);
                 }
             }
             // Subcommand-level closed value args: the subcommand word occupies
@@ -1057,6 +1059,14 @@ matching time on crafted input."
                         &display,
                     ) {
                         hits.push(hit);
+                    } else {
+                        self.record_w137_gated_value(
+                            value,
+                            span_at(i),
+                            sub.arg_values_at(sub_idx),
+                            sub.arg_values_accept_prefix,
+                            &display,
+                        );
                     }
                 }
             }
@@ -1068,6 +1078,47 @@ matching time on crafted input."
                 message: hit.message,
                 severity: Severity::Warning,
                 fixes: hit.fixes,
+            });
+        }
+    }
+
+    /// Buffer a W137 site when a **valid** closed argument value is
+    /// version-gated ([`ArgValue::min_tcl`], the §6 argument-DSL rung):
+    /// `string is dict` names a real class — on Tcl 9.0; below it the
+    /// class itself raises at runtime. Decided post-walk against the
+    /// effective Tcl version, like every version fact.
+    ///
+    /// [`ArgValue::min_tcl`]: tcl_registry::ArgValue
+    fn record_w137_gated_value(
+        &mut self,
+        value: &str,
+        span: tcl_lexer::Span,
+        values: &'static [tcl_registry::ArgValue],
+        accept_prefix: bool,
+        display_name: &str,
+    ) {
+        if value.contains('$') || value.contains('[') {
+            return;
+        }
+        let matched = values.iter().find(|av| av.value == value).or_else(|| {
+            if !accept_prefix || value.is_empty() {
+                return None;
+            }
+            // C Tcl's abbreviation rule: a unique prefix selects the value.
+            let mut it = values.iter().filter(|av| av.value.starts_with(value));
+            match (it.next(), it.next()) {
+                (Some(av), None) => Some(av),
+                _ => None,
+            }
+        });
+        if let Some(av) = matched
+            && let Some(min) = av.min_tcl
+        {
+            self.dsl_gate_sites.push(super::version_gate::DslGateSite {
+                span,
+                code: DiagCode::W137,
+                what: format!("argument value '{}' of '{display_name}'", av.value),
+                min,
             });
         }
     }
@@ -1086,7 +1137,7 @@ matching time on crafted input."
         cmd_tok: tcl_lexer::Token,
     ) {
         let mut hits: Vec<W127Hit> = Vec::new();
-        if let Some(registry) = self.registry.as_ref() {
+        if let Some(registry) = self.registry {
             let Some(spec) = registry.get(cmd_name) else {
                 return;
             };
