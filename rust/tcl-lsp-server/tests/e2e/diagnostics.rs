@@ -2899,7 +2899,8 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
         "prepare accepts the consumer call site: {prep:?}"
     );
     assert_eq!(
-        prep.pointer("/range/start/character").and_then(Value::as_i64),
+        prep.pointer("/range/start/character")
+            .and_then(Value::as_i64),
         Some(0),
         "the highlighted range is the call-site word: {prep:?}"
     );

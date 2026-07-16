@@ -1074,18 +1074,14 @@ impl Vm {
                     child: c.clone(),
                     words: Rc::clone(&words),
                 },
-                (AliasSite::Child(_), AliasSite::Here) => {
-                    Command::ParentAlias(Rc::clone(&words))
-                }
+                (AliasSite::Child(_), AliasSite::Here) => Command::ParentAlias(Rc::clone(&words)),
                 // Sibling-to-sibling would need routing through this shared
                 // parent; C supports it, the VM's one-level tree does not
                 // (yet).  (Here/Here and equal children took the same-interp
                 // arm above.)
                 _ => {
-                    return err(
-                        "cross-child interp aliases are not supported \
-                         (source and target must include this interpreter)",
-                    );
+                    return err("cross-child interp aliases are not supported \
+                         (source and target must include this interpreter)");
                 }
             }
         };
@@ -1780,8 +1776,7 @@ impl Vm {
             }
         };
         self.merge_procs(&module.procedures);
-        let initial =
-            crate::exec::Frame::new(Rc::new(module.top_level.clone()), false);
+        let initial = crate::exec::Frame::new(Rc::new(module.top_level.clone()), false);
         self.drive_hosted(vec![initial])
     }
 

@@ -364,8 +364,14 @@ mod tests {
         // a fresh namespace variable under 9.0 (→ 1).
         let script = "set g 41\nnamespace eval foo { incr g }\n";
         let out86 = drive_at(script, Some(RuntimeVersion::V8_6));
-        assert!(out86.contains("42"), "8.6 falls back to the global: {out86:?}");
+        assert!(
+            out86.contains("42"),
+            "8.6 falls back to the global: {out86:?}"
+        );
         let out90 = drive_at(script, Some(RuntimeVersion::V9_0));
-        assert!(out90.contains("% 1"), "9.0 creates in the namespace: {out90:?}");
+        assert!(
+            out90.contains("% 1"),
+            "9.0 creates in the namespace: {out90:?}"
+        );
     }
 }

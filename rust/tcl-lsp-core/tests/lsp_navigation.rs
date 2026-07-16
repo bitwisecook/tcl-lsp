@@ -745,7 +745,8 @@ fn definition_ns_scope_bare_var_reaches_the_global_only_under_8x_m11() {
 fn definition_ns_scope_bare_var_never_reaches_an_intermediate_namespace_m11() {
     // FP guard: `$x` at `::a::b` scope sees `::a::b::x` and (8.x) `::x` —
     // never `::a::x`.  Both real tclshs error on this script.
-    let src = "namespace eval a {\n    set x 1\n    namespace eval b {\n        puts $x\n    }\n}\n";
+    let src =
+        "namespace eval a {\n    set x 1\n    namespace eval b {\n        puts $x\n    }\n}\n";
     let col = src.lines().nth(3).unwrap().find("$x").unwrap() as u32 + 1;
     for dialect in ["tcl8.6", "tcl9.0"] {
         let a = analyse_as(src, dialect);

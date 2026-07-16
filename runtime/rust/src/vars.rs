@@ -138,7 +138,8 @@ fn ns_scope_fallback(ns: &Namespaces, home: VarHome, name: &[u8]) -> VarHome {
     if id == crate::namespace::GLOBAL {
         return home;
     }
-    if ns.var_table(id).cell(name).is_none() && ns.var_table(crate::namespace::GLOBAL).cell(name).is_some()
+    if ns.var_table(id).cell(name).is_none()
+        && ns.var_table(crate::namespace::GLOBAL).cell(name).is_some()
     {
         return VarHome::Namespace(crate::namespace::GLOBAL);
     }

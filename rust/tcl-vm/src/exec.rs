@@ -905,15 +905,13 @@ impl Vm {
                     }
                 }
                 Tick::Suspend(req) => match (mode, req) {
-                    // Freeze `acts` in place (pc already past the yield) and hand
-                    // the request back to `resume`.
-                    (
-                        DriveMode::CoroDriver,
-                        req @ (YieldReq::Yield(_) | YieldReq::YieldTo(_)),
-                    ) => return RunExit::Yielded(req),
-                    // A child→parent alias call at a hosted top level: freeze and
-                    // hand the target words to the owning parent's pump loop.
-                    (DriveMode::ChildHosted, req @ YieldReq::ParentCall(_)) => {
+                    // Legal suspends freeze `acts` in place (pc already past the
+                    // suspend point) and hand the request out: a coroutine
+                    // `yield`/`yieldto` to its `resume`, a child→parent alias
+                    // call at a hosted top level to the owning parent's pump
+                    // loop.
+                    (DriveMode::CoroDriver, req @ (YieldReq::Yield(_) | YieldReq::YieldTo(_)))
+                    | (DriveMode::ChildHosted, req @ YieldReq::ParentCall(_)) => {
                         return RunExit::Yielded(req);
                     }
                     // A parent-target alias reached across a nested (native)
@@ -2842,7 +2840,10 @@ impl Vm {
             if scope.has_op("enterstep") && !scope.firing() {
                 let r = self.run_cmd_trace_callback(
                     &scope,
-                    &[Value::string(cmd_string.clone()), Value::string("enterstep")],
+                    &[
+                        Value::string(cmd_string.clone()),
+                        Value::string("enterstep"),
+                    ],
                 );
                 if !r.code.is_ok() {
                     return Err(r);
@@ -2885,10 +2886,7 @@ impl Vm {
                     // Control shapes with no owning frame (a traced `yield` /
                     // `tailcall` builtin itself): settle with an empty ok —
                     // their real result forms elsewhere.
-                    Tick::Continue
-                    | Tick::Return(_)
-                    | Tick::Tailcall(_)
-                    | Tick::Suspend(_) => {
+                    Tick::Continue | Tick::Return(_) | Tick::Tailcall(_) | Tick::Suspend(_) => {
                         let _ = self.finish_exec_leave(&ctx, &ok(Value::empty()));
                     }
                 }
@@ -2961,6 +2959,20 @@ impl Vm {
         replacement
     }
 
+    /// Deliver a synchronously-completed dispatch into `f`: an ok result is
+    /// pushed onto the operand stack, a non-ok completion unwinds.
+    fn deliver_sync(
+        f: &mut Frame,
+        res: Completion<Value>,
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        if res.code.is_ok() {
+            f.stack.push(res.result);
+            Ok(None)
+        } else {
+            Err(res)
+        }
+    }
+
     /// The untraced dispatch body — see [`Self::dispatch_words`].
     fn dispatch_words_inner(
         &mut self,
@@ -2999,12 +3011,7 @@ impl Vm {
                 if let Some(req) = self.pending_subst.take() {
                     return Ok(Some(Tick::PushSubst(req)));
                 }
-                if res.code.is_ok() {
-                    f.stack.push(res.result);
-                    Ok(None)
-                } else {
-                    Err(res)
-                }
+                Self::deliver_sync(f, res)
             }
             Some(Command::Alias(target)) => {
                 // Evaluate `target prefix… args…` as one command (see
@@ -3022,12 +3029,7 @@ impl Vm {
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
                 let res = self.invoke_alias_words(&argv);
-                if res.code.is_ok() {
-                    f.stack.push(res.result);
-                    Ok(None)
-                } else {
-                    Err(res)
-                }
+                Self::deliver_sync(f, res)
             }
             Some(Command::ParentAlias(target)) => {
                 // Cross-interp alias (this interp is a child; the target runs
@@ -3042,46 +3044,29 @@ impl Vm {
                 argv.extend_from_slice(&words[1..]);
                 Ok(Some(Tick::Suspend(YieldReq::ParentCall(argv))))
             }
-            Some(Command::ChildAlias { child, words: target }) => {
+            Some(Command::ChildAlias {
+                child,
+                words: target,
+            }) => {
                 // Cross-interp alias (source here, target in a direct CHILD):
                 // run `target… args…` in the child at its global frame
                 // (tclsh-pinned via `interp alias {} fwd c inchild`).
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
                 let res = self.invoke_alias_in_child(&child, &argv);
-                if res.code.is_ok() {
-                    f.stack.push(res.result);
-                    Ok(None)
-                } else {
-                    Err(res)
-                }
+                Self::deliver_sync(f, res)
             }
             Some(Command::ChildInterp(child)) => {
                 let res = self.dispatch_child(&child, &words[1..]);
-                if res.code.is_ok() {
-                    f.stack.push(res.result);
-                    Ok(None)
-                } else {
-                    Err(res)
-                }
+                Self::deliver_sync(f, res)
             }
             Some(Command::Ensemble(e)) => {
                 let res = self.dispatch_ensemble(&name, &e, &words[1..]);
-                if res.code.is_ok() {
-                    f.stack.push(res.result);
-                    Ok(None)
-                } else {
-                    Err(res)
-                }
+                Self::deliver_sync(f, res)
             }
             Some(Command::Object(key)) => {
                 let res = crate::cmd_oo::oo_dispatch(self, &key, &name, &words[1..]);
-                if res.code.is_ok() {
-                    f.stack.push(res.result);
-                    Ok(None)
-                } else {
-                    Err(res)
-                }
+                Self::deliver_sync(f, res)
             }
             // Resolution miss fallback chain: a `namespace unknown` handler
             // (current namespace's own, else the global namespace's — TIP
@@ -3133,7 +3118,10 @@ impl Vm {
             if scope.has_op("enterstep") && !scope.firing() {
                 let r = self.run_cmd_trace_callback(
                     &scope,
-                    &[Value::string(cmd_string.clone()), Value::string("enterstep")],
+                    &[
+                        Value::string(cmd_string.clone()),
+                        Value::string("enterstep"),
+                    ],
                 );
                 if !r.code.is_ok() {
                     return r;
@@ -3213,10 +3201,11 @@ impl Vm {
             }
             // A parent-target alias cannot suspend across this native
             // (Rust-stack) re-entry — the same boundary `yield` has here.
-            Some(Command::ParentAlias(_)) => {
-                err("cannot invoke parent-interp alias: C stack busy")
-            }
-            Some(Command::ChildAlias { child, words: target }) => {
+            Some(Command::ParentAlias(_)) => err("cannot invoke parent-interp alias: C stack busy"),
+            Some(Command::ChildAlias {
+                child,
+                words: target,
+            }) => {
                 let mut full: Vec<Value> = (*target).clone();
                 full.extend_from_slice(argv);
                 self.invoke_alias_in_child(&child, &full)

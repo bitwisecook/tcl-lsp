@@ -1444,8 +1444,7 @@ fn inline_proc_action(
         .take(range.start_line as usize)
         .map(str::len)
         .sum();
-    let head_off =
-        u32::try_from(line_start + line.find(head).unwrap_or(0)).unwrap_or(u32::MAX);
+    let head_off = u32::try_from(line_start + line.find(head).unwrap_or(0)).unwrap_or(u32::MAX);
     let ns = crate::definition::namespace_context_at(&analysis.global_scope, head_off);
     let Some(proc_def) =
         crate::definition::resolve_called_proc(analysis, source, &ns, head, Some(registry))

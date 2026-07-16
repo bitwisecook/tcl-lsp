@@ -626,7 +626,9 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     // "the global table only".)
     if !name.contains("::")
         && chain.len() > 1
-        && chain.last().is_some_and(|sc| sc.kind == ScopeKind::Namespace)
+        && chain
+            .last()
+            .is_some_and(|sc| sc.kind == ScopeKind::Namespace)
     {
         let ns = chain.last().expect("guarded: chain has a last element");
         if let Some(v) = ns.variables.get(name) {

@@ -461,8 +461,7 @@ fn unresolved_method_outgoing_calls(
         // method body's commands resolve there), with the deterministic
         // simple-name fallback — not a namespace-blind `any` scan.
         let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
-        if crate::definition::resolve_called_proc(analysis, source, class_ns, &head, None)
-            .is_some()
+        if crate::definition::resolve_called_proc(analysis, source, class_ns, &head, None).is_some()
         {
             continue;
         }

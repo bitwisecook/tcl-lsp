@@ -2568,10 +2568,7 @@ fn insert_definer_class_name_override(
 fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<String> {
     // The shared call-site resolver (M4.2 dedup) — exact, canonical
     // global-qualified (#934 colon-run rule), then unique-tail.
-    tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(
-        name,
-        &hierarchy.classes,
-    )
+    tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(name, &hierarchy.classes)
 }
 
 /// Resolve a self-call inside a class body against the enclosing class's MRO:

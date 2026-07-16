@@ -9201,7 +9201,11 @@ fn ns_scope_array_element_read_attaches_under_8x_m11() {
     let src = "set arr(k) AV\nnamespace eval foo { puts $arr(k) }\n";
     let mut a = Analyser::new();
     let r86 = a.analyse(src, "tcl8.6");
-    assert_eq!(global_var_refs(&r86, "arr"), 1, "8.x: element read attaches");
+    assert_eq!(
+        global_var_refs(&r86, "arr"),
+        1,
+        "8.x: element read attaches"
+    );
     let mut a = Analyser::new();
     let r90 = a.analyse(src, "tcl9.0");
     assert_eq!(global_var_refs(&r90, "arr"), 0, "9.0: no fallback");

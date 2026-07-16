@@ -391,7 +391,10 @@ mod tests {
         leak_free(|i| {
             i.eval_str(b"set g GLOBAL");
             assert_eq!(i.eval_str(b"namespace eval foo { set g }"), Code::Error);
-            assert_eq!(i.eval_str(b"namespace eval foo { set g WRITTEN }"), Code::Ok);
+            assert_eq!(
+                i.eval_str(b"namespace eval foo { set g WRITTEN }"),
+                Code::Ok
+            );
             assert_eq!(i.eval_str(b"set ::foo::g"), Code::Ok);
             assert_eq!(i.result_bytes(), b"WRITTEN");
             assert_eq!(i.eval_str(b"set ::g"), Code::Ok);
@@ -406,7 +409,10 @@ mod tests {
             i.eval_str(b"set g GLOBAL");
             assert_eq!(i.eval_str(b"namespace eval foo { set g }"), Code::Ok);
             assert_eq!(i.result_bytes(), b"GLOBAL");
-            assert_eq!(i.eval_str(b"namespace eval foo { set g WRITTEN }"), Code::Ok);
+            assert_eq!(
+                i.eval_str(b"namespace eval foo { set g WRITTEN }"),
+                Code::Ok
+            );
             assert_eq!(i.eval_str(b"info exists ::foo::g"), Code::Ok);
             assert_eq!(i.result_bytes(), b"0", "the write must reach the global");
             assert_eq!(i.eval_str(b"set ::g"), Code::Ok);

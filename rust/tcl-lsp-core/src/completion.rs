@@ -881,8 +881,11 @@ fn variable_completions(
     // Inside a proc / nested namespace, a global variable is only reachable
     // via its `::`-qualified name (a bare `$foo` there is a local / namespace
     // lookup), so qualify global-origin names — `foo-bar` → `::foo-bar`.
-    let qualify_globals =
-        crate::definition::global_vars_needing_qualification(scope, byte_offset, ns_global_fallback);
+    let qualify_globals = crate::definition::global_vars_needing_qualification(
+        scope,
+        byte_offset,
+        ns_global_fallback,
+    );
 
     let edit = VarEdit {
         start: edit_start,

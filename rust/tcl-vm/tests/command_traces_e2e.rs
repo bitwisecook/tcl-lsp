@@ -242,8 +242,7 @@ fn step_traces_observe_dispatched_commands_only_vm_divergence() {
          stepped2\n",
     );
     assert_eq!(
-        out,
-        "S:helperp|enterstep\nS:helperp|0|H|leavestep",
+        out, "S:helperp|enterstep\nS:helperp|0|H|leavestep",
         "the dispatched proc call steps; its inlined `return` body does not"
     );
 }

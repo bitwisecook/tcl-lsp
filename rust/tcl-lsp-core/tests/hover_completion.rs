@@ -778,7 +778,9 @@ fn completion_ns_scope_global_qualification_follows_the_dialect_m11() {
     // right insertion.  tclsh9.0 removed the fallback (the same script
     // errors), so only the qualified `$::flag` reaches the global.
     let src = "set flag 1\nnamespace eval foo {\n    set x $\n}\n";
-    let col = u32::try_from(src.lines().nth(2).unwrap().find('$').unwrap()).expect("tiny test source") + 1;
+    let col = u32::try_from(src.lines().nth(2).unwrap().find('$').unwrap())
+        .expect("tiny test source")
+        + 1;
 
     let mut a = Analyser::new();
     let a86 = a.analyse(src, "tcl8.6").clone();
@@ -816,7 +818,9 @@ fn completion_proc_scope_still_qualifies_globals_in_every_dialect_m11() {
     // Proc frames never had the namespace fallback in any Tcl version —
     // the 8.x gate must not leak into them.
     let src = "set flag 1\nproc p {} {\n    set x $\n}\n";
-    let col = u32::try_from(src.lines().nth(2).unwrap().find('$').unwrap()).expect("tiny test source") + 1;
+    let col = u32::try_from(src.lines().nth(2).unwrap().find('$').unwrap())
+        .expect("tiny test source")
+        + 1;
     for dialect in ["tcl8.6", "tcl9.0"] {
         let mut a = Analyser::new();
         let an = a.analyse(src, dialect).clone();

@@ -241,7 +241,11 @@ fn namespace_path_resolution_tier_is_8_5_plus_m10() {
         "GLOBAL",
         "8.4 has no path tier"
     );
-    for v in [RuntimeVersion::V8_5, RuntimeVersion::V8_6, RuntimeVersion::V9_0] {
+    for v in [
+        RuntimeVersion::V8_5,
+        RuntimeVersion::V8_6,
+        RuntimeVersion::V9_0,
+    ] {
         assert_eq!(
             vm_output(script, v),
             "MYMOD",

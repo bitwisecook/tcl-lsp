@@ -2164,10 +2164,9 @@ impl Analyser {
         // Exact / canonical-global / unique-tail via the shared call-site
         // resolver — the former first-`HashMap`-hit `c.name == name` scan
         // picked an arbitrary same-tailed class across namespaces (M4.2).
-        if let Some(q) = super::class_hierarchy::resolve_written_class_name(
-            name,
-            &self.result.all_classes,
-        ) {
+        if let Some(q) =
+            super::class_hierarchy::resolve_written_class_name(name, &self.result.all_classes)
+        {
             return Some(q);
         }
         // Cross-file: a class defined elsewhere in the workspace (the oracle is

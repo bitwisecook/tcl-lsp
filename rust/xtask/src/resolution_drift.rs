@@ -98,7 +98,9 @@ pub fn run(_check: bool) -> ExitCode {
     }
 
     if hits == 0 {
-        println!("resolution-drift: OK (no namespace-blind `.name ==` scans over all_procs/all_classes)");
+        println!(
+            "resolution-drift: OK (no namespace-blind `.name ==` scans over all_procs/all_classes)"
+        );
         return ExitCode::SUCCESS;
     }
     eprintln!(
@@ -206,7 +208,8 @@ mod tests {
 
     #[test]
     fn multiline_chain_is_still_inside_the_window() {
-        let src = "let q = analysis\n    .all_procs\n    .values()\n    .find(|p| p.name == word);\n";
+        let src =
+            "let q = analysis\n    .all_procs\n    .values()\n    .find(|p| p.name == word);\n";
         assert_eq!(scan_windows(src).len(), 1);
     }
 
