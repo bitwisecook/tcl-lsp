@@ -588,13 +588,31 @@ pub(crate) fn byte_offset_at(
 /// abstains rather than mis-attributing to the enclosing proc *or* the global
 /// frame (the level word, recorded as the uplevel scope's name, distinguishes
 /// the two).
-fn uplevel_hides_scope(chain: &[&tcl_compiler::analyser::Scope], i: usize) -> bool {
+/// Whether the scope at index `i` is hidden from the cursor by an enclosing
+/// `uplevel` body's frame semantics.
+///
+/// `best_effort` distinguishes the two consumers.  **Resolution** (go-to-def /
+/// references / rename) must be *sound*: a non-`#0` `uplevel N` runs in a
+/// statically-unknown caller frame, so everything outside the body is dropped
+/// rather than mis-attributed (`best_effort = false`).  **Completion** is
+/// advisory, so it keeps best-effort behaviour — inside a non-`#0` body the
+/// lexically-enclosing proc's locals stay offered (`best_effort = true`); a
+/// wrong suggestion is cheap, a blanked list is not.  The `#0` case is shared:
+/// the body runs in the *global* frame, so the enclosing proc's locals are
+/// dropped for both (only globals + the body's own locals remain).
+fn uplevel_hides_scope(
+    chain: &[&tcl_compiler::analyser::Scope],
+    i: usize,
+    best_effort: bool,
+) -> bool {
     use tcl_compiler::analyser::ScopeKind;
     let Some(up) = chain.iter().rposition(|sc| sc.kind == ScopeKind::Uplevel) else {
         return false;
     };
     if chain[up].name == "#0" {
         chain[i].kind == ScopeKind::Proc
+    } else if best_effort {
+        false
     } else {
         i < up
     }
@@ -608,9 +626,10 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     // First, find the innermost scope containing the cursor.
     let chain = scope_chain_at(scope, byte_offset);
     // Walk outward (innermost-first) looking for the var, honouring the
-    // `uplevel` frame semantics (see [`uplevel_hides_scope`]).
+    // `uplevel` frame semantics (see [`uplevel_hides_scope`]).  Resolution is
+    // sound, so a non-`#0` uplevel abstains rather than guesses.
     for (i, sc) in chain.iter().enumerate().rev() {
-        if uplevel_hides_scope(&chain, i) {
+        if uplevel_hides_scope(&chain, i, false) {
             continue;
         }
         if let Some(v) = sc.variables.get(name) {
@@ -733,9 +752,10 @@ pub(crate) fn visible_variable_names(
     let mut names: Vec<String> = Vec::new();
     for (i, sc) in chain.iter().enumerate().rev() {
         // Honour the `uplevel` frame semantics (see [`uplevel_hides_scope`]):
-        // `#0` drops the enclosing proc's locals, a non-`#0` level drops
-        // everything outside the uplevel body.
-        if uplevel_hides_scope(&chain, i) {
+        // `#0` drops the enclosing proc's locals.  Completion is advisory, so
+        // it stays best-effort for a non-`#0` level — the enclosing proc's
+        // locals remain offered rather than blanked.
+        if uplevel_hides_scope(&chain, i, true) {
             continue;
         }
         for k in sc.variables.keys() {
