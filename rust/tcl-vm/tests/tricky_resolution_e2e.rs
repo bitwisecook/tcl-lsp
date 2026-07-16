@@ -265,3 +265,29 @@ fn colon_named_proc_dispatches_bare_but_not_via_written_runs() {
         "NESTED",
     );
 }
+
+// #934 follow-up: the W314 case (proc `:` inside namespace `:`) has no
+// absolute spelling but IS reachable relatively — `namespace eval : { : }`
+// and `namespace inscope : :` both dispatch it, while the textual
+// `namespace inscope ::: :` form resolves the all-colon spelling to the
+// GLOBAL namespace and misses (tclsh 8.6.16 and 9.0.4 agree on all three;
+// 9.0's `namespace code` round-trip succeeds only via a generation-time
+// nsName intrep — a value-identity behaviour no written name can express,
+// see docs/design/colon-names-and-addressability.md).
+#[test]
+fn colon_proc_in_colon_namespace_is_relatively_reachable_only() {
+    let res = result(
+        "namespace eval : { proc : args { return hello } }\n\
+         namespace eval : { : }",
+    );
+    assert_eq!(res, "hello");
+    let res = result(
+        "namespace eval : { proc : args { return hello } }\n\
+         namespace inscope : :",
+    );
+    assert_eq!(res, "hello");
+    let (ok, msg) = run("namespace eval : { proc : args { return hello } }\n\
+         namespace inscope ::: :");
+    assert!(!ok, "the textual all-colon spelling lands on global: {msg}");
+    assert_eq!(msg, "invalid command name \":\"");
+}

@@ -108,6 +108,41 @@ applying it to constructed keys.
 - `runtime/rust/src/namespace.rs` — `home_of` restores the empty simple
   name for separator-terminated words.
 
+## Relative reachability, and the 9.0 `namespace code` intrep round-trip
+
+An unaddressable definition (the W314 case — `proc :` inside
+`namespace eval :`) is still **reachable by relative dispatch**: with the
+proc defined, `namespace eval : { : }` and `namespace inscope : :` both
+return `hello` (tclsh 8.6.16 **and** 9.0.4; the VM and the runtime agree,
+pinned in `tricky_resolution_e2e.rs` and the runtime's
+`trailing_separator_definitions_match_resolution`).  W314's message is
+calibrated to exactly this: *no absolute spelling*, relative lookup only.
+
+`namespace code :` evaluated inside `:` generates
+`::namespace inscope ::: :` — and that word exposes a **value-identity**
+behaviour, probed three ways (both tclshs):
+
+| form | 8.6 | 9.0 |
+|---|---|---|
+| fresh literal `namespace inscope ::: :` | error (`:` at global) | error (`:` at global) |
+| `eval` of the **generated** script object | error | **hello** |
+| the same script after a string round-trip | error | error |
+
+The *text* `:::` resolves identically in both versions — the
+`TclGetNamespaceForQualName` walk is byte-for-byte equivalent across
+8.6.16/9.0.4 (`tmp/` sources), all-colon spellings land on the global
+namespace, so the dispatched `:` misses.  Tcl 9.0's generated word,
+however, carries a cached `nsName` intrep — a **reference to the
+namespace captured at generation time** — which `namespace inscope`
+consumes directly, reaching the unaddressable namespace by identity, not
+by name; 8.6 re-parses and misses, and any string shimmer (the `join`
+row) restores textual semantics on 9.0 too.
+
+For the static stack and both string-round-tripping engines the textual
+semantics are the contract (they match both tclshs on every *writable*
+form); the 9.0 identity round-trip is unreachable by any name a document
+could contain, which is precisely W314's premise.
+
 ## Related
 
 - [command-resolution.md](contracts/command-resolution.md) — the resolution
