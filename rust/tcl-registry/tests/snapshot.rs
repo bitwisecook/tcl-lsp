@@ -150,3 +150,21 @@ fn graph_snapshots_are_wellformed_and_deterministic() {
         event_graph_snapshot().dumps_indent2()
     );
 }
+
+#[test]
+fn snapshot_dialect_serialisation_covers_every_primitive_bit() {
+    // Codex review on PR #938: the hand-maintained dialect-name table
+    // missed the Milestone 6 TMSH/BIGIP bits, so `registry-dump` reported
+    // the shared tmsh:: specs (tagged IAPPS|TMSH) as f5-iapps-only — the
+    // RUST_ISSUE_082 shape again. The serialisation now derives from
+    // `DialectSet::member_names`, so a spec's entry must name every
+    // canonical dialect its gate carries.
+    let reg = registry_for_dialect("f5-tmsh");
+    let entry = command_entry_json(reg, "f5-tmsh", "tmsh::create")
+        .expect("tmsh::create resolves under f5-tmsh")
+        .dumps_indent2();
+    assert!(
+        entry.contains("\"f5-tmsh\"") && entry.contains("\"f5-iapps\""),
+        "tmsh::create carries the shared IAPPS|TMSH gate: {entry}"
+    );
+}

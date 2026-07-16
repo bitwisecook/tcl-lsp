@@ -60,6 +60,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## Q&A
 
+- [kcs-qa-which-commands-are-available-in-a-dialect.md](kcs-qa-which-commands-are-available-in-a-dialect.md)
+  — how the dialect profile decides command availability (embedded Tcl
+  base + the iRules disable list).
 - [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) —
   when (and when not) to restart the Tcl Language Server.
 - [kcs-qa-query-vs-grep-vs-rename.md](kcs-qa-query-vs-grep-vs-rename.md) —

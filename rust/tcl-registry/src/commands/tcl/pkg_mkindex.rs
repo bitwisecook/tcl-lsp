@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg_mkindex",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Build pkgIndex.tcl for a directory of packages",

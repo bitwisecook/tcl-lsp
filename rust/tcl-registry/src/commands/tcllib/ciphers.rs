@@ -39,10 +39,12 @@ const DIR_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "encrypt",
         detail: "Encrypt the input (the default).",
+        min_tcl: None,
     },
     ArgValue {
         value: "decrypt",
         detail: "Decrypt the input.",
+        min_tcl: None,
     },
 ];
 
@@ -51,10 +53,12 @@ const AES_MODES: &[ArgValue] = &[
     ArgValue {
         value: "ecb",
         detail: "Electronic codebook mode.",
+        min_tcl: None,
     },
     ArgValue {
         value: "cbc",
         detail: "Cipher block chaining mode (the default).",
+        min_tcl: None,
     },
 ];
 
@@ -63,18 +67,22 @@ const DES_MODES: &[ArgValue] = &[
     ArgValue {
         value: "ecb",
         detail: "Electronic codebook mode.",
+        min_tcl: None,
     },
     ArgValue {
         value: "cbc",
         detail: "Cipher block chaining mode (the default).",
+        min_tcl: None,
     },
     ArgValue {
         value: "cfb",
         detail: "Cipher feedback mode.",
+        min_tcl: None,
     },
     ArgValue {
         value: "ofb",
         detail: "Output feedback mode.",
+        min_tcl: None,
     },
 ];
 

@@ -95,34 +95,42 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     ArgValue {
                         value: "seconds",
                         detail: "Seconds.",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "minutes",
                         detail: "Minutes (60 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "hours",
                         detail: "Hours (3600 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "days",
                         detail: "Days (86400 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "weekdays",
                         detail: "Weekdays (skipping Saturday and Sunday).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "weeks",
                         detail: "Weeks (7 days).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "months",
                         detail: "Calendar months.",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "years",
                         detail: "Calendar years.",
+                        min_tcl: None,
                     },
                 ],
             ),
@@ -132,34 +140,42 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     ArgValue {
                         value: "seconds",
                         detail: "Seconds.",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "minutes",
                         detail: "Minutes (60 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "hours",
                         detail: "Hours (3600 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "days",
                         detail: "Days (86400 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "weekdays",
                         detail: "Weekdays (skipping Saturday and Sunday).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "weeks",
                         detail: "Weeks (7 days).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "months",
                         detail: "Calendar months.",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "years",
                         detail: "Calendar years.",
+                        min_tcl: None,
                     },
                 ],
             ),
@@ -169,34 +185,42 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     ArgValue {
                         value: "seconds",
                         detail: "Seconds.",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "minutes",
                         detail: "Minutes (60 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "hours",
                         detail: "Hours (3600 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "days",
                         detail: "Days (86400 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "weekdays",
                         detail: "Weekdays (skipping Saturday and Sunday).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "weeks",
                         detail: "Weeks (7 days).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "months",
                         detail: "Calendar months.",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "years",
                         detail: "Calendar years.",
+                        min_tcl: None,
                     },
                 ],
             ),
@@ -206,34 +230,42 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     ArgValue {
                         value: "seconds",
                         detail: "Seconds.",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "minutes",
                         detail: "Minutes (60 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "hours",
                         detail: "Hours (3600 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "days",
                         detail: "Days (86400 seconds).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "weekdays",
                         detail: "Weekdays (skipping Saturday and Sunday).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "weeks",
                         detail: "Weeks (7 days).",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "months",
                         detail: "Calendar months.",
+                        min_tcl: None,
                     },
                     ArgValue {
                         value: "years",
                         detail: "Calendar years.",
+                        min_tcl: None,
                     },
                 ],
             ),

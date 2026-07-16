@@ -57,6 +57,7 @@ fn default_config(db: &TclDatabase) -> AnalyserConfig {
         tcl_compiler::analyser::NonAsciiMode::Default,
         Vec::new(),
         None,
+        None,
     )
 }
 

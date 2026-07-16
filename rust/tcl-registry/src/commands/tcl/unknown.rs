@@ -33,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unknown",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::CREATES_BARRIER
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::OVERRIDABLE_LIBRARY_PROC,

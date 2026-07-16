@@ -46,6 +46,9 @@
 | W128 | warning | Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler. | ✓ |
 | W135 | warning | Command requires a newer package version than the resolved `package require`. | ✓ |
 | W136 | warning | Option requires a newer package version than the resolved `package require`. | ✓ |
+| W137 | warning | Argument value requires a newer Tcl version than the dialect provides. | ✓ |
+| W138 | warning | Format/scan conversion requires a newer Tcl version than the dialect provides. | ✓ |
+| W139 | warning | Command/option removed at the resolved package version (present only in earlier releases). | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |

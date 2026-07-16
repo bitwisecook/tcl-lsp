@@ -2701,8 +2701,8 @@ mod tests {
 mod effect_propagation_tests {
     use super::*;
     use crate::lowering::lower_to_ir;
+    use tcl_dialect::DialectSet;
     use tcl_registry::CommandRegistry;
-    use tcl_registry::dialects::DialectSet;
 
     fn irules_registry() -> CommandRegistry {
         let mut reg = CommandRegistry::build_default();

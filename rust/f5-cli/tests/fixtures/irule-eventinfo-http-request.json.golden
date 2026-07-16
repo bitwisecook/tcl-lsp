@@ -10,6 +10,8 @@
     "FASTHTTP",
     "HTTP"
   ],
+  "bigipMinVersion": "15.0.0",
+  "bigipMaxVersion": null,
   "validCommandCount": 886,
   "validCommands": [
     "AAA::acct_result",

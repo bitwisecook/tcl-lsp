@@ -75,7 +75,7 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
-use tcl_registry::CommandRegistry;
+use tcl_registry::{CommandRegistry, ProfileQueries};
 
 use crate::definition::utf16_col_to_char_col;
 
@@ -287,7 +287,7 @@ struct SwitchCompletionCtx<'a> {
     character: u32,
     word_idx: usize,
     analysis: &'a AnalysisResult,
-    dialect: Option<tcl_registry::dialects::DialectSet>,
+    profile: &'static tcl_dialect::DialectProfile,
 }
 
 /// Option-flag completion for a `-<cursor>` position: resolves the
@@ -310,16 +310,13 @@ fn switch_completion_items(
         character,
         word_idx,
         analysis,
-        dialect,
+        profile,
     } = *ctx;
     let sub = (word_idx >= 2)
         .then(|| nth_word_on_line(source, line, 1))
         .flatten()
         .and_then(|sub_name| {
-            spec.resolve_subcommand_for_dialect(
-                &sub_name,
-                dialect.unwrap_or(tcl_registry::dialects::DialectSet::all()),
-            )
+            spec.resolve_subcommand_for_dialect(&sub_name, profile.availability_mask)
         });
     let (options, parent_dialects) = match sub {
         Some(sub) => (sub.options, sub.dialects.or(spec.dialects)),
@@ -337,10 +334,10 @@ fn switch_completion_items(
         char_col_to_utf16(line_text, dash_col),
         char_col_to_utf16(line_text, cursor_col),
     );
-    let floor = package_version_floor(analysis, spec);
+    let floor = package_version_floor(analysis, spec, profile);
     Some(switch_completions(
         options,
-        dialect,
+        profile,
         parent_dialects,
         switch_partial,
         edit,
@@ -360,7 +357,7 @@ fn context_aware_completions(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     partial: &str,
-    dialect: Option<tcl_registry::dialects::DialectSet>,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Vec<CompletionItem>> {
     let (cmd, word_idx) = command_context_on_line(source, line, character)?;
 
@@ -416,7 +413,7 @@ fn context_aware_completions(
                 character,
                 word_idx,
                 analysis,
-                dialect,
+                profile,
             },
             &switch_partial,
         )
@@ -443,7 +440,7 @@ fn context_aware_completions(
         return Some(invoked_proc_completions(analysis, partial));
     }
     if word_idx == 1 && !spec.subcommands.is_empty() {
-        return Some(subcommand_completions(spec, partial));
+        return Some(subcommand_completions(spec, profile, partial));
     }
     // Second-level subcommand completion — the word after a two-level
     // ensemble's first-level subcommand (`info object <op>`, `info class <op>`,
@@ -575,7 +572,7 @@ pub fn completions(
             analysis,
             registry,
             &partial,
-            tcl_registry::dialects::DialectSet::parse(dialect),
+            tcl_dialect::DialectProfile::by_name(dialect),
         )
     {
         return items;
@@ -1310,9 +1307,10 @@ fn registry_method_items(registry: &CommandRegistry, class_q: &str) -> Option<Ve
 fn package_version_floor<'a>(
     analysis: &'a AnalysisResult,
     spec: &tcl_registry::CommandSpec,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<&'a str> {
     let pkg = spec.owning_package()?;
-    analysis
+    let require_floor = analysis
         .package_requires
         .iter()
         // Only *unconditional* requires guarantee the version; an optional
@@ -1321,7 +1319,21 @@ fn package_version_floor<'a>(
         .filter(|req| req.name == pkg && !req.conditional)
         .filter_map(|req| req.version.as_deref())
         .map(tcl_registry::version::requirement_lower_bound)
-        .max_by(|a, b| tcl_registry::version::compare(a, b))
+        .max_by(|a, b| tcl_registry::version::compare(a, b));
+    // The profile's library pin supplies the base floor (§7.1: the shipped
+    // Tk on a plain Tcl base, a keyed vendor surface at its D5
+    // oldest-supported default); an explicit require can only raise it.
+    let pin_floor = profile.library_floor_default(pkg);
+    match (pin_floor, require_floor) {
+        (Some(pin), Some(req)) => {
+            if tcl_registry::version::compare(req, pin).is_gt() {
+                Some(req)
+            } else {
+                Some(pin)
+            }
+        }
+        (pin, require) => pin.or(require),
+    }
 }
 
 fn switch_partial_at_position(
@@ -1345,8 +1357,8 @@ fn switch_partial_at_position(
 
 fn switch_completions(
     options: &[tcl_registry::hover::OptionSpec],
-    dialect: Option<tcl_registry::dialects::DialectSet>,
-    parent_dialects: Option<tcl_registry::dialects::DialectSet>,
+    profile: &'static tcl_dialect::DialectProfile,
+    parent_dialects: Option<tcl_dialect::DialectSet>,
     partial: &str,
     edit: (u32, u32),
     package_version: Option<&str>,
@@ -1355,7 +1367,7 @@ fn switch_completions(
         .iter()
         .filter(|opt| {
             opt.available_for_version(package_version)
-                && opt.supports_dialect(dialect, parent_dialects)
+                && profile.is_option_available(opt, parent_dialects)
         })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
@@ -1446,8 +1458,16 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     items
 }
 
-fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<CompletionItem> {
-    let mut subs: Vec<&tcl_registry::SubCommand> = spec.subcommands.iter().collect();
+fn subcommand_completions(
+    spec: &tcl_registry::CommandSpec,
+    profile: &'static tcl_dialect::DialectProfile,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    // Only subcommands available under the active profile are offered —
+    // the §5.1 `available_subcommands` gap: `dict getwithdefault` (9.0+)
+    // must not be offered in an 8.6 buffer, and an iRules-only subcommand
+    // must not surface in plain Tcl.
+    let mut subs: Vec<&tcl_registry::SubCommand> = profile.available_subcommands(spec);
     subs.sort_unstable_by_key(|sub| sub.name);
     let FilteredCandidates {
         candidates: subs,
@@ -1676,26 +1696,31 @@ fn builtin_completions(
     tk_loaded: bool,
     analysis: &AnalysisResult,
 ) -> Vec<CompletionItem> {
-    // Version-gate the command list: a command whose spec restricts itself to
-    // later dialects (`try` is Tcl 8.6+, `lseq` is 9.0+, …) must not be offered
-    // in an earlier-dialect buffer.  `load_dialect` only *adds* dialect command
-    // sets (iRules / Tk / …); it never removes a version-gated core command, so
-    // `command_names()` still lists `try` under `tcl8.4`/`tcl8.5` — filter it
-    // here via the same `supports_dialect` check the analyser uses.  An
-    // unparseable dialect (custom / non-Tcl) applies no version filter.
-    let dialect_set = tcl_registry::dialects::DialectSet::parse(dialect);
+    // Availability-gate the command list through the dialect profile: a
+    // command whose spec restricts itself to later dialects (`try` is Tcl
+    // 8.6+, `lseq` is 9.0+, …) must not be offered in an earlier-dialect
+    // buffer, a vendor profile's composed mask admits its embedded Tcl core
+    // (8.5 `dict` under f5-iapps), and the subtractive iRules disable list
+    // filters the banned commands (§9 of the dialect-profile model).
+    // `load_dialect` only *adds* dialect command sets (iRules / Tk / …); it
+    // never removes a version-gated core command, so `command_names()`
+    // still lists `try` under `tcl8.4`/`tcl8.5` — filter here via the same
+    // profile resolution the analyser's W123 uses. An unknown dialect
+    // (custom / non-Tcl) resolves to the permissive fallback profile.
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
         .filter(|n| !SKIP_BUILTIN_NAMES.iter().any(|skip| skip == n))
+        .filter(|n| profile.resolve_command(registry, n).is_some())
+        // Tk commands (`required_package == "Tk"`) are only offered once Tk
+        // is loaded — see the `tk_loaded` computation in `completions` — and
+        // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
+        // world where a desktop library cannot be `package require`d, even
+        // if the source says so (dialect-profile-model.md §7.2; Tk hosting
+        // becomes a first-class library pin on the versioned-library axis).
         .filter(|n| {
-            dialect_set
-                .is_none_or(|ds| registry.get(n).is_none_or(|spec| spec.supports_dialect(ds)))
-        })
-        // Tk commands (`required_package == "Tk"`) are only offered once Tk is
-        // loaded — see the `tk_loaded` computation in `completions`.
-        .filter(|n| {
-            tk_loaded
+            (tk_loaded && profile.vendor_bit.is_none())
                 || registry
                     .get(n)
                     .is_none_or(|spec| spec.required_package != Some("Tk"))
@@ -1707,7 +1732,16 @@ fn builtin_completions(
         // required at all, yields no floor and stays permissive.
         .filter(|n| {
             registry.get(n).is_none_or(|spec| {
-                spec.available_for_version(package_version_floor(analysis, spec))
+                let floor = package_version_floor(analysis, spec, profile);
+                // On a keyed ambient axis (the F5 surfaces) the declared
+                // range applies: explicit introduction or the 15.0
+                // baseline, plus any removal release.
+                match (profile.keyed_version_range(spec), floor) {
+                    (Some((min, max)), Some(floor)) => {
+                        tcl_registry::version::within_range(floor, min, max)
+                    }
+                    _ => spec.available_for_version(floor),
+                }
             })
         })
         .collect();
@@ -1721,7 +1755,7 @@ fn builtin_completions(
                 label: name.to_owned(),
                 insert_text: name.to_owned(),
                 kind: CompletionKind::Function,
-                detail: spec.map(command_detail),
+                detail: spec.map(|s| command_detail(s, profile)),
                 sort_text: Some(builtin_sort_text(name, count)),
                 is_snippet: false,
                 filter_text: None,
@@ -1736,11 +1770,18 @@ fn builtin_completions(
 
 /// Completion-detail provenance string for a built-in command:
 /// `tcllib (PKG)` / `stdlib (PKG)` / `Tk` / `built-in`.  Tcllib takes
-/// precedence over a plain `required_package`.
-fn command_detail(spec: &tcl_registry::CommandSpec) -> String {
+/// precedence over a plain `required_package`; a package the profile
+/// ships ambiently (an F5 surface — §7.1 axis C) is part of the runtime
+/// and reads `built-in`, not like a require-gated stdlib package.
+fn command_detail(
+    spec: &tcl_registry::CommandSpec,
+    profile: &tcl_dialect::DialectProfile,
+) -> String {
     if let Some(pkg) = spec.tcllib_package {
         format!("tcllib ({pkg})")
-    } else if let Some(pkg) = spec.required_package {
+    } else if let Some(pkg) = spec.required_package
+        && !profile.is_ambient_package(pkg)
+    {
         if pkg == "Tk" {
             "Tk".to_string()
         } else {
@@ -2251,12 +2292,21 @@ mod tests {
     fn command_detail_formats_each_provenance() {
         use tcl_registry::CommandRegistry;
         let reg = CommandRegistry::build_default();
+        let tcl86 = tcl_dialect::DialectProfile::by_name("tcl8.6");
         // built-in: no package.
-        assert_eq!(command_detail(reg.get("puts").unwrap()), "built-in");
+        assert_eq!(command_detail(reg.get("puts").unwrap(), tcl86), "built-in");
         // stdlib: required_package set.
         if let Some(spec) = reg.get("http::geturl") {
-            assert_eq!(command_detail(spec), "stdlib (http)");
+            assert_eq!(command_detail(spec, tcl86), "stdlib (http)");
         }
+        // An ambient vendor surface reads as part of the runtime, never as
+        // a require-gated stdlib package (§7.1 axis C).
+        let ireg = tcl_registry::registry_for_dialect("f5-irules");
+        let http2 = ireg.get("HTTP2::header").expect("HTTP2::header spec");
+        assert_eq!(
+            command_detail(http2, tcl_dialect::DialectProfile::irules()),
+            "built-in"
+        );
     }
 
     #[test]
@@ -2612,18 +2662,30 @@ mod tests {
 
     #[test]
     fn command_completion_gates_commands_by_package_version() {
-        // `ttk::button` needs Tk 8.5.  A buffer requiring only Tk 8.4 must not
-        // offer it; requiring 8.5 must.
+        // `ttk::button` needs Tk 8.5. On a tcl8.4 host the shipped Tk is
+        // 8.4 (the §7.1 TracksBase pin) and a require cannot raise it —
+        // not offered. On a tcl8.6 host the shipped Tk is 8.6 even when
+        // the file writes `package require Tk 8.4` (a minimum, not a
+        // downgrade) — offered; the old require-only floor wrongly hid it.
         let registry = CommandRegistry::build_default();
         let older = "package require Tk 8.4\nttk::b\n";
         let a1 = analyse(older);
-        let l1: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, "tcl8.6")
+        let l1: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, "tcl8.4")
             .into_iter()
             .map(|i| i.label)
             .collect();
         assert!(
             !l1.iter().any(|l| l == "ttk::button"),
-            "Tk 8.4 must not offer ttk::button: {l1:?}",
+            "a tcl8.4 host (Tk 8.4) must not offer ttk::button: {l1:?}",
+        );
+
+        let l1_86: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, "tcl8.6")
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            l1_86.iter().any(|l| l == "ttk::button"),
+            "a tcl8.6 host ships Tk 8.6; `require Tk 8.4` does not downgrade it: {l1_86:?}",
         );
 
         let newer = "package require Tk 8.5\nttk::b\n";
@@ -2647,7 +2709,7 @@ mod tests {
 
     fn irules_registry() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();
-        r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        r.load_dialect(tcl_dialect::DialectSet::IRULES);
         r
     }
 
@@ -3286,5 +3348,84 @@ mod tests {
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["greet"]);
         assert_eq!(items[0].filter_text.as_deref(), Some("gret"));
+    }
+
+    // Dialect-profile availability (dialect-profile-model.md, Milestone 4):
+    // the §5.1 available_subcommands gap and the §5.2 option semantics in
+    // completion.
+
+    #[test]
+    fn subcommand_completion_is_version_gated_by_the_profile() {
+        let src = "dict \n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        // 8.6 buffer: 9.0-only subcommands are not offered.
+        let items = completions(src, 0, 5, &analysis, Some(registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"get"), "{labels:?}");
+        assert!(
+            !labels.contains(&"getwithdefault"),
+            "dict getwithdefault is 9.0+ and must not be offered under tcl8.6: {labels:?}"
+        );
+        // 9.0 buffer: it is offered.
+        let registry90 = tcl_registry::registry_for_dialect("tcl9.0");
+        let items90 = completions(src, 0, 5, &analysis, Some(registry90), None, "tcl9.0");
+        let labels90: Vec<&str> = items90.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels90.contains(&"getwithdefault"), "{labels90:?}");
+    }
+
+    #[test]
+    fn command_completion_uses_profile_availability() {
+        let src = "dic\n";
+        let analysis = analyse(src);
+        // iApps embed Tcl 8.5: dict IS offered (the composed-mask fix)…
+        let registry = tcl_registry::registry_for_dialect("f5-iapps");
+        let items = completions(src, 0, 3, &analysis, Some(registry), None, "f5-iapps");
+        assert!(
+            items.iter().any(|i| i.label == "dict"),
+            "dict must be offered under f5-iapps (Tcl 8.5.13 host)"
+        );
+        // …while the banned iRules commands never surface there.
+        let irules_reg = tcl_registry::registry_for_dialect("f5-irules");
+        let exec_src = "exe\n";
+        let exec_analysis = analyse(exec_src);
+        let irules_items = completions(
+            exec_src,
+            0,
+            3,
+            &exec_analysis,
+            Some(irules_reg),
+            None,
+            "f5-irules",
+        );
+        assert!(
+            !irules_items.iter().any(|i| i.label == "exec"),
+            "exec is banned in iRules and must not be completed"
+        );
+    }
+
+    #[test]
+    fn switch_option_completion_respects_profile_gating() {
+        // Option completion under f5-iapps offers the 8.5+ -nocase (the old
+        // contains rule dropped every version-gated option under a composed
+        // mask) but not the 9.0-only regsub -command.
+        let src = "switch -\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::registry_for_dialect("f5-iapps");
+        let items = completions(src, 0, 8, &analysis, Some(registry), None, "f5-iapps");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"-nocase"),
+            "switch -nocase is 8.5+ core, offered under f5-iapps: {labels:?}"
+        );
+
+        let src9 = "regsub -\n";
+        let analysis9 = analyse(src9);
+        let items9 = completions(src9, 0, 8, &analysis9, Some(registry), None, "f5-iapps");
+        let labels9: Vec<&str> = items9.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels9.contains(&"-command"),
+            "regsub -command is 9.0-only, hidden under f5-iapps: {labels9:?}"
+        );
     }
 }

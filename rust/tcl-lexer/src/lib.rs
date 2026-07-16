@@ -60,7 +60,7 @@ pub use highlight::{
     HlRange, highlight_ranges, highlight_ranges_with_config, highlight_tcl,
     highlight_tcl_with_config,
 };
-pub use lexer::{BracedVarStyle, LexError, LexWarning, Lexer, LexerConfig};
+pub use lexer::{LexError, LexWarning, Lexer, LexerConfig};
 pub use line_index::LineIndex;
 pub use ranges::{word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
@@ -72,6 +72,11 @@ pub use structural_index::{
 pub use substitution::{
     EscapeSegment, backslash_escape_end, backslash_subst, split_backslash_escapes,
 };
+// Re-exported from the foundational dialect crate so existing
+// `tcl_lexer::BracedVarStyle` imports keep working — the enum moved down to
+// `tcl-dialect` (dialect-profile-model.md §3) where the `DialectProfile`
+// grammar axis shares it.
+pub use tcl_dialect::BracedVarStyle;
 pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
 
 /// Crate version string.

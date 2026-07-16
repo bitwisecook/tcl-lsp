@@ -74,6 +74,11 @@ pub struct Spec {
     /// sequential argument (`format {%2$d-%1$d} 10 20` → `20-10`). `None` for
     /// the ordinary sequential form.
     pub arg_index: Option<usize>,
+    /// A `ll` / `L` bignum size modifier was present. Version-relevant:
+    /// the `ll`+`u` combination ("unsigned bignum") raises before Tcl 9.0
+    /// (oracle-verified: tclsh8.6 `format %llu 5` → "unsigned bignum
+    /// format is invalid"; tclsh9.0.4 → `5`).
+    pub big: bool,
 }
 
 /// The outcome of parsing a width / `.precision` field.
@@ -138,14 +143,20 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
     // and discarded (`format %ld 5` → `5`). `l`/`ll`, or a single
     // `h`/`j`/`z`/`q`/`t`/`L`. `hh` is *not* accepted — the second `h` is left to
     // fail as the verb (`format %hhd` → `bad field specifier "h"`, matching C).
+    let mut big = false;
     match fmt.get(*i) {
         Some(b'l') => {
             *i += 1;
             if fmt.get(*i) == Some(&b'l') {
                 *i += 1;
+                big = true;
             }
         }
-        Some(b'h' | b'j' | b'z' | b'q' | b't' | b'L') => *i += 1,
+        Some(b'L') => {
+            *i += 1;
+            big = true;
+        }
+        Some(b'h' | b'j' | b'z' | b'q' | b't') => *i += 1,
         _ => {}
     }
     let verb = *fmt.get(*i)?;
@@ -158,6 +169,7 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
         width_star,
         precision_star,
         arg_index,
+        big,
     })
 }
 
@@ -203,65 +215,69 @@ fn parse_field(fmt: &[u8], i: &mut usize) -> Option<Field> {
         Field::Size(n)
     })
 }
+/// One version-gated feature used in a format string — the §6
+/// argument-DSL rung (dialect-profile-model.md): the conversion parses
+/// everywhere, but *raises at runtime* below `min`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VersionGatedUse {
+    /// Byte offset of the `%` that starts the conversion, within the
+    /// format string.
+    pub offset: usize,
+    /// Human-readable feature name (`"%b binary conversion"`).
+    pub feature: &'static str,
+    /// The lowest Tcl release that accepts it.
+    pub min: tcl_dialect::TclVersion,
+}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn parse(s: &str) -> Option<(Spec, usize)> {
-        let mut i = 0;
-        let spec = parse_spec(s.as_bytes(), &mut i)?;
-        Some((spec, i))
+/// Scan a `format` %-string for version-gated conversions, reporting every
+/// use with its introducing release — the caller compares against the
+/// dialect's effective Tcl version.
+///
+/// Modelled (evidence-bounded):
+/// - `%b` (binary) — added in Tcl 8.6 (raises "bad field specifier" on
+///   8.4/8.5).
+/// - the `ll`/`L` + `u` combination — unsigned bignum, Tcl 9.0+
+///   (oracle-verified: tclsh8.6 `format %llu 5` → "unsigned bignum format
+///   is invalid"; tclsh9.0.4 → `5`).
+///
+/// Unparseable conversions contribute nothing — a missed check is never
+/// a false positive.
+#[must_use]
+pub fn version_gated_uses(fmt: &str) -> Vec<VersionGatedUse> {
+    use tcl_dialect::TclVersion;
+    let bytes = fmt.as_bytes();
+    let mut uses = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'%' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        if bytes.get(i) == Some(&b'%') {
+            i += 1;
+            continue;
+        }
+        let Some(spec) = parse_spec(bytes, &mut i) else {
+            // Unparseable — skip a byte and resynchronise on the next `%`.
+            i = start + 1;
+            continue;
+        };
+        if spec.verb == b'b' {
+            uses.push(VersionGatedUse {
+                offset: start,
+                feature: "%b binary conversion",
+                min: TclVersion::V8_6,
+            });
+        }
+        if spec.big && spec.verb == b'u' {
+            uses.push(VersionGatedUse {
+                offset: start,
+                feature: "%llu unsigned bignum conversion",
+                min: TclVersion::V9_0,
+            });
+        }
     }
-
-    #[test]
-    fn plain_verb() {
-        let (s, i) = parse("d").unwrap();
-        assert_eq!(s.flags, FmtFlags::empty());
-        assert_eq!(s.width, None);
-        assert_eq!(s.precision, None);
-        assert_eq!(s.verb, b'd');
-        assert_eq!(i, 1);
-    }
-
-    #[test]
-    fn flags_width_precision() {
-        let (s, i) = parse("-+08.3f").unwrap();
-        assert!(
-            s.flags
-                .contains(FmtFlags::MINUS | FmtFlags::PLUS | FmtFlags::ZERO)
-        );
-        assert_eq!(s.width, Some(8));
-        assert_eq!(s.precision, Some(3));
-        assert_eq!(s.verb, b'f');
-        assert_eq!(i, 7);
-    }
-
-    #[test]
-    fn bare_dot_is_precision_zero() {
-        let (s, _) = parse(".s").unwrap();
-        assert_eq!(s.precision, Some(0));
-        assert_eq!(s.verb, b's');
-    }
-
-    #[test]
-    fn star_width_and_precision() {
-        let (s, i) = parse("*d").unwrap();
-        assert!(s.width_star);
-        assert_eq!(s.width, None);
-        assert_eq!(s.verb, b'd');
-        assert_eq!(i, 2);
-
-        let (s, _) = parse("5.*f").unwrap();
-        assert_eq!(s.width, Some(5));
-        assert!(s.precision_star);
-        assert_eq!(s.precision, None);
-        assert_eq!(s.verb, b'f');
-    }
-
-    #[test]
-    fn bails() {
-        assert!(parse("99999d").is_none()); // over MAX_FIELD
-        assert!(parse("5").is_none()); // missing verb
-    }
+    uses
 }

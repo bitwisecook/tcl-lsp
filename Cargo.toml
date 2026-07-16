@@ -51,6 +51,7 @@ resolver = "2"
 members = [
     "rust/tcl-version",
     "rust/tcl-core-types",
+    "rust/tcl-dialect",
     "rust/tcl-lexer",
     "rust/tcl-syntax",
     "rust/tcl-platform",

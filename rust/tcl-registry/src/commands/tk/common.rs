@@ -28,26 +28,32 @@ pub(crate) const RELIEF: &[ArgValue] = &[
     ArgValue {
         value: "flat",
         detail: "No 3-D border.",
+        min_tcl: None,
     },
     ArgValue {
         value: "groove",
         detail: "Grooved (incised) border.",
+        min_tcl: None,
     },
     ArgValue {
         value: "raised",
         detail: "Raised 3-D border.",
+        min_tcl: None,
     },
     ArgValue {
         value: "ridge",
         detail: "Ridged (embossed) border.",
+        min_tcl: None,
     },
     ArgValue {
         value: "solid",
         detail: "Solid one-pixel border.",
+        min_tcl: None,
     },
     ArgValue {
         value: "sunken",
         detail: "Sunken 3-D border.",
+        min_tcl: None,
     },
 ];
 
@@ -56,38 +62,47 @@ pub(crate) const ANCHOR: &[ArgValue] = &[
     ArgValue {
         value: "n",
         detail: "North (top center).",
+        min_tcl: None,
     },
     ArgValue {
         value: "ne",
         detail: "North-east (top right).",
+        min_tcl: None,
     },
     ArgValue {
         value: "e",
         detail: "East (right center).",
+        min_tcl: None,
     },
     ArgValue {
         value: "se",
         detail: "South-east (bottom right).",
+        min_tcl: None,
     },
     ArgValue {
         value: "s",
         detail: "South (bottom center).",
+        min_tcl: None,
     },
     ArgValue {
         value: "sw",
         detail: "South-west (bottom left).",
+        min_tcl: None,
     },
     ArgValue {
         value: "w",
         detail: "West (left center).",
+        min_tcl: None,
     },
     ArgValue {
         value: "nw",
         detail: "North-west (top left).",
+        min_tcl: None,
     },
     ArgValue {
         value: "center",
         detail: "Centered.",
+        min_tcl: None,
     },
 ];
 
@@ -96,13 +111,16 @@ pub(crate) const JUSTIFY: &[ArgValue] = &[
     ArgValue {
         value: "left",
         detail: "Left-justify lines.",
+        min_tcl: None,
     },
     ArgValue {
         value: "right",
         detail: "Right-justify lines.",
+        min_tcl: None,
     },
     ArgValue {
         value: "center",
         detail: "Center lines.",
+        min_tcl: None,
     },
 ];

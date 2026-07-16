@@ -43,6 +43,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use tcl_dialect::DialectProfile;
 use tcl_lexer::{ExprToken, ExprTokenType, tokenise_expr_checked};
 
 use crate::expr::ast::{BinOp, ExprNode, UnaryOp};
@@ -396,7 +397,11 @@ impl<'a> PrattParser<'a> {
 /// ```
 #[must_use]
 pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
-    let (raw_tokens, has_unknown) = tokenise_expr_checked(source, dialect);
+    // Resolve the dialect string to its interned profile once and thread the
+    // canonical name down — so the grammar branch in the expr lexer and the
+    // cache key below can never disagree about what a given spelling means.
+    let profile = DialectProfile::by_opt_name(dialect);
+    let (raw_tokens, has_unknown) = tokenise_expr_checked(source, Some(profile.name));
 
     if has_unknown {
         return ExprNode::Raw {
@@ -430,11 +435,14 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
 // `parse_expr` stays uncached; this sibling is for the VM, which
 // re-evaluates loop conditions on every iteration.
 //
-// Key shape: `(source, dialect)`.  The cache is process-global (a
-// `OnceLock<Mutex<…>>`) and capped at 4096 entries with simple LRU
-// eviction (move-to-back on hit, evict front on capacity overflow).
-// Entries return `Arc<ExprNode>` so multiple callers can share the
-// parsed tree without cloning the AST.
+// Key shape: `(source, profile identity)` — the dialect string is
+// resolved through `DialectProfile::by_opt_name` and the canonical
+// profile name is the key, so alias spellings and unknown-dialect
+// typos share one entry per behaviour instead of one per spelling.
+// The cache is process-global (a `OnceLock<Mutex<…>>`) and capped at
+// 4096 entries with simple LRU eviction (move-to-back on hit, evict
+// front on capacity overflow). Entries return `Arc<ExprNode>` so
+// multiple callers can share the parsed tree without cloning the AST.
 
 /// Cache capacity.  4096 entries was
 /// empirically large enough to hold every distinct expression a
@@ -442,7 +450,7 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
 /// per proc); larger workloads stress the LRU eviction path.
 const EXPR_CACHE_CAPACITY: usize = 4096;
 
-type ExprCacheKey = (String, Option<String>);
+type ExprCacheKey = (String, &'static str);
 
 struct ExprCache {
     map: HashMap<ExprCacheKey, Arc<ExprNode>>,
@@ -507,16 +515,17 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
 ///
 /// Identical semantics to [`parse_expr`] — same `(source, dialect)`
 /// inputs return the same `ExprNode` shape — but cached on the
-/// process-global LRU.  Two calls with the same key return
-/// `Arc::ptr_eq` results; eviction is FIFO once 4096 entries are
-/// reached (oldest evicted first).
+/// process-global LRU, keyed by `(source, resolved profile)`.  Two
+/// calls with the same key return `Arc::ptr_eq` results; eviction is
+/// FIFO once 4096 entries are reached (oldest evicted first).
 ///
 /// Use this from VM-loop hot paths (re-evaluating `expr {$i < N}`
 /// on every iteration); use the un-cached [`parse_expr`] from
 /// once-per-invocation analyser sites.
 #[must_use]
 pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
-    let key: ExprCacheKey = (source.to_owned(), dialect.map(str::to_owned));
+    let profile = DialectProfile::by_opt_name(dialect);
+    let key: ExprCacheKey = (source.to_owned(), profile.name);
     {
         let mut cache = expr_cache().lock().expect("expr cache mutex poisoned");
         if let Some(hit) = cache.get(&key) {
@@ -1187,7 +1196,7 @@ mod tests {
         let cap = super::EXPR_CACHE_CAPACITY;
         // Fill exactly to capacity.
         for i in 0..cap {
-            let key = (format!("expr_seed_{i}"), None);
+            let key = (format!("expr_seed_{i}"), "tcl");
             cache.insert(
                 key,
                 std::sync::Arc::new(crate::expr::ast::ExprNode::Raw {
@@ -1196,11 +1205,11 @@ mod tests {
             );
         }
         assert_eq!(cache.len(), cap);
-        let first_key = ("expr_seed_0".to_owned(), None);
+        let first_key = ("expr_seed_0".to_owned(), "tcl");
         assert!(cache.map.contains_key(&first_key));
         // One more insert evicts the front (the LRU entry).
         cache.insert(
-            ("expr_seed_extra".to_owned(), None),
+            ("expr_seed_extra".to_owned(), "tcl"),
             std::sync::Arc::new(crate::expr::ast::ExprNode::Raw {
                 text: "expr_seed_extra".to_owned(),
             }),

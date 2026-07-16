@@ -33,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "update",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),

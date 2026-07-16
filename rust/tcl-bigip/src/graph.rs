@@ -73,9 +73,9 @@ pub struct ObjectNode {
 /// + the iRules command registry, built once and reused across sources.
 pub struct GraphContext {
     index: ObjectTypeIndex,
-    /// Tcl command registry with the iRules dialect loaded, for the iRule edge
-    /// walker.
-    irules_registry: tcl_registry::CommandRegistry,
+    /// The profile-stamped iRules command registry (cached, §9 subtractive
+    /// rules applied), for the iRule edge walker.
+    irules_registry: &'static tcl_registry::CommandRegistry,
 }
 
 impl GraphContext {
@@ -84,8 +84,8 @@ impl GraphContext {
     pub fn new() -> Self {
         let registry = BigipRegistry::build();
         let index = ObjectTypeIndex::build(&registry);
-        let mut irules_registry = tcl_registry::CommandRegistry::build_default();
-        irules_registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        let irules_registry =
+            tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
         Self {
             index,
             irules_registry,
@@ -98,7 +98,7 @@ impl GraphContext {
     /// rather than rebuild one.
     #[must_use]
     pub fn irules_registry(&self) -> &tcl_registry::CommandRegistry {
-        &self.irules_registry
+        self.irules_registry
     }
 }
 
@@ -643,7 +643,7 @@ pub fn build_bigip_object_graph(
         nodes_by_uri.push((uri.clone(), build_objects_for_source(uri, source, ctx)));
     }
     let reg = default_registry();
-    let edges = build_forward_edges(&nodes_by_uri, configs, reg, &ctx.irules_registry);
+    let edges = build_forward_edges(&nodes_by_uri, configs, reg, ctx.irules_registry);
     ObjectGraph {
         nodes_by_uri,
         edges,

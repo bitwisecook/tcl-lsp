@@ -265,7 +265,7 @@ enum Status {
 /// Namespaced ensemble *implementation* commands (`::tcl::…`) stay in the set so
 /// their classification is explicit.
 fn core_commands() -> BTreeSet<String> {
-    use tcl_registry::dialects::DialectSet;
+    use tcl_dialect::DialectSet;
     tcl_registry::commands::tcl::tcl_command_specs()
         .iter()
         .filter(|s| s.required_package.is_none())

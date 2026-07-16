@@ -1091,7 +1091,7 @@ fn extract_inline_actions(
     // the code-action signature (the data-group transform self-gates on
     // the registry resolving a `class` form).
     let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+    registry.load_dialect(tcl_dialect::DialectSet::IRULES);
     let mut out = Vec::new();
     out.extend(extract_proc_action(source, range));
     out.extend(inline_proc_action(source, range, analysis, &registry));

@@ -43,35 +43,17 @@ use tcl_cli_support::{OutputTarget, ensure_ascii, write_text_output};
 /// `docs/kcs/features/*.md`) into `$OUT_DIR` and embedded here.
 static KCS_DB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/kcs_help.db"));
 
-/// Per-dialect substring terms used to filter help entries.
-/// `all` (and any unknown dialect) yields no terms,
-/// meaning "no filtering".
+/// Per-dialect substring terms used to filter help entries — the
+/// profile catalog's `help_terms` (dialect-profile model §5.4), so alias
+/// spellings (`irules` → `f5-irules`) filter like the canonical name and
+/// the term sets can never drift from the dialect model. `all` (and any
+/// unknown dialect, via the permissive fallback's empty set) yields no
+/// terms, meaning "no filtering".
 fn dialect_terms(dialect: &str) -> &'static [&'static str] {
     match dialect {
-        "synopsys-eda-tcl" => &[
-            "synopsys",
-            "dc_shell",
-            "design_compiler",
-            "primetime",
-            "icc2",
-            "formality",
-        ],
-        "cadence-eda-tcl" => &[
-            "cadence",
-            "genus",
-            "innovus",
-            "tempus",
-            "xcelium",
-            "encounter",
-        ],
-        "xilinx-eda-tcl" => &["xilinx", "vivado", "vitis", "amd", "fpga", "ise"],
-        "intel-quartus-eda-tcl" => &["quartus", "intel", "altera", "fpga", "quartus_sh"],
-        "mentor-eda-tcl" => &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
-        "f5-iapps" => &["iapps", "iapp", "f5", "big-ip"],
-        "f5-bigip" => &["bigip", "big-ip", "bigip.conf", "f5", "ltm", "gtm"],
-        "f5-irules" => &["irules", "irule", "f5", "big-ip", "tmm", "event"],
-        "tcl8.4" | "tcl8.5" | "tcl8.6" | "tcl9.0" => &["tcl", "tk"],
-        _ => &[],
+        // The explicit "everything" selector — not a dialect name.
+        "all" => &[],
+        name => tcl_dialect::DialectProfile::by_name(name).help_terms,
     }
 }
 

@@ -46,7 +46,6 @@
 
 use bitflags::bitflags;
 
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::prelude::StorageType as RegistryStorageType;
 use tcl_registry::side_effects::{
     ConnectionSide as RegistryConnectionSide, SideEffect as RegistrySideEffect,
@@ -891,7 +890,7 @@ fn classify_variable_assignment(
     let is_write = args.len() > idx + 1 || rmw;
     let is_read = rmw || args.len() == idx + 1;
 
-    let is_irules = matches!(dialect, Some("irules" | "f5-irules"));
+    let is_irules = crate::taint::is_irules_dialect(dialect);
     let side = if is_irules {
         match scope {
             StorageScope::Static => ConnectionSide::Global,
@@ -1029,8 +1028,15 @@ fn lift_registry_effect(e: RegistrySideEffect, dialect: Option<&str>) -> SideEff
 fn spec_in_dialect(spec: &CommandSpec, filter: Option<&str>) -> bool {
     match filter {
         None => true,
-        Some(name) => match DialectSet::parse(name) {
-            Some(set) => spec.supports_dialect(set),
+        // Profile availability: composed mask + the iRules disable list
+        // (§9 — a banned command's hints never fire under f5-irules). A
+        // name with no catalog profile (`tk`) keeps the conservative
+        // universal-spec-only rule.
+        Some(name) => match tcl_dialect::DialectProfile::find(name) {
+            Some(profile) => {
+                use tcl_registry::ProfileQueries;
+                profile.is_available(spec)
+            }
             None => spec.dialects.is_none(),
         },
     }
@@ -1181,7 +1187,7 @@ mod tests {
         // `side_effects`, so callgraph/dataflow reported `NONE` instead of
         // `HTTP_STATE`.
         let mut reg = tcl_registry::CommandRegistry::build_default();
-        reg.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
         for cmd in ["HTTP::uri", "HTTP::path", "HTTP::query"] {
             let ci = classify_side_effects(&reg, cmd, &[], None, None);
             let (reads, writes) = ci.to_effect_regions();
@@ -1543,7 +1549,7 @@ mod tests {
         // `HTTP::header` → (HTTP_STATE, NONE) pure; `insert` → (HTTP_STATE,
         // HTTP_STATE) impure.
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(DialectSet::IRULES);
+        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
 
         let getter = classify_side_effects(
             &registry,
@@ -1585,7 +1591,7 @@ mod tests {
         // (dialect-mismatched specs are skipped). With no dialect requested
         // the hint applies.
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(DialectSet::IRULES);
+        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         // Dialect-agnostic (interproc path): LogIo, region-free, impure.
         let agnostic = classify_side_effects(&registry, "log", &["hi".into()], None, None);
         assert!(!agnostic.pure);

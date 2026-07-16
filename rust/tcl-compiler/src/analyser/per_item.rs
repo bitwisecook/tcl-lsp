@@ -204,10 +204,9 @@ impl Analyser {
         dialect: &str,
     ) -> Vec<crate::segmenter::SegmentedCommand> {
         use std::collections::HashSet;
-        use tcl_registry::CommandRegistry;
 
         self.source = source.to_string();
-        self.dialect = dialect.to_string();
+        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
             self.disabled_diagnostics.insert(code.clone());
@@ -226,11 +225,7 @@ impl Analyser {
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
-        let mut registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            registry.load_dialect(d);
-        }
-        self.registry = Some(registry);
+        self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
         self.line_offsets = Some(super::state::compute_line_offsets(source));
         // Same recovery known-command universe as `Analyser::analyse` — see
         // `recovery_known_commands` — so per-item analysis matches the
@@ -238,7 +233,7 @@ impl Analyser {
         // test gates this).
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
-            self.registry.as_ref().expect("registry just stashed"),
+            self.registry.expect("registry just stashed"),
             &self.extra_commands,
         );
         let known: HashSet<&str> = self
@@ -575,11 +570,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     non_ascii: super::state::NonAsciiMode,
     stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
 ) -> BodyFragment {
-    use tcl_registry::CommandRegistry;
     // Rebuild into the default-hasher set `Analyser` stores.
     let disabled: std::collections::HashSet<String> = disabled.iter().cloned().collect();
     let mut a = Analyser::with_disabled_diagnostics(disabled).with_non_ascii_mode(non_ascii);
-    a.dialect = dialect.to_string();
+    a.profile = tcl_dialect::DialectProfile::by_name(dialect);
     a.stub_overlay = stub_overlay;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).
@@ -588,11 +582,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // representable (and never occurs), so clamp to `u32::MAX`.
     let body_len = u32::try_from(db.body_text.len()).unwrap_or(u32::MAX);
     let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, body_len));
-    let mut registry = CommandRegistry::build_default();
-    if let Some(d) = tcl_registry::prelude::DialectSet::parse(dialect) {
-        registry.load_dialect(d);
-    }
-    a.registry = Some(registry);
+    a.registry = Some(tcl_registry::cache::registry_for_profile(a.profile));
     a.line_offsets = Some(super::state::compute_line_offsets(&a.source));
     // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
     // global scope, so the graft can replay them on the shell's real globals.

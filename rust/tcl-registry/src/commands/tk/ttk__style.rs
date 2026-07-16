@@ -39,14 +39,17 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "create",
                     detail: "Create a new element.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "names",
                     detail: "Return a list of all registered element names.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "options",
                     detail: "Return the list of options for an element.",
+                    min_tcl: None,
                 },
             ],
         )],
@@ -84,18 +87,22 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "create",
                     detail: "Create a new theme.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "names",
                     detail: "Return a list of available theme names.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "settings",
                     detail: "Evaluate a script in the context of a theme.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "use",
                     detail: "Set the current theme.",
+                    min_tcl: None,
                 },
             ],
         )],

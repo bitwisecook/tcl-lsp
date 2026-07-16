@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exec",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SINK | Traits::TAINT_SOURCE | Traits::UNSAFE,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),

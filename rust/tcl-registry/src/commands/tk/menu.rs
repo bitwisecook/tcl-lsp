@@ -117,22 +117,27 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "cascade",
                     detail: "A cascade entry that posts another menu.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "checkbutton",
                     detail: "A checkbutton entry with an on/off indicator.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "command",
                     detail: "A command entry that invokes a Tcl command.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "radiobutton",
                     detail: "A radiobutton entry with a mutual-exclusion indicator.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "separator",
                     detail: "A separator line between groups of entries.",
+                    min_tcl: None,
                 },
             ],
         )],
@@ -186,22 +191,27 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "cascade",
                     detail: "A cascade entry that posts another menu.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "checkbutton",
                     detail: "A checkbutton entry with an on/off indicator.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "command",
                     detail: "A command entry that invokes a Tcl command.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "radiobutton",
                     detail: "A radiobutton entry with a mutual-exclusion indicator.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "separator",
                     detail: "A separator line between groups of entries.",
+                    min_tcl: None,
                 },
             ],
         )],

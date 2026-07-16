@@ -50,18 +50,22 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "exists",
                     detail: "Returns a boolean indicating whether a default value has been set for the array.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "get",
                     detail: "Returns the current default value for the array.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "set",
                     detail: "Sets the default value for the array to value.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "unset",
                     detail: "Removes the default value for the array.",
+                    min_tcl: None,
                 },
             ],
         )],

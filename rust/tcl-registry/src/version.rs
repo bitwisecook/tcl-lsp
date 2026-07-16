@@ -129,6 +129,25 @@ pub fn requirement_lower_bound(requirement: &str) -> &str {
     req
 }
 
+/// Whether `version` falls inside the closed range `[min, max]` (either
+/// bound absent = unbounded on that side). The versioned-library axis's
+/// range test: `min` is the introducing release (or the axis baseline),
+/// `max` the removing one (open today — nothing modelled is removed).
+#[must_use]
+pub fn within_range(version: &str, min: Option<&str>, max: Option<&str>) -> bool {
+    if let Some(min) = min
+        && !meets_min(version, min)
+    {
+        return false;
+    }
+    if let Some(max) = max
+        && compare(version, max).is_gt()
+    {
+        return false;
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

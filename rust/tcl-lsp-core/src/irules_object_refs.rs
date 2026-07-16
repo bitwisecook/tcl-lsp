@@ -33,7 +33,7 @@ mod tests {
 
     fn spans(src: &str) -> Vec<(usize, &str)> {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
         object_ref_spans(src, &reg)
             .into_iter()
             .map(|s| (s.start() as usize, &src[s.as_range()]))

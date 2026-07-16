@@ -30,7 +30,6 @@ use std::collections::HashSet;
 
 use tcl_irules::extract_irules_object_references;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 
 use crate::model::ModelObject;
@@ -609,8 +608,7 @@ pub fn run_lint(
     let empty_when_re = regex::Regex::new(r"when\s+[A-Z_][A-Z0-9_]*\s*\{\s*(?:#[^\n]*\n\s*)*\}")
         .expect("static regex");
     let events = EventRegistry::build();
-    let mut irules_registry = CommandRegistry::build_default();
-    irules_registry.load_dialect(DialectSet::IRULES);
+    let irules_registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
     let mut findings: Vec<Finding> = Vec::new();
 
@@ -629,7 +627,7 @@ pub fn run_lint(
         rule_irule_deprecated_command(&view, &mut findings);
         rule_irule_empty_when(&view, &empty_when_re, &mut findings);
         rule_irule_unknown_event(&view, &when_re, &events, &mut findings);
-        rule_irule_missing_object(&view, &irules_registry, &mut findings);
+        rule_irule_missing_object(&view, irules_registry, &mut findings);
     }
 
     if let Some(sev) = severity {

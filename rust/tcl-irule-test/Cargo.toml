@@ -40,6 +40,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-bigip = { path = "../tcl-bigip" }
 tcl-vm = { path = "../tcl-vm" }
 tcl-compiler = { path = "../tcl-compiler" }

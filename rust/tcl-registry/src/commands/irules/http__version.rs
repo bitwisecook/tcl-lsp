@@ -55,14 +55,17 @@ pub const fn spec() -> CommandSpec {
                 ArgValue {
                     value: "0.9",
                     detail: "HTTP/0.9",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "1.0",
                     detail: "HTTP/1.0",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "1.1",
                     detail: "HTTP/1.1",
+                    min_tcl: None,
                 },
             ],
         )],

@@ -71,11 +71,15 @@ runtime-vs-signature split below).
 | `mentor-eda-tcl` | `tcl8.5` | Mentor ModelSim/Questa |
 | `expect` | `tcl8.6` | Expect |
 
-Note: a dialect's **signature base** (which commands are available) may
-differ from its **runtime base** (how commands behave).  iRules loads
-`tcl8.6` signatures for command availability, but its runtime is Tcl 8.4.6,
-so version-dependent behaviour like `incr` on uninitialised variables
-follows 8.4 semantics.
+Note: a dialect's **signature base** (which commands are available) and its
+**runtime base** (how commands behave) are modelled as two deliberately
+separate fields (`docs/design/dialect-profile-model.md` §2.1).  For iRules
+both are Tcl 8.4 — RATIFIED (D3): iRules embeds a genuine Tcl 8.4.6 and
+nothing is backported at any BIG-IP version, so `dict`/`lassign` (8.5) and
+`lmap`/`throw` (8.6) are never present, and version-dependent behaviour
+like `incr` on uninitialised variables follows 8.4 semantics.  The F5
+command surface (`HTTP::*`, `pool`, …) is a *versioned library* keyed by
+BIG-IP version, orthogonal to the pinned Tcl base.
 
 ### dialects_since() -- version-gated traits
 

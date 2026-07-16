@@ -199,6 +199,16 @@ pub fn profile_graph_snapshot() -> Json {
         let spec = reg.get_profile(name).expect("listed profile resolves");
         let mut entry = BTreeMap::new();
         entry.insert("name".to_owned(), Json::s(spec.name));
+        entry.insert(
+            "bigipMinVersion".to_owned(),
+            spec.bigip_min_version
+                .or(tcl_dialect::VersionKey::BigipVersion.baseline_version())
+                .map_or(Json::Null, Json::s),
+        );
+        entry.insert(
+            "bigipMaxVersion".to_owned(),
+            spec.bigip_max_version.map_or(Json::Null, Json::s),
+        );
         // The Rust crate stores `tls_shared` for the shared TLS/persistence
         // layer (PERSIST / SSL_PERSISTENCE) to drive its infrastructure logic;
         // both are reported as `tls`.
@@ -416,6 +426,19 @@ fn event_props_json(props: &crate::events::EventProps) -> Json {
         many => Json::str_array(sorted(many)),
     };
     let mut obj = BTreeMap::new();
+    // Declared BIG-IP range: explicit introduction data, or the 15.0 axis
+    // baseline; `null` max = still present.
+    obj.insert(
+        "bigipMinVersion".to_owned(),
+        props
+            .bigip_min_version
+            .or(tcl_dialect::VersionKey::BigipVersion.baseline_version())
+            .map_or(Json::Null, Json::s),
+    );
+    obj.insert(
+        "bigipMaxVersion".to_owned(),
+        props.bigip_max_version.map_or(Json::Null, Json::s),
+    );
     obj.insert("client_side".to_owned(), Json::Bool(props.client_side));
     obj.insert("server_side".to_owned(), Json::Bool(props.server_side));
     obj.insert("transport".to_owned(), transport);
@@ -442,13 +465,13 @@ fn event_props_json(props: &crate::events::EventProps) -> Json {
 #[must_use]
 pub fn event_graph_snapshot() -> Json {
     use crate::events::EventRegistry;
-    use crate::registry::CommandRegistry;
 
     let dialect = "f5-irules";
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
-    let mut cmds = CommandRegistry::build_default();
-    cmds.load_irules();
+    // The profile-stamped registry: the §9 subtractive rules govern the
+    // per-event valid-command digests, exactly as they govern `event-info`.
+    let cmds = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
     // Sorted event names.
     let mut names = events.all_event_names();
@@ -456,7 +479,9 @@ pub fn event_graph_snapshot() -> Json {
 
     let mut event_items: Vec<Json> = Vec::with_capacity(names.len());
     for name in &names {
-        let info = cmds.event_info(name, &events, &profiles);
+        // The dump keeps the digest-stable no-filter view; per-version
+        // dumps opt in by passing a pin.
+        let info = cmds.event_info(name, &events, &profiles, None);
         let mut entry = BTreeMap::new();
         entry.insert("event".to_owned(), Json::s(*name));
         entry.insert(

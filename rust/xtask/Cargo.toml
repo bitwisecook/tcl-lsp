@@ -32,6 +32,7 @@ name = "xtask"
 path = "src/main.rs"
 
 [dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
 clap = { version = "4", features = ["derive", "wrap_help"] }
 anyhow = "1"
 regex = "1"

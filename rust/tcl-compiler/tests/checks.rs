@@ -1852,11 +1852,13 @@ mod builtin_shadow {
 }
 
 // ===========================================================================
-// W200 — binary format signed/unsigned modifier requires Tcl 8.5+.
+// W200 — binary format signed/unsigned modifier requires Tcl 8.5+ (TIP 275).
 //
-// Dialect-gated: `binary format su …` is a Tcl 8.5+ feature, so it warns under
-// tcl8.4 (and f5-irules / f5-iapps, whose Tcl base predates it) but is clean
-// under 8.6.
+// Version-gated on the dialect's *effective Tcl version* (the §6
+// argument-DSL rung): it warns under 8.4-based runtimes (tcl8.4, iRules'
+// embedded 8.4.6) and is clean from 8.5 up — including f5-iapps, whose
+// host embeds a real Tcl 8.5.13 (the old hardcoded dialect list wrongly
+// flagged it).
 // ===========================================================================
 mod binary_format_modifiers {
     use super::*;
@@ -1869,7 +1871,9 @@ mod binary_format_modifiers {
         assert_eq!(ds[0].1, Severity::Warning);
         assert_eq!(count("binary scan $data su x", "tcl8.4", "W200"), 1);
         assert_eq!(count("binary format su $val", IR, "W200"), 1);
-        assert_eq!(count("binary format su $val", "f5-iapps", "W200"), 1);
+        // iApps embed Tcl 8.5.13 — the u/s modifiers are real there, and
+        // flagging them was a false positive the profile model fixed.
+        assert_eq!(count("binary format su $val", "f5-iapps", "W200"), 0);
     }
 
     #[test]

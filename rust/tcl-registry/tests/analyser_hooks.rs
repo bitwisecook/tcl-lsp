@@ -27,7 +27,7 @@
 
 use std::collections::BTreeSet;
 
-use tcl_registry::dialects::DialectSet;
+use tcl_dialect::DialectSet;
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::{CommandRegistry, CommandTableEffect, Traits};
 

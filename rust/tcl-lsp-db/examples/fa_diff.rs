@@ -40,6 +40,7 @@ fn main() {
         tcl_compiler::analyser::NonAsciiMode::Default,
         Vec::new(),
         None,
+        None,
     );
     let file = SourceFile::new(&db, src.clone(), dialect.clone(), None);
     let inc = file_analysis_incremental(&db, file, cfg);

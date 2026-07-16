@@ -24,7 +24,8 @@ use std::path::Path;
 
 use serde::Serialize;
 use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
-use tcl_registry::dialects::DialectSet;
+use tcl_dialect::DialectProfile;
+use tcl_registry::ProfileQueries;
 
 /// JSON payload when the command resolves (fields are emitted in a fixed order).
 #[derive(Serialize)]
@@ -59,16 +60,21 @@ pub fn run_command_info(
         anyhow::bail!("command name is required");
     }
     let registry = registry_for_dialect(dialect);
+    let profile = DialectProfile::by_name(dialect);
     let target = OutputTarget::from_arg(output);
 
-    // Exact match, then a case-insensitive fallback (mirrors lookup_command_info).
-    let resolved_name: Option<String> = if registry.get(query).is_some() {
+    // Exact match, then a case-insensitive fallback (mirrors
+    // lookup_command_info). Resolution is dialect-true (§5.1): a command
+    // that exists in the data but is unavailable under `dialect` — banned
+    // in iRules, version-gated above the profile's base — reports
+    // not-found for that dialect.
+    let resolved_name: Option<String> = if profile.resolve_command(registry, query).is_some() {
         Some(query.to_owned())
     } else {
         let lowered = query.to_lowercase();
         registry
             .command_names()
-            .find(|c| c.to_lowercase() == lowered)
+            .find(|c| c.to_lowercase() == lowered && profile.resolve_command(registry, c).is_some())
             .map(str::to_owned)
     };
 
@@ -92,7 +98,9 @@ pub fn run_command_info(
         return Ok(1);
     };
 
-    let spec = registry.get(&resolved_name).expect("resolved command spec");
+    let spec = profile
+        .resolve_command(registry, &resolved_name)
+        .expect("resolved command spec");
     let summary = spec
         .hover
         .as_ref()
@@ -102,8 +110,10 @@ pub fn run_command_info(
         .as_ref()
         .map(|h| h.synopsis.iter().map(|s| (*s).to_owned()).collect())
         .unwrap_or_default();
-    let mut switches: Vec<String> = spec
-        .switch_names(DialectSet::parse(dialect))
+    // §5.2 option gating (intersects + version ceiling) — the same rule
+    // hover/completion/the snapshot use.
+    let mut switches: Vec<String> = profile
+        .available_option_names(spec)
         .into_iter()
         .map(str::to_owned)
         .collect();

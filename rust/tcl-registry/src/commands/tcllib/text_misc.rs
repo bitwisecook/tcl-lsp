@@ -31,18 +31,22 @@ const NORMAL_FORMS: &[ArgValue] = &[
     ArgValue {
         value: "D",
         detail: "Canonical decomposition (NFD).",
+        min_tcl: None,
     },
     ArgValue {
         value: "C",
         detail: "Canonical decomposition then composition (NFC).",
+        min_tcl: None,
     },
     ArgValue {
         value: "KD",
         detail: "Compatibility decomposition (NFKD).",
+        min_tcl: None,
     },
     ArgValue {
         value: "KC",
         detail: "Compatibility decomposition then composition (NFKC).",
+        min_tcl: None,
     },
 ];
 

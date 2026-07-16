@@ -21,9 +21,9 @@
 //! bodies, `if` conditions, and GTM pool fan-out against fixed expected outputs.
 //! Self-contained — runs entirely in-process.
 
+use tcl_dialect::DialectSet;
 use tcl_irules::extract_irules_object_references;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 
 #[test]
 fn walker_matches_golden() {

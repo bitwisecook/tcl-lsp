@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_load",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         // `auto_load cmd ?namespace?` — the optional namespace argument makes
         // the real arity 1–2, not exactly 1 (verified against tclsh 9.0.4:

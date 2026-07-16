@@ -72,6 +72,7 @@ pub mod hooks;
 pub mod hover;
 pub mod patterns;
 pub mod profile_defaults;
+pub mod profile_queries;
 pub mod profiles;
 pub mod registry;
 pub mod scoped;
@@ -129,7 +130,7 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use byte_array_effect::ByteArrayEffect;
-pub use cache::registry_for_dialect;
+pub use cache::{registry_for_dialect, registry_for_profile};
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_table::CommandTableEffect;
 pub use dialects::{
@@ -138,6 +139,7 @@ pub use dialects::{
 };
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
+pub use profile_queries::{ProfileQueries, VendorSurface};
 pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
 pub use spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ObjectClassSpec, SubCommand,

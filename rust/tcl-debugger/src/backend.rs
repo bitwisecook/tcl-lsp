@@ -172,6 +172,9 @@ impl VmBackend {
         let sink = Rc::clone(&trace);
 
         let mut vm = Vm::new();
+        // The debugger VM runs the plain-Tcl profile's pinned release
+        // (dialect-profile model §5.4).
+        vm.set_runtime_version(tcl_dialect::DialectProfile::by_name("tcl9.0").vm_runtime_version);
         vm.set_compiler(Box::new(Svc(registry)));
         vm.set_debug_hook(Some(Box::new(move |snap: &DebugSnapshot| {
             sink.borrow_mut().push(snap.clone());

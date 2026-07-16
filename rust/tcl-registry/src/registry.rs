@@ -50,6 +50,13 @@ const FRAME_SENSITIVE_TRAITS: Traits = Traits::TERMINATES_BLOCK
 pub struct EventInfo {
     /// The upper-cased event name as queried.
     pub event: String,
+    /// The BIG-IP release this event is declared present from — explicit
+    /// data, or the axis baseline (15.0.0) for a known event with none.
+    /// `None` only for unknown events.
+    pub bigip_min_version: Option<&'static str>,
+    /// The last BIG-IP release providing this event; `None` = still
+    /// present (the open maximum).
+    pub bigip_max_version: Option<&'static str>,
     /// Whether the event is a recognised iRules event.
     pub known: bool,
     /// Whether the event is deprecated (always `false`; see
@@ -135,6 +142,11 @@ const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT
 pub struct CommandRegistry {
     by_name: FxHashMap<String, Vec<CommandSpec>>,
     loaded_dialects: DialectSet,
+    /// The dialect profile this registry was built for, when it came from
+    /// `registry_for_profile` / `registry_for_dialect`. `None` for
+    /// hand-assembled registries (tests, ad-hoc tools), which fall back to
+    /// the `loaded_dialects`-derived behaviour answers.
+    profile: Option<&'static tcl_dialect::DialectProfile>,
 }
 
 /// The set of command names registered by *every* dialect, built once and
@@ -243,6 +255,7 @@ impl CommandRegistry {
         let mut registry = Self {
             by_name: FxHashMap::default(),
             loaded_dialects: DialectSet::empty(),
+            profile: None,
         };
         for spec in crate::commands::tcl::tcl_command_specs() {
             registry.insert(spec);
@@ -284,6 +297,10 @@ impl CommandRegistry {
             d if d == DialectSet::BPF => crate::commands::bpf::bpf_command_specs(),
             d if d == DialectSet::IRULES => crate::commands::irules::irules_command_specs(),
             d if d == DialectSet::IAPPS => crate::commands::iapps::iapps_command_specs(),
+            // The tmsh shell's own pack: the `tmsh::` surface shared with
+            // iApps (tagged `IAPPS|TMSH`), without the iApp-only commands
+            // (Milestone 6, D8).
+            d if d == DialectSet::TMSH => crate::commands::iapps::tmsh_command_specs(),
             d if d == DialectSet::TK => crate::commands::tk::tk_command_specs(),
             d if d == DialectSet::EXPECT => crate::commands::expect::expect_command_specs(),
             d if d == DialectSet::SYNOPSYS => {
@@ -347,7 +364,38 @@ impl CommandRegistry {
     /// load a Tcl-9 version bit) reads leading zeros as octal.
     #[must_use]
     pub fn leading_zero_is_octal(&self) -> bool {
-        !self.loaded_dialects.intersects(DialectSet::TCL90_PLUS)
+        self.octal_fold_policy().unwrap_or(true)
+    }
+
+    /// The three-valued leading-zero fold policy for this registry's
+    /// dialect. A profile-built registry (`registry_for_profile` /
+    /// `registry_for_dialect`) answers from the profile's runtime base:
+    /// `Some(true)` = 8.x octal, `Some(false)` = 9.x decimal (`bpf`
+    /// included, D7), `None` = abstain — no Tcl runtime to have an opinion
+    /// (`f5-bigip`, the unknown-dialect fallback; §11.1 of the
+    /// dialect-profile model). A hand-assembled registry keeps the
+    /// historical `loaded_dialects` derivation (a version pack records its
+    /// bit, so a 9.x load reads decimal).
+    #[must_use]
+    pub fn octal_fold_policy(&self) -> Option<bool> {
+        match self.profile {
+            Some(p) => p.leading_zero_is_octal.as_bool(),
+            None => Some(!self.loaded_dialects.intersects(DialectSet::TCL90_PLUS)),
+        }
+    }
+
+    /// Stamp the dialect profile this registry serves. Called by the
+    /// per-profile cache (`registry_for_profile`) so behaviour queries
+    /// (`octal_policy`, future runtime projections) answer from the
+    /// profile rather than re-deriving from loaded packs.
+    pub(crate) fn set_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        self.profile = Some(profile);
+    }
+
+    /// The dialect profile this registry was built for, if any.
+    #[must_use]
+    pub fn profile(&self) -> Option<&'static tcl_dialect::DialectProfile> {
+        self.profile
     }
 
     /// Insert a command spec into the registry.
@@ -391,9 +439,18 @@ impl CommandRegistry {
             .and_then(|v| v.last())
     }
 
-    /// Look up a command spec filtered by dialect.
+    /// Look up a command spec filtered by dialect, picking the
+    /// **most-specific** visible spec (`best_visible` — §5.3's single
+    /// selection rule).
     ///
     /// As with [`Self::get`], a leading `::` falls back to the bare name.
+    ///
+    /// A registry built for a dialect profile additionally applies that
+    /// profile's SUBTRACTIVE rules ([`Self::spec_visible`]) whenever the
+    /// queried mask concerns the profile's own availability — so a bare
+    /// `IRULES` mask query on the f5-irules registry can never re-admit a
+    /// banned command, no matter which consumer asks
+    /// (dialect-profile-model.md §9.2).
     #[must_use]
     pub fn get_for_dialect(&self, name: &str, dialect: DialectSet) -> Option<&CommandSpec> {
         self.by_name
@@ -402,7 +459,62 @@ impl CommandRegistry {
                 name.strip_prefix("::")
                     .and_then(|bare| self.by_name.get(bare))
             })
-            .and_then(|specs| specs.iter().rev().find(|s| s.supports_dialect(dialect)))
+            .and_then(|specs| self.best_visible(specs, dialect))
+    }
+
+    /// The single spec-selection rule (§5.3, D6): among the specs of one
+    /// name visible under `dialect`, pick the **most specific** — a
+    /// dialect-scoped spec beats a catch-all (`dialects: None`), a tighter
+    /// scope (fewer mask bits) beats a wider one, and among equals the
+    /// *last-registered* spec wins, so curated pack overrides keep beating
+    /// the data they shadow. `get_for_dialect`, the iRules event
+    /// cross-product, and (via `ProfileQueries::resolve_command`) the CLI
+    /// snapshot all resolve through this one rule.
+    fn best_visible<'a>(
+        &self,
+        specs: &'a [CommandSpec],
+        dialect: DialectSet,
+    ) -> Option<&'a CommandSpec> {
+        specs
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| self.spec_visible(s, dialect))
+            .max_by_key(|&(index, s)| {
+                let scope_tightness =
+                    std::cmp::Reverse(s.dialects.map_or(u32::MAX, |d| d.bits().count_ones()));
+                (s.dialects.is_some(), scope_tightness, index)
+            })
+            .map(|(_, s)| s)
+    }
+
+    /// The full availability test for a mask query on this registry: the
+    /// spec's own dialect gate, plus — when this registry was built for a
+    /// profile and the query concerns that profile's availability — the
+    /// profile's subtractive disable list (§9) and, for a profile whose
+    /// operators are not command heads, the operator-command exclusion.
+    ///
+    /// Public because generators projecting a command surface for an
+    /// explicit mask (the Zed highlight queries project the profile's
+    /// `grammar_union`, not its `availability_mask`) need the same
+    /// subtractive semantics `get_for_dialect` applies internally.
+    #[must_use]
+    pub fn spec_visible(&self, spec: &CommandSpec, dialect: DialectSet) -> bool {
+        if !spec.supports_dialect(dialect) {
+            return false;
+        }
+        let Some(profile) = self.profile else {
+            return true;
+        };
+        if !dialect.intersects(profile.availability_mask) {
+            // The query is about some other dialect's availability; this
+            // profile's subtractive rules do not apply to it.
+            return true;
+        }
+        !(profile.is_command_disabled(spec.name)
+            || (!profile.operators_as_commands
+                && spec
+                    .traits
+                    .contains(crate::traits::Traits::OPERATOR_COMMAND)))
     }
 
     /// Return all registered command names.
@@ -512,8 +624,9 @@ impl CommandRegistry {
     /// Return every registered [`CommandSpec`] for `name` (all dialects),
     /// in registration order. Empty when the name is unknown.
     ///
-    /// Used by the registry-snapshot builder's order-independent
-    /// `resolve_spec`.
+    /// This is the raw data view — resolution (which spec *wins* under a
+    /// dialect) goes through [`Self::get_for_dialect`]'s most-specific
+    /// rule.
     #[must_use]
     pub fn specs(&self, name: &str) -> &[CommandSpec] {
         self.by_name.get(name).map_or(&[], Vec::as_slice)
@@ -564,20 +677,34 @@ impl CommandRegistry {
         event: &str,
         events: &crate::events::EventRegistry,
         profiles: &crate::profiles::ProfileRegistry,
+        bigip_version: Option<&str>,
     ) -> Vec<&'a str> {
         let Some(props) = events.get_props(event) else {
             return Vec::new();
+        };
+        // The declared version range for an F5-surface spec: explicit
+        // introduction/removal data, or the axis baseline (15.0) for a
+        // spec with none. `bigip_version: None` keeps the pre-version
+        // behaviour (no filtering) so digest-stable callers opt in.
+        let version_ok = |spec: &CommandSpec| {
+            let Some(version) = bigip_version else {
+                return true;
+            };
+            let min = spec
+                .min_version
+                .or(tcl_dialect::VersionKey::BigipVersion.baseline_version());
+            crate::version::within_range(version, min, spec.max_version)
         };
         let mut names: Vec<&str> = self
             .by_name
             .iter()
             .filter_map(|(name, specs)| {
-                // Best spec for the dialect — reversed so curated overrides
-                // win, matching `get_for_dialect` / `get`.
-                let spec = specs
-                    .iter()
-                    .rev()
-                    .find(|s| s.supports_dialect(DialectSet::IRULES))?;
+                // Best spec for the dialect — the §5.3 most-specific rule,
+                // matching `get_for_dialect`.
+                let spec = self.best_visible(specs, DialectSet::IRULES)?;
+                if !version_ok(spec) {
+                    return None;
+                }
                 if spec.excluded_events.contains(&event) {
                     return None;
                 }
@@ -659,11 +786,16 @@ impl CommandRegistry {
         event: &str,
         events: &crate::events::EventRegistry,
         profiles: &crate::profiles::ProfileRegistry,
+        bigip_version: Option<&str>,
     ) -> EventInfo {
         let name = event.trim().to_uppercase();
-        let known = !name.is_empty() && events.is_known(&name);
+        let target = bigip_version
+            .or(tcl_dialect::VersionKey::BigipVersion.default_version())
+            .unwrap_or("16.1.0");
+        let known =
+            !name.is_empty() && events.is_known(&name) && events.event_available_at(&name, target);
         let valid_commands: Vec<String> = if known {
-            self.valid_irules_commands_for_event(&name, events, profiles)
+            self.valid_irules_commands_for_event(&name, events, profiles, Some(target))
                 .into_iter()
                 .map(ToOwned::to_owned)
                 .collect()
@@ -671,7 +803,12 @@ impl CommandRegistry {
             Vec::new()
         };
         let props = events.get_props(&name);
+        let (bigip_min_version, bigip_max_version) = events
+            .event_version_range(&name)
+            .map_or((None, None), |(min, max)| (min, max));
         EventInfo {
+            bigip_min_version,
+            bigip_max_version,
             known,
             deprecated: false,
             multiplicity: events.multiplicity(&name),
@@ -1414,6 +1551,7 @@ impl std::fmt::Debug for CommandRegistry {
         f.debug_struct("CommandRegistry")
             .field("commands", &self.by_name.len())
             .field("loaded_dialects", &self.loaded_dialects)
+            .field("profile", &self.profile.map(|p| p.name))
             .finish()
     }
 }
@@ -1421,6 +1559,70 @@ impl std::fmt::Debug for CommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn get_for_dialect_picks_the_most_specific_visible_spec() {
+        // §5.3/D6 — the single selection rule. Three specs of one name,
+        // registered deliberately most-specific-FIRST so the old
+        // last-match rule would pick the catch-all:
+        //   1. a TCL86-scoped spec (tightest),
+        //   2. a wider TCL86|TCL90 spec,
+        //   3. a catch-all (`dialects: None`).
+        let mut reg = CommandRegistry::build_default();
+        reg.insert(CommandSpec {
+            name: "d6_probe",
+            dialects: Some(DialectSet::TCL86),
+            ..CommandSpec::DEFAULT
+        });
+        reg.insert(CommandSpec {
+            name: "d6_probe",
+            dialects: Some(DialectSet::TCL86.union(DialectSet::TCL90)),
+            ..CommandSpec::DEFAULT
+        });
+        reg.insert(CommandSpec {
+            name: "d6_probe",
+            dialects: None,
+            ..CommandSpec::DEFAULT
+        });
+
+        // Scoped beats catch-all, tighter beats wider — even though the
+        // catch-all was registered last.
+        let under_86 = reg.get_for_dialect("d6_probe", DialectSet::TCL86);
+        assert_eq!(under_86.and_then(|s| s.dialects), Some(DialectSet::TCL86));
+        // Under 9.0 the tightest visible spec is the two-bit one.
+        let under_90 = reg.get_for_dialect("d6_probe", DialectSet::TCL90);
+        assert_eq!(
+            under_90.and_then(|s| s.dialects),
+            Some(DialectSet::TCL86.union(DialectSet::TCL90))
+        );
+        // Where no scoped spec is visible, the catch-all still resolves.
+        let under_84 = reg.get_for_dialect("d6_probe", DialectSet::TCL84);
+        assert!(under_84.is_some_and(|s| s.dialects.is_none()));
+    }
+
+    #[test]
+    fn get_for_dialect_breaks_specificity_ties_by_last_registration() {
+        // Curated pack overrides re-register a name at the same scope; the
+        // later registration must keep winning (the old `.rev()` guarantee,
+        // preserved as the D6 tie-break).
+        let mut reg = CommandRegistry::build_default();
+        reg.insert(CommandSpec {
+            name: "d6_tie",
+            dialects: Some(DialectSet::TCL86),
+            arity: Arity::exact(1), // base data
+            ..CommandSpec::DEFAULT
+        });
+        reg.insert(CommandSpec {
+            name: "d6_tie",
+            dialects: Some(DialectSet::TCL86),
+            arity: Arity::exact(2), // curated override
+            ..CommandSpec::DEFAULT
+        });
+        let won = reg
+            .get_for_dialect("d6_tie", DialectSet::TCL86)
+            .expect("d6_tie resolves");
+        assert_eq!(won.arity, Arity::exact(2), "later registration wins ties");
+    }
 
     #[test]
     fn instance_method_walks_superclasses_breadth_first() {

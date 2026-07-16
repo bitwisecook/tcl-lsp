@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::clear_screen",
-        dialects: Some(DialectSet::IAPPS),
+        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet::brief(
             "Clears the screen.",

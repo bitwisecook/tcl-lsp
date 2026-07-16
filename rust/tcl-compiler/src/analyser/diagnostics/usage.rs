@@ -146,7 +146,7 @@ Use braces: {{ \u{2026} }}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -168,7 +168,7 @@ Use braces: {{ \u{2026} }}"
             s.traits
                 .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
         });
-        let dialect = self.dialect.clone();
+        let dialect = self.dialect();
         // The whole-`expr` argument span (used when the command is
         // `expr`, whose expression is the remaining words).
         let expr_full_span = (!arg_tokens.is_empty()).then(|| {
@@ -210,7 +210,7 @@ Use braces: {{ \u{2026} }}"
             };
             let stripped = text.trim();
             let safe = if is_expr {
-                is_safe_literal_expr(stripped, &dialect)
+                is_safe_literal_expr(stripped, dialect)
             } else {
                 is_safe_literal(stripped)
             };
@@ -340,8 +340,11 @@ Use braces: {{ \u{2026} }}"
     }
 
     /// W200: a `u` / `s` modifier on a `binary format` / `binary
-    /// scan` integer specifier requires Tcl 8.5+; under 8.4-based
-    /// dialects (incl. F5 iRules / iApps) it is unavailable.
+    /// scan` integer specifier requires Tcl 8.5+ (TIP 275). Sites are
+    /// buffered and decided post-walk against the effective Tcl version
+    /// (§6 argument-DSL rung) — the old hardcoded dialect list wrongly
+    /// included f5-iapps, whose host embeds a real Tcl 8.5.13 where the
+    /// modifiers work.
     pub(in crate::analyser) fn emit_w200_binary_format_modifiers(
         &mut self,
         cmd_name: &str,
@@ -356,9 +359,6 @@ Use braces: {{ \u{2026} }}"
             "scan" if args.len() >= 3 => 2,
             _ => return,
         };
-        if !matches!(self.dialect.as_str(), "tcl8.4" | "f5-irules" | "f5-iapps") {
-            return;
-        }
         let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
             return;
         };
@@ -382,15 +382,13 @@ Use braces: {{ \u{2026} }}"
                 && (fmt[i] == b'u' || fmt[i] == b's')
             {
                 let modifier = fmt[i] as char;
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W200,
+                self.dsl_gate_sites.push(super::version_gate::DslGateSite {
                     span: fmt_tok.span,
-                    message: format!(
-                        "signed/unsigned modifier '{modifier}' on binary format specifier \
-                         requires Tcl 8.5+"
+                    code: DiagCode::W200,
+                    what: format!(
+                        "signed/unsigned modifier '{modifier}' on binary format specifier"
                     ),
-                    severity: super::types::Severity::Warning,
-                    fixes: Vec::new(),
+                    min: tcl_dialect::TclVersion::V8_5,
                 });
                 i += 1;
             }
@@ -470,7 +468,7 @@ Use braces: {{ \u{2026} }}"
         // dialects, confusables otherwise).
         let mode = match self.non_ascii_mode {
             NonAsciiMode::Default => {
-                if matches!(self.dialect.as_str(), "f5-irules" | "f5-iapps") {
+                if matches!(self.dialect(), "f5-irules" | "f5-iapps") {
                     NonAsciiMode::Strict
                 } else {
                     NonAsciiMode::Confusables
@@ -806,7 +804,7 @@ Use braces: {{ \u{2026} }}"
         if cmd == "upvar" {
             return upvar_local_name_positions(args);
         }
-        let Some(registry) = self.registry.as_ref() else {
+        let Some(registry) = self.registry else {
             return Vec::new();
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -1092,7 +1090,7 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
             return;
         }
         let trimmed = expr_text.trim();
-        let parsed = crate::parse_expr(trimmed, Some(self.dialect.as_str()));
+        let parsed = crate::parse_expr(trimmed, Some(self.dialect()));
         // ``ExprNode::Raw`` means the expression was unparseable.
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;

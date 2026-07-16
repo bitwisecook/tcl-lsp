@@ -24,7 +24,7 @@
 //! `info commands` — the names below were taken from `info commands {[a-z]*}`
 //! on tclsh9.0 (and all exist on tclsh8.6 too).
 
-use tcl_registry::dialects::DialectSet;
+use tcl_dialect::DialectSet;
 use tcl_registry::{CommandRegistry, TclType, Traits, VarWriteTyping, registry_for_dialect};
 
 /// Commands present in both tclsh8.6 and tclsh9.0 `info commands`.

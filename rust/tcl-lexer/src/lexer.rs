@@ -118,6 +118,7 @@
 //! [`SourcePosition`]: crate::SourcePosition
 //! [`SourcePosition::offset`]: crate::SourcePosition#structfield.offset
 
+use tcl_dialect::BracedVarStyle;
 use thiserror::Error;
 
 use crate::source_map::SourceMap;
@@ -157,30 +158,6 @@ pub struct LexerConfig {
     pub base_col: u32,
 }
 
-/// The dialect's `${…}` variable-name delimiting rule — Tcl 9.0 changed it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum BracedVarStyle {
-    /// Tcl 9.x (and the unversioned default): `Tcl_ParseVarName` tracks
-    /// nested `{…}` pairs and treats `\X` as an inert two-character unit
-    /// inside the braces, so `${a{b}c}` names the variable `a{b}c`
-    /// (tcl9.0.1 `tclParse.c`, the `braceCount` loop).
-    #[default]
-    Tcl9Nesting,
-    /// The 8.x family (8.4–8.6, iRules/iApps, EDA): the name runs to the
-    /// FIRST literal `}` — no nesting, no backslash processing — so
-    /// `${a{b}c}` names `a{b` and `c}` is ordinary word text
-    /// (8.6.14 `tclParse.c:1466`, tclsh-verified).
-    FirstClose,
-}
-
-impl BracedVarStyle {
-    /// Whether this style tracks nested `{…}` / `\X` pairs (the Tcl 9 rule).
-    #[must_use]
-    pub fn nests(self) -> bool {
-        matches!(self, Self::Tcl9Nesting)
-    }
-}
-
 impl Default for LexerConfig {
     fn default() -> Self {
         Self {
@@ -196,47 +173,40 @@ impl Default for LexerConfig {
 }
 
 impl LexerConfig {
-    /// Build a config preset for the given dialect name.
+    /// Build a config from a dialect profile's [`LexerGrammar`] — the
+    /// dialect-derived fields come from the grammar; the call-site knobs
+    /// (strict quoting, sub-lexing offsets) keep their defaults.
+    #[must_use]
+    pub fn from_grammar(grammar: tcl_dialect::LexerGrammar) -> Self {
+        Self {
+            expand_syntax: grammar.expand_syntax,
+            irules_brace_separator: grammar.irules_brace_separator,
+            braced_var: grammar.braced_var,
+            ..Self::default()
+        }
+    }
+
+    /// Build a config preset for the given dialect name, from the dialect
+    /// profile's grammar (`tcl_dialect::DialectProfile::grammar` — the
+    /// single source for `{*}` expansion, the iRules `}{` separator, and
+    /// the `${…}` delimiting rule):
     ///
-    /// * `expand_syntax` — true for Tcl 8.5+ and dialects
-    ///   that build on Tcl 8.5+ (Tk, Expect, EDA flavours).
-    ///   False for Tcl 8.4 and iRules.
+    /// * `expand_syntax` — true for Tcl 8.5+ runtimes and dialects that
+    ///   embed one (iApps, tmsh, Expect, EDA flavours). False for Tcl 8.4
+    ///   and iRules.
     /// * `irules_brace_separator` — true only for iRules.
-    /// * `braced_var` — the `${…}` delimiting rule: [`BracedVarStyle::FirstClose`]
-    ///   for every 8.x-based dialect (8.4–8.6, the F5 dialects, EDA),
-    ///   [`BracedVarStyle::Tcl9Nesting`] for 9.x and unversioned Tcl.
+    /// * `braced_var` — the `${…}` delimiting rule:
+    ///   [`BracedVarStyle::FirstClose`] for every 8.x-runtime dialect
+    ///   (8.4–8.6, the F5 dialects — tmsh included — EDA, and Expect),
+    ///   [`BracedVarStyle::Tcl9Nesting`] for 9.x runtimes (`bpf` embeds
+    ///   Tcl 9.0) and unversioned Tcl.
     ///
-    /// Unknown dialect names fall back to `Self::default()`
-    /// (modern-Tcl semantics) so a typo in a workspace's
-    /// `languageId` doesn't change parsing behaviour.
+    /// Unknown dialect names resolve to the permissive fallback profile
+    /// (modern-Tcl semantics) so a typo in a workspace's `languageId`
+    /// doesn't change parsing behaviour.
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
-        let eight_x_family = matches!(
-            dialect,
-            "tcl8.4" | "tcl8.5" | "tcl8.6" | "f5-irules" | "f5-iapps"
-        ) || dialect.ends_with("-eda-tcl");
-        let braced_var = if eight_x_family {
-            BracedVarStyle::FirstClose
-        } else {
-            BracedVarStyle::Tcl9Nesting
-        };
-        match dialect {
-            "tcl8.4" => Self {
-                expand_syntax: false,
-                braced_var,
-                ..Self::default()
-            },
-            "f5-irules" => Self {
-                expand_syntax: false,
-                irules_brace_separator: true,
-                braced_var,
-                ..Self::default()
-            },
-            _ => Self {
-                braced_var,
-                ..Self::default()
-            },
-        }
+        Self::from_grammar(tcl_dialect::DialectProfile::by_name(dialect).grammar)
     }
 }
 
@@ -1976,17 +1946,19 @@ mod tests {
         assert_eq!(rows[0], (TokenType::Var, "unterminated".into()));
     }
 
-    // `${name}` brace-name parsing follows C Tcl 9.0.3's
-    // `Tcl_ParseVarName` (the project's reference standard — see
+    // `${name}` brace-name parsing under the DEFAULT config follows C Tcl
+    // 9.0.3's `Tcl_ParseVarName` (the project's reference standard — see
     // `docs/rust-rewrite.md` principle #0): inner `{…}` nests with brace
     // counting and `\X` is consumed as a literal pair, so the closer is
     // the first `}` at brace-depth zero. The expectations below were
     // confirmed against `tclsh9.0` (9.0.3) via the variable-name a failed
     // read reports — e.g. `${a\}b}` reads var `a\}b`, `${a{b}c}` reads var
-    // `a{b}c`. NOTE: Tcl 8.4/8.5/8.6 instead stop at the *first* `}` (their
+    // `a{b}c`. Tcl 8.4/8.5/8.6 instead stop at the *first* `}` (their
     // `Tcl_ParseVarName` is `while (numBytes && (*src != '}'))`, no brace
-    // counting, no backslash); the lexer deliberately standardises the
-    // `${…}` parse on 9.0.3 across all dialects.
+    // counting, no backslash) — [`BracedVarStyle::FirstClose`], which every
+    // 8.x-runtime dialect profile selects via `LexerConfig::for_dialect`
+    // (dialect-profile-model.md, Milestone 3; previously the parse was
+    // standardised on 9.0.3 for all dialects).
 
     #[test]
     fn var_braced_escaped_close_brace_is_part_of_name() {
@@ -2947,6 +2919,61 @@ mod tests {
         let default = LexerConfig::default();
         assert_eq!(cfg.expand_syntax, default.expand_syntax);
         assert_eq!(cfg.irules_brace_separator, default.irules_brace_separator);
+        assert_eq!(cfg.braced_var, default.braced_var);
+    }
+
+    #[test]
+    fn for_dialect_braced_var_follows_the_embedded_runtime() {
+        // 8.x runtimes — plain, F5 (tmsh included), EDA, and Expect (an
+        // embedded Tcl 8.6) — use the first-close `${…}` rule. Expect and
+        // f5-tmsh are the dialect-profile fix: the old string-keyed table
+        // missed them and fell through to the modern nesting rule.
+        for d in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+            "expect",
+            "xilinx-eda-tcl",
+            "synopsys-eda-tcl",
+        ] {
+            assert_eq!(
+                LexerConfig::for_dialect(d).braced_var,
+                BracedVarStyle::FirstClose,
+                "{d}"
+            );
+        }
+        // 9.x runtimes nest — bpf embeds Tcl 9.0 (D7).
+        for d in ["tcl9.0", "tcl9.1", "bpf"] {
+            assert_eq!(
+                LexerConfig::for_dialect(d).braced_var,
+                BracedVarStyle::Tcl9Nesting,
+                "{d}"
+            );
+        }
+    }
+
+    #[test]
+    fn expect_braced_var_lexes_to_first_close() {
+        // Behavioural proof of the flip, not just config plumbing:
+        // `${a{b}c}` under expect names the variable `a{b` (the 8.x
+        // first-close rule, 8.6.14 tclParse.c:1466) — the trailing `c}` is
+        // ordinary word text.
+        let src = "set x ${a{b}c}\n";
+        let cfg = LexerConfig::for_dialect("expect");
+        let map = SourceMap::new(src);
+        let tokens = Lexer::with_source_map(map, cfg)
+            .tokenise_all()
+            .expect("lexes");
+        let sm = SourceMap::new(src);
+        let var_texts: Vec<&str> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenType::Var)
+            .map(|t| sm.token_text(*t))
+            .collect();
+        assert_eq!(var_texts, ["a{b"], "expect uses the first-close rule");
     }
 
     // ghost-token recovery

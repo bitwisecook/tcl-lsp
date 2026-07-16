@@ -47,22 +47,27 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "perflow.custom",
                     detail: "Custom perflow variable.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "perflow.scratchpad",
                     detail: "Scratchpad perflow variable.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "perflow.custom.flow",
                     detail: "Custom flow perflow variable.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "perflow.scratchpad.flow",
                     detail: "Scratchpad flow perflow variable.",
+                    min_tcl: None,
                 },
                 ArgValue {
                     value: "perflow.l7_protocol_lookup.result",
                     detail: "L7 protocol lookup result.",
+                    min_tcl: None,
                 },
             ],
         )],

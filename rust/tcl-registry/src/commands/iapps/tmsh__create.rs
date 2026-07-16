@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::create",
-        dialects: Some(DialectSet::IAPPS),
+        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet::brief(
             "Mirrors the tmsh ``create`` command.",

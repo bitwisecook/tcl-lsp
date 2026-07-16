@@ -23,7 +23,7 @@ use crate::prelude::*;
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "cd",
-        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
+        dialects: None,
         arity: Arity::new(0, 1),
         detail: "Get/set the cd header field.",
         synopsis: "DNS::header cd ?value?",

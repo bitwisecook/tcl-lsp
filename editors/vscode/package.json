@@ -3034,6 +3034,13 @@
             "description": "Additional command names to treat as known commands (generic varargs signature).",
             "order": 3
           },
+          "tclLsp.bigipVersion": {
+            "scope": "resource",
+            "type": "string",
+            "default": "",
+            "description": "Target BIG-IP (TMOS) release for version-aware F5 diagnostics (for example 17.1.0). Empty uses the oldest supported release; the modelled data is declared against a 15.0 baseline.",
+            "order": 4
+          },
           "tclLsp.libraryPaths": {
             "scope": "resource",
             "type": "array",
@@ -3856,75 +3863,96 @@
             "markdownDescription": "**W136:** Option requires a newer package version than the resolved `package require`.",
             "order": 27
           },
+          "tclLsp.diagnostics.W137": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W137:** Argument value requires a newer Tcl version than the dialect provides.",
+            "order": 28
+          },
+          "tclLsp.diagnostics.W138": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W138:** Format/scan conversion requires a newer Tcl version than the dialect provides.",
+            "order": 29
+          },
+          "tclLsp.diagnostics.W139": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W139:** Command/option removed at the resolved package version (present only in earlier releases).",
+            "order": 30
+          },
           "tclLsp.diagnostics.W200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 28
+            "order": 31
           },
           "tclLsp.diagnostics.W201": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 29
+            "order": 32
           },
           "tclLsp.diagnostics.W230": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 30
+            "order": 33
           },
           "tclLsp.diagnostics.W231": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 31
+            "order": 34
           },
           "tclLsp.diagnostics.W232": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 32
+            "order": 35
           },
           "tclLsp.diagnostics.W233": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 33
+            "order": 36
           },
           "tclLsp.diagnostics.W240": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
-            "order": 34
+            "order": 37
           },
           "tclLsp.diagnostics.W241": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 35
+            "order": 38
           },
           "tclLsp.diagnostics.W250": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 36
+            "order": 39
           },
           "tclLsp.diagnostics.W308": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 37
+            "order": 40
           }
         }
       },

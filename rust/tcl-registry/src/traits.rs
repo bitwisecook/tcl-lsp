@@ -299,6 +299,15 @@ bitflags! {
         /// errors, not expected teardown noise).
         const FIRE_AND_FORGET_TEARDOWN   = 1 << 62;
 
+        /// Command is a math-operator head (`+`, `eq`, `ne`, `in`, `ni`,
+        /// and the `tcl::mathop::*` spellings): a real callable command in
+        /// every dialect whose profile has `operators_as_commands`, but
+        /// *never* a command head where operators live only inside `expr`
+        /// (F5 iRules; `tk` when modelled). Replaces the retired
+        /// `NON_IRULES_OPERATORS` membership tag as the operator-head
+        /// marker (dialect-profile-model.md §9, Milestone 5).
+        const OPERATOR_COMMAND           = 1 << 63;
+
         /// `TclOO` `next` / `nextto` — invokes the next implementation of the
         /// *currently executing* method along the receiver's MRO. Its
         /// callee's arity is resolvable only from the enclosing method's
