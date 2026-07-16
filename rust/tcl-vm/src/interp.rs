@@ -201,6 +201,19 @@ fn canonical_ns_name(name: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Owned(join_segments(name))
 }
 
+/// [`tcl_syntax::naming::key_holder_and_tail`] for the VM's **unrooted** key
+/// convention: root the key, split by the construction-inverse rule, and
+/// unroot the holder.  Distinct from the written-name colon-run split — an
+/// unrooted key can begin with `::` when a namespace is named `:` (#934), and
+/// the all-colon disambiguation differs between the rooted and unrooted
+/// grammars.
+pub(crate) fn key_holder_and_tail_unrooted(key: &str) -> (String, String) {
+    let rooted = format!("::{key}");
+    let (holder, tail) = tcl_syntax::naming::key_holder_and_tail(&rooted);
+    let holder = holder.strip_prefix("::").unwrap_or(holder);
+    (holder.to_string(), tail.to_string())
+}
+
 /// Quote a trace-callback argument as a single Tcl word: empty or
 /// whitespace-bearing values are brace-wrapped, simple words are passed bare.
 fn tcl_brace(s: &str) -> String {
@@ -820,16 +833,21 @@ impl Vm {
     }
 
     pub(crate) fn register(&mut self, name: &str, f: BuiltinFn) {
-        self.register_command(name, Command::Builtin(f));
+        // Builtin registrations pass plain literals, bare (`set`) or rooted
+        // (`::tcl::array::exists`) — never colon-tree keys — so a single root
+        // strip converts to the canonical unrooted key form exactly.
+        self.register_command(name.strip_prefix("::").unwrap_or(name), Command::Builtin(f));
     }
 
     pub(crate) fn register_command(&mut self, name: &str, cmd: Command) {
-        // The table is keyed by canonical names (no leading `::`).
-        let key = name.strip_prefix("::").unwrap_or(name);
-        // A direct (re)definition at this key is not an import — drop any stale
-        // import provenance so `namespace forget` won't later remove it.
-        self.imported_commands.remove(key);
-        self.commands.insert(key.to_owned(), cmd);
+        // The table is keyed by canonical *unrooted* keys — callers pass
+        // `qualify_name` output (or an unrooted literal) verbatim.  No root
+        // stripping happens here: an unrooted key can itself begin with `::`
+        // when a namespace is legitimately named `:` (#934), so a strip at
+        // this boundary would corrupt it, and a rooted-form caller cannot be
+        // told apart from that key textually.
+        self.imported_commands.remove(name);
+        self.commands.insert(name.to_owned(), cmd);
     }
 
     /// Resolve and remove the command `name`, returning it (for `rename`).
@@ -892,7 +910,11 @@ impl Vm {
             child.make_safe();
         }
         self.children.insert(name.clone(), child);
-        self.register_command(&name, Command::ChildInterp(name.clone()));
+        // The interp *path* name keys `children` as written (interp names are
+        // their own universe, never namespace-parsed); the command it creates
+        // in this interp is an ordinary command name, so its key qualifies.
+        let cmd_key = self.qualify_name(&name);
+        self.register_command(&cmd_key, Command::ChildInterp(name.clone()));
         name
     }
 
@@ -1676,11 +1698,18 @@ impl Vm {
             .ns_paths
             .get(cxt)
             .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect());
+        // Candidates from the shared resolver are rooted constructed keys;
+        // the VM's table is keyed unrooted.  Strip exactly ONE root — a
+        // char-pattern trim would collapse a lone-colon key (`":::"`, the
+        // proc named `:`) into the empty-name `{}` key (#934).
+        let unroot = |c: &str| {
+            c.strip_prefix("::")
+                .map_or_else(|| c.to_string(), String::from)
+        };
         tcl_syntax::naming::resolve_command_with(cxt, &rooted, &name, |candidate| {
-            self.commands
-                .contains_key(candidate.trim_start_matches(':'))
+            self.commands.contains_key(&unroot(candidate))
         })
-        .map(|winner| winner.trim_start_matches(':').to_string())
+        .map(|winner| unroot(&winner))
     }
 
     /// Intern an absolute command FQN to a stable, dense raw `CommandId`, minting
@@ -1731,18 +1760,20 @@ impl Vm {
     /// with the current namespace. Separator runs collapse to the key form
     /// ([`canonical_cmd_key`]), so `foo:::bar` names `foo::bar`.
     pub(crate) fn qualify_name(&self, name: &str) -> String {
-        let own = |s: String| match canonical_cmd_key(&s) {
-            std::borrow::Cow::Borrowed(_) => s,
-            std::borrow::Cow::Owned(o) => o,
-        };
         if name.starts_with("::") {
             return canonical_cmd_key(name).into_owned();
         }
+        // Canonicalise the *written* relative name first, then join the
+        // current namespace key with one exact separator — canonicalising the
+        // concatenation would collapse a lone-colon name into the `{}` key
+        // (#934: `proc :` inside namespace `a` is `a` + `::` + `:`, distinct
+        // from `a::`, the empty-named proc).
+        let canonical = canonical_cmd_key(name);
         let cur = self.current_ns();
         if cur.is_empty() {
-            own(name.to_string())
+            canonical.into_owned()
         } else {
-            own(format!("{cur}::{name}"))
+            format!("{cur}::{canonical}")
         }
     }
 
@@ -1757,6 +1788,22 @@ impl Vm {
     /// shared separator-run-aware split ([`tcl_cmd_core::namespace`]), so a
     /// colon-run name (`a:::b`) registers `a::b` under parent `a` — never a
     /// bogus `a:` (the old `rsplit_once("::")` drift).
+    /// [`Self::declare_namespace`] for an already-canonical **key** (a
+    /// construction-inverse holder): no written-name canonicalisation, which
+    /// would collapse a lone-colon segment (#934), and the parent chain walks
+    /// the construction-inverse split for the same reason.
+    pub(crate) fn declare_namespace_key(&mut self, ns_key: &str) {
+        if ns_key.is_empty() {
+            return;
+        }
+        self.namespaces.insert(ns_key.to_string());
+        self.intern_ns(ns_key);
+        let (parent, _tail) = key_holder_and_tail_unrooted(ns_key);
+        if !parent.is_empty() {
+            self.declare_namespace_key(&parent);
+        }
+    }
+
     pub(crate) fn declare_namespace(&mut self, ns: &str) {
         let ns = canonical_ns_name(ns);
         if ns.is_empty() {
@@ -3081,7 +3128,8 @@ impl Vm {
         self.frames
             .last()
             .and_then(|f| f.proc_name.as_ref())
-            .map(|q| q.rsplit("::").next().unwrap_or(q).to_owned())
+            // `proc_name` is an unrooted key: construction-inverse tail (#934).
+            .map(|q| key_holder_and_tail_unrooted(q).1)
     }
 
     /// Append a `(procedure "<name>" line N)` frame — the frame a proc body adds
@@ -3193,9 +3241,12 @@ impl Vm {
     /// bogus `a:`-style namespace.
     pub(crate) fn define_proc(&mut self, proc: ProcDef) {
         let key = proc.name.clone();
-        let ns = tcl_cmd_core::namespace::qualifiers(key.as_bytes());
-        if !ns.is_empty() {
-            self.declare_namespace(str_slice(ns));
+        // The holder namespace comes from the construction-inverse split of
+        // the (unrooted) key — the written-name colon-run rule would collapse
+        // a lone-colon segment (#934).
+        let (holder, _tail) = key_holder_and_tail_unrooted(&key);
+        if !holder.is_empty() {
+            self.declare_namespace_key(&holder);
         }
         let cmd = Command::Proc(Rc::new(proc));
         self.register_command(&key, cmd);

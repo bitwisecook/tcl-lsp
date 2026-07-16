@@ -653,7 +653,10 @@ fn proc_usage(proc: &ProcDef) -> String {
     let simple = proc
         .usage_name
         .as_deref()
-        .unwrap_or_else(|| proc.name.rsplit("::").next().unwrap_or(&proc.name));
+        // `proc.name` is the VM's unrooted key: construction-inverse tail
+        // (#934) — an `rsplit` would misread a lone-colon name.
+        .map(str::to_owned)
+        .unwrap_or_else(|| crate::interp::key_holder_and_tail_unrooted(&proc.name).1);
     // Each desired-arg word is list-quoted (C's `Tcl_WrongNumArgs`), so a param
     // name containing spaces shows as `{a b c}` and an empty name as `{}`
     // (proc-3.6/3.7). A trailing `args` becomes the raw `?arg ...?` suffix — not
@@ -1053,7 +1056,7 @@ impl Vm {
         if self.recursion_depth() >= self.recursion_limit() {
             return Err(err("too many nested evaluations (infinite loop?)"));
         }
-        let simple = proc.name.rsplit("::").next().unwrap_or(&proc.name);
+        let simple = crate::interp::key_holder_and_tail_unrooted(&proc.name).1;
         let mut call_argv = Vec::with_capacity(argv.len() + 1);
         call_argv.push(Value::string(simple));
         call_argv.extend(argv.iter().cloned());

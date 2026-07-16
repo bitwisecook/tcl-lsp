@@ -820,6 +820,13 @@ impl Analyser {
         if self.var_command_sites.is_empty() && self.cmd_command_sites.is_empty() {
             return;
         }
+        // M7 stage 7.3: proc-name literals held as dispatch-table values
+        // (`array set` pairs, `dict create`/`dict set` values, `set arr(k) v`)
+        // become command references when the table is consumed by one of the
+        // dispatch sites this pass walks — so find-references reaches the
+        // table entry, and a rename rewrites it alongside the proc (keeping
+        // the dispatch working).
+        self.emit_dispatch_table_command_references(cu);
         // Aggregate type-lattice knowledge (var name → class qualified names)
         // so W308 can validate methods against the class hierarchy.
         let all_object_types = self.aggregate_object_types(cu);
@@ -1214,6 +1221,88 @@ impl Analyser {
         self.result.diagnostics.extend(diags);
     }
 
+    /// M7 stage 7.3: emit a command reference for each proc-name **literal**
+    /// held as a dispatch-table value, provided the table is actually
+    /// *consumed* by a `$table(...)` / `[dict get $table …]` dispatch site
+    /// this pass walks (the W307 shapes).  The reference anchors at the
+    /// literal value token itself — the span **is** the written command name,
+    /// so rename may rewrite the table entry, keeping the dispatch alive.
+    /// Values with no recoverable span (pure SCCP folds, e.g. through
+    /// `string map`) abstain, as does an unconsumed table (a config array
+    /// whose values merely look like command names must not gain phantom
+    /// references).
+    fn emit_dispatch_table_command_references(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+    ) {
+        let base_of = |name: &str| name.split('(').next().unwrap_or(name).to_owned();
+        // The consumption gate: every variable base a dispatch site reads.
+        let mut consumed: HashSet<String> = self
+            .var_command_sites
+            .iter()
+            .map(|s| base_of(&s.var_name))
+            .collect();
+        for site in &self.cmd_command_sites {
+            // `[dict get $table $k]`-shaped heads: any `$base` mentioned in
+            // the substitution counts as consumed.
+            for var in site.cmd_text.split('$').skip(1) {
+                let base: String = var
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == ':')
+                    .collect();
+                if !base.is_empty() {
+                    consumed.insert(base_of(&base));
+                }
+            }
+        }
+        if consumed.is_empty() {
+            return;
+        }
+        let harvested = harvest_table_command_value_spans(cu, &self.source);
+        if harvested.is_empty() {
+            return;
+        }
+        let known = |qualified: &str| {
+            self.result.all_procs.contains_key(qualified)
+                || self.result.all_classes.contains_key(qualified)
+        };
+        let mut seen_spans: HashSet<(u32, u32)> = self
+            .result
+            .command_invocations
+            .iter()
+            .map(|i| (i.range.start(), i.range.end()))
+            .collect();
+        let mut new_invocations = Vec::new();
+        for (base, value, span) in harvested {
+            if !consumed.contains(&base) || crate::naming::is_dynamic_word(&value) {
+                continue;
+            }
+            if !seen_spans.insert((span.start(), span.end())) {
+                continue;
+            }
+            let ns = crate::analyser::scope::command_resolution_namespace_at(
+                &self.result.global_scope,
+                span.start(),
+            );
+            let Some(winner) =
+                crate::naming::resolve_command_with::<&str, _>(&ns, &[], &value, known)
+            else {
+                continue;
+            };
+            new_invocations.push(crate::signature_scan::types::SignatureCommandInvocation {
+                name: value.clone(),
+                range: span,
+                resolved_qualified_name: Some(winner),
+                resolution_candidates: crate::naming::bareword_resolution_candidates(&ns, &value),
+                argc: None,
+                callback_arity: None,
+                callback_baked_args: 0,
+                indirect: false,
+            });
+        }
+        self.result.command_invocations.extend(new_invocations);
+    }
+
     /// Resolve a possibly-bare class name to its fully-qualified
     /// form keyed in `result.all_classes`.
     fn canonicalise_class_name(&self, name: &str) -> String {
@@ -1467,6 +1556,120 @@ fn is_callback_array_slot(var_name: &str) -> bool {
 /// W307 callback-array suppression can see the slot's concrete value
 /// (FP-OBJ-10 SCCP-evidence override). Also accepts the `AssignConst` / generic
 /// `Call "set"` shapes defensively.
+/// M7 stage 7.3: harvest `(table-base, literal value, value span)` triples
+/// from the dispatch-table constructors whose value text is recoverable in
+/// the source — `set arr(k) value` / `array set arr {k v …}` /
+/// `dict create` / `dict set`.  The span locates the value's own literal
+/// token (searched inside the statement's source slice), so a reference
+/// anchored there carries the written command name.  Values only reachable
+/// through folding (`string map`, computed keys) have no span and are not
+/// harvested — the documented abstention.
+fn harvest_table_command_value_spans(
+    cu: &crate::compilation_unit::CompilationUnit,
+    source: &str,
+) -> Vec<(String, String, tcl_lexer::Span)> {
+    use crate::ir::Statement;
+    use tcl_lexer::Span;
+    let is_literal = |s: &str| !s.contains('$') && !s.contains('[') && !s.is_empty();
+    let base_of = |name: &str| name.split('(').next().unwrap_or(name).to_owned();
+    // Locate `needle` inside the statement's source slice, preferring the
+    // *last* occurrence (the value word follows the key/name words).
+    let locate = |span: Span, needle: &str| -> Option<Span> {
+        let slice = source.get(span.start() as usize..span.end() as usize)?;
+        let rel = slice.rfind(needle)?;
+        let start = span.start() + u32::try_from(rel).ok()?;
+        Some(Span::new(start, start + u32::try_from(needle.len()).ok()?))
+    };
+    // Per-element positions inside a literal list word: walk whitespace-split
+    // elements with a running offset (the `list_word_elements` convention).
+    let list_elem_spans = |list_text: &str, list_start: u32| -> Vec<(String, Span)> {
+        let mut out = Vec::new();
+        let mut search = 0usize;
+        for elem in list_text.split_whitespace() {
+            if let Some(rel) = list_text[search..].find(elem) {
+                let idx = search + rel;
+                let start = list_start + u32::try_from(idx).unwrap_or(0);
+                out.push((
+                    elem.to_owned(),
+                    Span::new(start, start + u32::try_from(elem.len()).unwrap_or(0)),
+                ));
+                search = idx + elem.len();
+            }
+        }
+        out
+    };
+    let mut out = Vec::new();
+    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let (Statement::Call {
+                    span,
+                    command,
+                    args,
+                    ..
+                }
+                | Statement::Barrier {
+                    span,
+                    command,
+                    args,
+                    ..
+                }) = stmt
+                else {
+                    continue;
+                };
+                let canonical = stmt.canonical_command_or_source();
+                match (command.as_str(), canonical) {
+                    // set arr(k) value
+                    ("set", _) | (_, "::set")
+                        if args.len() == 2 && args[0].contains('(') && is_literal(&args[1]) =>
+                    {
+                        if let Some(vspan) = locate(*span, &args[1]) {
+                            out.push((base_of(&args[0]), args[1].clone(), vspan));
+                        }
+                    }
+                    // array set arr {k v ...}
+                    ("array", _) | (_, "::array")
+                        if args.len() >= 3
+                            && args.first().map(String::as_str) == Some("set")
+                            && is_literal(&args[2]) =>
+                    {
+                        let slice_start = span.start() as usize;
+                        let Some(slice) = source.get(slice_start..span.end() as usize) else {
+                            continue;
+                        };
+                        let Some(rel) = slice.rfind(args[2].as_str()) else {
+                            continue;
+                        };
+                        let list_start = span.start() + u32::try_from(rel).unwrap_or(0);
+                        for (idx, (elem, espan)) in list_elem_spans(&args[2], list_start)
+                            .into_iter()
+                            .enumerate()
+                        {
+                            if idx % 2 == 1 {
+                                out.push((base_of(&args[1]), elem, espan));
+                            }
+                        }
+                    }
+                    // dict set d k value  /  dict create k v ... (assigned via set)
+                    ("dict", _) | (_, "::dict")
+                        if args.len() >= 4
+                            && args.first().map(String::as_str) == Some("set")
+                            && is_literal(args.last().expect("len checked")) =>
+                    {
+                        let value = args.last().expect("len checked");
+                        if let Some(vspan) = locate(*span, value) {
+                            out.push((base_of(&args[1]), value.clone(), vspan));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    out
+}
+
 fn harvest_array_element_set_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,

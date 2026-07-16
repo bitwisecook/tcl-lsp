@@ -55,7 +55,7 @@ case, including all edge cases above).
 | Bytecode VM dispatch (`tcl-vm`: `lookup_command` = `resolve_command_fqn` + fetch; also `rename`'s source lookup, alias global anchoring, TclOO forward object-ns anchoring, `namespace unknown` chain, expr mathfunc dispatch) | `resolve_command_with` over the live command table, with the namespace's real `namespace path` | `tcl-vm/tests/command_resolution_conformance.rs` (compiles + executes every vector) + `tcl-vm/tests/tricky_resolution_e2e.rs` (tclsh-pinned alias/forward/mathfunc/unknown/rename interactions) |
 | WASM runtime dispatch (`runtime/rust`: `Namespaces::home_of`) | structural mirror (its store is a namespace *tree*, not a flat map) — same base order, command-existence-checked per base | `cmd_namespace.rs::dispatch_matches_every_conformance_vector` (executes every vector) |
 | eBPF backend (`bpf-tcl-*`) | **N/A** — no user procs, no namespaces; the 24-verb DSL rejects anything else as a hard compile error, so there is nothing to resolve |
-| Compiler codegen | **no static binding** — proc calls emit runtime name dispatch (`invokeStk`), inheriting the VM's conformance |
+| Compiler codegen | **no static binding** — proc calls emit runtime name dispatch (`invokeStk`), inheriting the *runtime's* conformance via eval-delegation (the WASM runtime row above; the bytecode VM's row covers `tcl-vm` execution) |
 
 The vector table itself is pinned to C Tcl by
 `tcl-syntax/tests/command_resolution_conformance.rs::vectors_match_real_tclsh`,

@@ -118,6 +118,10 @@ pub struct WorkspaceInvocation {
     pub resolution_candidates: Vec<String>,
     /// Byte span of the command-head token in `uri`'s source.
     pub range: Span,
+    /// The span does not carry the written command name (an indirect site —
+    /// a constant `$cmd` head, M7): references may report it, but the
+    /// cross-document rename path must not rewrite it.
+    pub indirect: bool,
 }
 
 /// One `source FILE` reference recorded in the index.
@@ -250,6 +254,7 @@ impl WorkspaceIndex {
                 name: inv.name.clone(),
                 resolution_candidates: inv.resolution_candidates.clone(),
                 range: inv.range,
+                indirect: inv.indirect,
             });
         }
         for target in &analysis.source_targets {

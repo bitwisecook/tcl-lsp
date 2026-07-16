@@ -104,6 +104,7 @@ for historical reference.
 - [W308 — unknown TclOO method](kcs-diagnostic-w308-unknown-tcloo-method.md)
 - [W309 — eval with subst](kcs-diagnostic-w309-eval-with-subst.md)
 - [W313 — destructive file variable path](kcs-diagnostic-w313-destructive-file-variable-path.md)
+- [W314 — no absolute name](kcs-diagnostic-w314-no-absolute-name.md)
 
 ## Variables (W2xx)
 

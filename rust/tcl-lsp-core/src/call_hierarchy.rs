@@ -208,9 +208,13 @@ fn resolve_method_item<'a>(
     analysis: &'a AnalysisResult,
     item_name: &str,
 ) -> Option<(&'a ClassDef, &'a MethodDef)> {
-    let idx = item_name.rfind("::")?;
-    let class_q = &item_name[..idx];
-    let method_name = &item_name[idx + 2..];
+    // The item name is `<class-key>::<method>` — a construction; split it by
+    // the construction-inverse rule so a colon-bearing class key (or method
+    // name) survives (#934).
+    let (class_q, method_name) = tcl_syntax::naming::key_holder_and_tail(item_name);
+    if class_q.is_empty() && method_name.len() == item_name.len() {
+        return None;
+    }
     let class_def = analysis
         .all_classes
         .values()

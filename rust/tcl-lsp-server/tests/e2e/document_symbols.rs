@@ -406,3 +406,26 @@ fn all_symbols_have_non_empty_names() {
     assert!(!names.is_empty());
     assert!(names.iter().all(|n| !n.is_empty()), "{names:?}");
 }
+
+// Issue #934: a proc named `:` (legal Tcl — a lone colon is an ordinary name
+// character) must surface with its real name.  The 2.1.9 regression collapsed
+// the name to the empty string, which VS Code rejects with "name must not be
+// falsy", killing the whole outline.
+#[test]
+fn colon_named_proc_has_a_non_empty_symbol_name() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc : args {\n    return \"hello\"\n}\nproc a:b {} {}\n",
+    );
+    let syms = top(&mut lsp, &uri);
+    assert_eq!(syms.len(), 2, "{syms:?}");
+    let names: Vec<String> = syms.iter().map(|s| name(s).to_string()).collect();
+    assert!(names.contains(&":".to_string()), "{names:?}");
+    assert!(names.contains(&"a:b".to_string()), "{names:?}");
+    assert!(
+        names.iter().all(|n| !n.is_empty()),
+        "no falsy symbol names: {names:?}"
+    );
+}

@@ -784,19 +784,19 @@ fn rename_class_two_level_nested_namespace_scoped_correctly() {
 
 #[test]
 fn references_variable_held_command_name_is_not_resolved_documented_limitation() {
-    // A command name stored in a variable and invoked indirectly
-    // (`set cmd helper; $cmd`) is, in the general case, statically
-    // undecidable — the value could come from anywhere at runtime. This
-    // test pins the current, honest behaviour: such a call site is simply
-    // not counted as a reference (no crash, no false attribution), rather
-    // than silently mismatching a different proc.
-    let src = "proc helper {} { return hi }\nset cmd helper\n$cmd\n";
+    // A command name stored in a variable and invoked indirectly is, in the
+    // general case, statically undecidable.  M7 narrows the limitation: a
+    // *constant* head (`set cmd helper; $cmd`) IS resolved (see the M7 tests
+    // below), so the remaining honest abstention is the genuinely dynamic
+    // value — a head whose variable was assigned from another variable.
+    // This pins that boundary: no crash, no false attribution, no reference.
+    let src = "proc helper {} { return hi }\nset src helper\nset cmd $src\n$cmd\n";
     let analysis = analyse(src);
     let refs = references(src, "tcl", 0, 6, &analysis, true);
     assert_eq!(
         ref_lines(&refs),
         vec![0],
-        "only the declaration; `$cmd` is not statically resolved: {refs:?}"
+        "only the declaration; a dynamic `$cmd` is not statically resolved: {refs:?}"
     );
 }
 
@@ -1699,4 +1699,64 @@ fn namespace_variables_in_different_namespaces_do_not_unify() {
         !lines.contains(&4),
         "::b::count (line 4) is a different cell and must NOT unify: {refs:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// M7 — command names carried in variables / dispatch tables
+// ---------------------------------------------------------------------------
+
+#[test]
+fn references_include_a_const_cmd_dispatch_site_m7() {
+    // tclsh: `proc target {} {..}; set cmd target; $cmd` runs `target` — the
+    // `$cmd` head is a genuine (indirect) invocation of it.
+    let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![0, 2, 3],
+        "decl + $cmd dispatch + direct call expected; got {refs:?}",
+    );
+}
+
+#[test]
+fn rename_never_rewrites_the_const_cmd_dispatch_span_m7() {
+    // The `$cmd` head references the proc, but its span is `$cmd`, not the
+    // name — a rename must rewrite the declaration and the direct call and
+    // leave `$cmd` intact (the variable's *value* still names the old proc at
+    // runtime; splicing text over `$cmd` would corrupt the source).
+    let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl", 0, 6, "renamed", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![0, 3],
+        "decl + direct call only; the $cmd span must stay untouched: {edits:?}",
+    );
+}
+
+#[test]
+fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
+    // The table value literal IS the written command name, so renaming the
+    // proc rewrites the table entry too — keeping the dispatch alive.
+    let src = "proc do_add {a b} { }\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    let analysis = analyse(src);
+    let refs = references(src, "tcl", 0, 6, &analysis, true);
+    assert_eq!(
+        ref_lines(&refs),
+        vec![0, 1],
+        "decl + table literal expected; got {refs:?}",
+    );
+    let edits = rename(src, "tcl", 0, 6, "sum", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![0, 1],
+        "decl + table literal rewritten: {edits:?}",
+    );
+    // Applying the line-1 edit yields a consistent table.
+    let table_edit = edits
+        .iter()
+        .find(|e| e.range.start_line == 1)
+        .expect("table edit");
+    assert_eq!(table_edit.new_text, "sum");
 }

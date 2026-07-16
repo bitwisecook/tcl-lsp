@@ -241,6 +241,13 @@ pub struct SignatureCommandInvocation {
     /// `callback_arity` is `None`. The callback arity check validates
     /// `baked + appended` against the referenced proc.
     pub callback_baked_args: usize,
+    /// The span does **not** carry the written command name (M7): the site
+    /// invokes the command *indirectly* — a constant `$cmd` head, a dispatch-
+    /// table literal consumed elsewhere — so navigation (references,
+    /// go-to-definition, call hierarchy) may use it, but **rename and every
+    /// other span-rewriting consumer must skip it** (rewriting the span would
+    /// splice the new command name over unrelated source text).
+    pub indirect: bool,
 }
 
 /// The full result returned by `extract_signatures`.

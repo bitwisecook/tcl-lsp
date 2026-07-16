@@ -77,6 +77,10 @@ surface.
 - [tricky-name-resolution-surfaces.md](tricky-name-resolution-surfaces.md) — the
   navigation-link audit of the hard cases: aliases, renames, imports, forwards,
   ensembles, per-object methods, and command-names-held-as-data.
+- [colon-names-and-addressability.md](colon-names-and-addressability.md) — the
+  written-name colon-run rule vs the constructed-key discipline (issue #934):
+  `proc :`, `proc {}`, `namespace eval :`, which definitions have no absolute
+  spelling, and the W314 diagnostic that flags them.
 
 ## F5 BIG-IP CLI
 

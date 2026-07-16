@@ -710,6 +710,12 @@ fn rename_proc(
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
+        // An indirect site's span does not carry the written name (a constant
+        // `$cmd` head, M7) — rewriting it would splice the new name over
+        // unrelated text.  References still report it; rename must not.
+        if inv.indirect {
+            continue;
+        }
         // Use the *same* invocation-matching rule as Find-All-References so a
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `helper` call in
@@ -774,6 +780,11 @@ fn rename_class(
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
+        // Indirect sites (M7) are references, never rename targets — the span
+        // does not carry the written name.
+        if inv.indirect {
+            continue;
+        }
         // Use the *same* invocation-matching rule as Find-All-References so a
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `ClassName new`
@@ -1060,6 +1071,11 @@ pub fn cross_document_symbol_edits(
     let mut edits = Vec::new();
     // Call sites.
     for inv in index.invocations_of(qualified_name, current_uri) {
+        // Indirect sites (constant `$cmd` heads, M7) are references, never
+        // rename targets — their span is not the written name.
+        if inv.indirect {
+            continue;
+        }
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
         edits.push(WorkspaceTextEdit {
@@ -1202,11 +1218,12 @@ fn split_array_suffix(rest: &str) -> (&str, &str) {
 /// `"::greet"` → `""` (proc lives at global scope, no enclosing
 /// namespace).  `"greet"` → `""` likewise.
 fn namespace_prefix_of(qualified: &str) -> &str {
-    let trimmed = qualified.trim_start_matches("::");
-    match trimmed.rfind("::") {
-        Some(idx) => &qualified[..qualified.len() - (trimmed.len() - idx)],
-        None => "",
-    }
+    // `qualified` is a constructed key: its holder comes from the
+    // construction-inverse split (#934) — a repeated-strip + `rfind` would
+    // misread a lone-colon segment.  The root holder maps to `""` (a global
+    // proc has no enclosing-namespace prefix).
+    let (holder, _tail) = tcl_syntax::naming::key_holder_and_tail(qualified);
+    if holder == "::" { "" } else { holder }
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {

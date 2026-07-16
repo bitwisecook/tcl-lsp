@@ -316,7 +316,8 @@ pub fn build_tail_index<'a>(
 ) -> HashMap<String, Vec<String>> {
     let mut tail_index: HashMap<String, Vec<String>> = HashMap::new();
     for qname in qnames {
-        let tail = qname.rsplit("::").next().unwrap_or(qname);
+        // `qname` is a constructed key — construction-inverse tail (#934).
+        let tail = crate::naming::key_tail(qname);
         tail_index
             .entry(tail.to_string())
             .or_default()
@@ -524,7 +525,7 @@ mod tests {
 
     fn cls(qname: &str, supers: &[&str], mixins: &[&str], methods: &[&str]) -> ClassDef {
         let mut cd = ClassDef {
-            name: qname.rsplit("::").next().unwrap_or(qname).to_string(),
+            name: crate::naming::key_tail(qname).to_string(),
             qualified_name: qname.to_string(),
             name_span: span(),
             body_span: span(),

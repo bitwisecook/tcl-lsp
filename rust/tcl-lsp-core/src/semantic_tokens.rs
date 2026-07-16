@@ -2569,7 +2569,15 @@ fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<
     if hierarchy.classes.contains_key(name) {
         return Some(name.to_owned());
     }
-    let qualified = format!("::{}", name.trim_start_matches("::"));
+    // Canonicalise the *written* name (colon-run rule) before keying; the
+    // hierarchy's keys are constructed, so their tails come from the
+    // construction-inverse split (#934).
+    let canonical = tcl_syntax::naming::canonical_written_command(name);
+    let qualified = if canonical.starts_with("::") {
+        canonical.clone()
+    } else {
+        format!("::{canonical}")
+    };
     if hierarchy.classes.contains_key(&qualified) {
         return Some(qualified);
     }
@@ -2577,7 +2585,7 @@ fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<
     let mut matches = hierarchy
         .classes
         .keys()
-        .filter(|k| k.rsplit("::").next() == Some(tail));
+        .filter(|k| tcl_syntax::naming::key_tail(k) == tail);
     let first = matches.next()?;
     matches.next().is_none().then_some(first.clone())
 }

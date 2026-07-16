@@ -298,7 +298,8 @@ fn fresh_apply_name() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    format!("::tcl::apply::lambda{n}")
+    // Canonical *unrooted* key form — `register_command` takes keys verbatim.
+    format!("tcl::apply::lambda{n}")
 }
 
 /// Parse a lambda expression `{params body ?namespace?}` and define it as a
@@ -444,14 +445,15 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // so the shared qualifier split yields its namespace directly.
         let cmd = match cmd {
             Command::Proc(def) => {
-                let new_ns =
-                    std::str::from_utf8(tcl_cmd_core::namespace::qualifiers(key.as_bytes()))
-                        .expect("subslice of valid UTF-8");
+                // The destination namespace is the key's construction-inverse
+                // holder — the written-name colon-run split would collapse a
+                // lone-colon segment (#934).
+                let (new_ns, _tail) = crate::interp::key_holder_and_tail_unrooted(&key);
                 if new_ns == def.namespace && key == def.name {
                     Command::Proc(def)
                 } else {
                     let mut relocated = (*def).clone();
-                    relocated.namespace = new_ns.to_string();
+                    relocated.namespace = new_ns;
                     relocated.name.clone_from(&key);
                     Command::Proc(Rc::new(relocated))
                 }
@@ -740,7 +742,12 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     return err("only the current interpreter ({}) is supported");
                 }
                 let words: Vec<Value> = target.to_vec();
-                vm.register_command(&src_cmd.to_str(), Command::Alias(Rc::new(words)));
+                // The alias source is a *written* command name: qualify it to
+                // the canonical unrooted key (`interp alias {} ::a::f {} g`
+                // creates `a::f`; a raw registration would corrupt colon
+                // names, #934).
+                let src_key = vm.qualify_name(&src_cmd.to_str());
+                vm.register_command(&src_key, Command::Alias(Rc::new(words)));
                 ok(src_cmd.clone())
             }
             _ => err(

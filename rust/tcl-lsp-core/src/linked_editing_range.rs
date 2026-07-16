@@ -87,6 +87,11 @@ pub fn linked_editing_ranges(
     ranges.push(span_to_range(source, &line_index, proc.name_span));
 
     for inv in &analysis.command_invocations {
+        // An indirect site (M7) must never live-link: its span is not the
+        // written command name.
+        if inv.indirect {
+            continue;
+        }
         // The call's resolved qualified name is authoritative when the analyser
         // settled one: a bare `greet` inside `namespace eval ::b { … }` nested
         // in `proc ::a::greet` resolves to `::b::greet`, so it must NOT link to

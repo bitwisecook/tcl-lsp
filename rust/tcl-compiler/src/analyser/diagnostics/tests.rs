@@ -6998,6 +6998,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             argc: Some(0),
             callback_arity: None,
             callback_baked_args: 0,
+            indirect: false,
         });
     let registry = tcl_registry::CommandRegistry::build_default();
     a.emit_unresolved_command_diagnostics(&registry);
@@ -8812,4 +8813,220 @@ mod w114_unwrap_fix {
         let d = w114_for("set a 1\nif {[expr {$a} {+ 1}] > 0} {}\n");
         assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
     }
+}
+
+// -- issue #934: colon-named definitions --------------------------------
+
+/// The count of W314 diagnostics `src` draws under the plain `tcl` dialect.
+fn w314_count(src: &str) -> usize {
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    r.diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W314)
+        .count()
+}
+
+#[test]
+fn w314_fires_for_colon_named_proc_class_and_namespace() {
+    // TP: an all-colon simple name has no absolute written form.
+    assert_eq!(w314_count("proc : args { return hello }\n"), 1);
+    assert_eq!(w314_count("oo::class create :\n"), 1);
+    assert_eq!(w314_count("namespace eval : { }\n"), 1);
+    // ... inside a namespace, still only reachable relatively.
+    assert_eq!(w314_count("namespace eval x { proc : {} {} }\n"), 1);
+}
+
+#[test]
+fn w314_does_not_fire_for_addressable_colon_shapes() {
+    // A lone interior colon is an ordinary name character.
+    assert_eq!(w314_count("proc a:b {} {}\n"), 0);
+    assert_eq!(w314_count("proc :2 {} {}\n"), 0);
+    // The empty-string name IS absolutely addressable (`::` / `::x::`).
+    assert_eq!(w314_count("proc {} args {}\n"), 0);
+    assert_eq!(w314_count("namespace eval x {}\nproc x:: {} {}\n"), 0);
+    // A written all-colon word names the global `{}` proc — addressable.
+    assert_eq!(w314_count("proc ::: args {}\n"), 0);
+    // Ordinary namespaces never fire.
+    assert_eq!(w314_count("namespace eval a::b { proc p {} {} }\n"), 0);
+}
+
+#[test]
+fn w314_namespace_flags_once_without_per_definition_cascade() {
+    // The namespace-eval site carries the warning; an addressable simple
+    // name inside it does not re-fire per definition.
+    assert_eq!(w314_count("namespace eval : { proc helper {} {} }\n"), 1);
+    // A colon-named proc *inside* a colon namespace is its own defect too.
+    assert_eq!(w314_count("namespace eval : { proc : {} {} }\n"), 2);
+}
+
+#[test]
+fn colon_named_proc_keeps_its_simple_name_and_key() {
+    // The reported #934 crash: `proc :` produced an empty simple name (the
+    // documentSymbol name), because the key was collapsed into `::` and the
+    // tail re-derived by a naive `rsplit`.
+    let mut a = Analyser::new();
+    let r = a.analyse("proc : args { return hello }\n", "tcl");
+    let (key, def) = r
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() == 5)
+        .expect("proc : recorded");
+    assert_eq!(key, ":::", "constructed key is \"::\" + \":\"");
+    assert_eq!(def.name, ":", "simple name preserved");
+    assert_eq!(def.qualified_name, ":::");
+}
+
+#[test]
+fn colon_named_namespace_keeps_nested_definitions_distinct() {
+    // `namespace eval : { proc inner {} {} }` must home `inner` under the
+    // `:`-named namespace — never collapse into the global namespace.
+    let mut a = Analyser::new();
+    let r = a.analyse(
+        "namespace eval : { proc inner {} {} }\nproc inner {} {}\n",
+        "tcl",
+    );
+    assert!(
+        r.all_procs.contains_key(":::::inner"),
+        "nested key = ns key \":::\" + \"::\" + \"inner\": {:?}",
+        r.all_procs.keys().collect::<Vec<_>>(),
+    );
+    assert!(
+        r.all_procs.contains_key("::inner"),
+        "the global `inner` is a distinct definition"
+    );
+}
+
+#[test]
+fn colon_named_proc_resolves_from_bare_calls_not_written_runs() {
+    // Construction symmetry: a bare `:` call settles onto the `:` proc; a
+    // written `:::` names the global `{}` command instead (tclsh-pinned).
+    let mut a = Analyser::new();
+    let r = a.analyse("proc : args {}\nproc {} args {}\n: x\n::: y\n", "tcl");
+    let resolved: Vec<(&str, Option<&str>)> = r
+        .command_invocations
+        .iter()
+        .filter(|i| i.name == ":" || i.name == ":::")
+        .map(|i| (i.name.as_str(), i.resolved_qualified_name.as_deref()))
+        .collect();
+    assert!(
+        resolved.contains(&(":", Some(":::"))),
+        "bare `:` settles onto the colon proc: {resolved:?}"
+    );
+    assert!(
+        resolved.contains(&(":::", Some("::"))),
+        "written `:::` settles onto the `{{}}` proc: {resolved:?}"
+    );
+}
+
+// -- M7: command names carried in variables / dispatch tables ------------
+
+#[test]
+fn const_cmd_head_records_a_reference_to_the_dispatched_proc_m7() {
+    let mut a = Analyser::new();
+    let src = "proc target {} {}\nset cmd target\n$cmd\n";
+    let r = a.analyse(src, "tcl");
+    let dispatch = u32::try_from(src.find("$cmd").unwrap()).unwrap();
+    let inv = r
+        .command_invocations
+        .iter()
+        .find(|i| i.range.start() == dispatch && i.name == "target");
+    assert!(
+        inv.is_some_and(|i| i.resolved_qualified_name.as_deref() == Some("::target") && i.indirect),
+        "const $cmd dispatch must reference ::target (indirect): {:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start(), i.indirect))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn const_cmd_head_resolves_in_the_dispatch_namespace_m7() {
+    let mut a = Analyser::new();
+    let src = "namespace eval ns { proc target {} {} }\n\
+               namespace eval ns { set cmd target; $cmd }\n";
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.command_invocations
+            .iter()
+            .any(|i| i.indirect && i.resolved_qualified_name.as_deref() == Some("::ns::target")),
+        "{:?}",
+        r.command_invocations
+            .iter()
+            .filter(|i| i.indirect)
+            .map(|i| (&i.name, &i.resolved_qualified_name))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
+    // Unknown value: no invocation appears (and no W123 arises from it).
+    let mut a = Analyser::new();
+    let r = a.analyse("set cmd nosuchcmd\n$cmd\n", "tcl");
+    assert!(!r.command_invocations.iter().any(|i| i.name == "nosuchcmd"));
+    // Dynamic (interpolated) value: the const oracle abstains.
+    let mut a2 = Analyser::new();
+    let r2 = a2.analyse("proc target {} {}\nset x target\nset cmd $x\n$cmd\n", "tcl");
+    assert!(!r2.command_invocations.iter().any(|i| i.indirect));
+    // A builtin value carries no navigable definition: abstain.
+    let mut a3 = Analyser::new();
+    let r3 = a3.analyse("set cmd puts\n$cmd hi\n", "tcl");
+    assert!(!r3.command_invocations.iter().any(|i| i.indirect));
+}
+
+#[test]
+fn dispatch_table_value_becomes_a_reference_when_consumed_m7() {
+    let mut a = Analyser::new();
+    let src = "proc do_add {a b} {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    let r = a.analyse(src, "tcl");
+    let lit = u32::try_from(src.find("add do_add").unwrap() + 4).unwrap();
+    assert!(
+        r.command_invocations.iter().any(|i| i.name == "do_add"
+            && i.range.start() == lit
+            && i.resolved_qualified_name.as_deref() == Some("::do_add")
+            && !i.indirect),
+        "table value literal must reference ::do_add: {:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn dispatch_table_value_abstains_when_the_table_is_not_consumed_m7() {
+    // The same table with no dispatch site is configuration data — its
+    // values must not gain phantom references.
+    let mut a = Analyser::new();
+    let src = "proc do_add {a b} {}\narray set ops {add do_add}\n";
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.command_invocations.iter().any(|i| i.name == "do_add"),
+        "{:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn dict_set_table_value_becomes_a_reference_when_consumed_m7() {
+    let mut a = Analyser::new();
+    let src =
+        "proc handle_get {} {}\ndict set handlers GET handle_get\n{*}[dict get $handlers GET]\n";
+    let r = a.analyse(src, "tcl");
+    let lit = u32::try_from(src.find(" handle_get\n").unwrap() + 1).unwrap();
+    assert!(
+        r.command_invocations.iter().any(|i| i.name == "handle_get"
+            && i.range.start() == lit
+            && i.resolved_qualified_name.as_deref() == Some("::handle_get")),
+        "{:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
 }

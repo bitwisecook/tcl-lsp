@@ -71,3 +71,42 @@
 # the equivalent command-call shape)
 ::nsa | - | ::nsa::tcl::mathfunc::pinf,::tcl::mathfunc::pinf | tcl::mathfunc::pinf | ::nsa::tcl::mathfunc::pinf
 ::nsb | - | ::tcl::mathfunc::pinf | tcl::mathfunc::pinf | ::tcl::mathfunc::pinf
+
+# -- issue #934: lone-colon names and written colon runs -----------------
+# Namespace / definition fields are constructed KEYS (a lone `:` segment is
+# a legitimately colon-named entity): ":::" is the proc (or namespace)
+# named ":" at the root, "::" is the empty-string `{}` proc, "::::::" the
+# proc ":" inside the namespace ":".  The written call text follows C's
+# colon-run rule: a run of 2+ colons is one separator (the whole run
+# collapses), a lone `:` is an ordinary character, and an all-colon word
+# names the global `{}` command (tclsh 8.6/9.0-pinned, C 8.4-9.1
+# invariant: TclGetNamespaceForQualName).
+# a bare `:` call reaches the proc named `:`
+:: | - | ::: | : | :::
+::ns | - | ::: | : | :::
+# a written all-colon word is the global {} proc, never the `:` proc
+:: | - | :: | :: | ::
+:: | - | :: | ::: | ::
+:: | - | ::,::: | ::: | ::
+:: | - | ::: | ::: | -
+# trailing separator: the {} proc inside ::x, however many colons written
+:: | - | ::x:: | x:: | ::x::
+:: | - | ::x:: | x::: | ::x::
+:: | - | ::x:: | ::x:: | ::x::
+:: | - | ::x:: | ::x::: | ::x::
+# `a:::` names the {} proc in ::a — never the proc `:` in ::a
+:: | - | ::a::: | a::: | -
+:: | - | ::a::,::a::: | a::: | ::a::
+# a lone interior colon is an ordinary name character
+:: | - | ::a:b | a:b | ::a:b
+::q | - | ::q::a:b,::a:b | a:b | ::q::a:b
+# interior runs collapse: `a:::b` names ::a::b
+:: | - | ::a::b | a:::b | ::a::b
+# inside the namespace named ":", a bare `:` prefers the nested proc...
+::: | - | ::::::,::: | : | ::::::
+# ...and falls back to the global `:` when the nested one is absent
+::: | - | ::: | : | :::
+# the nested proc has no absolute spelling: an all-colon word of any length
+# is still the global {} command
+:: | - | :::::: | ::::: | -
+:: | - | ::,:::::: | ::::: | ::

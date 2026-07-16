@@ -311,6 +311,7 @@ impl Analyser {
                     argc: arg_count,
                     callback_arity: None,
                     callback_baked_args: 0,
+                    indirect: false,
                 },
             );
 
@@ -335,6 +336,7 @@ impl Analyser {
                         argc: None,
                         callback_arity: None,
                         callback_baked_args: 0,
+                        indirect: false,
                     },
                 );
             }
@@ -1205,6 +1207,7 @@ impl Analyser {
                     argc: None,
                     callback_arity: Some(inv.appended),
                     callback_baked_args: inv.baked,
+                    indirect: false,
                 },
             );
         }
@@ -1235,6 +1238,7 @@ impl Analyser {
                 argc,
                 callback_arity: None,
                 callback_baked_args: 0,
+                indirect: false,
             },
         );
     }
@@ -1783,6 +1787,7 @@ impl Analyser {
                     argc,
                     callback_arity,
                     callback_baked_args: 0,
+                    indirect: false,
                 },
             );
         }
@@ -1830,6 +1835,7 @@ impl Analyser {
                     argc: None,
                     callback_arity: None,
                     callback_baked_args: 0,
+                    indirect: false,
                 },
             );
         }
@@ -1870,6 +1876,26 @@ impl Analyser {
                     .map_or(raw, |(name, _)| name)
                     .to_string();
                 let method_name = args.first().cloned();
+                // M7: a *constant* `$cmd` head is a statically-known dispatch.
+                // Record it for post-walk settlement (only a value resolving
+                // to a known command becomes a reference; anything else is
+                // dropped — the documented non-const abstention).  A braced
+                // composite head (`${ns}::tail …`) is the W307 ensemble
+                // shape, not a whole-command variable, so it is skipped.
+                if var_name == raw
+                    && let Some(value) = self.lookup_const_string(&var_name, scope_path)
+                    && !crate::naming::is_dynamic_word(value)
+                    && !value.trim().is_empty()
+                {
+                    let value = value.to_string();
+                    let ns = self.command_resolution_namespace(scope_path);
+                    self.pending_const_dispatches
+                        .push(super::state::ConstDispatchSite {
+                            value,
+                            span: cmd_tok.span,
+                            ns,
+                        });
+                }
                 self.var_command_sites.push(super::state::VarCommandSite {
                     var_name,
                     method_name,
@@ -2163,7 +2189,7 @@ impl Analyser {
         let mut tail_hits = self
             .workspace_classes
             .iter()
-            .filter(|q| q.rsplit("::").next() == Some(name));
+            .filter(|q| crate::naming::key_tail(q) == name);
         if let Some(only) = tail_hits.next()
             && tail_hits.next().is_none()
         {

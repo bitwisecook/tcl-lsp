@@ -28,36 +28,41 @@ use tcl_syntax::naming::conformance::vectors;
 
 /// Render a vector as analysable source: the definitions as procs, any
 /// `namespace path` as a literal declaration in the call namespace, and
-/// the call inside `namespace eval {ns}` — the same shapes
-/// `vector_script` executes, minus the runtime plumbing.
+/// the call inside `namespace eval` — the same shapes `vector_script`
+/// executes, minus the runtime plumbing.
+///
+/// Namespace / definition fields are **constructed keys**: a key may hold a
+/// colon-named segment (issue #934: `":::"` is the proc — or namespace —
+/// named `:`) with no absolute written spelling, so definitions descend the
+/// holder chain one `namespace eval {tail}` at a time with brace-quoted
+/// relative tails, exactly as `vector_script` does for real tclsh.
 fn vector_source(ns: &str, path: &[String], defs: &[String], call: &str) -> String {
     use std::fmt::Write as _;
+    use tcl_syntax::naming::key_holder_and_tail;
+    fn run(ns_key: &str, body: &str) -> String {
+        if ns_key.is_empty() || ns_key == "::" {
+            return body.to_owned();
+        }
+        let (holder, tail) = key_holder_and_tail(ns_key);
+        run(holder, &format!("namespace eval {{{tail}}} {{ {body} }}"))
+    }
     let mut src = String::new();
     for def in defs {
-        if let Some((holder, _)) = def.rsplit_once("::")
-            && !holder.is_empty()
-            && holder != ":"
-        {
-            let _ = writeln!(src, "namespace eval {holder} {{}}");
-        }
-        let _ = writeln!(src, "proc {def} {{}} {{ return {def} }}");
+        let (holder, tail) = key_holder_and_tail(def);
+        let _ = writeln!(
+            src,
+            "{}",
+            run(
+                holder,
+                &format!("proc {{{tail}}} {{}} {{ return {{{def}}} }}"),
+            ),
+        );
     }
     if !path.is_empty() {
         let entries = path.join(" ");
-        if ns == "::" {
-            let _ = writeln!(src, "namespace path {{{entries}}}");
-        } else {
-            let _ = writeln!(
-                src,
-                "namespace eval {ns} {{ namespace path {{{entries}}} }}"
-            );
-        }
+        let _ = writeln!(src, "{}", run(ns, &format!("namespace path {{{entries}}}")));
     }
-    if ns == "::" {
-        let _ = writeln!(src, "{call}");
-    } else {
-        let _ = writeln!(src, "namespace eval {ns} {{ {call} }}");
-    }
+    let _ = writeln!(src, "{}", run(ns, call));
     src
 }
 

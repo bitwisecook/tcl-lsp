@@ -4478,7 +4478,7 @@ impl Backend {
         current_uri: &Uri,
         qualified: &str,
     ) -> Vec<(Uri, core_call_hierarchy::IncomingCall)> {
-        let simple = qualified.rsplit("::").next().unwrap_or(qualified);
+        let simple = tcl_compiler::naming::key_tail(qualified);
         // Collect (uri, source, dialect) for every document *other
         // than* the current one: first the open buffers, then the
         // indexed-but-unopened files the folder scan discovered

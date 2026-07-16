@@ -163,4 +163,31 @@ suite("Document Symbols", () => {
       "test case should have Function kind",
     );
   });
+
+  // Issue #934: a proc named `:` (and a namespace named `:`) must produce
+  // symbols with real, non-empty names.  The 2.1.9 regression returned an
+  // empty name, which VS Code's DocumentSymbol validation rejects with
+  // "name must not be falsy" — killing the entire outline.
+  test("colon-named definitions keep non-empty symbol names (#934)", async () => {
+    const uri = getDocUri("colonNames.tcl");
+    await activate(uri);
+
+    const symbols = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", uri),
+      (r) => {
+        const syms = r as (vscode.DocumentSymbol[] | vscode.SymbolInformation[]) | undefined;
+        return !!syms && syms.length > 0;
+      },
+      { timeout: 10_000, label: "document symbols for colon-named defs" },
+    )) as vscode.DocumentSymbol[] | vscode.SymbolInformation[];
+
+    assert.ok(symbols && symbols.length > 0, "outline must not be rejected");
+    const names = symbols.map((s) => s.name);
+    assert.ok(
+      names.every((n) => n.length > 0),
+      `no falsy symbol names: ${JSON.stringify(names)}`,
+    );
+    assert.ok(names.includes(":"), `the ':' proc appears in the outline: ${names}`);
+    assert.ok(names.includes("a:b"), `the 'a:b' proc appears in the outline: ${names}`);
+  });
 });

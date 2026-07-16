@@ -103,6 +103,215 @@ pub fn qualifier_segments_owned(name: &str) -> Vec<String> {
         .collect()
 }
 
+/// Canonicalise a **written** command / variable word into the constructed-key
+/// convention (issue #934): a colon run of ≥2 is one separator (the whole run
+/// collapses to `::`), a lone `:` is an ordinary name character, and a
+/// *trailing* separator survives as `::` — it names the empty-string (`{}`)
+/// command/variable in the qualified namespace, which is a real, addressable
+/// entity (`proc x:: {} {}` defines it; `x::` / `x:::` / `::x::` all call it —
+/// tclsh 8.6/9.0-verified, `TclGetNamespaceForQualName`, invariant 8.4→9.1).
+///
+/// An absolute input yields a rooted key (`::a:::b` → `::a::b`, `:::` → `::` —
+/// the global `{}` command); a relative input yields a canonical *relative*
+/// suffix (`a:::b` → `a::b`, `x::` → `x::`, `:` → `:`) for the caller to join
+/// under a namespace key with one exact `::`.
+///
+/// This is for **written words only** — never re-apply it to a constructed
+/// key: a key holding an all-colon *segment* (a namespace or command
+/// legitimately named `:`) would collapse into its parent, which is exactly
+/// how a `proc :` used to collide with the empty-named `::` key.
+///
+/// ```
+/// use tcl_syntax::naming::canonical_written_command;
+/// assert_eq!(canonical_written_command("::a:::b"), "::a::b");
+/// assert_eq!(canonical_written_command(":::"), "::");
+/// assert_eq!(canonical_written_command("::x::"), "::x::");
+/// assert_eq!(canonical_written_command("x:::"), "x::");
+/// assert_eq!(canonical_written_command(":"), ":");
+/// assert_eq!(canonical_written_command("a:b"), "a:b");
+/// assert_eq!(canonical_written_command("cmd"), "cmd");
+/// ```
+#[must_use]
+pub fn canonical_written_command(name: &str) -> String {
+    let segs: Vec<&str> = qualifier_segments(name.as_bytes())
+        .into_iter()
+        .map(|s| core::str::from_utf8(s).expect("subslice of valid UTF-8"))
+        .collect();
+    let trailing = if ends_with_separator(name.as_bytes()) {
+        "::"
+    } else {
+        ""
+    };
+    if name.starts_with("::") {
+        if segs.is_empty() {
+            // Two-or-more colons alone: the global namespace's `{}` command.
+            return "::".to_owned();
+        }
+        return format!("::{}{trailing}", segs.join("::"));
+    }
+    if segs.is_empty() {
+        // A relative word cannot begin with a separator, so an empty segment
+        // list means the word itself is empty.
+        return String::new();
+    }
+    format!("{}{trailing}", segs.join("::"))
+}
+
+/// The simple (tail) name of a **constructed** qualified key — the inverse of
+/// the `"{ns_key}::{simple}"` / `"::{simple}"` construction the analyser, the
+/// workspace index, and the VM use as canonical identity, where `simple` never
+/// contains a `::` run but may itself contain (or be) a lone `:` (issue #934:
+/// `proc : args {…}`).
+///
+/// This is **not** C's `namespace tail` of a *written* word — C consumes a
+/// whole colon run as one separator, so the written `:::` has an empty tail.
+/// A constructed key `":::"` (`"::" + ":"`), by contrast, unambiguously
+/// carries the simple name `:`: the suffix after the rightmost `::` that
+/// leaves a non-empty suffix.  A trailing-separator key (`"::x::"`, the
+/// empty-named command in `::x`) correctly yields `""`.
+///
+/// ```
+/// use tcl_syntax::naming::key_tail;
+/// assert_eq!(key_tail("::a::b"), "b");
+/// assert_eq!(key_tail(":::"), ":");            // "::" + ":"
+/// assert_eq!(key_tail("::::::"), ":");         // ns `:` + proc `:`
+/// assert_eq!(key_tail("::a:::"), ":");         // ns `a` + proc `:`
+/// assert_eq!(key_tail("::x::"), "");           // the empty-named command
+/// assert_eq!(key_tail("::"), "");              // global `{}` command key
+/// assert_eq!(key_tail(":"), ":");              // bare simple name
+/// assert_eq!(key_tail("a:b"), "a:b");
+/// assert_eq!(key_tail("cmd"), "cmd");
+/// ```
+#[must_use]
+pub fn key_tail(name: &str) -> &str {
+    let bytes = name.as_bytes();
+    if bytes.len() < 2 {
+        return name;
+    }
+    if bytes.iter().all(|&b| b == b':') {
+        // All-colon key.  The construction grammar — `"::"` root (2), plus 3
+        // per `:`-named namespace level (`"::" + ":"`), plus a final `":"`
+        // simple (1) or `""` simple (0) — makes length ≡ 0 (mod 3) the `:`
+        // simple name and ≡ 2 (mod 3) the empty one; a lone `:` (length 1) is
+        // the bare simple name itself, and other lengths are unconstructible.
+        return match bytes.len() {
+            n if n % 3 == 0 => &name[n - 1..],
+            _ => "",
+        };
+    }
+    // A constructed key's separator is a `::` whose suffix holds no further
+    // `::` run and whose prefix is itself a valid key (a prefix ending in a
+    // separator would carry an empty namespace segment, which the grammar
+    // cannot produce — `namespace eval {}` is the *global* namespace).  A key
+    // can satisfy this at two positions at once (`"::a:::"` is both `:` in
+    // `::a` and `{}` in `::a:`); prefer the non-empty simple name, matching
+    // the far more common construction.
+    let prefix_ok = |i: usize| i < 2 || !(bytes[i - 1] == b':' && bytes[i - 2] == b':');
+    let mut saw_empty_suffix = false;
+    let mut i = bytes.len().saturating_sub(2);
+    loop {
+        if bytes[i] == b':' && bytes[i + 1] == b':' && prefix_ok(i) {
+            let suffix = &name[i + 2..];
+            if !suffix.contains("::") {
+                if !suffix.is_empty() {
+                    return suffix;
+                }
+                saw_empty_suffix = true;
+            }
+        }
+        if i == 0 {
+            break;
+        }
+        i -= 1;
+    }
+    if saw_empty_suffix { "" } else { name }
+}
+
+/// Split a **constructed** qualified key into its holder-namespace key and
+/// simple tail — the exact inverse of the `"{holder}::{simple}"` construction
+/// ([`key_tail`] for the tail rule).  The holder of a root-level key is `"::"`
+/// (`key_holder_and_tail("::x")` → `("::", "x")`), and the holder chain of a
+/// colon-named nesting is preserved (`"::::::"` — proc `:` in the namespace
+/// named `:` — → `(":::", ":")`).
+///
+/// ```
+/// use tcl_syntax::naming::key_holder_and_tail;
+/// assert_eq!(key_holder_and_tail("::a::b"), ("::a", "b"));
+/// assert_eq!(key_holder_and_tail("::x"), ("::", "x"));
+/// assert_eq!(key_holder_and_tail(":::"), ("::", ":"));
+/// assert_eq!(key_holder_and_tail("::::::"), (":::", ":"));
+/// assert_eq!(key_holder_and_tail("::x::"), ("::x", ""));
+/// assert_eq!(key_holder_and_tail("::"), ("::", ""));
+/// ```
+#[must_use]
+pub fn key_holder_and_tail(key: &str) -> (&str, &str) {
+    let tail = key_tail(key);
+    if tail.len() + 2 > key.len() {
+        // A bare simple name (no separator): the holder is unknown/relative.
+        return ("", tail);
+    }
+    let holder = &key[..key.len() - tail.len() - 2];
+    if holder.is_empty() {
+        ("::", tail)
+    } else {
+        (holder, tail)
+    }
+}
+
+/// Split a **constructed** namespace key into its segments — the inverse of
+/// the `"::"`-join construction, one [`key_holder_and_tail`] step per level,
+/// so a legitimately colon-named segment survives (`":::"` → `[":"]`,
+/// `"::a::b"` → `["a", "b"]`, `"::"` → `[]`).  Accepts rooted or unrooted
+/// keys.  Contrast [`qualifier_segments`], the *written-name* split, which
+/// collapses colon runs.
+///
+/// ```
+/// use tcl_syntax::naming::key_segments;
+/// assert_eq!(key_segments("::a::b"), ["a", "b"]);
+/// assert_eq!(key_segments("a::b"), ["a", "b"]);
+/// assert_eq!(key_segments(":::"), [":"]);
+/// assert_eq!(key_segments("::::::"), [":", ":"]);
+/// assert!(key_segments("::").is_empty());
+/// assert!(key_segments("").is_empty());
+/// ```
+#[must_use]
+pub fn key_segments(key: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cursor: String = if key.starts_with("::") || key.bytes().all(|b| b == b':') {
+        key.to_owned()
+    } else {
+        format!("::{key}")
+    };
+    while !cursor.is_empty() && cursor != "::" {
+        let (holder, tail) = key_holder_and_tail(&cursor);
+        out.push(tail.to_owned());
+        if holder == cursor {
+            break;
+        }
+        cursor = holder.to_owned();
+    }
+    out.reverse();
+    out
+}
+
+/// Whether a definition written as `simple_name` inside the namespace whose
+/// **written segments** are `ns_segments` can be reached by *any* absolute
+/// (fully-qualified) written form (issue #934).
+///
+/// Unaddressable shapes (tclsh 8.6/9.0-verified, invariant in C 8.4→9.1):
+/// an all-colon simple name (only `:` is writable — a written colon run of ≥2
+/// is a separator, so no absolute spelling can end in that name), or any
+/// namespace segment that is itself all-colons (`namespace eval :` — its
+/// contents are reachable only relatively, e.g. `namespace inscope : :`; the
+/// rendered `[namespace which]` form `::::::` does not resolve).  The
+/// empty-string name (`proc {} {} {}` / `proc x:: {} {}`) **is** addressable
+/// (`::` / `::x::`).
+#[must_use]
+pub fn is_absolutely_addressable(ns_segments: &[&str], simple_name: &str) -> bool {
+    let all_colons = |s: &str| !s.is_empty() && s.bytes().all(|b| b == b':');
+    !all_colons(simple_name) && !ns_segments.iter().any(|seg| all_colons(seg))
+}
+
 /// Strip a variable reference's substitution sigil (`$`, `${…}`) while
 /// **keeping** any array-index suffix — the form an evaluator needs to read the
 /// actual variable (`$arr(idx)` → `arr(idx)`, `${v}` → `v`, `$x` → `x`). Unlike
@@ -346,32 +555,36 @@ pub fn normalise_qualified_name(name: &str) -> String {
 /// * An **absolute** `name` (leading `::`) ignores the prefix entirely —
 ///   `qualify("::ns", "::other::C")` is `::other::C`, never re-prefixed.
 /// * A relative `name` resolves under `prefix`, which may be given rooted
-///   (`::a::b`) or unrooted (`a::b`); duplicate separators collapse.
+///   (`::a::b`) or unrooted (`a::b`).  The *written* `name`'s colon runs
+///   collapse ([`canonical_written_command`]); the `prefix` is a constructed
+///   key and is joined verbatim (issue #934).
 /// * An empty / root prefix roots the name at `::`.
 ///
 /// The one shared join for the analyser / signature-scan / class-lattice
 /// qualifiers, so the absolute-name rule cannot drift between them.
 #[must_use]
 pub fn qualify(prefix: &str, name: &str) -> String {
+    // Canonicalise the *written* name once (colon-run rule, trailing-separator
+    // preservation), then join with one exact separator — never re-parse the
+    // joined result, which would collapse a legitimately colon-named segment
+    // into its parent (issue #934: `proc :` inside `namespace eval :`).
+    let canonical = canonical_written_command(name);
     if name.starts_with("::") {
-        return normalise_qualified_name(name);
+        return canonical;
     }
-    let p = prefix.trim_start_matches("::").trim_end_matches("::");
-    if name.is_empty() {
-        // The empty-name entity (`proc {} {} {}`): a trailing separator
-        // names the `{}` command/variable in the qualified namespace
-        // ([`ends_with_separator`]) — `::` at the root, `::p::` inside `p`.
-        return if p.is_empty() {
-            "::".to_owned()
-        } else {
-            format!("::{p}::")
-        };
-    }
+    // The prefix is a *constructed* namespace key (possibly unrooted); use it
+    // verbatim apart from rooting.  (Stripping is single-shot: the key of a
+    // namespace named `:` is `":::"`, whose unrooted form is `":"`.)
+    let p = prefix.strip_prefix("::").unwrap_or(prefix);
     if p.is_empty() {
-        normalise_qualified_name(name)
-    } else {
-        normalise_qualified_name(&format!("{p}::{name}"))
+        if canonical.is_empty() {
+            // The empty-name entity (`proc {} {} {}`) at the root — see
+            // [`ends_with_separator`]; `::x::` is its form inside `::x`.
+            return "::".to_owned();
+        }
+        return format!("::{canonical}");
     }
+    format!("::{p}::{canonical}")
 }
 
 /// Candidate qualified names for Tcl's real bareword command/procedure
@@ -457,16 +670,26 @@ pub fn command_resolution_candidates<S: AsRef<str>>(
     path: &[S],
     cmd_name: &str,
 ) -> Vec<String> {
+    // Canonicalise the *written* command word once (colon-run rule, #934):
+    // `a:::b` names `a::b`, a lone `:` is an ordinary character, and a
+    // trailing separator names the `{}` command in the qualified namespace.
+    // An absolute word is complete after canonicalisation (`:::` → `::`, the
+    // global `{}` command).
     if cmd_name.starts_with("::") {
-        return vec![cmd_name.to_owned()];
+        return vec![canonical_written_command(cmd_name)];
     }
+    let canonical_cmd = canonical_written_command(cmd_name);
     let mut out: Vec<String> = Vec::with_capacity(path.len() + 2);
+    // `base` is a *constructed* namespace key: root it with one exact `::`,
+    // never re-parse it — a `::`-run inside the key is a legitimately
+    // colon-named segment (`namespace eval :`), not a collapsible separator.
     let push_base = |base: &str, out: &mut Vec<String>| {
         let candidate = if base.is_empty() || base == "::" {
-            format!("::{cmd_name}")
+            format!("::{canonical_cmd}")
+        } else if base.starts_with("::") {
+            format!("{base}::{canonical_cmd}")
         } else {
-            let rooted = normalise_qualified_name(base);
-            format!("{rooted}::{cmd_name}")
+            format!("::{base}::{canonical_cmd}")
         };
         if !out.contains(&candidate) {
             out.push(candidate);
@@ -474,15 +697,22 @@ pub fn command_resolution_candidates<S: AsRef<str>>(
     };
     push_base(namespace, &mut out);
     for entry in path {
+        // A path entry is a *written* namespace name: canonicalise it (runs
+        // collapse; a trailing separator run drops — `namespace path c:::`
+        // names `::c`, never a namespace named `c::`).
         let entry = entry.as_ref();
         if entry.starts_with("::") {
-            push_base(entry, &mut out);
+            push_base(&normalise_qualified_name(entry), &mut out);
         } else {
             // Relative entry: current-namespace-relative only (see above).
+            let segs = qualifier_segments_owned(entry);
+            let canonical_entry = segs.join("::");
             let based = if namespace.is_empty() || namespace == "::" {
-                format!("::{entry}")
+                format!("::{canonical_entry}")
+            } else if namespace.starts_with("::") {
+                format!("{namespace}::{canonical_entry}")
             } else {
-                format!("{namespace}::{entry}")
+                format!("::{namespace}::{canonical_entry}")
             };
             push_base(&based, &mut out);
         }
@@ -671,13 +901,30 @@ pub mod conformance {
     #[must_use]
     pub fn vector_script(v: &ResolutionVector) -> String {
         use std::fmt::Write as _;
+        // Namespace / definition fields are **constructed keys** (see the
+        // vector-file header): a key may hold a colon-named segment
+        // (`":::"` is the namespace — or proc — named `:`; `"::"` names the
+        // empty-string `{}` proc), which has no absolute written spelling
+        // (issue #934).  Everything is therefore created *relatively*,
+        // descending the key's holder chain one `namespace eval` at a time
+        // with brace-quoted tails.
+        //
+        // `run(ns_key, body)`: a command string that evaluates `body` inside
+        // `ns_key`, built by nesting `namespace eval {tail} {…}` from the
+        // root down.
+        fn run(ns_key: &str, body: &str) -> String {
+            if ns_key.is_empty() || ns_key == "::" {
+                return body.to_owned();
+            }
+            let (holder, tail) = crate::naming::key_holder_and_tail(ns_key);
+            run(holder, &format!("namespace eval {{{tail}}} {{ {body} }}"))
+        }
         let mut script = String::new();
-        // Every namespace referenced anywhere must exist up front: the
-        // call namespace, each path entry, and each definition's holder
-        // (`namespace eval ::a::b {}` creates intermediate levels too).
+        // Every namespace referenced anywhere must exist up front: the call
+        // namespace, each path entry, and each definition's holder.
         let ensure_ns = |ns: &str, script: &mut String| {
             if ns != "::" && !ns.is_empty() {
-                let _ = writeln!(script, "namespace eval {ns} {{}}");
+                let _ = writeln!(script, "{}", run(ns, ""));
             }
         };
         ensure_ns(&v.ns, &mut script);
@@ -685,23 +932,29 @@ pub mod conformance {
             ensure_ns(p, &mut script);
         }
         for def in &v.defs {
-            if let Some((holder, _tail)) = def.rsplit_once("::") {
-                ensure_ns(holder, &mut script);
-            }
-            let _ = writeln!(script, "proc {def} {{}} {{ return {def} }}");
+            let (holder, tail) = crate::naming::key_holder_and_tail(def);
+            ensure_ns(holder, &mut script);
+            let _ = writeln!(
+                script,
+                "{}",
+                run(
+                    holder,
+                    &format!("proc {{{tail}}} {{}} {{ return {{{def}}} }}")
+                ),
+            );
         }
         if !v.path.is_empty() {
             let entries = v.path.join(" ");
             let _ = writeln!(
                 script,
-                "namespace eval {} [list namespace path [list {entries}]]",
-                v.ns
+                "{}",
+                run(&v.ns, &format!("namespace path [list {entries}]")),
             );
         }
         let _ = writeln!(
             script,
-            "if {{[catch {{namespace eval {} {{{}}}}} __r]}} {{ set __r - }}",
-            v.ns, v.call
+            "if {{[catch {{{}}} __r]}} {{ set __r - }}",
+            run(&v.ns, &v.call),
         );
         script.push_str("puts $__r\n");
         script
@@ -726,6 +979,86 @@ mod tests {
         // trailing separator denotes.
         assert_eq!(qualify("", ""), "::");
         assert_eq!(qualify("::ns", ""), "::ns::");
+    }
+
+    // Issue #934 — names carrying lone colons (`proc :`, `namespace eval :`)
+    // and written colon runs.  tclsh 8.6/9.0-pinned; C 8.4→9.1-invariant
+    // (`TclGetNamespaceForQualName`).
+
+    #[test]
+    fn qualify_keeps_a_lone_colon_name_distinct() {
+        // `proc :` at the root is `"::" + ":"` — never collapsed into the
+        // empty-name `"::"` key.
+        assert_eq!(qualify("::", ":"), ":::");
+        // ... inside a namespace named `:` (key `":::"`).
+        assert_eq!(qualify(":::", ":"), "::::::");
+        // Written runs in the name still collapse (`a:::b` names `a::b`).
+        assert_eq!(qualify("::ns", "a:::b"), "::ns::a::b");
+        // A written trailing run names the `{}` command in that namespace.
+        assert_eq!(qualify("::", "x::"), "::x::");
+        assert_eq!(qualify("::", "x:::"), "::x::");
+    }
+
+    #[test]
+    fn canonical_written_command_forms() {
+        assert_eq!(canonical_written_command("::a:::b"), "::a::b");
+        assert_eq!(canonical_written_command(":::"), "::");
+        assert_eq!(canonical_written_command("::"), "::");
+        assert_eq!(canonical_written_command("::x::"), "::x::");
+        assert_eq!(canonical_written_command("x:::"), "x::");
+        assert_eq!(canonical_written_command(":"), ":");
+        assert_eq!(canonical_written_command(":x"), ":x");
+        assert_eq!(canonical_written_command("a:b"), "a:b");
+        assert_eq!(canonical_written_command(""), "");
+    }
+
+    #[test]
+    fn key_tail_inverts_the_key_construction() {
+        assert_eq!(key_tail("::a::b"), "b");
+        assert_eq!(key_tail("::a"), "a");
+        assert_eq!(key_tail(":::"), ":");
+        assert_eq!(key_tail("::::::"), ":");
+        assert_eq!(key_tail("::a:::"), ":");
+        assert_eq!(key_tail("::a::::x"), ":x");
+        assert_eq!(key_tail("::x::"), "");
+        assert_eq!(key_tail("::"), "");
+        assert_eq!(key_tail(":"), ":");
+        assert_eq!(key_tail("a:b"), "a:b");
+        assert_eq!(key_tail("cmd"), "cmd");
+        assert_eq!(key_tail("a::b"), "b");
+        assert_eq!(key_tail(""), "");
+    }
+
+    #[test]
+    fn colon_names_resolve_by_construction_symmetry() {
+        // A bare `:` call from the global scope must produce the same key
+        // `proc :` is registered under.
+        assert_eq!(bareword_resolution_candidates("::", ":"), vec![":::"]);
+        // The written `:::` is the *global `{}` command* (`proc {} {} {}`),
+        // never the `:` proc — tclsh-pinned: with `proc {}` defined, `::` and
+        // `:::` both dispatch to it; without it they are invalid.
+        assert_eq!(bareword_resolution_candidates("::", ":::"), vec!["::"]);
+        // From inside the namespace named `:`, a bare `:` reaches the nested
+        // proc first, then the global `:`.
+        assert_eq!(
+            bareword_resolution_candidates(":::", ":"),
+            vec!["::::::", ":::"],
+        );
+        // `x:::` names the `{}` command in `::x` (tclsh-pinned).
+        assert_eq!(bareword_resolution_candidates("::", "x:::"), vec!["::x::"]);
+    }
+
+    #[test]
+    fn is_absolutely_addressable_cases() {
+        assert!(is_absolutely_addressable(&[], "cmd"));
+        assert!(is_absolutely_addressable(&["a", "b"], "cmd"));
+        assert!(is_absolutely_addressable(&[], "a:b"));
+        // The empty name IS addressable (`::` / `::x::`).
+        assert!(is_absolutely_addressable(&["x"], ""));
+        // A lone-colon simple name or namespace segment is not.
+        assert!(!is_absolutely_addressable(&[], ":"));
+        assert!(!is_absolutely_addressable(&[":"], "cmd"));
+        assert!(!is_absolutely_addressable(&["a", ":"], "cmd"));
     }
 
     #[test]

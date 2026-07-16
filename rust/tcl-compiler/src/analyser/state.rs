@@ -29,6 +29,17 @@ use tcl_lexer::Span;
 
 use super::types::AnalysisResult;
 
+/// One constant-`$cmd` dispatch site (M7), pending post-walk settlement.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct ConstDispatchSite {
+    /// The variable's constant string value — the command name it dispatches.
+    pub value: String,
+    /// Span of the `$cmd` head token (the reference anchor).
+    pub span: Span,
+    /// Command-resolution namespace at the dispatch site.
+    pub ns: String,
+}
+
 /// One entry in [`Analyser::var_command_sites`] —
 /// `(var_name, method_name?, cmd_token_span, in_method)`.
 ///
@@ -228,6 +239,14 @@ pub struct Analyser {
     pub(super) namespace_paths: HashMap<String, Vec<String>>,
     /// Variable-as-command call sites; resolved post-walk by W307.
     pub var_command_sites: Vec<VarCommandSite>,
+    /// Constant-`$cmd` dispatch sites (M7): a `$cmd args…` head whose
+    /// variable held a known constant string at the call site.  Settled in
+    /// `finalise_invocation_resolutions` — a value that resolves to a known
+    /// command becomes an ordinary [`SignatureCommandInvocation`] (so
+    /// references / go-to-definition / rename / call hierarchy reach the
+    /// dispatched command); an unresolvable value is dropped (abstention —
+    /// the documented non-const limit stays intact and no new W123 arises).
+    pub(super) pending_const_dispatches: Vec<ConstDispatchSite>,
     /// Tk widget instance-dispatch candidates (`.t instate …`, `$w tag
     /// configure …`) whose head the ordinary registry-command resolution
     /// could not resolve; resolved post-walk by
@@ -549,6 +568,7 @@ impl Analyser {
             deleted_commands: HashMap::new(),
             namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
+            pending_const_dispatches: Vec::new(),
             widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
             ns_cache: HashMap::new(),

@@ -37,7 +37,8 @@
 use std::collections::BTreeMap;
 
 use tcl_syntax::naming::{
-    is_qualified as contains_qualifier, qualifier_segments as split_qualifier,
+    ends_with_separator, is_qualified as contains_qualifier,
+    qualifier_segments as split_qualifier,
 };
 
 use crate::frame::VarTable;
@@ -696,14 +697,25 @@ impl Namespaces {
     ///   confirmed).
     fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
         let segments = split_qualifier(name);
-        let (simple, ns_parts) = segments.split_last()?;
+        // A name ending in a separator run — or consisting only of colons, or
+        // empty — names the empty-string `{}` command in the qualified
+        // namespace; `qualifier_segments` drops that empty tail, so restore
+        // it (#934: with `proc {} {} {}` defined, `::` and `:::` both
+        // dispatch it, tclsh 8.6/9.0-pinned).
+        let (simple, ns_parts): (&[u8], &[&[u8]]) =
+            if ends_with_separator(name) || name.is_empty() {
+                (b"", &segments[..])
+            } else {
+                let (simple, ns_parts) = segments.split_last()?;
+                (*simple, ns_parts)
+            };
         // Walk `ns_parts` from `base`, then require the command itself.
         let find_under = |base: NsId| -> Option<NsId> {
             let mut ns = base;
             for part in ns_parts {
                 ns = *self.arena[ns].children.get(*part)?;
             }
-            if self.arena[ns].commands.contains_key(*simple) {
+            if self.arena[ns].commands.contains_key(simple) {
                 Some(ns)
             } else {
                 None

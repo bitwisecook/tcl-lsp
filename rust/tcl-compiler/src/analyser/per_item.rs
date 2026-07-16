@@ -873,16 +873,17 @@ pub(crate) fn reconstruct_proc_scope(
 ) -> Vec<usize> {
     use super::types::Scope;
     use super::types::ScopeKind;
-    let comps: Vec<&str> = namespace
-        .trim_start_matches(':')
-        .split("::")
-        .filter(|s| !s.is_empty())
-        .collect();
+    // `namespace` is a constructed key: split it by the construction-inverse
+    // rule so a legitimately colon-named segment survives (#934) — a
+    // char-pattern trim + `split("::")` would collapse it.
+    let comps = crate::naming::key_segments(namespace);
     let mut path: Vec<usize> = Vec::new();
     for comp in comps {
         let parent = super::scope::scope_at_mut(root, &path).expect("scope path");
         let i = parent.children.len();
-        parent.children.push(Scope::new(ScopeKind::Namespace, comp));
+        parent
+            .children
+            .push(Scope::new(ScopeKind::Namespace, &comp));
         path.push(i);
     }
     let parent = super::scope::scope_at_mut(root, &path).expect("scope path");

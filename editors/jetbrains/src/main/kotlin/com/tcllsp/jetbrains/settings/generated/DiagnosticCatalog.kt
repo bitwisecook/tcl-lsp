@@ -78,6 +78,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W241", "warning", "W241: Loop is provably infinite", true),
         DiagnosticDef("W250", "warning", "W250: Instantiating an oo::abstract class", true),
         DiagnosticDef("W308", "warning", "W308: Unknown TclOO method", true),
+        DiagnosticDef("W314", "warning", "W314: Definition has no absolute (fully-qualified) name", true),
         DiagnosticDef("W210", "variable", "W210: Variable read before set", true),
         DiagnosticDef("W211", "variable", "W211: Variable set but never used", true),
         DiagnosticDef("W212", "variable", "W212: Variable substitution where name expected (set \$x, i...", true),

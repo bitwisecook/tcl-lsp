@@ -91,3 +91,26 @@ fn scope_isolation_between_procs() {
     assert!(lines.contains(&5));
     assert!(!lines.contains(&1));
 }
+
+// M7: a proc-name literal held as a dispatch-table value (consumed by a
+// `$table(...)` dispatch) is a real reference — go-to-definition from the
+// literal jumps to the proc, and the `$cmd` const-dispatch head resolves too.
+#[test]
+fn dispatch_table_literal_resolves_to_the_proc_m7() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc do_add {a b} { return [expr {$a + $b}] }\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    lsp.open_ready(&uri, src);
+    // Cursor inside the `do_add` table value literal (line 1, col 20).
+    let lines = start_lines(&lsp.definition(&uri, 1, 20));
+    assert!(
+        lines.contains(&0) && lines.len() == 1,
+        "table literal must resolve to the proc: {lines:?}"
+    );
+    // References from the declaration include the table literal's line.
+    let refs = start_lines(&lsp.references(&uri, 0, 6, true));
+    assert!(
+        refs.contains(&1),
+        "table literal is a reference site: {refs:?}"
+    );
+}

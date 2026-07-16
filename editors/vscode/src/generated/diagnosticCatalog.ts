@@ -304,6 +304,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W314",
+    section: "warning",
+    description:
+      "Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
+    defaultEnabled: true,
+  },
+  {
     code: "W210",
     section: "variable",
     description: "Variable read before set.",
