@@ -155,6 +155,26 @@ pub struct PrepareRename {
     pub placeholder: String,
 }
 
+/// The cursor word's own range + text as a [`PrepareRename`] — the
+/// consumer-document fall-through (M8).  [`prepare_rename`] anchors on a
+/// *local* declaration; when the document has none (the symbol is defined in
+/// a sibling / autoloaded library file), the server may still accept the
+/// rename after resolving the word through the workspace index — the range
+/// the editor highlights is then the call-site word itself.
+#[must_use]
+pub fn word_prepare_at(source: &str, line: u32, character: u32) -> Option<PrepareRename> {
+    let (word, start, end) = find_word_span_at_position(source, line, character)?;
+    Some(PrepareRename {
+        range: crate::definition::LspRange {
+            start_line: line,
+            start_character: start,
+            end_line: line,
+            end_character: end,
+        },
+        placeholder: word,
+    })
+}
+
 /// Validate that the cursor sits on a renameable symbol and
 /// return the symbol's range + placeholder text.  Editors
 /// call this before `rename` to determine whether to show the
@@ -174,6 +194,7 @@ pub fn prepare_rename(
             &analysis.global_scope,
             byte_offset,
             &var_name,
+            analysis.ns_var_global_fallback(),
         ) {
             return Some(PrepareRename {
                 range: span_to_range(source, &line_index, var_def.definition_span),
@@ -190,6 +211,7 @@ pub fn prepare_rename(
             &analysis.global_scope,
             def_byte,
             &var_name,
+            analysis.ns_var_global_fallback(),
         )
     {
         return Some(PrepareRename {
@@ -197,24 +219,27 @@ pub fn prepare_rename(
             placeholder: var_def.name.clone(),
         });
     }
-    // Proc?
+    // Proc?  Declaration-span hit, else the namespace-aware candidate
+    // resolution — never a namespace-blind `p.name == word` first-hit scan
+    // (which could seed the rename with an arbitrary same-named proc).
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, proc_def.name_span),
-                placeholder: proc_def.name.clone(),
-            });
-        }
+    let word_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some((_, proc_def)) =
+        crate::definition::resolve_proc_target_at(analysis, source, word_off, &word, None)
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, proc_def.name_span),
+            placeholder: proc_def.name.clone(),
+        });
     }
-    // Class?  Same as the proc walk above but against `all_classes`.
-    for (qname, class_def) in &analysis.all_classes {
-        if class_def.name == word || qname == &word || qname == &format!("::{word}") {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, class_def.name_span),
-                placeholder: class_def.name.clone(),
-            });
-        }
+    // Class?  Same resolution shape against `all_classes`.
+    if let Some((_, class_def)) =
+        crate::definition::resolve_class_target_at(analysis, word_off, &word)
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, class_def.name_span),
+            placeholder: class_def.name.clone(),
+        });
     }
     // Method / classmethod / property inside a class body?
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
@@ -595,17 +620,23 @@ fn rename_var(
     var_name: &str,
 ) -> Vec<TextEdit> {
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    let Some(var_def) =
-        crate::definition::lookup_var_in_scope_chain(&analysis.global_scope, byte_offset, var_name)
-    else {
+    let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+        &analysis.global_scope,
+        byte_offset,
+        var_name,
+        analysis.ns_var_global_fallback(),
+    ) else {
         return Vec::new();
     };
     // Collision gate: refuse when `new_name` already resolves to a *different*
     // variable visible at the cursor (e.g. a sibling `set y` in the same proc
     // scope) — renaming would merge two distinct variables.
-    if let Some(existing) =
-        crate::definition::lookup_var_in_scope_chain(&analysis.global_scope, byte_offset, new_name)
-        && existing.definition_span != var_def.definition_span
+    if let Some(existing) = crate::definition::lookup_var_in_scope_chain(
+        &analysis.global_scope,
+        byte_offset,
+        new_name,
+        analysis.ns_var_global_fallback(),
+    ) && existing.definition_span != var_def.definition_span
     {
         return Vec::new();
     }
@@ -710,6 +741,12 @@ fn rename_proc(
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
+        // An indirect site's span does not carry the written name (a constant
+        // `$cmd` head, M7) — rewriting it would splice the new name over
+        // unrelated text.  References still report it; rename must not.
+        if inv.indirect {
+            continue;
+        }
         // Use the *same* invocation-matching rule as Find-All-References so a
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `helper` call in
@@ -774,6 +811,11 @@ fn rename_class(
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
+        // Indirect sites (M7) are references, never rename targets — the span
+        // does not carry the written name.
+        if inv.indirect {
+            continue;
+        }
         // Use the *same* invocation-matching rule as Find-All-References so a
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `ClassName new`
@@ -1060,6 +1102,11 @@ pub fn cross_document_symbol_edits(
     let mut edits = Vec::new();
     // Call sites.
     for inv in index.invocations_of(qualified_name, current_uri) {
+        // Indirect sites (constant `$cmd` heads, M7) are references, never
+        // rename targets — their span is not the written name.
+        if inv.indirect {
+            continue;
+        }
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
         edits.push(WorkspaceTextEdit {
@@ -1101,6 +1148,36 @@ pub fn cross_document_symbol_edits(
         });
     }
     edits
+}
+
+/// Compute the **whole-workspace** edit set for renaming the command whose
+/// qualified name is `qualified_name` — every call site, name-link word, and
+/// definition site the index knows, the current document included.
+///
+/// This is the consumer-document rename path (M8): the cursor sits on a call
+/// whose definition lives in another document (a workspace sibling, or a
+/// library file the autoload tier merged), so the in-document rename had no
+/// local definition to resolve against and produced nothing.  The index
+/// supplies everything instead.  Returns `None` when the rename would shadow
+/// an existing workspace command — the same collision discipline as the
+/// in-document rename's local gate.
+#[must_use]
+pub fn workspace_symbol_rename_edits(
+    qualified_name: &str,
+    new_name: &str,
+    index: &crate::workspace_index::WorkspaceIndex,
+) -> Option<Vec<WorkspaceTextEdit>> {
+    let namespace_prefix = namespace_prefix_of(qualified_name);
+    let (new_qualified, _) = qualified_and_decl_text(namespace_prefix, new_name);
+    if index.workspace_command_exists(&new_qualified) {
+        return None;
+    }
+    Some(cross_document_symbol_edits(
+        qualified_name,
+        new_name,
+        index,
+        "",
+    ))
 }
 
 /// Build a replacement string for a variable reference span.
@@ -1172,11 +1249,12 @@ fn split_array_suffix(rest: &str) -> (&str, &str) {
 /// `"::greet"` → `""` (proc lives at global scope, no enclosing
 /// namespace).  `"greet"` → `""` likewise.
 fn namespace_prefix_of(qualified: &str) -> &str {
-    let trimmed = qualified.trim_start_matches("::");
-    match trimmed.rfind("::") {
-        Some(idx) => &qualified[..qualified.len() - (trimmed.len() - idx)],
-        None => "",
-    }
+    // `qualified` is a constructed key: its holder comes from the
+    // construction-inverse split (#934) — a repeated-strip + `rfind` would
+    // misread a lone-colon segment.  The root holder maps to `""` (a global
+    // proc has no enclosing-namespace prefix).
+    let (holder, _tail) = tcl_syntax::naming::key_holder_and_tail(qualified);
+    if holder == "::" { "" } else { holder }
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {

@@ -18,7 +18,14 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, waitForEffectiveConfig } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnostics,
+  waitForEffectiveConfig,
+  getServerLogSize,
+  waitForDeepDiagnostics,
+} from "./helper";
 
 suite("Diagnostics", () => {
   const docUri = getDocUri("diagnostics.tcl");
@@ -309,6 +316,10 @@ suite("Diagnostics", () => {
     // workspace key on its way out.  `index.ts` restores the fixture file's
     // bytes after the run, as it does for the other config tests.
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
+    // Snapshot the server-log cursor *before* the optimiser toggle so the
+    // deep-diagnostics marker from either the config-change re-analysis (if the
+    // doc is already open) or the open below is guaranteed to sit at/after it.
+    const since = getServerLogSize();
     await config.update("enabled", false, vscode.ConfigurationTarget.Workspace);
 
     try {
@@ -326,11 +337,16 @@ suite("Diagnostics", () => {
 
       await activate(cleanUri);
 
-      // Wait briefly for any diagnostics to appear (proving none arrive)
-      const diagnostics = await waitForDiagnostics(cleanUri, {
-        timeout: 2000,
-        minCount: 1,
-      });
+      // Positive proof the deep pass ran and published for THIS uri: the server
+      // emits `[timing] deep diagnostics (uri=…, diags=0)` after every publish,
+      // even for a clean file with the optimiser off.  `waitForDeepDiagnostics`
+      // throws on timeout, so an analysis that silently never ran fails loudly
+      // instead of going green on a vacuous empty set — the failure mode a
+      // fixed-timeout `waitForDiagnostics(minCount: 1)` could never catch here,
+      // since a clean file never satisfies `minCount` and always falls through
+      // to its timer with an empty array.
+      await waitForDeepDiagnostics(cleanUri, { since });
+      const diagnostics = vscode.languages.getDiagnostics(cleanUri);
 
       assert.strictEqual(
         diagnostics.length,
@@ -565,6 +581,15 @@ suite("Diagnostics", () => {
       predicate: (diags) => diags.some((d) => codeOf(d) === "W123"),
     });
     const codes = diagnostics.map(codeOf);
+    // Re-assert the positive settle signal before the negative check: a
+    // `waitForDiagnostics` timeout resolves with the current (possibly empty)
+    // set rather than throwing, so without this the bare `!includes("W307")`
+    // would pass vacuously whenever analysis never settled.  The unknown
+    // classes `C`/`L` must surface W123 for this fixture.
+    assert.ok(
+      codes.includes("W123"),
+      `analysis must have settled (unknown-class C/L should surface W123), got [${codes}]`,
+    );
     assert.ok(
       !codes.includes("W307"),
       `dispatch over created object names must not fire W307, got [${codes}]`,

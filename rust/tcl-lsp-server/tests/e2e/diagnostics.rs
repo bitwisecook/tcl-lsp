@@ -2023,6 +2023,100 @@ fn autoload_library_command_go_to_definition_m8() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
+/// Per-call counter for the autoload references/rename fixture dir.
+static AUTOLOAD_REFS_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// M8's second half: once the autoload tier resolves a library command, the
+/// defining library file is merged into the workspace index, so
+/// **find-references** reaches the library declaration and the library's own
+/// call sites, and **rename** rewrites them alongside the workspace call.
+#[test]
+fn autoload_library_command_references_and_rename_m8() {
+    use std::sync::atomic::Ordering;
+
+    let libdir = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-autoload-refs-{}-{}",
+        std::process::id(),
+        AUTOLOAD_REFS_N.fetch_add(1, Ordering::Relaxed)
+    ));
+    let pkgdir = libdir.join("rbc");
+    std::fs::create_dir_all(&pkgdir).expect("mk lib dir");
+    // `Rbc_Wire` calls `Rbc_ActiveLegend` inside the library, so the library
+    // contributes an internal call site of its own (line 1).
+    std::fs::write(
+        pkgdir.join("graph.tcl"),
+        "proc Rbc_ActiveLegend {graph} {}\nproc Rbc_Wire {} { Rbc_ActiveLegend .g }\n",
+    )
+    .expect("write graph.tcl");
+    std::fs::write(
+        pkgdir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]]\n\
+         set auto_index(Rbc_Wire) [list source [file join $dir graph.tcl]]\n",
+    )
+    .expect("write tclIndex");
+
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "libraryPaths": [ libdir.to_string_lossy() ],
+    }));
+
+    let uri = unique_uri("tcl");
+    let src = "Rbc_ActiveLegend .g\n";
+    lsp.open_document(&uri, src);
+
+    // The package database loads asynchronously at startup; poll (via the W123
+    // clearing on the pull path) until it is live.
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let mut diags = lsp.pull_diagnostics(&uri);
+    while has_code(&diags, "W123") && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        diags = lsp.pull_diagnostics(&uri);
+    }
+
+    // References from the workspace call site (cursor on the head, incl. the
+    // declaration): the library's declaration (line 0) and its internal call
+    // site (line 1) must both surface.
+    let refs = crate::common::helpers::locations(&lsp.references(&uri, 0, 2, true));
+    let lib_lines: Vec<i64> = refs
+        .iter()
+        .filter(|l| l.uri.ends_with("graph.tcl"))
+        .filter_map(|l| {
+            l.range
+                .get("start")
+                .and_then(|s| s.get("line"))
+                .and_then(Value::as_i64)
+        })
+        .collect();
+    assert!(
+        lib_lines.contains(&0),
+        "library declaration must be a reference target, got {refs:?}",
+    );
+    assert!(
+        lib_lines.contains(&1),
+        "library-internal call site must be a reference, got {refs:?}",
+    );
+
+    // Rename from the same cursor rewrites the workspace call *and* both
+    // library sites, so the family stays consistent.
+    let edits = crate::common::helpers::rename_edits(&lsp.rename(&uri, 0, 2, "Rbc_Shiny"));
+    let lib_edit_count = edits
+        .iter()
+        .filter(|(u, _)| u.ends_with("graph.tcl"))
+        .map(|(_, es)| es.len())
+        .next()
+        .unwrap_or(0);
+    assert_eq!(
+        lib_edit_count, 2,
+        "library declaration + internal call must be rewritten, got {edits:?}",
+    );
+    assert!(
+        edits.iter().any(|(u, _)| *u == uri),
+        "the workspace call site is rewritten too: {edits:?}",
+    );
+
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
 // -- #844 progressive (two-tier) diagnostics -----------------------------
 
 /// Build a large Tcl document (~`n` procs, ~10×`n` lines) whose deep
@@ -2693,6 +2787,125 @@ fn w003_f5_tmsh_flags_string_relational_operators() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "# tcl-dialect: f5-tmsh\nif {$a lt $b} { puts hi }\n");
     assert!(has_code(&diags, "W003"), "{diags:?}");
+}
+
+/// Per-call counter for the workspace-folder consumer-rename fixture dir.
+static WS_FOLDER_RENAME_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The VS Code fixture shape for M8's consumer rename, driven end-to-end
+/// through a REAL workspace folder (no `libraryPaths` config): the library
+/// lives in a `rbclib/` subdirectory of the folder (with a `tclIndex`), the
+/// consumer at the folder root calls `Rbc_ActiveLegend` bare, and a rename at
+/// the consumer's call site must rewrite the library declaration.  Mirrors
+/// `editors/vscode/src/test/renameSymbol.test.ts`'s M8 test so the
+/// environment-specific path (workspace-scan indexing, not the
+/// `libraryPaths` autoload tier) is pinned in the fast harness too.
+#[test]
+fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
+    use std::sync::atomic::Ordering;
+
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-ws-rename-{}-{}",
+        std::process::id(),
+        WS_FOLDER_RENAME_N.fetch_add(1, Ordering::Relaxed)
+    ));
+    let libdir = root.join("rbclib");
+    std::fs::create_dir_all(&libdir).expect("mk lib dir");
+    std::fs::write(
+        libdir.join("graph.tcl"),
+        "# Auto-loaded library procs (BLT/Rbc idiom) — reachable by bare name via the\n\
+         # sibling tclIndex, with no `package require` in the caller.\n\
+         proc Rbc_ActiveLegend {graph} {}\n\
+         proc Rbc_ZoomStack {graph args} {}\n",
+    )
+    .expect("write graph.tcl");
+    std::fs::write(
+        libdir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]]\n\
+         set auto_index(Rbc_ZoomStack) [list source [file join $dir graph.tcl]]\n",
+    )
+    .expect("write tclIndex");
+    let consumer_path = root.join("autoloadLibrary.tcl");
+    std::fs::write(&consumer_path, "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n")
+        .expect("write consumer");
+
+    let mut lsp = Lsp::tcl();
+    // Attach the real folder (the fake `initialize` root indexes nothing) and
+    // let the rescan index rbclib/graph.tcl from disk.
+    let folder_uri = format!("file://{}", root.to_string_lossy());
+    lsp.notify(
+        "workspace/didChangeWorkspaceFolders",
+        serde_json::json!({
+            "event": {
+                "added": [{ "uri": folder_uri, "name": "fixture" }],
+                "removed": []
+            }
+        }),
+    );
+
+    let uri = format!("file://{}", consumer_path.to_string_lossy());
+    lsp.open_document(&uri, "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n");
+
+    // The folder scan runs asynchronously; poll the rename until the library
+    // edit appears (or the deadline), exactly like the editor test.
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let mut lib_lines: Vec<i64> = Vec::new();
+    while std::time::Instant::now() < deadline && lib_lines.is_empty() {
+        let resp = lsp.request(
+            "textDocument/rename",
+            serde_json::json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": 0, "character": 3 },
+                "newName": "Rbc_ShinyLegend"
+            }),
+        );
+        if let Some(changes) = resp.get("changes").and_then(|c| c.as_object()) {
+            for (target, edits) in changes {
+                if target.ends_with("graph.tcl") {
+                    lib_lines = edits
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|e| e.pointer("/range/start/line").and_then(Value::as_i64))
+                        .collect();
+                }
+            }
+        }
+        if lib_lines.is_empty() {
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    }
+    assert!(
+        lib_lines.contains(&2),
+        "the library declaration (graph.tcl line 2) must be rewritten: {lib_lines:?}"
+    );
+
+    // VS Code gates every rename behind `textDocument/prepareRename` — the
+    // consumer document has no local declaration, so prepare must take the
+    // workspace fall-through and accept with the call-site word's own range
+    // (a `null` here made the editor abort with "The element can't be
+    // renamed." before ever sending the rename).
+    let prep = lsp.request(
+        "textDocument/prepareRename",
+        serde_json::json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 3 }
+        }),
+    );
+    assert_eq!(
+        prep.pointer("/placeholder").and_then(Value::as_str),
+        Some("Rbc_ActiveLegend"),
+        "prepare accepts the consumer call site: {prep:?}"
+    );
+    assert_eq!(
+        prep.pointer("/range/start/character")
+            .and_then(Value::as_i64),
+        Some(0),
+        "the highlighted range is the call-site word: {prep:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 // -- Dialect-profile availability (dialect-profile-model.md, Milestone 2):

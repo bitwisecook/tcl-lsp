@@ -846,16 +846,41 @@ fn undefined_name_with_package_required_falls_back_honestly() {
     let mut lsp = Lsp::with_config(json!({
         "libraryPaths": [ libdir.to_string_lossy() ],
     }));
+
+    // The package database is (re)built asynchronously; a fixed sleep raced it,
+    // and a not-yet-loaded DB leaves `mypkg` unresolvable — which would satisfy
+    // the negative assertion below trivially, without ever exercising the "some
+    // required package IS resolvable" condition this test exists to guard.
+    // Prove the DB is live first: a control document calling mypkg's *real*
+    // helper draws E001 (its chained bare `string` has no subcommand) only once
+    // `mypkg` resolves.  Poll the deterministic pull path until it lands
+    // (mirrors the positive `package_required_library_command_recovers_the_tail`).
+    let control = unique_uri("tcl");
+    lsp.open_document(
+        &control,
+        "package require mypkg\nset q {\n  aaa\nmypkg_helper 1; string\n",
+    );
+    let mut cdiags = lsp.pull_diagnostics(&control);
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    while !cdiags.iter().any(|d| code_str(d) == "E001") && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        cdiags = lsp.pull_diagnostics(&control);
+    }
+    assert!(
+        cdiags.iter().any(|d| code_str(d) == "E001"),
+        "control: mypkg_helper must resolve once the package DB is live, proving \
+         the DB loaded before the negative assertion runs; got {:?}",
+        codes(&cdiags)
+    );
+
+    // Now the real case: with the DB provably live, the swallowed call targets a
+    // name `mypkg` does NOT provide, so it must not be mis-recovered as live
+    // code (no E001 from a chained bare `string`).
     let uri = unique_uri("tcl");
     lsp.open_document(
         &uri,
         "package require mypkg\nset q {\n  aaa\nnot_mypkg_helper 1; string\n",
     );
-
-    // Give the (irrelevant, but concurrently loading) package database the
-    // same settling window as the positive case before asserting the
-    // steady-state result.
-    std::thread::sleep(Duration::from_millis(500));
     let diags = lsp.pull_diagnostics(&uri);
     assert!(has_recovery_error(&diags), "got {:?}", codes(&diags));
     assert!(

@@ -37,7 +37,7 @@
 use std::collections::BTreeMap;
 
 use tcl_syntax::naming::{
-    is_qualified as contains_qualifier, qualifier_segments as split_qualifier,
+    ends_with_separator, is_qualified as contains_qualifier, qualifier_segments as split_qualifier,
 };
 
 use crate::frame::VarTable;
@@ -101,6 +101,13 @@ impl Namespace {
 /// The namespace tree + the command resolver.
 pub struct Namespaces {
     arena: Vec<Namespace>,
+    /// M11: Tcl 8.x resolves an unqualified variable at **namespace scope**
+    /// to the global variable when the namespace has none but the global
+    /// namespace does (reads and writes both); 9.0 removed the fallback
+    /// (TIP 278, `TCL_NAMESPACE_ONLY`).  Defaults to the 9.0 behaviour
+    /// (`false`); an 8.x embedding flips it via
+    /// [`crate::interp::Interp::set_ns_var_global_fallback`].
+    pub(crate) ns_var_global_fallback: bool,
 }
 
 impl Default for Namespaces {
@@ -114,6 +121,7 @@ impl Namespaces {
     #[must_use]
     pub fn new() -> Namespaces {
         Namespaces {
+            ns_var_global_fallback: false,
             arena: vec![Namespace::new(Vec::new(), None)],
         }
     }
@@ -207,16 +215,28 @@ impl Namespaces {
         }
         let absolute = new.starts_with(b"::");
         let segments = split_qualifier(new);
-        let Some((simple, ns_parts)) = segments.split_last() else {
-            // `new` was `::`-only — nothing nameable; put the command back.
-            self.arena[old_ns].commands.insert(old_simple, cmd);
-            return RenameOutcome::NoSuchCommand;
+        // The same written-name split as `command_home_ns` / `home_of`: a
+        // trailing separator run names the empty-string `{}` command in the
+        // full qualifier chain (`rename foo x::` binds `::x::`, `rename bar
+        // ::` the global `{}` — tclsh 8.6/9.0-pinned, #934).
+        let (simple, ns_parts): (&[u8], &[&[u8]]) = if ends_with_separator(new) {
+            (b"", &segments[..])
+        } else {
+            match segments.split_last() {
+                Some((simple, ns_parts)) => (*simple, ns_parts),
+                // Unreachable for a non-empty, non-separator-terminated name;
+                // put the command back rather than lose it.
+                None => {
+                    self.arena[old_ns].commands.insert(old_simple, cmd);
+                    return RenameOutcome::NoSuchCommand;
+                }
+            }
         };
         let mut ns = if absolute { GLOBAL } else { current };
         for part in ns_parts {
             ns = self.ensure_child(ns, part);
         }
-        self.arena[ns].commands.insert((*simple).to_vec(), cmd);
+        self.arena[ns].commands.insert(simple.to_vec(), cmd);
         RenameOutcome::Renamed
     }
 
@@ -283,10 +303,20 @@ impl Namespaces {
         let absolute = name.starts_with(b"::");
         let segments = split_qualifier(name);
         let mut ns = if absolute { GLOBAL } else { current };
-        if let Some((_tail, ns_parts)) = segments.split_last() {
-            for part in ns_parts {
-                ns = self.ensure_child(ns, part);
-            }
+        // A written name ending in a separator run names the empty-string
+        // `{}` command inside its FULL qualifier chain — every segment is a
+        // namespace part, none is the tail (`proc x:: {} {}` defines
+        // `::x::`, tclsh 8.6/9.0-pinned, #934) — mirroring `home_of`'s
+        // resolution split so definition and dispatch agree.
+        let ns_parts: &[&[u8]] = if ends_with_separator(name) || name.is_empty() {
+            &segments[..]
+        } else {
+            segments
+                .split_last()
+                .map_or(&[][..], |(_tail, ns_parts)| ns_parts)
+        };
+        for part in ns_parts {
+            ns = self.ensure_child(ns, part);
         }
         ns
     }
@@ -696,14 +726,25 @@ impl Namespaces {
     ///   confirmed).
     fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
         let segments = split_qualifier(name);
-        let (simple, ns_parts) = segments.split_last()?;
+        // A name ending in a separator run — or consisting only of colons, or
+        // empty — names the empty-string `{}` command in the qualified
+        // namespace; `qualifier_segments` drops that empty tail, so restore
+        // it (#934: with `proc {} {} {}` defined, `::` and `:::` both
+        // dispatch it, tclsh 8.6/9.0-pinned).
+        let (simple, ns_parts): (&[u8], &[&[u8]]) = if ends_with_separator(name) || name.is_empty()
+        {
+            (b"", &segments[..])
+        } else {
+            let (simple, ns_parts) = segments.split_last()?;
+            (*simple, ns_parts)
+        };
         // Walk `ns_parts` from `base`, then require the command itself.
         let find_under = |base: NsId| -> Option<NsId> {
             let mut ns = base;
             for part in ns_parts {
                 ns = *self.arena[ns].children.get(*part)?;
             }
-            if self.arena[ns].commands.contains_key(*simple) {
+            if self.arena[ns].commands.contains_key(simple) {
                 Some(ns)
             } else {
                 None

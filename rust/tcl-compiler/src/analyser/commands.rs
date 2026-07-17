@@ -311,6 +311,7 @@ impl Analyser {
                     argc: arg_count,
                     callback_arity: None,
                     callback_baked_args: 0,
+                    indirect: false,
                 },
             );
 
@@ -335,6 +336,7 @@ impl Analyser {
                         argc: None,
                         callback_arity: None,
                         callback_baked_args: 0,
+                        indirect: false,
                     },
                 );
             }
@@ -644,7 +646,7 @@ impl Analyser {
                 false
             }
             Hook::Source => {
-                self.handle_source_command(args, arg_tokens);
+                self.handle_source_command(args, arg_tokens, scope_path);
                 false
             }
             Hook::NamespaceImport => {
@@ -1205,6 +1207,7 @@ impl Analyser {
                     argc: None,
                     callback_arity: Some(inv.appended),
                     callback_baked_args: inv.baked,
+                    indirect: false,
                 },
             );
         }
@@ -1235,6 +1238,7 @@ impl Analyser {
                 argc,
                 callback_arity: None,
                 callback_baked_args: 0,
+                indirect: false,
             },
         );
     }
@@ -1783,6 +1787,7 @@ impl Analyser {
                     argc,
                     callback_arity,
                     callback_baked_args: 0,
+                    indirect: false,
                 },
             );
         }
@@ -1830,6 +1835,7 @@ impl Analyser {
                     argc: None,
                     callback_arity: None,
                     callback_baked_args: 0,
+                    indirect: false,
                 },
             );
         }
@@ -1870,6 +1876,26 @@ impl Analyser {
                     .map_or(raw, |(name, _)| name)
                     .to_string();
                 let method_name = args.first().cloned();
+                // M7: a *constant* `$cmd` head is a statically-known dispatch.
+                // Record it for post-walk settlement (only a value resolving
+                // to a known command becomes a reference; anything else is
+                // dropped — the documented non-const abstention).  A braced
+                // composite head (`${ns}::tail …`) is the W307 ensemble
+                // shape, not a whole-command variable, so it is skipped.
+                if var_name == raw
+                    && let Some(value) = self.lookup_const_string(&var_name, scope_path)
+                    && !crate::naming::is_dynamic_word(value)
+                    && !value.trim().is_empty()
+                {
+                    let value = value.to_string();
+                    let ns = self.command_resolution_namespace(scope_path);
+                    self.pending_const_dispatches
+                        .push(super::state::ConstDispatchSite {
+                            value,
+                            span: cmd_tok.span,
+                            ns,
+                        });
+                }
                 self.var_command_sites.push(super::state::VarCommandSite {
                     var_name,
                     method_name,
@@ -2135,15 +2161,13 @@ impl Analyser {
     /// namespace-relative form) to its qualified name when it
     /// names a user-defined class.
     fn resolve_user_class(&self, name: &str) -> Option<String> {
-        if self.result.all_classes.contains_key(name) {
-            return Some(name.to_string());
-        }
-        let qualified = format!("::{name}");
-        if self.result.all_classes.contains_key(&qualified) {
-            return Some(qualified);
-        }
-        if let Some(c) = self.result.all_classes.values().find(|c| c.name == name) {
-            return Some(c.qualified_name.clone());
+        // Exact / canonical-global / unique-tail via the shared call-site
+        // resolver — the former first-`HashMap`-hit `c.name == name` scan
+        // picked an arbitrary same-tailed class across namespaces (M4.2).
+        if let Some(q) =
+            super::class_hierarchy::resolve_written_class_name(name, &self.result.all_classes)
+        {
+            return Some(q);
         }
         // Cross-file: a class defined elsewhere in the workspace (the oracle is
         // empty for the normal single-file analysis).  Exact / `::`-prefixed
@@ -2157,13 +2181,21 @@ impl Analyser {
         if self.workspace_classes.contains(name) {
             return Some(name.to_string());
         }
+        // The same canonical global-qualified spelling the shared resolver
+        // tries (colon-run rule, #934).
+        let canonical = crate::naming::canonical_written_command(name);
+        let qualified = if canonical.starts_with("::") {
+            canonical
+        } else {
+            format!("::{canonical}")
+        };
         if self.workspace_classes.contains(&qualified) {
             return Some(qualified);
         }
         let mut tail_hits = self
             .workspace_classes
             .iter()
-            .filter(|q| q.rsplit("::").next() == Some(name));
+            .filter(|q| crate::naming::key_tail(q) == name);
         if let Some(only) = tail_hits.next()
             && tail_hits.next().is_none()
         {

@@ -235,3 +235,59 @@ fn rename_finds_its_source_via_namespace_path() {
     );
     assert_eq!(res, "0 1");
 }
+
+// Issue #934: a lone colon is an ordinary name character — `proc :` is a
+// real command, callable bare; the written all-colon forms name the global
+// `{}` command instead (tclsh 8.6/9.0-pinned; C 8.4→9.1-invariant).
+#[test]
+fn colon_named_proc_dispatches_bare_but_not_via_written_runs() {
+    assert_eq!(
+        result("proc : args { return hello }\n: a"),
+        "hello",
+        "the user-reported #934 shape"
+    );
+    let (ok, msg) = run("proc : args { return hello }\n::: a");
+    assert!(!ok, "written `:::` must not reach the `:` proc: {msg}");
+    assert!(msg.contains("invalid command name"), "{msg}");
+    // With the empty-named proc defined, `::` and `:::` both dispatch it.
+    assert_eq!(
+        result("proc {} args { return EMPTY }\nproc : args { return COLON }\n:::"),
+        "EMPTY",
+    );
+    // Inside the namespace named `:`, a bare `:` prefers the nested proc —
+    // reachable only relatively (`namespace inscope : :` in real Tcl).
+    assert_eq!(
+        result(
+            "namespace eval : { proc : args { return NESTED } }\n\
+             proc : args { return GLOBAL }\n\
+             namespace eval : { : }"
+        ),
+        "NESTED",
+    );
+}
+
+// #934 follow-up: the W314 case (proc `:` inside namespace `:`) has no
+// absolute spelling but IS reachable relatively — `namespace eval : { : }`
+// and `namespace inscope : :` both dispatch it, while the textual
+// `namespace inscope ::: :` form resolves the all-colon spelling to the
+// GLOBAL namespace and misses (tclsh 8.6.16 and 9.0.4 agree on all three;
+// 9.0's `namespace code` round-trip succeeds only via a generation-time
+// nsName intrep — a value-identity behaviour no written name can express,
+// see docs/design/colon-names-and-addressability.md).
+#[test]
+fn colon_proc_in_colon_namespace_is_relatively_reachable_only() {
+    let res = result(
+        "namespace eval : { proc : args { return hello } }\n\
+         namespace eval : { : }",
+    );
+    assert_eq!(res, "hello");
+    let res = result(
+        "namespace eval : { proc : args { return hello } }\n\
+         namespace inscope : :",
+    );
+    assert_eq!(res, "hello");
+    let (ok, msg) = run("namespace eval : { proc : args { return hello } }\n\
+         namespace inscope ::: :");
+    assert!(!ok, "the textual all-colon spelling lands on global: {msg}");
+    assert_eq!(msg, "invalid command name \":\"");
+}

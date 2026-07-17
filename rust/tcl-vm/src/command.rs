@@ -77,6 +77,20 @@ pub enum Command {
     /// (the target command plus any fixed prefix arguments) with the call's own
     /// arguments appended.
     Alias(Rc<Vec<Value>>),
+    /// A cross-interp `interp alias` whose source lives HERE and whose target
+    /// runs in a direct child (`interp alias {} cmd CHILD target…`): invoking
+    /// it dispatches the target words in that child at its global frame.
+    ChildAlias {
+        /// The child interpreter (a `children`-table key) the target runs in.
+        child: String,
+        /// Target command + fixed prefix arguments.
+        words: Rc<Vec<Value>>,
+    },
+    /// A cross-interp `interp alias` registered IN a child whose target runs
+    /// in the owning parent (`interp alias CHILD cmd {} target…`): dispatch
+    /// suspends this interp ([`crate::exec::YieldReq::ParentCall`]) and the
+    /// parent's pump loop executes the words, resuming with the completion.
+    ParentAlias(Rc<Vec<Value>>),
     /// A child interpreter addressable as a command (`$child eval …`): the name
     /// keys into the parent's `children` table. Invoking it dispatches the
     /// `interp` ensemble restricted to that child.
@@ -298,7 +312,8 @@ fn fresh_apply_name() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    format!("::tcl::apply::lambda{n}")
+    // Canonical *unrooted* key form — `register_command` takes keys verbatim.
+    format!("tcl::apply::lambda{n}")
 }
 
 /// Parse a lambda expression `{params body ?namespace?}` and define it as a
@@ -404,6 +419,11 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "can't rename to \"{new_name}\": command already exists"
         ));
     }
+    // The exact key `take_command` resolves to — captured up front so a
+    // refused alias-loop rename can restore the command where it came from.
+    let old_key = vm
+        .resolve_command_fqn(vm.current_ns(), &old_name)
+        .unwrap_or_default();
     let Some(cmd) = vm.take_command(&old_name) else {
         // Renaming to the empty name is a delete; C words the miss accordingly.
         let verb = if new_name.is_empty() {
@@ -424,6 +444,9 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         if is_coro {
             crate::cmd_coro::on_command_deleted(vm, &old_fqn);
         }
+        // `rename x {}` is a delete: fire the command's `delete` traces
+        // (`callback ::old {} delete`, tclsh-pinned) and drop its traces.
+        vm.on_command_removed(&old_key);
     } else {
         // An unqualified target binds in the current namespace; a qualified one
         // is used as given, normalised to the key form (separator runs
@@ -444,21 +467,45 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // so the shared qualifier split yields its namespace directly.
         let cmd = match cmd {
             Command::Proc(def) => {
-                let new_ns =
-                    std::str::from_utf8(tcl_cmd_core::namespace::qualifiers(key.as_bytes()))
-                        .expect("subslice of valid UTF-8");
+                // The destination namespace is the key's construction-inverse
+                // holder — the written-name colon-run split would collapse a
+                // lone-colon segment (#934).
+                let (new_ns, _tail) = crate::interp::key_holder_and_tail_unrooted(&key);
                 if new_ns == def.namespace && key == def.name {
                     Command::Proc(def)
                 } else {
                     let mut relocated = (*def).clone();
-                    relocated.namespace = new_ns.to_string();
+                    relocated.namespace = new_ns;
                     relocated.name.clone_from(&key);
                     Command::Proc(Rc::new(relocated))
                 }
             }
             other => other,
         };
+        let is_alias = matches!(
+            &cmd,
+            Command::Alias(_) | Command::ChildAlias { .. } | Command::ParentAlias(_)
+        );
         vm.register_command(&key, cmd);
+        // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
+        // a name its own target chain resolves back to is refused, with the
+        // command restored under its old name (tclsh-pinned: `interp alias {}
+        // a {} b; rename a b` errors, `a` survives, `b` stays free).
+        if is_alias && vm.alias_chain_loops_here(&key) {
+            let restored = vm
+                .remove_command_exact(&key)
+                .expect("the alias was just registered under this key");
+            vm.register_command(&old_key, restored);
+            let tail = crate::interp::key_holder_and_tail_unrooted(&key).1;
+            return err(format!(
+                "cannot define or rename alias \"{tail}\": would create a loop"
+            ));
+        }
+        // The rename happened: fire the command's `rename` traces
+        // (`callback ::old ::new rename`, both fully qualified — tclsh-
+        // pinned) and move every trace to the new key so it keeps firing
+        // under the new name (also pinned).
+        vm.on_command_renamed_traces(&old_key, &key);
     }
     ok(Value::empty())
 }
@@ -736,12 +783,20 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // interp alias srcPath srcCmd targetPath targetCmd ?arg ...?
         "alias" => match rest {
             [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
-                if !src_path.to_str().is_empty() || !target_path.to_str().is_empty() {
-                    return err("only the current interpreter ({}) is supported");
+                // Routing (same-interp / parent→child / child→parent), the
+                // written-name → key qualification (#934), and C's
+                // `TclPreventAliasLoop` walk all live on the Vm.
+                let res = vm.interp_alias_create(
+                    &src_path.to_str(),
+                    &src_cmd.to_str(),
+                    &target_path.to_str(),
+                    target.to_vec(),
+                );
+                if res.code.is_ok() {
+                    ok(src_cmd.clone())
+                } else {
+                    res
                 }
-                let words: Vec<Value> = target.to_vec();
-                vm.register_command(&src_cmd.to_str(), Command::Alias(Rc::new(words)));
-                ok(src_cmd.clone())
             }
             _ => err(
                 "wrong # args: should be \"interp alias srcPath srcCmd targetPath targetCmd ?arg ...?\"",

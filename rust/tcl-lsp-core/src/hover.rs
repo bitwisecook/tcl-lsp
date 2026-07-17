@@ -181,6 +181,7 @@ pub fn hover_with_profile(
             &analysis.global_scope,
             var_byte_offset,
             &var_name,
+            analysis.ns_var_global_fallback(),
         ) {
             // Inferred-intrep / taint annotations need the compiler
             // pipeline (`CompilationUnit`), which requires a

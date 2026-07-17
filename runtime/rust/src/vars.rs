@@ -111,13 +111,39 @@ fn classify(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8])
             None => return Resolved::NoNamespace,
         }
     } else {
-        (current_home(frames, current_ns), name.to_vec())
+        let home = ns_scope_fallback(ns, current_home(frames, current_ns), name);
+        (home, name.to_vec())
     };
     Resolved::Place(Place {
         home,
         name: key,
         elem: None,
     })
+}
+
+/// M11: the Tcl 8.x namespace-scope fallback.  An unqualified name whose home
+/// is a non-global namespace with **no such cell** — a `variable` declaration
+/// installs a link cell, so declared names never fall through — resolves to
+/// the GLOBAL namespace when it holds one, for reads and writes alike; under
+/// the default 9.0 semantics (TIP 278) the home is returned unchanged.
+/// tclsh 8.6/9.0-pinned in `cross_version_vars_e2e.rs` (tcl-vm) and the unit
+/// pairs below.
+fn ns_scope_fallback(ns: &Namespaces, home: VarHome, name: &[u8]) -> VarHome {
+    if !ns.ns_var_global_fallback {
+        return home;
+    }
+    let VarHome::Namespace(id) = home else {
+        return home;
+    };
+    if id == crate::namespace::GLOBAL {
+        return home;
+    }
+    if ns.var_table(id).cell(name).is_none()
+        && ns.var_table(crate::namespace::GLOBAL).cell(name).is_some()
+    {
+        return VarHome::Namespace(crate::namespace::GLOBAL);
+    }
+    home
 }
 
 /// Follow `global`/`variable`/`upvar` links from `place` to the concrete cell.
@@ -127,6 +153,11 @@ fn follow_links(frames: &FrameStack, ns: &Namespaces, mut place: Place) -> Place
             Some(Var::Link(l)) => l.clone(),
             _ => break,
         };
+        // A self-link is the declared-but-undefined marker — stop here; the
+        // cell reads as missing.
+        if link.home == place.home && link.name == place.name && link.elem.is_none() {
+            break;
+        }
         // An element-on-element chain (`a(b)(c)`) is invalid; keep the outer
         // element and stop chaining elements (mirrors the frame model).
         let elem = match (place.elem.take(), link.elem) {
@@ -172,7 +203,8 @@ fn classify_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) 
             None => return Resolved::NoNamespace,
         }
     } else {
-        (home_at(frames, level), name.to_vec())
+        let home = ns_scope_fallback(ns, home_at(frames, level), name);
+        (home, name.to_vec())
     };
     Resolved::Place(Place {
         home,
@@ -688,6 +720,23 @@ pub(crate) fn make_variable_mapped(
     local: &[u8],
     target: &[u8],
 ) {
+    // C's `variable` (`TclLookupSimpleVar` with create) materialises the
+    // namespace variable itself as an *undefined Var* before any value is
+    // set.  The self-link cell is our stand-in: persistent in the namespace
+    // table, it reads / `info exists` as missing, a write replaces it — and,
+    // under the 8.x semantics, it blocks the M11 namespace-scope global
+    // fallback exactly as C's undefined Var does.  An existing value is
+    // never clobbered.
+    if ns.var_table(target_ns).cell(target).is_none() {
+        ns.var_table_mut(target_ns).insert_link(
+            target,
+            Link {
+                home: VarHome::Namespace(target_ns),
+                name: target.to_vec(),
+                elem: None,
+            },
+        );
+    }
     link_local(
         frames,
         ns,

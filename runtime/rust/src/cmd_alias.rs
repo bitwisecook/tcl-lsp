@@ -906,4 +906,82 @@ mod tests {
             assert_eq!(i.result_bytes(), b"invalid command name \"set\"");
         });
     }
+
+    /// #934 definition-direction parity: a written trailing separator names
+    /// the empty-string `{}` command inside its full qualifier chain — for
+    /// `proc`, `rename`'s NEW name, and dispatch alike (`proc x:: {} {…}`
+    /// defines `::x::` and `x::` invokes it; `rename foo x::` / `rename bar
+    /// ::` rebind the `{}` command — all tclsh 8.6.16/9.0.4-pinned).
+    /// Previously the definition split dropped the empty tail, so the proc
+    /// just defined could not be invoked.
+    #[test]
+    fn trailing_separator_definitions_match_resolution() {
+        leak_free(|i| {
+            // proc with a trailing separator: defined AND callable.
+            assert_eq!(
+                i.eval_str(b"namespace eval x {}; proc x:: {} { return EMPTYTAIL }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"x::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"EMPTYTAIL");
+            // … and reachable via any separator-run spelling.
+            assert_eq!(i.eval_str(b"::x::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"EMPTYTAIL");
+            // rename TO a trailing-separator name binds the `{}` command.
+            assert_eq!(
+                i.eval_str(b"proc foo {} { return F }; rename foo y::"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"y::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"F");
+            // rename to `::` binds the GLOBAL `{}` command.
+            assert_eq!(
+                i.eval_str(b"proc bar {} { return B }; rename bar ::"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"B");
+            // The `{}` command can be renamed AWAY from its spelling too.
+            assert_eq!(i.eval_str(b"rename y:: plain"), Code::Ok);
+            assert_eq!(i.eval_str(b"plain"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"F");
+            assert_eq!(i.eval_str(b"y::"), Code::Error);
+            // Variables share the rule: `set vx:: V` writes the `{}` variable
+            // in `::vx` (tclsh: `info vars ::vx::*` lists `::vx::`).
+            assert_eq!(i.eval_str(b"namespace eval vx {}; set vx:: V"), Code::Ok);
+            assert_eq!(i.eval_str(b"set vx::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"V");
+            // And ensembles: `namespace ensemble create -command ::e::` binds
+            // the `{}` command in `::e` (tclsh-pinned: `e:: go` dispatches).
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval e { proc go {} {return GO}; namespace export go; \
+                       namespace ensemble create -command ::e:: }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"e:: go"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"GO");
+            // A proc named `:` inside a namespace named `:` has NO absolute
+            // spelling (W314's case) but IS reachable by relative dispatch
+            // from inside its namespace — `namespace eval : { : }` and
+            // `namespace inscope : :` both invoke it, while every absolute
+            // spelling misses (tclsh 8.6.16/9.0.4-pinned).
+            assert_eq!(
+                i.eval_str(b"namespace eval : { proc : args { return hello } }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"namespace eval : { : }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"hello");
+            assert_eq!(i.eval_str(b"namespace inscope : :"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"hello");
+            // Every all-colon spelling is separator runs around an empty
+            // tail — it can only ever reach the GLOBAL `{}` command (bound
+            // above by `rename bar ::`), never the `:`-named proc
+            // (tclsh-pinned: prints B here, and errors once no global `{}`
+            // exists).
+            assert_eq!(i.eval_str(b":::::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"B");
+        });
+    }
 }

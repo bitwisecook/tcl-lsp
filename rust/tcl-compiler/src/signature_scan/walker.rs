@@ -117,6 +117,7 @@ pub(super) fn scan(
                 argc: arg_count,
                 callback_arity: None,
                 callback_baked_args: 0,
+                indirect: false,
             });
         // Record command-prefix callback heads (`lsort -command cb`, `trace
         // add … cb`, …) as their own invocations so background-scanned files
@@ -139,7 +140,7 @@ pub(super) fn scan(
             "package" => {
                 handlers::handle_package(texts, argv, conditional, ctx.registry, &mut ctx.result);
             }
-            "source" => handlers::handle_source(texts, argv, &mut ctx.result),
+            "source" => handlers::handle_source(texts, argv, ns_prefix, &mut ctx.result),
             "interp" => handlers::handle_interp(texts, ctx.registry, &mut ctx.result),
             "rename" => handlers::handle_rename(texts, ns_prefix, &mut ctx.result),
             "if" => handle_if(texts, argv, ns_prefix, known_commands, ctx),
@@ -258,6 +259,7 @@ fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &m
                 argc: None,
                 callback_arity: Some(inv.appended),
                 callback_baked_args: inv.baked,
+                indirect: false,
             });
     }
 }

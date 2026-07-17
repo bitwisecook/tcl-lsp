@@ -1434,10 +1434,20 @@ fn inline_proc_action(
     let Some(&head) = toks.first() else {
         return Vec::new();
     };
-    let Some(proc_def) = analysis
-        .all_procs
-        .values()
-        .find(|p| p.name == head || p.qualified_name == head)
+    // Resolve the call head the way the navigation providers do — the
+    // caller's namespace candidates, the registry builtin gate, then the
+    // deterministic simple-name fallback — never a namespace-blind
+    // `p.name == head` first-`HashMap`-hit scan (the M1 drift class the
+    // `cargo xtask resolution-drift` lint flags).
+    let line_start: usize = source
+        .split_inclusive('\n')
+        .take(range.start_line as usize)
+        .map(str::len)
+        .sum();
+    let head_off = u32::try_from(line_start + line.find(head).unwrap_or(0)).unwrap_or(u32::MAX);
+    let ns = crate::definition::namespace_context_at(&analysis.global_scope, head_off);
+    let Some(proc_def) =
+        crate::definition::resolve_called_proc(analysis, source, &ns, head, Some(registry))
     else {
         return Vec::new();
     };

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `trace` command — variable traces.
+//! The `trace` command — variable, command, and execution traces.
 //!
 //! Supports `trace add|remove|info variable name ops command` (the surface the
 //! Tcl library — `tcltest` etc. — relies on). The firing engine lives in
@@ -24,7 +24,12 @@
 //! old value restored if the callback aborts the write), and unset traces
 //! before removal (callback errors ignored). See `interp.rs::fire_var_traces`.
 //!
-//! Command and execution traces are accepted but not yet fired.
+//! Command traces (`rename`/`delete`) and execution traces (`enter`/`leave`/
+//! `enterstep`/`leavestep`) fire too (M16.3), all tclsh-pinned in
+//! `tests/command_traces_e2e.rs`: names arrive fully qualified, an
+//! enter-trace error aborts the command, a leave-trace error replaces its
+//! result, rename/delete callback errors are ignored, traces follow a
+//! `rename`, and redefinition fires the `delete` trace.
 
 use tcl_cmd_core::trace as core_trace;
 use tcl_runtime_api::Completion;
@@ -91,8 +96,15 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
             }
             ok(Value::empty())
         }
-        // Command / execution traces: validated, accepted, not yet fired.
-        core_trace::TraceKind::Command | core_trace::TraceKind::Execution => ok(Value::empty()),
+        core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
+            let execution = kind == core_trace::TraceKind::Execution;
+            if add {
+                vm.add_cmd_trace(execution, &name.to_str(), ops, command.to_str().to_string())
+            } else {
+                vm.remove_cmd_trace(execution, &name.to_str(), &ops, &command.to_str());
+                ok(Value::empty())
+            }
+        }
     }
 }
 
@@ -113,7 +125,7 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match kind {
         core_trace::TraceKind::Variable => ok(var_trace_entries(vm, &name.to_str())),
         core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
-            ok(Value::list(Vec::new()))
+            ok(vm.cmd_trace_entries(kind == core_trace::TraceKind::Execution, &name.to_str()))
         }
     }
 }

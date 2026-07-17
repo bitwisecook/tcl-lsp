@@ -455,6 +455,7 @@ diagnostic_codes! {
     W311 => "W311", diag_internal(Security, true, "Channel set to `-encoding binary` with a non-binary `-translation` — may corrupt data or enable encoding-differential attacks.");
     W312 => "W312", diag_internal(Security, true, "`interp eval` with multiple or unbraced script words — concatenated like `eval`, injection risk.");
     W313 => "W313", diag(Security, true, "Destructive file operation with variable path — path-traversal risk.");
+    W314 => "W314", diag(Warning, true, "Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.");
 }
 
 impl DiagCode {

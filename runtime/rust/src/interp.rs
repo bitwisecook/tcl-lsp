@@ -1003,6 +1003,14 @@ impl Interp {
     /// Swap the capability host (e.g. a test installing a sandboxed,
     /// no-subprocess host to prove the capability gate, or a safe interp taking
     /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
+    /// M11: select the 8.x namespace-scope variable fallback (see
+    /// [`crate::namespace::Namespaces::ns_var_global_fallback`]).  `false`
+    /// (the default) is the 9.0 behaviour; an embedding running 8.x dialect
+    /// semantics flips it on.
+    pub fn set_ns_var_global_fallback(&self, enabled: bool) {
+        self.namespaces.borrow_mut().ns_var_global_fallback = enabled;
+    }
+
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
         *self.0.host.borrow_mut() = host;
     }
@@ -1153,11 +1161,9 @@ impl Interp {
             .namespaces
             .borrow_mut()
             .command_home_ns(self.current_ns.get(), name);
-        let tail = tcl_syntax::naming::qualifier_segments(name)
-            .last()
-            .copied()
-            .unwrap_or(name)
-            .to_vec();
+        // Written-name tail: empty for a trailing separator run (the `{}`
+        // command, #934) — must match `home_of`'s resolution split.
+        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
         self.namespaces
             .borrow_mut()
             .bind(ns, &tail, Command::Ensemble(cfg));
@@ -1173,11 +1179,11 @@ impl Interp {
             .namespaces
             .borrow_mut()
             .command_home_ns(self.current_ns.get(), name);
-        let tail = tcl_syntax::naming::qualifier_segments(name)
-            .last()
-            .copied()
-            .unwrap_or(name)
-            .to_vec();
+        // Written-name tail: empty for a trailing separator run (`proc x::`
+        // defines `::x::`, the `{}` command in `::x` — tclsh-pinned, #934);
+        // must match `home_of`'s resolution split or the proc just defined
+        // could not be invoked.
+        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
         // The proc's FQN (`info frame` `proc` key): `<ns>::<tail>`, the global ns
         // contributing just the leading `::`.
         let qn = self.namespaces.borrow().qualified_name(ns);

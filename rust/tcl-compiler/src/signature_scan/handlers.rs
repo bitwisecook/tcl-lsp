@@ -283,7 +283,12 @@ pub(super) fn handle_package(
 /// `-encoding`); the remaining word is recorded as the path. The
 /// `is_literal` flag is set when the segmenter-reconstructed word
 /// contains no `$` or `[` substitution markers.
-pub(super) fn handle_source(texts: &[String], argv: &[Token], result: &mut SignatureScanResult) {
+pub(super) fn handle_source(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    result: &mut SignatureScanResult,
+) {
     let mut idx = 1;
     while idx < texts.len() && texts[idx].starts_with('-') {
         if texts[idx] == "-encoding" && idx + 1 < texts.len() {
@@ -301,6 +306,13 @@ pub(super) fn handle_source(texts: &[String], argv: &[Token], result: &mut Signa
         raw_path: raw,
         range: argv[idx].span,
         is_literal,
+        // The scan's `ns_prefix` is unrooted (`""` = global); the recorded
+        // site namespace is the constructed rooted key (M9).
+        site_namespace: if ns_prefix.is_empty() {
+            "::".to_owned()
+        } else {
+            format!("::{ns_prefix}")
+        },
     });
 }
 
@@ -795,7 +807,7 @@ mod tests {
         let texts = vec!["source".to_string(), "/abs/path.tcl".to_string()];
         let argv = vec![token(0, 6), token(7, 20)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, &mut result);
+        handle_source(&texts, &argv, "", &mut result);
         assert_eq!(result.source_targets.len(), 1);
         let st = &result.source_targets[0];
         assert_eq!(st.raw_path, "/abs/path.tcl");
@@ -808,7 +820,7 @@ mod tests {
         let texts = vec!["source".to_string(), "${dir}/x.tcl".to_string()];
         let argv = vec![token(0, 6), token(7, 19)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, &mut result);
+        handle_source(&texts, &argv, "", &mut result);
         assert_eq!(result.source_targets.len(), 1);
         assert!(!result.source_targets[0].is_literal);
     }
@@ -823,7 +835,7 @@ mod tests {
         ];
         let argv = vec![token(0, 6), token(7, 16), token(17, 22), token(23, 36)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, &mut result);
+        handle_source(&texts, &argv, "", &mut result);
         assert_eq!(result.source_targets.len(), 1);
         let st = &result.source_targets[0];
         assert_eq!(st.raw_path, "/abs/path.tcl");

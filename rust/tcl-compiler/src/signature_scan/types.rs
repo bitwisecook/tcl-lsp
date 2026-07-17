@@ -117,6 +117,13 @@ pub struct SignatureSource {
     pub range: Span,
     /// `true` when the path is a plain literal (no `$` or `[`).
     pub is_literal: bool,
+    /// Command-resolution namespace at the `source` call site (a constructed
+    /// `::`-rooted key).  `source` evaluates the file **in the caller's
+    /// current namespace** (M9): a bare `proc helper` in a file sourced
+    /// inside `namespace eval ::x` lands in `::x::helper`, so the workspace
+    /// index re-homes the sourced document's definitions under this
+    /// namespace.
+    pub site_namespace: String,
 }
 
 /// A local-interpreter `interp alias` recorded by the signature scanner.
@@ -241,6 +248,13 @@ pub struct SignatureCommandInvocation {
     /// `callback_arity` is `None`. The callback arity check validates
     /// `baked + appended` against the referenced proc.
     pub callback_baked_args: usize,
+    /// The span does **not** carry the written command name (M7): the site
+    /// invokes the command *indirectly* — a constant `$cmd` head, a dispatch-
+    /// table literal consumed elsewhere — so navigation (references,
+    /// go-to-definition, call hierarchy) may use it, but **rename and every
+    /// other span-rewriting consumer must skip it** (rewriting the span would
+    /// splice the new command name over unrelated source text).
+    pub indirect: bool,
 }
 
 /// The full result returned by `extract_signatures`.

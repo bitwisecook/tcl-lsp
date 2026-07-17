@@ -299,6 +299,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         &analysis.global_scope,
         byte_offset,
         &var_name,
+        analysis.ns_var_global_fallback(),
     )?;
     let mut out = Vec::new();
     if include_declaration {
@@ -1168,6 +1169,7 @@ pub fn document_highlights(
             &analysis.global_scope,
             byte_offset,
             &var_name,
+            analysis.ns_var_global_fallback(),
         ) else {
             return Vec::new();
         };
@@ -1190,15 +1192,10 @@ pub fn document_highlights(
 
     {
         let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-        let class_match = analysis
-            .all_classes
-            .iter()
-            .find(|(_, c)| c.name_span.start() <= cursor_off && cursor_off < c.name_span.end())
-            .or_else(|| {
-                analysis.all_classes.iter().find(|(qname, c)| {
-                    c.name == word || qname.as_str() == word || *qname == &format!("::{word}")
-                })
-            });
+        // Declaration-span hit, else the namespace-aware candidate
+        // resolution — never a namespace-blind `c.name == word` first-hit
+        // scan (the M1 wrong-symbol drift class).
+        let class_match = crate::definition::resolve_class_target_at(analysis, cursor_off, &word);
         if let Some((qname, class_def)) = class_match {
             let mut out = Vec::new();
             // Non-variable symbols (procs / classes / methods) highlight as
@@ -1218,8 +1215,11 @@ pub fn document_highlights(
         }
     }
 
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
+    {
+        let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+        if let Some((qname, proc_def)) =
+            crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &word, None)
+        {
             let mut out = Vec::new();
             out.push((
                 span_to_range(source, &line_index, proc_def.name_span),

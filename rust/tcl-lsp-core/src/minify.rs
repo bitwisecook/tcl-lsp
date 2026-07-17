@@ -920,6 +920,11 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
     let mut out = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     for inv in &analysis.command_invocations {
+        // An indirect site (constant `$cmd` head, M7) carries no written name
+        // at its span — the minifier must not rewrite it.
+        if inv.indirect {
+            continue;
+        }
         let matches = match &inv.resolved_qualified_name {
             Some(resolved) => resolved == qualified_name,
             None => inv.name == name || inv.name == qualified_name || inv.name == qn_no_prefix,
@@ -1420,7 +1425,7 @@ fn alias_repeated_commands(
     let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
     for inv in &analysis.command_invocations {
         let name = &inv.name;
-        if name.len() <= 2 || registry.is_byte_compiled(name) {
+        if inv.indirect || name.len() <= 2 || registry.is_byte_compiled(name) {
             continue;
         }
         uses.entry(name.clone())

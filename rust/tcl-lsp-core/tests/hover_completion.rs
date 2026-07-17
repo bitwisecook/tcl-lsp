@@ -765,3 +765,72 @@ fn completion_scoped_heads_not_offered_outside_body() {
         "scoped-only head leaked: {labels:?}"
     );
 }
+
+// ===========================================================================
+// M11 (TIP 278) — completion qualifies globals per the dialect's
+// namespace-scope semantics.
+// ===========================================================================
+
+#[test]
+fn completion_ns_scope_global_qualification_follows_the_dialect_m11() {
+    // tclsh8.6: a bare name at namespace scope reaches an unshadowed global
+    // (`set flag 1; namespace eval foo { set flag }` → 1), so `$flag` is the
+    // right insertion.  tclsh9.0 removed the fallback (the same script
+    // errors), so only the qualified `$::flag` reaches the global.
+    let src = "set flag 1\nnamespace eval foo {\n    set x $\n}\n";
+    let col = u32::try_from(src.lines().nth(2).unwrap().find('$').unwrap())
+        .expect("tiny test source")
+        + 1;
+
+    let mut a = Analyser::new();
+    let a86 = a.analyse(src, "tcl8.6").clone();
+    let labels: Vec<String> = completions(src, 2, col, &a86, None, None, "tcl8.6")
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+    assert!(
+        labels.iter().any(|l| l == "$flag"),
+        "8.x: the bare `$flag` genuinely reaches the global: {labels:?}"
+    );
+    assert!(
+        !labels.iter().any(|l| l == "$::flag"),
+        "8.x: no forced qualification: {labels:?}"
+    );
+
+    let mut a = Analyser::new();
+    let a90 = a.analyse(src, "tcl9.0").clone();
+    let labels: Vec<String> = completions(src, 2, col, &a90, None, None, "tcl9.0")
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+    assert!(
+        labels.iter().any(|l| l == "$::flag"),
+        "9.0: only `$::flag` reaches the global: {labels:?}"
+    );
+    assert!(
+        !labels.iter().any(|l| l == "$flag"),
+        "9.0: inserting a bare `$flag` would error at runtime: {labels:?}"
+    );
+}
+
+#[test]
+fn completion_proc_scope_still_qualifies_globals_in_every_dialect_m11() {
+    // Proc frames never had the namespace fallback in any Tcl version —
+    // the 8.x gate must not leak into them.
+    let src = "set flag 1\nproc p {} {\n    set x $\n}\n";
+    let col = u32::try_from(src.lines().nth(2).unwrap().find('$').unwrap())
+        .expect("tiny test source")
+        + 1;
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let mut a = Analyser::new();
+        let an = a.analyse(src, dialect).clone();
+        let labels: Vec<String> = completions(src, 2, col, &an, None, None, dialect)
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            labels.iter().any(|l| l == "$::flag"),
+            "[{dialect}] proc scope: global offered qualified: {labels:?}"
+        );
+    }
+}

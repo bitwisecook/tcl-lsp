@@ -82,21 +82,12 @@ pub fn prepare(
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
-    // Prefer the proc whose declaration name span covers the cursor (so a
-    // same-named proc in another namespace's own decl resolves to *that*
-    // proc, not whichever `all_procs` entry hashes first — mirrors
-    // `references::proc_references` / `rename::rename_proc`); else the
-    // first proc matching the word.
+    // Declaration-span hit, else the namespace-aware candidate resolution
+    // (mirrors `references::proc_references` / `rename::rename_proc`) —
+    // never a namespace-blind `p.name == word` first-`HashMap`-hit scan.
     let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let proc_match = analysis
-        .all_procs
-        .iter()
-        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
-        .or_else(|| {
-            analysis.all_procs.iter().find(|(qname, p)| {
-                p.name == word || *qname == &word || *qname == &format!("::{word}")
-            })
-        });
+    let proc_match =
+        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &word, None);
     if let Some((qname, proc_def)) = proc_match {
         return vec![item_for_proc(source, proc_def, qname, &line_index)];
     }
@@ -208,9 +199,13 @@ fn resolve_method_item<'a>(
     analysis: &'a AnalysisResult,
     item_name: &str,
 ) -> Option<(&'a ClassDef, &'a MethodDef)> {
-    let idx = item_name.rfind("::")?;
-    let class_q = &item_name[..idx];
-    let method_name = &item_name[idx + 2..];
+    // The item name is `<class-key>::<method>` — a construction; split it by
+    // the construction-inverse rule so a colon-bearing class key (or method
+    // name) survives (#934).
+    let (class_q, method_name) = tcl_syntax::naming::key_holder_and_tail(item_name);
+    if class_q.is_empty() && method_name.len() == item_name.len() {
+        return None;
+    }
     let class_def = analysis
         .all_classes
         .values()
@@ -462,11 +457,11 @@ fn unresolved_method_outgoing_calls(
         if class_def.methods.contains_key(&head) || class_def.class_methods.contains_key(&head) {
             continue;
         }
-        // Local top-level proc?
-        if analysis
-            .all_procs
-            .iter()
-            .any(|(qn, p)| p.name == head || qn.as_str() == head || **qn == format!("::{head}"))
+        // Local top-level proc?  Resolved from the class's namespace (a
+        // method body's commands resolve there), with the deterministic
+        // simple-name fallback — not a namespace-blind `any` scan.
+        let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
+        if crate::definition::resolve_called_proc(analysis, source, class_ns, &head, None).is_some()
         {
             continue;
         }
@@ -716,12 +711,15 @@ fn method_outgoing_calls(
             entry.1.push(range);
             continue;
         }
-        // Top-level user proc?
-        if let Some((qname, proc_def)) = analysis
-            .all_procs
-            .iter()
-            .find(|(qn, p)| p.name == head || qn.as_str() == head || **qn == format!("::{head}"))
+        // Top-level user proc?  Resolved from the class's namespace (a
+        // method body's commands resolve there) — the former first-hit
+        // `p.name == head` scan could edge the hierarchy to an arbitrary
+        // same-named proc in an unrelated namespace.
+        let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
+        if let Some(proc_def) =
+            crate::definition::resolve_called_proc(analysis, source, class_ns, &head, None)
         {
+            let qname = &proc_def.qualified_name;
             let entry = by_target.entry(qname.clone()).or_insert_with(|| {
                 (
                     item_for_proc(source, proc_def, qname, line_index),

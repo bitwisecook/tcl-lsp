@@ -6998,6 +6998,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             argc: Some(0),
             callback_arity: None,
             callback_baked_args: 0,
+            indirect: false,
         });
     let registry = tcl_registry::CommandRegistry::build_default();
     a.emit_unresolved_command_diagnostics(&registry);
@@ -8814,6 +8815,385 @@ mod w114_unwrap_fix {
     }
 }
 
+// -- issue #934: colon-named definitions --------------------------------
+
+/// The count of W314 diagnostics `src` draws under the plain `tcl` dialect.
+fn w314_count(src: &str) -> usize {
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    r.diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W314)
+        .count()
+}
+
+#[test]
+fn w314_fires_for_colon_named_proc_class_and_namespace() {
+    // TP: an all-colon simple name has no absolute written form.
+    assert_eq!(w314_count("proc : args { return hello }\n"), 1);
+    assert_eq!(w314_count("oo::class create :\n"), 1);
+    assert_eq!(w314_count("namespace eval : { }\n"), 1);
+    // ... inside a namespace, still only reachable relatively.
+    assert_eq!(w314_count("namespace eval x { proc : {} {} }\n"), 1);
+}
+
+#[test]
+fn w314_does_not_fire_for_addressable_colon_shapes() {
+    // A lone interior colon is an ordinary name character.
+    assert_eq!(w314_count("proc a:b {} {}\n"), 0);
+    assert_eq!(w314_count("proc :2 {} {}\n"), 0);
+    // The empty-string name IS absolutely addressable (`::` / `::x::`).
+    assert_eq!(w314_count("proc {} args {}\n"), 0);
+    assert_eq!(w314_count("namespace eval x {}\nproc x:: {} {}\n"), 0);
+    // A written all-colon word names the global `{}` proc — addressable.
+    assert_eq!(w314_count("proc ::: args {}\n"), 0);
+    // Ordinary namespaces never fire.
+    assert_eq!(w314_count("namespace eval a::b { proc p {} {} }\n"), 0);
+}
+
+#[test]
+fn w314_namespace_flags_once_without_per_definition_cascade() {
+    // The namespace-eval site carries the warning; an addressable simple
+    // name inside it does not re-fire per definition.
+    assert_eq!(w314_count("namespace eval : { proc helper {} {} }\n"), 1);
+    // A colon-named proc *inside* a colon namespace is its own defect too.
+    assert_eq!(w314_count("namespace eval : { proc : {} {} }\n"), 2);
+}
+
+#[test]
+fn colon_named_proc_keeps_its_simple_name_and_key() {
+    // The reported #934 crash: `proc :` produced an empty simple name (the
+    // documentSymbol name), because the key was collapsed into `::` and the
+    // tail re-derived by a naive `rsplit`.
+    let mut a = Analyser::new();
+    let r = a.analyse("proc : args { return hello }\n", "tcl");
+    let (key, def) = r
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() == 5)
+        .expect("proc : recorded");
+    assert_eq!(key, ":::", "constructed key is \"::\" + \":\"");
+    assert_eq!(def.name, ":", "simple name preserved");
+    assert_eq!(def.qualified_name, ":::");
+}
+
+#[test]
+fn colon_named_namespace_keeps_nested_definitions_distinct() {
+    // `namespace eval : { proc inner {} {} }` must home `inner` under the
+    // `:`-named namespace — never collapse into the global namespace.
+    let mut a = Analyser::new();
+    let r = a.analyse(
+        "namespace eval : { proc inner {} {} }\nproc inner {} {}\n",
+        "tcl",
+    );
+    assert!(
+        r.all_procs.contains_key(":::::inner"),
+        "nested key = ns key \":::\" + \"::\" + \"inner\": {:?}",
+        r.all_procs.keys().collect::<Vec<_>>(),
+    );
+    assert!(
+        r.all_procs.contains_key("::inner"),
+        "the global `inner` is a distinct definition"
+    );
+}
+
+#[test]
+fn colon_named_proc_resolves_from_bare_calls_not_written_runs() {
+    // Construction symmetry: a bare `:` call settles onto the `:` proc; a
+    // written `:::` names the global `{}` command instead (tclsh-pinned).
+    let mut a = Analyser::new();
+    let r = a.analyse("proc : args {}\nproc {} args {}\n: x\n::: y\n", "tcl");
+    let resolved: Vec<(&str, Option<&str>)> = r
+        .command_invocations
+        .iter()
+        .filter(|i| i.name == ":" || i.name == ":::")
+        .map(|i| (i.name.as_str(), i.resolved_qualified_name.as_deref()))
+        .collect();
+    assert!(
+        resolved.contains(&(":", Some(":::"))),
+        "bare `:` settles onto the colon proc: {resolved:?}"
+    );
+    assert!(
+        resolved.contains(&(":::", Some("::"))),
+        "written `:::` settles onto the `{{}}` proc: {resolved:?}"
+    );
+}
+
+// -- M7: command names carried in variables / dispatch tables ------------
+
+#[test]
+fn const_cmd_head_records_a_reference_to_the_dispatched_proc_m7() {
+    let mut a = Analyser::new();
+    let src = "proc target {} {}\nset cmd target\n$cmd\n";
+    let r = a.analyse(src, "tcl");
+    let dispatch = u32::try_from(src.find("$cmd").unwrap()).unwrap();
+    let inv = r
+        .command_invocations
+        .iter()
+        .find(|i| i.range.start() == dispatch && i.name == "target");
+    assert!(
+        inv.is_some_and(|i| i.resolved_qualified_name.as_deref() == Some("::target") && i.indirect),
+        "const $cmd dispatch must reference ::target (indirect): {:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start(), i.indirect))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn const_cmd_head_resolves_in_the_dispatch_namespace_m7() {
+    let mut a = Analyser::new();
+    let src = "namespace eval ns { proc target {} {} }\n\
+               namespace eval ns { set cmd target; $cmd }\n";
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.command_invocations
+            .iter()
+            .any(|i| i.indirect && i.resolved_qualified_name.as_deref() == Some("::ns::target")),
+        "{:?}",
+        r.command_invocations
+            .iter()
+            .filter(|i| i.indirect)
+            .map(|i| (&i.name, &i.resolved_qualified_name))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
+    // Unknown value: no invocation appears (and no W123 arises from it).
+    let mut a = Analyser::new();
+    let r = a.analyse("set cmd nosuchcmd\n$cmd\n", "tcl");
+    assert!(!r.command_invocations.iter().any(|i| i.name == "nosuchcmd"));
+    // Dynamic (interpolated) value: the const oracle abstains.
+    let mut a2 = Analyser::new();
+    let r2 = a2.analyse("proc target {} {}\nset x target\nset cmd $x\n$cmd\n", "tcl");
+    assert!(!r2.command_invocations.iter().any(|i| i.indirect));
+    // A builtin value carries no navigable definition: abstain.
+    let mut a3 = Analyser::new();
+    let r3 = a3.analyse("set cmd puts\n$cmd hi\n", "tcl");
+    assert!(!r3.command_invocations.iter().any(|i| i.indirect));
+}
+
+#[test]
+fn dispatch_table_value_becomes_a_reference_when_consumed_m7() {
+    let mut a = Analyser::new();
+    let src = "proc do_add {a b} {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    let r = a.analyse(src, "tcl");
+    let lit = u32::try_from(src.find("add do_add").unwrap() + 4).unwrap();
+    assert!(
+        r.command_invocations.iter().any(|i| i.name == "do_add"
+            && i.range.start() == lit
+            && i.resolved_qualified_name.as_deref() == Some("::do_add")
+            && !i.indirect),
+        "table value literal must reference ::do_add: {:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn dispatch_table_value_abstains_when_the_table_is_not_consumed_m7() {
+    // The same table with no dispatch site is configuration data — its
+    // values must not gain phantom references.
+    let mut a = Analyser::new();
+    let src = "proc do_add {a b} {}\narray set ops {add do_add}\n";
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.command_invocations.iter().any(|i| i.name == "do_add"),
+        "{:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn dict_set_table_value_becomes_a_reference_when_consumed_m7() {
+    let mut a = Analyser::new();
+    let src =
+        "proc handle_get {} {}\ndict set handlers GET handle_get\n{*}[dict get $handlers GET]\n";
+    let r = a.analyse(src, "tcl");
+    let lit = u32::try_from(src.find(" handle_get\n").unwrap() + 1).unwrap();
+    assert!(
+        r.command_invocations.iter().any(|i| i.name == "handle_get"
+            && i.range.start() == lit
+            && i.resolved_qualified_name.as_deref() == Some("::handle_get")),
+        "{:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+// -- M9: source-site namespace propagation (seeded analysis) --------------
+
+#[test]
+fn seeded_analysis_homes_relative_defs_under_the_source_namespace_m9() {
+    // `source` evaluates the file in the caller's namespace: analysing with
+    // a seed must behave exactly like wrapping the file in
+    // `namespace eval ::x { ... }` — relative names re-home, absolute stay.
+    let mut a = Analyser::new();
+    let r = a.analyse_with_source_namespace(
+        "proc helper {} {}\nproc ::abs::keep {} {}\nnamespace eval rel { proc deep {} {} }\nhelper\n",
+        "tcl",
+        "::x",
+    );
+    assert!(
+        r.all_procs.contains_key("::x::helper"),
+        "{:?}",
+        r.all_procs.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        r.all_procs.contains_key("::abs::keep"),
+        "an absolute definition is not re-homed"
+    );
+    assert!(
+        r.all_procs.contains_key("::x::rel::deep"),
+        "a relative namespace nests under the seed: {:?}",
+        r.all_procs.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        r.command_invocations
+            .iter()
+            .any(|i| i.name == "helper"
+                && i.resolved_qualified_name.as_deref() == Some("::x::helper")),
+        "a bare call settles inside the seeded namespace first"
+    );
+}
+
+#[test]
+fn seeded_analysis_records_composed_source_site_namespaces_m9() {
+    // A nested `source` inside the seeded file composes: its recorded site
+    // namespace already carries the seed, so transitive re-homing needs no
+    // separate composition step.
+    let mut a = Analyser::new();
+    let r = a.analyse_with_source_namespace(
+        "source plain.tcl\nnamespace eval sub { source nested.tcl }\n",
+        "tcl",
+        "::x",
+    );
+    let sites: Vec<(&str, &str)> = r
+        .source_targets
+        .iter()
+        .map(|s| (s.raw_path.as_str(), s.site_namespace.as_str()))
+        .collect();
+    assert!(sites.contains(&("plain.tcl", "::x")), "{sites:?}");
+    assert!(sites.contains(&("nested.tcl", "::x::sub")), "{sites:?}");
+}
+
+#[test]
+fn global_seed_is_the_plain_analysis_m9() {
+    let mut a = Analyser::new();
+    let r = a.analyse_with_source_namespace("proc helper {} {}\n", "tcl", "::");
+    assert!(r.all_procs.contains_key("::helper"));
+}
+
+// ===========================================================================
+// M11 (TIP 278) — cross-version namespace-scope variable fallback.
+//
+// C-Tcl facts, pinned live against tclsh8.6 (8.6.16) and tclsh9.0 (9.0.4)
+// (the same table `rust/tcl-vm/tests/cross_version_vars_e2e.rs` executes
+// under both binaries):
+//   * `set g 1; namespace eval foo { set g }`      8.6 → 1, 9.0 → error
+//   * `set v 1; namespace eval bar { variable v; set v }`  both → error
+//     (a declared-but-unset `variable` blocks the fallback)
+//   * `namespace eval a { set x 1; namespace eval b { set x } }`
+//     both → error (an *intermediate* namespace is never consulted)
+//   * `set g 1; proc p {} { set g }; p`            both → error
+//     (proc frames never had the fallback)
+// ===========================================================================
+
+/// The recorded reference spans of the global-scope variable `name`.
+fn global_var_refs(result: &crate::analyser::AnalysisResult, name: &str) -> usize {
+    result
+        .global_scope
+        .variables
+        .get(name)
+        .map_or(0, |v| v.references.len())
+}
+
+#[test]
+fn ns_scope_read_attaches_to_the_global_var_under_8x_only_m11() {
+    let src = "set g 1\nnamespace eval foo { puts $g }\n";
+    // TP: 8.x — the namespace-frame read is a genuine use of `::g`.
+    let mut a = Analyser::new();
+    let r86 = a.analyse(src, "tcl8.6");
+    assert_eq!(
+        global_var_refs(&r86, "g"),
+        1,
+        "8.x: the `$g` read at namespace scope resolves to (and must be \
+         recorded on) the global cell"
+    );
+    // TN: 9.0 removed the fallback — the read errors at runtime, so it must
+    // NOT count as a reference of the global.
+    let mut a = Analyser::new();
+    let r90 = a.analyse(src, "tcl9.0");
+    assert_eq!(
+        global_var_refs(&r90, "g"),
+        0,
+        "9.0: no fallback — attaching the read would invent a reference"
+    );
+}
+
+#[test]
+fn ns_scope_declared_variable_blocks_the_8x_attach_m11() {
+    // FP guard: `variable v` creates the cell in the namespace's table, so
+    // even under 8.x the read resolves namespace-locally (tclsh8.6 errors on
+    // the read — it does NOT see the global `v`).
+    let src = "set v 1\nnamespace eval bar { variable v; puts $v }\n";
+    let mut a = Analyser::new();
+    let r86 = a.analyse(src, "tcl8.6");
+    assert_eq!(
+        global_var_refs(&r86, "v"),
+        0,
+        "the declared namespace `v` shadows the global in both versions"
+    );
+}
+
+#[test]
+fn proc_read_never_attaches_via_the_ns_fallback_m11() {
+    // TN: the fallback is a **namespace-frame** rule; a proc frame resolves
+    // bare names locally in every Tcl version (tclsh8.6 and 9.0 both error).
+    let src = "set g 1\nproc p {} { puts $g }\n";
+    let mut a = Analyser::new();
+    let r86 = a.analyse(src, "tcl8.6");
+    assert_eq!(
+        global_var_refs(&r86, "g"),
+        0,
+        "a proc-body read must not be recorded on the global via the \
+         namespace fallback"
+    );
+}
+
+#[test]
+fn ns_scope_read_never_attaches_to_an_intermediate_namespace_m11() {
+    // FP guard: `$x` at `::a::b` scope sees `::a::b::x` and (8.x only) `::x`
+    // — never `::a::x`, in ANY version (both tclshs error on this script).
+    let src = "namespace eval a { set x 1\nnamespace eval b { puts $x } }\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, dialect);
+        let ns_a = r
+            .global_scope
+            .children
+            .iter()
+            .find(|s| s.name == "a")
+            .expect("namespace scope `a` exists");
+        let x_refs = ns_a.variables.get("x").map_or(0, |v| v.references.len());
+        assert_eq!(
+            x_refs, 0,
+            "[{dialect}] `::a::x` must gain no reference from the read at \
+             `::a::b` scope"
+        );
+    }
+}
+
 // Dialect-profile availability (dialect-profile-model.md, Milestone 2): the
 // composed (version|vendor) masks admit each vendor dialect's embedded Tcl
 // core, the version ladder still gates later-version core, iRules stays
@@ -8845,6 +9225,23 @@ fn w123_vendor_profiles_admit_their_embedded_tcl_core() {
             "{dialect}: {snippet:?} is embedded-core and must not flag, got {codes:?}"
         );
     }
+}
+
+#[test]
+fn ns_scope_array_element_read_attaches_under_8x_m11() {
+    // The fallback covers array-element reads too (pinned vector: `set
+    // arr(k) AV; namespace eval foo { set arr(k) }` reads AV on 8.6).
+    let src = "set arr(k) AV\nnamespace eval foo { puts $arr(k) }\n";
+    let mut a = Analyser::new();
+    let r86 = a.analyse(src, "tcl8.6");
+    assert_eq!(
+        global_var_refs(&r86, "arr"),
+        1,
+        "8.x: element read attaches"
+    );
+    let mut a = Analyser::new();
+    let r90 = a.analyse(src, "tcl9.0");
+    assert_eq!(global_var_refs(&r90, "arr"), 0, "9.0: no fallback");
 }
 
 #[test]

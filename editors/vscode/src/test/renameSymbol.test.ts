@@ -152,4 +152,60 @@ suite("Rename Symbol", () => {
       `::b::helper (line 5) must NOT be renamed: ${JSON.stringify(lines)}`,
     );
   });
+
+  // M8: a rename triggered from a consumer-only document — the command is
+  // defined in the auto-loaded library file, not locally — resolves through
+  // the workspace oracle and rewrites the library declaration alongside the
+  // consumer's call site.  (Previously the empty in-document rename aborted
+  // the whole request.)
+  test("rename from a consumer document rewrites the auto-loaded library definition (M8)", async () => {
+    const uri = getDocUri("autoloadLibrary.tcl");
+    await activate(uri);
+
+    // `Rbc_ActiveLegend .g` — line 0; the definition lives in
+    // rbclib/graph.tcl (line 2, after two comment lines).
+    const pos = new vscode.Position(0, 3);
+
+    // The workspace scan / package database loads asynchronously at startup;
+    // retry until the rename resolves cross-document (or the deadline).
+    // While the scan is still warming up the server answers `null`, which
+    // VS Code surfaces by THROWING "The element can't be renamed." from the
+    // command — treat that as "not yet" and keep polling rather than dying
+    // on the first early attempt.
+    const deadline = Date.now() + 15000;
+    let libEntry: [vscode.Uri, vscode.TextEdit[]] | undefined;
+    let edit: vscode.WorkspaceEdit | undefined;
+    while (Date.now() < deadline && !libEntry) {
+      try {
+        edit = (await vscode.commands.executeCommand(
+          "vscode.executeDocumentRenameProvider",
+          uri,
+          pos,
+          "Rbc_ShinyLegend",
+        )) as vscode.WorkspaceEdit | undefined;
+      } catch {
+        edit = undefined; // rejected while the autoload index is still filling
+      }
+      libEntry = edit?.entries().find(([u]) => u.path.endsWith("rbclib/graph.tcl"));
+      if (!libEntry) {
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+
+    assert.ok(edit, "Rename should return a workspace edit");
+    assert.ok(libEntry, "the library declaration in rbclib/graph.tcl must be rewritten");
+    const [, libEdits] = libEntry!;
+    assert.ok(
+      libEdits.some((te) => te.range.start.line === 2 && te.newText === "Rbc_ShinyLegend"),
+      `graph.tcl's declaration (line 2) must be renamed: ${JSON.stringify(
+        libEdits.map((te) => te.range.start.line),
+      )}`,
+    );
+    const docEntry = edit!.entries().find(([u]) => u.toString() === uri.toString());
+    assert.ok(docEntry, "the consumer's own call site must be rewritten too");
+    assert.ok(
+      docEntry![1].some((te) => te.range.start.line === 0),
+      "the line-0 call site is part of the edit",
+    );
+  });
 });

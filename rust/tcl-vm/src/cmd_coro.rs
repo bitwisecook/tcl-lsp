@@ -336,6 +336,11 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
             let kind = match &req {
                 YieldReq::Yield(_) => SuspendKind::Yield,
                 YieldReq::YieldTo(_) => SuspendKind::YieldTo,
+                // A parent-call cannot suspend a CoroDriver drive — the
+                // drive loop converts it to a C-stack-busy error instead.
+                YieldReq::ParentCall(_) => {
+                    unreachable!("CoroDriver never yields a ParentCall")
+                }
             };
             // Park the coroutine (its frozen stack + flow) for the next resume.
             if let Some(state) = vm.coro.live.get_mut(fqn) {
@@ -351,6 +356,9 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
                 YieldReq::YieldTo(words) => {
                     let name = words[0].to_str().to_string();
                     vm.invoke_command(&name, &words[1..])
+                }
+                YieldReq::ParentCall(_) => {
+                    unreachable!("CoroDriver never yields a ParentCall")
                 }
             }
         }

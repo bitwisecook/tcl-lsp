@@ -2566,20 +2566,9 @@ fn insert_definer_class_name_override(
 /// resort — the unique class sharing its tail name.  `None` when unresolved or
 /// the tail is ambiguous (no wrong-resolution from a homonym).
 fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<String> {
-    if hierarchy.classes.contains_key(name) {
-        return Some(name.to_owned());
-    }
-    let qualified = format!("::{}", name.trim_start_matches("::"));
-    if hierarchy.classes.contains_key(&qualified) {
-        return Some(qualified);
-    }
-    let tail = name.rsplit("::").next().unwrap_or(name);
-    let mut matches = hierarchy
-        .classes
-        .keys()
-        .filter(|k| k.rsplit("::").next() == Some(tail));
-    let first = matches.next()?;
-    matches.next().is_none().then_some(first.clone())
+    // The shared call-site resolver (M4.2 dedup) — exact, canonical
+    // global-qualified (#934 colon-run rule), then unique-tail.
+    tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(name, &hierarchy.classes)
 }
 
 /// Resolve a self-call inside a class body against the enclosing class's MRO:

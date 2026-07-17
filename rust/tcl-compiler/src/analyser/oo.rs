@@ -527,10 +527,13 @@ impl Analyser {
         let raw_name = &args[0];
         let body = &args[1];
         let ns_prefix = self.namespace_from_scope_path(scope_path);
-        let ns_for_qualify = ns_prefix.trim_start_matches(':');
-        let qualified = super::handlers::qualify(ns_for_qualify, raw_name);
-        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        // Constructed key in, construction-inverse tail out (#934): a colon
+        // trim or `rsplit("::")` would collapse a lone-colon name.
+        let qualified = super::handlers::qualify(&ns_prefix, raw_name);
+        let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = arg_tokens[0].span;
+        // **W314** — the class name has no absolute written form (#934).
+        self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok = arg_tokens[1];
         let is_widget = cmd_name.ends_with("widget") || cmd_name.ends_with("widgetadaptor");
         let doc = std::mem::take(&mut self.last_comment);
@@ -866,10 +869,13 @@ impl Analyser {
         let raw_name = &args[0];
         let body = &args[1];
         let ns_prefix = self.namespace_from_scope_path(scope_path);
-        let ns_for_qualify = ns_prefix.trim_start_matches(':');
-        let qualified = super::handlers::qualify(ns_for_qualify, raw_name);
-        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        // Constructed key in, construction-inverse tail out (#934): a colon
+        // trim or `rsplit("::")` would collapse a lone-colon name.
+        let qualified = super::handlers::qualify(&ns_prefix, raw_name);
+        let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = arg_tokens[0].span;
+        // **W314** — the class name has no absolute written form (#934).
+        self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok = arg_tokens[1];
         let doc = std::mem::take(&mut self.last_comment);
         let mut class = ClassDef {

@@ -67,8 +67,9 @@ fn overridable_library_procs() -> &'static std::collections::HashSet<String> {
 /// Build a fully-qualified Tcl proc / class name from a namespace
 /// prefix and a possibly-relative name.
 ///
-/// `ns_prefix` is the namespace **without** a leading `::` — the
-/// convention used throughout the analyser walker.
+/// `ns_prefix` is a **constructed** namespace key, rooted (`::a::b`, `::`)
+/// or unrooted (`a::b`, empty = global); it is joined verbatim — only the
+/// *written* `name`'s colon runs canonicalise (#934).
 pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     crate::naming::qualify(ns_prefix, name)
 }
@@ -555,6 +556,66 @@ impl Analyser {
         }
     }
 
+    /// **W314.** The definition's name has no absolute (fully-qualified)
+    /// written form (issue #934).  A written colon run of two or more is a
+    /// namespace separator (the whole run collapses, `TclGetNamespaceForQualName`,
+    /// invariant C 8.4→9.1), so an **all-colon simple name** — only `:` is
+    /// writable — can never be spelled absolutely: `namespace which :` renders
+    /// `:::`, which parses back to the global `{}` command, ensembles cannot
+    /// dispatch an exported `:`, and `interp alias` / callback qualification
+    /// break the same way.  The command remains reachable by *relative*
+    /// lookup only.  (tclsh 8.6/9.0-pinned.)
+    pub(super) fn emit_w314_no_absolute_name(&mut self, raw_name: &str, name_span: Span) {
+        // The written simple name is the last colon-run-delimited segment.  A
+        // name *ending* in a run names the `{}` command, which IS addressable
+        // (`::x::`); an all-colon segment can only be a lone `:` (a run of ≥2
+        // is consumed as the separator).
+        let unaddressable = !tcl_syntax::naming::ends_with_separator(raw_name.as_bytes())
+            && crate::naming::qualifier_segments(raw_name.as_bytes())
+                .last()
+                .is_some_and(|seg| *seg == b":");
+        if !unaddressable {
+            return;
+        }
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W314,
+            span: name_span,
+            message: format!(
+                "'{raw_name}' has no absolute (fully-qualified) name — a written colon run \
+                 is a namespace separator, so this definition is reachable only by \
+                 unqualified/relative lookup ([namespace which] output will not resolve, \
+                 and ensembles cannot dispatch it)"
+            ),
+            severity: super::types::Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **W314**, namespace flavour: a `namespace eval` (or sibling) whose
+    /// written name carries an **all-colon segment** (`namespace eval :`)
+    /// creates a namespace no absolute path can spell — its entire contents
+    /// are reachable only relatively (`namespace inscope : :`), and
+    /// `namespace current` inside renders an unresolvable `:::`.
+    pub(super) fn emit_w314_unaddressable_namespace(&mut self, written_ns: &str, span: Span) {
+        let has_all_colon_segment = crate::naming::qualifier_segments(written_ns.as_bytes())
+            .into_iter()
+            .any(|seg| seg == b":");
+        if !has_all_colon_segment {
+            return;
+        }
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W314,
+            span,
+            message: format!(
+                "namespace '{written_ns}' has no absolute (fully-qualified) path — a \
+                 written colon run is a namespace separator, so everything defined \
+                 inside is reachable only by relative lookup"
+            ),
+            severity: super::types::Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
     /// **W218.** `args` declared anywhere but the final parameter position
     /// is an ordinary parameter named `args` — C Tcl sets `VAR_IS_ARGS`
     /// only on the last formal (`tclProc.c`), so the variadic
@@ -614,11 +675,11 @@ impl Analyser {
         // the real global `::helper` in `all_procs`; the command-resolution
         // namespace homes it to `::a::helper`.
         let ns_prefix = self.command_resolution_namespace(scope_path);
-        // Strip the leading `::` for the qualify helper, which
-        // expects an unprefixed namespace.
-        let ns_for_qualify = ns_prefix.trim_start_matches(':');
-        let qualified = qualify(ns_for_qualify, raw_name);
-        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        // `qualify` takes the constructed (rooted) namespace key verbatim and
+        // `key_tail` inverts the construction — a `char`-pattern colon trim or
+        // an `rsplit("::")` here would collapse a lone-colon name (#934).
+        let qualified = qualify(&ns_prefix, raw_name);
+        let simple = crate::naming::key_tail(&qualified).to_string();
         let name_tok = arg_tokens[0];
         let name_span = name_tok.span;
         let body_tok = arg_tokens[2];
@@ -626,6 +687,8 @@ impl Analyser {
 
         // **W113** — proc name shadows a built-in command.
         self.emit_w113_proc_shadows_builtin(raw_name, &qualified, name_span);
+        // **W314** — the name has no absolute written form (#934).
+        self.emit_w314_no_absolute_name(raw_name, name_span);
 
         let params = parse_param_list(&args[1]);
         // Doc string: prefer the preceding-comment harvest from
@@ -955,6 +1018,11 @@ impl Analyser {
             return false;
         }
         let ns_name = args[1].clone();
+        // **W314** — an all-colon segment (`namespace eval :`) creates a
+        // namespace no absolute path can spell (#934).
+        if let Some(ns_tok) = arg_tokens.get(1) {
+            self.emit_w314_unaddressable_namespace(&ns_name, ns_tok.span);
+        }
         let body_span = arg_tokens.get(2).map(|t| t.span);
         let body_text = args.get(2).cloned();
         let body_tok = arg_tokens.get(2).copied();
@@ -2229,10 +2297,11 @@ impl Analyser {
         // not the lexical global, so it can't overwrite a same-named global
         // class in `all_classes`.
         let ns_prefix = self.command_resolution_namespace(scope_path);
-        let ns_for_qualify = ns_prefix.trim_start_matches(':');
-        let qualified = qualify(ns_for_qualify, raw_name);
-        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        let qualified = qualify(&ns_prefix, raw_name);
+        let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = arg_tokens[1].span;
+        // **W314** — the class name has no absolute written form (#934).
+        self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok_opt = arg_tokens.get(2).copied();
         let body_span = body_tok_opt.map_or(arg_tokens[1].span, |t| t.span);
         let doc = std::mem::take(&mut self.last_comment);
@@ -2329,7 +2398,7 @@ impl Analyser {
         // bare tail even when the source declared the class
         // qualified (``oo::define ::ns::Other``), the same
         // ``simple`` extraction as ``handle_oo_class_command``.
-        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        let simple = crate::naming::key_tail(&qualified).to_string();
         let mut class_def = self
             .result
             .all_classes
@@ -2398,7 +2467,12 @@ impl Analyser {
     /// Record `source ?-encoding ENC? FILE` invocations.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Source`].
-    pub fn handle_source_command(&mut self, args: &[String], arg_tokens: &[Token]) {
+    pub fn handle_source_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
         if args.is_empty() {
             return;
         }
@@ -2415,12 +2489,17 @@ impl Analyser {
         let is_lit = !matches!(st.kind, TokenType::Var | TokenType::Cmd)
             && !path.contains('$')
             && !path.contains('[');
+        // `source` evaluates the file in the caller's current namespace (M9):
+        // record the command-resolution namespace at this call site so the
+        // workspace index can re-home the sourced document's definitions.
+        let site_namespace = self.command_resolution_namespace(scope_path);
         self.result
             .source_targets
             .push(crate::signature_scan::types::SignatureSource {
                 raw_path: path.clone(),
                 range: st.span,
                 is_literal: is_lit,
+                site_namespace,
             });
     }
 

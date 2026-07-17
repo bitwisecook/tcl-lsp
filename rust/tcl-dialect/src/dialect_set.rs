@@ -328,11 +328,48 @@ impl DialectSet {
             _ => return None,
         })
     }
+
+    /// TIP 278: whether `name`'s runtime resolves an unqualified variable at
+    /// **namespace scope** against the global namespace when the current
+    /// namespace has no such variable — reads *and* writes (`set` / `unset` /
+    /// `incr` / `info exists` all follow it; a declared-but-unset `variable`
+    /// blocks it).  True through Tcl 8.6 (`tclVar.c` `TclLookupSimpleVar`
+    /// consults the global table), removed in 9.0 (the lookup forces
+    /// `TCL_NAMESPACE_ONLY`).  Enclosing (intermediate) namespaces are never
+    /// consulted in *any* version — this knob only decides the global hop.
+    ///
+    /// Follows the dialect's *runtime* base version
+    /// ([`Self::expr_grammar_base_version`]) so vendor shells inherit their
+    /// embedded core's behaviour (an iRules script runs on a real 8.4).  A
+    /// dialect with no documented base version gets `false`: without evidence
+    /// of an 8.x core, the stricter 9.0 reading avoids inventing cross-scope
+    /// references.
+    #[must_use]
+    pub fn namespace_var_global_fallback(name: &str) -> bool {
+        Self::expr_grammar_base_version(name).is_some_and(|base| Self::TCL8X.contains(base))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn namespace_var_global_fallback_follows_the_runtime_base_version() {
+        let f = DialectSet::namespace_var_global_fallback;
+        // 8.x cores keep the TIP 278 fallback …
+        for d in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules", "expect"] {
+            assert!(f(d), "{d} runs an 8.x core — fallback present");
+        }
+        // … 9.0 removed it …
+        assert!(!f("tcl9.0"));
+        assert!(!f("tcl9.1"));
+        // … and an unknown base version takes the stricter 9.0 reading.
+        assert!(!f("f5-bigip"));
+        assert!(!f("tk"));
+        assert!(!f("tcl"));
+        assert!(!f(""));
+    }
 
     #[test]
     fn available_dialects_is_sorted_and_complete() {

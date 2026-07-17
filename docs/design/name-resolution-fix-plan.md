@@ -1,26 +1,43 @@
 # Name resolution — master fix plan
 
-**Status:** in execution on branch `claude/validate-issue-923-comment-tsajg7`
-(PR #933). Honest completion state, per milestone:
+**Status: COMPLETE.** All 16 milestones (every stage) are landed with tests.
+M1–M6, M10 (analyser side), M12–M15 shipped via PR #933; the follow-up branch
+(`claude/nifty-pasteur-2bq56k`, based on #933) closed out the remainder:
 
-- **Landed, with tests:** M1 (target-selection consolidation), M2 (D1 object-var
-  rename + D2 uplevel guard + alias unification), M3 (command name-links), M4
-  (class one-hop resolution), M5 (workspace resolution oracle — the #923 core),
-  M6 (cross-file TclOO methods), M10 (dialect-aware resolver — analyser side;
-  the VM mirror of 10.1 is deferred to the M16 VM-parity pass), M12 (expr math
-  functions), M13 (TclOO `property` version fidelity), M14 (command-names-as-data
-  + ensembles — see 14.2 for the one reverted sub-item), M15 (interp/inscope
-  isolation, per-object methods, `zipfs`).
-- **Partial:** M8 §8.1 — the **go-to-definition** autoload tier has landed;
-  merging lazily-analysed library files into the shared index so *references /
-  rename* also reach them is the remaining half.
-- **Not started:** M7 (command-names-in-variables / SCCP), M9 (source-site
-  namespace propagation), M11 (cross-version namespace-var fallback — needs a
-  `tclsh8.6`/`tclsh9.0` vector), M16 (VM behavioural parity — out of resolution
-  scope).
+- **M8 §8.1 (second half)** — lazily-analysed autoload library files merge
+  into the shared workspace index, so *references / rename* reach them (and a
+  consumer-document rename rewrites its call sites), not just
+  go-to-definition.
+- **M7** — command names carried in variables: const-string settlement gives
+  `$cmd` dispatch heads navigation (marked `indirect` so rename never rewrites
+  a `$cmd` span), and dispatch-table value literals consumed by a
+  `$table(...)` head are real, renameable references.
+- **M9** — `source`-site namespace propagation via seeded re-analysis
+  (`analyse_with_source_namespace` — the static `namespace eval <ns> <file>`),
+  with lazy fixpoint re-homing in the server and `auto_path`-eval folding.
+- **M11** — cross-version variable semantics (TIP 278): the Tcl 8.x
+  namespace-scope global fallback is a registry-derived dialect knob
+  (`DialectSet::namespace_var_global_fallback`) honoured by the runtime
+  resolver, the VM (`RuntimeVersion` + `tclvm --tcl-version`), and the
+  analyser/LSP var path — all pinned live against `tclsh8.6` and `tclsh9.0`.
+- **M10 §10.1 (VM mirror)** — the VM's `namespace path` resolution tier is
+  gated to 8.5+ at resolution time.
+- **M16** — VM behavioural parity: `TclPreventAliasLoop`, cross-interp
+  aliases in both directions (child→parent via NRE suspension), command +
+  execution traces with C-faithful shapes, and the command-name epoch cache.
+- **Issue #934** (found mid-execution) — colon-run-faithful name splitting:
+  the written-name vs constructed-key model (`docs/design/contracts/`
+  `colon-names-and-addressability.md`), W314 for unaddressable definitions,
+  and `{}`/`:`-named commands handled end-to-end (analyser, LSP, VM,
+  runtime).
+- **Drift prevention** — the `cargo xtask resolution-drift` gate (in
+  `make xtask-check`) plus the contract-doc corrections.
+
+Historical context (the state PR #933 shipped in, kept for the record):
+
 - **Review hardening (PR #933):** a review pass — the automated Codex reviewer
   plus the branch's first full CI run (including the vscode integration suite)
-  — surfaced latent defects in stages previously ticked done, now fixed and
+  — surfaced latent defects in stages previously ticked done, then fixed and
   called out inline as "**Review fix (PR #933)**": qualified-name aliasing in
   `variable` / `namespace upvar` (M2), completion best-effort inside `uplevel 1`
   (M2 D2), and a `namespace which -command` probe wrongly drawing W123 (M14.2,
@@ -137,7 +154,7 @@ already matches C's `Tcl_FindCommand`
 **Stage 1.2 — Tier-1 migrations (silent-corruption bugs)** — same-file sites ✅ **DONE**
 - [x] Migrated `rename_proc`, `rename_class`, `find_proc_for_item` (call-hierarchy fallback → namespace-aware from the item's own location), `proc_references`, `class_references` onto the shared resolvers.
 - [x] Fixed the Linked-Editing OR-bug: `resolved_qualified_name` is now authoritative when `Some` (only falls back to `matches_self_call` when `None`), so a nested-namespace call to a different same-named proc no longer links.
-- [ ] **Remaining:** `resolve_workspace_symbol` (cross-document, `tcl-lsp-server/src/lib.rs` — cross-crate re-export; deferred to land with M5's cross-doc work).
+- [x] `resolve_workspace_symbol` (cross-document, `tcl-lsp-server/src/lib.rs`) — landed with M5 Stage 5.2: rewritten onto the workspace oracle (`resolution_candidates` + `workspace_command_exists`, link-chased via `resolve_command_target`); M8's completion adds the autoload fall-through.
 - [x] Verified: reproduced the wrong-symbol rename (renamed `::b::helper` from `::a`'s call site), then fixed. Tests — 4 unit (proc+class rename/refs from call sites, TP/FP/TN) + 1 e2e + 1 vscode; full `tcl-lsp-core` suite (969 lib + all integration) green, 0 regressions.
 
 **Stage 1.3 — Tier-2 migrations** ✅ **DONE (LSP providers)**
@@ -145,17 +162,17 @@ already matches C's `Tcl_FindCommand`
 - [x] Migrated #9 [`signature_help.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/signature_help.rs#L302) + #10 [`inlay_hints.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/inlay_hints.rs#L911) onto the shared `resolve_called_proc` (namespace at the command token; the builtin gate stops a namespaced proc hijacking a same-named builtin from global scope; the lenient fallback is now deterministic). Both are also cheaper — O(candidates) probes vs an O(procs) scan.
 - [x] Fixed #11 [`hover.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/hover.rs#L2198) (deleted `lookup_class`, routed through `resolve_class_target_at`) and #12 [`type_hierarchy.rs prepare`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/type_hierarchy.rs#L54).
 - [x] TP/FP/TN coverage added at each site (same-named class/proc in two namespaces resolves to the cursor's namespace; builtin gate; deterministic fallback).
-- [ ] **Deferred (lands with M5):** ambiguity-gate [`proc_definitions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L633)/[`class_definitions`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/workspace_index.rs#L645) (#13/#14). These already return a `Vec` of *all* cross-doc candidates (no arbitrary single pick), so they are not silently corrupting; the namespace-aware gate needs M5's cross-doc namespace resolution.
+- [x] Ambiguity-gate `proc_definitions`/`class_definitions` (#13/#14) — landed with M5 Stage 5.2: cross-document go-to-definition and the references include-declaration branch resolve through the *qualified* matchers (`proc_definitions_qualified`/`class_definitions_qualified`), so a same simple name in an unrelated namespace is never surfaced.
 
 **Stage 1.4 — Tier-3 migrations** ✅ **DONE**
 - [x] #16 [`minify.rs`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/minify.rs#L1196): keyed the proc by its **body span** (unique per proc) instead of `pd.name == scope.name`. Reproduced the corruption first — two namespaces with a `dup` proc, one's local sharing the other's parameter name, minified repeatedly → wrong declaration's parameter region rewritten non-deterministically (`$use` renamed while the definition kept the other proc's name). Regression pins 32 runs to one intact output.
 - [x] #15 [`type_definition.rs find_class`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-lsp-core/src/type_definition.rs#L77): dropped the namespace-blind simple-name fallback (the `instance_classes` value is already the namespace-aware qualified key). FP test: an instance of `::A::Widget` jumps to `::A::Widget`, never the same-named `::B::Widget`.
 - [x] #17 [`tools.rs generate_docstring`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-mcp/src/tools.rs#L931): an ambiguous bare name resolves to the smallest qualified name (deterministic, no call-site namespace available); deleted the stale `AnalysisResult.find_proc` comment. Two in-file tests (qualified resolution + 32-run determinism).
 
-**Stage 1.5 — tests**
+**Stage 1.5 — tests** ✅ **DONE**
 - [x] Per-feature TP/FP/TN tests trigger from the ambiguous call/cursor site at every migrated provider (unit layer, in each provider module).
 - [x] Linked-Editing regression pinned in Stage 1.2 (`resolved_qualified_name` authoritative when `Some`).
-- [ ] **Remaining:** one *shared* two-namespace fixture consumed by e2e + vscode layers (the unit coverage above is per-module); lands alongside the M5 cross-doc fixture.
+- [x] The shared two-namespace fixture landed with PR #933 at both layers: e2e (`tests/e2e/rename.rs` / `references.rs` — the `::a`/`::b` `helper` collision) and vscode (`testFixture/renameNamespaceCollision.tcl` + `renameSymbol.test.ts`), same fixture content in both.
 
 **Risk:** low. **Depends on:** —.
 
@@ -229,7 +246,7 @@ Ground truth: C resolves a bare `superclass`/`mixin` relative to the
 
 **Stage 4.2 — replace** ✅ **DONE**
 - [x] Replaced the ancestor-walk in [`resolve_class_name`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/analyser/class_hierarchy.rs#L258) with `crate::naming::bareword_resolution_candidates` (current-ns → global, no intermediate ancestors); kept the sound-by-abstention unique-tail fallback for the cross-file `namespace import` idiom. Reproduced the bug (`superclass Base` in `::a::b::Sub` wrongly linked to ancestor `::a::Base`), then fixed → abstains.
-- [ ] **Deferred (hygiene, not a bug):** the duplicate `canonicalise_class_name` (W308) is a *simpler* heuristic without the ancestor walk, and `class_lattice.rs`'s copy is an unwired experiment — retiring them is dedup, not a correctness fix; left for a follow-up.
+- [x] ✅ **DONE (follow-up landed)** — the deferred hygiene: `canonicalise_class_name` (W308) and `semantic_tokens.rs`'s definer-head copy now delegate to the shared call-site resolver `class_hierarchy::resolve_written_class_name` (exact → canonical global spelling, colon-run rule → unique-tail with abstain-on-ambiguity), and `commands.rs`'s `resolve_user_class` local arm dropped its first-`HashMap`-hit `c.name == name` scan for the same resolver.  `class_lattice.rs`'s richer offset-aware copy stays: it is the A3 cross-file experiment's own oracle with a deliberately different (call-site-offset) contract.
 
 **Stage 4.3 — regression** ✅ **DONE**
 - [x] Green with 0 regressions: compiler lib **4305**, integration `analyser` (196, +2 new full-`analyse`→`is_subtype` tests), `mro_lattice_adversarial` (9), and lsp-core `lsp_navigation`/`lsp_providers`/`references_residual`/`hover_residual`. vscode layer deferred (no type-hierarchy provider in the TS harness; go-to-implementation awaits the M1 Tier-2 `implementation.rs` fix to be a clean vehicle).
@@ -272,11 +289,11 @@ the canonical resolver widened to the workspace. Detail in
 
 ---
 
-## M7 — Command-names-in-variables & dispatch tables
+## M7 — Command-names-in-variables & dispatch tables ✅ **DONE**
 
-**Stage 7.1 — SCCP spike** Is SSA/SCCP already computed per-document, or new cost? (The analyser walk and SSA/SCCP are separate passes today.)
-**Stage 7.2 — resolve constants** If cheap: resolve a constant `$cmd` head through [`resolve_command_with`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs#L516); abstain on non-const (matches the documented limit).
-**Stage 7.3 — literals in data** Emit a reference for a proc-name literal held as a dict/`array set`/`string map` **value** dispatched via `{*}[dict get …]` — the W307 heuristic already recognizes these but only to suppress a diagnostic. **Depends on:** M5.
+**Stage 7.1 — SCCP spike** ✅ **ANSWERED** — SSA/SCCP is **already computed per document** on the analyse path (`emit_cfg_ssa_diagnostics` builds the `CompilationUnit` the W307 pass consumes), but it runs *after* invocation settlement.  Two oracles therefore serve M7 at zero new pass cost: the analyser's scope-walk `const_strings` map (`resolve_const_word` — "the analyser-level counterpart to the optimiser's SCCP") settles constant `$cmd` heads *before* `finalise_invocation_resolutions`, and the existing W307 `CompilationUnit` serves the table-literal pass.
+**Stage 7.2 — resolve constants** ✅ **DONE** — a `$cmd` head whose variable holds a known constant at the call site is recorded as a pending dispatch (`ConstDispatchSite`: value + head span + resolution namespace) and settled in `finalise_invocation_resolutions` through the shared `resolve_command_with`: a value resolving to a **user** command becomes an ordinary invocation (references / go-to-definition / call hierarchy reach the dispatched proc through the ordinary machinery); a builtin, unknown, or non-const value abstains entirely — no phantom invocation, no W123 delta, the W307 story at the site unchanged.  The invocation is flagged **`indirect: true`** — a new `SignatureCommandInvocation` field mirrored on `WorkspaceInvocation` — because its span is `$cmd`, *not* the written name: every span-rewriting consumer (in-document + cross-document rename, the minifier's call-site and alias-shortening passes, linked editing) skips indirect sites, so a rename can never splice the new name over `$cmd`.  Tests: analyser TP (global + namespace-resolved), TN (unknown / dynamic / builtin), lsp-core references-include + rename-never-rewrites.
+**Stage 7.3 — literals in data** ✅ **DONE** — `harvest_table_command_value_spans` recovers `(table, value, value-span)` triples from the dispatch-table constructors whose literal text is recoverable in source (`set arr(k) v`, `array set arr {k v …}`, `dict set d k v`); `emit_dispatch_table_command_references` (inside the W307 pass, reusing its `CompilationUnit`) emits a command reference for each value that (a) belongs to a table **consumed** by a `$table(...)` / `[dict get $table …]` dispatch site — an unconsumed config array gains no phantom references — and (b) resolves to a known user command in the namespace at the constructor site.  These anchor at the literal itself (`indirect: false`), so **rename rewrites the table entry alongside the proc**, keeping the dispatch alive.  Values reachable only through folding (`string map`, computed keys) have no span and abstain — the documented limit.  Tests: analyser TP (`array set` + `dict set`), consumption-gate TN, lsp-core rename-rewrites-table, e2e `dispatch_table_literal_resolves_to_the_proc_m7`. **Depends on:** M5.
 
 ---
 
@@ -286,7 +303,11 @@ the canonical resolver widened to the workspace. Detail in
 autoloaded name (config/env-aware: `TCL_LIBRARY`, `TCLLIBPATH`,
 `tclLsp.libraryPaths`, `.tcl-lsp.ini`) faithfully mirroring `tclPkgUnknown`/`auto_load` — it's just never analysed into `WorkspaceIndex`.
 
-**Stage 8.1 — lazy second tier** ◐ **GO-TO-DEFINITION DONE** — go-to-definition now has an autoload tier: when a command head resolves to nothing in the current document *or* the workspace oracle (M5), `compute_definition` falls through to `autoload_definition`, which asks `PackageResolver::resolve_auto_command` (the same database that already clears the #832 W123) for the library file, reads it via the existing on-disk `read_document` fallback, analyses it through `analysis_for` — so the parse is **lazy** (only the resolved file, never the whole stdlib) and **memoised** (its per-file cache) — and jumps to the proc, normalising the `auto_qualify` bare-name candidate to the absolute `all_procs` key.  Fires only on a genuine miss, so it never overrides an in-workspace definition.  Test: `autoload_library_command_go_to_definition_m8`.  Remaining: merging the lazily-analysed file into the shared `WorkspaceIndex` so *references / rename* also reach library definitions — deferred because it broadens those providers' surface (workspace-symbol, find-refs) to stdlib files and wants its own test pass rather than a goto-def side effect.
+**Stage 8.1 — lazy second tier** ✅ **DONE** — both halves:
+- [x] **Go-to-definition tier** (PR #933): when a command head resolves to nothing in the current document *or* the workspace oracle (M5), `compute_definition` falls through to the autoload tier, which asks `PackageResolver::resolve_auto_command` (the same database that already clears the #832 W123) for the library file — **lazy** (only the resolved file, never the whole stdlib).  Test: `autoload_library_command_go_to_definition_m8`.
+- [x] **Index merge (the completion pass):** `Backend::ensure_autoload_indexed` is now the one autoload entry — it resolves the defining file, analyses it, and **merges it into the shared `WorkspaceIndex`** (`remove_document` + `add_document`), so references, rename, and definition all answer from the same index.  `resolve_workspace_symbol` falls through to it on a workspace miss, which gives *references / rename* the library tier for free; `autoload_definition` re-answers from the index.  Idempotent (an existence pre-check short-circuits once merged; a real workspace definition always wins over a same-named library one), and the merged URIs are dropped when the package database is rebuilt, so a `libraryPaths` change cannot leave stale library definitions behind.
+- [x] **Consumer-document rename:** an empty in-document rename no longer aborts wholesale when the workspace oracle resolves the cursor's command — `core_rename::workspace_symbol_rename_edits` builds the whole edit set from the index (current document's call sites included) with the same collision discipline, fixing rename-from-consumer for workspace siblings and library files alike.
+- [x] Tests: 4 server unit (references + rename through the merge, workspace-shadow FP guard, package-database-rebuild drop), 2 consumer-rename unit (sibling TP, collision TN), e2e `autoload_library_command_references_and_rename_m8` (temp-dir library through the real server), vscode `renameSymbol.test.ts` (consumer rename rewrites the library declaration).
 **Depends on:** M5.
 
 ---
@@ -295,8 +316,9 @@ autoloaded name (config/env-aware: `TCL_LIBRARY`, `TCLLIBPATH`,
 
 `source` evaluates in the caller's current namespace ([`command.rs cmd_source`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/command.rs); contract §134-137). A bare `proc helper` in a file sourced inside `namespace eval ::x` is homed `::helper`, not `::x::helper` — so a correctly-written `::x::helper` call misses, and rename dangles. **M5/M8 as scoped do NOT fix this** (the index holds `::helper`).
 
-**Stage 9.1 — re-home** Re-home a sourced file's global-scope defs under the namespace active at the literal `source` call site.
-**Stage 9.2 — computed paths** Route source paths through the existing [`auto_path_eval`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-compiler/src/auto_path_eval.rs) folding for `[file join …]` forms.
+**Stage 9.1 — re-home** ✅ **DONE** — implemented as **seeded re-analysis**, not a string-prefix rewrite, so the full C semantics fall out of the ordinary scope machinery: `Analyser::analyse_with_source_namespace(source, dialect, ns_key)` walks the whole file inside the source-site namespace (exactly `namespace eval <ns> { <file> }`), so relative definitions re-home (`proc helper` → `::x::helper`), absolute ones stay put, relative `namespace eval` nests, and bare call sites gain the seeded tier in their candidate lists.  The analyser records the command-resolution namespace at every `source` call site (`SignatureSource::site_namespace`, both walks), the index lifts it onto `WorkspaceSource` and exposes `source_seed_map` (per sourced document, the set of namespaces it is sourced under — several views may all be true at run time), and the server's `refresh_source_rehoming` reconciles lazily before every cross-document query (definition / references / rename): documents whose applied seeds differ are re-analysed seeded and merged, bounded-fixpoint because a seeded parent records *composed* namespaces for its own nested `source` calls.  Declaration-side queries map a sourced document's standalone name to its re-homed twin (`seed_mapped_symbol`), so references/rename from inside the sourced file line up with the sourcing side.  Publish/scan/reindex paths invalidate the applied-seed record so an edit can never leave a stale view.
+**Stage 9.2 — computed paths** ✅ **DONE** — `resolve_source_edge` routes a non-literal `source` path through [`auto_path_eval::evaluate_auto_path_expr`] (its first production caller), with the sourcing file standing in for `[info script]` — so `source [file join [file dirname [info script]] b.tcl]` re-homes exactly like a literal, and anything the folder cannot prove abstains (never a guess).
+- [x] Tests: analyser (seeded homing incl. absolute/relative/nested + composed nested-source namespaces + global-seed identity), server unit (call-side references reach the sourced decl + its re-homed internal calls; declaration-side finds qualified callers; computed-path folding TP + `$var` abstention TN), e2e `sourced_file_resolves_under_the_source_site_namespace_m9` (goto-def + references through the real server).
 **Depends on:** M5, M8.
 
 ---
@@ -308,7 +330,7 @@ resolver ignores it.
 
 **Stage 10.1 — `namespace path` gating (D1 c-source).** 8.4 has no path tier ([8.4 `tclNamesp.c:1961`](https://github.com/tcltk/tcl/blob/9ccfe9d1b35741ff7323837f6485ffe48b06fad9/generic/tclNamesp.c#L1961) vs [8.5 `NamespacePathCmd:197`](https://github.com/tcltk/tcl/blob/160d612a6b2b1c2c0db27236d648b7bc1364570c/generic/tclNamesp.c#L197)); the registry records the boundary ([`namespace_.rs:160`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-registry/src/commands/tcl/namespace_.rs#L160)) but the resolver never consulted it.
 - [x] **Analyser** ✅ **DONE** — gated the path *at the recording site* (`handle_namespace_path_command`): a `namespace path` under a pre-8.5 dialect records no path entry, so the empty path naturally makes command resolution, definition, and hover all skip the path tier (one gate covers every consumer, rather than threading the dialect into each — `finalise_invocation_resolutions` already reads the recorded `namespace_paths`).  Matches the `namespace path` subcommand's own `TCL85_PLUS` gate (which already flags the command W002 there).  A bare `helper` under `namespace path ::mymod` gains `::mymod::helper` as a candidate from 8.5 on, never under 8.4.  Test: `bare_call_honours_namespace_path_only_from_8_5`.
-- [ ] **VM mirror** — the VM's dispatch ([`interp.rs:1658`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/interp.rs#L1658)) is runtime-execution parity, separate from LSP navigation; left for the VM-parity pass (M16-adjacent).
+- [x] **VM mirror** ✅ **DONE** — `resolve_command_fqn` skips the `ns_paths` tier when `runtime_version < V8_5` (gated at *resolution* time, not at `ns_path_set` recording, so flipping `set_runtime_version` mid-life re-applies the right tier to paths recorded earlier — the VM knob is mutable where the analyser's per-document dialect is not).  Test: `namespace_path_resolution_tier_is_8_5_plus_m10` (8.4 → GLOBAL, 8.5/8.6/9.0 → path target).
 
 **Stage 10.2 — `namespace unknown` re-gate (D9).** ✅ **DONE** — re-gated the `namespace unknown` subcommand from `NON_IRULES_OPERATORS` (which admitted 8.4) to `TCL85_PLUS`, matching its sibling 8.5 feature `namespace path`.  An 8.4 document now gets W002 (disabled-in-dialect), not silent acceptance.  Test: `namespace_unknown_is_dialect_gated_to_8_5_plus`.  (The vendor-shell subcommand-gating model — a single `DialectSet::parse` bit, so an 8.5-base vendor shell is treated like `namespace path` — is the deliberate existing design the expr-operator `expr_grammar_base_version` fix left untouched, so this stays consistent with `path`.) **Depends on:** —.
 
@@ -318,8 +340,18 @@ resolver ignores it.
 
 **Fixes D4 (c-source)** — the *only* resolution-semantics change 8.4→9.1. 8.4/8.5/8.6 fall back to global for an unqualified undefined var at namespace scope; **9.0 removed it** ([8.6 `tclVar.c:757`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclVar.c#L757) keeps it vs [9.0 forces `TCL_NAMESPACE_ONLY`, `tclVar.c:935`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/generic/tclVar.c#L935); [9.0 `changes.md:189`](https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/changes.md#L189)). Rust hardcodes 9.0 for all dialects ([`interp.rs:666`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/interp.rs#L666); [`vars.rs:107`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/runtime/rust/src/vars.rs#L107)).
 
-**Stage 11.1 — gate the fallback** Keep it for `TCL8X`, drop for `TCL90_PLUS`, in the runtime resolver, VM, and analyser var path.
-**Stage 11.2 — pin** Vector both behaviors against `tclsh8.6` and `tclsh9.0`. **Depends on:** M2.
+**Stage 11.1 — gate the fallback** ✅ **DONE.** Keep it for `TCL8X`, drop for `TCL90_PLUS`, in the runtime resolver, VM, and analyser var path.
+
+- **Registry knob (single source of truth):** `DialectSet::namespace_var_global_fallback(name)` (`rust/tcl-registry/src/dialects.rs`) derives the TIP 278 behaviour from the dialect's *runtime base version* (`expr_grammar_base_version` — so `f5-irules` follows its embedded 8.4, EDA shells their embedded cores); unknown base ⇒ the stricter 9.0 reading. No dialect strings anywhere else in the stack.
+- **VM:** `RuntimeVersion` knob (`Vm::set_runtime_version`, default `V9_0`; re-stamps `tcl_version`/`tcl_patchLevel`) gates `locate_from`: at a namespace frame with no namespace cell and an existing global cell, 8.x resolves the *global* slot (reads, writes, `unset`, `incr`, `info exists`); `fork_child` inherits. `RuntimeVersion::parse("<x.y>")` + `tclvm --tcl-version <x.y>` expose it (`rust/tcl-vm-cli`).
+- **Runtime resolver:** `Namespaces.ns_var_global_fallback` (default off = 9.0) gates `ns_scope_fallback` in `classify`/`classify_at` (`runtime/rust/src/vars.rs`); a declared-but-unset `variable` installs a **self-link marker** in the target namespace table — the C undefined-`Var` stand-in — which blocks the fallback exactly as 8.6 does, and `store_scalar`/`store_elem`/`ensure_array` define over the marker.
+- **Analyser var path:** `AnalysisResult.dialect` (+ `ns_var_global_fallback()`) carries the semantics to every consumer. `record_var_read` attaches a bare namespace-frame read to the *global* cell under 8.x only (never an intermediate namespace); `lookup_var_in_scope_chain` applies C's two-table rule at namespace frames (namespace's own table, then global iff 8.x — intermediates never, in any version) while **proc/method/uplevel contexts keep the documented lenient outward walk** (a navigation choice, unchanged since it predates versioning); completion's `global_vars_needing_qualification` only forces `$::g` qualification at namespace scope under 9.0+ semantics.
+
+**Stage 11.2 — pin** ✅ **DONE.** Vector both behaviors against `tclsh8.6` and `tclsh9.0`. **Depends on:** M2.
+
+- `rust/tcl-vm/tests/cross_version_vars_e2e.rs`: 9 vectors (read/write/`unset`/`incr`/`info exists`/array-element fallback, declared-blocks, create-in-ns, proc-never) each run through the VM at `V8_6` **and** `V9_0`, plus `vectors_match_real_tclsh` executing every script under real `tclsh8.6`/`tclsh9.0` (`TCL_LSP_TCLSH86`/`TCL_LSP_TCLSH90` overrides) so the table cannot drift from C Tcl.
+- Runtime: `ns_scope_unqualified_falls_back_to_global_only_under_8x` (`runtime/rust/src/cmd_var.rs`) pins both sides + declared-blocks.
+- Analyser/LSP TP/FP/TN/FN: `*_m11` tests in `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` (record-side: 8.x attach, 9.0 no-attach, declared-blocks, proc-never, intermediate-never, array elements), `rust/tcl-lsp-core/tests/lsp_navigation.rs` (definition under both dialects incl. intermediate-namespace FP guard) and `tests/hover_completion.rs` (qualification gate both dialects, proc-scope invariance); `tclvm` REPL test drives `--tcl-version` across the `incr` vector.
 
 ---
 
@@ -361,10 +393,13 @@ findings.
 
 ## M16 — VM behavioural parity (out of resolution scope)
 
-**Stage 16.1** Alias-loop prevention (`TclPreventAliasLoop`, near [8.6 `tclInterp.c:225`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclInterp.c#L225)).
-**Stage 16.2** Cross-interp aliases child→parent (analyser already refuses the link — no false cross-interp reference).
-**Stage 16.3** Fire command/execution traces (accepted no-op today).
-**Stage 16.4** Command-name epoch cache (C caches on the name object; VM re-resolves every dispatch at [`interp.rs:1658`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-vm/src/interp.rs#L1658) — perf only). **Depends on:** —.
+**Stage 16.1** ✅ **DONE.** Alias-loop prevention (`TclPreventAliasLoop`, near [8.6 `tclInterp.c:225`](https://github.com/tcltk/tcl/blob/874e4fe4264a40c00c4db5115afba9600f9f368d/generic/tclInterp.c#L225)).  C-faithful create-then-walk-then-rollback (`Vm::interp_alias_create` / `alias_chain_loops`): each hop resolves the alias's target from the *target interp's global namespace* at define time, an unresolved target ends the chain (late binding stays legal), and a hop landing back on the defining command errors `cannot define or rename alias "TAIL": would create a loop`.  tclsh-pinned corner: a refused self-alias **destroys** the proc it clobbered (C never restores it); `rename` of an alias onto a loop-forming name is refused with the command **restored** under its old name (`cmd_rename` gate).  Tests: `rust/tcl-vm/tests/cross_interp_alias_e2e.rs` (VM + real tclsh8.6/9.0 legs).
+
+**Stage 16.2** ✅ **DONE.** Cross-interp aliases child→parent (analyser already refuses the link — no false cross-interp reference).  Parent→child is a direct `Command::ChildAlias` dispatch into the child at its global frame; child→parent (`Command::ParentAlias`) reuses the NRE suspension machinery: dispatch freezes the child's whole activation stack (`YieldReq::ParentCall` in a `DriveMode::ChildHosted` drive) and the parent's pump loop (`Vm::pump_hosted`) executes the target words at the parent's *current* frame from its *global* namespace — tclsh-pinned: `info level` stacks on the parent's pending frame, `uplevel 1` sees its locals, and errors propagate catchably into the child.  Loop prevention walks across the one-level interp tree in both directions (also pinned).  Documented limits: a parent-target alias reached across a *native* re-entry (coroutine resume, `lsort -command`, `invoke_command`) errors `cannot invoke parent-interp alias: C stack busy` (the same boundary `yield` has), and the interp tree is not re-entrant (a parent target that re-enters the suspended child gets could-not-find rather than C's re-entrancy).
+
+**Stage 16.3** ✅ **DONE.** Fire command/execution traces (previously accepted no-op).  Command traces (`rename`/`delete`) fire with fully-qualified names, follow the command through `rename`, fire on redefinition-overwrite, and ignore callback errors; `trace add command` requires the command to exist.  Execution traces: `enter`/`leave` (`cmd-string op` / `cmd-string code result op` shapes), `enterstep`/`leavestep` via a step-scope stack; an enter-trace error **aborts** the command, a leave/leavestep error **replaces** its result; deferred bodies settle their leave when the frame unwinds (contexts ride the frame, transfer across `tailcall`).  All tclsh8.6+9.0-pinned in `rust/tcl-vm/tests/command_traces_e2e.rs`.  Documented divergence (own test): step traces observe *dispatched* commands — opcode-inlined forms (`set`, `incr`, `return`) don't step, where C forces a step-traced proc out of bytecode entirely.
+
+**Stage 16.4** ✅ **DONE.** Command-name epoch cache (C caches on the name object; the VM re-resolved every dispatch — perf only).  `resolve_command_fqn` memoises `(namespace ␁ name) → key` in an interior-mutable per-Vm map guarded by `cmd_epoch`; every mutation that can change resolution bumps it (`register_command` / `take_command` / `remove_command_exact`, hide/expose (own + child), `interp` child create/delete, namespace `forget`/delete sweeps, `namespace path` writes, and `set_runtime_version` — the M10.1 8.4 path-tier gate).  Bounded (clears at 4096 entries) so dynamic-name floods can't grow it.  The whole VM suite (tricky-resolution + conformance vectors) runs against the live cache. **Depends on:** —.
 
 ---
 
@@ -384,5 +419,5 @@ Everything else is *missed* refs/edits (under-delivery, not corruption).
 
 ## Drift prevention (once M1 lands)
 
-- [ ] `xtask` lint (grep-shaped to start) flagging any new `.iter().find(|…| …name == word…)` scan over `all_procs`/`all_classes` outside [`tcl_syntax::naming`](https://github.com/bitwisecook/tcl-lsp/blob/6a6bc87e94c67416cdca6954ba2ad0ec6937bd63/rust/tcl-syntax/src/naming.rs) and the sanctioned `definition.rs` helpers. The "add a vector" discipline only protects consumers already inside the contract — which is why 17 sites drifted.
-- [ ] Contract-doc corrections: `command-resolution.md`'s WASM-codegen line (inherits the *runtime's* conformance via eval-delegation, not "the VM's"); `tcloo-implementation.md` (stale pre-Rust-port Python modules).
+- [x] ✅ **DONE** — `cargo xtask resolution-drift` (wired into `make xtask-check`): flags any `.name ==` compare in the lexical window of an `all_procs`/`all_classes` mention outside the contract files (`tcl_syntax::naming`, the sanctioned `definition.rs` helpers); reviewed exceptions carry a `// drift-ok: <reason>` comment.  Calibrating the gate surfaced and fixed five surviving drift sites (code-actions inline-proc head, document-highlight class/proc targets, prepare-rename fallbacks, call-hierarchy prepare + method outgoing-call targets) and put `commands.rs`'s class arm on the shared resolver.
+- [x] ✅ **DONE** — Contract-doc corrections: `command-resolution.md`'s WASM-codegen line (inherits the *runtime's* conformance via eval-delegation, not "the VM's"); `tcloo-implementation.md` rewritten to the Rust reality (the stale pre-port Python module inventory dropped).

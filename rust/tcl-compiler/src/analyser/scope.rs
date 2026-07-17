@@ -66,13 +66,29 @@ fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope> {
 /// `ns` (`"::"`-rooted), mirroring the join in
 /// [`Analyser::namespace_from_scope_path`]: an absolute `part` rebases,
 /// a relative one is appended.
+///
+/// `part` is a *written* namespace name — canonicalise it once (colon runs
+/// collapse to one separator; a trailing run drops, as C's namespace-name
+/// lookup does) and then join with one exact `::`.  The accumulated `ns` is a
+/// *constructed* key and is never re-parsed: a `::`-run inside it is a
+/// legitimately colon-named segment (`namespace eval :`), which a
+/// concat-then-normalise would collapse into its parent (issue #934).
 fn join_namespace(ns: &str, part: &str) -> String {
     if part.starts_with("::") {
-        normalise_qualified_name(part)
-    } else if ns == "::" {
-        normalise_qualified_name(&format!("::{part}"))
+        return normalise_qualified_name(part);
+    }
+    let segs = crate::naming::qualifier_segments_owned(part);
+    if segs.is_empty() {
+        // `namespace eval {}` (and an all-separator name) is the namespace
+        // itself resolved relative — the empty name is the *global* namespace
+        // in C, but as a relative component it contributes nothing.
+        return ns.to_owned();
+    }
+    let joined = segs.join("::");
+    if ns == "::" || ns.is_empty() {
+        format!("::{joined}")
     } else {
-        normalise_qualified_name(&format!("{ns}::{part}"))
+        format!("{ns}::{joined}")
     }
 }
 
@@ -120,14 +136,17 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
         // to the defining-namespace rule below.
         ScopeKind::Method if child.oo_global_resolution => "::".to_string(),
         ScopeKind::Proc | ScopeKind::Method => {
-            let qualified = if child.name.starts_with("::") {
-                normalise_qualified_name(&child.name)
+            // The defining namespace is the qualified name's *holder* — via
+            // the command-name join and the construction-inverse split, so a
+            // lone-colon or trailing-separator proc name derives the right
+            // prefix (#934: `proc :` at the root defines in `::`, never in a
+            // phantom namespace named `:`).
+            let qualified = crate::naming::qualify(ns, &child.name);
+            let (holder, _tail) = crate::naming::key_holder_and_tail(&qualified);
+            if holder.is_empty() {
+                "::".to_string()
             } else {
-                join_namespace(ns, &child.name)
-            };
-            match qualified.rsplit_once("::") {
-                Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
-                _ => "::".to_string(),
+                holder.to_string()
             }
         }
         ScopeKind::Global => ns.to_string(),
@@ -355,6 +374,7 @@ impl Analyser {
             .cloned()
             .chain(self.deleted_commands.keys().cloned())
             .collect();
+        let pending_const_dispatches = std::mem::take(&mut self.pending_const_dispatches);
         let result = &mut self.result;
         let (procs, classes, aliases, renames) = (
             &result.all_procs,
@@ -417,6 +437,41 @@ impl Analyser {
             // cross-file consumers (the reference matchers treat it, and the
             // candidate list above, as candidates rather than ground truth).
         }
+        // M7: settle the constant-`$cmd` dispatch sites now `known` is
+        // complete.  Only a value that resolves to a *user* command becomes a
+        // reference — a builtin carries no navigable definition, and an
+        // unknown value abstains entirely (no phantom invocation, no W123
+        // delta; the W307 story at the site is unchanged).
+        let settled: Vec<crate::signature_scan::types::SignatureCommandInvocation> =
+            pending_const_dispatches
+                .iter()
+                .filter_map(|site| {
+                    let path: &[String] = paths.get(&site.ns).map_or(&[], Vec::as_slice);
+                    let winner =
+                        crate::naming::resolve_command_with(&site.ns, path, &site.value, known)?;
+                    let user_defined = procs.contains_key(&winner)
+                        || classes.contains_key(&winner)
+                        || aliases.contains_key(&winner)
+                        || renames.contains_key(&winner);
+                    user_defined.then(
+                        || crate::signature_scan::types::SignatureCommandInvocation {
+                            name: site.value.clone(),
+                            range: site.span,
+                            resolved_qualified_name: Some(winner),
+                            resolution_candidates: crate::naming::command_resolution_candidates(
+                                &site.ns,
+                                path,
+                                &site.value,
+                            ),
+                            argc: None,
+                            callback_arity: None,
+                            callback_baked_args: 0,
+                            indirect: true,
+                        },
+                    )
+                })
+                .collect();
+        result.command_invocations.extend(settled);
     }
 
     /// Record a constant string assignment for `var_name` in the
@@ -500,13 +555,12 @@ impl Analyser {
         let result = if parts.is_empty() {
             "::".to_string()
         } else {
+            // One join per written segment — `join_namespace` canonicalises
+            // the written part and appends with an exact separator, so a
+            // namespace legitimately named `:` never collapses (#934).
             let mut ns = "::".to_string();
             for part in parts {
-                if part.starts_with("::") {
-                    ns = normalise_qualified_name(&part);
-                } else {
-                    ns = normalise_qualified_name(&format!("{ns}::{part}"));
-                }
+                ns = join_namespace(&ns, &part);
             }
             ns
         };
@@ -635,9 +689,11 @@ impl Analyser {
     ///
     /// Looks for the variable in the scope at `scope_path`; falls
     /// back to the global scope for ``::``- and ``static::``-prefixed
-    /// names. W210 (read-before-set) is emitted by the SSA-based
-    /// pass elsewhere — this helper only records the reference
-    /// span.
+    /// names, and — under a Tcl 8.x dialect (TIP 278) — for a bare
+    /// name read at a namespace frame whose namespace has no such
+    /// variable but the global namespace does. W210 (read-before-set)
+    /// is emitted by the SSA-based pass elsewhere — this helper only
+    /// records the reference span.
     pub fn record_var_read(&mut self, name: &str, read_span: Span, scope_path: &[usize]) {
         let base_name = normalise_var_name(name);
         if base_name.is_empty() {
@@ -676,6 +732,24 @@ impl Analyser {
                 // the shell's real global scope.  `name` (not `base_owned`)
                 // preserves any `arr(idx)` element for the replay.
                 captured.push((name.to_string(), read_span));
+            }
+        } else if !base_owned.contains("::")
+            && self.result.ns_var_global_fallback()
+            && scope_at(&self.result.global_scope, &path)
+                .is_some_and(|s| s.kind == ScopeKind::Namespace)
+            && let Some(var) = self.result.global_scope.variables.get_mut(&base_owned)
+        {
+            // TIP 278 — at a **namespace frame**, Tcl 8.x resolves a bare
+            // undefined name against the global namespace (never an
+            // intermediate namespace; 9.0 dropped even the global hop), so
+            // attach the read to the global cell for find-references /
+            // rename.  A namespace-local declaration (`variable v`) was
+            // caught by the local-scope branch above, so reaching here means
+            // the namespace table genuinely lacks the name — exactly the C
+            // fallback condition (8.6 `tclVar.c` `TclLookupSimpleVar`).
+            var.references.push(read_span);
+            if let Some(e) = element {
+                var.array_indices.insert(e);
             }
         }
     }

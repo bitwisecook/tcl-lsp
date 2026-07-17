@@ -59,6 +59,7 @@ mod gen_tmlanguage_keywords;
 mod gen_vscode_package;
 mod gen_zed_queries;
 mod kcs_index_links;
+mod resolution_drift;
 mod tcltest_sweep;
 mod tzdata_bundle;
 mod util;
@@ -172,6 +173,15 @@ enum Command {
         check: bool,
     },
 
+    /// Flag namespace-blind `.name ==` scans over `all_procs`/`all_classes`
+    /// outside the shared resolution contract (the M1 drift class).
+    ResolutionDrift {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Run the C tcltest suite through the VM + reference tclsh and regenerate the
     /// VM-vs-C parity scoreboard (`docs/design/runtime/rust-vm-tier-parity.md`).
     TcltestSweep {
@@ -212,6 +222,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenVscodePackage { check } => gen_vscode_package::run(check),
         Command::GenJetbrainsCatalog { check } => gen_jetbrains::run(check),
         Command::GenAiDiagnostics { check } => gen_ai::run(check),
+        Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::TcltestSweep {
             backend,
             stem,
