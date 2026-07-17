@@ -108,6 +108,58 @@ suite("Diagnostics", () => {
     assert.strictEqual(w302.severity, vscode.DiagnosticSeverity.Hint, "W302 should be a hint");
   });
 
+  test("tclLsp.diagnosticSeverity.W211 re-levels the unused-variable hint (#941)", async () => {
+    const uri = getDocUri("deadStoreDedup.tcl");
+    await activate(uri);
+    const codeOf = (d: vscode.Diagnostic) =>
+      typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
+    const w211Severity = (diags: readonly vscode.Diagnostic[]) =>
+      diags.find((d) => codeOf(d) === "W211")?.severity;
+    const config = vscode.workspace.getConfiguration("tclLsp.diagnosticSeverity");
+    try {
+      // Default: `set x 1` is an unused variable at hint severity (the faint
+      // underline #941 is about).
+      const base = await waitForDiagnostics(uri, {
+        predicate: (d) => d.some((x) => codeOf(x) === "W211"),
+      });
+      assert.strictEqual(
+        w211Severity(base),
+        vscode.DiagnosticSeverity.Hint,
+        "W211 defaults to Hint",
+      );
+
+      // Override to warning: the same diagnostic must now publish as a warning.
+      await config.update("W211", "warning", vscode.ConfigurationTarget.Workspace);
+      const raised = await waitForDiagnostics(uri, {
+        predicate: (d) =>
+          d.some((x) => codeOf(x) === "W211" && x.severity === vscode.DiagnosticSeverity.Warning),
+      });
+      assert.strictEqual(
+        w211Severity(raised),
+        vscode.DiagnosticSeverity.Warning,
+        "override raises W211 to Warning",
+      );
+
+      // A code the user did not override keeps its emitted severity (W220 on
+      // `set y 1` stays a hint) — the override is per-code, not global.
+      const w220 = raised.find((d) => codeOf(d) === "W220");
+      if (w220) {
+        assert.strictEqual(
+          w220.severity,
+          vscode.DiagnosticSeverity.Hint,
+          "an un-overridden code keeps its emitted severity",
+        );
+      }
+    } finally {
+      // Reset and confirm the diagnostic returns to its default hint severity.
+      await config.update("W211", undefined, vscode.ConfigurationTarget.Workspace);
+      await waitForDiagnostics(uri, {
+        predicate: (d) =>
+          d.some((x) => codeOf(x) === "W211" && x.severity === vscode.DiagnosticSeverity.Hint),
+      });
+    }
+  });
+
   test("W125 fires for orphaned else/elseif on separate line", async () => {
     const orphanedUri = getDocUri("diagnostics-orphaned.tcl");
     await activate(orphanedUri);

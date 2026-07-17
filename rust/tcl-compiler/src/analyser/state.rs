@@ -2058,23 +2058,36 @@ mod tests {
     }
 
     #[test]
-    fn w210_dynamic_target_upvar_is_possibly_unset() {
-        // TP-W210: `upvar 1 $varName local` aliases `local` to the caller var
-        // named by `$varName`; if that var doesn't exist the alias is a no-op
-        // and an unconditional `$local` read errors — so W210 fires.
+    fn w210_dynamic_target_upvar_alias_read_is_silent() {
+        // Issue #941. `upvar 1 $varName local` aliases `local` to the caller
+        // variable named by `$varName` — the standard Tcl pass-by-reference
+        // idiom. Reading `$local` is not read-before-set: it errors only when
+        // the *caller* variable is missing, exactly the runtime condition that
+        // would make the *literal*-target twin (`upvar 1 caller local`) error
+        // too. tclsh 8.6/9.0 confirm the two forms are semantically identical,
+        // so the analyser treats them alike — both silent. (Reverses the old
+        // dynamic-target override, which flagged only the dynamic form and thus
+        // fired on every by-name read helper.)
         let codes = rbs_codes("proc foo {varName} {\n  upvar 1 $varName local\n  puts $local\n}\n");
         assert!(
-            codes.iter().any(|c| c == "W210"),
-            "dynamic-target upvar read: {codes:?}"
+            !codes.iter().any(|c| c == "W210"),
+            "dynamic-target upvar alias read must be silent: {codes:?}"
         );
-        // A *literal*-target upvar aliases a concrete caller var, so the local
-        // is treated as bound — no W210.
+        // Parity: the literal-target twin is silent too (always was).
         let codes = rbs_codes("proc foo {} {\n  upvar 1 caller local\n  puts $local\n}\n");
         assert!(
             !codes.iter().any(|c| c == "W210"),
             "literal-target upvar: {codes:?}"
         );
-        // An `[info exists local]` guard suppresses the read.
+        // TP control: an *unrelated* local — not the alias, never set — is not a
+        // scope alias, so it still fires W210.
+        let codes =
+            rbs_codes("proc foo {varName} {\n  upvar 1 $varName local\n  puts $unrelated\n}\n");
+        assert!(
+            codes.iter().any(|c| c == "W210"),
+            "unrelated non-alias local must still fire W210: {codes:?}"
+        );
+        // An `[info exists local]` guard suppresses the read (always did).
         let codes = rbs_codes(
             "proc foo {varName} {\n  upvar 1 $varName local\n  if {[info exists local]} { puts $local }\n}\n",
         );

@@ -392,12 +392,6 @@ pub(super) struct UndefSuppression {
     /// `$tmp` read in the same expression looks read-before-set.  Name-level,
     /// suppress-only.
     cmd_sub_writes: FxHashSet<String>,
-    /// Locals aliased to a *dynamic* upvar target (`upvar 1 $name local`).
-    /// The alias may resolve to a non-existent caller variable, so the local
-    /// is possibly-unset: read-before-set must *override* the scope-alias
-    /// suppression and fire on an unconditional read (an `[info exists]` guard
-    /// still suppresses it per-use).
-    pub(super) dynamic_upvar_locals: HashSet<String>,
     /// `(name, version)` pairs killed by an `unset` — undef at their reads,
     /// so a direct read of one is read-before-set just like a version-0
     /// origin.
@@ -651,7 +645,6 @@ pub(super) fn build_undef_suppression(
     );
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
-        dynamic_upvar_locals: crate::optimiser::elimination::scan_dynamic_upvar_locals(&fu.cfg),
         killed,
         can_undef,
         loop_entry_only_undef,
@@ -957,6 +950,77 @@ pub(super) fn globals_written_by_procs(
             }
         }
         for n in global_aliases.intersection(&written) {
+            result.insert(n.clone());
+        }
+    }
+    result
+}
+
+/// Compute the set of global variable names that any procedure in `cu`
+/// **reads**.
+///
+/// The read-side mirror of [`globals_written_by_procs`]: a top-level
+/// assignment (`set cfg …`, which runs in the global namespace) is not a
+/// dead store (W220) or unused variable (W211) when a helper proc consumes
+/// it — exactly as a top-level *read* is not read-before-set (W210) when a
+/// helper proc populates it.  A proc reads a global when it either:
+///
+/// 1. reads a fully-qualified name (`$::cfg`, `$::ns::cfg` — bare tail
+///    `cfg`), which always resolves outside the proc's own frame, or
+/// 2. declares `global cfg` and then reads `cfg` in the same body.
+///
+/// Name-level and deliberately permissive (the global namespace is shared
+/// between the top-level script and every proc, so a same-named read may be
+/// the consumer): the alternative is a false unused / dead-store hint on the
+/// extremely common "config global set at the top, read inside procs" shape.
+/// `variable` / `upvar` aliases are *not* counted — they bind the current
+/// namespace / a caller frame, not the global scope, so they cannot consume
+/// a global-scope top-level `set`.
+pub(super) fn globals_read_by_procs(
+    cu: &crate::compilation_unit::CompilationUnit,
+) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut result: HashSet<String> = HashSet::new();
+    for fu in cu.procedures.values() {
+        // Names the proc declares as global-scope aliases (`global cfg`).
+        let mut global_aliases: FxHashSet<String> = FxHashSet::default();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                if let Statement::Call { command, defs, .. } = stmt
+                    && command == "global"
+                {
+                    for d in defs {
+                        global_aliases.insert(d.clone());
+                    }
+                }
+            }
+        }
+        // Names the proc reads.  The def-use chains already fold in the
+        // `return $x` terminator and branch-condition reads that the raw
+        // per-statement `uses` miss, so a chain carrying any use marks its
+        // name as read.
+        let mut read: FxHashSet<String> = FxHashSet::default();
+        for (key, chain) in &fu.def_use.chains {
+            if !chain.uses.is_empty() {
+                read.insert(key.0.clone());
+            }
+        }
+        // (1) A fully-qualified read always targets the global / a named
+        // namespace scope; its bare tail is the consumable global name.
+        for name in &read {
+            if let Some(bare) = name.strip_prefix("::") {
+                let tail = bare
+                    .trim_start_matches(':')
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or(bare);
+                if !tail.is_empty() {
+                    result.insert(tail.to_string());
+                }
+            }
+        }
+        // (2) A `global cfg` alias the body reads is a read of global `cfg`.
+        for n in global_aliases.intersection(&read) {
             result.insert(n.clone());
         }
     }
