@@ -1,4 +1,4 @@
-# v2.1.9
+# v2.1.10
 
 **2.x alpha — pre-release channel.**
 
@@ -10,106 +10,110 @@ GitHub release. The stable **1.x** line stays the default for everyone who has
 not opted into pre-releases, and a `2.1.x` build never becomes the "latest"
 GitHub release or the default Marketplace download.
 
-This release is two deep-review passes — one across the compiler, one across
-diagnostics — plus a cluster of fixes to the BIG-IP report generator's
-printing and, more importantly, a privacy fix: the in-browser generator could
-silently upload a device configuration instead of keeping everything local.
+This release is dominated by two large passes: a comprehensive rework of how
+the compiler tracks value types (union types, per-array-element tracking,
+exact big-integer arithmetic) and a soundness sweep across name resolution
+(TclOO, autoload, `source` context, interpreters, command names held in
+variables). Alongside those: a much more accurate model of Tcl-version and
+BIG-IP-version availability, several VM correctness fixes, and a handful of
+smaller diagnostic and editor fixes.
 
 ## New Features
 
-- **Tk/ttk widget instance commands are understood.** `.t instate {…} {…}`,
-  `$listbox curselection`, `$w tag configure …` and similar widget-instance
-  calls were never resolved back to the widget class that created them, so
-  none of the LSP's tooling — highlighting, hover, completion, or
-  unknown-subcommand/arity diagnostics — could see into them. Every Tk widget
-  constructor now records the class it creates, so calls on `.t`/`$w` resolve
-  to the real widget's subcommand table; a mistyped widget method is now
-  flagged like any other unknown subcommand.
-- **Completion falls back to fuzzy matching.** When a typed fragment matches
-  nothing by prefix, completion now offers the closest commands, switches,
-  subcommands, variables and methods by edit distance — `lsaerch` offers
-  `lsearch`, `lsort -ncoase` offers `-nocase`, `$bnaana` offers `$banana`.
-  Ordinary prefix completions are unaffected.
-- **New diagnostic W218** flags `args` used in a non-final parameter
-  position (`proc p {args extra} {…}`), which C Tcl silently treats as an
-  ordinary parameter rather than the variadic catch-all an author would
-  expect.
-- **More quick fixes.** Did-you-mean rename fixes for undefined-variable
-  warnings and deprecated iRules commands (IRULE2002); deterministic
-  rewrites for `append` → `lappend` (W104), unwrapping a redundant nested
-  `expr` (W114), and `file join`-ifying a manually concatenated path (W201);
-  arity errors (E002/E003/E005) now show the expected usage alongside the
-  argument count.
-- **The `tcl` CLI auto-detects each file's dialect** (`diag`/`lint`/`validate`),
-  matching the language server instead of requiring an explicit `--dialect`.
-- **Printing a BIG-IP report shows progress.** Large reports could take
-  10-20 seconds to prepare for printing with no visible feedback; a staged
-  toast now names what's happening (formatting iRules, rendering diagrams,
-  opening the print dialog).
+- **BIG-IP-version-aware analysis.** A new `--bigip-version` CLI flag and
+  `tclLsp.bigipVersion` setting narrow event, command, and profile validity
+  (and the new W135/W136/W139 version diagnostics) to a specific BIG-IP
+  release instead of the widest possible range.
+- **First-class support for the `f5-tmsh` and `bpf` dialects, plus Tcl 9.1.**
+  The tmsh shell (Tcl 8.5 host + `tmsh::` surface) and BIG-IP's eBPF Tcl
+  runtime (Tcl 9.0-based) are now modelled as their own dialects rather than
+  approximated by a neighbour.
+- **New diagnostics:** W129 (command hidden in the current safe interpreter),
+  W140 (use of an interpreter that was never created), W314 (a definition
+  whose name has no absolute written form — e.g. `proc :`), and W137/W138
+  (a `string is` class or `format`/`scan` specifier used below the Tcl
+  version that introduced it).
+- **Per-diagnostic severity override.** `tclLsp.diagnosticSeverity.<CODE>`
+  lets any diagnostic's default severity (e.g. W211's faint hint) be raised
+  or lowered without changing the underlying analysis.
+- **VS Code: suppress diagnostics in diff editors.** The opt-in
+  `tclLsp.suppressDiagnosticsInDiffEditors` setting hides a file's Tcl
+  diagnostics while it is shown only in a diff/compare view (Source Control,
+  "Compare With…"), so reviewing a change doesn't carry the analyser's
+  squiggles; a file also open normally is unaffected, and closing the diff
+  brings the squiggles straight back.
+- **Go-to-definition, references, and rename reach further:** into
+  autoloaded library files, colon-heavy proc/namespace names (`proc :`,
+  trailing `::`), a TclOO method inherited from a base class defined in
+  another file, and command names used in introspection calls (`info body`,
+  `namespace which -command`, `trace add execution`).
+- **Hover and inlay types show full unions.** A value with three or more
+  merging types (e.g. from separate branches) now renders every member
+  instead of collapsing to "unknown".
 
 ## Improvements
 
-- **Diagnostic ranges are noticeably tighter.** Expression-shimmer warnings
-  (S100/S101) now anchor the specific operand rather than the whole
-  statement; W313 anchors the dynamic path argument; W110 anchors the `==`/
-  `!=` operator itself; I230 quotes a bare `$n` condition the way the source
-  actually spells it.
-- **Numeric comparisons match tclsh exactly.** `==`, `<`, and the rest of the
-  comparison operators now compare int/double operands using C Tcl's own
-  rules instead of a lossy promotion to `f64`, fixing wide-integer and
-  bignum boundary cases.
-- **Go-to-definition and hover are namespace-aware.** Proc and class lookups
-  now walk the enclosing namespace chain (current → ancestors → global)
-  instead of matching by exact string, and command-option matching
-  (`lsort`, `lsearch`, `trace`, `tcl::prefix match`, `string is`, …) now
-  reproduces tclsh's abbreviation rules and error wording exactly.
-- **Fewer false positives:** a `rename`d command's new name is no longer
-  flagged as unknown; iRules reading a variable across events no longer
-  draws a read-before-set warning; a dialect-disabled class/type definer no
-  longer cascades a wall of follow-on "unknown command" warnings; comments
-  containing ordinary punctuation like em-dashes or smart quotes no longer
-  trip the Trojan-source scanner (invisible/direction-altering characters
-  still do); `TK1003` no longer flags legal option-value or abbreviated-flag
-  forms; a comment merely containing a word like "interactive" no longer
-  flips a file's detected dialect.
-- **W128 recognises `ClassName destroy`**, so a TclOO/snit instance obtained
-  after its class was destroyed is now flagged the same way a destroyed
-  instance already was.
-- **Printed BIG-IP reports are more complete and more legible.** Diagnostics
-  and optimiser suggestions found by the analyser now actually print under
-  each iRule (previously only the underlines printed, with no messages);
-  iRule flow diagrams print for every iRule, not just the ones expanded on
-  screen before printing; a diagram smaller than the page prints at its
-  natural size instead of being stretched up to full width with
-  oversized labels; the tcl-lsp and f5-query marks render at a consistent
-  size wherever they appear together.
+- **Array elements are tracked individually.** `arr(a)` and `arr(b)` are no
+  longer conflated: hover and type inference report the right element's
+  type, most false positives from treating a whole array as one value are
+  gone, and a genuine type oscillation on the *same* element is still
+  caught.
+- **Exact big-integer arithmetic.** `expr`, constant folding, and the VM's
+  math functions now match `tclsh` precisely at extreme values — huge
+  exponents and shifts, `isqrt`, comparisons between a bignum and a double,
+  and the exact domain errors C Tcl raises (`0.0 ** -1`, NaN operands, …).
+- **A large sweep of dialect/version false positives is gone.** 8.5/8.6-era
+  commands (`dict`, `lassign`, `apply`, `lmap`, `coroutine`, …) no longer
+  false-positive under `f5-iapps`/`expect`/EDA dialects; completion and
+  hover now correctly hide subcommands and options that don't exist yet at
+  a buffer's effective Tcl version (e.g. `dict getwithdefault` under 8.6);
+  Tk commands are never offered inside a vendor shell.
+- **Variable rename and references follow every alias together** —
+  `global v`, `variable v`, and `namespace upvar` declarations for the same
+  cell are now treated as one unit instead of being edited separately (or
+  missed).
+- **Fewer unused-variable / read-before-set false positives.** `upvar 1
+  $name local` (the dynamic-target accessor idiom) no longer flags W210; a
+  global written at the top level and read only inside a proc no longer
+  flags W211/W220.
+- **VM re-entrancy and step traces are more faithful.** A parent-interpreter
+  alias invoked from inside a coroutine resume, `lsort -command`, a trace
+  callback, or an `after`/`vwait` callback no longer errors with "C stack
+  busy" or mis-re-enters; execution step traces now observe opcode-inlined
+  commands (`set`, `incr`, `return`, control flow), not just dispatched
+  ones.
 
 ## Bug Fixes
 
-- **The in-browser BIG-IP report generator could silently upload a device
-  configuration.** Its "is the local engine available" check tested
-  `window.wasm_bindgen`, but the inlined engine only ever defines a bare
-  `wasm_bindgen` global — so the check always failed and the generator
-  silently fell back to a network backend. On static hosting (GitHub Pages)
-  that surfaced as an outright `405` error; everywhere else it quietly broke
-  the "nothing leaves your browser" guarantee. Both the standalone generator
-  and every generated report now also enforce a strict
-  network-blocking content-security-policy in the browser itself, so the
-  no-upload guarantee no longer depends solely on application code.
-- **A generated report's Print button, Ctrl/Cmd-P, and embedded query
-  console could all be dead on arrival.** The inlined WebAssembly loader
-  throws when the page's own URL is a `blob:` URL — exactly what the
-  in-browser generator uses to open a finished report — which silently
-  poisoned a shared binding and took the Print button, its keyboard
-  shortcut, and the report's query console down with it. Reports opened
-  from disk or a normal URL were unaffected, which is why this shipped
-  unnoticed.
-- **Reports and CLI/MCP version output showed a placeholder `0.1.0`**
-  instead of the released version, and could claim to be a "dirty"
-  developer build even when built by CI from a clean release tag.
-- **`console eval` and `consoleinterp eval`/`record` script bodies are now
-  highlighted** instead of rendering as one opaque unhighlighted string.
-- **References, rename, and call hierarchy now find fully-qualified and
-  relative namespace-qualified calls**, including a proc invoked by its
-  fully-qualified name from inside a callback script — previously only
-  exact-form matches within the same namespace were found.
+- **Renaming a TclOO instance variable no longer corrupts the method.** The
+  edit previously could span and destroy the whole method body; it now
+  anchors precisely on the `variable` declaration.
+- **VS Code's rename could refuse to start.** `prepareRename` only checked
+  the local file, so renaming a symbol with no declaration in the buffer
+  being edited (e.g. an autoloaded or sibling-defined proc) failed with
+  "The element can't be renamed" even though the rename itself would have
+  worked. It now resolves through the workspace like the rename request
+  does.
+- **Renaming a command held in a variable rewrites the right thing.** `set
+  cmd target; $cmd` now rewrites the assignment when renaming `target`,
+  never the `$cmd` use site.
+- **TclOO resolution soundness fixes:** an external call to an unexported
+  method is no longer resolved as if it were exported; per-object
+  (`oo::objdefine`) methods on same-named objects in different scopes no
+  longer collide; go-to-definition on a method call now follows the actual
+  dispatch chain instead of landing on an arbitrary same-named method
+  elsewhere.
+- **`f5 fetch --transport ssh` now verifies the remote host key.** It
+  previously accepted any presented key; it now checks against a persisted
+  `known_hosts` store, trusting a host on first use and rejecting a
+  different key on a later connection (failing closed if the store can't
+  be written). Concurrent fetches against the same device no longer
+  collide and overwrite each other's saved file.
+- A renamed cross-interpreter alias no longer leaves a dangling command
+  behind after the alias's target interpreter is deleted.
+- A `source`d file with multiple physical declaration sites is now treated
+  as the multiple distinct runtime identities it really has, instead of
+  merging them under rename.
+- Bare `break`/`continue` reaching a proc boundary now raises the same
+  "invoked ... outside of a loop" error C Tcl does, instead of leaking an
+  internal completion code.
