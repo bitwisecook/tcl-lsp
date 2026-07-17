@@ -60,7 +60,13 @@ pub(super) struct InterpState {
     pub safe: bool,
     /// Commands explicitly `interp hide`-den in this interpreter.
     pub hidden: HashSet<String>,
-    /// Commands explicitly `interp expose`-d in this interpreter.
+    /// Names callable regardless of the safe-hidden base set: explicit
+    /// `interp expose` targets, **and** names the interpreter has locally
+    /// (re)defined (e.g. `proc source {} {…}` inside its body) — C creates
+    /// those in the ordinary command table, entirely independent of the
+    /// separate hidden-command table, so a hidden built-in's name becomes
+    /// callable the moment the child defines its own command by that name
+    /// (tclsh 9.0.4-verified; issue #945 fault 7 follow-up).
     pub exposed: HashSet<String>,
     /// A hide / expose operation on this interpreter used a dynamic
     /// command operand — its visible command set is unknowable, so the

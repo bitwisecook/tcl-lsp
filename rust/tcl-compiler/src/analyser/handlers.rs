@@ -744,8 +744,13 @@ impl Analyser {
         let simple_key = proc.name.clone();
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
-            scope.procs.insert(simple_key, proc);
+            scope.procs.insert(simple_key.clone(), proc);
         }
+        // A `proc` defined anywhere inside an `interp eval` body creates a
+        // real command in that interpreter's ordinary command table,
+        // independent of the hidden set the safe-interp gate consults —
+        // see `mark_locally_defined_in_enclosing_interp`'s doc comment.
+        self.mark_locally_defined_in_enclosing_interp(&simple_key);
 
         // Walk the body in a fresh proc scope when the body is a
         // braced literal. ``raw_name`` is used as the proc-scope
@@ -1272,7 +1277,10 @@ impl Analyser {
     }
 
     /// Handle `interp hide path cmdName ?hiddenName?` — mark the command
-    /// hidden in the target interpreter's domain.
+    /// hidden in the target interpreter's domain.  The optional third word
+    /// only renames the hidden-table entry for `invokehidden` — it doesn't
+    /// change `cmdName`'s ordinary-lookup visibility, which is all this
+    /// gate tracks — so it's not read here.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpHide`].
     pub fn handle_interp_hide_command(&mut self, args: &[String]) {
@@ -1280,7 +1288,9 @@ impl Analyser {
     }
 
     /// Handle `interp expose path hiddenName ?exposedName?` — re-expose a
-    /// hidden command in the target interpreter's domain.
+    /// hidden command in the target interpreter's domain, visible under
+    /// `exposedName` when given (`hiddenName` itself stays absent from
+    /// ordinary lookup — tclsh 9.0.4-verified).
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpExpose`].
     pub fn handle_interp_expose_command(&mut self, args: &[String]) {
@@ -1310,9 +1320,47 @@ impl Analyser {
         if hide {
             state.hidden.insert(cmd.clone());
             state.exposed.remove(cmd);
-        } else {
-            state.exposed.insert(cmd.clone());
-            state.hidden.remove(cmd);
+            return;
+        }
+        // `interp expose path hiddenName ?exposedName?` restores the
+        // hidden command under `exposedName` when given — `hiddenName`
+        // itself stays unavailable to ordinary lookup (tclsh 9.0.4:
+        // `interp expose s source src` leaves `source` absent and makes
+        // `src` callable).  A dynamic `exposedName` makes the resulting
+        // visible name unknowable, so it taints like a dynamic `cmd`
+        // would.
+        let exposed_name = match args.get(3) {
+            Some(name) if crate::naming::is_dynamic_word(name) => {
+                state.tainted = true;
+                return;
+            }
+            Some(name) => name.clone(),
+            None => cmd.clone(),
+        };
+        state.exposed.insert(exposed_name);
+        state.hidden.remove(cmd);
+    }
+
+    /// Record that `bare_name` is now a real, locally-defined command in
+    /// the interpreter body currently being walked (a `proc` (re)definition
+    /// — issue #945 fault 7 follow-up).  C creates it in the ordinary
+    /// command table, a separate table from the hidden set entirely, so it
+    /// is callable independent of any hide the base safe set or an earlier
+    /// `interp hide` applied (tclsh 9.0.4-verified).  Updates both the
+    /// interpreter's persistent state (so a *later*, separate `interp eval`
+    /// into the same path also sees it) and the live gate context on top of
+    /// the walk stack (so a call later in *this same* body sees it too — the
+    /// stack entry is a snapshot taken before the body walk began).  A
+    /// no-op outside any interpreter body.
+    pub(super) fn mark_locally_defined_in_enclosing_interp(&mut self, bare_name: &str) {
+        let Some(key) = self.interp_path_stack.last() else {
+            return;
+        };
+        if let Some(state) = self.interpreters.get_mut(key) {
+            state.exposed.insert(bare_name.to_string());
+        }
+        if let Some(ctx) = self.safe_interp_stack.last_mut() {
+            ctx.exposed.insert(bare_name.to_string());
         }
     }
 
@@ -4141,6 +4189,74 @@ mod tests {
                 .any(|d| d.code == tcl_core_types::DiagCode::W129),
             "an explicitly hidden command warns in a normal interp: {:?}",
             r4.diagnostics
+        );
+    }
+
+    #[test]
+    fn safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945() {
+        // tclsh 9.0.4: `proc source {} {…}` inside a safe interp creates a
+        // real command in the ordinary command table — a table entirely
+        // separate from the hidden set — so calling `source` afterwards
+        // runs the user's proc, never `invalid command name`.  The gate
+        // must not draw W129 for the call, and the call must still be
+        // fully analysed (resolving to the local proc), not skipped as an
+        // effect-free hidden call.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { proc source {} { return ok }; source }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a locally-redefined name is callable, not hidden: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@s::source"),
+            "the local proc is recorded, not skipped: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        // A call *preceding* the redefinition is unaffected by this file's
+        // whole-body approximation in the other direction — still hidden
+        // until the walk has seen a local definition — is not asserted
+        // here (the analyser's per-body model is not that finely ordered);
+        // what matters is that a real, common redefinition idiom never
+        // produces a false-positive W129 that also drops the call's facts.
+    }
+
+    #[test]
+    fn interp_expose_with_a_new_name_tracks_the_new_name_945() {
+        // tclsh 9.0.4: `interp expose s source src` restores the hidden
+        // `source` implementation under the name `src` — `source` itself
+        // stays absent from ordinary lookup, and `src` becomes callable.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp expose s source src\n\
+             interp eval s { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "the hidden name itself stays hidden after an exposed rename: {:?}",
+            r.diagnostics
+        );
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse(
+            "interp create -safe s\ninterp expose s source src\n\
+             interp eval s { src b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r2.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "the new exposed name is callable: {:?}",
+            r2.diagnostics
         );
     }
 
