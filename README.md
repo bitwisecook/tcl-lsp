@@ -1831,6 +1831,27 @@ disabled = O109
 For the complete reference, see
 [`docs/kcs/kcs-howto-suppress-diagnostics.md`](docs/kcs/kcs-howto-suppress-diagnostics.md).
 
+### Diff and compare views (VS Code)
+
+The analyser never runs on diff *content* — a diff editor is two real
+documents rendered side by side, and the modified side of a Git diff from
+**Source Control** (or either side of **Compare With…**) is a real file,
+analysed like any open file.  The squiggles a diff shows are therefore that
+file's own correct, *whole-file* diagnostics, and they are shown by
+default.  Because most of those findings predate the change under review,
+you can optionally hide them while a file is shown *only* in a diff
+editor:
+
+```json
+"tclLsp.suppressDiagnosticsInDiffEditors": true
+```
+
+The moment the same file is also open in a normal editor — where you might
+be editing it — its diagnostics come back, so analysis of files you are
+working on is never affected.  This is a VS Code display choice only: the
+server keeps analysing and no diagnostics are lost.  See
+[`docs/kcs/kcs-howto-hide-diagnostics-in-diff-views.md`](docs/kcs/kcs-howto-hide-diagnostics-in-diff-views.md).
+
 ## Changing how prominent a diagnostic is
 
 Some checks are intentionally quiet — an unused variable

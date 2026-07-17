@@ -131,6 +131,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-howto-hide-diagnostics-in-diff-views.md](kcs-howto-hide-diagnostics-in-diff-views.md)
+  — hide Tcl diagnostics in VS Code diff and compare editors with
+  `tclLsp.suppressDiagnosticsInDiffEditors`.
 - [kcs-howto-configure-project-entry-points.md](kcs-howto-configure-project-entry-points.md)
   — stop W120 warnings in files loaded by an entry file, via the
   automatic `source` graph or a manual `entryPoints` list.
