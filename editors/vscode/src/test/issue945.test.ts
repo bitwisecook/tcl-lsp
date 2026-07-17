@@ -41,9 +41,7 @@ suite("Issue #945 resolution model", () => {
     )) as vscode.WorkspaceEdit | undefined;
 
     assert.ok(edit, "rename should return a workspace edit");
-    const docEdits = edit
-      .entries()
-      .find(([uri]) => uri.toString() === docUri.toString());
+    const docEdits = edit.entries().find(([uri]) => uri.toString() === docUri.toString());
     assert.ok(docEdits, "should include edits for the fixture");
     const [, textEdits] = docEdits;
 
@@ -56,10 +54,7 @@ suite("Issue #945 resolution model", () => {
       lines.includes(1),
       `the defining literal follows the rename: ${JSON.stringify(lines)}`,
     );
-    assert.ok(
-      !lines.includes(2),
-      `the $cmd head is never rewritten: ${JSON.stringify(lines)}`,
-    );
+    assert.ok(!lines.includes(2), `the $cmd head is never rewritten: ${JSON.stringify(lines)}`);
     assert.ok(
       textEdits.every((e) => e.newText === "renamed"),
       "every edit splices the new name",
@@ -134,9 +129,7 @@ suite("Issue #945 resolution model", () => {
     const diags = vscode.languages.getDiagnostics(docUri);
     assert.ok(
       !diags.some((d) => String(d.code) === "W123"),
-      `a probe of an absent command draws no W123: ${JSON.stringify(
-        diags.map((d) => d.code),
-      )}`,
+      `a probe of an absent command draws no W123: ${JSON.stringify(diags.map((d) => d.code))}`,
     );
   });
 });

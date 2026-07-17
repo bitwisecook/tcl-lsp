@@ -115,6 +115,15 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         // `interp eval CHILD SCRIPT` — the child interpreter's script is
         // analysed in an isolated scope (handle_interp_eval_command).
         ("interp", "eval", H::InterpEval),
+        // The interpreter model (issue #945 fault 8): lifecycle and
+        // command-visibility subcommands stamp their own hooks so the
+        // analyser tracks child-interp existence, temporal identity
+        // (delete/recreate epochs), and safe-interp hide/expose state
+        // without matching the command name.
+        ("interp", "create", H::InterpCreate),
+        ("interp", "delete", H::InterpDelete),
+        ("interp", "hide", H::InterpHide),
+        ("interp", "expose", H::InterpExpose),
         ("rename", "", H::Rename),
         ("oo::define", "", H::OoDefine),
         ("oo::objdefine", "", H::OoObjdefine),

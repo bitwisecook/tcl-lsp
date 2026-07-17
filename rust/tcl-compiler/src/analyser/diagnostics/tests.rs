@@ -9198,6 +9198,27 @@ fn namespace_qualified_const_value_resolves_absolutely_945() {
 }
 
 #[test]
+fn traced_head_variable_abstains_945() {
+    // A write trace can rewrite `cmd` at any moment (tclsh 9.0.4: the
+    // callback fires on every write, and reads via `trace add variable …
+    // read` can substitute values) — the reaching-definition walk cannot
+    // see those writes, so a traced dispatch head abstains entirely.
+    let mut a = Analyser::new();
+    let src = "proc target {} {}\nproc redirect {n1 n2 op} {}\n\
+               set cmd target\ntrace add variable cmd write redirect\n$cmd\n";
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.command_invocations.iter().any(|i| i.indirect),
+        "a traced head must abstain: {:?}",
+        r.command_invocations
+            .iter()
+            .filter(|i| i.indirect)
+            .map(|i| &i.name)
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
 fn expanded_head_list_prefix_keeps_the_exact_writable_component_945() {
     // `{*}$cmd` expands the value as a command *prefix* — tclsh 9.0.4
     // dispatches its first list element with the rest appended as

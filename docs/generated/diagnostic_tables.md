@@ -44,11 +44,13 @@
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
 | W127 | warning | Value not in the command's allowed set. | ✓ |
 | W128 | warning | Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler. | ✓ |
+| W129 | warning | Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`. | ✓ |
 | W135 | warning | Command requires a newer package version than the resolved `package require`. | ✓ |
 | W136 | warning | Option requires a newer package version than the resolved `package require`. | ✓ |
 | W137 | warning | Argument value requires a newer Tcl version than the dialect provides. | ✓ |
 | W138 | warning | Format/scan conversion requires a newer Tcl version than the dialect provides. | ✓ |
 | W139 | warning | Command/option removed at the resolved package version (present only in earlier releases). | ✓ |
+| W140 | warning | `interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |

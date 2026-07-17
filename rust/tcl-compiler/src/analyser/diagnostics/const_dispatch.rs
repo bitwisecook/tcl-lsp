@@ -125,6 +125,15 @@ impl Analyser {
 
         let mut settled: Vec<SignatureCommandInvocation> = Vec::new();
         for site in &sites {
+            // A write trace can mutate the variable at any read — the
+            // reaching-definition walk cannot see the trace callback's
+            // writes, so a traced head (or any dynamic variable trace in
+            // the module) abstains (issue #945 fault 2's trace arm).
+            if cu.ir_module.has_dynamic_variable_trace
+                || cu.ir_module.traced_variables.contains(&site.var_name)
+            {
+                continue;
+            }
             let fu = cu.function_unit_at(site.span.start());
             let Some(contributors) = const_contributors(fu, site.span.start(), &site.var_name)
             else {
