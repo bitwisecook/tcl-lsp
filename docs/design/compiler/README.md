@@ -76,6 +76,9 @@ User-facing compiler troubleshooting and how-tos live in
   and liveness.
 - [constant-folding-type-inference.md](constant-folding-type-inference.md)
   — SCCP and type lattice.
+- [type-tracking.md](type-tracking.md) — the comprehensive value-type model
+  (purity / first-use commitment, union nodes, container element types, the
+  numeric tower) with its oracle corpus and phasing.
 - [def-use-chains.md](def-use-chains.md) — def-use chain construction
   and consumer contracts.
 - [memory-ssa.md](memory-ssa.md) — memory-SSA, alias detection, and

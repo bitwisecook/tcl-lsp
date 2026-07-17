@@ -44,6 +44,8 @@
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
+use std::collections::HashMap;
+
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -2491,8 +2493,9 @@ fn infer_var_type_and_taint(
     var_name: &str,
 ) -> (Option<String>, Option<String>) {
     let unit = CompilationUnit::build_for(source, registry, false);
+    let first_use = tcl_compiler::shimmer::first_use_commitments_for_cu(&unit, registry);
     (
-        infer_var_type(&unit, var_name),
+        infer_var_type(&unit, var_name, &first_use),
         infer_var_taint(&unit, var_name),
     )
 }
@@ -2514,7 +2517,17 @@ fn function_units_in_order(unit: &CompilationUnit) -> Vec<&FunctionUnit> {
 /// `_infer_var_type`: returns the first function (top-level, then
 /// procs in name order) that has type entries for the variable
 /// and resolves them to a single label.
-fn infer_var_type(unit: &CompilationUnit, var_name: &str) -> Option<String> {
+///
+/// A **pure** variable — a literal / interpolation / string-command result
+/// whose intrep is not committed at the def — additionally reports the intrep
+/// its first use commits when every executable typed read agrees ("first used
+/// as"), the def-site pushback of the committed-intrep dataflow
+/// (`tcl_compiler::shimmer::first_use_commitments_for_cu`).
+fn infer_var_type(
+    unit: &CompilationUnit,
+    var_name: &str,
+    first_use: &HashMap<String, HashMap<String, TclType>>,
+) -> Option<String> {
     for func in function_units_in_order(unit) {
         let entries: Vec<&TypeLattice> = func
             .types
@@ -2535,7 +2548,20 @@ fn infer_var_type(unit: &CompilationUnit, var_name: &str) -> Option<String> {
             && known.iter().all(|t| t.tcl_type == known[0].tcl_type)
             && known.len() == entries.len()
         {
-            return Some(tcl_type_label(known[0].tcl_type.unwrap()));
+            let label = tcl_type_label(known[0].tcl_type.unwrap());
+            // A pure def whose every typed read commits one intrep reports it
+            // at the creation site: `set l {1 2 3}` first used by `llength`
+            // hovers as "string (first used as: list)".
+            if let Some(committed) = first_use
+                .get(&func.name)
+                .and_then(|vars| vars.get(var_name))
+            {
+                let committed_label = tcl_type_label(*committed);
+                if committed_label != label {
+                    return Some(format!("{label} (first used as: {committed_label})"));
+                }
+            }
+            return Some(label);
         }
         // Every version agrees on the same SHIMMERED pair.
         let shimmered: Vec<&TypeLattice> = entries
@@ -2995,6 +3021,40 @@ mod tests {
         let h = hover(src, 1, 7, &analysis, Some(&registry)).expect("hover");
         assert!(h.value.contains("**Variable** `x`"), "{}", h.value);
         assert!(h.value.contains("**Inferred intrep**: int"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_on_pure_literal_surfaces_first_used_as() {
+        // `l` is a pure list-shaped literal whose only typed read commits the
+        // list intrep — the def-site pushback of the committed-intrep
+        // dataflow surfaces "first used as: list" at the creation site.
+        let src = "set l {1 2 3}\nllength $l\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 1, 9, &analysis, Some(&registry)).expect("hover");
+        assert!(h.value.contains("**Variable** `l`"), "{}", h.value);
+        assert!(
+            h.value
+                .contains("**Inferred intrep**: string (first used as: list)"),
+            "{}",
+            h.value
+        );
+    }
+
+    #[test]
+    fn hover_committed_producer_has_no_first_used_as() {
+        // A committed producer (`[list …]`) is not "first used as" anything —
+        // its intrep is set at the def, so the pushback annotation must not
+        // appear.
+        let src = "set l [list 1 2 3]\nllength $l\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 1, 9, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            !h.value.contains("first used as"),
+            "committed producers must not carry the pushback label: {}",
+            h.value
+        );
     }
 
     #[test]

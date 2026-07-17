@@ -5345,6 +5345,77 @@ genuine error (`incr` on `hello`) still fires.
 
 ---
 
+### FP-SH-22 — first-use commit: a second conversion is a genuine shimmer
+
+- **Verdict:** FALSE NEGATIVE (now fixed) — FP-SH-21's per-use pure-origin
+  evaluation missed the conversion a *prior* use had already committed
+- **Status:** locked in by `analyser/diagnostics/fp/sh.rs::fp_sh_22_*`, the
+  dataflow unit tests in `shimmer/commit.rs`, and the
+  `commit_dataflow_*` lsp_e2e suite
+- **Codes:** S100 / S101 (use-site, expr-operand, and `incr` shimmer)
+
+#### Reproducer
+
+```tcl
+set v 5
+expr {$v + 1}     ;# first use commits the numeric intrep (free)
+lindex $v 0       ;# second conversion: numeric → list — S100 fires
+
+set l {a 1 b 2}
+foreach i {1 2 3} {
+    llength $l    ;# list ↔ dict re-thunk on every iteration —
+    dict size $l  ;# both S101 (oracle-verified oscillation)
+}
+
+proc f {c} {
+    set a {1 2}
+    if {$c} { llength $a } else { dict size $a }  ;# each arm free (first use)
+    string length $a   ;# matches NEITHER arm — every path pays: S100 fires
+    # a post-merge `llength $a` would match one arm — only one path pays: silent
+}
+```
+
+#### Per-line reasoning
+
+The commitment state is per program point, not per SSA version — a value is
+pure before `lindex $x 0` and a list after it with no new version in between —
+so the flow-insensitive type lattice cannot carry it. `shimmer::commit` runs a
+forward **must/may** dataflow over the SCCP-executable blocks: the may-set of
+committed intreps unions at merges (bounded), `all_committed` intersects, and
+a use fires precisely when it is committed on **every** path to a rep that
+satisfies neither the required intrep nor numeric-family compatibility. That
+quantifier is what keeps the branch case sound: each arm's own conversion is a
+free first commit, and a post-merge use matching one arm pays on only one path
+(silent) while a use matching neither pays on all (fires, with path-dependent
+wording naming the possibilities). The loop re-thunk is restored via the
+existing multi-target `LoopFacts` (two distinct targets in a loop bypass the
+free-first-conversion suppression) plus the steady-state may-rep naming the
+from side.
+
+#### tclsh ground truth (8.6)
+
+```
+% set v 5; expr {$v + 1}
+% tcl::unsupported::representation $v    ;# int — committed by expr
+% lindex $v 0
+% tcl::unsupported::representation $v    ;# list — a genuine re-representation
+% set l {a 1 b 2}
+% foreach i {1 2 3} { llength $l; dict size $l }
+                                          ;# rep alternates list ↔ dict each pass
+```
+
+#### Tests
+
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_second_conversion_after_expr_commit_fires` (TP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_incr_after_llength_commit_fires` (TP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_loop_two_target_rethunk_is_s101` (TP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_branch_arms_first_conversions_stay_silent` (FP guard)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_merge_use_matching_neither_arm_fires` (TP)
+- `shimmer/commit.rs` unit tests (must/may semantics, pushback)
+- lsp_e2e `commit_dataflow_*` (second conversion, loop re-thunk, path-dependent message)
+
+---
+
 ## OBJ — object dispatch (W307/W308) + snit modelling
 
 W307 catches stray non-literal command words (`$x foo`); W308 validates

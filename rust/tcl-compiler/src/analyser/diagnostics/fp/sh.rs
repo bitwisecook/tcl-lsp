@@ -1487,3 +1487,74 @@ fn fp_sh_21_committed_list_as_string_still_fires() {
         codes(src, D),
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-SH-22 — first-use commit: a second conversion is a genuine shimmer
+// ---------------------------------------------------------------------------
+
+/// FP-SH-22 TP: a pure literal's *first* use commits its intrep; a later use
+/// as a different type re-represents on every execution. `expr` commits the
+/// numeric intrep, then `lindex` re-reads it as a list (oracle: `set v 5;
+/// expr {$v+1}` → rep `int`; `lindex $v 0` → rep `list`).
+#[test]
+fn fp_sh_22_second_conversion_after_expr_commit_fires() {
+    let src = "set v 5\nexpr {$v + 1}\nlindex $v 0\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-22 TP: expr-committed value read as a list must fire; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-22 TP: the same chain through `llength` then `incr` — List committed,
+/// then re-read as Int.
+#[test]
+fn fp_sh_22_incr_after_llength_commit_fires() {
+    let src = "set w 5\nllength $w\nincr w\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-22 TP: llength-committed value incremented must fire; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-22 TP: a pure literal read as **two distinct intreps inside a loop**
+/// re-thunks every iteration (oracle: list ↔ dict on each pass) — the
+/// free-first-conversion suppression must not apply, and the code is the
+/// per-iteration S101.
+#[test]
+fn fp_sh_22_loop_two_target_rethunk_is_s101() {
+    let src = "set l {a 1 b 2}\nforeach i {1 2 3} {\n    llength $l\n    dict size $l\n}\n";
+    assert!(
+        fires(src, D, "S101"),
+        "FP-SH-22 TP: list/dict re-thunk inside a loop must fire S101; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-22 FP guard: the branch case — two arms committing two different
+/// intreps — must NOT fire at either arm's own (first) conversion, and a
+/// post-merge use matching one arm stays silent (only one path pays).
+#[test]
+fn fp_sh_22_branch_arms_first_conversions_stay_silent() {
+    let src = "proc f {c} {\n  set a {1 2}\n  if {$c} { llength $a } else { string length $a }\n  llength $a\n}\n";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-22 FP: neither arm's first conversion nor a one-path-pays merge use may fire; got {got:?}"
+    );
+}
+
+/// FP-SH-22 TP: a post-merge use matching *neither* arm's committed intrep
+/// pays on every path — the multiple-different-dominator-types warning, with
+/// path-dependent wording. One arm commits List (`llength`), the other Dict
+/// (`dict size`); the `string length` read after the merge converts on both.
+#[test]
+fn fp_sh_22_merge_use_matching_neither_arm_fires() {
+    let src = "proc f {c} {\n  set a {1 2}\n  if {$c} { llength $a } else { dict size $a }\n  string length $a\n}\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-22 TP: a merge use matching neither committed arm must fire; got {:?}",
+        codes(src, D),
+    );
+}

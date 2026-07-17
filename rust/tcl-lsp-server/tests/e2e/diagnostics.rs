@@ -2458,6 +2458,69 @@ fn issue_940_committed_container_in_foreach_still_fires_s100() {
 }
 
 #[test]
+fn commit_dataflow_second_conversion_fires_s100_with_committed_from_type() {
+    // First-use commit: `expr` commits the numeric intrep on a pure literal;
+    // the later `lindex` genuinely re-represents it (oracle: rep int → list).
+    // The message names the *committed* from-type, not the def-time shape.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set v 5\nexpr {$v + 1}\nlindex $v 0\n");
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert!(
+        s100.iter().any(|d| {
+            d["message"]
+                .as_str()
+                .is_some_and(|m| m.contains("numeric intrep") && m.contains("expects list"))
+        }),
+        "expected a numeric→list second-conversion S100: {diags:?}"
+    );
+}
+
+#[test]
+fn commit_dataflow_loop_rethunk_fires_s101_each_target() {
+    // A pure literal read as two distinct intreps inside a loop re-thunks
+    // per iteration (oracle: list ↔ dict every pass) — both reads are S101.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set l {a 1 b 2}\nforeach i {1 2 3} {\n    llength $l\n    dict size $l\n}\n",
+    );
+    let s101: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S101"))
+        .collect();
+    assert!(
+        s101.len() >= 2,
+        "expected two per-iteration re-thunk S101s: {diags:?}"
+    );
+}
+
+#[test]
+fn commit_dataflow_path_dependent_merge_message() {
+    // Two branch arms commit two different intreps; a post-merge use matching
+    // neither pays on both paths — the message names the possibilities.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {c} {\n  set a {1 2}\n  if {$c} { llength $a } else { dict size $a }\n  string length $a\n}\n",
+    );
+    assert!(
+        diags.iter().any(|d| {
+            code_str(d).as_deref() == Some("S100")
+                && d["message"]
+                    .as_str()
+                    .is_some_and(|m| m.contains("path-dependent"))
+        }),
+        "expected a path-dependent merge S100: {diags:?}"
+    );
+}
+
+#[test]
 fn w300_w103_silent_when_var_provably_literal() {
     // A `$var` proven to hold a compile-time literal path/filename is a known
     // constant — no more dangerous than writing it inline — so W300/W103 are

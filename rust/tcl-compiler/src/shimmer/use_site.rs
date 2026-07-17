@@ -70,6 +70,7 @@ pub(crate) fn find_use_site_shimmers(
     executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     values: &HashMap<ValueKey, LatticeValue>,
+    commit_facts: &super::commit::CommitFacts,
 ) -> Vec<ShimmerWarning> {
     let loop_blocks = loop_body_blocks(cfg);
     let def_map = def_range_map(ssa);
@@ -83,6 +84,12 @@ pub(crate) fn find_use_site_shimmers(
     // conflation the S102 pass already guards. Reuse its exclusion so S100 /
     // S101 don't false-positive on independent array elements.
     let array_syms = super::thunking::array_element_symbols(cfg, ssa);
+    let commit_ctx = super::commit::CommitCtx {
+        registry,
+        ssa,
+        types,
+        values,
+    };
     let mut out: Vec<ShimmerWarning> = Vec::new();
 
     for block_id in cfg_order(cfg) {
@@ -98,20 +105,26 @@ pub(crate) fn find_use_site_shimmers(
         // later use to the *same* target in the same block is not a second
         // shimmer.
         let mut already_coerced: HashSet<(String, u32, TclType)> = HashSet::new();
-        let mut ctx = UseSiteCtx {
-            types,
-            registry,
-            def_map: &def_map,
-            values,
-            loop_facts: &loop_facts,
-            ssa,
-            array_syms: &array_syms,
-            in_loop,
-            already_coerced: &mut already_coerced,
-            out: &mut out,
-        };
+        // The committed-intrep walker replays the commit transfer function in
+        // step with this walk, so each statement's checks see the state *just
+        // before* it executes.
+        let mut commit_walker = commit_facts.walker(&commit_ctx, block_id);
         for ss in &ssa_block.statements {
+            let mut ctx = UseSiteCtx {
+                types,
+                registry,
+                def_map: &def_map,
+                values,
+                loop_facts: &loop_facts,
+                ssa,
+                array_syms: &array_syms,
+                commit: &commit_walker,
+                in_loop,
+                already_coerced: &mut already_coerced,
+                out: &mut out,
+            };
             check_statement(&mut ctx, &ss.statement, &ss.uses);
+            commit_walker.step(&ss.statement, &ss.uses);
         }
     }
 
@@ -131,6 +144,10 @@ struct UseSiteCtx<'a> {
     /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
     /// conflated `arr(a)`/`arr(b)` symbol can hold either element's intrep.
     array_syms: &'a HashSet<Symbol>,
+    /// The committed-intrep state just before the statement being checked —
+    /// tells a use whether the value already committed a different intrep on
+    /// every path (a genuine second conversion, [`super::commit`]).
+    commit: &'a super::commit::CommitWalker<'a>,
     in_loop: bool,
     already_coerced: &'a mut HashSet<(String, u32, TclType)>,
     out: &'a mut Vec<ShimmerWarning>,
@@ -323,6 +340,40 @@ fn check_invocation(
 /// [`ShimmerWarning`] when the variable's committed type genuinely differs from
 /// what the position requires. Split out of [`check_invocation`]'s argument
 /// loop so each stays a single, readable responsibility.
+/// Resolve an argument word to a tracked variable use with a Known lattice
+/// type: the normalised name, its SSA coordinates, and the current type.
+/// `None` for complex words (which may produce the right type via their own
+/// evaluation), array bases (FP-SH-13 — a conflated version chain), live-in
+/// version 0, and Unknown/Overdefined lattice entries.
+fn resolve_tracked_var_use(
+    ctx: &UseSiteCtx<'_>,
+    word: &str,
+    uses: &HashMap<Symbol, u32>,
+) -> Option<(String, Symbol, u32, TclType)> {
+    let stripped = word.trim();
+    if !is_pure_var_ref(stripped) {
+        return None;
+    }
+    let var = normalise_var_name(stripped).to_owned();
+    let sym = ctx.ssa.var_symbol(&var)?;
+    if ctx.array_syms.contains(&sym) {
+        return None;
+    }
+    let &ver = uses.get(&sym)?;
+    if ver == 0 {
+        return None;
+    }
+    let lattice = ctx
+        .types
+        .get(&(sym, ver))
+        .cloned()
+        .unwrap_or_else(TypeLattice::unknown);
+    if lattice.kind != TypeKind::Known {
+        return None;
+    }
+    lattice.tcl_type.map(|current| (var, sym, ver, current))
+}
+
 fn check_argument(
     ctx: &mut UseSiteCtx<'_>,
     site: &InvocationSite<'_>,
@@ -345,37 +396,39 @@ fn check_argument(
         return;
     };
     let expected = expectation.expected;
-    // Only flag pure variable references — complex words may produce
-    // the right type via their own evaluation.
-    let stripped = word.trim();
-    if !is_pure_var_ref(stripped) {
-        return;
-    }
-    let var = normalise_var_name(stripped).to_owned();
-    let Some(sym) = ctx.ssa.var_symbol(&var) else {
+    let Some((var, sym, ver, current)) = resolve_tracked_var_use(ctx, word, uses) else {
         return;
     };
-    // Skip an array base (FP-SH-13): its conflated version chain mixes
-    // independent elements, so a "wrong intrep" here may just be a
-    // different element's type.
-    if ctx.array_syms.contains(&sym) {
+    // The committed-intrep state just before this statement: when a prior use
+    // (`expr`, `llength`, …) has committed a different intrep on **every**
+    // executable path, this read genuinely re-represents even where the
+    // flow-insensitive lattice sees no mismatch — `set v 5; expr {$v+1};
+    // lindex $v 0` shimmers Numeric → List though the lattice types `v` Int
+    // (pure literal). Resolved before the lattice-equality skip below so the
+    // second conversion is not masked.
+    let commit_state = ctx.commit.state_of(sym, ver);
+    if commit_state.must_pay(expected)
+        && !is_suppressed_committed(&expectation, expected, commit_state.single_committed())
+    {
+        let (from, from_label) = super::committed_from_label(&commit_state, current, expected);
+        emit_use_site_warning(
+            ctx,
+            site,
+            i,
+            &UseWarning {
+                var: &var,
+                sym,
+                ver,
+                from,
+                from_label,
+                expected,
+                related_override: commit_state
+                    .first_span()
+                    .map(|sp| vec![(sp, "intrep first committed here".to_owned())]),
+            },
+        );
         return;
     }
-    let Some(&ver) = uses.get(&sym) else { return };
-    if ver == 0 {
-        return;
-    }
-    let lattice = ctx
-        .types
-        .get(&(sym, ver))
-        .cloned()
-        .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
-        return;
-    }
-    let Some(current) = lattice.tcl_type else {
-        return;
-    };
     if current == expected || is_numeric_compatible(current, expected) {
         return;
     }
@@ -405,28 +458,111 @@ fn check_argument(
     // `expected` when it is a valid instance of it. `set fontSizes {10.0
     // 12.0}; foreach s $fontSizes` (issue #940), `set x 5; lindex $x 0`, and
     // `set d {a 1 b 2}; dict for {k v} $d` are all free promotions of a pure
-    // string, not shimmers — see [`is_uncommitted_first_conversion`]. A
-    // committed container/object intrep, or a pure value that is *not* a
-    // valid instance (`incr` on a non-integer), still fires.
-    if is_uncommitted_first_conversion(current, expected, ctx.values.get(&(sym, ver))) {
+    // string, not shimmers — see [`is_uncommitted_first_conversion`].
+    //
+    // The one exception is a value read as **two or more distinct intreps
+    // inside a loop** (`llength $l` + `dict size $l` each pass): the loop
+    // entry re-joins the pure preheader path every iteration, but at runtime
+    // the converters re-thunk the value on every pass after the first —
+    // oracle-verified list↔dict oscillation — so the free-first-conversion
+    // suppression must not apply (the multi-target `LoopFacts` fact, which
+    // also drives the S101 escalation).
+    let multi_target_in_loop = ctx.in_loop
+        && ctx
+            .loop_facts
+            .use_targets
+            .get(&var)
+            .is_some_and(|targets| targets.len() >= 2);
+    if !multi_target_in_loop
+        && is_uncommitted_first_conversion(current, expected, ctx.values.get(&(sym, ver)))
+    {
         return;
     }
+    // Prefer the steady-state committed rep for the from-type (a loop-carried
+    // value whose entry re-joins the pure preheader still reads as its
+    // back-edge rep on every iteration after the first).
+    let (from, from_label) = super::committed_from_label(&commit_state, current, expected);
+    emit_use_site_warning(
+        ctx,
+        site,
+        i,
+        &UseWarning {
+            var: &var,
+            sym,
+            ver,
+            from,
+            from_label,
+            expected,
+            related_override: None,
+        },
+    );
+}
+
+/// Whether a must-pay committed conversion is still suppressed by the
+/// registry's transparency list or the numeric-current-vs-String rule (a
+/// committed numeric intrep survives a String read — the string rep is
+/// regenerated alongside in O(digits), tclsh-verified).
+fn is_suppressed_committed(
+    expectation: &ShimmerExpectation,
+    expected: TclType,
+    committed: Option<TclType>,
+) -> bool {
+    let Some(committed) = committed else {
+        // A multi-type committed state has no single rep to test transparency
+        // against; the conversion claim stands.
+        return false;
+    };
+    if expectation.is_transparent_from(committed) {
+        return true;
+    }
+    expected == TclType::String
+        && matches!(
+            committed,
+            TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+        )
+}
+
+/// One resolved use-site warning, ready to emit: the variable, its SSA
+/// coordinates, and the conversion being reported. `related_override`
+/// replaces the default "value defined here" related span (the committed
+/// path points at the converting use instead). `from_label` overrides the
+/// message's from-type wording (the path-dependent case, where no single
+/// `TclType` is truthful).
+struct UseWarning<'w> {
+    var: &'w str,
+    sym: Symbol,
+    ver: u32,
+    from: TclType,
+    from_label: String,
+    expected: TclType,
+    related_override: Option<Vec<(Span, String)>>,
+}
+
+/// Emit one use-site shimmer warning, honouring the per-block coercion ledger
+/// and the loop-invariance S101→S100 downgrade.
+fn emit_use_site_warning(
+    ctx: &mut UseSiteCtx<'_>,
+    site: &InvocationSite<'_>,
+    i: usize,
+    warning: &UseWarning<'_>,
+) {
     // A prior use in this block already coerced `(var, ver)` to this
     // intrep — the runtime representation has already changed, so this
     // is not a second shimmer.
-    let coercion_key = (var.clone(), ver, expected);
+    let coercion_key = (warning.var.to_owned(), warning.ver, warning.expected);
     if !ctx.already_coerced.insert(coercion_key) {
         return;
     }
-    let related: Vec<(Span, String)> = ctx
-        .def_map
-        .get(&(sym, ver))
-        .map(|&sp| vec![(sp, "value defined here".to_owned())])
-        .unwrap_or_default();
+    let related = warning.related_override.clone().unwrap_or_else(|| {
+        ctx.def_map
+            .get(&(warning.sym, warning.ver))
+            .map(|&sp| vec![(sp, "value defined here".to_owned())])
+            .unwrap_or_default()
+    });
     // A loop-invariant variable coerced to a single intrep inside the
     // loop converts once and is cached → S100, not the per-iteration
     // S101.
-    let code = if ctx.loop_facts.effective_in_loop(&var, ctx.in_loop) {
+    let code = if ctx.loop_facts.effective_in_loop(warning.var, ctx.in_loop) {
         DiagCode::S101
     } else {
         DiagCode::S100
@@ -434,18 +570,19 @@ fn check_argument(
     let span = site.arg_spans.get(i).copied().unwrap_or(site.fallback_span);
     ctx.out.push(ShimmerWarning {
         span,
-        variable: var.clone(),
-        from_type: current,
-        to_type: expected,
+        variable: warning.var.to_owned(),
+        from_type: warning.from,
+        to_type: warning.expected,
         command: site.command.to_owned(),
         in_loop: ctx.in_loop,
         code,
         message: format!(
             "variable '{var}' has {from} intrep \
              but '{cmd}' expects {to} (argument {n})",
-            from = type_name(current),
+            var = warning.var,
+            from = warning.from_label,
             cmd = site.command,
-            to = type_name(expected),
+            to = type_name(warning.expected),
             n = i + 1,
         ),
         related,
@@ -589,20 +726,36 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
     let Some(current) = lattice.tcl_type else {
         return;
     };
-    if current == TclType::Int || is_numeric_compatible(current, TclType::Int) {
+    // A prior use that committed a non-numeric intrep on every path makes this
+    // `incr` a genuine second conversion — `set v 5; llength $v; incr v`
+    // commits List at the `llength`, then re-represents List → Int here.
+    let commit_state = ctx.commit.state_of(sym, ver);
+    let must_pay_committed = commit_state.must_pay(TclType::Int);
+    if !must_pay_committed {
+        if current == TclType::Int || is_numeric_compatible(current, TclType::Int) {
+            return;
+        }
+        // A pure value whose string form is a whole integer (`set n 0x80;
+        // incr n`, `set n 5; incr n`) promotes to `Int` for free — no shimmer.
+        // A non-integer pure string (`set n hello; incr n`) is *not* a valid
+        // instance, so it still fires: that conversion fails at runtime.
+        if is_uncommitted_first_conversion(current, TclType::Int, ctx.values.get(&(sym, ver))) {
+            return;
+        }
+    }
+    let (from, from_label) = super::committed_from_label(&commit_state, current, TclType::Int);
+    if from == TclType::Int || is_numeric_compatible(from, TclType::Int) {
         return;
     }
-    // A pure value whose string form is a whole integer (`set n 0x80; incr n`,
-    // `set n 5; incr n`) promotes to `Int` for free — no shimmer. A non-integer
-    // pure string (`set n hello; incr n`) is *not* a valid instance, so it still
-    // fires: that conversion fails at runtime.
-    if is_uncommitted_first_conversion(current, TclType::Int, ctx.values.get(&(sym, ver))) {
-        return;
-    }
-    let related: Vec<(Span, String)> = ctx
-        .def_map
-        .get(&(sym, ver))
-        .map(|&sp| vec![(sp, "value defined here".to_owned())])
+    let related: Vec<(Span, String)> = commit_state
+        .first_span()
+        .filter(|_| must_pay_committed)
+        .map(|sp| vec![(sp, "intrep first committed here".to_owned())])
+        .or_else(|| {
+            ctx.def_map
+                .get(&(sym, ver))
+                .map(|&sp| vec![(sp, "value defined here".to_owned())])
+        })
         .unwrap_or_default();
     let code = if ctx.in_loop {
         DiagCode::S101
@@ -612,15 +765,12 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
     ctx.out.push(ShimmerWarning {
         span,
         variable: var.to_owned(),
-        from_type: current,
+        from_type: from,
         to_type: TclType::Int,
         command: "incr".to_owned(),
         in_loop: ctx.in_loop,
         code,
-        message: format!(
-            "variable '{var}' has {from} intrep but 'incr' expects int",
-            from = type_name(current),
-        ),
+        message: format!("variable '{var}' has {from_label} intrep but 'incr' expects int"),
         related,
     });
 }
@@ -635,19 +785,41 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    /// Compute commit facts + run the use-site detector for one function unit
+    /// — the production wiring `find_shimmer_warnings` performs.
+    fn use_site_shimmers(
+        fu: &crate::compilation_unit::FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Vec<ShimmerWarning> {
+        let ctx = super::super::commit::CommitCtx {
+            registry,
+            ssa: &fu.ssa,
+            types: &fu.types,
+            values: &fu.sccp.values,
+        };
+        let facts = super::super::commit::compute_commit_facts(
+            &fu.cfg,
+            &ctx,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.executable_edges,
+        );
+        find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            registry,
+            &fu.sccp.values,
+            &facts,
+        )
+    }
+
     /// A String variable passed to `incr` triggers S100.
     #[test]
     fn shimmer_detected_for_string_used_with_incr() {
         let cu = CompilationUnit::build_for("set x \"hello\"\nincr x", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "incr" && w.from_type == TclType::String);
@@ -664,14 +836,7 @@ mod tests {
     fn no_shimmer_for_hex_literal_string_used_with_incr() {
         let cu = CompilationUnit::build_for("set n 0x80\nincr n", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let incr_shimmers: Vec<_> = warnings.iter().filter(|w| w.command == "incr").collect();
         assert!(
             incr_shimmers.is_empty(),
@@ -684,14 +849,7 @@ mod tests {
     fn no_shimmer_for_int_used_with_incr() {
         let cu = CompilationUnit::build_for("set x 5\nincr x", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let incr_shimmers: Vec<_> = warnings.iter().filter(|w| w.command == "incr").collect();
         assert!(
             incr_shimmers.is_empty(),
@@ -711,14 +869,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings.iter().find(|w| w.command == "lindex");
         assert!(
             w.is_some(),
@@ -743,14 +894,7 @@ mod tests {
         ] {
             let cu = CompilationUnit::build_for(src, &registry(), false);
             let fu = cu.function("::top").unwrap();
-            let warnings = find_use_site_shimmers(
-                &fu.cfg,
-                &fu.ssa,
-                &fu.types,
-                &fu.sccp.executable_blocks,
-                &registry(),
-                &fu.sccp.values,
-            );
+            let warnings = use_site_shimmers(fu, &registry());
             assert!(
                 warnings.is_empty(),
                 "pure literal used as a list must not shimmer for {src:?}: {warnings:?}"
@@ -766,14 +910,7 @@ mod tests {
         let src = "set x [dict create a 1 b 2]\nlindex $x 0";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "lindex")
@@ -793,14 +930,7 @@ mod tests {
         let src = "set x [dict create a 1 b 2]\nset b [lindex $x 0]";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "lindex")
@@ -824,14 +954,7 @@ mod tests {
                     linsert $list_var $index_var x";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let list_w = warnings
             .iter()
             .find(|w| w.command == "linsert" && w.variable == "list_var")
@@ -859,14 +982,7 @@ mod tests {
         let src = "proc f {l} {\n    foreach x $l {\n        set b [lindex $x 0]\n    }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         assert!(
             warnings.iter().all(|w| w.command != "lindex"),
             "a pure foreach element read as a list must not shimmer: {warnings:?}"
@@ -883,14 +999,7 @@ mod tests {
         let src = "proc f {l} {\n    foreach x $l {\n        set d [dict create k $x]\n        set n [llength $d]\n    }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "llength" && w.variable == "d")
@@ -915,14 +1024,7 @@ mod tests {
         let src = "proc f {} {\n    set l [dict create a 1 b 2]\n    foreach x $l { puts $x }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "foreach" && w.variable == "l")
@@ -937,14 +1039,7 @@ mod tests {
         let src = "proc f {} {\n    set l [list 1 2 3]\n    foreach x $l { puts $x }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         assert!(
             warnings.iter().all(|w| w.command != "foreach"),
             "unexpected foreach header shimmer for a real list: {warnings:?}"
@@ -963,14 +1058,7 @@ mod tests {
             );
             let cu = CompilationUnit::build_for(&src, &registry(), false);
             let fu = cu.function("::f").unwrap();
-            let warnings = find_use_site_shimmers(
-                &fu.cfg,
-                &fu.ssa,
-                &fu.types,
-                &fu.sccp.executable_blocks,
-                &registry(),
-                &fu.sccp.values,
-            );
+            let warnings = use_site_shimmers(fu, &registry());
             assert!(
                 warnings.iter().all(|w| w.variable != "l"),
                 "pure string literal {literal:?} in foreach must not shimmer: {warnings:?}"
@@ -984,14 +1072,7 @@ mod tests {
         let src = "proc f {} {\n    set l [dict create a 1 b 2]\n    lmap x $l { set x $x }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "lmap" && w.variable == "l")
@@ -1008,14 +1089,7 @@ mod tests {
         let src = "proc f {} {\n    set d hello\n    dict for {k v} $d { puts $k }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "dict for" && w.variable == "d")
@@ -1030,14 +1104,7 @@ mod tests {
         let src = "proc f {} {\n    set d hello\n    dict map {k v} $d { set v $v }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "dict map" && w.variable == "d")
@@ -1054,14 +1121,7 @@ mod tests {
         let src = "proc f {} {\n  set data [dict create a 1 b 2]\n  for {set i 0} {$i < 3} {incr i} {\n    set x [lindex $data $i]\n  }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "lindex" && w.variable == "data");
@@ -1086,14 +1146,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings
             .iter()
             .find(|w| w.command == "incr" && w.variable == "step");
@@ -1118,14 +1171,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         assert!(
             warnings.is_empty(),
             "array-element conflation must not use-site shimmer: {warnings:?}"
@@ -1144,14 +1190,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for("set l [list 1 2 3]\nstring length $l", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         assert!(
             warnings
                 .iter()
@@ -1166,14 +1205,7 @@ mod tests {
             false,
         );
         let fu2 = cu2.function("::top").unwrap();
-        let warnings2 = find_use_site_shimmers(
-            &fu2.cfg,
-            &fu2.ssa,
-            &fu2.types,
-            &fu2.sccp.executable_blocks,
-            &registry(),
-            &fu2.sccp.values,
-        );
+        let warnings2 = use_site_shimmers(fu2, &registry());
         assert!(
             !warnings2.iter().any(|w| w.variable == "ba"),
             "byte-array subject is transparent — no shimmer: {warnings2:?}"
@@ -1185,14 +1217,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for("proc f {} { set n hello\n incr n }", &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         assert!(
             warnings
                 .iter()
@@ -1207,14 +1232,7 @@ mod tests {
         // `set x $other` — type of x is Unknown (other has no known type).
         let cu = CompilationUnit::build_for("set x $other\nlindex $x 0", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         // x has Unknown type; should not produce a shimmer.
         let lindex_shimmers: Vec<_> = warnings.iter().filter(|w| w.command == "lindex").collect();
         assert!(
@@ -1236,14 +1254,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         let w = warnings.iter().find(|w| w.variable == "x");
         assert!(
             w.is_some(),
@@ -1262,14 +1273,7 @@ mod tests {
     fn warnings_for(src: &str) -> Vec<ShimmerWarning> {
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        )
+        use_site_shimmers(fu, &registry())
     }
 
     /// `string first`/`last` convert BOTH the needle and the haystack to the
@@ -1458,14 +1462,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let warnings = find_use_site_shimmers(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            &registry(),
-            &fu.sccp.values,
-        );
+        let warnings = use_site_shimmers(fu, &registry());
         assert!(
             warnings.iter().all(|w| w.variable != "x"),
             "unexpected shimmer through non-shimmering alias: {warnings:?}"

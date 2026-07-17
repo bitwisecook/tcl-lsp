@@ -387,6 +387,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
         &fu.sccp.executable_blocks,
         registry,
         &fu.sccp.values,
+        &fu.sccp.executable_edges,
     ) {
         out.push(Diagnostic::from_shimmer(&w));
     }

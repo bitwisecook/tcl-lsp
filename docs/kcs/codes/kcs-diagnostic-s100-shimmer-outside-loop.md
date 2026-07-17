@@ -58,6 +58,19 @@ a command — `[list …]`, `[dict create …]`, an object constructor, or
 read as a type it is **not** a valid instance of (`incr` on `hello`, which fails
 at runtime).
 
+It also fires on the **second** conversion of a literal: the first read commits
+the type, and a later read as a different type converts again on every run:
+
+```tcl
+set v 5
+expr {$v + 1}   ;# first read — commits the numeric type, free
+lindex $v 0     ;# second read — numeric converted to list: S100 fires here
+```
+
+The message names the type the value actually held ("has numeric intrep but
+`lindex` expects list"), and the related information points at the line that
+first committed it.
+
 ### A variable filled by a destructuring command
 
 A variable filled by a *destructuring* command — `lassign`, `scan`, `regexp`,

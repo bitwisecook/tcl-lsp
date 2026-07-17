@@ -59,17 +59,31 @@ list for a dict, or a parseable number — so a genuine runtime error (`incr` on
 `hello`) still fires. This is what fixed issue #940 (`foreach $bracedList`); see
 `docs/design/compiler/FP.md` §FP-SH-21.
 
-**Known limitation (tracked follow-up).** Because each use is evaluated against
-the *pure origin* independently — the sound, branch-safe choice — a value that a
-*dominating* earlier use has already committed to a different intrep is not
-re-flagged: straight-line `set a 1; lindex $a 0; expr {$a + 1}` genuinely
-shimmers list→int at the `expr`, but is currently silent (a false negative, not
-a false positive). Recovering it needs a shared committed-intrep forward
-dataflow across the use-site / expr / incr detectors keyed on the dominator
-tree — fire when a use's intrep differs from that committed by a *dominating*
-use of the same value. The branch case where two paths commit different types
-(`if {…} {expr {$a+1}} else {foreach x $a}`) correctly stays silent: neither use
-dominates the other, and at runtime each path is single-type.
+#### The committed-intrep dataflow (first-use commit)
+
+The follow-up above is implemented by `shimmer::commit` — a forward must/may
+dataflow over the SCCP-executable blocks, shared by the use-site, expr, and
+`incr` detectors. Per SSA value it tracks the bounded set of intreps the value
+*may* have committed on some path and whether *every* path has committed one:
+
+- **Second conversions fire with the true from-type**: straight-line
+  `set v 5; expr {$v + 1}; lindex $v 0` reports "numeric intrep but `lindex`
+  expects list" (oracle: rep `int` → `list`), with an "intrep first committed
+  here" related span. Same through `llength` → `incr` (List → Int).
+- **Branch arms stay silent, merges fire only when every path pays**: with
+  `if {$c} { llength $a } else { dict size $a }`, each arm's own first
+  conversion is free; a post-merge use matching *one* arm stays silent (only
+  the other path pays — not an every-execution claim), while a use matching
+  *neither* fires with path-dependent wording ("has path-dependent (list or
+  dict) intrep …").
+- **Loop re-thunk**: a pure value read as two distinct intreps inside a loop
+  (`llength $l` + `dict size $l` per pass) re-converts every iteration
+  (oracle: list ↔ dict) — both reads are S101, the steady-state rep naming the
+  from side.
+- **Def-site pushback**: a pure def whose every executable typed read commits
+  the same intrep exposes it via
+  `shimmer::first_use_commitments_for_cu` — hover renders
+  "string (first used as: list)" at the creation site.
 
 ## Reference validation status
 
