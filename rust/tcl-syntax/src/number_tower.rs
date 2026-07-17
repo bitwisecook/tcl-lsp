@@ -198,6 +198,118 @@ pub fn int_mod<B: BigIntOps>(a: &B, b: &B) -> Option<B> {
     Some(a.mod_floor(b))
 }
 
+/// The backend conformance suite: every semantic row of the tclsh oracle
+/// corpus, generic over the backend. Each adopter's test suite calls
+/// [`conformance::assert_backend`] with its own [`BigIntOps`] type — the
+/// crate's unit tests run it over an `i128` toy backend and (feature
+/// `num-bigint`) `BigInt`; the faithful runtime runs it over the real
+/// libtommath `mp_int`. A backend that passes cannot drift from the others
+/// on any covered semantic.
+pub mod conformance {
+    use super::{BigIntOps, MAX_EXPONENT, int_div, int_mod, int_pow, int_shr};
+
+    /// Panics (with the failing row) unless `B` reproduces the full oracle
+    /// corpus. `wide` must build values well beyond `i64` (e.g. `2^64`) —
+    /// backends narrower than ~130 bits cannot conform.
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "panicking on a failed row is this function's contract"
+    )]
+    pub fn assert_backend<B: BigIntOps + core::fmt::Debug>() {
+        let v = B::from_i64;
+
+        // Round-trip and demote-when-fits.
+        assert_eq!(v(i64::MAX).to_i64(), Some(i64::MAX));
+        assert_eq!(v(i64::MIN).to_i64(), Some(i64::MIN));
+        let two64 = v(2).pow_u32(64); // 18446744073709551616
+        assert_eq!(two64.to_i64(), None, "2^64 must not narrow");
+        assert!(!two64.is_negative());
+        assert!(!two64.is_zero());
+        assert!(v(0).is_zero());
+        assert!(v(-1).is_negative());
+
+        // Exact ring ops at the promotion boundary (i64::MAX + 1, -MAX - 2).
+        let big = v(i64::MAX).add(&v(1));
+        assert_eq!(big.to_i64(), None);
+        assert_eq!(big.sub(&v(1)).to_i64(), Some(i64::MAX), "demote on re-fit");
+        assert_eq!(
+            v(i64::MIN).add(&v(-1)).add(&v(1)).to_i64(),
+            Some(i64::MIN),
+            "-2^63 - 1 + 1 re-fits"
+        );
+        assert_eq!(v(3).mul(&v(-4)).to_i64(), Some(-12));
+        assert_eq!(big.neg().add(&big).to_i64(), Some(0), "x + (-x) = 0");
+
+        // Floor division and modulus (sign follows the divisor), including
+        // the beyond-wide oracle rows 2^64 % 7 = 2 and 2^64 / -3.
+        assert_eq!(int_div(&v(7), &v(2)).unwrap().to_i64(), Some(3));
+        assert_eq!(int_div(&v(-7), &v(2)).unwrap().to_i64(), Some(-4));
+        assert_eq!(int_mod(&v(-7), &v(2)).unwrap().to_i64(), Some(1));
+        assert_eq!(int_mod(&v(7), &v(-2)).unwrap().to_i64(), Some(-1));
+        assert!(int_div(&v(1), &v(0)).is_none(), "divide by zero");
+        assert!(int_mod(&v(1), &v(0)).is_none());
+        assert_eq!(int_mod(&two64, &v(7)).unwrap().to_i64(), Some(2));
+        assert_eq!(
+            int_div(&two64, &v(-3)).unwrap().to_i64(),
+            Some(-6_148_914_691_236_517_206),
+            "2^64 / -3 floors toward -inf"
+        );
+
+        // `**` collapses and guards (`INST_EXPON`).
+        assert_eq!(int_pow(&v(2), 10).unwrap().to_i64(), Some(1024));
+        assert_eq!(int_pow(&v(5), 0).unwrap().to_i64(), Some(1));
+        assert!(int_pow(&v(0), -1).is_none(), "zero by negative power");
+        assert_eq!(int_pow(&v(1), i64::MAX).unwrap().to_i64(), Some(1));
+        assert_eq!(int_pow(&v(-1), 5).unwrap().to_i64(), Some(-1));
+        assert_eq!(int_pow(&v(-1), 6).unwrap().to_i64(), Some(1));
+        assert_eq!(int_pow(&v(7), -3).unwrap().to_i64(), Some(0));
+        assert!(
+            int_pow(&v(2), MAX_EXPONENT + 1).is_none(),
+            "exponent too large"
+        );
+        assert_eq!(int_pow(&v(2), 64).unwrap(), two64, "2**64 exact");
+
+        // Shifts: exactness and the sign-collapse past the width.
+        assert_eq!(v(1).shl(63).to_i64(), None, "1<<63 exceeds i64");
+        assert_eq!(
+            v(1).shl(63).neg().to_i64(),
+            Some(i64::MIN),
+            "-(1<<63) is i64::MIN"
+        );
+        assert_eq!(int_shr(&v(-8), 1).unwrap().to_i64(), Some(-4));
+        assert_eq!(
+            int_shr(&v(-8), 1000).unwrap().to_i64(),
+            Some(-1),
+            "sign collapse"
+        );
+        assert_eq!(int_shr(&v(8), 1000).unwrap().to_i64(), Some(0));
+        assert!(int_shr(&v(8), -1).is_none(), "negative count");
+        assert_eq!(int_shr(&two64, 64).unwrap().to_i64(), Some(1), "2^64 >> 64");
+        assert_eq!(
+            int_shr(&two64.neg(), 200).unwrap().to_i64(),
+            Some(-1),
+            "-2^64 >> 200 collapses to -1"
+        );
+
+        // Two's-complement bitwise trio on negatives (the oracle rows
+        // -5 & 3 = 3, -5 | 3 = -5, -5 ^ 3 = -8) and the beyond-wide row
+        // 2^64 & 0xFF = 0.
+        assert_eq!(v(-5).bitand(&v(3)).to_i64(), Some(3));
+        assert_eq!(v(-5).bitor(&v(3)).to_i64(), Some(-5));
+        assert_eq!(v(-5).bitxor(&v(3)).to_i64(), Some(-8));
+        assert_eq!(two64.bitand(&v(0xFF)).to_i64(), Some(0));
+
+        // bit_len feeds the shift collapse: 2^64 needs 65 bits.
+        assert_eq!(two64.bit_len(), 65);
+        assert_eq!(v(0).bit_len(), 0);
+
+        // Total order (drives numeric comparisons).
+        assert!(v(-1) < v(0) && v(0) < v(1));
+        assert!(two64 > v(i64::MAX), "2^64 > i64::MAX");
+        assert!(two64.neg() < v(i64::MIN), "-2^64 < i64::MIN");
+    }
+}
+
 /// The `num-bigint` backend adapter (feature `num-bigint`) — shared by the
 /// pure-Rust adopters (the compiler's const-folder today, the VM next). The
 /// faithful runtime implements [`BigIntOps`] over the real libtommath
@@ -326,6 +438,20 @@ mod tests {
         fn bit_len(&self) -> u64 {
             u64::from(128 - self.0.unsigned_abs().leading_zeros())
         }
+    }
+
+    /// The toy backend itself passes the full conformance corpus — proving
+    /// the suite (and the semantics) are backend-agnostic.
+    #[test]
+    fn i128_backend_conforms() {
+        conformance::assert_backend::<I128>();
+    }
+
+    /// The `num-bigint` adapter passes the full conformance corpus.
+    #[cfg(feature = "num-bigint")]
+    #[test]
+    fn num_bigint_backend_conforms() {
+        conformance::assert_backend::<num_bigint::BigInt>();
     }
 
     /// Floor semantics, oracle values (`-7/2 → -4`, `-7%2 → 1`).
