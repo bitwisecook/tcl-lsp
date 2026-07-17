@@ -225,6 +225,24 @@ mod cross_scope_globals {
     }
 
     #[test]
+    fn tp_namespaced_read_does_not_mask_unrelated_bare_global() {
+        // TP (regression, code-review finding): a proc reading a *namespaced*
+        // variable `$::n::cfg` must not be mistaken for a read of the
+        // unrelated bare global `::cfg` merely because they share a tail
+        // name — the two are different storage cells. Collapsing a
+        // qualified read to its last segment (rather than keeping the
+        // remainder after the leading `::`, as `globals_written_by_procs`
+        // does) would wrongly suppress this genuinely-unused top-level `cfg`.
+        assert!(
+            fires(
+                "namespace eval ::n {}\nproc reader {} { return $::n::cfg }\nset cfg 1\nputs done\n",
+                "W211"
+            ),
+            "a namespaced read of ::n::cfg must not suppress the unrelated bare ::cfg dead store"
+        );
+    }
+
+    #[test]
     fn tp_bare_local_unused_still_fires() {
         // TP: an ordinary proc-local that is set and never read.
         assert!(fires("proc f {} { set tmp 5\n return 1 }\n", "W211"));

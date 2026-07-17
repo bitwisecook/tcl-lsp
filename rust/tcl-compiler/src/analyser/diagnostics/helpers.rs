@@ -1006,16 +1006,20 @@ pub(super) fn globals_read_by_procs(
             }
         }
         // (1) A fully-qualified read always targets the global / a named
-        // namespace scope; its bare tail is the consumable global name.
+        // namespace scope. Strip only the *leading* `::` — mirroring
+        // `globals_written_by_procs` above — so a truly-global read (`$::cfg`,
+        // one segment once the leading `::` is gone) collapses to the bare
+        // name a top-level `set cfg` produces, while a *namespaced* read
+        // (`$::n::cfg`) keeps its `n::` qualification intact. Collapsing to
+        // just the last segment (the tail) would conflate `::n::cfg` with an
+        // unrelated bare `::cfg` of the same tail — a different storage cell —
+        // and could mask a genuinely-unused top-level global that happens to
+        // share a name with a namespaced variable read elsewhere.
         for name in &read {
             if let Some(bare) = name.strip_prefix("::") {
-                let tail = bare
-                    .trim_start_matches(':')
-                    .rsplit("::")
-                    .next()
-                    .unwrap_or(bare);
-                if !tail.is_empty() {
-                    result.insert(tail.to_string());
+                let bare = bare.trim_start_matches(':');
+                if !bare.is_empty() {
+                    result.insert(bare.to_string());
                 }
             }
         }
