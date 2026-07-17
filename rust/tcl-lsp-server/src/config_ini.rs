@@ -211,6 +211,7 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
     }
 
     insert_diagnostics(&sections, &mut out);
+    insert_diagnostic_severity(&sections, &mut out);
     insert_optimiser(&sections, &mut out);
 
     // [shimmer] / [xcDiagnostics]: enabled.
@@ -289,6 +290,29 @@ fn insert_diagnostics(sections: &[Section], out: &mut Map<String, Value>) {
     }
     if !diag.is_empty() {
         out.insert("diagnostics".to_owned(), Value::Object(diag));
+    }
+}
+
+/// `[diagnosticSeverity]`: each `CODE = severity` entry → a `diagnosticSeverity`
+/// object of `{CODE: "severity"}`, the nested shape the server's
+/// `settings_severity_overrides` parses. The severity strings are passed
+/// through verbatim; that parser validates them (case-insensitive `error` /
+/// `warning` / `information` / `info` / `hint`) and skips any it does not
+/// recognise, so an unknown value here simply leaves the code's emitted
+/// severity untouched.
+fn insert_diagnostic_severity(sections: &[Section], out: &mut Map<String, Value>) {
+    let Some(section) = sections.iter().find(|s| s.name == "diagnosticSeverity") else {
+        return;
+    };
+    let mut sev = Map::new();
+    for (code, value) in &section.entries {
+        let value = value.trim();
+        if !value.is_empty() {
+            sev.insert(code.clone(), Value::String(value.to_owned()));
+        }
+    }
+    if !sev.is_empty() {
+        out.insert("diagnosticSeverity".to_owned(), Value::Object(sev));
     }
 }
 

@@ -107,6 +107,7 @@ fn scope_for(key: &str) -> Option<&'static str> {
     const PREFIXES: &[(&str, &str)] = &[
         ("tclLsp.formatting.", "language-overridable"),
         ("tclLsp.style.", "language-overridable"),
+        ("tclLsp.diagnosticSeverity.", "resource"),
         ("tclLsp.diagnostics.", "resource"),
         ("tclLsp.optimiser.", "resource"),
         ("tclLsp.shimmer.", "resource"),
@@ -241,6 +242,33 @@ fn diagnostic_sections() -> Vec<Value> {
             );
             m.insert("order".to_owned(), json!(i));
             props.insert(key.clone(), scoped_prop(&key, m));
+            // Per-code severity override — how prominently the editor renders
+            // this diagnostic. `default` keeps the analyser's emitted severity
+            // (issue #941: raise a subtle hint like W211 to a warning/error).
+            let sev_key = format!("tclLsp.diagnosticSeverity.{code}");
+            let mut sm = Map::new();
+            sm.insert("type".to_owned(), json!("string"));
+            sm.insert("default".to_owned(), json!("default"));
+            sm.insert(
+                "enum".to_owned(),
+                json!(["default", "error", "warning", "information", "hint"]),
+            );
+            sm.insert(
+                "enumDescriptions".to_owned(),
+                json!([
+                    "Use the analyser's built-in severity",
+                    "Report as an error",
+                    "Report as a warning",
+                    "Report as information",
+                    "Report as a hint (faded)",
+                ]),
+            );
+            sm.insert(
+                "markdownDescription".to_owned(),
+                json!(format!("Display severity for **{code}:** {description}")),
+            );
+            sm.insert("order".to_owned(), json!(i));
+            props.insert(sev_key.clone(), scoped_prop(&sev_key, sm));
         }
         inject_special_trailing_props(title, diags.len(), &mut props);
 

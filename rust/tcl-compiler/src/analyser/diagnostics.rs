@@ -73,7 +73,7 @@ use rustc_hash::FxHashSet;
 use tcl_lexer::SourceMap;
 
 use helpers::{
-    build_undef_suppression, collect_defined_vars, collect_existence_guards,
+    build_undef_suppression, collect_defined_vars, collect_existence_guards, globals_read_by_procs,
     globals_written_by_procs,
 };
 
@@ -240,6 +240,13 @@ impl Analyser {
             &cbn_proc_index,
         ));
         top_level_cross_event_vars.extend(traced_globals.iter().cloned());
+        // A global a helper proc *reads* (`proc f {} { global cfg; return $cfg
+        // }` or `$::cfg`) consumes the top-level `set cfg …` that runs in the
+        // shared global namespace — the read-side mirror of `globals_written`
+        // above. Fold those names in so the top-level assignment is neither a
+        // dead store (W220) nor an unused variable (W211): both emitters honour
+        // this set (W211 via `textually_referenced.extend(cross_event_vars)`).
+        top_level_cross_event_vars.extend(globals_read_by_procs(cu));
 
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of

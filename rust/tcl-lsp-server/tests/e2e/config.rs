@@ -357,3 +357,95 @@ fn repeated_cycles_keep_provider_working() {
         assert!(!is_empty(&lsp.hover(&uri, 0, 2)));
     }
 }
+
+// -- Per-code severity override (issue #941) ------------------------------
+//
+// `tclLsp.diagnosticSeverity.<CODE>` re-levels how prominently a diagnostic is
+// published, without changing the analysis. LSP severity ints: 1=Error,
+// 2=Warning, 3=Information, 4=Hint.
+
+/// The published severity of the first `code` diagnostic in `diags`, if any.
+fn severity_of(diags: &[Value], code: &str) -> Option<i64> {
+    diags
+        .iter()
+        .find(|d| d.get("code").and_then(Value::as_str) == Some(code))
+        .and_then(|d| d.get("severity"))
+        .and_then(Value::as_i64)
+}
+
+#[test]
+fn diagnostic_severity_override_relevels_a_diagnostic() {
+    use std::time::{Duration, Instant};
+
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // `tmp` is set but never read → W211, emitted at Hint (4) by default.
+    lsp.open_document(&uri, "proc f {} { set tmp 5 }\n");
+    let base = lsp.pull_diagnostics(&uri);
+    assert_eq!(
+        severity_of(&base, "W211"),
+        Some(4),
+        "W211 must default to Hint (4); got {base:?}"
+    );
+
+    // Raise W211 to a warning (2) via didChangeConfiguration; the analysis is
+    // unchanged, only the published severity moves. Poll the deterministic pull
+    // path until the re-pulled config takes effect.
+    lsp.apply_configuration(json!({ "diagnosticSeverity": { "W211": "warning" } }));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut diags = lsp.pull_diagnostics(&uri);
+    while severity_of(&diags, "W211") != Some(2) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        diags = lsp.pull_diagnostics(&uri);
+    }
+    assert_eq!(
+        severity_of(&diags, "W211"),
+        Some(2),
+        "override must re-level W211 to Warning (2); got {diags:?}"
+    );
+
+    // Reset to default (empty override) and confirm it returns to Hint.
+    lsp.apply_configuration(json!({ "diagnosticSeverity": {} }));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut diags = lsp.pull_diagnostics(&uri);
+    while severity_of(&diags, "W211") != Some(4) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        diags = lsp.pull_diagnostics(&uri);
+    }
+    assert_eq!(
+        severity_of(&diags, "W211"),
+        Some(4),
+        "clearing the override must restore Hint (4); got {diags:?}"
+    );
+}
+
+#[test]
+fn diagnostic_severity_override_is_per_code() {
+    use std::time::{Duration, Instant};
+
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // Two hint-severity lifecycle codes: W211 (`x` unused) and W220 (`y` dead
+    // store, overwritten before read).
+    let src = "proc f {} { set x 1\n set y 1\n set y 2\n return $y }\n";
+    lsp.open_document(&uri, src);
+
+    // Override only W211 → error (1); W220 must keep its emitted Hint (4).
+    lsp.apply_configuration(json!({ "diagnosticSeverity": { "W211": "error" } }));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut diags = lsp.pull_diagnostics(&uri);
+    while severity_of(&diags, "W211") != Some(1) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        diags = lsp.pull_diagnostics(&uri);
+    }
+    assert_eq!(
+        severity_of(&diags, "W211"),
+        Some(1),
+        "W211 must be overridden to Error (1); got {diags:?}"
+    );
+    assert_eq!(
+        severity_of(&diags, "W220"),
+        Some(4),
+        "an un-overridden code (W220) must keep its emitted Hint (4); got {diags:?}"
+    );
+}

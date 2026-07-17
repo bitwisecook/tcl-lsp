@@ -484,28 +484,49 @@ proc f {} {
         );
     }
 
-    // --- dynamic_upvar_locals override (scan_dynamic_upvar_locals) ---
+    // --- dynamic upvar alias reads (issue #941) ---
 
     #[test]
-    fn dynamic_upvar_local_unconditional_read_fires_w210() {
-        // `upvar 1 $name v` aliases `v` to a *dynamic* caller var that may not
-        // exist, so an unconditional `$v` read is read-before-set: the dynamic
-        // upvar override fires W210 even though `v` is a scope alias.
-        // (The in-crate FP-RBS-08 pins the *silent* set-then-read; this pins
-        // the bare-read override.)
+    fn dynamic_upvar_local_unconditional_read_silent_w210() {
+        // `upvar 1 $name v` aliases `v` to the caller variable *named by* the
+        // runtime value of `$name` — the standard Tcl pass-by-reference idiom
+        // (`proc getField {arrayName field} { upvar 1 $arrayName arr; return
+        // $arr($field) }`). Reading `$v` is not read-before-set: it errors only
+        // when the *caller* variable is missing, which is exactly the runtime
+        // condition that makes the *literal*-target `upvar 1 outer v` error too
+        // — and that form is (correctly) silent. tclsh 8.6/9.0 confirm the two
+        // are semantically identical, so the analyser treats them alike (#941;
+        // reverses the earlier dynamic-target override, which flagged only the
+        // dynamic form and so fired on every by-name read helper).
         let src = "proc f {name} { upvar 1 $name v\n puts $v }\n";
         assert!(
+            !fires(src, D, "W210"),
+            "dynamic-upvar alias read must be silent like the literal form; emitted {:?}",
+            codes(src, D)
+        );
+        // Parity control: the literal-target twin is silent too.
+        assert!(
+            !fires("proc f {} { upvar 1 outer v\n puts $v }\n", D, "W210"),
+            "literal-target upvar alias read must stay silent"
+        );
+    }
+
+    #[test]
+    fn dynamic_upvar_unrelated_local_still_fires_w210() {
+        // TP control: an *unrelated* local — not the alias, never set — is not
+        // in the scope-alias set and must still fire W210.
+        let src = "proc f {name} { upvar 1 $name v\n return $unrelated }\n";
+        assert!(
             fires(src, D, "W210"),
-            "unconditional read of a dynamic-upvar local must fire W210; emitted {:?}",
+            "an unrelated (non-alias, unset) local must still fire W210; emitted {:?}",
             codes(src, D)
         );
     }
 
     #[test]
     fn dynamic_upvar_local_info_exists_guarded_read_silent() {
-        // The same dynamic-upvar local guarded by `[info exists v]` is safe per
-        // use — the existence guard suppresses the override. tclsh: the guard
-        // is the entire safety. Analyser policy: silent (guarded).
+        // The same dynamic-upvar local guarded by `[info exists v]` is silent
+        // too (guarded), as it always was.
         let src =
             "proc f {name} { upvar 1 $name v\n if {[info exists v]} { return $v }\n return {} }\n";
         assert!(

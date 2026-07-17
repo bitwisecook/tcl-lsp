@@ -1842,6 +1842,50 @@ disabled = O109
 For the complete reference, see
 [`docs/kcs/kcs-howto-suppress-diagnostics.md`](docs/kcs/kcs-howto-suppress-diagnostics.md).
 
+### Diff and compare views (VS Code)
+
+The analyser never runs on diff *content* — a diff editor is two real
+documents rendered side by side, and the modified side of a Git diff from
+**Source Control** (or either side of **Compare With…**) is a real file,
+analysed like any open file.  The squiggles a diff shows are therefore that
+file's own correct, *whole-file* diagnostics, and they are shown by
+default.  Because most of those findings predate the change under review,
+you can optionally hide them while a file is shown *only* in a diff
+editor:
+
+```json
+"tclLsp.suppressDiagnosticsInDiffEditors": true
+```
+
+The moment the same file is also open in a normal editor — where you might
+be editing it — its diagnostics come back, so analysis of files you are
+working on is never affected.  This is a VS Code display choice only: the
+server keeps analysing and no diagnostics are lost.  See
+[`docs/kcs/kcs-howto-hide-diagnostics-in-diff-views.md`](docs/kcs/kcs-howto-hide-diagnostics-in-diff-views.md).
+
+## Changing how prominent a diagnostic is
+
+Some checks are intentionally quiet — an unused variable
+([W211](docs/kcs/codes/kcs-diagnostic-w211-variable-set-not-used.md)), a dead
+store, or a style hint render at *hint* severity, a faint underline that is
+easy to miss.  Rather than turn a check off, you can re-level it per code so the
+editor shows it more (or less) prominently:
+
+```json
+{ "tclLsp.diagnosticSeverity.W211": "warning" }
+```
+
+Accepted values are `"error"`, `"warning"`, `"information"`, and `"hint"`, plus
+`"default"` (keep the analyser's built-in severity).  This changes only how the
+diagnostic is displayed — never whether the analysis runs.  Any diagnostic code
+can be re-levelled with `tclLsp.diagnosticSeverity.<CODE>`; combine it with the
+`tclLsp.diagnostics.<CODE>` on/off toggle above.  In `.tcl-lsp.ini`:
+
+```ini
+[diagnosticSeverity]
+W211 = warning
+```
+
 ## Multi-file projects and `package require`
 
 In a project with an "entry" file that runs the `package require`s and then

@@ -583,6 +583,17 @@ file; this call falls through to the 'unknown' handler."
             if scope_aliases.contains(var) {
                 continue;
             }
+            // A fully-qualified name (`::cfg`, `::ns::cfg`) explicitly targets
+            // the global / a named namespace scope, whose reader may live in
+            // another proc, another namespace, or another file that single-unit
+            // dataflow can't see. The W220 dead-store and W210 read-before-set
+            // passes already exempt `::`-qualified names as externally
+            // consumable; W211 does the same so `set ::ns::cfg 1` at the top
+            // level isn't flagged unused merely because this unit holds no
+            // reader.
+            if var.contains("::") {
+                continue;
+            }
             if textually_referenced.contains(var) {
                 continue;
             }
@@ -1097,11 +1108,18 @@ file; this call falls through to the 'unknown' handler."
             if var.contains("::") {
                 continue;
             }
-            // A dynamic-target upvar local is possibly-unset, so its
-            // scope-alias status must not suppress the read-before-set (an
-            // unconditional `$local` read still fires; an `[info exists local]`
-            // guard suppresses it per-use below).
-            if scope_aliases.contains(var) && !supp.dynamic_upvar_locals.contains(var) {
+            // A scope-aliased local (`global` / `variable` / `upvar` /
+            // `namespace upvar` — literal *or* dynamic target) is bound to a
+            // variable in another scope, so reading it is not read-before-set.
+            // `upvar 1 $name local` and `upvar 1 outer local` are semantically
+            // identical: both raise `can't read` only when the *caller*
+            // variable is missing — a runtime condition, not a static one — so
+            // the dynamic target is suppressed exactly like the literal one
+            // (matching C Tcl and the "assume the may-run path does run" stance
+            // the loop / cross-event passes already take). This is the standard
+            // Tcl pass-by-reference idiom; a genuinely unrelated local that is
+            // not an alias is absent from `scope_aliases` and still fires.
+            if scope_aliases.contains(var) {
                 continue;
             }
             if extra_known_defined.contains(var) {

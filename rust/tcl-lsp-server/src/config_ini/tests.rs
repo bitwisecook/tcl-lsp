@@ -102,6 +102,24 @@ fn multiline_disabled_codes_list() {
 }
 
 #[test]
+fn diagnostic_severity_section() {
+    // `[diagnosticSeverity]` entries pass through verbatim as the nested
+    // `diagnosticSeverity` object `settings_severity_overrides` parses;
+    // validation (and skip-unknown) happens there, not here.
+    let ini = "[diagnosticSeverity]\n\
+               W211 = warning\n\
+               W220 = Error\n\
+               W210 = nonsense\n";
+    let s = settings_from_ini(ini, Layer::Global);
+    assert_eq!(s["diagnosticSeverity"]["W211"], json!("warning"));
+    assert_eq!(s["diagnosticSeverity"]["W220"], json!("Error"));
+    assert_eq!(s["diagnosticSeverity"]["W210"], json!("nonsense"));
+    // Absent section -> no key at all (leave the current overrides untouched).
+    let none = settings_from_ini("[diagnostics]\ndisabled = W111\n", Layer::Global);
+    assert!(none.get("diagnosticSeverity").is_none());
+}
+
+#[test]
 fn extra_commands_multiline() {
     // Continuation form of `extraCommands`, equivalent to the comma form.
     // `::`-qualified
