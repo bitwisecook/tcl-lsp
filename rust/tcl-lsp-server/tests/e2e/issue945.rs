@@ -275,7 +275,8 @@ fn safe_interp_hides_unsafe_commands_945() {
     // them raises `invalid command name` (W129 here), and no source edge
     // may be built from the call.  A never-created interp target warns
     // (W140).
-    let src = "interp create -safe s\ninterp eval s { source b.tcl }\ninterp eval ghost { puts hi }\n";
+    let src =
+        "interp create -safe s\ninterp eval s { source b.tcl }\ninterp eval ghost { puts hi }\n";
     lsp.open_ready(&uri, src);
     let diags = lsp.await_diagnostics(&uri);
     let codes: Vec<String> = diags
@@ -306,10 +307,7 @@ fn command_probe_navigates_without_asserting_existence_945() {
         .collect();
     assert_eq!(defs, vec![0], "the probe site navigates: {defs:?}");
     let refs = start_lines(&lsp.references(&uri, 0, 6, true));
-    assert!(
-        refs.contains(&1),
-        "the probe site is a reference: {refs:?}"
-    );
+    assert!(refs.contains(&1), "the probe site is a reference: {refs:?}");
     // …while the missing-target probe draws no W123.
     let diags = lsp.await_diagnostics(&uri);
     assert!(

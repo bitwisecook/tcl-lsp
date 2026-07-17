@@ -249,7 +249,11 @@ fn definition_selects_the_dispatch_entry_not_the_override_family_945() {
                $d speak\n";
     let analysis = analyse(src);
     let locs = definition(src, 8, 4, &analysis);
-    assert_eq!(locs.len(), 1, "one dispatch entry, not the family: {locs:?}");
+    assert_eq!(
+        locs.len(),
+        1,
+        "one dispatch entry, not the family: {locs:?}"
+    );
     assert_eq!(
         locs[0].start_line, 5,
         "`$d speak` enters Dog::speak (line 5), never Animal::speak: {locs:?}",

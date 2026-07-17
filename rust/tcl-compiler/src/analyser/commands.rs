@@ -275,15 +275,12 @@ impl Analyser {
         if let Some(ctx) = self.safe_interp_stack.last() {
             let bare = cmd_name.trim_start_matches(':');
             let spec_hidden = ctx.base_hidden
-                && self
-                    .registry
-                    .and_then(|r| r.get(bare))
-                    .is_some_and(|spec| {
-                        spec.traits
-                            .contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN)
-                    });
-            let hidden = (spec_hidden || ctx.hidden_extra.contains(bare))
-                && !ctx.exposed.contains(bare);
+                && self.registry.and_then(|r| r.get(bare)).is_some_and(|spec| {
+                    spec.traits
+                        .contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN)
+                });
+            let hidden =
+                (spec_hidden || ctx.hidden_extra.contains(bare)) && !ctx.exposed.contains(bare);
             if hidden {
                 if !self.structure_only {
                     self.result.diagnostics.push(super::types::Diagnostic {

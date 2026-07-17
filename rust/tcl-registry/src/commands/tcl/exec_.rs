@@ -27,7 +27,11 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exec",
         dialects: None,
-        traits: Traits::BYTE_COMPILED | Traits::TAINT_SINK | Traits::TAINT_SOURCE | Traits::UNSAFE | Traits::SAFE_INTERP_HIDDEN,
+        traits: Traits::BYTE_COMPILED
+            | Traits::TAINT_SINK
+            | Traits::TAINT_SOURCE
+            | Traits::UNSAFE
+            | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         side_effects: &[
