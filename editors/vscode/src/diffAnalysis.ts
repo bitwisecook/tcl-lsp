@@ -19,16 +19,21 @@
 import * as vscode from "vscode";
 
 /**
- * Optional per-resource suppression of Tcl diagnostics for documents that are
- * only being viewed in a diff editor — a Git change (Source Control), "Compare
- * With…", "Compare with Saved", and similar.
+ * Per-resource suppression of Tcl diagnostics for documents that are only being
+ * viewed in a diff editor — a Git change (Source Control), "Compare With…",
+ * "Compare with Saved", and similar. On by default;
+ * `tclLsp.suppressDiagnosticsInDiffEditors: false` keeps diagnostics visible
+ * in diffs. (Deliberately NOT under `tclLsp.diagnostics.*` — the server treats
+ * every boolean key in that section as a per-code on/off toggle, so a
+ * client-only key there would leak into `disabled_diagnostics` and the
+ * config-file export.)
  *
  * "Diff editor" is a purely client-side concept: the language server publishes
  * diagnostics per URI and has no idea an editor is rendering that URI as a diff.
  * The modified side of a Git diff is the real working-tree file (`file:` scheme)
- * and is analysed exactly like any open file, so its squiggles show up in the
- * diff. When the user just wants to read a change without the analyser's noise,
- * `tclLsp.diagnostics.suppressInDiffEditors` lets them hide it.
+ * and is analysed exactly like any open file, so its *whole-file* diagnostics —
+ * mostly findings that predate the change under review — would otherwise paint
+ * the diff.
  *
  * The gating happens in the `handleDiagnostics` middleware: the real diagnostics
  * are remembered per URI, but an empty set is handed to the client whenever the
@@ -36,8 +41,8 @@ import * as vscode from "vscode";
  * normal editor keeps its diagnostics, so active editing is never dimmed.
  */
 
-const CONFIG_SECTION = "tclLsp.diagnostics";
-const CONFIG_KEY = "suppressInDiffEditors";
+const CONFIG_SECTION = "tclLsp";
+const CONFIG_KEY = "suppressDiagnosticsInDiffEditors";
 const CONFIG_PATH = `${CONFIG_SECTION}.${CONFIG_KEY}`;
 
 /** The client's diagnostic sink — the `next` handed to the middleware. */
@@ -200,5 +205,5 @@ export class DiffDiagnosticsSuppressor implements vscode.Disposable {
 
 /** Whether diff-editor suppression is enabled for the given resource. */
 function isSuppressionEnabled(uri: vscode.Uri): boolean {
-  return vscode.workspace.getConfiguration(CONFIG_SECTION, uri).get<boolean>(CONFIG_KEY, false);
+  return vscode.workspace.getConfiguration(CONFIG_SECTION, uri).get<boolean>(CONFIG_KEY, true);
 }

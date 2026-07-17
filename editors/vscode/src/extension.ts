@@ -357,9 +357,9 @@ export async function activate(context: ExtensionContext) {
     options: { cwd: path.dirname(rustBin) },
   };
 
-  // Optional suppression of diagnostics for files viewed only in a diff editor
+  // Suppression of diagnostics for files viewed only in a diff editor
   // (Git changes, "Compare With…"); gated by
-  // `tclLsp.diagnostics.suppressInDiffEditors` (default off). Installed as the
+  // `tclLsp.suppressDiagnosticsInDiffEditors` (default on). Installed as the
   // `handleDiagnostics` middleware below.
   const diffSuppressor = new DiffDiagnosticsSuppressor();
   context.subscriptions.push(diffSuppressor);
