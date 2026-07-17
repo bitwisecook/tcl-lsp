@@ -38,6 +38,39 @@ BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1) c
 - Pure string objects (`typePtr == NULL`) — first type assignment is not a shimmer
 - Shared object duplication (`Tcl_DuplicateObj`) — original intrep is not affected
 
+#### How the analyser implements "first type assignment is not a shimmer"
+
+The compiler classifies committed-vs-pure generically (never by command name)
+through `shimmer::hints::is_uncommitted_first_conversion`, using the type
+lattice plus the SCCP constant lattice:
+
+- A `String`-typed value (`TclType::String` is documented "pure string, no
+  cached intrep") is always uncommitted.
+- A numeric-typed value is uncommitted only when it is a compile-time constant
+  (a constant-folded literal push, still `typePtr == NULL`); a runtime
+  `expr` / `incr` result is a committed numeric intrep.
+- `List` / `Dict` / `Object` / `ByteArray` / `Channel` are always committed
+  (only `[list]` / `[dict create]` / a constructor / `binary format` produce
+  them).
+
+A use is suppressed only when the pure value is a **valid instance** of the
+required type — a well-formed list (`Tcl_SplitList` succeeds), an even-length
+list for a dict, or a parseable number — so a genuine runtime error (`incr` on
+`hello`) still fires. This is what fixed issue #940 (`foreach $bracedList`); see
+`docs/design/compiler/FP.md` §FP-SH-21.
+
+**Known limitation (tracked follow-up).** Because each use is evaluated against
+the *pure origin* independently — the sound, branch-safe choice — a value that a
+*dominating* earlier use has already committed to a different intrep is not
+re-flagged: straight-line `set a 1; lindex $a 0; expr {$a + 1}` genuinely
+shimmers list→int at the `expr`, but is currently silent (a false negative, not
+a false positive). Recovering it needs a shared committed-intrep forward
+dataflow across the use-site / expr / incr detectors keyed on the dominator
+tree — fire when a use's intrep differs from that committed by a *dominating*
+use of the same value. The branch case where two paths commit different types
+(`if {…} {expr {$a+1}} else {foreach x $a}`) correctly stays silent: neither use
+dominates the other, and at runtime each path is single-type.
+
 ## Reference validation status
 
 C source analysis completed against Tcl 9.0.3. The `arg_types` shimmer hints

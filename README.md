@@ -659,21 +659,32 @@ Tracks each variable's Tcl internal representation through the SSA type
 lattice.  When a command forces a type conversion ("shimmer"), the
 performance cost is reported — especially inside loops.
 
+A *literal* is a pure string until first read as another type, so that first,
+lossless conversion is free — a braced list literal iterated by `foreach` is
+**not** a shimmer (issue #940).  The warnings fire on a *committed* internal
+representation (from `[list]`, `[dict create]`, `expr`, …) that a later
+operation forces to a different type.
+
 ```tcl
 # S100 — single shimmer (info):
-set x "hello"
-set n [llength $x]       ;# 'x' shimmers from STRING → LIST
+set x [list 1 2 3]
+set n [string length $x]   ;# 'x' shimmers from LIST → STRING (committed list)
+
+# not a shimmer — a pure list literal read as a list is free:
+set fontSizes {10.0 12.0 16.0 24.0}
+foreach size $fontSizes { ... }
 
 # S101 — shimmer inside loop (warning):
-set s "42"
 for {set i 0} {$i < 1000} {incr i} {
-    set v [expr {$s + $i}]   ;# 's' shimmers STRING → INT on every iteration
+    set d [dict create k $i]   ;# a fresh committed dict each pass
+    set n [llength $d]         ;# 'd' shimmers DICT → LIST on every iteration
 }
 
 # S102 — type thunking (warning):
-for {set i 0} {$i < 100} {incr i} {
-    set n [llength $data]     ;# 'data' shimmers STRING → LIST
-    set data "updated $n"     ;# 'data' back to STRING — oscillates each iteration
+set acc ""
+foreach x $items {
+    lappend acc $x             ;# 'acc' is a list here
+    set acc "$acc,"            ;# back to a string — oscillates each iteration
 }
 ```
 

@@ -1390,3 +1390,100 @@ fn fp_sh_20_ordering_compare_numeric_literal_stays_silent() {
         codes(src, D),
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-SH-21 — a pure value's first conversion is free (issue #940)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-21 (issue #940): a braced list literal used as a list must NOT fire
+/// S100. `{10.0 12.0 16.0 24.0}` is a pure string (oracle: `typePtr == NULL`),
+/// and `foreach` parses it into a list intrep once, for free — the reference
+/// contract's "pure string first type assignment is not a shimmer".
+#[test]
+fn fp_sh_21_braced_list_literal_in_foreach_silent() {
+    let src = "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-21: braced list literal in foreach must not shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21: the empty list `{}` — the exact case named in issue #940's title —
+/// is a valid (empty) list, so `foreach` over it is free.
+#[test]
+fn fp_sh_21_empty_braces_in_foreach_silent() {
+    let src = "set empty {}\nforeach x $empty { puts $x }\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-21: empty {{}} in foreach must not shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21: a number-shaped or word-shaped literal is still a valid list — the
+/// define-time shape does not matter (`set a 1; foreach b $a`).
+#[test]
+fn fp_sh_21_scalar_literal_as_list_silent() {
+    for src in [
+        "set a 1\nforeach b $a { puts $b }\n",
+        "set x 5\nlindex $x 0\n",
+        "set l hello\nforeach y $l { puts $y }\n",
+    ] {
+        assert!(
+            !fires(src, D, "S100") && !fires(src, D, "S101"),
+            "FP-SH-21: scalar literal used as a list must not shimmer; got {:?}",
+            codes(src, D),
+        );
+    }
+}
+
+/// FP-SH-21: an even-length list literal is a valid dict — `dict for` over it is
+/// free.
+#[test]
+fn fp_sh_21_dict_literal_in_dict_for_silent() {
+    let src = "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-21: dict literal in dict for must not shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21 TP control: a *committed* container (`[dict create]`) read as a list
+/// still fires — the pure-value suppression must not blanket-silence genuine
+/// shimmers. `foreach` on a committed Dict re-represents it (Dict → List).
+#[test]
+fn fp_sh_21_committed_dict_in_foreach_still_fires() {
+    let src = "set d [dict create a 1 b 2]\nforeach x $d { puts $x }\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-21 TP: committed dict in foreach must still shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21 TP control: a pure string that is NOT a valid instance keeps its
+/// warning — `incr` on a non-integer literal fails at runtime, so the mismatch
+/// is real.
+#[test]
+fn fp_sh_21_incr_on_non_integer_literal_still_fires() {
+    let src = "set bad hello\nincr bad\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-21 TP: incr on a non-integer literal must still fire; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21 TP control: a committed list read as a *string* (`string length`)
+/// still fires — the genuine `[list …]` → String shimmer is untouched.
+#[test]
+fn fp_sh_21_committed_list_as_string_still_fires() {
+    let src = "set real [list 1 2 3]\nstring length $real\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-21 TP: committed list used as a string must still fire; got {:?}",
+        codes(src, D),
+    );
+}

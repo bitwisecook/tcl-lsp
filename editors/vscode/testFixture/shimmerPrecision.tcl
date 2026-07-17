@@ -2,9 +2,9 @@
 # shimmer review (interp alias, TclOO, namespace eval, write-traces,
 # suppression directives).
 
-# True case: a stringy value gets shimmered to a list intrep by lindex.
+# True case: a committed dict intrep gets shimmered to a list by lindex.
 proc shimmer_true_case {} {
-    set x hello
+    set x [dict create a 1 b 2]
     lindex $x 0
 }
 
@@ -17,7 +17,7 @@ proc shimmer_false_case {} {
 # True case: shimmer fires through an interp alias to a shimmering builtin.
 interp alias {} myindex {} ::lindex
 proc shimmer_through_alias {} {
-    set z hello
+    set z [dict create a 1 b 2]
     myindex $z 0
 }
 
@@ -45,14 +45,14 @@ proc shimmer_traced_var {} {
 
 # Suppression directive silences the diagnostic on the following line.
 proc shimmer_suppress_directive_matches {} {
-    set d hello
+    set d [dict create a 1 b 2]
     # noqa: S100
     lindex $d 0
 }
 
 # A directive naming a different code must not silence this one.
 proc shimmer_suppress_directive_mismatches {} {
-    set e hello
+    set e [dict create a 1 b 2]
     # noqa: W100
     lindex $e 0
 }

@@ -38,6 +38,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 use tcl_registry::TclType;
 
+use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
@@ -47,6 +48,7 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::loop_body_blocks;
+use super::hints::is_uncommitted_first_conversion;
 use super::{ShimmerWarning, type_name};
 
 /// Find expression-level shimmer warnings for a function.
@@ -64,6 +66,7 @@ pub(crate) fn find_expr_shimmers(
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<BlockId>,
+    values: &HashMap<ValueKey, LatticeValue>,
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
     let loop_blocks = loop_body_blocks(cfg);
@@ -101,6 +104,7 @@ pub(crate) fn find_expr_shimmers(
                     let mut ctx = ExprShimmerCtx {
                         uses: &ss.uses,
                         types,
+                        values,
                         ssa,
                         stmt_span: *span,
                         expr_base: *expr_base,
@@ -129,6 +133,7 @@ pub(crate) fn find_expr_shimmers(
             let mut ctx = ExprShimmerCtx {
                 uses: &ssa_block.exit_versions,
                 types,
+                values,
                 ssa,
                 stmt_span: branch_span,
                 expr_base: *condition_base,
@@ -151,6 +156,10 @@ pub(crate) fn find_expr_shimmers(
 struct ExprShimmerCtx<'a> {
     uses: &'a HashMap<Symbol, u32>,
     types: &'a HashMap<ValueKey, TypeLattice>,
+    /// SCCP constant values, for the uncommitted-value ("pure string") check —
+    /// a pure operand that is a valid instance of the required type converts for
+    /// free, so it must not be flagged (see [`is_uncommitted_first_conversion`]).
+    values: &'a HashMap<ValueKey, LatticeValue>,
     ssa: &'a SsaFunction,
     stmt_span: Span,
     /// Absolute source offset of the expression text's first byte, when it
@@ -341,6 +350,18 @@ fn check_numeric_operand(
         current,
         TclType::String | TclType::List | TclType::Dict | TclType::ByteArray
     ) {
+        let (to_type, context_name) = match context {
+            NumericContext::Arithmetic => (TclType::Numeric, "arithmetic expression"),
+            NumericContext::Boolean => (TclType::Boolean, "boolean context"),
+        };
+        // A pure (uncommitted) operand whose value is a valid number / boolean
+        // converts for free: `set s [string trim true]; expr {$s && 1}` and a
+        // numeric-valued string in arithmetic are not shimmers. A committed
+        // List/Dict/ByteArray, or a pure string that is not a valid instance
+        // (`set s hello; expr {$s + 1}`), still fires.
+        if is_uncommitted_first_conversion(current, to_type, ctx.values.get(&(sym, ver))) {
+            return;
+        }
         // De-duplicate per (statement span, variable) within the block.
         if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
             return;
@@ -349,10 +370,6 @@ fn check_numeric_operand(
             DiagCode::S101
         } else {
             DiagCode::S100
-        };
-        let (to_type, context_name) = match context {
-            NumericContext::Arithmetic => (TclType::Numeric, "arithmetic expression"),
-            NumericContext::Boolean => (TclType::Boolean, "boolean context"),
         };
         ctx.out.push(ShimmerWarning {
             span: ctx.operand_span(node),
@@ -407,6 +424,13 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
         current,
         TclType::String | TclType::Dict | TclType::ByteArray
     ) {
+        // A pure string is a free first conversion to a list — `set hay [string
+        // trim "a b c"]; expr {"b" in $hay}` parses it once, losslessly (oracle:
+        // the value goes pure → list). Only a committed Dict/ByteArray genuinely
+        // re-represents on the `in` list conversion.
+        if is_uncommitted_first_conversion(current, TclType::List, ctx.values.get(&(sym, ver))) {
+            return;
+        }
         if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
             return;
         }
@@ -534,7 +558,13 @@ mod tests {
     fn no_expr_shimmer_int_in_arithmetic() {
         let cu = CompilationUnit::build_for("set x 5\nset y [expr {$x + 1}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
     }
 
@@ -547,7 +577,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let has_shimmer = w
             .iter()
             .any(|sw| sw.variable == "x" && sw.from_type == TclType::String);
@@ -581,7 +617,13 @@ mod tests {
         ] {
             let cu = CompilationUnit::build_for(src, &registry(), false);
             let fu = cu.function("::top").unwrap();
-            let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+            let w = find_expr_shimmers(
+                &fu.cfg,
+                &fu.ssa,
+                &fu.types,
+                &fu.sccp.executable_blocks,
+                &fu.sccp.values,
+            );
             assert!(
                 !w.iter()
                     .any(|sw| sw.variable == "s" || sw.variable == "lst"),
@@ -602,7 +644,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let warning = w.iter().find(|sw| sw.variable == "s");
         let warning = warning.expect("string operand of && must be flagged");
         assert_eq!(warning.to_type, TclType::Boolean);
@@ -613,21 +661,53 @@ mod tests {
         );
     }
 
-    /// `in`/`ni` convert the RIGHT operand to a list — flag a String-typed
-    /// haystack (tclsh-verified genuine shimmer), leave a List-typed one and
-    /// the needle alone.
+    /// `in`/`ni` convert the RIGHT operand to a list. A *committed* Dict
+    /// haystack genuinely re-represents (Dict → List); a *pure* string haystack
+    /// does not — `[string trim "a b c"]` is a pure string (oracle: it goes pure
+    /// → list on first read), so its list conversion is free. A List-typed
+    /// haystack is already a list, and the needle is read as a string — both
+    /// silent.
     #[test]
-    fn expr_shimmer_in_membership_flags_string_haystack() {
+    fn expr_shimmer_in_membership_flags_committed_not_pure_haystack() {
+        // TP: a committed Dict haystack re-represents to a list.
         let cu = CompilationUnit::build_for(
-            "set hay [string trim \"a b c\"]\nset y [expr {\"b\" in $hay}]",
+            "set hay [dict create a 1 b 2]\nset y [expr {\"a\" in $hay}]",
             &registry(),
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let warning = w.iter().find(|sw| sw.variable == "hay");
-        let warning = warning.expect("string haystack of `in` must be flagged");
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
+        let warning = w
+            .iter()
+            .find(|sw| sw.variable == "hay")
+            .expect("committed Dict haystack of `in` must be flagged");
+        assert_eq!(warning.from_type, TclType::Dict);
         assert_eq!(warning.to_type, TclType::List);
+
+        // TN (issue #940): a pure string haystack is a free first conversion.
+        let cu_pure = CompilationUnit::build_for(
+            "set hay [string trim \"a b c\"]\nset y [expr {\"b\" in $hay}]",
+            &registry(),
+            false,
+        );
+        let fu_pure = cu_pure.function("::top").unwrap();
+        let w_pure = find_expr_shimmers(
+            &fu_pure.cfg,
+            &fu_pure.ssa,
+            &fu_pure.types,
+            &fu_pure.sccp.executable_blocks,
+            &fu_pure.sccp.values,
+        );
+        assert!(
+            !w_pure.iter().any(|sw| sw.variable == "hay"),
+            "pure string haystack must not be flagged: {w_pure:?}"
+        );
 
         // A List-typed haystack is already a list — silent.
         let cu2 = CompilationUnit::build_for(
@@ -636,7 +716,13 @@ mod tests {
             false,
         );
         let fu2 = cu2.function("::top").unwrap();
-        let w2 = find_expr_shimmers(&fu2.cfg, &fu2.ssa, &fu2.types, &fu2.sccp.executable_blocks);
+        let w2 = find_expr_shimmers(
+            &fu2.cfg,
+            &fu2.ssa,
+            &fu2.types,
+            &fu2.sccp.executable_blocks,
+            &fu2.sccp.values,
+        );
         assert!(
             !w2.iter().any(|sw| sw.variable == "hay"),
             "list haystack must not be flagged: {w2:?}"
@@ -644,12 +730,18 @@ mod tests {
 
         // The needle is read as a string — a String-typed needle is silent.
         let cu3 = CompilationUnit::build_for(
-            "set needle [string trim b]\nset hay [list a b c]\nset y [expr {$needle in $hay}]",
+            "set needle [string trim b]\nset hay [dict create a 1]\nset y [expr {$needle in $hay}]",
             &registry(),
             false,
         );
         let fu3 = cu3.function("::top").unwrap();
-        let w3 = find_expr_shimmers(&fu3.cfg, &fu3.ssa, &fu3.types, &fu3.sccp.executable_blocks);
+        let w3 = find_expr_shimmers(
+            &fu3.cfg,
+            &fu3.ssa,
+            &fu3.types,
+            &fu3.sccp.executable_blocks,
+            &fu3.sccp.values,
+        );
         assert!(
             !w3.iter().any(|sw| sw.variable == "needle"),
             "the needle of `in` must not be flagged: {w3:?}"
@@ -662,7 +754,13 @@ mod tests {
         let cu =
             CompilationUnit::build_for("set x 42\nset z [expr {$x eq \"42\"}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let has_shimmer = w
             .iter()
             .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
@@ -682,7 +780,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let has_shimmer = w
             .iter()
             .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
@@ -702,7 +806,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let xs: Vec<_> = w.iter().filter(|sw| sw.variable == "x").collect();
         assert_eq!(
             xs.len(),
@@ -721,7 +831,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let s = w.iter().find(|sw| sw.variable == "x");
         assert!(s.is_some(), "expected expr shimmer for x in loop: {w:?}");
         let s = s.unwrap();
@@ -742,7 +858,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         // x is String; used with eq (string comparison) — no shimmer.
         let str_cmp_shimmers: Vec<_> = w
             .iter()
@@ -765,7 +887,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let has_shimmer = w
             .iter()
             .any(|sw| sw.variable == "b" && sw.from_type == TclType::ByteArray);
@@ -782,7 +910,13 @@ mod tests {
         let src = "set x \"hello\"\nset y [expr {$x + 1}]";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let s = w
             .iter()
             .find(|sw| sw.variable == "x")
@@ -803,7 +937,13 @@ mod tests {
         let src = "set x 42\nif {$x eq \"42\"} { set y 1 }";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let s = w
             .iter()
             .find(|sw| sw.variable == "x")
@@ -824,7 +964,13 @@ mod tests {
         let src = "proc f {} {\n  set x \"hello\"\n  set y [expr {$x * 2}]\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let s = w
             .iter()
             .find(|sw| sw.variable == "x")
@@ -848,7 +994,13 @@ mod tests {
         let src = "set x 42\nif \"$x eq 42\" { set y 1 }";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         // The quoted form substitutes before parsing, so the shimmer may or
         // may not fire; when it does, the span must contain the whole
         // fallback range and be non-degenerate.
@@ -873,7 +1025,13 @@ mod tests {
         let src = "set x \"hi\"\nset y [expr {$x + $x}]";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let xs: Vec<_> = w.iter().filter(|sw| sw.variable == "x").collect();
         assert_eq!(xs.len(), 1, "one warning per statement+var: {xs:?}");
         let first = src.find("{$x").unwrap() + 1;
@@ -899,7 +1057,13 @@ mod tests {
         let src = "set x 10\nset y 2\nset z [expr {$x lt $y}]";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+        );
         let s = w
             .iter()
             .find(|sw| sw.variable == "x" || sw.variable == "y")
