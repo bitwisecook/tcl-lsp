@@ -931,6 +931,7 @@ mod tests {
                 statement: s,
                 uses: HashMap::new(),
                 defs: HashMap::new(),
+                may_defs: std::collections::HashSet::new(),
             });
         }
         let entry = BlockId(0);
@@ -1056,6 +1057,7 @@ mod tests {
             statement: call("global", &["shared"]),
             uses: HashMap::new(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         });
         let mut defs = HashMap::new();
         defs.insert(shared, 1);
@@ -1063,6 +1065,7 @@ mod tests {
             statement: call("set", &["shared", "1"]),
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         });
         let mut uses = HashMap::new();
         uses.insert(shared, 1);
@@ -1070,6 +1073,7 @@ mod tests {
             statement: call("puts", &["$shared"]),
             uses,
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         });
 
         ssa.blocks.insert(
@@ -1117,6 +1121,7 @@ mod tests {
             statement: call("global", &["shared"]),
             uses: HashMap::new(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         });
         let mut defs1 = HashMap::new();
         defs1.insert(shared, 1);
@@ -1124,6 +1129,7 @@ mod tests {
             statement: call("set", &["shared", "0"]),
             uses: HashMap::new(),
             defs: defs1,
+            may_defs: std::collections::HashSet::new(),
         });
         let mut uses = HashMap::new();
         uses.insert(shared, 1);
@@ -1133,6 +1139,7 @@ mod tests {
             statement: call("set", &["shared", "[expr {$shared + 1}]"]),
             uses,
             defs: defs2,
+            may_defs: std::collections::HashSet::new(),
         });
         ssa.blocks.insert(
             entry,

@@ -987,6 +987,31 @@ mod tests {
     /// slots, not the same value shimmering back and forth.
     #[test]
     fn no_s102_for_array_element_conflation() {
+        // Independent elements: `arr(a)` holds ints, `arr(b)` strings — with
+        // per-element SSA symbols neither oscillates, so no S102 (the
+        // pre-P5 conflation FP this test has always guarded).
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set arr(a) 0\n while {1} { \
+             set arr(a) [expr {$arr(a) + 1}]\n set arr(b) [string range x 0 end] } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            None::<&HashSet<String>>,
+        );
+        assert!(
+            w.is_empty(),
+            "independent array elements must not merge into an S102 report: {w:?}"
+        );
+        // The SAME element oscillating int ↔ string every iteration is a
+        // genuine per-element re-thunk — per-key symbols now see it (the
+        // pre-P5 conflation exclusion was a forced false negative here).
         let cu = CompilationUnit::build_for(
             "proc f {} { set arr(x) 0\n while {1} { \
              set arr(x) [expr {$arr(x) + 1}]\n set arr(x) [string range $arr(x) 0 end] } }",
@@ -1003,8 +1028,8 @@ mod tests {
             None::<&HashSet<String>>,
         );
         assert!(
-            w.is_empty(),
-            "array-element writes must not be conflated into an S102 report: {w:?}"
+            w.iter().any(|w| w.variable == "arr(x)"),
+            "the same element oscillating every iteration is a real S102: {w:?}"
         );
     }
 

@@ -421,6 +421,37 @@ fn dict_incr() {
     assert_eq!(msg, "expected integer but got \"x\"");
 }
 
+/// `dict incr` promotes through the same integer tower as `incr`/`expr`
+/// (`value_ops::int_add`): a sum past `i64` becomes the exact bignum, never
+/// the old "integer value too large to represent" error (`RUST_ISSUE_095`).
+#[test]
+fn dict_incr_promotes_past_wide() {
+    // tclsh 8.6/9.0: the default-increment (compiled `DICT_INCR_IMM`) path
+    // at i64::MAX promotes.
+    assert_eq!(
+        run("set d {k 9223372036854775807}\ndict incr d k\nset d").1,
+        "k 9223372036854775808"
+    );
+    // tclsh: two i64::MAX increments accumulate exactly (the increment is
+    // beyond the opcode's immediate, driving the command path).
+    assert_eq!(
+        run("set d {}\ndict incr d k 9223372036854775807\n\
+             dict incr d k 9223372036854775807\ndict get $d k")
+        .1,
+        "18446744073709551614"
+    );
+    // tclsh: a bignum increment (past i64) is itself legal and exact.
+    assert_eq!(
+        run("set d {k 5}\ndict incr d k 18446744073709551616\ndict get $d k").1,
+        "18446744073709551621"
+    );
+    // tclsh: a stored bignum value keeps promoting.
+    assert_eq!(
+        run("set d {k 18446744073709551616}\ndict incr d k\ndict get $d k").1,
+        "18446744073709551617"
+    );
+}
+
 /// `dict append` concatenates strings to the value (creating it empty);
 /// `dict lappend` appends list elements.
 #[test]

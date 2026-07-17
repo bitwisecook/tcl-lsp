@@ -779,9 +779,10 @@ fn incr_and_var_substitution() {
 /// `incr` routed through the shared `tcl_cmd_core::var::incr_value` core (the
 /// `VarStore` read + `ValueOps::int_add` tower seam). Covers the unset → 0 start,
 /// array elements (the name carries `base(key)`; the VM parses it), and the
-/// canonical coercion errors. Crucially, the VM has no bignum, so an overflowing
-/// `incr` now **errors** (`integer value too large to represent`) rather than
-/// silently wrapping as the old hand-rolled `wrapping_add` did.
+/// canonical coercion errors. Crucially, an overflowing `incr` now **promotes**
+/// through the integer tower (`i128`, then an arbitrary-precision bignum),
+/// matching tclsh, rather than silently wrapping as the old hand-rolled
+/// `wrapping_add` did.
 #[test]
 fn incr_shared_core() {
     // Unset variable starts at 0 (no prior `set`).

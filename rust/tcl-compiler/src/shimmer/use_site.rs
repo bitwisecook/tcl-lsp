@@ -42,7 +42,7 @@ use tcl_registry::{CommandRegistry, TclType};
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
-use crate::naming::normalise_var_name;
+use crate::naming::element_var_name;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
@@ -216,7 +216,7 @@ impl LoopFacts {
                     continue;
                 }
                 if let Some(expected) = arg_shimmer_type(registry, command, &arg_refs, i) {
-                    let var = normalise_var_name(word.trim()).to_owned();
+                    let var = element_var_name(word.trim()).to_owned();
                     self.use_targets.entry(var).or_default().insert(expected);
                 }
             }
@@ -354,7 +354,7 @@ fn resolve_tracked_var_use(
     if !is_pure_var_ref(stripped) {
         return None;
     }
-    let var = normalise_var_name(stripped).to_owned();
+    let var = element_var_name(stripped).to_owned();
     let sym = ctx.ssa.var_symbol(&var)?;
     if ctx.array_syms.contains(&sym) {
         return None;
@@ -685,11 +685,11 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
             // increment argument as Int.  The two checks are independent —
             // an Int target with a String `$amount` still shimmers on the
             // amount — so neither must short-circuit the other.
-            check_incr_var(ctx, normalise_var_name(name), stmt.span(), uses);
+            check_incr_var(ctx, element_var_name(name), stmt.span(), uses);
             if let Some(amt) = amount.as_deref().map(str::trim)
                 && amt.starts_with('$')
             {
-                check_incr_var(ctx, normalise_var_name(amt), stmt.span(), uses);
+                check_incr_var(ctx, element_var_name(amt), stmt.span(), uses);
             }
         }
 

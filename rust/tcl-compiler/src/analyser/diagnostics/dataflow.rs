@@ -207,6 +207,7 @@ file; this call falls through to the 'unknown' handler."
             include_var_read_roles: true,
             recurse_cmd_substitutions: true,
             include_reads_before_write: true,
+            element_qualified: false,
         });
         let mut cmd_texts: Vec<String> = Vec::new();
         for block in fu.cfg.blocks.values() {
@@ -296,19 +297,33 @@ file; this call falls through to the 'unknown' handler."
             // when the script never reads them back, so ``set auto_path …`` is
             // not a dead store.  Dialect-aware: the iRules set differs (issue
             // #831).
-            if tcl_registry::special_vars::is_externally_read(var, self.dialect()) {
+            if tcl_registry::special_vars::is_externally_read(
+                crate::naming::normalise_var_name(var),
+                self.dialect(),
+            ) {
+                continue;
+            }
+            // A synthetic may-def (base refresh / element fan) is not a
+            // write the user made — never a reportable dead store.
+            if fu.ssa.is_synthetic_def(
+                &chain.definition.block,
+                chain.definition.statement_index,
+                var,
+            ) {
                 continue;
             }
             // Scope-aliased vars (introduced via ``global`` or
             // ``upvar``) write through to a different scope — the
-            // local "no use" verdict is unsafe.
-            if scope_aliases.contains(var) {
+            // local "no use" verdict is unsafe. Policy sets hold *base*
+            // names, so an element symbol (`a(k)`) checks its base too.
+            let var_base = crate::naming::normalise_var_name(var);
+            if scope_aliases.contains(var) || scope_aliases.contains(var_base) {
                 continue;
             }
             // Cross-event vars (iRules ``::when::*`` defs/imports
             // or ``pkgIndex.tcl`` ``$dir``) may be read in
             // another event/scope at runtime.
-            if cross_event_vars.contains(var) {
+            if cross_event_vars.contains(var) || cross_event_vars.contains(var_base) {
                 continue;
             }
             // Suppress dead stores in SCCP-unreachable blocks —
@@ -540,11 +555,23 @@ file; this call falls through to the 'unknown' handler."
             if textually_referenced.contains(var) {
                 continue;
             }
+            // A synthetic may-def (base refresh / element fan) is not a
+            // write the user made — the element's own chain reports.
+            if fu.ssa.is_synthetic_def(
+                &chain.definition.block,
+                chain.definition.statement_index,
+                var,
+            ) {
+                continue;
+            }
             // Interpreter-provided special variables (``auto_path``, ``env``,
             // …) are consumed by the runtime even when the script never reads
             // them, so a bare ``set auto_path …`` is not an unused variable.
             // Dialect-aware via the special-variable registry (issue #831).
-            if tcl_registry::special_vars::is_externally_read(var, self.dialect()) {
+            if tcl_registry::special_vars::is_externally_read(
+                crate::naming::normalise_var_name(var),
+                self.dialect(),
+            ) {
                 continue;
             }
             // Only emit when no other SSA version of this var is
@@ -1004,6 +1031,31 @@ file; this call falls through to the 'unknown' handler."
             if params.contains(var.as_str()) {
                 continue;
             }
+            // An element read (`$arr(a)`) of an array whose *base* is
+            // defined, aliased, or a parameter anywhere in the function
+            // stays silent: which elements a dynamic write / whole-array
+            // command created is not statically knowable, so only a read
+            // of a wholly-unwritten, unaliased array reports. Policy sets
+            // are base-keyed, so the base is checked for those too.
+            if let Some(open) = var.find('(') {
+                let base = &var[..open];
+                let base_defined = fu.ssa.var_symbol(base).is_some_and(|sym| {
+                    fu.def_use.chains.keys().any(|(n, v)| n == base && *v > 0)
+                        || fu
+                            .ssa
+                            .blocks
+                            .values()
+                            .any(|b| b.statements.iter().any(|st| st.defs.contains_key(&sym)))
+                });
+                if base_defined
+                    || params.contains(base)
+                    || scope_aliases.contains(base)
+                    || extra_known_defined.contains(base)
+                    || supp.suppresses(base)
+                {
+                    continue;
+                }
+            }
             // A fully-qualified read (`$::myVar`, `$ns::var`) explicitly
             // targets the global / a named namespace scope, whose definition
             // may live in another proc, another namespace, or — for a
@@ -1213,6 +1265,7 @@ file; this call falls through to the 'unknown' handler."
             include_var_read_roles: false,
             recurse_cmd_substitutions: true,
             include_reads_before_write: false,
+            element_qualified: false,
         });
 
         let mut reported: FxHashSet<String> = FxHashSet::default();
@@ -2447,7 +2500,7 @@ fn w213_span_and_fix(
 /// provides a different set (its `static::` namespace, no `argv`/`env`) than
 /// standard Tcl.
 fn is_implicit_var(name: &str, dialect: &str) -> bool {
-    tcl_registry::special_vars::is_special_var(name, dialect)
+    tcl_registry::special_vars::is_special_var(crate::naming::normalise_var_name(name), dialect)
 }
 
 /// Tcl ARE metacharacters: a pattern free of these reduces to a literal

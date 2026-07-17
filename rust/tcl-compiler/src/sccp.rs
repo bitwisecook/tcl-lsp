@@ -626,10 +626,42 @@ fn sccp_process_statements(
             }
             continue;
         }
+        // An element write's base def carries no scalar value of its own —
+        // `set arr(k) 5` / `set arr($i) 5` refresh `arr` for whole-array
+        // readers but must never let `$arr` fold to the element's value.
+        let element_write_base = match &stmt_ssa.statement {
+            Statement::AssignConst { name, .. }
+            | Statement::AssignExpr { name, .. }
+            | Statement::AssignValue { name, .. }
+            | Statement::Incr { name, .. }
+                if name.contains('(') =>
+            {
+                ssa.var_symbol(crate::naming::normalise_var_name(name))
+            }
+            _ => None,
+        };
         for (&var, ver) in &stmt_ssa.defs {
             let val =
-                if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace) {
+                if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
+                    || element_write_base == Some(var)
+                {
                     LatticeValue::Overdefined
+                } else if stmt_ssa.may_defs.contains(&var) {
+                    // A synthetic array-element may-def: the write may or may
+                    // not have hit this element, so its value is the JOIN of
+                    // the prior version (recorded as a use) and the written
+                    // value. The base refresh of an element write carries no
+                    // prior use — the base holds no value of its own.
+                    match stmt_ssa.uses.get(&var) {
+                        Some(prev_ver) => {
+                            let prev = values
+                                .get(&(var, *prev_ver))
+                                .cloned()
+                                .unwrap_or(LatticeValue::Overdefined);
+                            join(&prev, &evaluate_def(stmt_ssa, &*values, ssa, octal))
+                        }
+                        None => LatticeValue::Overdefined,
+                    }
                 } else {
                     evaluate_def(stmt_ssa, &*values, ssa, octal)
                 };
@@ -1768,6 +1800,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -1849,6 +1882,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         });
         let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
         let escaping: HashSet<String> = HashSet::new();
@@ -2056,6 +2090,7 @@ mod tests {
             },
             uses,
             defs,
+            may_defs: std::collections::HashSet::new(),
         };
 
         let mut values = HashMap::new();
@@ -2091,6 +2126,7 @@ mod tests {
             },
             uses,
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -2229,6 +2265,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -2377,6 +2414,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 

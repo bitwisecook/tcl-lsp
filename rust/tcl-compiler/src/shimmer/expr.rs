@@ -42,7 +42,6 @@ use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
-use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
@@ -334,10 +333,10 @@ fn check_numeric_operand(
     op: BinOp,
     context: NumericContext,
 ) {
-    let ExprNode::Var { name, .. } = node else {
+    let ExprNode::Var { text, .. } = node else {
         return;
     };
-    let base = normalise_var_name(name);
+    let base = crate::naming::element_var_name(text);
     let Some(sym) = ctx.ssa.var_symbol(base) else {
         return;
     };
@@ -423,10 +422,10 @@ fn check_numeric_operand(
 /// then parse, which is the same replacement, but a single number is a
 /// one-element list conversion so cheap it is not worth a warning.
 fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
-    let ExprNode::Var { name, .. } = node else {
+    let ExprNode::Var { text, .. } = node else {
         return;
     };
-    let base = normalise_var_name(name);
+    let base = crate::naming::element_var_name(text);
     let Some(sym) = ctx.ssa.var_symbol(base) else {
         return;
     };
@@ -502,10 +501,10 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
 /// rewrite to the numeric-equivalent operator is generally safe — see the
 /// `BinOp::StrEq | …` match arm's doc comment in [`collect_expr_shimmers`].
 fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
-    let ExprNode::Var { name, .. } = node else {
+    let ExprNode::Var { text, .. } = node else {
         return;
     };
-    let base = normalise_var_name(name);
+    let base = crate::naming::element_var_name(text);
     let Some(sym) = ctx.ssa.var_symbol(base) else {
         return;
     };

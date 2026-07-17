@@ -382,6 +382,59 @@ pub fn normalise_var_name(name: &str) -> &str {
     }
 }
 
+/// Whether an array-element key is a compile-time literal — no `$` variable
+/// or `[…]` command substitution, so the element it names is a single fixed
+/// variable (`arr(k)`, `arr(1)`), not a runtime-selected one (`arr($i)`).
+#[must_use]
+pub fn array_key_is_literal(key: &str) -> bool {
+    !key.contains('$') && !key.contains('[')
+}
+
+/// The **SSA variable name** of a reference or write-target word: the
+/// element-qualified form `base(key)` for a *constant-keyed* array element,
+/// the bare base otherwise.
+///
+/// Array elements are independent variables at runtime (each has its own
+/// value and intrep), so a constant-keyed element gets its own name — and
+/// therefore its own SSA symbol, type-lattice cell, and shimmer tracking.
+/// A dynamic key (`arr($i)`) may select any element, so it stays on the
+/// conflated base name (the SSA build fans its def over the array's known
+/// elements). A `${…}`-braced reference substitutes nothing inside the
+/// braces, so its key is always literal — `${arr($i)}` names the element
+/// whose key is the two characters `$i`.
+///
+/// ```
+/// use tcl_syntax::naming::element_var_name;
+/// assert_eq!(element_var_name("$arr(k)"), "arr(k)");
+/// assert_eq!(element_var_name("arr(k)"), "arr(k)");
+/// assert_eq!(element_var_name("$arr($i)"), "arr");
+/// assert_eq!(element_var_name("${arr($i)}"), "arr($i)");
+/// assert_eq!(element_var_name("${arr}(k)"), "arr");
+/// assert_eq!(element_var_name("$plain"), "plain");
+/// ```
+#[must_use]
+pub fn element_var_name(name: &str) -> &str {
+    element_var_name_braced(name, false)
+}
+
+/// [`element_var_name`] for a write-target word whose braced-ness is known
+/// from the lowering (`set {a($x)} v` — the braces suppressed substitution,
+/// so the key is literal even though it spells `$x`).
+#[must_use]
+pub fn element_var_name_braced(name: &str, braced_literal: bool) -> &str {
+    // `${…}` brace form: the inner text is the whole (literal) name.
+    if let Some(after) = name.strip_prefix("${")
+        && let Some(rel) = after.find('}')
+    {
+        return &after[..rel];
+    }
+    let base = name.strip_prefix('$').unwrap_or(name);
+    match split_array_name(name) {
+        (_, Some(key)) if braced_literal || array_key_is_literal(key) => base,
+        _ => normalise_var_name(name),
+    }
+}
+
 /// Return `true` when `${name}` would successfully look up `name` under the
 /// given `${…}` delimiting rule.
 ///

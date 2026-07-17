@@ -632,6 +632,100 @@ fn expr_runtime_integer_promotion() {
     );
 }
 
+/// The 61-digit value of `2**200`, an integer past the VM's `i128` fast tier —
+/// operands this size exercise the arbitrary-precision (`num-bigint`) path.
+const P200: &str = "1606938044258990275541962092341162602522202993782792835301376";
+
+#[test]
+fn expr_runtime_bignum_operands_past_i128() {
+    // An operand already past i128 (e.g. a prior 2**200 result) is numeric —
+    // it reaches the exact bignum path instead of erroring as a non-numeric
+    // string (the RUST_ISSUE_011 operand gap).  tclsh 8.6/9.0:
+    expr_ab(
+        P200,
+        "1",
+        "$a + $b",
+        "1606938044258990275541962092341162602522202993782792835301377",
+    );
+    expr_ab(P200, "7", "$a % $b", "4");
+    expr_ab(
+        P200,
+        "-3",
+        "$a / $b",
+        "-535646014752996758513987364113720867507400997927597611767126",
+    );
+    expr_ab(P200, "137", "$a >> $b", "9223372036854775808");
+    expr_ab(P200, "255", "$a & $b", "0");
+    // Unary over a beyond-i128 operand: exact negate and complement.
+    cmd_eq(&format!("set a {P200}; expr {{-$a}}"), &format!("-{P200}"));
+    cmd_eq(
+        &format!("set a {P200}; expr {{~$a}}"),
+        "-1606938044258990275541962092341162602522202993782792835301377",
+    );
+    // The bignum tier keeps C's error text.  tclsh: divide by zero
+    expr_ab_err(P200, "0", "$a / $b", "divide by zero");
+    expr_ab_err(P200, "0", "$a % $b", "divide by zero");
+}
+
+#[test]
+fn expr_runtime_bignum_float_contagion() {
+    // A bignum operand mixed with a float converts to its nearest double
+    // (C's `TclBignumToDouble`, round-to-nearest-even) and computes in f64 —
+    // never an error.  tclsh 8.6/9.0 agree on the *values*; the printed forms
+    // here are this toolchain's shortest round-trip rendering (tclsh 8.6's
+    // printer emits "1.844674407370955e+19" for exactly 2^64, a string that
+    // re-parses as 2^64 - 2048; `entier(1.5 + 18446744073709551616)` in 8.6
+    // confirms the value is 18446744073709551616).
+    expr_ab(
+        "1.5",
+        "18446744073709551616",
+        "$a + $b",
+        "1.8446744073709552e+19",
+    );
+    expr_ab(
+        "1.5",
+        "18446744073709551616",
+        "$a * $b",
+        "2.7670116110564327e+19",
+    );
+    // tclsh 8.6/9.0: expr {2**200 + 1.5} → 1.6069380442589903e+60
+    expr_ab(P200, "1.5", "$a + $b", "1.6069380442589903e+60");
+    // An integer-only operator still faults the *float* side (Tcl 9 wording).
+    expr_ab_err(
+        P200,
+        "1.5",
+        "$a % $b",
+        "cannot use floating-point value \"1.5\" as right operand of \"%\"",
+    );
+}
+
+#[test]
+fn expr_runtime_pow_and_shift_limits() {
+    // tclsh 8.6/9.0: the `**` exponent limit is 2^28 - 1; past it the result
+    // is "exponent too large" (never computed), while |base| <= 1 collapses
+    // for any exponent magnitude, parity included.
+    expr_ab_err("2", "268435456", "$a ** $b", "exponent too large");
+    expr_ab_err(
+        "2",
+        "99999999999999999999",
+        "$a ** $b",
+        "exponent too large",
+    );
+    expr_ab("1", "99999999999999999999", "$a ** $b", "1");
+    expr_ab("-1", "99999999999999999999", "$a ** $b", "-1"); // odd
+    expr_ab("-1", "99999999999999999998", "$a ** $b", "1"); // even
+    // tclsh: a left-shift count must fit C's int (`2 << 2**32` errors); a
+    // right-shift by any huge count collapses to the sign.
+    expr_ab_err(
+        "2",
+        "4294967296",
+        "$a << $b",
+        "integer value too large to represent",
+    );
+    expr_ab("2", "99999999999999999999", "$a >> $b", "0");
+    expr_ab("-2", "99999999999999999999", "$a >> $b", "-1");
+}
+
 #[test]
 fn expr_runtime_ipow_negative_exponent() {
     // The integer `ipow` negative-exponent special cases (variable operands).
@@ -830,6 +924,87 @@ fn mathfunc_wide_truncates_out_of_range_literal() {
     // tclsh 8.6/9.0: wide(0x8000000000000000) -> -9223372036854775808
     expr_eq("wide(0x8000000000000000)", "-9223372036854775808");
     expr_eq("wide(0xFFFFFFFFFFFFFFFF)", "-1");
+}
+
+#[test]
+fn mathfunc_int_wide_are_the_64bit_window() {
+    // int() and wide() are the same mod-2^64 window in 8.6+: an integer of
+    // any magnitude folds two's-complement; a double truncates toward zero
+    // first, then wraps the same way (variable args defeat const folding).
+    // tclsh 8.6/9.0:
+    cmd_eq("set x 18446744073709551617; expr {int($x)}", "1");
+    cmd_eq("set x 18446744073709551617; expr {wide($x)}", "1");
+    cmd_eq("set x -18446744073709551617; expr {int($x)}", "-1");
+    cmd_eq("set x 1e300; expr {int($x)}", "0"); // 10^300 divides by 2^64
+    cmd_eq("set x 1e300; expr {wide($x)}", "0");
+    cmd_eq("set x -1e300; expr {int($x)}", "0");
+    cmd_eq("set x 1.5e19; expr {int($x)}", "-3446744073709551616");
+    cmd_eq("set x 2.5e19; expr {int($x)}", "6553255926290448384");
+    cmd_eq(
+        "set x 9223372036854775808.0; expr {int($x)}",
+        "-9223372036854775808",
+    );
+    // Inf cannot wrap; NaN is not a number at all.  tclsh 8.6/9.0:
+    cmd_err(
+        "set x Inf; expr {int($x)}",
+        "integer value too large to represent",
+    );
+    cmd_err(
+        "set x Inf; expr {wide($x)}",
+        "integer value too large to represent",
+    );
+    cmd_err(
+        "set x NaN; expr {int($x)}",
+        "floating point value is Not a Number",
+    );
+}
+
+#[test]
+fn mathfunc_entier_round_are_exact_unbounded() {
+    // entier()/round() are exact and *unbounded* — no 64-bit window.  tclsh
+    // 8.6/9.0 return the full 301-digit integer for 1e300 (the exact value of
+    // the nearest double to 10^300), where int()/wide() wrap to 0.
+    let full_1e300 = "1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160";
+    cmd_eq("set x 1e300; expr {entier($x)}", full_1e300);
+    cmd_eq("set x 1e300; expr {round($x)}", full_1e300);
+    cmd_eq("set x 1.5e19; expr {entier($x)}", "15000000000000000000");
+    // Integers of any magnitude pass through exactly.  tclsh: round(2**200)
+    // is 2^200 itself.
+    cmd_eq(&format!("set x {P200}; expr {{round($x)}}"), P200);
+    cmd_eq(&format!("set x {P200}; expr {{entier($x)}}"), P200);
+    cmd_err(
+        "set x Inf; expr {entier($x)}",
+        "integer value too large to represent",
+    );
+    cmd_err(
+        "set x NaN; expr {round($x)}",
+        "floating point value is Not a Number",
+    );
+}
+
+#[test]
+fn mathfunc_abs_and_double_stay_bignum_exact() {
+    // abs() of an integer past i64 — or past i128 — is the exact magnitude,
+    // never a rounded double.  tclsh 8.6/9.0 (2^64 and 2^150):
+    cmd_eq(
+        "set x -18446744073709551616; expr {abs($x)}",
+        "18446744073709551616",
+    );
+    cmd_eq(
+        "set x -1427247692705959881058285969449495136382746624; expr {abs($x)}",
+        "1427247692705959881058285969449495136382746624",
+    );
+    // double() of a bignum is C's `TclBignumToDouble` conversion.
+    // tclsh 8.6/9.0: double(2**200) → 1.6069380442589903e+60
+    cmd_eq(
+        &format!("set x {P200}; expr {{double($x)}}"),
+        "1.6069380442589903e+60",
+    );
+    // tclsh 8.6/9.0: double(nan) is the NaN domain error.
+    cmd_err(
+        "set x NaN; expr {double($x)}",
+        "floating point value is Not a Number",
+    );
 }
 
 #[test]

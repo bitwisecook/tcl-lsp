@@ -72,6 +72,7 @@ fn make_scanner() -> VarReferenceScanner {
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
         include_reads_before_write: false,
+        element_qualified: false,
     })
 }
 

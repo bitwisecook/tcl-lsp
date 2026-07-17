@@ -296,18 +296,20 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
 /// overwritten store is a real dead store, not a "truly unused" var.
 fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<String> {
     match terminator {
-        Some(Terminator::Branch { condition, .. }) => condition.vars().into_iter().collect(),
+        Some(Terminator::Branch { condition, .. }) => {
+            condition.vars_element_qualified().into_iter().collect()
+        }
         Some(Terminator::Return { value, expr, .. }) => {
             let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
             if let Some(v) = value {
                 set.extend(
                     crate::var_refs::scan_var_ref_forms(v)
                         .into_iter()
-                        .map(|n| crate::naming::normalise_var_name(&n).to_string()),
+                        .map(|n| crate::naming::element_var_name(&n).to_string()),
                 );
             }
             if let Some(e) = expr {
-                set.extend(e.vars());
+                set.extend(e.vars_element_qualified());
             }
             set.into_iter().collect()
         }
@@ -409,6 +411,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -436,6 +439,7 @@ mod tests {
             },
             uses: u,
             defs: d,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 

@@ -1995,6 +1995,7 @@ mod tests {
             statement: call_stmt("set", &["x", "1"]),
             uses: HashMap::new(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
         let occurrences =
             statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
@@ -2013,6 +2014,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
         assert!(
             statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa()).is_empty()
@@ -2068,6 +2070,7 @@ mod tests {
             statement: stmt,
             uses,
             defs: Map::new(),
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -2300,6 +2303,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
         let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert_eq!(occ.len(), 1);
@@ -2320,6 +2324,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
         let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert_eq!(occ.len(), 1);
@@ -2563,6 +2568,7 @@ mod tests {
             },
             uses: Map::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         });
         // llength $i — uses map tracks `i`, not `x`.
         let mut uses_i = Map::new();
@@ -2571,6 +2577,7 @@ mod tests {
             statement: llength_on_i,
             uses: uses_i,
             defs: Map::new(),
+            may_defs: std::collections::HashSet::new(),
         });
         ssa.blocks.insert(header, h);
         ssa.blocks.insert(body, b);

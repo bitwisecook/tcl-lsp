@@ -1393,6 +1393,19 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                 evaluate_type_def(stmt, &word_ctx)
             }
         };
+        // An element write's base def carries no value type of its own —
+        // it refreshes `arr` for whole-array readers only (mirrors SCCP).
+        let element_write_base = match &ssa_stmt.statement {
+            Statement::AssignConst { name, .. }
+            | Statement::AssignExpr { name, .. }
+            | Statement::AssignValue { name, .. }
+            | Statement::Incr { name, .. }
+                if name.contains('(') =>
+            {
+                ctx.ssa.var_symbol(crate::naming::normalise_var_name(name))
+            }
+            _ => None,
+        };
         for (&var, &ver) in &ssa_stmt.defs {
             let key = (var, ver);
             let old = types
@@ -1404,8 +1417,33 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                 name,
                 ctx.escaping,
                 ctx.has_dynamic_variable_trace,
-            ) {
+            ) || element_write_base == Some(var)
+            {
                 TypeLattice::overdefined()
+            } else if ssa_stmt.may_defs.contains(&var) {
+                // A synthetic may-def: the write may or may not have hit
+                // this element, so its type is the JOIN of the prior
+                // version's type (recorded as a use) and the written type
+                // — `set arr($k) 9` over an INT `arr(a)` stays INT, over a
+                // STRING one widens. No prior use (a base refresh from a
+                // Call def) → Overdefined.
+                match ssa_stmt.uses.get(&var) {
+                    Some(prev_ver) => {
+                        let prev = types
+                            .get(&(var, *prev_ver))
+                            .cloned()
+                            .unwrap_or_else(TypeLattice::overdefined);
+                        let written = match &inferred {
+                            DefTyping::Uniform(t) => t.clone(),
+                            DefTyping::PerDef(map) => map
+                                .get(name)
+                                .cloned()
+                                .unwrap_or_else(TypeLattice::overdefined),
+                        };
+                        type_join(&prev, &written)
+                    }
+                    None => TypeLattice::overdefined(),
+                }
             } else {
                 match &inferred {
                     DefTyping::Uniform(t) => t.clone(),
@@ -1600,6 +1638,7 @@ mod tests {
             statement: stmt,
             uses: HashMap::new(),
             defs: defs.iter().map(|&(n, v)| (ssa.intern_var(n), v)).collect(),
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -2439,6 +2478,79 @@ mod tests {
         assert!(
             has_object_def,
             "some version of 'o' must carry the element class: {:?}",
+            fu.types
+        );
+    }
+
+    /// P5: constant-keyed array elements are independent variables — each
+    /// carries its own type (the oracle's "array elements behave as
+    /// independent scalars"), and the conflated base claims nothing.
+    #[test]
+    fn array_elements_type_independently() {
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {} {\n    set arr(a) 5\n    set arr(b) \"hello world\"\n    return $arr(a)\n}",
+            &tcl_registry::CommandRegistry::build_default(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let type_of = |name: &str| -> Vec<Option<TclType>> {
+            fu.types
+                .iter()
+                .filter(|((sym, ver), _)| *ver > 0 && fu.ssa.var_name(*sym) == name)
+                .map(|(_, t)| t.tcl_type())
+                .collect()
+        };
+        assert!(
+            type_of("arr(a)").iter().all(|t| *t == Some(TclType::Int)),
+            "arr(a) is INT in every version: {:?}",
+            fu.types
+        );
+        assert!(
+            type_of("arr(b)")
+                .iter()
+                .all(|t| *t == Some(TclType::String)),
+            "arr(b) is STRING independently: {:?}",
+            fu.types
+        );
+        assert!(
+            type_of("arr").iter().all(Option::is_none),
+            "the base symbol claims no value type: {:?}",
+            fu.types
+        );
+    }
+
+    /// P5: a dynamic-key write is a may-write over every known element —
+    /// the element's type JOINS with the written type (INT ⊔ INT stays
+    /// INT; INT ⊔ STRING widens) instead of trusting either side.
+    #[test]
+    fn dynamic_key_write_joins_element_types() {
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {k} {\n    set a(x) 5\n    set a($k) 9\n    return $a(x)\n}",
+            &tcl_registry::CommandRegistry::build_default(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let final_is_int = fu.types.iter().any(|((sym, ver), t)| {
+            *ver == 2 && fu.ssa.var_name(*sym) == "a(x)" && t.tcl_type() == Some(TclType::Int)
+        });
+        assert!(
+            final_is_int,
+            "INT ⊔ INT across the may-write stays INT: {:?}",
+            fu.types
+        );
+
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc g {k} {\n    set a(x) 5\n    set a($k) \"s t\"\n    return $a(x)\n}",
+            &tcl_registry::CommandRegistry::build_default(),
+            false,
+        );
+        let fu = cu.function("::g").unwrap();
+        let widened = fu.types.iter().any(|((sym, ver), t)| {
+            *ver == 2 && fu.ssa.var_name(*sym) == "a(x)" && t.tcl_type() == Some(TclType::Int)
+        });
+        assert!(
+            !widened,
+            "INT ⊔ STRING must not stay a single INT claim: {:?}",
             fu.types
         );
     }

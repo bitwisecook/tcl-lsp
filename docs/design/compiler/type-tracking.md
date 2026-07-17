@@ -180,10 +180,15 @@ would not.
    `num-bigint` folds `2**64` / `i64::MAX + 1` / `1 << 63` to C's exact
    values (demote-when-fits; SCCP carries a bignum as its canonical decimal
    string so chained folds re-parse exactly). The operator semantics live
-   once in `tcl_syntax::number_tower` (`BigIntOps` backend trait — the
-   compiler adapts `num-bigint` behind the crate's `num-bigint` feature; the
-   faithful runtime can adapt the real libtommath `mp_int`, keeping the
-   backend swappable with zero semantic drift; the VM is the next adopter).
+   once in `tcl_syntax::number_tower` (`BigIntOps` backend trait), and every
+   backend is pinned by the shared, generic
+   `number_tower::conformance::assert_backend` corpus: the compiler and the
+   **VM** (`tcl_vm::expr`, adopted — beyond-i128 operands, `dict incr`
+   promotion, and the exact `int()`/`wide()`/`entier()`/`abs()`/`double()`
+   windows included) run it over `num-bigint`, and the faithful runtime
+   runs it over the **real libtommath `mp_int`** (`runtime/rust`'s
+   `TowerMp` adapter) — backend swappable with zero semantic drift, now
+   proven by one test per backend rather than by review.
    Float edges are oracle-pinned (`tcl_expr_eval::float_edge_oracle_table`):
    NaN comparisons are IEEE-unordered values while NaN operands/results in
    arithmetic decline (C errors), `Inf` propagates, signed zero and
@@ -191,21 +196,31 @@ would not.
    inexact bignum→double contamination declines rather than bet on rounding
    parity.
 
-### P5 (planned) — arrays as per-constant-key scalars
+### P5 — arrays as per-constant-key scalars ✅ **landed**
 
-Element inference deliberately does **not** cover arrays yet. A Tcl array is
-a collection of *variables*, not a value, and today's SSA conflates every
-`arr(key)` element onto one base symbol (`normalise_var_name` strips the
-`(key)` suffix) — the very conflation the FP-SH-13 exclusions guard against
-in the shimmer passes. The oracle corpus ("array elements behave as
-independent scalars") fixes the faithful design: give each
-**constant-keyed** element (`arr(k)`, `arr(1)`) its own SSA symbol so it
-types/commits/folds as the independent scalar it is, while a dynamic key
-(`arr($i)`) keeps the conflated base with barrier semantics (it may alias
-any element). That is an SSA/naming-layer change, not a registry fact —
-registry-side, `array set` / `array get` then read naturally as
-`DictOfPairs`-shaped bulk moves over those element variables. Landing it
-retires the FP-SH-13 exclusions for constant keys.
+A Tcl array is a collection of *variables*, not a value; the oracle corpus
+("array elements behave as independent scalars") fixes the design. Each
+**constant-keyed** element (`arr(k)`, `set {a($x)} v`'s literal `$x`) is
+its own SSA variable (`naming::element_var_name`; the def/use scanners,
+expr AST, lowering `Call` defs, and `def_use` terminator reads all report
+element-qualified names), so it types, folds, and shimmer-checks as the
+independent scalar it is — per-element hover, per-element SCCP constants,
+and the *same*-element loop oscillation now a true S102 (the pre-P5
+conflation exclusion was a forced false negative there).
+
+A dynamic key (`arr($i)`) stays on the conflated base, and its write
+**fans** as `SsaStatement::may_defs` over the array's known elements:
+each fanned def records a use of the element's prior version, and both
+SCCP and type inference **join** old with written (`set a($k) 9` over an
+INT `a(x)` stays INT; over a STRING one widens; constants become sets,
+never a wrong single fold). An element write also refreshes the base (a
+may-def carrying no value of its own — `$arr` never folds to an
+element's value) so whole-array readers (`array get`) stay ordered.
+Base-name policy sets (special vars like `env`, traced, scope-alias,
+instance/cross-event) are consulted through the element's base, keeping
+`set env(FOO) x` and traced/instance elements exempt as before. The
+FP-SH-13 exclusions remain only for the base symbols they were built
+for; element symbols get full precision.
 
 ### Boolean acceptors (companion centralisation)
 

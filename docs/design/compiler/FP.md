@@ -4704,13 +4704,16 @@ re-deriving trace recognition — see
 ### FP-SH-13 — array-element writes collapse onto one SSA symbol; two stable-but-different elements must not read as one variable oscillating
 
 - **Verdict:** FALSE POSITIVE (S100/S101/S102) — fixed
-- **Status:** FIXED for all three shimmer codes. Originally fixed for S102 only
-  (Rust port deep review); the same `array_element_symbols` exclusion is now
-  shared by the use-site (S100/S101) and phi-merge (S101) passes, so an
-  independent-element conflation no longer false-positives through *any*
-  shimmer surface. Proper per-element SSA modelling (which would let a
-  genuinely-oscillating single element still fire) remains the larger,
-  out-of-scope alternative.
+- **Status:** SUPERSEDED by per-element SSA modelling (type-tracking P5).
+  Constant-keyed elements now carry their own SSA symbols, so independent
+  elements cannot conflate at all — the FP this entry guards is prevented
+  structurally, and the `array_element_symbols` exclusion survives only for
+  the *base* symbols (dynamic-key and whole-array flows, which still
+  conflate by design). The flip side landed with it: the reproducer below —
+  the SAME element oscillating int ↔ string each iteration — is a genuine
+  per-iteration re-thunk and now correctly fires S102
+  (`fp_sh_13_same_element_oscillation_fires_s102`); the independent-element
+  variant (`arr(x)` int-stable, `arr(y)` string-stable) stays silent.
 - **Codes:** S100, S101, S102
 - **Corpus:** synthetic (a per-element-stable array accumulator, the common
   Tcl idiom `set arr(id) [somefn $arr(id)]`).

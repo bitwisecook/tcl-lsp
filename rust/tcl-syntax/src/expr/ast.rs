@@ -477,31 +477,52 @@ impl ExprNode {
 
     /// Recursive variable collection helper.
     fn collect_vars(&self, out: &mut HashSet<String>) {
+        self.collect_vars_with(&|_text, name| name.to_owned(), out);
+    }
+
+    /// Every variable read in this expression, **element-qualified**: a
+    /// constant-keyed array element reports as its own variable `base(key)`,
+    /// a dynamic one as the bare base — the SSA-side counterpart of
+    /// [`Self::vars`], which normalises every reference to its base.
+    #[must_use]
+    pub fn vars_element_qualified(&self) -> HashSet<String> {
+        let mut result = HashSet::new();
+        self.collect_vars_with(
+            &|text, _name| crate::naming::element_var_name(text).to_owned(),
+            &mut result,
+        );
+        result
+    }
+
+    /// The shared walk under [`Self::vars`] / [`Self::vars_element_qualified`]:
+    /// `pick` maps a `Var` node's `(text, name)` to the reported name.
+    fn collect_vars_with(&self, pick: &dyn Fn(&str, &str) -> String, out: &mut HashSet<String>) {
         match self {
-            Self::Var { name, .. } => {
-                if !name.is_empty() {
-                    out.insert(name.clone());
+            Self::Var { text, name, .. } => {
+                let picked = pick(text, name);
+                if !picked.is_empty() {
+                    out.insert(picked);
                 }
             }
             Self::Binary { left, right, .. } => {
-                left.collect_vars(out);
-                right.collect_vars(out);
+                left.collect_vars_with(pick, out);
+                right.collect_vars_with(pick, out);
             }
             Self::Unary { operand, .. } => {
-                operand.collect_vars(out);
+                operand.collect_vars_with(pick, out);
             }
             Self::Ternary {
                 condition,
                 true_branch,
                 false_branch,
             } => {
-                condition.collect_vars(out);
-                true_branch.collect_vars(out);
-                false_branch.collect_vars(out);
+                condition.collect_vars_with(pick, out);
+                true_branch.collect_vars_with(pick, out);
+                false_branch.collect_vars_with(pick, out);
             }
             Self::Call { args, .. } => {
                 for arg in args {
-                    arg.collect_vars(out);
+                    arg.collect_vars_with(pick, out);
                 }
             }
             // Command substitutions may contain variable references,
@@ -515,26 +536,28 @@ impl ExprNode {
             // detection (W214) sees the read. Nested vars inside command
             // substitutions are left to the SSA layer, matching the
             // `Self::Command` policy above.
-            Self::Raw { text } => collect_raw_vars(text, out),
+            Self::Raw { text } => collect_raw_vars_with(text, pick, out),
         }
     }
 }
 
-/// Re-lex raw fallback text and collect top-level `$var` references
-/// into `out`.'s `VAR`-token scan but without the
-/// registry / command-substitution recursion — at the pure-AST level
-/// we stop at command boundaries (nested `[…]` vars belong to the SSA
-/// layer). A lex failure contributes no variables.
-fn collect_raw_vars(text: &str, out: &mut HashSet<String>) {
+/// Re-lex raw fallback text and collect top-level `$var` references through
+/// `pick` (the same `(text, base-name)` mapping as the AST walk).
+fn collect_raw_vars_with(
+    text: &str,
+    pick: &dyn Fn(&str, &str) -> String,
+    out: &mut HashSet<String>,
+) {
     let source_map = SourceMap::new(text);
     let Ok(tokens) = Lexer::new(text).tokenise_all() else {
         return;
     };
     for tok in &tokens {
         if tok.kind == TokenType::Var {
-            let name = normalise_var_name(source_map.token_text(*tok));
-            if !name.is_empty() {
-                out.insert(name.to_owned());
+            let raw = source_map.token_text(*tok);
+            let picked = pick(raw, normalise_var_name(raw));
+            if !picked.is_empty() {
+                out.insert(picked);
             }
         }
     }

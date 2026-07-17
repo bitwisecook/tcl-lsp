@@ -189,10 +189,8 @@ pub fn hover_with_profile(
             // pipeline (`CompilationUnit`), which requires a
             // registry; without one we surface just the reference
             // count.
-            let (type_info, taint_info) = match registry {
-                Some(reg) => infer_var_type_and_taint(source, reg, &var_name),
-                None => (None, None),
-            };
+            let (type_info, taint_info) =
+                var_type_annotations(source, line, character, &var_name, registry);
             return Some(Hover::markdown(var_hover_text(
                 var_def,
                 type_info.as_deref(),
@@ -2172,6 +2170,68 @@ pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<S
         }
     }
     None
+}
+
+/// The hover type/taint annotations for the variable at the cursor. Type
+/// inference is keyed by element-qualified SSA names (`arr(idx)` is its own
+/// variable), so the lookup name comes from
+/// [`find_var_element_at_position`]; scope-chain resolution stays on the
+/// base form the caller already has.
+fn var_type_annotations(
+    source: &str,
+    line: u32,
+    character: u32,
+    var_name: &str,
+    registry: Option<&CommandRegistry>,
+) -> (Option<String>, Option<String>) {
+    let type_var = find_var_element_at_position(source, line, character)
+        .unwrap_or_else(|| var_name.to_owned());
+    match registry {
+        Some(reg) => infer_var_type_and_taint(source, reg, &type_var),
+        None => (None, None),
+    }
+}
+
+/// [`find_var_at_position`] keeping a constant array key: `$arr(idx)` under
+/// the cursor resolves to the per-element SSA variable `arr(idx)` (a dynamic
+/// key falls back to the base). Used for the type-inference lookup, which is
+/// keyed by element-qualified SSA names; scope-chain / references lookups
+/// stay on the base form.
+fn find_var_element_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let cursor = utf16_col_to_char_col(line_text, character).min(chars.len());
+
+    let base = find_var_at_position(source, line, character)?;
+    // Locate the ref's `(` — scan right from the cursor's var name for a
+    // literal key suffix. Walk left to the nearest `$`, then forward over
+    // the name; a following `(key)` with a literal key element-qualifies.
+    let mut pos = cursor.min(chars.len());
+    let stop_chars: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
+    while pos > 0 && !stop_chars.contains(&chars[pos - 1]) {
+        pos -= 1;
+    }
+    if pos > 0 && chars[pos - 1] == '$' {
+        pos -= 1;
+    }
+    if pos < chars.len() && chars[pos] == '$' {
+        let start = pos + 1;
+        let end = scan_var_name_end(&chars, start);
+        if end > start && chars.get(end) == Some(&'(') {
+            let mut close = end + 1;
+            while close < chars.len() && chars[close] != ')' {
+                close += 1;
+            }
+            if close < chars.len() {
+                let full: String = chars[start..=close].iter().collect();
+                let qualified = tcl_syntax::naming::element_var_name(&full);
+                if qualified == full {
+                    return Some(full);
+                }
+            }
+        }
+    }
+    Some(base)
 }
 
 /// Find a `${name}` braced variable reference containing `cursor`.

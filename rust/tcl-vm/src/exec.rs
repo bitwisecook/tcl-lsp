@@ -2473,20 +2473,13 @@ impl Vm {
                 let name = lvt_name(imm_at(instr, 1));
                 let key = pop(f).to_str().to_string();
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
+                let inc = Value::int(amount);
                 let updated = dict_update_single(&cur, &key, |old| {
-                    // Add over the `i128` bignum stand-in (as `incr`/`expr` do) so
-                    // a sum past `i64` promotes rather than silently wrapping
-                    // (`RUST_ISSUE_095`).
-                    let base = match old {
-                        Some(v) => v.as_i128().ok_or_else(|| {
-                            err(format!("expected integer but got \"{}\"", v.to_str()))
-                        })?,
-                        None => 0,
-                    };
-                    let sum = base
-                        .checked_add(i128::from(amount))
-                        .ok_or_else(|| err("integer value too large to represent"))?;
-                    Ok(crate::expr::int_value(sum))
+                    // The same tower addition `incr` uses (`value_ops::int_add`):
+                    // a sum past `i64` promotes to `i128` and past that to an
+                    // arbitrary-precision bignum rather than erroring, matching
+                    // tclsh (`RUST_ISSUE_095`).
+                    crate::value_ops::int_add(old, &inc).map_err(|e| err(e.message()))
                 });
                 match updated {
                     Ok(result) => {
@@ -3386,9 +3379,10 @@ impl Vm {
     /// The current cell is read exactly as before (scalar or `arr(key)`), but the
     /// arithmetic goes through the shared [`tcl_syntax::value::ValueOps::int_add`]
     /// seam — the same one `incr`'s command core uses — so the number-model
-    /// behaviour is identical across the compiled and dispatched paths. The VM
-    /// has no bignum, so an overflowing `incr` reports `integer value too large to
-    /// represent` rather than silently wrapping (the old `wrapping_add` bug).
+    /// behaviour is identical across the compiled and dispatched paths: a sum
+    /// past `i64` promotes through the integer tower (`i128`, then an
+    /// arbitrary-precision bignum), matching tclsh, rather than wrapping (the
+    /// old `wrapping_add` bug) or erroring.
     fn incr_var(
         &mut self,
         f: &mut Frame,

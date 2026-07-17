@@ -463,10 +463,33 @@ proc f {} {
 /// FP-SH-13: `normalise_var_name` strips the `(key)` suffix before SSA
 /// interning, so every element of an array shares one symbol / version
 /// chain.  A loop that keeps writing different-but-per-element-stable types
-/// to different array elements must not fire S102 — the elements are
+/// to *different* array elements must not fire S102 — the elements are
 /// independent runtime slots, not the same value shimmering back and forth.
+/// (Per-element SSA symbols make this precise; the *same* element
+/// oscillating is a genuine S102 — see the TP control below.)
 #[test]
 fn fp_sh_13_array_element_conflation_no_s102() {
+    let src = "\
+proc f {} {
+    set arr(x) 0
+    while {1} {
+        set arr(x) [expr {$arr(x) + 1}]
+        set arr(y) [string range z 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-13: independent array elements must not fire S102; got {got:?}"
+    );
+}
+
+/// Per-element TP: the SAME element oscillating int ↔ string every
+/// iteration is a real per-iteration re-thunk (the pre-P5 conflation
+/// exclusion was a forced false negative here).
+#[test]
+fn fp_sh_13_same_element_oscillation_fires_s102() {
     let src = "\
 proc f {} {
     set arr(x) 0
@@ -478,8 +501,8 @@ proc f {} {
 ";
     let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S102"),
-        "FP-SH-13: array-element writes must not fire S102; got {got:?}"
+        got.iter().any(|c| c == "S102"),
+        "the same element oscillating every iteration is a real S102; got {got:?}"
     );
 }
 
