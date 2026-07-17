@@ -89,6 +89,16 @@ var*.txt
 rust/tcl-lsp-rust/.venv/
 iso2022.txt
 
+# Session-bootstrap leftover: the SessionStart hook fetches the Zig toolchain
+# and vendors Tcl's regex C sources into runtime/zig/ for main's Zig WASM
+# runtime. This branch has no runtime/zig/ tree at all — its WASM runtime is
+# runtime/rust/, and tcl-regex is a vendor-free pure-Rust port (see
+# docs/design/runtime/rust-regex-port.md) — but a session can still land here
+# with runtime/zig/ already fetched against the repo's default branch before
+# this branch was checked out. Ignore it outright rather than re-discovering
+# and deleting it every session.
+/runtime/zig/
+
 # Compiler-explorer screenshot debug snapshot — written by the webview
 # when SCREENSHOT_OUTPUT_DIR is set, captures the live HTML for offline
 # inspection.  Not a source artefact and historically tripped CodeQL
