@@ -1380,6 +1380,33 @@ fn apply_oo_forward(
     }
 }
 
+/// Extract a `constructor`/`destructor` member definition, anchoring its
+/// name span on the keyword token (`argv[0]`) — neither has a name word of
+/// its own, so editors land on the keyword for go-to-definition/hover.
+/// Extracted from [`apply_oo_subcommand`] to keep it within the line
+/// budget; the two members share this shape (`kind` param, no name word,
+/// synthetic id) exactly, differing only in which `ClassDef` field the
+/// caller stores the result into.
+fn apply_oo_ctor_or_dtor(
+    member: Option<&'static MemberSpec>,
+    sub_args: &[String],
+    sub_tokens: &[Token],
+    argv: &[Token],
+    kind: &str,
+) -> Option<MethodDef> {
+    let synthetic_id = if kind == "constructor" {
+        "<constructor>"
+    } else {
+        "<destructor>"
+    };
+    let mut md = member
+        .and_then(|m| extract_method_def(m, sub_args, sub_tokens, kind, "public", synthetic_id))?;
+    if let Some(kw) = argv.first() {
+        md.name_span = kw.span;
+    }
+    Some(md)
+}
+
 fn apply_oo_subcommand(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
@@ -1441,40 +1468,16 @@ fn apply_oo_subcommand(
             }
         }
         "constructor" => {
-            if let Some(mut md) = member.and_then(|m| {
-                extract_method_def(
-                    m,
-                    sub_args,
-                    sub_tokens,
-                    "constructor",
-                    "public",
-                    "<constructor>",
-                )
-            }) {
-                // Anchor the name span on the `constructor`
-                // keyword token (argv[0]) — there's no name
-                // token of its own, so editors land on the
-                // keyword for go-to-definition / hover.
-                if let Some(kw) = argv.first() {
-                    md.name_span = kw.span;
-                }
+            if let Some(md) =
+                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "constructor")
+            {
                 class_def.constructors.push(md);
             }
         }
         "destructor" => {
-            if let Some(mut md) = member.and_then(|m| {
-                extract_method_def(
-                    m,
-                    sub_args,
-                    sub_tokens,
-                    "destructor",
-                    "public",
-                    "<destructor>",
-                )
-            }) {
-                if let Some(kw) = argv.first() {
-                    md.name_span = kw.span;
-                }
+            if let Some(md) =
+                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "destructor")
+            {
                 class_def.destructor = Some(md);
             }
         }

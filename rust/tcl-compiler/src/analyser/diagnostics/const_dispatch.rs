@@ -46,8 +46,10 @@
 //! corruption, inverted).
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 
-use crate::analyser::state::Analyser;
+use crate::analyser::state::{Analyser, ConstDispatchSite};
+use crate::analyser::types::AnalysisResult;
 use crate::signature_scan::types::SignatureCommandInvocation;
 use crate::value_provenance::{ValueContributor, const_contributors};
 
@@ -80,6 +82,119 @@ fn command_component(c: &ValueContributor, head_expanded: bool) -> Option<ValueC
     })
 }
 
+/// Settle one pending dispatch site against `cu`'s flow-sensitive value
+/// model, appending its settled invocations to `settled`.  Extracted from
+/// [`Analyser::settle_const_dispatches`] to keep that function within the
+/// line budget; see its doc comment for the two-invocation-kinds contract
+/// this builds.
+fn settle_one_site(
+    cu: &crate::compilation_unit::CompilationUnit,
+    site: &ConstDispatchSite,
+    result: &AnalysisResult,
+    builtins: &HashSet<String>,
+    renamed_away: &HashSet<&String>,
+    settled: &mut Vec<SignatureCommandInvocation>,
+) {
+    // A write trace can mutate the variable at any read — the
+    // reaching-definition walk cannot see the trace callback's writes, so
+    // a traced head (or any dynamic variable trace in the module) abstains
+    // (issue #945 fault 2's trace arm).
+    if cu.ir_module.has_dynamic_variable_trace
+        || cu.ir_module.traced_variables.contains(&site.var_name)
+    {
+        return;
+    }
+    let fu = cu.function_unit_at(site.span.start());
+    let Some(contributors) = const_contributors(fu, site.span.start(), &site.var_name) else {
+        return;
+    };
+    let known = |qualified: &str| {
+        result.all_procs.contains_key(qualified)
+            || result.all_classes.contains_key(qualified)
+            || result.command_aliases.contains_key(qualified)
+            || result.renamed_commands.contains_key(qualified)
+            || (builtins.contains(qualified.trim_start_matches(':'))
+                && !renamed_away.contains(&qualified.to_string()))
+    };
+    let user_defined = |qualified: &str| {
+        result.all_procs.contains_key(qualified)
+            || result.all_classes.contains_key(qualified)
+            || result.command_aliases.contains_key(qualified)
+            || result.renamed_commands.contains_key(qualified)
+    };
+    let path: &[String] = result
+        .namespace_paths
+        .get(&site.ns)
+        .map_or(&[], Vec::as_slice);
+    // Group the contributors by the user command their value resolves to
+    // at *this* site's namespace context.  A value resolving to a builtin
+    // or to nothing contributes no reference (a builtin carries no
+    // navigable definition; an unknown value abstains) — and, being a
+    // separate may-path, it does not block the other targets.
+    // With an expanded head (`{*}$cmd args…`) the value is a command
+    // *prefix*: its first whitespace-delimited element names the command
+    // and the writable provenance narrows to that element's sub-span
+    // within the defining literal.  A plain `$cmd` head uses the whole
+    // value as the name.
+    let mut by_target: HashMap<String, Vec<ValueContributor>> = HashMap::new();
+    let mut order: Vec<String> = Vec::new();
+    for c in &contributors {
+        let Some(c) = command_component(c, site.head_expanded) else {
+            continue;
+        };
+        if c.value.trim().is_empty() || crate::naming::is_dynamic_word(&c.value) {
+            continue;
+        }
+        let Some(winner) = crate::naming::resolve_command_with(&site.ns, path, &c.value, known)
+        else {
+            continue;
+        };
+        if !user_defined(&winner) {
+            continue;
+        }
+        if !by_target.contains_key(&winner) {
+            order.push(winner.clone());
+        }
+        by_target.entry(winner).or_default().push(c);
+    }
+    for winner in order {
+        let group = &by_target[&winner];
+        let rename_safe = group.iter().all(|c| c.literal_span.is_some());
+        let written = &group[0].value;
+        settled.push(SignatureCommandInvocation {
+            name: written.clone(),
+            range: site.span,
+            resolved_qualified_name: Some(winner.clone()),
+            resolution_candidates: crate::naming::command_resolution_candidates(
+                &site.ns, path, written,
+            ),
+            argc: None,
+            callback_arity: None,
+            callback_baked_args: 0,
+            indirect: true,
+            rename_safe,
+            existence_probe: false,
+        });
+        for c in group {
+            let Some(span) = c.literal_span else { continue };
+            settled.push(SignatureCommandInvocation {
+                name: c.value.clone(),
+                range: span,
+                resolved_qualified_name: Some(winner.clone()),
+                resolution_candidates: crate::naming::command_resolution_candidates(
+                    &site.ns, path, &c.value,
+                ),
+                argc: None,
+                callback_arity: None,
+                callback_baked_args: 0,
+                indirect: false,
+                rename_safe: true,
+                existence_probe: false,
+            });
+        }
+    }
+}
+
 impl Analyser {
     /// Settle the pending `$cmd`-head dispatch sites against `cu`'s
     /// flow-sensitive value model, appending the settled invocations to
@@ -95,129 +210,35 @@ impl Analyser {
             return;
         }
         let _ = self.builtin_command_names();
-        let Some(builtins) = self.builtin_names.as_ref() else {
+        if self.builtin_names.is_none() {
             self.pending_const_dispatches.clear();
             return;
-        };
+        }
         let sites = std::mem::take(&mut self.pending_const_dispatches);
 
-        let renamed_away: std::collections::HashSet<&String> = self
+        let builtins = self.builtin_names.as_ref().expect("checked above");
+        let renamed_away: HashSet<&String> = self
             .result
             .renamed_commands
             .values()
             .chain(self.deleted_commands.keys())
             .collect();
-        let result = &self.result;
-        let known = |qualified: &str| {
-            result.all_procs.contains_key(qualified)
-                || result.all_classes.contains_key(qualified)
-                || result.command_aliases.contains_key(qualified)
-                || result.renamed_commands.contains_key(qualified)
-                || (builtins.contains(qualified.trim_start_matches(':'))
-                    && !renamed_away.contains(&qualified.to_string()))
-        };
-        let user_defined = |qualified: &str| {
-            result.all_procs.contains_key(qualified)
-                || result.all_classes.contains_key(qualified)
-                || result.command_aliases.contains_key(qualified)
-                || result.renamed_commands.contains_key(qualified)
-        };
 
         let mut settled: Vec<SignatureCommandInvocation> = Vec::new();
         for site in &sites {
-            // A write trace can mutate the variable at any read — the
-            // reaching-definition walk cannot see the trace callback's
-            // writes, so a traced head (or any dynamic variable trace in
-            // the module) abstains (issue #945 fault 2's trace arm).
-            if cu.ir_module.has_dynamic_variable_trace
-                || cu.ir_module.traced_variables.contains(&site.var_name)
-            {
-                continue;
-            }
-            let fu = cu.function_unit_at(site.span.start());
-            let Some(contributors) = const_contributors(fu, site.span.start(), &site.var_name)
-            else {
-                continue;
-            };
-            let path: &[String] = result
-                .namespace_paths
-                .get(&site.ns)
-                .map_or(&[], Vec::as_slice);
-            // Group the contributors by the user command their value
-            // resolves to at *this* site's namespace context.  A value
-            // resolving to a builtin or to nothing contributes no
-            // reference (a builtin carries no navigable definition; an
-            // unknown value abstains) — and, being a separate may-path,
-            // it does not block the other targets.
-            // With an expanded head (`{*}$cmd args…`) the value is a
-            // command *prefix*: its first whitespace-delimited element
-            // names the command and the writable provenance narrows to
-            // that element's sub-span within the defining literal.  A
-            // plain `$cmd` head uses the whole value as the name.
-            let mut by_target: HashMap<String, Vec<ValueContributor>> = HashMap::new();
-            let mut order: Vec<String> = Vec::new();
-            for c in &contributors {
-                let Some(c) = command_component(c, site.head_expanded) else {
-                    continue;
-                };
-                if c.value.trim().is_empty() || crate::naming::is_dynamic_word(&c.value) {
-                    continue;
-                }
-                let Some(winner) =
-                    crate::naming::resolve_command_with(&site.ns, path, &c.value, known)
-                else {
-                    continue;
-                };
-                if !user_defined(&winner) {
-                    continue;
-                }
-                if !by_target.contains_key(&winner) {
-                    order.push(winner.clone());
-                }
-                by_target.entry(winner).or_default().push(c);
-            }
-            for winner in order {
-                let group = &by_target[&winner];
-                let rename_safe = group.iter().all(|c| c.literal_span.is_some());
-                let written = &group[0].value;
-                settled.push(SignatureCommandInvocation {
-                    name: written.clone(),
-                    range: site.span,
-                    resolved_qualified_name: Some(winner.clone()),
-                    resolution_candidates: crate::naming::command_resolution_candidates(
-                        &site.ns, path, written,
-                    ),
-                    argc: None,
-                    callback_arity: None,
-                    callback_baked_args: 0,
-                    indirect: true,
-                    rename_safe,
-                    existence_probe: false,
-                });
-                for c in group {
-                    let Some(span) = c.literal_span else { continue };
-                    settled.push(SignatureCommandInvocation {
-                        name: c.value.clone(),
-                        range: span,
-                        resolved_qualified_name: Some(winner.clone()),
-                        resolution_candidates: crate::naming::command_resolution_candidates(
-                            &site.ns, path, &c.value,
-                        ),
-                        argc: None,
-                        callback_arity: None,
-                        callback_baked_args: 0,
-                        indirect: false,
-                        rename_safe: true,
-                        existence_probe: false,
-                    });
-                }
-            }
+            settle_one_site(
+                cu,
+                site,
+                &self.result,
+                builtins,
+                &renamed_away,
+                &mut settled,
+            );
         }
         // A literal feeding several dispatch sites (or several sites
         // resolving the same head) settles once per distinct
         // (span, target, kind).
-        let mut seen: std::collections::HashSet<(u32, u32, String, bool)> =
-            std::collections::HashSet::new();
+        let mut seen: HashSet<(u32, u32, String, bool)> = HashSet::new();
         settled.retain(|inv| {
             seen.insert((
                 inv.range.start(),

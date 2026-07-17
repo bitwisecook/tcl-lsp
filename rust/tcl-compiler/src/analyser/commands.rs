@@ -233,6 +233,50 @@ impl Analyser {
         self.body_depth -= 1;
     }
 
+    /// Returns `true` when `cmd_name` is hidden in the enclosing safe
+    /// interpreter and the caller must skip the command entirely.
+    /// Extracted from [`Self::process_command`] to keep that function
+    /// within the line budget.
+    fn safe_interp_visibility_gate(&mut self, cmd_name: &str, cmd_tok: Token) -> bool {
+        // Safe-interpreter visibility gate (issue #945 fault 7): inside a
+        // safe interpreter's evaluation body, a command whose registry spec
+        // is safe-hidden (`Traits::SAFE_INTERP_HIDDEN`) — or was
+        // `interp hide`-den — and not re-exposed raises `invalid command
+        // name` in C *before* any effect happens.  Flag it (W129) and skip
+        // the command entirely: no invocation record, no handler dispatch,
+        // no source / package / definition edges built from a call that
+        // never executes.  The set membership is registry data; no command
+        // name appears here.
+        let Some(ctx) = self.safe_interp_stack.last() else {
+            return false;
+        };
+        let bare = cmd_name.trim_start_matches(':');
+        let spec_hidden = ctx.base_hidden
+            && self.registry.and_then(|r| r.get(bare)).is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN)
+            });
+        let hidden =
+            (spec_hidden || ctx.hidden_extra.contains(bare)) && !ctx.exposed.contains(bare);
+        if !hidden {
+            return false;
+        }
+        if !self.structure_only {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: tcl_core_types::DiagCode::W129,
+                span: cmd_tok.span,
+                message: format!(
+                    "'{cmd_name}' is hidden in this safe interpreter — the call \
+                     raises `invalid command name` unless it is exposed or \
+                     invoked via `interp invokehidden`"
+                ),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+        true
+    }
+
     /// Process a single segmented command.
     ///
     /// Walks `args` against every handler and stops at the first
@@ -263,40 +307,11 @@ impl Analyser {
             return;
         }
         let cmd_name = argv_texts[0].as_str();
-        // Safe-interpreter visibility gate (issue #945 fault 7): inside a
-        // safe interpreter's evaluation body, a command whose registry spec
-        // is safe-hidden (`Traits::SAFE_INTERP_HIDDEN`) — or was
-        // `interp hide`-den — and not re-exposed raises `invalid command
-        // name` in C *before* any effect happens.  Flag it (W129) and skip
-        // the command entirely: no invocation record, no handler dispatch,
-        // no source / package / definition edges built from a call that
-        // never executes.  The set membership is registry data; no command
-        // name appears here.
-        if let Some(ctx) = self.safe_interp_stack.last() {
-            let bare = cmd_name.trim_start_matches(':');
-            let spec_hidden = ctx.base_hidden
-                && self.registry.and_then(|r| r.get(bare)).is_some_and(|spec| {
-                    spec.traits
-                        .contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN)
-                });
-            let hidden =
-                (spec_hidden || ctx.hidden_extra.contains(bare)) && !ctx.exposed.contains(bare);
-            if hidden {
-                if !self.structure_only {
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: tcl_core_types::DiagCode::W129,
-                        span: arg_tokens_in[0].span,
-                        message: format!(
-                            "'{cmd_name}' is hidden in this safe interpreter — the call \
-                             raises `invalid command name` unless it is exposed or \
-                             invoked via `interp invokehidden`"
-                        ),
-                        severity: super::types::Severity::Warning,
-                        fixes: Vec::new(),
-                    });
-                }
-                return;
-            }
+        // Safe-interpreter visibility gate (issue #945 fault 7): a command
+        // hidden in the enclosing safe interpreter never executes — see
+        // `safe_interp_visibility_gate`'s doc for the full rationale.
+        if self.safe_interp_visibility_gate(cmd_name, arg_tokens_in[0]) {
+            return;
         }
         let args = if argv_texts.len() > 1 {
             &argv_texts[1..]

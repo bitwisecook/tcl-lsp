@@ -1103,20 +1103,21 @@ impl Analyser {
             // literal child this file never creates raises `could not find
             // interpreter` at run time.  Abstains when any interp operation
             // in the file used a dynamic path (existence then unknowable).
-            if !self.interpreters.contains_key(&key) && !self.dynamic_interp_ops {
-                if let Some(tok) = arg_tokens.get(1) {
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: tcl_core_types::DiagCode::W140,
-                        span: tok.span,
-                        message: format!(
-                            "interpreter '{}' is never created in this file — \
-                             `interp eval` will raise `could not find interpreter`",
-                            args[1]
-                        ),
-                        severity: super::types::Severity::Warning,
-                        fixes: Vec::new(),
-                    });
-                }
+            if !self.interpreters.contains_key(&key)
+                && !self.dynamic_interp_ops
+                && let Some(tok) = arg_tokens.get(1)
+            {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: tcl_core_types::DiagCode::W140,
+                    span: tok.span,
+                    message: format!(
+                        "interpreter '{}' is never created in this file — \
+                         `interp eval` will raise `could not find interpreter`",
+                        args[1]
+                    ),
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
             }
         }
         // Multiple script words concatenate at run time (`Tcl_ConcatObj`),
