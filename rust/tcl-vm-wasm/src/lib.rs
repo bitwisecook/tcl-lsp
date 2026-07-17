@@ -43,7 +43,9 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::{first_fatal_parse_error, lower_to_ir_for_bytecode};
+use tcl_compiler::lowering::{
+    first_fatal_parse_error, lower_to_ir_for_bytecode, lower_to_ir_traced,
+};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -62,6 +64,15 @@ impl CompileService for Svc {
             return Err(CompileError(msg));
         }
         let ir = lower_to_ir_for_bytecode(src, &self.0);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, &self.0))
+    }
+
+    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        if let Some(msg) = first_fatal_parse_error(src) {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir_traced(src, &self.0);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.0))
     }

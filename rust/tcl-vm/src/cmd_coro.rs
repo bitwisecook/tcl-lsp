@@ -292,9 +292,13 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
 
     // Install the coroutine's flow; `parked` now holds the resumer's flow.
     vm.swap_flow(&mut parked);
+    // `activation_depth` lives on the engine (`Vm`) and `coro` on the current
+    // interp state (reached through `Deref`), so read the depth into a local
+    // before the push to avoid overlapping the whole-`Vm` deref borrow.
+    let base_depth = vm.activation_depth + 1;
     vm.coro.stack.push(CoroHandle {
         name: fqn.to_string(),
-        base_depth: vm.activation_depth + 1,
+        base_depth,
     });
     // Deliver the resume value where the parked `yield`'s result belongs. A Fresh
     // coroutine starts at pc 0, so it takes no delivered value. Any `coroinject`
@@ -336,11 +340,6 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
             let kind = match &req {
                 YieldReq::Yield(_) => SuspendKind::Yield,
                 YieldReq::YieldTo(_) => SuspendKind::YieldTo,
-                // A parent-call cannot suspend a CoroDriver drive — the
-                // drive loop converts it to a C-stack-busy error instead.
-                YieldReq::ParentCall(_) => {
-                    unreachable!("CoroDriver never yields a ParentCall")
-                }
             };
             // Park the coroutine (its frozen stack + flow) for the next resume.
             if let Some(state) = vm.coro.live.get_mut(fqn) {
@@ -356,9 +355,6 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
                 YieldReq::YieldTo(words) => {
                     let name = words[0].to_str().to_string();
                     vm.invoke_command(&name, &words[1..])
-                }
-                YieldReq::ParentCall(_) => {
-                    unreachable!("CoroDriver never yields a ParentCall")
                 }
             }
         }
@@ -477,9 +473,10 @@ fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Install the coroutine's flow, run the probe in it (so `[info coroutine]`
     // and its locals resolve), then restore the caller's flow.
     vm.swap_flow(&mut parked);
+    let base_depth = vm.activation_depth + 1;
     vm.coro.stack.push(CoroHandle {
         name: fqn.clone(),
-        base_depth: vm.activation_depth + 1,
+        base_depth,
     });
     let result = vm.invoke_command(&cmd.to_str(), rest);
     vm.coro.stack.pop();

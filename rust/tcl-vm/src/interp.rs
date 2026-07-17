@@ -16,8 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The interpreter state (`Vm`): the call-frame stack, the command table, the
-//! compiled-proc registry, and the variable/command/eval surface.
+//! The interpreter engine (`Vm`): a tree of interpreters sharing one native
+//! call stack, each holding its own call-frame stack, command table,
+//! compiled-proc registry, and variable/command/eval surface
+//! (`InterpState`). Cross-interp evaluation — `interp eval`, alias crossings
+//! in any direction, `interp invokehidden` — switches the engine's current
+//! interpreter by swapping arena-held state (`Vm::in_interp`), so it composes
+//! with every native re-entry (coroutine resume, `lsort -command`, trace/event
+//! callbacks) exactly as C Tcl's shared-C-stack, different-`Tcl_Interp*`
+//! model does (issue #946).
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
@@ -173,14 +180,51 @@ fn join_segments(name: &str) -> String {
     out
 }
 
-/// Which interpreter an alias-chain step addresses (`interp` paths are one
-/// level deep in this VM): this Vm, or a direct child by `children`-table key.
-#[derive(Clone, PartialEq, Eq)]
-enum AliasSite {
-    /// This interpreter (`{}` path).
-    Here,
-    /// A direct child, by name.
-    Child(String),
+/// Stable identity of one interpreter in this VM's arena (a slot index).
+/// Identities are never reused: a deleted interp's id stays dead forever, so
+/// an alias or pending callback holding a stale id can never accidentally
+/// address a same-named successor (C's `Tcl_Interp*` identity rule —
+/// tclsh-pinned: recreating a deleted target does not resurrect its aliases).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct InterpId(usize);
+
+/// The root interpreter's id (slot 0, never deleted).
+pub(crate) const ROOT_INTERP: InterpId = InterpId(0);
+
+/// One arena slot: an interp's parked state plus the lifecycle bookkeeping
+/// that must stay addressable while the state itself is executing.
+struct InterpSlot {
+    /// The interp's state while it is NOT the currently-executing one.
+    /// Exactly one live interp has `None` here at any time — the current one,
+    /// whose state is in [`Vm::state`].
+    parked: Option<Box<InterpState>>,
+    /// In-flight evaluations addressing this interp (the innermost current
+    /// activation plus every buried re-entry). Guards teardown: `interp
+    /// delete` on an active interp defers the state drop until this reaches
+    /// zero (C's `Tcl_Preserve`/`Tcl_Release` — tclsh-pinned: a child's
+    /// in-flight eval runs to completion after its deletion).
+    active: u32,
+    /// Deleted while active: unreachable by name/path, state torn down when
+    /// the last in-flight evaluation unwinds.
+    dying: bool,
+    /// The interp that created this one (`None` for the root).
+    parent: Option<InterpId>,
+}
+
+impl InterpSlot {
+    fn is_root(&self) -> bool {
+        self.parent.is_none()
+    }
+}
+
+/// Engine-level record of one cross-interp alias: deleting the TARGET interp
+/// must remove the alias command from its SOURCE interp (C keeps a per-interp
+/// target table for exactly this sweep — tclsh-pinned: after `interp delete
+/// b`, an `a`-side alias into `b` is gone from `info commands`).
+struct AliasBackref {
+    source: InterpId,
+    key: String,
+    target: InterpId,
 }
 
 /// Canonicalise a command name's separators into the VM's key form: a run of
@@ -245,8 +289,60 @@ fn elem_ref(name: &str) -> Option<(&str, &str)> {
     }
 }
 
-/// The bytecode VM's interpreter state.
+/// The bytecode VM: the engine driving a tree of interpreters.
+///
+/// Every interpreter's state lives in one arena (`interps`), addressed by a
+/// stable [`InterpId`]; the currently-executing interp's state is held
+/// directly in `state` (hot: `Deref` target, one pointer hop). Cross-interp
+/// evaluation — `interp eval`, alias crossings, `interp invokehidden` — is a
+/// plain nested native call with the two states swapped (C's shared C stack
+/// with a different `Tcl_Interp*`), so re-entering an interpreter that is
+/// already executing deeper on the stack is legal: its persistent state stays
+/// addressable in the arena throughout (the fix for issue #946 faults 1–2).
 pub struct Vm {
+    /// The currently-executing interpreter's state ([`Deref`] target).
+    state: Box<InterpState>,
+    /// Which interp `state` belongs to.
+    cur: InterpId,
+    /// All interpreters ever created; slot 0 is the root. Slots are never
+    /// removed — a deleted interp's slot stays, `parked: None`, `dying`.
+    interps: Vec<InterpSlot>,
+    /// Count of nested [`Vm::drive`](crate::exec) invocations — the host
+    /// re-entry counter. A `yield` is legal only at the depth its coroutine's
+    /// driver started at; a deeper depth means a `catch`/`uplevel`/`eval`/
+    /// `lsort -command`/OO-method/cross-interp re-entry sits between, so the
+    /// suspend is rejected (`cannot yield: C stack busy`) — including across
+    /// an interp boundary, exactly as C Tcl's non-NRE cross-interp eval
+    /// (tclsh-pinned).
+    pub(crate) activation_depth: usize,
+    /// Cross-interp alias records for the target-death sweep. Appended when a
+    /// [`Command::CrossAlias`] registers; entries are validated lazily at
+    /// sweep time (a stale entry — alias since removed or source dead — is
+    /// skipped).
+    alias_backrefs: Vec<AliasBackref>,
+}
+
+impl std::ops::Deref for Vm {
+    type Target = InterpState;
+
+    #[inline]
+    fn deref(&self) -> &InterpState {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for Vm {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut InterpState {
+        &mut self.state
+    }
+}
+
+/// One interpreter's complete state: command table, namespaces, call frames,
+/// error state, traces, coroutines, channels, children. The engine ([`Vm`])
+/// executes with exactly one of these current at a time and swaps between
+/// them at interpreter boundaries.
+pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
     /// model §5.4, VM-parity milestone). Every profile pins `V9_0` today:
@@ -326,6 +422,26 @@ pub struct Vm {
     /// Every command dispatched while non-empty fires these (C's step
     /// semantics); the traced proc's frame pops its own pushes on completion.
     pub(crate) exec_step_scopes: Vec<Rc<CmdTraceEntry>>,
+    /// Bumped on every `trace add|remove execution … enterstep|leavestep …`
+    /// (and command rename, which moves such a trace's registration) — the
+    /// analogue of C's `compileEpoch` bump on `DONT_COMPILE_CMDS_INLINE`
+    /// toggles. `ProcDef::compiled_epoch` records which epoch a proc's body
+    /// was compiled under; a stale epoch triggers a recompile (traced or
+    /// untraced, per [`Self::step_trace_active`]) the next time the proc is
+    /// entered — see [`Vm::ensure_proc_compiled_for_tracing`].
+    trace_deopt_epoch: std::cell::Cell<u64>,
+    /// Set for the duration of [`Vm::run_cmd_trace_callback`]'s evaluation:
+    /// C's `INTERP_TRACE_IN_PROGRESS` (`tclTrace.c`) — while any command or
+    /// execution trace callback is running, no further interp-wide trace
+    /// firing happens for commands *inside* that callback (`TclCheckInterpTraces`
+    /// returns immediately). Without this, a step-traced proc's `enterstep`
+    /// callback (e.g. `puts "…"`) would itself be step-observed, and its own
+    /// `puts` dispatch would recurse into firing traces again. A `Cell`, not
+    /// a plain `bool` field, so a read-only dispatch-site check
+    /// (`self.trace_in_progress.get()`) doesn't need `&mut self` — and so it
+    /// doesn't count toward `clippy::struct_excessive_bools` alongside the
+    /// interp's genuine bool-valued state (`is_safe`, `debug_frame`, …).
+    pub(crate) trace_in_progress: std::cell::Cell<bool>,
     /// A traced dispatch that deferred its body to a pushed frame parks its
     /// leave context here for `drive_loop` to move onto that frame — set and
     /// drained within one trampoline step.
@@ -377,6 +493,18 @@ pub struct Vm {
     /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
     /// time. This is the dominant cost in the tcltest workload.
     eval_cache: HashMap<String, Rc<ModuleAsm>>,
+    /// Trace-visible counterpart of [`Self::eval_cache`] — the SAME source
+    /// text compiled with [`CompileService::compile_traced`] instead of
+    /// [`compile`](CompileService::compile), used whenever
+    /// [`Self::step_trace_active`] is true. A step-traced proc's `if`/`while`/
+    /// `foreach`/`eval`/`uplevel`/`catch`/`try`/… bodies all funnel through
+    /// `eval_source`/`compile_source_cached` (their runtime builtins evaluate
+    /// bodies that way), so gating the cache choice here — rather than at
+    /// each call site — makes every one of them trace-visible with one change
+    /// (issue #946 fault 3). Kept as a wholly separate map (not a mode-keyed
+    /// entry in `eval_cache`) so the two compiled forms of the same source
+    /// never collide or get served to the wrong mode.
+    eval_cache_traced: HashMap<String, Rc<ModuleAsm>>,
     /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
     /// error message followed by `while executing` / `invoked from within`
     /// frames, built up as the error unwinds through commands. `None` until the
@@ -424,17 +552,12 @@ pub struct Vm {
     /// generator's 31-bit seed (`tclExecute.c`). Seeded deterministically so a
     /// fresh VM is reproducible; `srand(n)` resets it.
     rand_seed: i64,
-    /// Child interpreters (`interp create`), keyed by name. Each is a full `Vm`
-    /// sharing this one's output sink and compile service; their command tables,
-    /// namespaces, variables, and channels are isolated. A child is reachable
-    /// both here and as a command (`Command::ChildInterp`) in this interp.
-    children: HashMap<String, Vm>,
-    /// A hosted (parent-pumped) top-level eval suspended at a
-    /// [`crate::exec::YieldReq::ParentCall`]: the frozen activation stack,
-    /// parked between [`crate::exec::HostedExit::ParentCall`] and the owning
-    /// parent's [`Vm::resume_hosted`](crate::exec) call.  `None` whenever this
-    /// interp is not mid-parent-call.
-    pub(crate) hosted_parked: Option<Vec<crate::exec::Frame>>,
+    /// Child interpreters (`interp create`), keyed by name. Each id addresses
+    /// a full [`InterpState`] in the engine's arena, sharing this one's output
+    /// sink and compile service; command tables, namespaces, variables, and
+    /// channels are isolated. A child is reachable both here and as a command
+    /// (`Command::ChildInterp`) in this interp.
+    children: HashMap<String, InterpId>,
     /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
     is_safe: bool,
     /// Per-interp recursion bound (`interp recursionlimit`), default
@@ -465,12 +588,6 @@ pub struct Vm {
     /// `[info coroutine]` + the yield-boundary check), and the pending
     /// `yield`/`yieldto` request. See [`crate::cmd_coro`].
     pub(crate) coro: crate::cmd_coro::CoroSystem,
-    /// Count of nested [`Vm::drive`](Self) invocations — the host re-entry
-    /// counter. A `yield` is legal only at the depth its coroutine's driver
-    /// started at; a deeper depth means a `catch`/`uplevel`/`eval`/`lsort
-    /// -command`/OO-method re-entry sits between, so the suspend is rejected
-    /// (`cannot yield: C stack busy`).
-    pub(crate) activation_depth: usize,
     /// A script an `eval`/`uplevel`-style builtin wants run on the *explicit*
     /// stack (so a `yield` in it stays yieldable): the compiled body + its
     /// `errorInfo` body label. Set by the builtin and drained by `dispatch_words`
@@ -629,11 +746,32 @@ impl Vm {
         self.runtime_version
     }
 
-    /// A VM writing to an already-shared output sink — the path
-    /// [`fork_child`](Self::fork_child) uses so a child interpreter's `puts`
-    /// reaches the same place as its parent's.
+    /// A VM writing to an already-shared output sink.
     fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         let mut vm = Self {
+            state: Box::new(InterpState::fresh(out)),
+            cur: ROOT_INTERP,
+            interps: vec![InterpSlot {
+                parked: None,
+                active: 0,
+                dying: false,
+                parent: None,
+            }],
+            activation_depth: 0,
+            alias_backrefs: Vec::new(),
+        };
+        register_builtins(&mut vm);
+        vm.bootstrap_globals();
+        vm
+    }
+}
+
+impl InterpState {
+    /// A fresh interpreter state writing `puts` output to `out` — no commands
+    /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
+    /// up with `register_builtins`).
+    fn fresh(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
+        Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
@@ -653,6 +791,8 @@ impl Vm {
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
             exec_step_scopes: Vec::new(),
+            trace_deopt_epoch: std::cell::Cell::new(0),
+            trace_in_progress: std::cell::Cell::new(false),
             pending_exec_leave: None,
             cmd_resolve_cache: std::cell::RefCell::new((0, HashMap::new())),
             cmd_epoch: std::cell::Cell::new(0),
@@ -664,6 +804,7 @@ impl Vm {
             last_debug_key: None,
             pending_exit: None,
             eval_cache: HashMap::new(),
+            eval_cache_traced: HashMap::new(),
             error_info: None,
             error_logged: false,
             error_line: 1,
@@ -674,7 +815,6 @@ impl Vm {
             recursion_depth: 0,
             host: Rc::new(NativeHost::new()),
             children: HashMap::new(),
-            hosted_parked: None,
             is_safe: false,
             recursion_limit: RECURSION_LIMIT,
             hidden_commands: HashMap::new(),
@@ -689,16 +829,219 @@ impl Vm {
             rand_seed: 1,
             oo: crate::cmd_oo::OoState::default(),
             coro: crate::cmd_coro::CoroSystem::default(),
-            activation_depth: 0,
             pending_eval: None,
             pending_catch: None,
             pending_subst: None,
             events: crate::cmd_event::EventQueue::default(),
             thread: crate::cmd_thread::ThreadSystem::default(),
+        }
+    }
+}
+
+impl Vm {
+    /// The currently-executing interpreter's id.
+    pub(crate) fn cur_interp(&self) -> InterpId {
+        self.cur
+    }
+
+    /// Read another interpreter's state (or the current one's, uniformly).
+    /// `None` for a dead id.
+    pub(crate) fn st_of(&self, id: InterpId) -> Option<&InterpState> {
+        if id == self.cur {
+            Some(&self.state)
+        } else {
+            self.interps.get(id.0)?.parked.as_deref()
+        }
+    }
+
+    /// Mutable access to another interpreter's state (or the current one's).
+    pub(crate) fn st_of_mut(&mut self, id: InterpId) -> Option<&mut InterpState> {
+        if id == self.cur {
+            Some(&mut self.state)
+        } else {
+            self.interps.get_mut(id.0)?.parked.as_deref_mut()
+        }
+    }
+
+    /// Whether `id` is still addressable (created and not deleted).
+    pub(crate) fn interp_alive(&self, id: InterpId) -> bool {
+        self.interps
+            .get(id.0)
+            .is_some_and(|s| !s.dying && (id == self.cur || s.parked.is_some()))
+    }
+
+    /// Run `f` with `id` as the current interpreter — the cross-interp calling
+    /// convention (C's `Tcl_EvalObjv(targetInterp, …)` on the shared C stack):
+    /// the current state parks in its arena slot, the target state becomes
+    /// current, and the previous interpreter is restored on the way out.  The
+    /// nested evaluation is a plain native re-entry, so re-entering an
+    /// interpreter that is already executing deeper on the stack is legal —
+    /// its persistent state lives in the arena throughout.  Deferred teardown:
+    /// if the target was deleted while (re-)entered, the last exit drops its
+    /// state (C's `Tcl_Preserve`/`Tcl_Release`; tclsh-pinned).
+    pub(crate) fn in_interp<R>(&mut self, id: InterpId, f: impl FnOnce(&mut Vm) -> R) -> R {
+        let prev = self.cur;
+        self.interps[id.0].active += 1;
+        self.switch_to(id);
+        let r = f(self);
+        self.switch_to(prev);
+        let slot = &mut self.interps[id.0];
+        slot.active -= 1;
+        if slot.dying && slot.active == 0 {
+            self.finalize_slot(id);
+        }
+        r
+    }
+
+    /// Make `id` current by swapping its parked state with the current one.
+    fn switch_to(&mut self, id: InterpId) {
+        if id == self.cur {
+            return;
+        }
+        let incoming = self.interps[id.0]
+            .parked
+            .take()
+            .expect("switch target's state is parked in its slot");
+        let outgoing = std::mem::replace(&mut self.state, incoming);
+        self.interps[self.cur.0].parked = Some(outgoing);
+        self.cur = id;
+    }
+
+    /// Mint a fresh arena slot for a new interpreter owned by `parent`.
+    fn new_interp_slot(&mut self, state: Box<InterpState>, parent: InterpId) -> InterpId {
+        let id = InterpId(self.interps.len());
+        self.interps.push(InterpSlot {
+            parked: Some(state),
+            active: 0,
+            dying: false,
+            parent: Some(parent),
+        });
+        id
+    }
+
+    /// Delete interpreter `id`: its subtree dies first (C deletes children
+    /// with their parent), cross-interp aliases TARGETING it are swept out of
+    /// their source interps (C's target table — tclsh-pinned: the alias
+    /// command disappears from `info commands`), and the state itself is
+    /// dropped now — or, when the interp is still executing (a re-entered
+    /// child, a target mid-callback), when its last in-flight evaluation
+    /// unwinds (tclsh-pinned: the in-flight eval completes normally).
+    fn retire_interp(&mut self, id: InterpId) {
+        if self.interps.get(id.0).is_none_or(|s| s.dying) {
+            return;
+        }
+        let child_ids: Vec<InterpId> = self
+            .st_of(id)
+            .map(|st| st.children.values().copied().collect())
+            .unwrap_or_default();
+        for c in child_ids {
+            self.retire_interp(c);
+        }
+        let targeting: Vec<(InterpId, String)> = self
+            .alias_backrefs
+            .iter()
+            .filter(|b| b.target == id && b.source != id)
+            .map(|b| (b.source, b.key.clone()))
+            .collect();
+        for (src, key) in targeting {
+            let still_aliased = self.st_of(src).is_some_and(|st| {
+                matches!(st.commands.get(&key),
+                    Some(Command::CrossAlias { target, .. }) if *target == id)
+            });
+            if still_aliased {
+                self.in_interp(src, |vm| {
+                    vm.remove_command_exact(&key);
+                    vm.on_command_removed(&key);
+                });
+            }
+        }
+        self.alias_backrefs.retain(|b| b.target != id);
+        let slot = &mut self.interps[id.0];
+        slot.dying = true;
+        if slot.active == 0 {
+            self.finalize_slot(id);
+        }
+    }
+
+    /// Drop a dying interpreter's state (frames, commands, channels,
+    /// coroutines) once nothing is executing in it any more.
+    fn finalize_slot(&mut self, id: InterpId) {
+        let slot = &mut self.interps[id.0];
+        debug_assert!(slot.dying && slot.active == 0);
+        slot.parked = None;
+        self.alias_backrefs.retain(|b| b.source != id);
+    }
+
+    /// Resolve an `interp` path from the current interpreter: `""`/`{}` names
+    /// the current interp, and each list element steps into the named child
+    /// (C's multi-level paths — `interp eval {a b} …` addresses grandchild
+    /// `b`).  A plain name is the common single-element case.
+    pub(crate) fn resolve_interp_path(&self, path: &str) -> Result<InterpId, Completion<Value>> {
+        if path.is_empty() {
+            return Ok(self.cur);
+        }
+        let needs_split = path
+            .bytes()
+            .any(|b| b.is_ascii_whitespace() || matches!(b, b'{' | b'}' | b'"' | b'\\'));
+        let elems: Vec<String> = if needs_split {
+            match tcl_syntax::list::split_list(path) {
+                Ok(e) => e.into_iter().map(std::borrow::Cow::into_owned).collect(),
+                Err(_) => {
+                    return Err(err(format!("could not find interpreter \"{path}\"")));
+                }
+            }
+        } else {
+            vec![path.to_string()]
         };
-        register_builtins(&mut vm);
-        vm.bootstrap_globals();
-        vm
+        let mut cur = self.cur;
+        for name in &elems {
+            let next = self
+                .st_of(cur)
+                .and_then(|st| st.children.get(name.as_str()).copied());
+            match next {
+                Some(c) if self.interp_alive(c) => cur = c,
+                _ => return Err(err(format!("could not find interpreter \"{path}\""))),
+            }
+        }
+        Ok(cur)
+    }
+
+    /// Record a just-registered cross-interp alias for the target-death sweep.
+    pub(crate) fn note_alias_backref(&mut self, key: &str, target: InterpId) {
+        let source = self.cur;
+        self.alias_backrefs
+            .retain(|b| !(b.source == source && b.key == key));
+        self.alias_backrefs.push(AliasBackref {
+            source,
+            key: key.to_string(),
+            target,
+        });
+    }
+
+    /// Move a cross-interp alias's target-death backref from `old_key` to
+    /// `new_key` (an alias renamed in the current interp).
+    pub(crate) fn retarget_alias_backref(
+        &mut self,
+        old_key: &str,
+        new_key: &str,
+        target: InterpId,
+    ) {
+        let source = self.cur;
+        self.alias_backrefs
+            .retain(|b| !(b.source == source && (b.key == old_key || b.key == new_key)));
+        self.alias_backrefs.push(AliasBackref {
+            source,
+            key: new_key.to_string(),
+            target,
+        });
+    }
+
+    /// Drop any cross-interp alias backref for `key` in the current interp (the
+    /// alias was deleted or overwritten with a non-alias).
+    pub(crate) fn drop_alias_backref(&mut self, key: &str) {
+        let source = self.cur;
+        self.alias_backrefs
+            .retain(|b| !(b.source == source && b.key == key));
     }
 
     /// Reseed the `rand()` generator (`srand(n)`): mask to 31 bits, and nudge a
@@ -994,17 +1337,16 @@ impl Vm {
         {
             self.on_command_removed(name);
         }
+        // Overwriting a cross-interp alias drops its target-death backref (the
+        // alias-create path re-adds one for the new alias afterwards). Gated
+        // on the backref table so the builtin sweep and ordinary command
+        // registration pay nothing.
+        if !self.alias_backrefs.is_empty() {
+            self.drop_alias_backref(name);
+        }
         self.bump_cmd_epoch();
         self.imported_commands.remove(name);
         self.commands.insert(name.to_owned(), cmd);
-    }
-
-    /// Invalidate the command-resolution memo (M16.4): every command-table /
-    /// `namespace path` / runtime-version mutation routes through here so a
-    /// cached `(namespace, name) → key` can never outlive the state it was
-    /// computed from.
-    pub(crate) fn bump_cmd_epoch(&self) {
-        self.cmd_epoch.set(self.cmd_epoch.get().wrapping_add(1));
     }
 
     /// Resolve and remove the command `name`, returning it (for `rename`).
@@ -1029,11 +1371,13 @@ impl Vm {
     }
 
     /// `interp alias srcPath srcCmd targetPath target…` — route the alias by
-    /// its two one-level interp paths (`{}` = this interp, else a direct
-    /// child), install it in the SOURCE interp's table, and refuse a loop the
-    /// way C's `TclPreventAliasLoop` does: create first, walk the chain, roll
-    /// back on a hit (tclsh-pinned: a failed self-alias also destroys the
-    /// proc it clobbered — C does not restore it).
+    /// its two `interp` paths (`{}` = this interp, else a path reachable from
+    /// it), install it in the SOURCE interp's table, and refuse a loop the way
+    /// C's `TclPreventAliasLoop` does: create first, walk the chain, roll back
+    /// on a hit (tclsh-pinned: a failed self-alias also destroys the proc it
+    /// clobbered — C does not restore it).  Source and target may be any two
+    /// interpreters in the tree (child→parent, parent→child, and sibling↔
+    /// sibling all route through the shared engine — C supports every pairing).
     pub(crate) fn interp_alias_create(
         &mut self,
         src_path: &str,
@@ -1041,65 +1385,39 @@ impl Vm {
         target_path: &str,
         target_words: Vec<Value>,
     ) -> Completion<Value> {
-        let src_site = match self.alias_site(src_path) {
+        let src = match self.resolve_interp_path(src_path) {
             Ok(s) => s,
             Err(c) => return c,
         };
-        let target_site = match self.alias_site(target_path) {
-            Ok(s) => s,
+        let target = match self.resolve_interp_path(target_path) {
+            Ok(t) => t,
             Err(c) => return c,
         };
         let words = Rc::new(target_words);
-        let cmd = if src_site == target_site {
+        let cmd = if src == target {
             Command::Alias(Rc::clone(&words))
         } else {
-            match (&src_site, &target_site) {
-                (AliasSite::Here, AliasSite::Child(c)) => Command::ChildAlias {
-                    child: c.clone(),
-                    words: Rc::clone(&words),
-                },
-                (AliasSite::Child(_), AliasSite::Here) => Command::ParentAlias(Rc::clone(&words)),
-                // Sibling-to-sibling would need routing through this shared
-                // parent; C supports it, the VM's one-level tree does not
-                // (yet).  (Here/Here and equal children took the same-interp
-                // arm above.)
-                _ => {
-                    return err("cross-child interp aliases are not supported \
-                         (source and target must include this interpreter)");
-                }
+            Command::CrossAlias {
+                target,
+                words: Rc::clone(&words),
             }
         };
         // The written source name qualifies in the SOURCE interp to the
         // canonical unrooted key (`interp alias {} ::a::f {} g` creates
         // `a::f`; a raw registration would corrupt colon names, #934).
-        let src_key = match &src_site {
-            AliasSite::Here => self.qualify_name(src_cmd),
-            AliasSite::Child(c) => self
-                .children
-                .get(c)
-                .expect("alias_site checked the child exists")
-                .qualify_name(src_cmd),
-        };
-        match &src_site {
-            AliasSite::Here => self.register_command(&src_key, cmd),
-            AliasSite::Child(c) => self
-                .children
-                .get_mut(c)
-                .expect("alias_site checked the child exists")
-                .register_command(&src_key, cmd),
-        }
-        if self.alias_chain_loops(&src_site, &src_key) {
-            match &src_site {
-                AliasSite::Here => {
-                    self.remove_command_exact(&src_key);
-                }
-                AliasSite::Child(c) => {
-                    self.children
-                        .get_mut(c)
-                        .expect("alias_site checked the child exists")
-                        .remove_command_exact(&src_key);
-                }
+        let src_key = self.in_interp(src, |vm| {
+            let src_key = vm.qualify_name(src_cmd);
+            vm.register_command(&src_key, cmd);
+            if src != target {
+                vm.note_alias_backref(&src_key, target);
             }
+            src_key
+        });
+        if self.alias_chain_loops(src, &src_key) {
+            self.in_interp(src, |vm| {
+                vm.remove_command_exact(&src_key);
+                vm.drop_alias_backref(&src_key);
+            });
             let tail = key_holder_and_tail_unrooted(&src_key).1;
             return err(format!(
                 "cannot define or rename alias \"{tail}\": would create a loop"
@@ -1108,74 +1426,48 @@ impl Vm {
         ok(Value::string(src_cmd))
     }
 
-    /// Resolve a one-level `interp` path: `{}`/empty is this interp, a direct
-    /// child's name is that child, anything else (unknown name, deeper path)
-    /// is C's could-not-find error.
-    fn alias_site(&self, path: &str) -> Result<AliasSite, Completion<Value>> {
-        if path.is_empty() {
-            return Ok(AliasSite::Here);
-        }
-        if self.children.contains_key(path) {
-            return Ok(AliasSite::Child(path.to_string()));
-        }
-        Err(err(format!("could not find interpreter \"{path}\"")))
-    }
-
-    /// The interp an [`AliasSite`] addresses, if it still exists.
-    fn site_vm(&self, site: &AliasSite) -> Option<&Vm> {
-        match site {
-            AliasSite::Here => Some(self),
-            AliasSite::Child(c) => self.children.get(c),
-        }
-    }
-
     /// C's `TclPreventAliasLoop` (8.6 `tclInterp.c`), on the just-installed
-    /// alias at (`defining_site`, `defining_key`): follow the chain — each hop
-    /// resolves the alias's target name from the TARGET interp's **global**
-    /// namespace at define time; an unresolved target ends the chain (legal —
-    /// aliases late-bind), a non-alias ends it, and a hop landing back on the
-    /// defining command is a loop.  Cross-interp hops walk this one-level
-    /// tree: a `ChildAlias` steps into the child, a child's `ParentAlias`
-    /// steps back here.  Terminates because every *existing* alias already
-    /// passed this check (no pre-existing loops to spin in).
-    fn alias_chain_loops(&self, defining_site: &AliasSite, defining_key: &str) -> bool {
-        let mut site = defining_site.clone();
+    /// alias at (`defining_interp`, `defining_key`): follow the chain — each
+    /// hop resolves the alias's target name from the TARGET interp's
+    /// **global** namespace at define time; an unresolved target ends the
+    /// chain (legal — aliases late-bind), a non-alias ends it, and a hop
+    /// landing back on the defining command is a loop.  Cross-interp hops
+    /// address the target by its stable [`InterpId`], so the walk follows the
+    /// alias graph across the whole tree.  Terminates because every *existing*
+    /// alias already passed this check (no pre-existing loops to spin in).
+    fn alias_chain_loops(&self, defining_interp: InterpId, defining_key: &str) -> bool {
+        let mut interp = defining_interp;
         let mut key = defining_key.to_string();
         loop {
-            let Some(vm) = self.site_vm(&site) else {
+            let Some(st) = self.st_of(interp) else {
                 return false;
             };
-            let (target_site, target_words) = match vm.commands.get(&key) {
-                Some(Command::Alias(w)) => (site.clone(), Rc::clone(w)),
-                Some(Command::ChildAlias { child, words }) => {
-                    (AliasSite::Child(child.clone()), Rc::clone(words))
-                }
-                // A `ParentAlias` only exists in a direct child, so its
-                // target interp is this Vm.
-                Some(Command::ParentAlias(w)) => (AliasSite::Here, Rc::clone(w)),
+            let (target_interp, target_words) = match st.commands.get(&key) {
+                Some(Command::Alias(w)) => (interp, Rc::clone(w)),
+                Some(Command::CrossAlias { target, words }) => (*target, Rc::clone(words)),
                 _ => return false,
             };
             let Some(target_name) = target_words.first().map(|v| v.to_str().to_string()) else {
                 return false;
             };
-            let Some(target_vm) = self.site_vm(&target_site) else {
+            let Some(target_st) = self.st_of(target_interp) else {
                 return false;
             };
-            let Some(next) = target_vm.resolve_command_fqn("", &target_name) else {
+            let Some(next) = target_st.resolve_command_fqn("", &target_name) else {
                 return false;
             };
-            if target_site == *defining_site && next == defining_key {
+            if target_interp == defining_interp && next == defining_key {
                 return true;
             }
-            site = target_site;
+            interp = target_interp;
             key = next;
         }
     }
 
     /// [`Self::alias_chain_loops`] for a same-interp key — the `rename` gate's
-    /// entry (an alias never renames across interps).
+    /// entry (a `rename` never crosses interps, so it starts in the current one).
     pub(crate) fn alias_chain_loops_here(&self, key: &str) -> bool {
-        self.alias_chain_loops(&AliasSite::Here, key)
+        self.alias_chain_loops(self.cur, key)
     }
 
     /// Resolve a command name to its definition, honouring the current
@@ -1198,7 +1490,7 @@ impl Vm {
             Command::Proc(_) => "proc",
             // Cross-interp aliases are aliases (C's `info cmdtype` says
             // `alias` for every `interp alias` product).
-            Command::Alias(_) | Command::ChildAlias { .. } | Command::ParentAlias(_) => "alias",
+            Command::Alias(_) | Command::CrossAlias { .. } => "alias",
             Command::ChildInterp(_) => "interp",
             Command::Ensemble(_) => "ensemble",
             Command::Object(_) => "object",
@@ -1208,45 +1500,60 @@ impl Vm {
     /// A fresh child interpreter sharing this one's output sink, compile
     /// service, and host — its command table, namespaces, variables, and
     /// channels are otherwise independent (`interp create`).
-    fn fork_child(&self) -> Vm {
-        let mut child = Vm::with_shared_output(Rc::clone(&self.out));
-        child.runtime_version = self.runtime_version;
+    /// A fresh child interpreter's *bare* state (no builtins yet): its own
+    /// command table, namespaces, variables, and channels, but the parent's
+    /// output sink, compile service, host, and runtime version (`interp
+    /// create` inherits these). Populated by [`Self::create_child`] once it is
+    /// in the arena and can be entered.
+    fn fork_child_state(&self) -> Box<InterpState> {
+        let mut child = InterpState::fresh(Rc::clone(&self.out));
         child.compiler.clone_from(&self.compiler);
         child.host = Rc::clone(&self.host);
-        child.set_runtime_version(self.runtime_version);
-        child
+        child.runtime_version = self.runtime_version;
+        Box::new(child)
     }
 
-    /// `interp create ?-safe? ?name?` — make a child interpreter, registering it
-    /// as a command in this interp. Returns the (possibly auto-generated) name.
+    /// `interp create ?-safe? ?name?` — make a child interpreter in the arena,
+    /// registering it as a command in the current interp. Returns the (possibly
+    /// auto-generated) name.
     pub(crate) fn create_child(&mut self, name: Option<String>, safe: bool) -> String {
         let name = name.unwrap_or_else(|| {
             let n = format!("interp{}", self.interp_counter);
             self.interp_counter += 1;
             n
         });
-        let mut child = self.fork_child();
-        if safe {
-            child.make_safe();
-        }
-        self.children.insert(name.clone(), child);
+        let parent = self.cur;
+        let child = self.fork_child_state();
+        let id = self.new_interp_slot(child, parent);
+        // Populate the child by making it current and running the ordinary
+        // interpreter bootstrap (register builtins, seed globals, optionally
+        // make it safe) — the same paths the root interp uses.
+        self.in_interp(id, |vm| {
+            register_builtins(vm);
+            vm.bootstrap_globals();
+            if safe {
+                vm.make_safe();
+            }
+        });
         // The interp *path* name keys `children` as written (interp names are
         // their own universe, never namespace-parsed); the command it creates
         // in this interp is an ordinary command name, so its key qualifies.
         let cmd_key = self.qualify_name(&name);
-        self.register_command(&cmd_key, Command::ChildInterp(name.clone()));
+        self.children.insert(name.clone(), id);
+        self.register_command(&cmd_key, Command::ChildInterp(id));
         name
     }
 
-    /// Whether a child interpreter `name` exists.
-    pub(crate) fn child_exists(&self, name: &str) -> bool {
-        self.children.contains_key(name)
+    /// The [`InterpId`] of a direct child by name, or `None`.
+    pub(crate) fn child_id(&self, name: &str) -> Option<InterpId> {
+        self.children.get(name).copied()
     }
 
-    /// Mutable access to a child interpreter (for the per-interp `debug` /
-    /// `bgerror` settings).
-    pub(crate) fn child_mut(&mut self, name: &str) -> Option<&mut Vm> {
-        self.children.get_mut(name)
+    /// Whether a child interpreter `name` exists (and is not being torn down).
+    pub(crate) fn child_exists(&self, name: &str) -> bool {
+        self.children
+            .get(name)
+            .is_some_and(|&id| self.interp_alive(id))
     }
 
     /// `interp debug ?-frame ?bool??` on this interp. `-frame` is a one-way
@@ -1491,17 +1798,21 @@ impl Vm {
     /// `interp children path` — the direct child names of the named child interp
     /// (one level down), or `None` when that child does not exist.
     pub(crate) fn child_child_names(&self, name: &str) -> Option<Vec<String>> {
-        self.children.get(name).map(Vm::child_names)
+        let id = self.child_id(name)?;
+        let mut names: Vec<String> = self.st_of(id)?.children.keys().cloned().collect();
+        names.sort();
+        Some(names)
     }
 
     /// `interp issafe ?path?` for the current interp.
     pub(crate) fn is_safe(&self) -> bool {
-        self.is_safe
+        self.state.is_safe
     }
 
     /// Whether the named child is safe (`$child issafe` / `interp issafe path`).
     pub(crate) fn child_is_safe(&self, name: &str) -> Option<bool> {
-        self.children.get(name).map(|c| c.is_safe)
+        let id = self.child_id(name)?;
+        self.st_of(id).map(|st| st.is_safe)
     }
 
     /// Get/set a child's recursion limit; `None` if the child does not exist.
@@ -1510,17 +1821,16 @@ impl Vm {
         name: &str,
         newlimit: Option<&str>,
     ) -> Option<Result<i64, String>> {
-        let child = self.children.get_mut(name)?;
-        Some(child.recursion_limit_apply(newlimit))
+        let id = self.child_id(name)?;
+        Some(self.in_interp(id, |vm| vm.recursion_limit_apply(newlimit)))
     }
 
     /// Sorted hidden-command names of a child (`interp hidden path`).
     pub(crate) fn child_hidden_names(&self, name: &str) -> Option<Vec<String>> {
-        self.children.get(name).map(|c| {
-            let mut names: Vec<String> = c.hidden_commands.keys().cloned().collect();
-            names.sort();
-            names
-        })
+        let id = self.child_id(name)?;
+        let mut names: Vec<String> = self.st_of(id)?.hidden_commands.keys().cloned().collect();
+        names.sort();
+        Some(names)
     }
 
     /// `interp invokehidden path cmd ?arg ...?` — invoke a hidden command inside
@@ -1533,33 +1843,34 @@ impl Vm {
         cmd: &str,
         args: &[Value],
     ) -> Option<Completion<Value>> {
-        let mut child = self.children.remove(name)?;
-        let result = match child.hidden_commands.get(cmd).cloned() {
-            None => err(format!("invalid hidden command name \"{cmd}\"")),
-            Some(hidden) => {
-                child.bump_cmd_epoch();
-                let saved = child.commands.insert(cmd.to_string(), hidden);
-                let r = child.invoke_command(cmd, args);
-                child.bump_cmd_epoch();
-                match saved {
-                    Some(prev) => {
-                        child.commands.insert(cmd.to_string(), prev);
-                    }
-                    None => {
-                        child.commands.remove(cmd);
-                    }
+        let id = self.child_id(name).filter(|&id| self.interp_alive(id))?;
+        Some(self.in_interp(id, |vm| {
+            let Some(hidden) = vm.hidden_commands.get(cmd).cloned() else {
+                return err(format!("invalid hidden command name \"{cmd}\""));
+            };
+            vm.bump_cmd_epoch();
+            let saved = vm.commands.insert(cmd.to_string(), hidden);
+            let r = vm.invoke_command(cmd, args);
+            vm.bump_cmd_epoch();
+            match saved {
+                Some(prev) => {
+                    vm.commands.insert(cmd.to_string(), prev);
                 }
-                r
+                None => {
+                    vm.commands.remove(cmd);
+                }
             }
-        };
-        self.children.insert(name.to_string(), child);
-        Some(result)
+            r
+        }))
     }
 
     /// `interp marktrusted path` — clear a child's safe flag (exposing every
     /// hidden command). A no-op if the child does not exist.
     pub(crate) fn child_mark_trusted(&mut self, name: &str) {
-        if let Some(child) = self.children.get_mut(name) {
+        let Some(id) = self.child_id(name) else {
+            return;
+        };
+        if let Some(child) = self.st_of_mut(id) {
             child.bump_cmd_epoch();
             for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
                 child.commands.insert(cmd_name, cmd);
@@ -1568,9 +1879,6 @@ impl Vm {
         }
     }
 
-    /// `interp hide name` / `interp expose name` on a child: move a command
-    /// between its visible and hidden tables. Returns `false` if the child is
-    /// missing.
     /// `interp hide {} cmd` — move one of *this* interp's commands into its
     /// hidden table.
     pub(crate) fn hide_own_command(&mut self, cmd: &str, command: Command) {
@@ -1597,7 +1905,10 @@ impl Vm {
     /// command `cmd` is filed under `token`; when exposing, the hidden `cmd` is
     /// restored as the command `token`.
     pub(crate) fn child_hide(&mut self, name: &str, cmd: &str, token: &str, hide: bool) -> bool {
-        let Some(child) = self.children.get_mut(name) else {
+        let Some(id) = self.child_id(name) else {
+            return false;
+        };
+        let Some(child) = self.st_of_mut(id) else {
             return false;
         };
         child.bump_cmd_epoch();
@@ -1665,116 +1976,99 @@ impl Vm {
         self.is_safe = true;
     }
 
-    /// Evaluate `script` in the named child interpreter (`interp eval path …` /
-    /// `$child eval …`). The child is taken out of the table for the call so the
-    /// parent is free, then restored.  Driven **hosted**: a child→parent alias
-    /// (`Command::ParentAlias`) suspends the child and this parent executes the
-    /// target words before resuming it ([`Self::pump_hosted`]).
-    pub(crate) fn eval_in_child(&mut self, name: &str, script: &str) -> Completion<Value> {
-        let Some(mut child) = self.children.remove(name) else {
-            return err(format!("could not find interpreter \"{name}\""));
-        };
-        let first = child.eval_source_hosted(script);
-        let res = self.pump_hosted(&mut child, first);
-        self.children.insert(name.to_string(), child);
-        res
-    }
-
-    /// Drive a hosted child eval to completion: each
-    /// [`crate::exec::HostedExit::ParentCall`] executes the alias target words
-    /// HERE — at this parent's current frame, from its global namespace (the
-    /// same-interp alias rule; tclsh-pinned: `info level` stacks on the
-    /// parent's pending frame, `uplevel 1` sees its locals) — and resumes the
-    /// child with the completion (an error resumes as a catchable unwind).
-    fn pump_hosted(
-        &mut self,
-        child: &mut Vm,
-        mut exit: crate::exec::HostedExit,
-    ) -> Completion<Value> {
-        loop {
-            match exit {
-                crate::exec::HostedExit::Done(c) => return c,
-                crate::exec::HostedExit::ParentCall(words) => {
-                    let comp = self.invoke_alias_words(&words);
-                    exit = child.resume_hosted(comp);
-                }
-            }
+    /// Evaluate `script` in the interpreter `id` (`interp eval path …` /
+    /// `$child eval …`): switch the engine to that interp on the shared native
+    /// stack (C's `Tcl_EvalObjv(targetInterp, …)`), evaluate, and switch back —
+    /// so a child→parent alias, a parent→child alias, or a re-entry into an
+    /// interp already executing deeper on the stack is a plain nested call, its
+    /// state addressable in the arena throughout (issue #946 faults 1–2).
+    /// Errors and completion codes propagate through the ordinary return path
+    /// (the target's `-errorcode`/`-errorinfo` reach the caller — tclsh-pinned).
+    pub(crate) fn eval_in_interp(&mut self, id: InterpId, script: &str) -> Completion<Value> {
+        if !self.interp_alive(id) {
+            return err("could not find interpreter");
         }
+        self.in_interp(id, |vm| match vm.eval_source(script) {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        })
     }
 
     /// Evaluate assembled alias-target words (`target prefix… args…`) as one
-    /// command in THIS interp: current frame kept, target resolved from the
-    /// global namespace (C's `TCL_EVAL_INVOKE` — the tclsh-pinned alias rule).
-    /// Runs as a nested drive, so a `yield` inside cannot cross it (the same
-    /// boundary every `invoke_command` re-entry has).
-    pub(crate) fn invoke_alias_words(&mut self, argv: &[Value]) -> Completion<Value> {
-        let script = crate::exec::alias_invoke_script(argv);
-        self.push_ns(String::new());
-        let evaled = self.eval_source(&script);
-        self.pop_ns();
-        match evaled {
-            Ok(c) => c,
-            Err(e) => err(e.message),
-        }
-    }
-
-    /// Run alias-target words in the named direct child (a
-    /// [`Command::ChildAlias`] dispatch): the child executes them at its
-    /// global frame, resolved from its global namespace, itself hosted — so a
-    /// child→parent alias reached *from* the target still trampolines back
-    /// here.  A missing child (deleted, or currently suspended mid-parent-call
-    /// — this VM's interp tree is not re-entrant) is a clean error.
-    pub(crate) fn invoke_alias_in_child(
+    /// command in the target interpreter `target_interp`, at its **global**
+    /// frame and namespace (C's `TCL_EVAL_INVOKE` — the tclsh-pinned alias
+    /// rule).  When the target is the current interp the caller's frame is kept
+    /// (a same-interp alias to `set` writes the caller's locals); when it is a
+    /// different interp the engine switches into it first.  A `yield` inside
+    /// still cannot cross this native re-entry (the same boundary every
+    /// `invoke_command` re-entry has — tclsh reports `cannot yield: C stack
+    /// busy`), but a cross-interp alias call now *can*, because the target's
+    /// interpreter is reached by switching state rather than by suspending.
+    pub(crate) fn invoke_alias_words(
         &mut self,
-        child_name: &str,
+        target_interp: InterpId,
         argv: &[Value],
     ) -> Completion<Value> {
-        let Some(mut child) = self.children.remove(child_name) else {
-            return err(format!("could not find interpreter \"{child_name}\""));
-        };
-        let script = crate::exec::alias_invoke_script(argv);
-        let first = child.eval_source_hosted(&script);
-        let res = self.pump_hosted(&mut child, first);
-        self.children.insert(child_name.to_string(), child);
-        res
-    }
-
-    /// Compile `src` exactly as [`Self::eval_source`] and drive it **hosted**
-    /// ([`crate::exec::Vm::drive_hosted`]) — the child side of the cross-interp
-    /// alias trampoline.  Compile errors surface as an error completion.
-    pub(crate) fn eval_source_hosted(&mut self, src: &str) -> crate::exec::HostedExit {
-        let module = if let Some(m) = self.eval_cache.get(src) {
-            Rc::clone(m)
-        } else {
-            let Some(c) = self.compiler.as_ref() else {
-                return crate::exec::HostedExit::Done(err(
-                    "eval / command substitution requires a CompileService",
-                ));
+        if target_interp == self.cur {
+            let script = crate::exec::alias_invoke_script(argv);
+            self.push_ns(String::new());
+            let evaled = self.eval_source(&script);
+            self.pop_ns();
+            return match evaled {
+                Ok(c) => c,
+                Err(e) => err(e.message),
             };
-            match c.compile(src) {
-                Ok(m) => {
-                    let m = Rc::new(m);
-                    self.eval_cache.insert(src.to_string(), Rc::clone(&m));
-                    m
-                }
-                Err(e) => return crate::exec::HostedExit::Done(err(e.0)),
+        }
+        if !self.interp_alive(target_interp) {
+            return err("could not find interpreter");
+        }
+        let script = crate::exec::alias_invoke_script(argv);
+        self.in_interp(target_interp, |vm| {
+            vm.push_ns(String::new());
+            let evaled = vm.eval_source(&script);
+            vm.pop_ns();
+            match evaled {
+                Ok(c) => c,
+                Err(e) => err(e.message),
             }
-        };
-        self.merge_procs(&module.procedures);
-        let initial = crate::exec::Frame::new(Rc::new(module.top_level.clone()), false);
-        self.drive_hosted(vec![initial])
+        })
     }
 
-    /// `interp delete path …` / `$child delete` — destroy a child and its
-    /// command. Returns whether it existed.
-    pub(crate) fn delete_child(&mut self, name: &str) -> bool {
-        let existed = self.children.remove(name).is_some();
-        if existed {
-            self.bump_cmd_epoch();
-            self.commands
-                .remove(name.strip_prefix("::").unwrap_or(name));
+    /// `interp delete path …` — destroy interpreter `id`: unhook it from its
+    /// parent (the `children` map entry and the command that names it) and tear
+    /// it down.  The state drops now, or (if it is still executing — a
+    /// re-entered child, a target mid-callback) when its last in-flight
+    /// evaluation unwinds; its children and the aliases targeting it are swept
+    /// regardless (see [`Self::retire_interp`]).  The root interp cannot be
+    /// deleted.  Returns whether the interp existed.
+    pub(crate) fn delete_interp(&mut self, id: InterpId) -> bool {
+        if !self
+            .interps
+            .get(id.0)
+            .is_some_and(|s| !s.dying && !s.is_root())
+        {
+            return false;
         }
-        existed
+        // Unhook the child mapping + command in the owning parent (the interp
+        // that created it — where the `children` entry and the naming command
+        // live), which may or may not be the current interp.
+        if let Some(parent) = self.interps[id.0].parent {
+            let name = self.st_of(parent).and_then(|st| {
+                st.children
+                    .iter()
+                    .find(|&(_, &v)| v == id)
+                    .map(|(k, _)| k.clone())
+            });
+            if let Some(name) = name {
+                self.in_interp(parent, |vm| {
+                    vm.children.remove(&name);
+                    vm.bump_cmd_epoch();
+                    vm.commands.remove(name.strip_prefix("::").unwrap_or(&name));
+                });
+            }
+        }
+        self.retire_interp(id);
+        true
     }
 
     /// Dispatch a child-as-command call (`$child sub ?arg …?`) — the `interp`
@@ -1873,7 +2167,15 @@ impl Vm {
         }
     }
 
-    pub(crate) fn dispatch_child(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+    /// Dispatch a child-as-command call (`$child sub ?arg …?`): the `interp`
+    /// ensemble restricted to interpreter `id`. `name` is the command word
+    /// (the child's own command name) used in error messages.
+    pub(crate) fn dispatch_child(
+        &mut self,
+        name: &str,
+        id: InterpId,
+        argv: &[Value],
+    ) -> Completion<Value> {
         let Some((sub, rest)) = argv.split_first() else {
             return err(format!("wrong # args: should be \"{name} cmd ?arg ...?\""));
         };
@@ -1884,18 +2186,17 @@ impl Vm {
                     .map(|v| v.to_str().to_string())
                     .collect::<Vec<_>>()
                     .join(" ");
-                self.eval_in_child(name, &script)
+                self.eval_in_interp(id, &script)
             }
-            "issafe" => ok(Value::bool(self.child_is_safe(name).unwrap_or(false))),
+            "issafe" => ok(Value::bool(self.st_of(id).is_some_and(|st| st.is_safe))),
             "delete" => {
-                self.delete_child(name);
+                self.delete_interp(id);
                 ok(Value::empty())
             }
             "hidden" => {
                 let mut names: Vec<String> = self
-                    .children
-                    .get(name)
-                    .map(|c| c.hidden_commands.keys().cloned().collect())
+                    .st_of(id)
+                    .map(|st| st.hidden_commands.keys().cloned().collect())
                     .unwrap_or_default();
                 names.sort();
                 ok(Value::list(names.into_iter().map(Value::string).collect()))
@@ -1909,54 +2210,30 @@ impl Vm {
                     ));
                 }
                 let c = rest[0].to_str();
-                self.child_hide(name, &c, &c, hide);
+                self.child_hide_by_id(id, &c, &c, hide);
                 ok(Value::empty())
             }
             "marktrusted" => {
                 if self.is_safe() {
                     return err("permission denied: safe interpreter cannot mark trusted");
                 }
-                self.child_mark_trusted(name);
+                if let Some(child) = self.st_of_mut(id) {
+                    child.bump_cmd_epoch();
+                    for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
+                        child.commands.insert(cmd_name, cmd);
+                    }
+                    child.is_safe = false;
+                }
                 ok(Value::empty())
             }
-            "invokehidden" if !rest.is_empty() => {
-                if self.is_safe() {
-                    return err("not allowed to invoke hidden commands from safe interpreter");
-                }
-                // Skip unmodelled `-namespace ns` / `--` flags.
-                let mut i = 0;
-                while i < rest.len() {
-                    match &*rest[i].to_str() {
-                        "-namespace" => i += 2,
-                        "--" => {
-                            i += 1;
-                            break;
-                        }
-                        s if s.starts_with('-') => i += 1,
-                        _ => break,
-                    }
-                }
-                match rest.get(i) {
-                    Some(cmd) => self
-                        .invoke_hidden_in_child(name, &cmd.to_str(), &rest[i + 1..])
-                        .unwrap_or_else(|| err(format!("could not find interpreter \"{name}\""))),
-                    None => err(format!(
-                        "wrong # args: should be \"{name} invokehidden ?-namespace ns? ?--? cmd ?arg ..?\""
-                    )),
-                }
-            }
+            "invokehidden" if !rest.is_empty() => self.dispatch_child_invokehidden(name, id, rest),
             "recursionlimit" if rest.len() <= 1 => {
-                let nl = rest.first().map(|v| v.to_str().to_string());
-                match self.child_recursion_limit_apply(name, nl.as_deref()) {
-                    Some(Ok(n)) => ok(Value::int(n)),
-                    Some(Err(m)) => err(m),
-                    None => err(format!("could not find interpreter \"{name}\"")),
-                }
+                self.dispatch_child_recursionlimit(name, id, rest)
             }
             "recursionlimit" => err(format!(
                 "wrong # args: should be \"{name} recursionlimit ?newlimit?\""
             )),
-            "limit" => self.child_limit_cmd(name, rest),
+            "limit" => self.dispatch_child_limit(name, id, rest),
             other => err(format!(
                 "bad option \"{other}\": must be alias, aliases, bgerror, eval, \
                  expose, hide, hidden, issafe, invokehidden, limit, marktrusted, \
@@ -1965,24 +2242,125 @@ impl Vm {
         }
     }
 
-    /// `$child limit limitType ?-option value …?` — query/configure the named
-    /// child's commands/time limit (the `$child` form of `interp limit`).
-    fn child_limit_cmd(&mut self, name: &str, rest: &[Value]) -> Completion<Value> {
+    /// [`Self::dispatch_child`]'s `invokehidden` arm.
+    fn dispatch_child_invokehidden(
+        &mut self,
+        name: &str,
+        id: InterpId,
+        rest: &[Value],
+    ) -> Completion<Value> {
+        if self.is_safe() {
+            return err("not allowed to invoke hidden commands from safe interpreter");
+        }
+        // Skip unmodelled `-namespace ns` / `--` flags.
+        let mut i = 0;
+        while i < rest.len() {
+            match &*rest[i].to_str() {
+                "-namespace" => i += 2,
+                "--" => {
+                    i += 1;
+                    break;
+                }
+                s if s.starts_with('-') => i += 1,
+                _ => break,
+            }
+        }
+        match rest.get(i) {
+            Some(cmd) => self
+                .invoke_hidden_by_id(id, &cmd.to_str(), &rest[i + 1..])
+                .unwrap_or_else(|| err(format!("could not find interpreter \"{name}\""))),
+            None => err(format!(
+                "wrong # args: should be \"{name} invokehidden ?-namespace ns? ?--? cmd ?arg ..?\""
+            )),
+        }
+    }
+
+    /// [`Self::dispatch_child`]'s `recursionlimit` arm.
+    fn dispatch_child_recursionlimit(
+        &mut self,
+        name: &str,
+        id: InterpId,
+        rest: &[Value],
+    ) -> Completion<Value> {
+        let nl = rest.first().map(|v| v.to_str().to_string());
+        if !self.interp_alive(id) {
+            return err(format!("could not find interpreter \"{name}\""));
+        }
+        match self.in_interp(id, |vm| vm.recursion_limit_apply(nl.as_deref())) {
+            Ok(n) => ok(Value::int(n)),
+            Err(m) => err(m),
+        }
+    }
+
+    /// [`Self::dispatch_child`]'s `limit` arm.
+    fn dispatch_child_limit(
+        &mut self,
+        name: &str,
+        id: InterpId,
+        rest: &[Value],
+    ) -> Completion<Value> {
         let (ltype, opts) = match rest {
-            [ltype, opts @ ..] => (ltype.to_str(), opts),
+            [ltype, opts @ ..] => (ltype.to_str().to_string(), opts.to_vec()),
             _ => {
                 return err(format!(
                     "wrong # args: should be \"{name} limit limitType ?-option value ...?\""
                 ));
             }
         };
-        match self.children.get_mut(name) {
-            Some(child) => match child.limit_apply(&ltype, opts) {
-                Ok(v) => ok(v),
-                Err(m) => err(m),
-            },
-            None => err(format!("could not find interpreter \"{name}\"")),
+        if !self.interp_alive(id) {
+            return err(format!("could not find interpreter \"{name}\""));
         }
+        match self.in_interp(id, |vm| vm.limit_apply(&ltype, &opts)) {
+            Ok(v) => ok(v),
+            Err(m) => err(m),
+        }
+    }
+
+    /// [`Self::child_hide`] addressing the child by id (the `$child hide/expose`
+    /// form, whose id is already resolved).
+    fn child_hide_by_id(&mut self, id: InterpId, cmd: &str, token: &str, hide: bool) -> bool {
+        let Some(child) = self.st_of_mut(id) else {
+            return false;
+        };
+        child.bump_cmd_epoch();
+        if hide {
+            if let Some(c) = child.commands.remove(cmd) {
+                child.hidden_commands.insert(token.to_string(), c);
+            }
+        } else if let Some(c) = child.hidden_commands.remove(cmd) {
+            child.commands.insert(token.to_string(), c);
+        }
+        true
+    }
+
+    /// [`Self::invoke_hidden_in_child`] addressing the child by id.
+    fn invoke_hidden_by_id(
+        &mut self,
+        id: InterpId,
+        cmd: &str,
+        args: &[Value],
+    ) -> Option<Completion<Value>> {
+        if !self.interp_alive(id) {
+            return None;
+        }
+        Some(self.in_interp(id, |vm| {
+            let Some(hidden) = vm.hidden_commands.get(cmd).cloned() else {
+                return err(format!("invalid hidden command name \"{cmd}\""));
+            };
+            vm.bump_cmd_epoch();
+            let saved = vm.commands.insert(cmd.to_string(), hidden);
+            let r = vm.invoke_command(cmd, args);
+            vm.bump_cmd_epoch();
+            match saved {
+                Some(prev) => {
+                    vm.commands.insert(cmd.to_string(), prev);
+                }
+                None => {
+                    vm.commands.remove(cmd);
+                }
+            }
+            r
+        }))
     }
 
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
@@ -2079,15 +2457,60 @@ impl Vm {
             .unwrap_or_default()
     }
 
+    /// Whether at least one `enterstep`/`leavestep`-capable execution trace is
+    /// registered anywhere in this interp — C's "any trace forbidding inline
+    /// compilation exists" test (`iPtr->tracesForbiddingInline`). While true,
+    /// every proc entered compiles trace-visible (deoptimised) instead of
+    /// fast/inlined; see [`Vm::ensure_proc_compiled_for_tracing`].
+    pub(crate) fn step_trace_active(&self) -> bool {
+        self.exec_traces
+            .values()
+            .any(|list| list.iter().any(|t| is_step_capable(&t.ops)))
+    }
+
+    /// Bump the trace-deopt epoch (see [`Self::trace_deopt_epoch`]).
+    pub(crate) fn bump_trace_deopt_epoch(&self) {
+        self.trace_deopt_epoch
+            .set(self.trace_deopt_epoch.get().wrapping_add(1));
+    }
+
+    /// The current trace-deopt epoch.
+    pub(crate) fn trace_deopt_epoch(&self) -> u64 {
+        self.trace_deopt_epoch.get()
+    }
+}
+
+/// Whether a `trace add execution` op set includes `enterstep`/`leavestep` —
+/// the C-Tcl-significant "forbids inline compilation" test
+/// (`TCL_TRACE_ENTER_DURING_EXEC | TCL_TRACE_LEAVE_DURING_EXEC`). A plain
+/// `enter`/`leave` (without step) does not: the traced command's own
+/// dispatch already fires it (procs are never opcode-inlined), so it needs
+/// no deoptimisation.
+fn is_step_capable(ops: &[String]) -> bool {
+    ops.iter().any(|o| o == "enterstep" || o == "leavestep")
+}
+
+/// Command-resolution methods live on [`InterpState`] (not [`Vm`]) so the
+/// engine can resolve a command in *any* interpreter, current or parked — the
+/// cross-interp alias-loop walk queries a foreign interp's table. Deref
+/// coercion keeps every `impl Vm` caller (`self.resolve_command_fqn(…)`)
+/// working against the current interp unchanged.
+impl InterpState {
+    /// Invalidate the command-resolution memo (M16.4): every command-table /
+    /// `namespace path` / runtime-version mutation routes through here so a
+    /// cached `(namespace, name) → key` can never outlive the state it was
+    /// computed from.
+    pub(crate) fn bump_cmd_epoch(&self) {
+        self.cmd_epoch.set(self.cmd_epoch.get().wrapping_add(1));
+    }
+
     /// Resolve `name` from namespace `cxt` to its command's canonical key
     /// (the `commands` map key — a qualified name without the leading `::`),
     /// via the shared C-Tcl resolution rule
     /// ([`tcl_syntax::naming::resolve_command_with`]): an absolute `::name`
     /// directly, else `cxt`'s candidate, then each of `cxt`'s
     /// `namespace path` entries in order, then global — dispatching the
-    /// first that **exists**.  [`lookup_command`](Self::lookup_command) is
-    /// this plus the command fetch, so the two can never disagree.
-    /// `None` if unresolved.
+    /// first that **exists**.  `None` if unresolved.
     pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
         // M16.4 memo — C caches the resolution on the name object and
         // invalidates by interp epoch; here the memo is a per-Vm map keyed
@@ -2161,7 +2584,9 @@ impl Vm {
         })
         .map(|winner| unroot(&winner))
     }
+}
 
+impl Vm {
     /// Intern an absolute command FQN to a stable, dense raw `CommandId`, minting
     /// one on first sight. Backs `Namespaces::find_command`.
     fn intern_cmd(&self, fqn: &str) -> u32 {
@@ -2543,6 +2968,7 @@ impl Vm {
         let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
             return err(format!("unknown command \"{name}\""));
         };
+        let is_step = is_step_capable(&ops);
         let table = if execution {
             &mut self.exec_traces
         } else {
@@ -2552,6 +2978,14 @@ impl Vm {
             .entry(key)
             .or_default()
             .push(Rc::new(CmdTraceEntry::new(ops, callback)));
+        // A new enterstep/leavestep-capable trace forces every proc in this
+        // interp to (re)compile trace-visible on next call — C's
+        // `DONT_COMPILE_CMDS_INLINE` (tclTrace.c). Bumped even if a step
+        // trace was already active elsewhere: cheap, and simpler than
+        // tracking the exact 0→1 transition.
+        if execution && is_step {
+            self.bump_trace_deopt_epoch();
+        }
         ok(Value::empty())
     }
 
@@ -2567,6 +3001,7 @@ impl Vm {
         let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
             return;
         };
+        let is_step = is_step_capable(ops);
         let table = if execution {
             &mut self.exec_traces
         } else {
@@ -2577,6 +3012,12 @@ impl Vm {
             if list.is_empty() {
                 table.remove(&key);
             }
+        }
+        // Removing a step-capable trace may re-enable fast (inlined)
+        // compilation for procs that no longer have one active anywhere;
+        // recompute lazily on next call, same as an add.
+        if execution && is_step {
+            self.bump_trace_deopt_epoch();
         }
     }
 
@@ -2625,10 +3066,18 @@ impl Vm {
             script.push(' ');
             script.push_str(&tcl_syntax::list::list_element(&a.to_str()));
         }
+        // C's `INTERP_TRACE_IN_PROGRESS`: no interp-wide trace fires for a
+        // command dispatched *by* this callback (saved/restored, not merely
+        // set — a callback can itself be dispatched from inside another
+        // callback's evaluation only if re-entrant nesting is legitimate, but
+        // the common case is one level; save-restore keeps either correct).
+        let saved = self.trace_in_progress.get();
+        self.trace_in_progress.set(true);
         let res = match self.eval_source(&script) {
             Ok(c) => c,
             Err(e) => err(e.message),
         };
+        self.trace_in_progress.set(saved);
         entry.firing.set(false);
         res
     }
@@ -2639,7 +3088,9 @@ impl Vm {
     /// Callback errors are ignored (C: "Any errors in these traces are
     /// ignored").
     pub(crate) fn fire_command_traces(&mut self, key: &str, new_display: &str, op: &str) {
-        if self.cmd_traces.is_empty() {
+        // C's `INTERP_TRACE_IN_PROGRESS`: a rename/delete triggered by a
+        // trace callback's own body does not itself fire further traces.
+        if self.cmd_traces.is_empty() || self.trace_in_progress.get() {
             return;
         }
         let Some(entries) = self.cmd_traces.get(key).cloned() else {
@@ -2668,8 +3119,14 @@ impl Vm {
             self.fire_command_traces(key, "", "delete");
             self.cmd_traces.remove(key);
         }
-        if !self.exec_traces.is_empty() {
-            self.exec_traces.remove(key);
+        if !self.exec_traces.is_empty()
+            && let Some(removed) = self.exec_traces.remove(key)
+        {
+            // Dropping a step-capable trace this way (delete/overwrite,
+            // not `trace remove`) needs the same epoch bump.
+            if removed.iter().any(|t| is_step_capable(&t.ops)) {
+                self.bump_trace_deopt_epoch();
+            }
         }
     }
 
@@ -2816,6 +3273,57 @@ impl Vm {
                 .entry(qname.clone())
                 .or_insert_with(|| Rc::new(asm.clone()));
         }
+    }
+
+    /// Ensure `proc`'s compiled body matches the interp's current
+    /// trace-deopt epoch, recompiling `body_src` — trace-visible
+    /// ([`CompileService::compile_traced`]) or fast
+    /// ([`CompileService::compile`]), per [`Self::step_trace_active`] —
+    /// when it doesn't. This is the general recompile-on-demand mechanism
+    /// behind issue #946 fault 3: C Tcl forces a step-traced proc "out of
+    /// bytecode" (`DONT_COMPILE_CMDS_INLINE`) on its next entry after a
+    /// step-capable trace is added anywhere, and reverts it the same way once
+    /// the last one is removed. Returns `proc` unchanged when it is already
+    /// current, no compiler is available, or the recompile itself errors (the
+    /// existing body — which already compiled successfully once — keeps
+    /// running rather than failing the call over a trace-visibility nicety).
+    pub(crate) fn ensure_proc_traced(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
+        let want_epoch = self.trace_deopt_epoch();
+        if proc.compiled_epoch == want_epoch {
+            return proc;
+        }
+        let Some(svc) = self.compiler.clone() else {
+            return proc;
+        };
+        let src = proc.body_src.to_str();
+        let recompiled = if self.step_trace_active() {
+            svc.compile_traced(&src)
+        } else {
+            svc.compile(&src)
+        };
+        let Ok(module) = recompiled else {
+            return proc;
+        };
+        self.merge_procs(&module.procedures);
+        let mut fresh = (*proc).clone();
+        fresh.body = Rc::new(module.top_level);
+        fresh.compiled_epoch = want_epoch;
+        Rc::new(fresh)
+    }
+
+    /// [`Self::ensure_proc_traced`], memoised: a proc looked up from the
+    /// `commands` table (an ordinary named call, as opposed to an ephemeral
+    /// `apply`/TclOO-method `ProcDef`) has its recompiled body reinstalled
+    /// under its own key, so later calls while the same trace-deopt epoch
+    /// holds reuse the compiled body instead of recompiling on every call.
+    pub(crate) fn ensure_proc_ready(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
+        if proc.compiled_epoch == self.trace_deopt_epoch() {
+            return proc;
+        }
+        let key = proc.name.clone();
+        let fresh = self.ensure_proc_traced(proc);
+        self.commands.insert(key, Command::Proc(Rc::clone(&fresh)));
+        fresh
     }
 
     // -- frames --
@@ -3130,7 +3638,8 @@ impl Vm {
     /// Enter/leave a `namespace eval`/`inscope` body (around its evaluation).
     /// The body runs in the current frame, so we remember that frame depth.
     pub(crate) fn enter_ns_script(&mut self) {
-        self.ns_script_frames.push(self.frames.len());
+        let depth = self.frames.len();
+        self.ns_script_frames.push(depth);
     }
     pub(crate) fn leave_ns_script(&mut self) {
         self.ns_script_frames.pop();
@@ -3792,6 +4301,13 @@ impl Vm {
         self.error_line
     }
 
+    /// Set the innermost error line directly — the proc epilogue's
+    /// break/continue→error transform pins the offending command's line before
+    /// the `(procedure …)` frame is appended.
+    pub(crate) fn set_error_line(&mut self, line: u32) {
+        self.error_line = line;
+    }
+
     /// Record the word a builtin is being invoked under (its source `objv[0]`).
     pub(crate) fn set_invoked_name(&mut self, name: &str) {
         self.invoked_name = Some(name.to_owned());
@@ -3892,21 +4408,49 @@ impl Vm {
         eval(&node, &mut ops)
     }
 
+    /// Compile `src` via the injected [`CompileService`], from the cache when
+    /// possible — the shared body of [`eval_source`](Self::eval_source) and
+    /// [`compile_source_cached`](Self::compile_source_cached). Picks
+    /// [`CompileService::compile_traced`] and [`Self::eval_cache_traced`]
+    /// instead of the fast pair whenever [`Self::step_trace_active`] is true,
+    /// so a step-traced proc's `if`/`while`/`foreach`/`eval`/`uplevel`/
+    /// `catch`/`try`/… bodies — every one of which funnels through this
+    /// method via its runtime builtin — compile trace-visible too (issue
+    /// #946 fault 3), without each call site needing to know that.
+    fn compile_cached(&mut self, src: &str) -> Result<Rc<ModuleAsm>, TclError> {
+        let traced = self.step_trace_active();
+        let cache = if traced {
+            &self.eval_cache_traced
+        } else {
+            &self.eval_cache
+        };
+        if let Some(m) = cache.get(src) {
+            return Ok(Rc::clone(m));
+        }
+        let Some(c) = self.compiler.as_ref() else {
+            return Err(TclError::new(
+                "eval / command substitution requires a CompileService",
+            ));
+        };
+        let compiled = if traced {
+            c.compile_traced(src)
+        } else {
+            c.compile(src)
+        };
+        let m = Rc::new(compiled.map_err(|e| TclError::new(e.0))?);
+        let cache = if traced {
+            &mut self.eval_cache_traced
+        } else {
+            &mut self.eval_cache
+        };
+        cache.insert(src.to_string(), Rc::clone(&m));
+        Ok(m)
+    }
+
     /// Compile and run a Tcl source string via the injected [`CompileService`]
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
-        let module = if let Some(m) = self.eval_cache.get(src) {
-            Rc::clone(m)
-        } else {
-            let Some(c) = self.compiler.as_ref() else {
-                return Err(TclError::new(
-                    "eval / command substitution requires a CompileService",
-                ));
-            };
-            let m = Rc::new(c.compile(src).map_err(|e| TclError::new(e.0))?);
-            self.eval_cache.insert(src.to_string(), Rc::clone(&m));
-            m
-        };
+        let module = self.compile_cached(src)?;
         let comp = self.run_module(&module);
         // Crossing back out of a nested script is a frame boundary: clear
         // `ERR_ALREADY_LOGGED` so the enclosing command (the `eval`/`[subst]`/
@@ -3924,18 +4468,7 @@ impl Vm {
     /// `yield` inside the evaluated script stays yieldable — the yieldable
     /// counterpart of the nested drive `eval_source` performs.
     pub(crate) fn compile_source_cached(&mut self, src: &str) -> Result<Rc<FunctionAsm>, TclError> {
-        let module = if let Some(m) = self.eval_cache.get(src) {
-            Rc::clone(m)
-        } else {
-            let Some(c) = self.compiler.as_ref() else {
-                return Err(TclError::new(
-                    "eval / command substitution requires a CompileService",
-                ));
-            };
-            let m = Rc::new(c.compile(src).map_err(|e| TclError::new(e.0))?);
-            self.eval_cache.insert(src.to_string(), Rc::clone(&m));
-            m
-        };
+        let module = self.compile_cached(src)?;
         self.merge_procs(&module.procedures);
         Ok(Rc::new(module.top_level.clone()))
     }

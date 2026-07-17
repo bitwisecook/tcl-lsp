@@ -298,27 +298,18 @@ pub(crate) enum YieldReq {
     /// `yieldto cmd ?arg …?` — the resume runs `cmd args` in the resumer's
     /// context (a tail-call-flavoured handoff).
     YieldTo(Vec<Value>),
-    /// A child-interp alias whose target lives in the owning parent
-    /// (`Command::ParentAlias`): suspend this interp's whole activation stack
-    /// and hand `cmd args…` to the parent's pump loop
-    /// ([`Vm::pump_hosted`](crate::interp::Vm)), which executes the words in
-    /// the parent and resumes the child with the completion.  Only legal in a
-    /// [`DriveMode::ChildHosted`] top-level drive.
-    ParentCall(Vec<Value>),
 }
 
 /// How [`Vm::drive`](Vm) treats a [`Tick::Suspend`]: `Plain` is an ordinary
 /// activation (a top-level yield is an error); `CoroDriver` is a coroutine's
-/// `resume`, which suspends on yield.
+/// `resume`, which suspends on yield.  Cross-interp evaluation no longer needs
+/// a dedicated mode: an interpreter boundary is a plain native re-entry (the
+/// engine swaps interp state — see [`crate::interp::Vm::in_interp`]), so a
+/// cross-interp alias runs on whichever mode the current drive is in.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DriveMode {
     Plain,
     CoroDriver,
-    /// A child interpreter's top-level eval, driven by its owning parent's
-    /// pump loop: a [`YieldReq::ParentCall`] freezes the stack and returns
-    /// [`RunExit::Yielded`] so the parent can execute the alias target and
-    /// resume ([`Vm::resume_hosted`](crate::interp::Vm)).
-    ChildHosted,
 }
 
 /// How a [`Vm::drive`](Vm) invocation ended: the activation stack emptied
@@ -326,14 +317,6 @@ enum DriveMode {
 pub(crate) enum RunExit {
     Done(Completion<Value>),
     Yielded(YieldReq),
-}
-
-/// How a **hosted** (child-interp) top-level eval ended: done, or suspended
-/// on a parent-target alias call — the frozen stack is parked on the child
-/// (`Vm::hosted_parked`), resumable via [`Vm::resume_hosted`](Vm).
-pub(crate) enum HostedExit {
-    Done(Completion<Value>),
-    ParentCall(Vec<Value>),
 }
 
 fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
@@ -759,49 +742,6 @@ impl Vm {
         }
     }
 
-    /// Drive a **hosted** activation stack — a child interpreter's top level,
-    /// pumped by its owning parent (see [`crate::interp::Vm::pump_hosted`]).
-    /// Runs in [`DriveMode::ChildHosted`]: a [`YieldReq::ParentCall`] freezes
-    /// `acts` onto `self.hosted_parked` and surfaces the target words; anything
-    /// else runs to completion.  The error-logged boundary is cleared exactly
-    /// as [`Vm::eval_source`](crate::interp::Vm) does.
-    pub(crate) fn drive_hosted(&mut self, mut acts: Vec<Frame>) -> HostedExit {
-        match self.drive(&mut acts, DriveMode::ChildHosted) {
-            RunExit::Done(c) => {
-                if c.code == Code::Error {
-                    self.clear_error_logged();
-                }
-                HostedExit::Done(c)
-            }
-            RunExit::Yielded(YieldReq::ParentCall(words)) => {
-                self.hosted_parked = Some(acts);
-                HostedExit::ParentCall(words)
-            }
-            RunExit::Yielded(_) => unreachable!("ChildHosted only suspends on ParentCall"),
-        }
-    }
-
-    /// Resume a hosted eval suspended at a [`YieldReq::ParentCall`] with the
-    /// parent-side completion: an ok result is pushed where the alias
-    /// invocation's result belongs (mirroring a coroutine resume value); a
-    /// non-ok completion unwinds from the suspension point — so a `catch` in
-    /// the child traps a parent-side error (tclsh-pinned).
-    pub(crate) fn resume_hosted(&mut self, comp: Completion<Value>) -> HostedExit {
-        let mut acts = self
-            .hosted_parked
-            .take()
-            .expect("a parked hosted eval to resume");
-        if comp.code.is_ok() {
-            acts.last_mut()
-                .expect("frozen stack is non-empty")
-                .stack
-                .push(comp.result);
-        } else if let Some(done) = self.unwind(&mut acts, comp) {
-            return HostedExit::Done(done);
-        }
-        self.drive_hosted(acts)
-    }
-
     /// Drive the NRE trampoline over `acts` until it empties (`RunExit::Done`) or,
     /// in [`DriveMode::CoroDriver`], a `yield`/`yieldto` suspends the coroutine
     /// (`RunExit::Yielded`, `acts` left frozen). Both `run_activation` and a
@@ -904,31 +844,17 @@ impl Vm {
                         return RunExit::Done(done);
                     }
                 }
-                Tick::Suspend(req) => match (mode, req) {
-                    // Legal suspends freeze `acts` in place (pc already past the
-                    // suspend point) and hand the request out: a coroutine
-                    // `yield`/`yieldto` to its `resume`, a child→parent alias
-                    // call at a hosted top level to the owning parent's pump
-                    // loop.
-                    (DriveMode::CoroDriver, req @ (YieldReq::Yield(_) | YieldReq::YieldTo(_)))
-                    | (DriveMode::ChildHosted, req @ YieldReq::ParentCall(_)) => {
+                Tick::Suspend(req) => match mode {
+                    // A coroutine `yield`/`yieldto` freezes `acts` in place (pc
+                    // already past the suspend point) and hands the request out
+                    // to its `resume`.
+                    DriveMode::CoroDriver => {
                         return RunExit::Yielded(req);
                     }
-                    // A parent-target alias reached across a nested (native)
-                    // drive — a coroutine resume, `lsort -command`, an OO method,
-                    // an `invoke_command` re-entry — cannot suspend across the
-                    // Rust stack, exactly like `yield`'s own boundary.  (C Tcl
-                    // has no such boundary; this is the VM's documented
-                    // suspension limit.)
-                    (_, YieldReq::ParentCall(_)) => {
-                        let c = err("cannot invoke parent-interp alias: C stack busy");
-                        if let Some(done) = self.unwind(acts, c) {
-                            return RunExit::Done(done);
-                        }
-                    }
                     // Defensive: the `yield` builtin's boundary check rejects a
-                    // top-level suspend before it reaches here.
-                    (DriveMode::Plain | DriveMode::ChildHosted, _) => {
+                    // top-level suspend (`cannot yield: C stack busy`) before it
+                    // reaches here.
+                    DriveMode::Plain => {
                         let c = err("cannot yield: C stack busy");
                         if let Some(done) = self.unwind(acts, c) {
                             return RunExit::Done(done);
@@ -1116,6 +1042,39 @@ impl Vm {
     /// return — `RUST_ISSUE_170`), and on error log the caller's `invoked from
     /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
     fn unwind_proc_frame(&mut self, act: &Frame, acts: &[Frame], c: &mut Completion<Value>) {
+        // C's `InterpProcNR2` proc epilogue (`tclProc.c:1864`): a proc body that
+        // reaches its boundary with a bare `break`/`continue` — i.e. a
+        // `break`/`continue` or `return -level 0 -code break` that produced
+        // `TCL_BREAK`/`TCL_CONTINUE` directly, *not* a `return -code break` that
+        // the level-decrement below turns into break — is transformed into the
+        // error `invoked "break" outside of a loop` with errorcode
+        // `TCL RESULT UNEXPECTED`.  Done before the `(procedure …)` frame is
+        // appended so the error is logged with the proc's trace, exactly as C's
+        // `errorProc` does after the transform.
+        if matches!(c.code, Code::Break | Code::Continue) {
+            let word = if c.code == Code::Break {
+                "break"
+            } else {
+                "continue"
+            };
+            // Report the offending command's own line in the proc frame (C's
+            // `iPtr->errorLine`), taken from the instruction that produced the
+            // completion.
+            if let Some(line) = act
+                .asm
+                .instructions
+                .get(act.pc.saturating_sub(1))
+                .map(|i| i.source_line)
+                .filter(|&l| l != 0)
+            {
+                self.set_error_line(line);
+            }
+            *c = crate::command::err_with_code(
+                format!("invoked \"{word}\" outside of a loop"),
+                "TCL RESULT UNEXPECTED",
+            );
+            self.seed_error_info(format!("invoked \"{word}\" outside of a loop"));
+        }
         // The `(procedure … line N)` frame reports the body-relative line of the
         // failing command. A runtime-compiled proc body (the common case) carries
         // body-relative instruction lines with `body_base_line == 0`, so the line
@@ -2805,7 +2764,12 @@ impl Vm {
     ) -> Result<Option<Tick>, Completion<Value>> {
         // M16.3 fast path: no execution traces registered and no step scope
         // active — dispatch untraced (the common case pays one empty check).
-        if self.exec_traces.is_empty() && self.exec_step_scopes.is_empty() {
+        // Also untraced while a trace callback is itself running (C's
+        // `INTERP_TRACE_IN_PROGRESS`) — a callback's own commands are never
+        // step-observed, so its `puts`/etc. dispatch here plainly.
+        if self.trace_in_progress.get()
+            || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
+        {
             return self.dispatch_words_inner(f, words);
         }
         self.dispatch_words_traced(f, words)
@@ -2974,10 +2938,13 @@ impl Vm {
     ) -> Result<Option<Tick>, Completion<Value>> {
         let name = words[0].to_str();
         match self.lookup_command(&name) {
-            Some(Command::Proc(p)) => Ok(Some(Tick::Call {
-                proc: p,
-                argv: words[1..].to_vec(),
-            })),
+            Some(Command::Proc(p)) => {
+                let p = self.ensure_proc_ready(p);
+                Ok(Some(Tick::Call {
+                    proc: p,
+                    argv: words[1..].to_vec(),
+                }))
+            }
             Some(Command::Builtin(bf)) => {
                 self.set_invoked_name(&name);
                 let res = bf(self, &words[1..]);
@@ -3021,36 +2988,29 @@ impl Vm {
                 // pinned). `invoke_alias_words` switches only the namespace.
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
-                let res = self.invoke_alias_words(&argv);
+                let here = self.cur_interp();
+                let res = self.invoke_alias_words(here, &argv);
                 Self::deliver_sync(f, res)
             }
-            Some(Command::ParentAlias(target)) => {
-                // Cross-interp alias (this interp is a child; the target runs
-                // in the owning PARENT): trampoline the call out. The parent
-                // executes `target… args…` at its *current* frame from its
-                // *global* namespace — tclsh-pinned: `info level` stacks on
-                // the parent's pending frame, `uplevel 1` sees its locals,
-                // and an error propagates back here catchably. Suspends this
-                // interp's whole activation stack; only a hosted top-level
-                // drive (the parent's pump loop) can carry it.
-                let mut argv: Vec<Value> = (*target).clone();
-                argv.extend_from_slice(&words[1..]);
-                Ok(Some(Tick::Suspend(YieldReq::ParentCall(argv))))
-            }
-            Some(Command::ChildAlias {
-                child,
+            Some(Command::CrossAlias {
+                target: target_interp,
                 words: target,
             }) => {
-                // Cross-interp alias (source here, target in a direct CHILD):
-                // run `target… args…` in the child at its global frame
-                // (tclsh-pinned via `interp alias {} fwd c inchild`).
+                // Cross-interp alias: the target runs in a DIFFERENT interp
+                // (parent, child, or sibling).  The engine switches to that
+                // interp on the shared native stack (C's
+                // `Tcl_EvalObjv(targetInterp, …)`) and runs `target… args…`
+                // there at its global frame/namespace, then switches back with
+                // the completion — errors propagate catchably.  This works
+                // whether this interp is at top level or re-entered deeper on
+                // the stack (issue #946 fault 1: no more C-stack-busy).
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
-                let res = self.invoke_alias_in_child(&child, &argv);
+                let res = self.invoke_alias_words(target_interp, &argv);
                 Self::deliver_sync(f, res)
             }
             Some(Command::ChildInterp(child)) => {
-                let res = self.dispatch_child(&child, &words[1..]);
+                let res = self.dispatch_child(&name, child, &words[1..]);
                 Self::deliver_sync(f, res)
             }
             Some(Command::Ensemble(e)) => {
@@ -3096,8 +3056,12 @@ impl Vm {
     pub(crate) fn invoke_command(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         // M16.3: mirror `dispatch_words`' trace wrapper on this native path —
         // enter/enterstep before, leave/leavestep after (synchronously: the
-        // completion is known when the inner call returns).
-        if self.exec_traces.is_empty() && self.exec_step_scopes.is_empty() {
+        // completion is known when the inner call returns). Also untraced
+        // while a trace callback is itself running (C's
+        // `INTERP_TRACE_IN_PROGRESS`) — see `dispatch_words`.
+        if self.trace_in_progress.get()
+            || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
+        {
             return self.invoke_command_inner(name, argv);
         }
         let key = self
@@ -3181,29 +3145,36 @@ impl Vm {
                 }
                 res
             }
-            Some(Command::Proc(p)) => match self.enter_proc(&p, argv) {
-                Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
-                Err(c) => c,
-            },
+            Some(Command::Proc(p)) => {
+                let p = self.ensure_proc_ready(p);
+                match self.enter_proc(&p, argv) {
+                    Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
+                    Err(c) => c,
+                }
+            }
             Some(Command::Alias(target)) => {
                 // Target resolves in the GLOBAL namespace, caller's frame kept
                 // — see the `dispatch_words` Alias arm for the tclsh pins.
                 let mut full: Vec<Value> = (*target).clone();
                 full.extend_from_slice(argv);
-                self.invoke_alias_words(&full)
+                let here = self.cur_interp();
+                self.invoke_alias_words(here, &full)
             }
-            // A parent-target alias cannot suspend across this native
-            // (Rust-stack) re-entry — the same boundary `yield` has here.
-            Some(Command::ParentAlias(_)) => err("cannot invoke parent-interp alias: C stack busy"),
-            Some(Command::ChildAlias {
-                child,
+            // Cross-interp alias: switch to the target interp and run the words
+            // there.  Identical to the bytecode path — a cross-interp alias
+            // works from a native re-entry (coroutine resume, `lsort
+            // -command`, `invoke_command`), which used to error
+            // `cannot invoke parent-interp alias: C stack busy` (issue #946
+            // fault 1).
+            Some(Command::CrossAlias {
+                target: target_interp,
                 words: target,
             }) => {
                 let mut full: Vec<Value> = (*target).clone();
                 full.extend_from_slice(argv);
-                self.invoke_alias_in_child(&child, &full)
+                self.invoke_alias_words(target_interp, &full)
             }
-            Some(Command::ChildInterp(child)) => self.dispatch_child(&child, argv),
+            Some(Command::ChildInterp(child)) => self.dispatch_child(name, child, argv),
             Some(Command::Ensemble(e)) => self.dispatch_ensemble(name, &e, argv),
             Some(Command::Object(key)) => crate::cmd_oo::oo_dispatch(self, &key, name, argv),
             // Miss fallback chain (see `dispatch_words`): `namespace unknown`

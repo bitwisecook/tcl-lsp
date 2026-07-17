@@ -515,6 +515,52 @@ fn invalidate_const_map_for(stmt: &Statement, scope: &mut HashMap<String, String
 /// namespace) → offset-0 body [`Script`]`.  See [`Lowerer::with_body_cache`].
 type BodyCacheFn<'a> = dyn Fn(&str, &str) -> Script + 'a;
 
+/// Which lowering pass a [`Lowerer`] performs.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum CompileTarget {
+    /// The analysis IR: structured control flow kept everywhere, every
+    /// registry-driven hook active. What LSP consumers (diagnostics,
+    /// navigation) lower against.
+    #[default]
+    Analysis,
+    /// The VM-faithful bytecode pass ([`lower_to_ir_for_bytecode`]):
+    /// constructs the bytecode backend can't compile correctly (a bare
+    /// `try`, a directly-nested `foreach`/`lmap`) barrier to a runtime
+    /// dispatch instead of their structured IR; every other hook active.
+    Bytecode,
+    /// The bytecode pass with every registry-driven inline/structured
+    /// lowering hook ALSO suppressed ([`lower_to_ir_traced`]): every command
+    /// falls straight to [`Lowerer::lower_default`] — a plain runtime
+    /// dispatch (`Statement::Call`/`Statement::Barrier` with a non-empty
+    /// `command`, both of which [`crate::codegen`] emits as `push words;
+    /// INVOKE`), never a typed statement (`AssignConst`/`Incr`/`Return`/…)
+    /// or a structured control-flow block (`If`/`While`/`Foreach`/`Switch`/
+    /// `Catch`/`Try`/…). Used to recompile a proc/script body so execution
+    /// traces (`enterstep`/`leavestep`) observe every command in it — the
+    /// compiler-side half of issue #946's step-trace parity fix; see
+    /// [`tcl_runtime_api::CompileService::compile_traced`]. Never set for
+    /// the primary module compile — only for a standalone "compile this body
+    /// text as a script" call, so a proc's own `proc name args body`
+    /// DEFINITION always module-compiles normally; only its *body* is
+    /// affected when recompiled under this target.
+    BytecodeTraced,
+}
+
+impl CompileTarget {
+    /// Whether this pass targets the bytecode backend (barriers
+    /// backend-incompatible structured forms) — [`Self::Bytecode`] or
+    /// [`Self::BytecodeTraced`].
+    pub(crate) fn is_bytecode(self) -> bool {
+        matches!(self, Self::Bytecode | Self::BytecodeTraced)
+    }
+
+    /// Whether this pass suppresses every inline/structured hook —
+    /// [`Self::BytecodeTraced`] only.
+    pub(crate) fn is_trace_visible(self) -> bool {
+        self == Self::BytecodeTraced
+    }
+}
+
 /// The lowering engine — accumulates procedures and IR statements.
 pub struct Lowerer<'r> {
     /// Output module being built.
@@ -578,14 +624,11 @@ pub struct Lowerer<'r> {
     /// `LexerConfig::default()`; production callers thread the active
     /// dialect via [`Lowerer::with_config`] / [`lower_to_ir_with_config`].
     config: tcl_lexer::LexerConfig,
-    /// Lower constructs the bytecode backend can't compile correctly to a
-    /// runtime-command [barrier](Statement::Barrier) instead of their structured
-    /// IR. Covers `try` (no exception-range/`beginCatch` support → dropped
-    /// handlers) and a `foreach`/`lmap` directly nesting another `foreach`/`lmap`
-    /// (a structural bug in the inline nested-complex-foreach codegen). The VM
-    /// runs these as runtime builtins; analysis callers keep the structured IR
-    /// (default `false`) for their diagnostics. Set via [`lower_to_ir_for_bytecode`].
-    pub(crate) for_bytecode: bool,
+    /// Which lowering pass this instance performs — folds what would
+    /// otherwise be two related bool fields (`for_bytecode`, `trace_visible`)
+    /// into one three-state enum (`clippy::struct_excessive_bools`); see
+    /// [`CompileTarget`].
+    pub(crate) target: CompileTarget,
     /// Optional memoised per-procedure body lowering (SRV-INCREMENTAL Task 3).
     /// When set, a **top-level** `proc`'s static literal body is lowered through
     /// this callback `(offset-0 body text, namespace) -> offset-0 body Script`
@@ -622,7 +665,7 @@ impl<'r> Lowerer<'r> {
             dead_code_depth: 0,
             suppress_proc_register: false,
             config,
-            for_bytecode: false,
+            target: CompileTarget::Analysis,
             body_cache: None,
         }
     }
@@ -636,10 +679,24 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Mark this as the bytecode/VM compile path, barriering constructs the
-    /// backend can't compile (see [`for_bytecode`](Self::for_bytecode)).
+    /// backend can't compile (see [`CompileTarget::Bytecode`]). A no-op if
+    /// [`Self::trace_visible`] already upgraded this to
+    /// [`CompileTarget::BytecodeTraced`] (still bytecode-backend, just also
+    /// trace-visible) — order-independent whichever builder call comes first.
     #[must_use]
     pub fn for_bytecode_backend(mut self) -> Self {
-        self.for_bytecode = true;
+        if self.target == CompileTarget::Analysis {
+            self.target = CompileTarget::Bytecode;
+        }
+        self
+    }
+
+    /// Suppress every inline/structured lowering hook so the whole lowering
+    /// pass produces plain runtime dispatches (see
+    /// [`CompileTarget::BytecodeTraced`]). Implies the bytecode backend.
+    #[must_use]
+    pub fn trace_visible(mut self) -> Self {
+        self.target = CompileTarget::BytecodeTraced;
         self
     }
 
@@ -1111,6 +1168,17 @@ impl<'r> Lowerer<'r> {
         }
 
         self.record_namespace_directives(cmd_name, args, seg, namespace);
+
+        // Trace-visible compilation (`CompileTarget::BytecodeTraced`)
+        // suppresses every inline/structured hook unconditionally: every
+        // command in this pass becomes a plain runtime dispatch, so an
+        // execution trace observes it. The alias-table/namespace-directive
+        // bookkeeping above still runs (a traced body's own `rename`/
+        // `interp alias` commands must still affect how later commands in it
+        // resolve).
+        if self.target.is_trace_visible() {
+            return Some(self.lower_default(seg, namespace));
+        }
 
         // Try registered lowering hooks first.
         let hook_cmd = LoweringCommand {
@@ -2551,6 +2619,22 @@ pub fn lower_to_ir_with_config(
 pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Module {
     lower_with(
         Lowerer::with_config(registry, tcl_lexer::LexerConfig::default()).for_bytecode_backend(),
+        source,
+    )
+}
+
+/// Like [`lower_to_ir_for_bytecode`] but with every inline/structured
+/// lowering hook suppressed (see [`Lowerer::trace_visible`]) — every command
+/// in `source` compiles to a plain runtime dispatch, so an execution trace
+/// observes it. For recompiling a proc/script body once a step-capable
+/// execution trace targets it (issue #946); see
+/// [`tcl_runtime_api::CompileService::compile_traced`].
+#[must_use]
+pub fn lower_to_ir_traced(source: &str, registry: &CommandRegistry) -> Module {
+    lower_with(
+        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default())
+            .for_bytecode_backend()
+            .trace_visible(),
         source,
     )
 }

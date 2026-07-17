@@ -460,7 +460,7 @@ impl Lowerer<'_> {
             .iter()
             .any(|s| matches!(s, Statement::Foreach { .. }));
         let lmap_needs_runtime = is_lmap && !Self::body_is_straight_line(&body);
-        if self.for_bytecode && (lmap_needs_runtime || body_nests_foreach) {
+        if self.target.is_bytecode() && (lmap_needs_runtime || body_nests_foreach) {
             return Self::barrier(seg, if is_lmap { "lmap" } else { "foreach" });
         }
 
@@ -624,8 +624,8 @@ impl Lowerer<'_> {
         // The bytecode/VM compile path lowers `try` to a runtime-command barrier:
         // the backend has no exception-range support, so a structured `try` can't
         // be compiled correctly (its handler/finally clauses would be dropped).
-        // Analysis callers keep the structured form below. See `for_bytecode`.
-        if self.for_bytecode {
+        // Analysis callers keep the structured form below. See `CompileTarget`.
+        if self.target.is_bytecode() {
             return Self::barrier(seg, "try");
         }
 

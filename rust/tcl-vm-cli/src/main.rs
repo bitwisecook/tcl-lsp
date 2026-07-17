@@ -42,6 +42,7 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
+use tcl_compiler::lowering::lower_to_ir_traced;
 use tcl_dialect::TclVersion;
 use tcl_lexer::script_is_complete;
 use tcl_registry::CommandRegistry;
@@ -59,6 +60,14 @@ impl CompileService for Svc {
             return Err(CompileError(msg));
         }
         let ir = lower_to_ir(src, &self.0);
+        let cfg = build_cfg(&ir, false);
+        Ok(codegen_module(&cfg, &ir, &self.0))
+    }
+    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir_traced(src, &self.0);
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.0))
     }
