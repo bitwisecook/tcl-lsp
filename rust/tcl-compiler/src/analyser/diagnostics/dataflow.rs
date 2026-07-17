@@ -316,26 +316,7 @@ file; this call falls through to the 'unknown' handler."
             // (`set a($k) 9` defs base `a` directly): its liveness is
             // carried by the fanned element chains, which exact-name
             // liveness can't see — never report the base.
-            if !var.contains('(')
-                && fu
-                    .cfg
-                    .block_by_name(&chain.definition.block)
-                    .and_then(|b| {
-                        usize::try_from(chain.definition.statement_index)
-                            .ok()
-                            .and_then(|i| b.statements.get(i))
-                    })
-                    .is_some_and(|stmt| {
-                        matches!(
-                            stmt,
-                            Statement::AssignConst { name, .. }
-                                | Statement::AssignExpr { name, .. }
-                                | Statement::AssignValue { name, .. }
-                                | Statement::Incr { name, .. }
-                                if name.contains('(')
-                        )
-                    })
-            {
+            if !var.contains('(') && def_is_element_write(fu, &chain.definition) {
                 continue;
             }
             // Scope-aliased vars (introduced via ``global`` or
@@ -2775,4 +2756,31 @@ fn non_channel_union_label(var_type: &crate::types::TypeLattice) -> Option<Strin
             .collect::<Vec<_>>()
             .join(" | "),
     )
+}
+
+/// Whether the def site's statement is an array-element write
+/// (`set a(k) …` / `set a($k) …` / `incr a(k)`) — the base def such a
+/// write records carries no reportable liveness of its own.
+fn def_is_element_write(
+    fu: &crate::compilation_unit::FunctionUnit,
+    def: &crate::def_use::DefSite,
+) -> bool {
+    use crate::ir::Statement;
+    fu.cfg
+        .block_by_name(&def.block)
+        .and_then(|b| {
+            usize::try_from(def.statement_index)
+                .ok()
+                .and_then(|i| b.statements.get(i))
+        })
+        .is_some_and(|stmt| {
+            matches!(
+                stmt,
+                Statement::AssignConst { name, .. }
+                    | Statement::AssignExpr { name, .. }
+                    | Statement::AssignValue { name, .. }
+                    | Statement::Incr { name, .. }
+                    if name.contains('(')
+            )
+        })
 }

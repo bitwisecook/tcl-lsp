@@ -1180,12 +1180,27 @@ fn seed_entry_taints(
     // to the local (version > 0) is unaffected; shadowing falls out of the SSA
     // versioning, not a check here.
     for spec in tcl_registry::special_vars::special_vars_for_dialect(dialect.unwrap_or("")) {
-        if let Some(colour) = spec.read_taint
-            && let Some(sym) = ssa.var_symbol(spec.name)
-        {
+        let Some(colour) = spec.read_taint else {
+            continue;
+        };
+        if let Some(sym) = ssa.var_symbol(spec.name) {
             taints.entry((sym, 0)).or_insert(TaintLattice {
                 colours: reg_colour(colour),
             });
+        }
+        // Per-element SSA: `$env(PATH)` reads its own `env(PATH)` symbol —
+        // every constant-keyed element of a tainted special array carries
+        // the source colour at version 0 too.
+        for name in ssa.var_names() {
+            if name.len() > spec.name.len()
+                && name.starts_with(spec.name)
+                && name.as_bytes()[spec.name.len()] == b'('
+                && let Some(sym) = ssa.var_symbol(name)
+            {
+                taints.entry((sym, 0)).or_insert(TaintLattice {
+                    colours: reg_colour(colour),
+                });
+            }
         }
     }
 }

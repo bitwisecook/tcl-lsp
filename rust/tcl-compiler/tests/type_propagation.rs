@@ -740,20 +740,22 @@ fn namespaced_array_element_uses_base_array_symbol_type() {
 }
 
 #[test]
-fn braced_array_like_name_flows_under_base_array_symbol() {
-    // Braced `${a(1)}` is a whole-name load of array element a(1); the type
-    // flows under the base array symbol `a`.
+fn braced_array_like_name_flows_under_element_symbol() {
+    // Braced `${a(1)}` is a whole-name load of array element a(1); under
+    // per-element SSA (type-tracking P5) the type flows on the element's
+    // own symbol `a(1)` — the base carries no value type.
     let src = "set {a(1)} \"alpha beta\"\nset n [llength ${a(1)}]";
-    let t = var_type(src, "a").expect("a typed");
+    let t = var_type(src, "a(1)").expect("a(1) typed");
     assert_eq!(t.kind(), TypeKind::Known);
     assert_eq!(t.tcl_type(), Some(TclType::String));
 }
 
 #[test]
-fn unbraced_array_ref_normalises_to_base_array_symbol() {
-    // `set a(1) ...` normalises to the base array symbol `a`.
+fn unbraced_array_ref_is_the_element_symbol() {
+    // `set a(1) ...` writes the per-element symbol `a(1)` (type-tracking
+    // P5): its type is the element's own, and independent of siblings.
     let src = "set a(1) \"alpha beta\"\nset n [llength $a(1)]";
-    let t = var_type(src, "a").expect("a typed");
+    let t = var_type(src, "a(1)").expect("a(1) typed");
     assert_eq!(t.kind(), TypeKind::Known);
     assert_eq!(t.tcl_type(), Some(TclType::String));
 }

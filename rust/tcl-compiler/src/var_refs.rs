@@ -183,7 +183,12 @@ impl VarReferenceScanner {
                 TokenType::Var => {
                     let text = source_map.token_text(*tok);
                     let name = if self.options.element_qualified {
-                        element_var_name(text)
+                        // The `${…}` brace form substitutes nothing inside,
+                        // so its key is literal even when it spells `$x` —
+                        // the sigil-stripped token text can't show that, but
+                        // the raw span keeps the `${` prefix.
+                        let braced = source_map.text(tok.span).starts_with("${");
+                        crate::naming::element_var_name_braced(text, braced)
                     } else {
                         normalise_var_name(text)
                     };

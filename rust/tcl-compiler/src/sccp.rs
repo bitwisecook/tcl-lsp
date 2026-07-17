@@ -1216,6 +1216,12 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
         }
     }
     let v = eval_tcl_expr_with_octal(condition, &env, octal)?;
+    // A NaN condition is C's "floating point value is Not a Number" runtime
+    // error, not a truth value — folding either way would delete a branch
+    // that must raise. Decline.
+    if matches!(&v, crate::tcl_expr_eval::TclValue::Float(f) if f.is_nan()) {
+        return None;
+    }
     Some(v.is_truthy())
 }
 

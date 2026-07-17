@@ -39,6 +39,24 @@ fn num_arg(v: &Value) -> Result<f64, String> {
         .map_err(|_| format!("expected number but got \"{}\"", v.to_str()))
 }
 
+/// A double argument for the libm-backed functions: `as_double`, with an
+/// integer beyond the double-parse range coercing through the tower's
+/// correctly-rounded bignum→double conversion — `sqrt(2**200)` computes
+/// (C's `Tcl_GetDoubleFromObj` view), instead of rejecting the operand the
+/// operators already accept.
+fn libm_arg(v: &Value) -> Result<f64, String> {
+    if let Ok(d) = v.as_double() {
+        return Ok(d);
+    }
+    if let Some(b) = crate::expr::value_as_bigint(v) {
+        return Ok(crate::expr::big_to_f64(&b));
+    }
+    Err(format!(
+        "expected floating-point number but got \"{}\"",
+        v.to_str()
+    ))
+}
+
 /// Coerce `v` to a double for the classification predicates (`isnan` /
 /// `isunordered` / …), which deliberately accept a literal `NaN` — inspecting
 /// NaN/Inf is their purpose — even though a bare `NaN` is a domain error as an
@@ -252,15 +270,21 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Ok(n) = x.as_int() {
         return ok(crate::expr::int_value(i128::from(n).abs()));
     }
-    if let Some(b) = x.as_i128() {
-        return ok(crate::expr::int_value(b.saturating_abs()));
+    if let Some(b) = x.as_i128()
+        && b != i128::MIN
+    {
+        return ok(crate::expr::int_value(b.abs()));
     }
-    // An integer past `i128` stays exact too: tclsh's `abs(-(2**150))` is the
-    // full 2^150, never a rounded double.
+    // An integer past `i128` (or exactly `-2^127`, whose magnitude has no
+    // `i128`) stays exact: tclsh's `abs(-(2**150))` is the full 2^150,
+    // never a rounded double.
     if let Some(b) = crate::expr::value_as_bigint(x) {
         return ok(crate::expr::big_value(&b.abs()));
     }
-    match num_arg(x) {
+    match num_or_nan(x) {
+        // C's domain error — `abs(nan)` is not a number (±Inf is fine:
+        // `abs(-inf)` is `inf`).
+        Ok(f) if f.is_nan() => err("floating point value is Not a Number".to_string()),
         Ok(f) => ok(Value::double(f.abs())),
         Err(m) => err(m),
     }
@@ -353,9 +377,9 @@ fn dbl_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_double() {
+    match libm_arg(x) {
         Ok(d) => ok(Value::double(f(d))),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -367,7 +391,7 @@ fn dom_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_double() {
+    match libm_arg(x) {
         Ok(d) => {
             let r = f(d);
             if r.is_nan() && !d.is_nan() {
@@ -375,7 +399,7 @@ fn dom_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
             }
             ok(Value::double(r))
         }
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -390,7 +414,7 @@ fn dom_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> f64) -> Completio
         };
         return err(format!("{which} for math function \"{name}\""));
     };
-    match (lhs.as_double(), rhs.as_double()) {
+    match (libm_arg(lhs), libm_arg(rhs)) {
         (Ok(x), Ok(y)) => {
             let r = f(x, y);
             if r.is_nan() && !x.is_nan() && !y.is_nan() {
@@ -398,7 +422,7 @@ fn dom_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> f64) -> Completio
             }
             ok(Value::double(r))
         }
-        (Err(e), _) | (_, Err(e)) => err(e.message),
+        (Err(m), _) | (_, Err(m)) => err(m),
     }
 }
 
@@ -421,7 +445,7 @@ fn m_pow(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
         return err(format!("{which} for math function \"pow\""));
     };
-    match (b.as_double(), e.as_double()) {
+    match (libm_arg(b), libm_arg(e)) {
         (Ok(bb), Ok(ee)) => {
             let r = bb.powf(ee);
             if r.is_nan() && !bb.is_nan() && !ee.is_nan() {
@@ -429,7 +453,7 @@ fn m_pow(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::double(r))
         }
-        (Err(er), _) | (_, Err(er)) => err(er.message),
+        (Err(m), _) | (_, Err(m)) => err(m),
     }
 }
 
@@ -464,6 +488,14 @@ fn m_isqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let n = if let Ok(n) = x.as_int() {
         n
+    } else if let Some(b) = crate::expr::value_as_bigint(x) {
+        // Beyond-wide integers take the exact arbitrary-precision floor
+        // root — tclsh's `isqrt(2**200)` is the full 2^100, never a
+        // rounded double.
+        if num_traits::Signed::is_negative(&b) {
+            return err_with_code("square root of negative argument", DOMAIN_CODE);
+        }
+        return ok(crate::expr::big_value(&num_integer::Roots::sqrt(&b)));
     } else {
         match num_arg(x) {
             Ok(f) => f.trunc() as i64,
@@ -516,12 +548,12 @@ fn min_max(args: &[Value], name: &str, want_max: bool) -> Completion<Value> {
     // not `2.0`. A non-numeric argument reports the integer-flavoured
     // "expected number but got …".
     let mut best = first;
-    let mut best_d = match num_arg(first) {
+    let mut best_d = match num_arg(first).or_else(|m| libm_arg(first).map_err(|_| m)) {
         Ok(d) => d,
         Err(m) => return err(m),
     };
     for a in rest {
-        let d = match num_arg(a) {
+        let d = match num_arg(a).or_else(|m| libm_arg(a).map_err(|_| m)) {
             Ok(d) => d,
             Err(m) => return err(m),
         };

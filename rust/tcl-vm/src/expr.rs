@@ -171,6 +171,11 @@ fn big_arith(op: BinOp, x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
             if y.is_negative() {
                 return Err(TclError::new("negative shift argument"));
             }
+            // C checks the zero base before the count: `0 << huge` is 0,
+            // not the count-overflow error.
+            if num_traits::Zero::is_zero(x) {
+                return Ok(Value::int(0));
+            }
             // C's left-shift count must fit an `int` (`mp_mul_2d`): past
             // `INT_MAX` it raises the overflow error rather than attempt an
             // astronomic result (tclsh: `2 << 2**32` errors).
@@ -433,7 +438,14 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
         Sub => x - y,
         Mul => x * y,
         Div => x / y,
-        Pow => x.powf(y),
+        Pow => {
+            // C raises the domain error before computing (`tclExecute.c`
+            // EXPONENT_OF_ZERO): `0.0 ** -1` is an error, never Inf.
+            if x == 0.0 && y < 0.0 {
+                return Err(TclError::new("exponentiation of zero by negative power"));
+            }
+            x.powf(y)
+        }
         _ => {
             return Err(TclError::new(
                 "can't use floating-point value as operand of this operator",
@@ -633,7 +645,9 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
         // `big_value` narrow back to a wide when the result re-fits. A
         // non-numeric operand is the C operand-type error (`as operand of "-"`).
         Neg => match to_num(v) {
-            Ok(Num::Int(n)) => Ok(Value::int(n.wrapping_neg())),
+            // `-i64::MIN` does not fit a wide — promote through the i128
+            // tier exactly (a *computed* MIN reaches this arm as `Int`).
+            Ok(Num::Int(n)) => Ok(int_value(-i128::from(n))),
             Ok(Num::Big(b)) => Ok(int_value(b.wrapping_neg())),
             // An integer past `i128` negates exactly in arbitrary precision,
             // never as a lossy float (`RUST_ISSUE_011`).

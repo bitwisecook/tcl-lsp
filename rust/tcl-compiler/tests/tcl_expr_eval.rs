@@ -269,18 +269,16 @@ fn exponentiation_float_negative_exponent() {
 }
 
 #[test]
-fn exponentiation_big_results_past_wide_decline_to_fold() {
-    // The folder is i64-width. tclsh (bignum) gives:
-    //   10**17=100000000000000000   (≤ i64::MAX → folds)
-    //   10**18=1000000000000000000  (≤ i64::MAX → folds)
-    //   10**19=10000000000000000000 (> i64::MAX → a Tcl `Big`)
-    // The const-folder's value is i64/f64, so a magnitude past a wide "can't
-    // fold" → None (matching the documented "value past a wide" behaviour and
-    // the in-crate `overflow_returns_none` test). Here the runtime form takes
-    // over instead.
+fn exponentiation_big_results_past_wide_stay_exact() {
+    // The folder is bignum-exact (type-tracking P4): a result past a wide
+    // promotes to the exact bignum tclsh computes — never wrapped, never
+    // declined, never a rounded double.
     assert_eq!(eval_str("10 ** 17"), Some(int(100_000_000_000_000_000)));
     assert_eq!(eval_str("10 ** 18"), Some(int(1_000_000_000_000_000_000)));
-    assert_eq!(eval_str("10 ** 19"), None); // 1e19 > i64::MAX → declined
+    assert_eq!(
+        eval_str("10 ** 19"),
+        Some(TclValue::Big("10000000000000000000".parse().unwrap()))
+    );
 }
 
 #[test]

@@ -880,13 +880,48 @@ fn numeric_cmp(a: TclValue, b: TclValue) -> Option<tcl_syntax::expr::NumericComp
         (TclValue::Int(x), TclValue::Big(y)) => {
             NumericCompare::Ordered(num_bigint::BigInt::from(x).cmp(&y))
         }
-        (TclValue::Big(x), TclValue::Float(y)) => {
-            NumericCompare::from_partial(TclValue::Big(x).as_f64().partial_cmp(&y))
-        }
-        (TclValue::Float(x), TclValue::Big(y)) => {
-            NumericCompare::from_partial(x.partial_cmp(&TclValue::Big(y).as_f64()))
-        }
+        (TclValue::Big(x), TclValue::Float(y)) => big_vs_double(&x, y),
+        (TclValue::Float(x), TclValue::Big(y)) => match big_vs_double(&y, x) {
+            NumericCompare::Ordered(o) => NumericCompare::Ordered(o.reverse()),
+            NumericCompare::Unordered => NumericCompare::Unordered,
+        },
     })
+}
+
+/// Exact bignum-vs-double comparison — C converts the double to a bignum
+/// (`Tcl_InitBignumFromDouble`) and compares exactly, so
+/// `18446744073709551617 == 1.8446744073709552e19` is FALSE even though the
+/// bignum's rounded double view equals the float. NaN is unordered; ±Inf
+/// orders past every integer; a finite double compares by exact integer
+/// part with the fraction as tiebreak.
+fn big_vs_double(x: &num_bigint::BigInt, d: f64) -> tcl_syntax::expr::NumericCompare {
+    use std::cmp::Ordering;
+    use tcl_syntax::expr::NumericCompare;
+    if d.is_nan() {
+        return NumericCompare::Unordered;
+    }
+    if d.is_infinite() {
+        return NumericCompare::Ordered(if d > 0.0 {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        });
+    }
+    let trunc = <num_bigint::BigInt as num_traits::FromPrimitive>::from_f64(d.trunc())
+        .expect("finite double truncation is an exact integer");
+    match x.cmp(&trunc) {
+        Ordering::Equal => {
+            let frac = d.fract();
+            NumericCompare::Ordered(if frac > 0.0 {
+                Ordering::Less
+            } else if frac < 0.0 {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            })
+        }
+        other => NumericCompare::Ordered(other),
+    }
 }
 
 /// Exact wide-vs-double comparison, declining (`None`) in the C-UB sliver
@@ -998,7 +1033,24 @@ fn tcl_pow(a: &TclValue, b: &TclValue) -> Option<TclValue> {
     let y = match b {
         TclValue::Int(y) => *y,
         TclValue::Big(yy) => {
-            return if num_traits::Signed::is_negative(yy) {
+            use num_traits::{One, Signed, Zero};
+            // The 0 / ±1 base collapses hold for ANY exponent magnitude and
+            // precede the negative-exponent rule: `0 ** -big` is C's
+            // domain error (decline the fold so it surfaces), `1 ** ±big`
+            // is 1, `(-1) ** ±big` is ±1 by exponent parity. Only then
+            // does |base| ≥ 2 collapse a negative exponent to 0.
+            let xb = a.to_bigint()?;
+            if xb.is_zero() {
+                return None;
+            }
+            if xb.is_one() {
+                return Some(TclValue::Int(1));
+            }
+            if (-&xb).is_one() {
+                let even = (yy % 2u8).is_zero();
+                return Some(TclValue::Int(if even { 1 } else { -1 }));
+            }
+            return if yy.is_negative() {
                 Some(TclValue::Int(0))
             } else {
                 None
@@ -1054,6 +1106,35 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
 
 #[cfg(test)]
 mod tests {
+    /// Adversarial-review regressions (tclsh 8.6/9.0 verified): exact
+    /// bignum↔double comparison folds, the `**` base collapses for bignum
+    /// exponents, and NaN branch conditions declining.
+    #[test]
+    fn adversarial_fold_regressions() {
+        // B7: C compares a bignum and a double EXACTLY — never through the
+        // bignum's rounded double view.
+        assert_eq!(
+            eval_str("18446744073709551617 == 1.8446744073709552e19"),
+            Some(TclValue::Int(0)),
+            "exact compare: 2^64+1 != its rounded double"
+        );
+        assert_eq!(
+            eval_str("18446744073709551617 > 1.8446744073709552e19"),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(eval_str("10**308 == 1e308"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("(2**1024) == inf"), Some(TclValue::Int(0)));
+        // B8: 0/±1 base collapses precede the negative-bignum-exponent rule.
+        assert_eq!(
+            eval_str("0**(-(2**64))"),
+            None,
+            "0 ** -big is a runtime domain error — never fold"
+        );
+        assert_eq!(eval_str("1**(-(2**64))"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("(-1)**(-(2**64))"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("(-1)**(-(2**64)-1)"), Some(TclValue::Int(-1)));
+    }
+
     use super::*;
     use crate::expr_parser::parse_expr;
 

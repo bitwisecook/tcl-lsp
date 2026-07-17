@@ -913,13 +913,9 @@ fn expand_defs(direct: &[String], elems: &ArrayElems) -> Vec<String> {
 /// fanned element's prior version (the may-def join input). Both make the
 /// element chains live and upward-exposed so phi placement and liveness see
 /// them (adversarial findings F1/F2/F5 on PR #944).
-fn expand_uses(
-    direct_uses: &[String],
-    direct_defs: &[String],
-    elems: &ArrayElems,
-) -> Vec<String> {
+fn expand_uses(direct_uses: &[String], direct_defs: &[String], elems: &ArrayElems) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    let mut push = |n: &str, out: &mut Vec<String>| {
+    let push = |n: &str, out: &mut Vec<String>| {
         if !out.iter().any(|e| e == n) {
             out.push(n.to_owned());
         }
@@ -966,10 +962,11 @@ fn nonlocal_names_and_defsites(
         for stmt in &block.statements {
             let direct_uses = uses_of(stmt, &mut scanner, registry);
             let direct_defs = defs_of_with_registry(stmt, Some(registry));
-            for u in direct_uses
-                .iter()
-                .cloned()
-                .chain(expand_uses(&direct_uses, &direct_defs, elems))
+            for u in
+                direct_uses
+                    .iter()
+                    .cloned()
+                    .chain(expand_uses(&direct_uses, &direct_defs, elems))
             {
                 if !defined_here.contains(&u) {
                     nonlocal_names.insert(u);
@@ -1352,6 +1349,22 @@ fn uses_in_call(
         }
     }
     if *reads_own_defs {
+        for name in defs {
+            vars_found.insert(name.clone());
+            reads_own_def.insert(name.clone());
+        }
+    }
+    // A destroying command (`unset a(k)`) consumes the target's *existence*:
+    // the killed store is not dead — deleting it would make the unset error
+    // on every call. Record the prior version as a read (DESTROYS_VARIABLE,
+    // matching the pre-per-element behavior the base-level use gave).
+    let destroys = registry
+        .get(canonical_command.as_deref().unwrap_or(command))
+        .is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+        });
+    if destroys {
         for name in defs {
             vars_found.insert(name.clone());
             reads_own_def.insert(name.clone());
