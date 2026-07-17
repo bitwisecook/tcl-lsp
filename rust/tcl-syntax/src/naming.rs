@@ -383,11 +383,19 @@ pub fn normalise_var_name(name: &str) -> &str {
 }
 
 /// Whether an array-element key is a compile-time literal — no `$` variable
-/// or `[…]` command substitution, so the element it names is a single fixed
-/// variable (`arr(k)`, `arr(1)`), not a runtime-selected one (`arr($i)`).
+/// substitution, `[…]` command substitution, or `\` backslash substitution,
+/// so the element it names is a single fixed variable (`arr(k)`, `arr(1)`),
+/// not a runtime-selected or -decoded one (`arr($i)`, `arr(\x41)`).
+///
+/// Backslash sequences substitute in an unbraced word (`incr arr(\x41)`
+/// increments `arr(A)` — tclsh 8.6/9.0 verified), so treating them as
+/// literal would split one runtime element across two SSA symbols. They stay
+/// on the conflated base instead; a *braced* word (`set {arr(\x41)} v`)
+/// suppresses substitution and its key is literal via
+/// [`element_var_name_braced`]'s flag.
 #[must_use]
 pub fn array_key_is_literal(key: &str) -> bool {
-    !key.contains('$') && !key.contains('[')
+    !key.contains('$') && !key.contains('[') && !key.contains('\\')
 }
 
 /// The **SSA variable name** of a reference or write-target word: the
@@ -406,6 +414,7 @@ pub fn array_key_is_literal(key: &str) -> bool {
 /// ```
 /// use tcl_syntax::naming::element_var_name;
 /// assert_eq!(element_var_name("$arr(k)"), "arr(k)");
+/// assert_eq!(element_var_name("$arr(\\x41)"), "arr", "backslash keys substitute");
 /// assert_eq!(element_var_name("arr(k)"), "arr(k)");
 /// assert_eq!(element_var_name("$arr($i)"), "arr");
 /// assert_eq!(element_var_name("${arr($i)}"), "arr($i)");

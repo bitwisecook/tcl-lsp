@@ -73,7 +73,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
-        var_elements_effect: Some(VarElementsEffect::ExtendsDictValues { values_from: 2 }),
+        var_elements_effect: Some(VarElementsEffect::ExtendsDictValuesByName { values_from: 2 }),
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,
@@ -218,7 +218,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
-        var_elements_effect: Some(VarElementsEffect::ExtendsDictValues { values_from: 2 }),
+        var_elements_effect: Some(VarElementsEffect::ListifiesDictValue),
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
         safe_on_uninit: Some(DialectSet::ALL_TCL),

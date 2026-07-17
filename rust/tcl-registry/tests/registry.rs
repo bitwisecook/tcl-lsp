@@ -217,11 +217,17 @@ fn var_write_typing_declares_destructuring_writers() {
             .var_write_typing()
     };
 
-    // Destructuring writers widen their targets to "unknown intrep": a list
-    // element (`lassign`) or a format-dependent conversion (`scan`), and
-    // `regexp` capture fragments.
+    // `lassign` writes its container's *elements* positionally — the P3
+    // element-inference fact, so a committed `[list ...]` source types each
+    // target from its element shape.
+    assert_eq!(
+        resolve("lassign", &["$l", "a"]),
+        VarWriteTyping::ElementsOf { container_arg: 0 },
+        "lassign must declare ElementsOf var-write typing"
+    );
+    // Format-dependent destructuring writers widen their targets to
+    // "unknown intrep": `scan` conversions and `regexp` capture fragments.
     for (name, args) in [
-        ("lassign", &["$l", "a"][..]),
         ("scan", &["$s", "%d", "a"][..]),
         ("regexp", &["re", "$s", "m"][..]),
     ] {

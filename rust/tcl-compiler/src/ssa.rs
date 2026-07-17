@@ -907,6 +907,42 @@ fn expand_defs(direct: &[String], elems: &ArrayElems) -> Vec<String> {
     out
 }
 
+/// The use-side counterpart of [`expand_defs`]: reading a base whose
+/// constant-keyed elements are known (`$a($i)`, `array get a`, `parray a`)
+/// reads *every* element, and a dynamic-key / whole-array write reads each
+/// fanned element's prior version (the may-def join input). Both make the
+/// element chains live and upward-exposed so phi placement and liveness see
+/// them (adversarial findings F1/F2/F5 on PR #944).
+fn expand_uses(
+    direct_uses: &[String],
+    direct_defs: &[String],
+    elems: &ArrayElems,
+) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut push = |n: &str, out: &mut Vec<String>| {
+        if !out.iter().any(|e| e == n) {
+            out.push(n.to_owned());
+        }
+    };
+    for u in direct_uses {
+        if let Some(els) = elems.get(u) {
+            for e in els {
+                push(e, &mut out);
+            }
+        }
+    }
+    for d in direct_defs {
+        if !d.contains('(')
+            && let Some(els) = elems.get(d)
+        {
+            for e in els {
+                push(e, &mut out);
+            }
+        }
+    }
+    out
+}
+
 fn nonlocal_names_and_defsites(
     func: &cfg::Function,
     reachable: &HashSet<BlockId>,
@@ -928,41 +964,48 @@ fn nonlocal_names_and_defsites(
         };
         let mut defined_here: FxHashSet<String> = FxHashSet::default();
         for stmt in &block.statements {
-            for u in uses_of(stmt, &mut scanner, registry) {
+            let direct_uses = uses_of(stmt, &mut scanner, registry);
+            let direct_defs = defs_of_with_registry(stmt, Some(registry));
+            for u in direct_uses
+                .iter()
+                .cloned()
+                .chain(expand_uses(&direct_uses, &direct_defs, elems))
+            {
                 if !defined_here.contains(&u) {
                     nonlocal_names.insert(u);
                 }
             }
-            for var in expand_defs(&defs_of_with_registry(stmt, Some(registry)), elems) {
+            for var in expand_defs(&direct_defs, elems) {
                 defsites.entry(var.clone()).or_default().insert(*bn);
                 defined_here.insert(var);
             }
         }
+        // Terminator reads are element-qualified like statement reads (a
+        // condition's `$a(k)` must place the element's phi), and a base
+        // read fans over known elements.
+        let mut term_uses: Vec<String> = Vec::new();
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                for u in vars_in_expr(condition) {
-                    if !defined_here.contains(&u) {
-                        nonlocal_names.insert(u);
-                    }
-                }
+                term_uses.extend(condition.vars_element_qualified());
             }
             Some(cfg::Terminator::Return { value, expr, .. }) => {
                 if let Some(v) = value {
-                    for u in scanner.scan_word(v, registry) {
-                        if !defined_here.contains(&u) {
-                            nonlocal_names.insert(u);
-                        }
-                    }
+                    term_uses.extend(scanner.scan_word(v, registry));
                 }
                 if let Some(e) = expr {
-                    for u in vars_in_expr(e) {
-                        if !defined_here.contains(&u) {
-                            nonlocal_names.insert(u);
-                        }
-                    }
+                    term_uses.extend(e.vars_element_qualified());
                 }
             }
             _ => {}
+        }
+        for u in term_uses
+            .iter()
+            .cloned()
+            .chain(expand_uses(&term_uses, &[], elems))
+        {
+            if !defined_here.contains(&u) {
+                nonlocal_names.insert(u);
+            }
         }
     }
     (nonlocal_names, defsites)
@@ -1241,7 +1284,12 @@ fn set_value_reads(
         && let Some((expr_arg, _)) =
             crate::lowering_hooks::extract_single_expr_arg(inner, &HashSet::new())
     {
-        return vars_in_expr(&crate::parse_expr(&expr_arg, None));
+        let expr = crate::parse_expr(&expr_arg, None);
+        return if scanner.element_qualified() {
+            expr.vars_element_qualified().into_iter().collect()
+        } else {
+            vars_in_expr(&expr)
+        };
     }
     scanner.scan_word(value, registry)
 }
@@ -1664,7 +1712,7 @@ fn intern_terminator_reads(
     for block in func.blocks.values() {
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                for u in vars_in_expr(condition) {
+                for u in condition.vars_element_qualified() {
                     interner.intern(&u);
                 }
             }
@@ -1675,7 +1723,7 @@ fn intern_terminator_reads(
                     }
                 }
                 if let Some(e) = expr {
-                    for u in vars_in_expr(e) {
+                    for u in e.vars_element_qualified() {
                         interner.intern(&u);
                     }
                 }
@@ -1859,6 +1907,13 @@ impl RenameWalk {
                 for var in &uses_list {
                     let v = self.top(var);
                     uses_map.insert(self.interner.intern(var), v);
+                }
+                // A base read (`$a($i)`, `array get a`) reads every known
+                // constant-keyed element — record their versions so the
+                // element chains are live.
+                for var in expand_uses(&uses_list, &[], elems) {
+                    let v = self.top(&var);
+                    uses_map.entry(self.interner.intern(&var)).or_insert(v);
                 }
 
                 let direct_defs = defs_of_with_registry(stmt, Some(registry));

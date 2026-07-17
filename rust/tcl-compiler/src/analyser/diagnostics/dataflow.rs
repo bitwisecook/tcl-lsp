@@ -312,6 +312,32 @@ file; this call falls through to the 'unknown' handler."
             ) {
                 continue;
             }
+            // The *direct* base def of a dynamic-key element write
+            // (`set a($k) 9` defs base `a` directly): its liveness is
+            // carried by the fanned element chains, which exact-name
+            // liveness can't see — never report the base.
+            if !var.contains('(')
+                && fu
+                    .cfg
+                    .block_by_name(&chain.definition.block)
+                    .and_then(|b| {
+                        usize::try_from(chain.definition.statement_index)
+                            .ok()
+                            .and_then(|i| b.statements.get(i))
+                    })
+                    .is_some_and(|stmt| {
+                        matches!(
+                            stmt,
+                            Statement::AssignConst { name, .. }
+                                | Statement::AssignExpr { name, .. }
+                                | Statement::AssignValue { name, .. }
+                                | Statement::Incr { name, .. }
+                                if name.contains('(')
+                        )
+                    })
+            {
+                continue;
+            }
             // Scope-aliased vars (introduced via ``global`` or
             // ``upvar``) write through to a different scope — the
             // local "no use" verdict is unsafe. Policy sets hold *base*
@@ -549,6 +575,11 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             let (var, version) = &chain.key;
+            // A `::`-qualified write (`set ::ns::cfg 1`) is visible to every
+            // other scope/file — single-unit dataflow cannot see its readers.
+            if var.contains("::") {
+                continue;
+            }
             if scope_aliases.contains(var) {
                 continue;
             }

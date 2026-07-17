@@ -716,7 +716,8 @@ fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
                 .checked_sub(1)
                 .map_or(&[][..], |last| &args[last..]),
         ),
-        VarElementsEffect::ExtendsDictValues { values_from } => (
+        VarElementsEffect::ListifiesDictValue => (TypeShape::Dict, &[]),
+        VarElementsEffect::ExtendsDictValuesByName { values_from } => (
             TypeShape::Dict,
             args.get(base + usize::from(values_from)..).unwrap_or(&[]),
         ),
@@ -727,10 +728,49 @@ fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
         VarElementsEffect::AppendsListElements { .. } => {
             append_list_elements(ctx, prior, value_words)
         }
-        // Dict values: join the new values into the prior uniform bound —
-        // per-key tracking is out of scope (documented in type-tracking.md).
-        VarElementsEffect::SetsDictValue | VarElementsEffect::ExtendsDictValues { .. } => {
+        // Dict values: join the new value shape into the prior uniform
+        // bound — per-key tracking is out of scope (type-tracking.md).
+        // Only the single-key `dict set var key value` carries the leaf
+        // word's shape; a nested path stores a *dict* under the first key
+        // (`dict get $d outer` is a dict — tclsh-verified), so the
+        // contribution is a Dict wrapper with unknown structure.
+        VarElementsEffect::SetsDictValue => {
+            let single_key = args.len().saturating_sub(base) == 3;
+            let incoming = if single_key {
+                uniform_elements_of(ctx, value_words)
+            } else {
+                Elements::Uniform(Box::new(TypeShape::Dict(Elements::Unknown)))
+            };
+            match prior {
+                Some(prior) => join_elements(&prior, &incoming),
+                None => incoming,
+            }
+        }
+        // `dict append` concatenates: value intreps do not survive, but an
+        // object's dispatch identity (the objref text) does — only
+        // object-class shapes flow into the bound (issue #797's
+        // collection-of-objects pattern); anything else contributes no
+        // element fact.
+        VarElementsEffect::ExtendsDictValuesByName { .. } => {
             let incoming = uniform_elements_of(ctx, value_words);
+            let object_only = match &incoming {
+                Elements::Uniform(shape) if matches!(**shape, TypeShape::Object(_)) => {
+                    Some(incoming.clone())
+                }
+                _ => None,
+            };
+            match (prior, object_only) {
+                (Some(prior), Some(inc)) => join_elements(&prior, &inc),
+                (Some(prior), None) => prior,
+                (None, Some(inc)) => inc,
+                (None, None) => Elements::Unknown,
+            }
+        }
+        // `dict lappend`: the key's value becomes a list (a prior scalar
+        // becomes element 0), so the wrapper is the fact and the element
+        // shapes stay unknown.
+        VarElementsEffect::ListifiesDictValue => {
+            let incoming = Elements::Uniform(Box::new(TypeShape::List(Elements::Unknown)));
             match prior {
                 Some(prior) => join_elements(&prior, &incoming),
                 None => incoming,
@@ -2552,6 +2592,74 @@ mod tests {
             !widened,
             "INT ⊔ STRING must not stay a single INT claim: {:?}",
             fu.types
+        );
+    }
+
+    /// Review-pinned dict-value semantics (tclsh 8.6/9.0 verified):
+    /// a multi-key `dict set` stores a *dict* under the first key; `dict
+    /// lappend` stores a *list*; `dict append` concatenates (intreps do
+    /// not survive), with only object dispatch-identity flowing (#797).
+    #[test]
+    fn dict_value_effects_match_oracle() {
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let elements_of = |src: &str, qname: &str, var: &str| -> Vec<Option<TclType>> {
+            let cu = crate::compilation_unit::CompilationUnit::build_for(src, &reg, false);
+            let fu = cu.function(qname).unwrap();
+            fu.types
+                .iter()
+                .filter(|((sym, ver), _)| *ver > 0 && fu.ssa.var_name(*sym) == var)
+                .map(|(_, t)| {
+                    t.elements()
+                        .and_then(Elements::uniform_shape)
+                        .map(|s| s.coarse())
+                })
+                .collect()
+        };
+        // Multi-key set: the top-level value is a DICT, never the leaf shape.
+        let multi = elements_of(
+            "proc f {} {\n    set d {}\n    dict set d outer inner [expr {1}]\n    return $d\n}",
+            "::f",
+            "d",
+        );
+        assert!(
+            multi.iter().flatten().all(|t| *t == TclType::Dict),
+            "multi-key dict set stores a nested dict: {multi:?}"
+        );
+        // Single-key set keeps the leaf's shape.
+        let single = elements_of(
+            "proc f {} {\n    set d {}\n    dict set d k [expr {1}]\n    return $d\n}",
+            "::f",
+            "d",
+        );
+        assert!(
+            single
+                .iter()
+                .any(|t| matches!(t, Some(TclType::Int | TclType::Numeric))),
+            "single-key dict set keeps the leaf shape: {single:?}"
+        );
+        // lappend: the value is a LIST (elements unknown — the prior scalar
+        // becomes element 0).
+        let lap = elements_of(
+            "proc f {} {\n    set d {}\n    dict lappend d k [expr {1}]\n    return $d\n}",
+            "::f",
+            "d",
+        );
+        assert!(
+            lap.iter().flatten().all(|t| *t == TclType::List),
+            "dict lappend listifies the value: {lap:?}"
+        );
+        // append: concatenation — a numeric argument's intrep must NOT
+        // become the value's element fact.
+        let app = elements_of(
+            "proc f {} {\n    set d {}\n    dict append d k [expr {1}]\n    return $d\n}",
+            "::f",
+            "d",
+        );
+        assert!(
+            !app.iter()
+                .flatten()
+                .any(|t| matches!(t, TclType::Int | TclType::Numeric)),
+            "dict append must not claim a numeric value intrep: {app:?}"
         );
     }
 

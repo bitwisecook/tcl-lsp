@@ -308,10 +308,21 @@ pub fn shape_join(a: &TypeShape, b: &TypeShape) -> Option<TypeShape> {
 pub fn join_elements(a: &Elements, b: &Elements) -> Elements {
     match (a, b) {
         (Elements::Unknown, _) | (_, Elements::Unknown) => Elements::Unknown,
-        // An empty container contributes no elements — the identity of the
-        // element join (`set acc [list]` then `lappend acc [Foo new]` keeps
-        // the object bound through the accumulator's version joins).
-        (Elements::Exact(e), other) | (other, Elements::Exact(e)) if e.is_empty() => other.clone(),
+        // An empty container contributes no elements to the *bound* but its
+        // arity-0 fact must not vanish: joining `[list]` with `[list 1]`
+        // keeps the element bound as a `Uniform` (the accumulator idiom —
+        // `set acc [list]` then `lappend acc [Foo new]` — stays typed) while
+        // dropping the other side's `Exact` arity, which the merged value
+        // does not have (`llength` may be 0). Two empties keep arity 0.
+        (Elements::Exact(ea), Elements::Exact(eb)) if ea.is_empty() && eb.is_empty() => {
+            Elements::Exact(Box::from([]))
+        }
+        (Elements::Exact(e), other) | (other, Elements::Exact(e)) if e.is_empty() => {
+            match other.uniform_shape() {
+                Some(u) => Elements::Uniform(Box::new(u)),
+                None => Elements::Unknown,
+            }
+        }
         (Elements::Exact(ea), Elements::Exact(eb)) if ea.len() == eb.len() => Elements::Exact(
             ea.iter()
                 .zip(eb.iter())

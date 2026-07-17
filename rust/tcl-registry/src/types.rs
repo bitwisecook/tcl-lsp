@@ -151,12 +151,28 @@ pub enum VarElementsEffect {
         values_from: u8,
     },
     /// `dict set var ?key …? value` — stores the final word as one value of
-    /// the variable's dict.
+    /// the variable's dict. Only the single-key form carries the leaf's
+    /// shape; a nested path (`dict set d outer inner v`) stores a *dict*
+    /// under the first key (tclsh 8.6/9.0: `dict get $d outer` is a dict),
+    /// so the consumer records a value-shape of `Dict` with unknown
+    /// structure for multi-key writes.
     SetsDictValue,
-    /// `dict append` / `dict lappend` `var key ?value …?` — extends the
-    /// variable's dict values with the words from `values_from` onward.
-    ExtendsDictValues {
-        /// 0-based index of the first value word.
+    /// `dict append var key ?value …?` — the stored value is a string
+    /// *concatenation*, so value **intreps do not survive** (tclsh 8.6:
+    /// string for both a missing and an existing key; 9.0 keeps the
+    /// argument's intrep only on the missing-key fast path). What does
+    /// survive is an object's *dispatch identity* — the objref text — so
+    /// only object-class facts flow into the value bound (the
+    /// collection-of-objects pattern, issue #797); every other shape
+    /// contributes nothing.
+    ExtendsDictValuesByName {
+        /// 0-based index of the first appended value word.
         values_from: u8,
     },
+    /// `dict lappend var key ?value …?` — the key's value becomes a *list*
+    /// (tclsh: `dict get` after `dict lappend` has list intrep; a prior
+    /// scalar value becomes element 0). The list wrapper is the fact; the
+    /// element shapes are not tracked (the prior value's shape is part of
+    /// the elements and is not statically known).
+    ListifiesDictValue,
 }

@@ -1041,13 +1041,16 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
             // and AMOUNT is either absent (defaults to 1), a decimal
             // integer literal, or a simple `$var` reference that
             // resolves to Const(Int) via `uses`.
-            let sym = ssa.var_symbol(name);
-            let ver = sym
-                .and_then(|s| stmt_ssa.uses.get(&s))
-                .copied()
-                .unwrap_or(0);
-            let base = sym
-                .and_then(|s| values.get(&(s, ver)))
+            // A dynamic-key target (`incr a($i)`) never interns a symbol —
+            // that miss is permanent, so it must widen: returning Unknown
+            // would launder a fanned element's stale constant through
+            // `join(prev, Unknown) = prev`.
+            let Some(sym) = ssa.var_symbol(crate::naming::element_var_name(name)) else {
+                return LatticeValue::Overdefined;
+            };
+            let ver = stmt_ssa.uses.get(&sym).copied().unwrap_or(0);
+            let base = values
+                .get(&(sym, ver))
                 .cloned()
                 .unwrap_or(LatticeValue::Unknown);
             let base_int = match &base {
