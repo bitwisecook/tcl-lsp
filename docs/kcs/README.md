@@ -112,6 +112,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   a new pass to the compiler pipeline.
 - [kcs-howto-ir-cfg-ssa-diagnostics.md](kcs-howto-ir-cfg-ssa-diagnostics.md)
   — debug an IR, CFG, or SSA diagnostic end-to-end.
+- [kcs-howto-array-element-ssa-typing.md](kcs-howto-array-element-ssa-typing.md)
+  — the per-element array SSA contract: may-def joins, synthetic-def
+  skips, base-keyed policy checks.
 - [kcs-howto-work-on-fuzz-findings.md](kcs-howto-work-on-fuzz-findings.md)
   — triage, fix, test, and close a differential-fuzzer finding.
 - [kcs-howto-author-tcl-test-scripts.md](kcs-howto-author-tcl-test-scripts.md)
