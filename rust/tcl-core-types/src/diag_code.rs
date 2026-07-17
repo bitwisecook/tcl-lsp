@@ -412,6 +412,7 @@ diagnostic_codes! {
     W126 => "W126", diag(Warning, true, "Non-channel value in channel argument position.");
     W127 => "W127", diag(Warning, true, "Value not in the command's allowed set.");
     W128 => "W128", diag(Warning, true, "Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.");
+    W129 => "W129", diag(Warning, true, "Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`.");
     W130 => "W130", diag(Tclpkg, true, "tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'.");
     W131 => "W131", diag(Tclpkg, true, "tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'.");
     W132 => "W132", diag(Tclpkg, true, "tclpkg.lock integrity mismatch — CAS hash differs from lockfile.");
@@ -422,6 +423,7 @@ diagnostic_codes! {
     W137 => "W137", diag(Warning, true, "Argument value requires a newer Tcl version than the dialect provides.");
     W138 => "W138", diag(Warning, true, "Format/scan conversion requires a newer Tcl version than the dialect provides.");
     W139 => "W139", diag(Warning, true, "Command/option removed at the resolved package version (present only in earlier releases).");
+    W140 => "W140", diag(Warning, true, "`interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");

@@ -42,6 +42,46 @@ pub(super) struct ConstDispatchSite {
     pub span: Span,
     /// Command-resolution namespace at the dispatch site.
     pub ns: String,
+    /// The head word carries `{*}` expansion (`{*}$cmd args…`): the
+    /// value is a **command prefix** — its first list element names the
+    /// command, and the writable provenance narrows to that element's
+    /// sub-span within the defining literal (issue #945 fault 1's
+    /// list-prefix requirement).  Without expansion the whole value is
+    /// the command name.
+    pub head_expanded: bool,
+}
+
+/// The recorded state of one child interpreter (issue #945 faults 7–8):
+/// safe flag plus the explicit hide / expose deltas layered over the
+/// registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base set.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(super) struct InterpState {
+    /// Created with `-safe`.
+    pub safe: bool,
+    /// Commands explicitly `interp hide`-den in this interpreter.
+    pub hidden: HashSet<String>,
+    /// Commands explicitly `interp expose`-d in this interpreter.
+    pub exposed: HashSet<String>,
+    /// A hide / expose operation on this interpreter used a dynamic
+    /// command operand — its visible command set is unknowable, so the
+    /// safe-context gate abstains entirely for its evaluation bodies.
+    pub tainted: bool,
+}
+
+/// One child-interpreter evaluation context on the walk stack — the
+/// effective command-visibility state for the `interp eval` body being
+/// walked.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(super) struct SafeInterpCtx {
+    /// The registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base
+    /// set applies (the interpreter was created `-safe`).  A normal
+    /// interpreter with explicit `interp hide`s carries `false` — only
+    /// its own hidden set applies.
+    pub base_hidden: bool,
+    /// Commands explicitly hidden in this interpreter.
+    pub hidden_extra: HashSet<String>,
+    /// Commands re-exposed over the base set.
+    pub exposed: HashSet<String>,
 }
 
 /// One entry in [`Analyser::var_command_sites`] —
@@ -298,6 +338,40 @@ pub struct Analyser {
     /// Vars where ``oo::objdefine`` was applied — the per-instance
     /// method table may extend the class definition.
     pub objdefined_vars: HashSet<String>,
+    /// The **interpreter-domain map** (issue #945 faults 7–8): every
+    /// child interpreter this document creates with a literal path,
+    /// keyed by the whitespace-normalised path list, carrying its safe
+    /// state and per-interpreter hide/expose deltas.  Flow-insensitive
+    /// union across the file (like the rest of the environment model).
+    pub(super) interpreters: HashMap<String, InterpState>,
+    /// `true` when an `interp` create / delete / hide / expose operation
+    /// used a **dynamic** path or command operand — interpreter
+    /// existence is then unknowable and the W140 unknown-interpreter
+    /// diagnostic abstains file-wide.
+    pub(super) dynamic_interp_ops: bool,
+    /// Per-interpreter **deletion epochs** (issue #945 fault 8's temporal
+    /// identity): `interp delete` bumps the path's epoch, so a later
+    /// re-creation of the same path is a *fresh* domain — its evaluation
+    /// bodies home under a new `@interp@<path>#<epoch>` identity and never
+    /// merge with the deleted interpreter's definitions (as in C, where
+    /// the recreated child starts with an empty command table).
+    pub(super) interp_epochs: HashMap<String, u32>,
+    /// The interpreter-path components of the `interp eval` bodies
+    /// currently on the walk stack: an `interp` operation *inside* a child
+    /// body names paths relative to that child (`interp create t` inside
+    /// `interp eval s {…}` creates `s t`), so handlers qualify their
+    /// literal path operands against this stack.
+    pub(super) interp_path_stack: Vec<String>,
+    /// Safe-interpreter evaluation contexts currently on the walk stack:
+    /// non-empty while walking an `interp eval` body whose target
+    /// interpreter is safe.  The per-command gate consults the top —
+    /// a command whose registry spec carries
+    /// [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] (or was
+    /// `interp hide`-den), and is not re-exposed, draws W129 and has no
+    /// analysed effect (C raises `invalid command name` before any
+    /// side-effect happens — so no source / package / definition edges
+    /// may be built from it either; issue #945 fault 7).
+    pub(super) safe_interp_stack: Vec<SafeInterpCtx>,
     /// Guard against double W123 emission across
     /// ``analyse_commands`` / ``analyse_irule_event``.
     pub unresolved_commands_emitted: bool,
@@ -618,6 +692,11 @@ impl Analyser {
             ns_cache: HashMap::new(),
             ensemble_namespaces: HashSet::new(),
             objdefined_vars: HashSet::new(),
+            interpreters: HashMap::new(),
+            dynamic_interp_ops: false,
+            interp_epochs: HashMap::new(),
+            interp_path_stack: Vec::new(),
+            safe_interp_stack: Vec::new(),
             unresolved_commands_emitted: false,
             registry: None,
             recovery_known_commands: HashSet::new(),

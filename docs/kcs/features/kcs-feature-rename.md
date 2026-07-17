@@ -36,6 +36,17 @@ References**, so the definition and every call site are always updated
 together. For the full contract, see
 [LSP feature providers](../../design/contracts/lsp-feature-providers.md).
 
+A command name stored in a variable and dispatched as `$cmd` is kept
+alive too: the rename rewrites the **defining constant's literal**
+(`set cmd target` becomes `set cmd renamed`), never the `$cmd` head
+itself, so the renamed script still runs. When a contributing constant
+has no exact source spelling to rewrite, the whole rename is refused
+rather than left half-applied. A file sourced under several namespaces
+is one physical declaration with several runtime names; renaming it
+updates every namespace's call sites together. For the full contract,
+see
+[resolution soundness](../../design/resolution-soundness-945.md).
+
 ## Failure modes
 
 - The rename updates some but not all of the references. This almost
@@ -44,6 +55,10 @@ together. For the full contract, see
 - The rename is applied to a different symbol than the one you clicked.
   This can happen if the cursor is on a namespace-qualified name where
   the qualifier is ambiguous.
+- The rename does nothing at all. When a `$cmd` dispatch of this command
+  gets its value from a constant with no exact source spelling (for
+  example a `foreach` list element), no edit set can keep that dispatch
+  working, so the rename is refused outright.
 
 ## Screenshots
 

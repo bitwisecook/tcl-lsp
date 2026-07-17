@@ -276,6 +276,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info commands ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
+        // The optional argument is a glob *pattern*, but the common exact
+        // spelling (`info commands foo`) probes one specific command — a
+        // navigable reference that asserts nothing about existence (an
+        // absent name returns an empty list).  The analyser's probe
+        // recorder abstains on any word with glob metacharacters, so a
+        // real pattern contributes no reference (issue #945 fault 9).
+        arg_roles: &[(0, ArgRole::CommandNameProbe)],
         ..SubCommand::DEFAULT
     },
     SubCommand {

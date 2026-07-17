@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cd",
         dialects: None,
-        traits: Traits::BYTE_COMPILED,
+        traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

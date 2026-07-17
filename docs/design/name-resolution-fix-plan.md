@@ -1,8 +1,57 @@
 # Name resolution — master fix plan
 
-**Status: COMPLETE.** All 16 milestones (every stage) are landed with tests.
-M1–M6, M10 (analyser side), M12–M15 shipped via PR #933; the follow-up branch
-(`claude/nifty-pasteur-2bq56k`, based on #933) closed out the remainder:
+**Status: LANDED WITH TRACKED FOLLOW-UPS.** All 16 milestones shipped with
+their stage tests, but the holistic review in
+[issue #945](https://github.com/bitwisecook/tcl-lsp/issues/945) confirmed the
+original resolution model was **unsound across control flow, source views,
+interpreter domains, and TclOO dispatch** — faults the per-stage tests missed.
+The #945 follow-up (this branch) replaces those parts of the model:
+
+- **M7 rework (issue #945 faults 1–2)** — constant-`$cmd` dispatch settles
+  against the compiler's flow-sensitive SSA value model
+  (`value_provenance::const_contributors`), never the lexical
+  `const_strings` last-write-wins map: a branch join keeps every may-target,
+  each with the **writable provenance span** of its contributing literal, so
+  rename rewrites the defining constant (`set cmd target` →
+  `set cmd renamed`) and the renamed output executes under tclsh 9.0.4.
+  Unprovable shapes (computed values, `upvar`/trace writes, parameters,
+  opaque `catch` bodies) abstain soundly, and an unwritable contributor
+  blocks the whole rename (`rename_safe`).
+- **M9 rework (issue #945 fault 3)** — a document sourced under several
+  namespaces is one physical declaration with **one runtime identity per
+  seed**: declaration-side queries return the full identity set
+  (`seed_mapped_symbols`), references union every view's callers, and
+  rename is an explicit multi-symbol edit.
+- **M6 rework (issue #945 faults 4–6)** — the workspace index carries a
+  typed method table (receiver kind + effective TclOO export state, fed by
+  the registry's `member_default_exported` rule and explicit
+  `export`/`unexport`); go-to-definition resolves the **dispatch entry** on
+  the C-faithful linearisation (`method_dispatch_chain` over the shared
+  `tcl_syntax::mro`), external calls see exported methods only, and
+  per-object methods key by the receiver's **binding identity**, not its
+  textual tail.
+- **M15 rework (issue #945 faults 7–8)** — an interpreter-domain model:
+  `interp create ?-safe?` / `delete` / `hide` / `expose` maintain per-path
+  interpreter state via registry hooks; a safe child's `interp eval` body
+  walks with the `Traits::SAFE_INTERP_HIDDEN` command set hidden (W129, no
+  effect edges from calls that never execute), evals into never-created
+  interpreters warn (W140), multi-word scripts no longer leak into the
+  parent scope, and the child domain is homed under a collision-free
+  `@interp@<path>` identity.
+- **M14 completion (issue #945 fault 9)** — the typed
+  `ArgRole::CommandNameProbe` reference role separates reference identity
+  from existence assertion: `namespace which -command` and exact
+  `info commands` probes navigate and rename while never feeding W123.
+
+Backend / codegen / runtime-parity findings from the same review are tracked
+separately in [issue #946](https://github.com/bitwisecook/tcl-lsp/issues/946)
+(including the M16 divergences listed below — parent-target aliases across
+native re-entry, suspended-child re-entry, and step traces on opcode-inlined
+commands — which remain **open limitations**, not completed work).
+
+The original milestone record follows.  M1–M6, M10 (analyser side), M12–M15
+shipped via PR #933; the follow-up branch (`claude/nifty-pasteur-2bq56k`,
+based on #933) closed out the remainder:
 
 - **M8 §8.1 (second half)** — lazily-analysed autoload library files merge
   into the shared workspace index, so *references / rename* reach them (and a
@@ -386,7 +435,7 @@ C-source trace finding (D11) with the dynamic-surface introspection/ensemble
 findings.
 
 **Stage 14.1 — the role** ✅ **DONE** — added `ArgRole::CommandName` (the whole word is a bare command name held as data, introspected not invoked — distinct from `CommandPrefix`, which appends args and carries a callback arity).  The analyser's `record_command_name_invocations` records each such literal argument as a `command_invocation` (`argc`/`callback_arity` both `None` — a reference with no arity to check), so find-references / go-to-definition / rename / call-hierarchy reach the named command through the ordinary invocation machinery.  A dynamic word (`info body $p`) is skipped.
-**Stage 14.2 — apply it** ◐ **MOSTLY DONE** — applied `CommandName` to `info args` / `info body` / `info default PROC` (proc introspected by name), `namespace origin NAME` (command resolved by name), and `trace add`/`trace remove` `command`/`execution NAME` (the traced command — via `trace_add_arg_roles`'s existing per-type resolver, leaving the trailing callback its separate `CommandPrefix`).  Tests: `references_proc_named_in_info_body_include_the_introspection_site`, `references_proc_named_in_trace_add_execution_include_the_trace_site`, `arg_indices_for_role_trace_add_command_name_reference`.  `namespace which ?-command? NAME` carries a flag-conditional `arg_role_resolver`, but only the `-variable` form's `VarRead` is applied: an initial `CommandName` on the `-command` form was **reverted** in review — `namespace which` is an existence *probe* (returns `""` for an unknown command), so feeding the name into the W123 unresolved-command pass wrongly flagged a legitimate `[namespace which -command foo] eq ""` check.  Navigating a *probed command* needs a reference role that records the link without asserting existence, which the model does not have yet, so the `-command` form contributes no role.  Tests: `namespace_which_command_probe_does_not_flag_unknown`, `namespace_which_command_probe_is_not_a_reference`.  The `coroutine NAME` created command is already handled by `defines_command_at`.
+**Stage 14.2 — apply it** ✅ **DONE (completed by the issue #945 fault 9 follow-up)** — applied `CommandName` to `info args` / `info body` / `info default PROC` (proc introspected by name), `namespace origin NAME` (command resolved by name), and `trace add`/`trace remove` `command`/`execution NAME` (the traced command — via `trace_add_arg_roles`'s existing per-type resolver, leaving the trailing callback its separate `CommandPrefix`).  Tests: `references_proc_named_in_info_body_include_the_introspection_site`, `references_proc_named_in_trace_add_execution_include_the_trace_site`, `arg_indices_for_role_trace_add_command_name_reference`.  The gap this stage originally carried — `namespace which -command NAME` contributing **no** role because the model conflated reference identity with existence assertion — is closed by the typed `ArgRole::CommandNameProbe` role (issue #945 fault 9): the probe records a first-class, exactly-writable reference whose `existence_probe` fact keeps it out of the W123 pass, so the site navigates and renames without ever flagging a legitimate `[namespace which -command foo] eq ""` check.  Exact (pattern-free) `info commands NAME` carries the same role; a glob pattern abstains.  Tests: `namespace_which_command_probe_does_not_flag_unknown`, `namespace_which_command_probe_navigates_and_renames_945`.  The `coroutine NAME` created command is already handled by `defines_command_at`.
 **Stage 14.3 — ensembles** ✅ **DONE** — `handle_namespace_ensemble` now parses `namespace ensemble create -map {sub target …}` (each odd *target* element is a command reference, resolved in the ensemble's namespace) and `-subcommands {a b …}` (each name maps to the command `<ns>::a`), recording both as command references so navigation reaches the implementing procs.  Element spans are located inside the list-word token via a shared `list_word_elements` helper; a dynamic element is skipped.  The four command-reference recorders (`forward` target, expr math function, `CommandName` argument, ensemble target) now share one `push_command_reference` sink.  Test: `namespace_ensemble_map_and_subcommands_record_command_references`. **Depends on:** M3.
 
 ---

@@ -152,6 +152,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
+        analyser_hook: Some(crate::hooks::AnalyserHookId::InterpCreate),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -177,6 +178,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // documented fire-and-forget idiom the W302 suppression keys off.
         destructive: true,
         return_type: Some(TclType::String),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::InterpDelete),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -213,6 +215,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Expose a hidden command.",
         synopsis: "interp expose path hiddenCmdName ?exposedCmdName?",
         return_type: Some(TclType::String),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::InterpExpose),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -232,6 +235,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Hide a command.",
         synopsis: "interp hide path exposedCmdName ?hiddenCmdName?",
         return_type: Some(TclType::String),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::InterpHide),
         ..SubCommand::DEFAULT
     },
     SubCommand {

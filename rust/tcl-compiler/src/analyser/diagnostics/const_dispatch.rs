@@ -51,6 +51,35 @@ use crate::analyser::state::Analyser;
 use crate::signature_scan::types::SignatureCommandInvocation;
 use crate::value_provenance::{ValueContributor, const_contributors};
 
+/// The command-naming component of one contributor: the whole value for
+/// a plain `$cmd` head, or — for an expanded `{*}$cmd` head — the first
+/// whitespace-delimited list element, with the writable span narrowed to
+/// that element inside the defining literal.  `None` abstains: an
+/// expanded head whose first element carries substitution syntax or list
+/// quoting (braces, quotes, backslashes) has no exact writable
+/// component this simple scan can prove.
+fn command_component(c: &ValueContributor, head_expanded: bool) -> Option<ValueContributor> {
+    if !head_expanded {
+        return Some(c.clone());
+    }
+    let trimmed_start = c.value.len() - c.value.trim_start().len();
+    let rest = &c.value[trimmed_start..];
+    let first_len = rest.find(char::is_whitespace).unwrap_or(rest.len());
+    let first = &rest[..first_len];
+    if first.is_empty() || first.contains(['{', '}', '"', '\\', '$', '[', ']']) {
+        return None;
+    }
+    let literal_span = c.literal_span.and_then(|span| {
+        let start = span.start() + u32::try_from(trimmed_start).ok()?;
+        let end = start + u32::try_from(first_len).ok()?;
+        (end <= span.end()).then(|| tcl_lexer::Span::new(start, end))
+    });
+    Some(ValueContributor {
+        value: first.to_string(),
+        literal_span,
+    })
+}
+
 impl Analyser {
     /// Settle the pending `$cmd`-head dispatch sites against `cu`'s
     /// flow-sensitive value model, appending the settled invocations to
@@ -111,9 +140,17 @@ impl Analyser {
             // reference (a builtin carries no navigable definition; an
             // unknown value abstains) — and, being a separate may-path,
             // it does not block the other targets.
-            let mut by_target: HashMap<String, Vec<&ValueContributor>> = HashMap::new();
+            // With an expanded head (`{*}$cmd args…`) the value is a
+            // command *prefix*: its first whitespace-delimited element
+            // names the command and the writable provenance narrows to
+            // that element's sub-span within the defining literal.  A
+            // plain `$cmd` head uses the whole value as the name.
+            let mut by_target: HashMap<String, Vec<ValueContributor>> = HashMap::new();
             let mut order: Vec<String> = Vec::new();
             for c in &contributors {
+                let Some(c) = command_component(c, site.head_expanded) else {
+                    continue;
+                };
                 if c.value.trim().is_empty() || crate::naming::is_dynamic_word(&c.value) {
                     continue;
                 }
@@ -146,6 +183,7 @@ impl Analyser {
                     callback_baked_args: 0,
                     indirect: true,
                     rename_safe,
+                    existence_probe: false,
                 });
                 for c in group {
                     let Some(span) = c.literal_span else { continue };
@@ -161,6 +199,7 @@ impl Analyser {
                         callback_baked_args: 0,
                         indirect: false,
                         rename_safe: true,
+                        existence_probe: false,
                     });
                 }
             }

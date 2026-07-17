@@ -7012,6 +7012,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             callback_baked_args: 0,
             indirect: false,
             rename_safe: true,
+            existence_probe: false,
         });
     let registry = tcl_registry::CommandRegistry::build_default();
     a.emit_unresolved_command_diagnostics(&registry);
@@ -9193,6 +9194,52 @@ fn namespace_qualified_const_value_resolves_absolutely_945() {
             .iter()
             .any(|i| !i.indirect && i.range.start() == lit),
         "the qualified literal is a writable reference",
+    );
+}
+
+#[test]
+fn expanded_head_list_prefix_keeps_the_exact_writable_component_945() {
+    // `{*}$cmd` expands the value as a command *prefix* — tclsh 9.0.4
+    // dispatches its first list element with the rest appended as
+    // arguments.  The writable provenance narrows to that element's
+    // sub-span inside the defining literal (`helper` within
+    // `{helper arg}`), so a rename rewrites exactly the command
+    // component and keeps the baked argument.
+    let mut a = Analyser::new();
+    let src = "proc helper {a} {}\nset cmd {helper arg}\n{*}$cmd\n";
+    let r = a.analyse(src, "tcl");
+    let heads: Vec<&str> = r
+        .command_invocations
+        .iter()
+        .filter(|i| i.indirect)
+        .filter_map(|i| i.resolved_qualified_name.as_deref())
+        .collect();
+    assert!(
+        heads.contains(&"::helper"),
+        "the prefix's first element dispatches ::helper: {heads:?}",
+    );
+    let lit_start = u32::try_from(src.find("helper arg").unwrap()).unwrap();
+    let lit_end = lit_start + u32::try_from("helper".len()).unwrap();
+    assert!(
+        r.command_invocations.iter().any(|i| !i.indirect
+            && i.range.start() == lit_start
+            && i.range.end() == lit_end
+            && i.resolved_qualified_name.as_deref() == Some("::helper")),
+        "the writable span covers exactly the command component: {:?}",
+        r.command_invocations
+            .iter()
+            .filter(|i| !i.indirect && i.name.contains("helper"))
+            .map(|i| (i.range.start(), i.range.end()))
+            .collect::<Vec<_>>(),
+    );
+    // A plain (non-expanded) `$cmd` head treats the whole value as the
+    // command name — a two-element value names no known command, so the
+    // site abstains rather than resolving the first element.
+    let mut a2 = Analyser::new();
+    let r2 = a2.analyse("proc helper {a} {}\nset cmd {helper arg}\n$cmd\n", "tcl");
+    assert!(
+        !r2.command_invocations.iter().any(|i| i.indirect),
+        "a non-expanded multi-word value is not a prefix dispatch",
     );
 }
 

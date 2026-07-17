@@ -65,6 +65,11 @@ surface.
 - [name-resolution-fix-plan.md](name-resolution-fix-plan.md) — the master
   execution plan: the staged milestones (M1–M16) for correct, workspace-scoped,
   dialect-aware resolution, with per-stage status.
+- [resolution-soundness-945.md](resolution-soundness-945.md) — the issue #945
+  follow-up contract: flow-sensitive constant-dispatch value provenance,
+  one-to-many source views, the typed TclOO method table + C-faithful dispatch
+  chains, the interpreter-domain model (safe visibility, temporal identity),
+  and probe command references.
 - [name-resolution-centralization.md](name-resolution-centralization.md) — the
   audit + proposal to consolidate the ad-hoc target-selection sites onto one
   C-Tcl command-resolution routine so every LSP provider agrees.

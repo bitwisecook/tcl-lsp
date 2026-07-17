@@ -267,6 +267,14 @@ pub struct SignatureCommandInvocation {
     /// indirect sites whose full contributor set is writable (their
     /// literal-anchored twin references carry the edits).
     pub rename_safe: bool,
+    /// `true` when this reference comes from an existence **probe**
+    /// ([`tcl_registry::ArgRole::CommandNameProbe`] — `namespace which
+    /// -command NAME`, an exact `info commands NAME`): the named command
+    /// legitimately may not exist, so the W123 unresolved-command pass
+    /// must skip this record — reference identity and existence assertion
+    /// are orthogonal (issue #945 fault 9).  Navigation and rename treat
+    /// the record exactly like any other direct reference.
+    pub existence_probe: bool,
 }
 
 /// The full result returned by `extract_signatures`.

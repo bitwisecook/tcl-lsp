@@ -18915,6 +18915,69 @@ mod tests {
         assert_eq!(defs[0].range.start.line, 1, "{defs:?}");
     }
 
+    #[tokio::test]
+    async fn cross_file_definition_selects_the_dispatch_entry_945() {
+        // Issue #945 fault 6: with `Animal::speak` overridden by
+        // `Dog::speak` in another file, a `Dog` receiver's definition
+        // request identifies the runtime entry (`Dog::speak`) only —
+        // never the whole override family (tclsh 9.0.4: `info object
+        // call` = Dog then Animal).
+        let backend = test_backend();
+        let animal = Uri::from_str("file:///animal.tcl").unwrap();
+        let dog = Uri::from_str("file:///dog.tcl").unwrap();
+        let main = Uri::from_str("file:///main.tcl").unwrap();
+        register(
+            &backend,
+            &animal,
+            "oo::class create Animal {\n    method speak {} { return animal }\n}\n",
+        )
+        .await;
+        register(
+            &backend,
+            &dog,
+            "oo::class create Dog {\n    superclass Animal\n    method speak {} { return dog }\n}\n",
+        )
+        .await;
+        register(&backend, &main, "set d [Dog new]\n$d speak\n").await;
+        let defs = backend
+            .compute_definition(&main, Position::new(1, 4))
+            .await
+            .expect("ok");
+        assert_eq!(
+            defs.len(),
+            1,
+            "go-to-definition must select Dog::speak only: {defs:?}"
+        );
+        assert_eq!(defs[0].uri, dog, "{defs:?}");
+        assert_eq!(defs[0].range.start.line, 2, "{defs:?}");
+    }
+
+    #[tokio::test]
+    async fn cross_file_definition_refuses_an_unexported_method_945() {
+        // Issue #945 fault 4: `Vault::_secret` is default-unexported
+        // (tclsh 9.0.4: `unknown method "_secret"`), so a consumer file's
+        // external `$v _secret` resolves to nothing — cross-file
+        // navigation must not resolve what C rejects.
+        let backend = test_backend();
+        let vault = Uri::from_str("file:///vault.tcl").unwrap();
+        let main = Uri::from_str("file:///main.tcl").unwrap();
+        register(
+            &backend,
+            &vault,
+            "oo::class create Vault {\n    method _secret {} { return hidden }\n}\n",
+        )
+        .await;
+        register(&backend, &main, "set v [Vault new]\n$v _secret\n").await;
+        let defs = backend
+            .compute_definition(&main, Position::new(1, 5))
+            .await
+            .expect("ok");
+        assert!(
+            defs.is_empty(),
+            "an externally unexported TclOO method is not callable: {defs:?}"
+        );
+    }
+
     /// Register `animal.tcl` (`Animal::speak`) and a pure-consumer `main.tcl`
     /// that only creates and uses an `Animal` instance — it defines no part of
     /// the class.

@@ -299,6 +299,17 @@ eval $user_input             ;# W101: eval with substituted arguments (injection
 catch { error "oops" }       ;# W302: catch without a result variable
 ```
 
+Child interpreters are modelled too: a command hidden in a safe
+interpreter (`interp create -safe`) is flagged where it can never run
+(W129), and an `interp eval` into an interpreter the file never creates
+is flagged before it fails at run time (W140).
+
+```tcl
+interp create -safe s
+interp eval s { source setup.tcl }   ;# W129: 'source' is hidden in this safe interpreter
+interp eval ghost { puts hi }        ;# W140: interpreter 'ghost' is never created in this file
+```
+
 ### Completions
 
 Context-aware completions for commands, subcommands, variables, proc names
@@ -380,6 +391,29 @@ proc greeting {name} {
 greeting "World"
 # Rename 'greeting' → 'salute' updates the proc definition and all call sites
 ```
+
+A command name held in a variable follows the rename through its
+*defining constant* — the literal is rewritten, never the `$cmd` head —
+so the dispatch keeps working, and both arms of a conditional assignment
+keep their own targets:
+
+```tcl
+proc target {} { return hi }
+set cmd target
+$cmd
+# Rename 'target' → 'renamed' also rewrites `set cmd target`, so `$cmd`
+# still dispatches; the `$cmd` word itself is never touched.
+```
+
+When a contributing constant has no exact source spelling to rewrite,
+the rename is refused outright rather than left half-applied, and a file
+sourced under several namespaces renames every namespace's call sites
+together. TclOO navigation honours the real dispatch: go-to-definition
+on `$obj method` lands on the implementation the call actually enters
+(mixins ahead of the class, subclass overrides ahead of bases), an
+externally unexported method resolves nowhere (as in C Tcl), and
+per-object `oo::objdefine` methods resolve per receiver binding, so
+same-named locals in different procs never collide.
 
 ### Signature help
 

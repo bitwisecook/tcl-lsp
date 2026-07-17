@@ -425,6 +425,12 @@ impl Analyser {
         self.result
             .rename_target_spans
             .extend(r.rename_target_spans);
+        // Per-object methods accumulate per receiver name across bodies —
+        // the binding-identity consumer scopes them by objdefine site
+        // (issue #945 fault 5), so records from different procs coexist.
+        for (k, v) in r.object_methods {
+            self.result.object_methods.entry(k).or_default().extend(v);
+        }
         self.result.instance_classes.extend(r.instance_classes);
         self.result
             .created_instance_commands
@@ -808,6 +814,13 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for sp in r.rename_target_spans.values_mut() {
         *sp = shift(*sp, d);
+    }
+    for records in r.object_methods.values_mut() {
+        for om in records {
+            om.objdefine_offset += d;
+            om.def.name_span = shift(om.def.name_span, d);
+            om.def.body_span = shift(om.def.body_span, d);
+        }
     }
     for x in &mut r.auto_path_entries {
         x.range = shift(x.range, d);

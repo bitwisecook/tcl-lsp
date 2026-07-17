@@ -74,6 +74,15 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     crate::naming::qualify(ns_prefix, name)
 }
 
+/// Normalise a literal `interp` path word to the interpreter-domain map
+/// key: the path is a Tcl *list* naming a descent through child
+/// interpreters (`{s t}` = child `t` of child `s`), so whitespace runs
+/// collapse to one separator.  A single-element path (`s`) keys as
+/// itself.
+pub(super) fn interp_path_key(path: &str) -> String {
+    path.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// Condense a definition's description argument into a single-line outline
 /// detail: the first non-empty line, trimmed, and length-capped so a verbose
 /// multi-line description doesn't bloat the outline entry.
@@ -1075,14 +1084,48 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        // `interp eval PATH SCRIPT` — the subcommand word, the path, and one
-        // script word.
-        if args.len() != 3 {
+        // `interp eval PATH arg ?arg ...?` — the subcommand word, the path,
+        // and one or more script words (C concatenates them).
+        if args.len() < 3 {
             return false;
         }
         // An empty path runs in the current interpreter — not isolated.
         if args[1].is_empty() {
             return false;
+        }
+        // The interpreter path is a *list* relative to the current
+        // interpreter — inside a child's eval body it is relative to that
+        // child — so qualify against the walk's interpreter-path stack.
+        let literal_path = !crate::naming::is_dynamic_word(&args[1]);
+        let key = self.qualified_interp_key(&args[1]);
+        if literal_path {
+            // Interpreter existence (issue #945 fault 8): evaluating into a
+            // literal child this file never creates raises `could not find
+            // interpreter` at run time.  Abstains when any interp operation
+            // in the file used a dynamic path (existence then unknowable).
+            if !self.interpreters.contains_key(&key) && !self.dynamic_interp_ops {
+                if let Some(tok) = arg_tokens.get(1) {
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: tcl_core_types::DiagCode::W140,
+                        span: tok.span,
+                        message: format!(
+                            "interpreter '{}' is never created in this file — \
+                             `interp eval` will raise `could not find interpreter`",
+                            args[1]
+                        ),
+                        severity: super::types::Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
+            }
+        }
+        // Multiple script words concatenate at run time (`Tcl_ConcatObj`),
+        // so commands can span word boundaries — no per-word walk is sound.
+        // Consume the command *without* walking, keeping the parent domain
+        // clean (the old fall-through analysed the words in the parent
+        // scope — issue #945 fault 8); W312 separately flags the shape.
+        if args.len() > 3 {
+            return true;
         }
         let body_span = arg_tokens.get(2).map(|t| t.span);
         let body_text = args[2].clone();
@@ -1090,8 +1133,20 @@ impl Analyser {
 
         let outer = scope_path.to_vec();
         let child_scope_idx = {
-            let mut child =
-                super::types::Scope::new(super::types::ScopeKind::Namespace, args[1].clone());
+            // The child's global namespace is its own domain, not a parent
+            // namespace — home the scope under a synthetic
+            // `@interp@<path>` name (unrepresentable in Tcl, mirroring
+            // `@objdefine@`) so a real parent namespace of the same name
+            // can never collide.  Repeated evals into the same live
+            // interpreter share one domain name (their definitions
+            // accumulate, as in C); the name carries the path's deletion
+            // *epoch*, so a deleted-and-recreated interpreter is a fresh
+            // domain that never merges with its predecessor's definitions
+            // (issue #945 fault 8's temporal identity).
+            let mut child = super::types::Scope::new(
+                super::types::ScopeKind::Namespace,
+                self.interp_domain_name(&key),
+            );
             child.body_span = body_span;
             let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &outer)
             else {
@@ -1104,9 +1159,160 @@ impl Analyser {
         child_path.push(child_scope_idx);
 
         if let Some(tok) = body_tok {
+            // A safe target interpreter evaluates the body with the unsafe
+            // command set hidden, and any interpreter with explicit
+            // `interp hide`s carries those deltas (issue #945 fault 7):
+            // push the visibility context so the per-command gate flags
+            // hidden calls (W129) and builds no effects from them.  A
+            // tainted state (dynamic hide/expose) abstains.
+            let safe_ctx = self.interpreters.get(&key).and_then(|st| {
+                (!st.tainted && (st.safe || !st.hidden.is_empty())).then(|| {
+                    super::state::SafeInterpCtx {
+                        base_hidden: st.safe,
+                        hidden_extra: st.hidden.clone(),
+                        exposed: st.exposed.clone(),
+                    }
+                })
+            });
+            let pushed = if let Some(ctx) = safe_ctx {
+                self.safe_interp_stack.push(ctx);
+                true
+            } else {
+                false
+            };
+            // `interp` operations inside the body name paths relative to
+            // *this* child — push its path so they qualify correctly.
+            self.interp_path_stack.push(key.clone());
             self.analyse_body(&body_text, tok, &child_path);
+            self.interp_path_stack.pop();
+            if pushed {
+                self.safe_interp_stack.pop();
+            }
         }
         true
+    }
+
+    /// Qualify a literal `interp` path operand against the enclosing
+    /// `interp eval` bodies on the walk stack: paths are relative to the
+    /// *current* interpreter, so `interp create t` inside
+    /// `interp eval s {…}` names `s t`.  A dynamic operand is returned
+    /// key-normalised only (its stack context cannot make it literal).
+    fn qualified_interp_key(&self, path: &str) -> String {
+        let local = interp_path_key(path);
+        match self.interp_path_stack.last() {
+            Some(enclosing) if !local.is_empty() => format!("{enclosing} {local}"),
+            _ => local,
+        }
+    }
+
+    /// The synthetic namespace name for an interpreter domain: the
+    /// current epoch of `key` is folded in so a deleted-and-recreated
+    /// interpreter never shares its predecessor's definitions.
+    fn interp_domain_name(&self, key: &str) -> String {
+        match self.interp_epochs.get(key) {
+            Some(epoch) if *epoch > 0 => format!("@interp@{key}#{epoch}"),
+            _ => format!("@interp@{key}"),
+        }
+    }
+
+    /// Handle `interp create ?-safe? ?--? ?path?` — record the child
+    /// interpreter's existence and safe state in the interpreter-domain
+    /// map (issue #945 faults 7–8).  A dynamic path makes interpreter
+    /// existence unknowable file-wide; a missing path auto-generates a
+    /// name this file cannot reference literally, so nothing is recorded.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpCreate`];
+    /// `args[0]` is the subcommand word.
+    pub fn handle_interp_create_command(&mut self, args: &[String]) {
+        let mut safe = false;
+        let mut path: Option<&str> = None;
+        let mut past_flags = false;
+        for word in &args[1..] {
+            if !past_flags && word == "-safe" {
+                safe = true;
+                continue;
+            }
+            if !past_flags && word == "--" {
+                past_flags = true;
+                continue;
+            }
+            path = Some(word);
+            break;
+        }
+        let Some(path) = path else { return };
+        if crate::naming::is_dynamic_word(path) {
+            self.dynamic_interp_ops = true;
+            return;
+        }
+        let state = super::state::InterpState {
+            safe,
+            ..Default::default()
+        };
+        let key = self.qualified_interp_key(path);
+        self.interpreters.insert(key, state);
+    }
+
+    /// Handle `interp delete ?path ...?` — remove the recorded state and
+    /// bump the path's **epoch**, so a later re-creation is a fresh
+    /// domain (issue #945 fault 8's temporal identity).
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpDelete`].
+    pub fn handle_interp_delete_command(&mut self, args: &[String]) {
+        for word in &args[1..] {
+            if crate::naming::is_dynamic_word(word) {
+                self.dynamic_interp_ops = true;
+                continue;
+            }
+            let key = self.qualified_interp_key(word);
+            if self.interpreters.remove(&key).is_some() {
+                *self.interp_epochs.entry(key).or_insert(0) += 1;
+            }
+        }
+    }
+
+    /// Handle `interp hide path cmdName ?hiddenName?` — mark the command
+    /// hidden in the target interpreter's domain.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpHide`].
+    pub fn handle_interp_hide_command(&mut self, args: &[String]) {
+        self.apply_interp_visibility_delta(args, true);
+    }
+
+    /// Handle `interp expose path hiddenName ?exposedName?` — re-expose a
+    /// hidden command in the target interpreter's domain.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpExpose`].
+    pub fn handle_interp_expose_command(&mut self, args: &[String]) {
+        self.apply_interp_visibility_delta(args, false);
+    }
+
+    /// Shared body of the `interp hide` / `interp expose` handlers: apply
+    /// the visibility delta for a literal `(path, command)` pair; a dynamic
+    /// operand taints the interpreter's state (its visible set becomes
+    /// unknowable, so the safe-context gate abstains for it).
+    fn apply_interp_visibility_delta(&mut self, args: &[String], hide: bool) {
+        let (Some(path), Some(cmd)) = (args.get(1), args.get(2)) else {
+            return;
+        };
+        if crate::naming::is_dynamic_word(path) {
+            self.dynamic_interp_ops = true;
+            return;
+        }
+        let key = self.qualified_interp_key(path);
+        let Some(state) = self.interpreters.get_mut(&key) else {
+            return;
+        };
+        if crate::naming::is_dynamic_word(cmd) {
+            state.tainted = true;
+            return;
+        }
+        if hide {
+            state.hidden.insert(cmd.clone());
+            state.exposed.remove(cmd);
+        } else {
+            state.exposed.insert(cmd.clone());
+            state.hidden.remove(cmd);
+        }
     }
 
     /// Handle `namespace path {…}`: record the current namespace's
@@ -1922,9 +2128,61 @@ impl Analyser {
             self.deleted_commands.insert(deleted, offset);
             return;
         }
-        let Some((qualified, target_cmd, prepended)) = detect_interp_alias(args) else {
+        if let Some((qualified, target_cmd, prepended)) = detect_interp_alias(args) {
+            self.record_interp_alias(qualified, target_cmd, prepended, offset);
             return;
-        };
+        }
+        // Cross-domain alias (issue #945 fault 8): `interp alias PATH name
+        // TPATH target ?arg…?` deliberately crosses interpreter domains —
+        // the alias `name` becomes callable in the *source* interpreter,
+        // running `target` resolved in the *target* interpreter.  With
+        // literal paths both sides home under their `@interp@` domains, so
+        // calls of the alias inside the child's eval bodies resolve to the
+        // target through the ordinary alias link machinery.
+        if args.len() >= 5 {
+            let (src_path, alias_name, target_path, target_cmd) =
+                (&args[1], &args[2], &args[3], &args[4]);
+            let literal = |w: &String| !crate::naming::is_dynamic_word(w);
+            let plain_path = |w: &String| matches!(w.as_str(), "" | "{}");
+            if literal(alias_name)
+                && literal(target_cmd)
+                && literal(src_path)
+                && literal(target_path)
+                && !(plain_path(src_path) && plain_path(target_path))
+            {
+                let domain_prefix = |path: &String| {
+                    if plain_path(path) {
+                        String::new()
+                    } else {
+                        let key = self.qualified_interp_key(path);
+                        format!("::{}", self.interp_domain_name(&key))
+                    }
+                };
+                let qualified = format!(
+                    "{}::{}",
+                    domain_prefix(src_path),
+                    alias_name.trim_start_matches(':')
+                );
+                let target = format!(
+                    "{}::{}",
+                    domain_prefix(target_path),
+                    target_cmd.trim_start_matches(':')
+                );
+                let prepended: Vec<String> = args[5..].to_vec();
+                self.record_interp_alias(qualified, target, prepended, offset);
+            }
+        }
+    }
+
+    /// Record one resolved `interp alias` fact into the three alias
+    /// tables (shared by the current-interp and cross-domain forms).
+    fn record_interp_alias(
+        &mut self,
+        qualified: String,
+        target_cmd: String,
+        prepended: Vec<String>,
+        offset: u32,
+    ) {
         self.command_aliases
             .insert(qualified.clone(), (target_cmd.clone(), prepended.clone()));
         self.alias_offsets.insert(qualified.clone(), offset);
@@ -3667,16 +3925,221 @@ mod tests {
     /// so a parent rename of `::foo` can never reach the child body.
     #[test]
     fn interp_eval_child_isolates_definitions_from_the_parent() {
+        // Runnable Tcl (tclsh 9.0.4): the child is created before the
+        // eval.  The child's `foo` homes under the synthetic
+        // `@interp@child` domain — unrepresentable as a real namespace,
+        // so a parent namespace literally named `child` can never
+        // collide with the interpreter's definitions (issue #945
+        // fault 8's child-global-vs-parent-namespace identity split).
         let mut a = Analyser::new();
         let r = a.analyse(
-            "proc foo {} {}\ninterp eval child { proc foo {} {} }\n",
+            "interp create child\nproc foo {} {}\ninterp eval child { proc foo {} {} }\n",
             "tcl8.6",
         );
         let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
         assert!(r.all_procs.contains_key("::foo"), "parent proc: {keys:?}");
         assert!(
-            r.all_procs.contains_key("::child::foo"),
-            "child proc isolated under the interp path: {keys:?}",
+            r.all_procs.contains_key("::@interp@child::foo"),
+            "child proc isolated under the interpreter domain: {keys:?}",
+        );
+        assert!(
+            !r.all_procs.contains_key("::child::foo"),
+            "the child's global is not the parent namespace `::child`: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn interp_eval_into_uncreated_interp_warns_and_multiword_stays_isolated_945() {
+        // `interp eval ghost { … }` with no `interp create ghost` anywhere
+        // raises `could not find interpreter` at run time — W140 (issue
+        // #945 fault 8: interpreter existence).
+        let mut a = Analyser::new();
+        let r = a.analyse("interp eval ghost { proc foo {} {} }\n", "tcl8.6");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W140),
+            "eval into a never-created interpreter warns: {:?}",
+            r.diagnostics
+        );
+        // A dynamic create makes existence unknowable — W140 abstains.
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse(
+            "interp create $name\ninterp eval ghost { proc foo {} {} }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r2.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W140),
+            "dynamic interp creation abstains: {:?}",
+            r2.diagnostics
+        );
+        // Multi-word scripts concatenate at run time — the words must not
+        // be analysed in the *parent* scope (the old fall-through), nor
+        // walked per-word (commands span word boundaries).
+        let mut a3 = Analyser::new();
+        let r3 = a3.analyse(
+            "interp create c\ninterp eval c {proc leak {} {}} {puts hi}\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r3.all_procs.contains_key("::leak"),
+            "multi-word eval must not leak definitions into the parent: {:?}",
+            r3.all_procs.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn deleted_and_recreated_interp_is_a_fresh_domain_945() {
+        // C: `interp delete s; interp create s` starts with an empty
+        // command table — the old definitions are gone.  The epoch-stamped
+        // domain keeps the two lifetimes apart: the first eval's `foo`
+        // homes under `@interp@s`, the recreated interpreter's under
+        // `@interp@s#1`, and they never merge (issue #945 fault 8).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create s\ninterp eval s { proc foo {} {} }\n\
+             interp delete s\ninterp create s\n\
+             interp eval s { proc bar {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::@interp@s::foo"),
+            "first lifetime's proc: {keys:?}"
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@s#1::bar"),
+            "recreated interpreter is a fresh domain: {keys:?}"
+        );
+        assert!(
+            !r.all_procs.contains_key("::@interp@s::bar"),
+            "the recreated child never merges with its predecessor: {keys:?}"
+        );
+    }
+
+    #[test]
+    fn nested_interp_ops_qualify_against_the_enclosing_child_945() {
+        // `interp create t` inside `interp eval s {…}` creates `s t` —
+        // paths are relative to the *current* interpreter, so a top-level
+        // `interp eval {s t} {…}` reaches the grandchild without W140 and
+        // its definitions home under the composed domain.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create s\n\
+             interp eval s { interp create t }\n\
+             interp eval {s t} { proc deep {} {} }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W140),
+            "the nested create makes `s t` exist: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@s t::deep"),
+            "grandchild definitions home under the composed domain: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn cross_domain_interp_alias_links_child_calls_to_the_parent_target_945() {
+        // `interp alias s helper {} ::parent_helper` makes `helper`
+        // callable *inside the child* running the parent's proc — the
+        // alias deliberately crosses interpreter domains while
+        // definitions do not (issue #945 fault 8).  The child-side call
+        // resolves through the alias link to the parent target.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc parent_helper {} {}\ninterp create s\n\
+             interp alias s helper {} parent_helper\n\
+             interp eval s { helper }\n",
+            "tcl8.6",
+        );
+        let alias = r
+            .command_aliases
+            .get("::@interp@s::helper")
+            .unwrap_or_else(|| {
+                panic!(
+                    "child-domain alias recorded: {:?}",
+                    r.command_aliases.keys().collect::<Vec<_>>()
+                )
+            });
+        assert_eq!(
+            alias.target, "::parent_helper",
+            "the alias target resolves in the parent domain",
+        );
+    }
+
+    #[test]
+    fn safe_interp_hides_unsafe_commands_and_expose_restores_945() {
+        // tclsh 9.0.4: a `-safe` child hides `source` (and the rest of the
+        // non-CMD_IS_SAFE set) — calling it raises `invalid command name`.
+        // The safe-context walk flags the call (W129) and, because the
+        // command never executes, builds no source edge from it.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `source` in a safe interp warns: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.source_targets.is_empty(),
+            "no source edge may be built from a call that never executes: {:?}",
+            r.source_targets
+        );
+        // A safe command (`puts`) draws no W129; a non-safe interp draws
+        // none either.
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse(
+            "interp create -safe s\ninterp eval s { puts hi }\n\
+             interp create n\ninterp eval n { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r2.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "safe commands and non-safe interps draw no W129: {:?}",
+            r2.diagnostics
+        );
+        // `interp expose s source` restores the command.
+        let mut a3 = Analyser::new();
+        let r3 = a3.analyse(
+            "interp create -safe s\ninterp expose s source\n\
+             interp eval s { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r3.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an exposed command is callable again: {:?}",
+            r3.diagnostics
+        );
+        // `interp hide n source` hides it in a *normal* interp too.
+        let mut a4 = Analyser::new();
+        let r4 = a4.analyse(
+            "interp create n\ninterp hide n source\n\
+             interp eval n { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r4.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an explicitly hidden command warns in a normal interp: {:?}",
+            r4.diagnostics
         );
     }
 

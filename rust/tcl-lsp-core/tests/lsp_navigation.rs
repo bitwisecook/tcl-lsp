@@ -163,6 +163,166 @@ fn definition_instance_method_prefers_per_object_override() {
 }
 
 #[test]
+fn definition_external_call_to_unexported_method_yields_nothing_945() {
+    // tclsh 9.0.4: `oo::class create Vault {method _secret {} {…}}; set v
+    // [Vault new]; $v _secret` → `unknown method "_secret": must be
+    // destroy` — a default-unexported method (name not matching the C
+    // rule `[a-z]*`) is NOT externally callable, so go-to-definition on
+    // the external call resolves to nothing rather than the declaration
+    // (issue #945 fault 4).
+    let src = "oo::class create Vault {\n    \
+                   method _secret {} { return hidden }\n\
+               }\n\
+               set v [Vault new]\n\
+               $v _secret\n";
+    let analysis = analyse(src);
+    let locs = definition(src, 4, 5, &analysis);
+    assert!(
+        locs.is_empty(),
+        "an externally unexported TclOO method is not callable: {locs:?}",
+    );
+}
+
+#[test]
+fn definition_my_call_reaches_unexported_method_945() {
+    // tclsh 9.0.4: `my _secret` from inside another method of the class
+    // dispatches fine — internal access reaches unexported methods
+    // (issue #945 fault 4's access-context split).
+    let src = "oo::class create Vault {\n    \
+                   method _secret {} { return hidden }\n    \
+                   method probe {} { return [my _secret] }\n\
+               }\n";
+    let analysis = analyse(src);
+    let line = src.lines().nth(2).unwrap();
+    let col = line.find("_secret").unwrap() as u32 + 1;
+    let locs = definition(src, 2, col, &analysis);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].start_line, 1,
+        "`my _secret` resolves the unexported declaration: {locs:?}",
+    );
+}
+
+#[test]
+fn definition_explicit_export_flips_external_visibility_945() {
+    // `export _secret` makes the underscore method externally callable
+    // (tclsh 9.0.4) — the external call now resolves.
+    let src = "oo::class create Vault {\n    \
+                   method _secret {} { return hidden }\n    \
+                   export _secret\n\
+               }\n\
+               set v [Vault new]\n\
+               $v _secret\n";
+    let analysis = analyse(src);
+    let locs = definition(src, 5, 5, &analysis);
+    assert_eq!(locs.len(), 1, "explicit export admits the call: {locs:?}");
+    assert_eq!(locs[0].start_line, 1, "{locs:?}");
+    // And `unexport` hides a default-exported one.
+    let src2 = "oo::class create Vault {\n    \
+                    method leak {} { return x }\n    \
+                    unexport leak\n\
+                }\n\
+                set v [Vault new]\n\
+                $v leak\n";
+    let analysis2 = analyse(src2);
+    let locs2 = definition(src2, 5, 4, &analysis2);
+    assert!(
+        locs2.is_empty(),
+        "explicit unexport blocks the external call: {locs2:?}",
+    );
+}
+
+#[test]
+fn definition_selects_the_dispatch_entry_not_the_override_family_945() {
+    // tclsh 9.0.4: a `Dog` instance's `speak` enters `Dog::speak`
+    // (`info object call` = Dog then Animal).  Go-to-definition returns
+    // the dispatch entry only — never both family members (issue #945
+    // fault 6).
+    let src = "oo::class create Animal {\n    \
+                   method speak {} { return animal }\n\
+               }\n\
+               oo::class create Dog {\n    \
+                   superclass Animal\n    \
+                   method speak {} { return dog }\n\
+               }\n\
+               set d [Dog new]\n\
+               $d speak\n";
+    let analysis = analyse(src);
+    let locs = definition(src, 8, 4, &analysis);
+    assert_eq!(locs.len(), 1, "one dispatch entry, not the family: {locs:?}");
+    assert_eq!(
+        locs[0].start_line, 5,
+        "`$d speak` enters Dog::speak (line 5), never Animal::speak: {locs:?}",
+    );
+}
+
+#[test]
+fn definition_mixin_overrides_the_class_in_dispatch_order_945() {
+    // tclsh 9.0.4 pins mixins ahead of the class itself in the call
+    // chain (`info object call` = mixin, class, superclass) — the
+    // dispatch entry for `$o f` is the mixin's implementation.
+    let src = "oo::class create M {\n    \
+                   method f {} { return M }\n\
+               }\n\
+               oo::class create B {\n    \
+                   method f {} { return B }\n\
+               }\n\
+               oo::class create C {\n    \
+                   superclass B\n    \
+                   mixin M\n    \
+                   method f {} { return C }\n\
+               }\n\
+               set o [C new]\n\
+               $o f\n";
+    let analysis = analyse(src);
+    let locs = definition(src, 12, 3, &analysis);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].start_line, 1,
+        "the mixin's `f` (line 1) is the dispatch entry: {locs:?}",
+    );
+}
+
+#[test]
+fn per_object_methods_do_not_collide_across_scopes_945() {
+    // tclsh 9.0.4: two unrelated locals both named `o` in different procs
+    // are different objects — `$o m` in `b` runs b's override (`a=a b=b`).
+    // The per-object lookup keys by binding identity, so b's dispatch
+    // resolves b's `oo::objdefine` (line 8), never a's (line 3) — issue
+    // #945 fault 5.
+    let src = "oo::class create C {}\n\
+               proc a {} {\n    \
+                   set o [C new]\n    \
+                   oo::objdefine $o {method m {} {return a}}\n    \
+                   $o m\n\
+               }\n\
+               proc b {} {\n    \
+                   set o [C new]\n    \
+                   oo::objdefine $o {method m {} {return b}}\n    \
+                   $o m\n\
+               }\n";
+    let analysis = analyse(src);
+    // `$o m` inside b (line 9).
+    let line = src.lines().nth(9).unwrap();
+    let col = line.find('m').unwrap() as u32;
+    let locs = definition(src, 9, col, &analysis);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].start_line, 8,
+        "b's dispatch resolves b's own override (line 8), not a's (line 3): {locs:?}",
+    );
+    // And a's dispatch (line 4) resolves a's.
+    let line_a = src.lines().nth(4).unwrap();
+    let col_a = line_a.find('m').unwrap() as u32;
+    let locs_a = definition(src, 4, col_a, &analysis);
+    assert_eq!(locs_a.len(), 1, "{locs_a:?}");
+    assert_eq!(
+        locs_a[0].start_line, 3,
+        "a's dispatch resolves a's own override: {locs_a:?}",
+    );
+}
+
+#[test]
 fn definition_bare_call_honours_namespace_path_over_global() {
     // `::helper` at global and `::mymod::helper`; `::app` declares `namespace
     // path ::mymod`.  A bare `helper` call in `::app` resolves (like C Tcl) to

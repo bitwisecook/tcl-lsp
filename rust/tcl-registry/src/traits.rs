@@ -362,6 +362,20 @@ bitflags! {
         /// codegen must keep the plain fall-through call shape so the
         /// emitted bytecode matches C Tcl's.
         const REPLACES_FRAME            = 1 << 60;
+
+        /// Hidden when an interpreter is made **safe** — the command is
+        /// *not* part of C Tcl's safe-interpreter command set (its
+        /// `CmdInfo` row lacks `CMD_IS_SAFE`, or it is a whole-command
+        /// row of `unsafeEnsembleCommands` — `tclBasic.c`, 9.0.4:
+        /// `cd`, `encoding`, `exec`, `exit`, `fconfigure`, `file`,
+        /// `glob`, `load`, `open`, `pwd`, `socket`, `source`,
+        /// `unload`).  A call inside a safe interpreter's evaluation
+        /// context errors `invalid command name` unless the command was
+        /// re-exposed (`interp expose`) or reached via
+        /// `interp invokehidden`; the analyser's safe-context walk
+        /// consults this flag generically — no command name appears in
+        /// the consumer (issue #945 fault 7).
+        const SAFE_INTERP_HIDDEN        = 1 << 61;
     }
 }
 

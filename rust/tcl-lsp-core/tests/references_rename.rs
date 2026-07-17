@@ -161,20 +161,37 @@ fn references_proc_called_inside_oo_objdefine_method_body() {
 }
 
 #[test]
-fn namespace_which_command_probe_is_not_a_reference() {
-    // `namespace which -command greet` is an existence PROBE (it returns "" for
-    // an unknown command), not a call or a navigable reference.  Recording it
-    // as a command reference fed the probe into the W123 unresolved-command
-    // pass, flagging a legitimate `[namespace which -command foo] eq ""`
-    // existence check.  So Find-All-References from the declaration does NOT
-    // include the probe site — only the decl itself.
+fn namespace_which_command_probe_navigates_and_renames_945() {
+    // `namespace which -command greet` is an existence PROBE (it returns ""
+    // for an unknown command) — but reference identity and existence
+    // assertion are orthogonal (issue #945 fault 9): the typed
+    // `CommandNameProbe` role records a first-class, exactly-writable
+    // reference (Find-All-References and rename reach the probe site)
+    // whose record never feeds W123.
     let src = "proc greet {} {}\nnamespace which -command greet\n";
     let analysis = analyse(src);
     let refs = references(src, "tcl", 0, 6, &analysis, true);
     assert_eq!(
         ref_lines(&refs),
-        vec![0],
-        "only the decl; the probe is not a reference: got {refs:?}",
+        vec![0, 1],
+        "the probe site is a navigable reference: got {refs:?}",
+    );
+    // Rename rewrites the exact probe token alongside the declaration.
+    let edits = rename(src, "tcl", 0, 6, "salute", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![0, 1],
+        "rename rewrites the probe's exact name token: {edits:?}",
+    );
+    // A glob-pattern probe (`info commands gr*`) names no single command —
+    // no reference, no rename edit (the dynamic/pattern abstention).
+    let src2 = "proc greet {} {}\ninfo commands gr*\ninfo commands greet\n";
+    let analysis2 = analyse(src2);
+    let refs2 = references(src2, "tcl", 0, 6, &analysis2, true);
+    assert_eq!(
+        ref_lines(&refs2),
+        vec![0, 2],
+        "exact `info commands` probes navigate; patterns abstain: {refs2:?}",
     );
 }
 
@@ -869,20 +886,21 @@ fn rename_proc_updates_definition_and_all_call_sites() {
 #[test]
 fn rename_parent_proc_does_not_edit_a_child_interp_body() {
     // `interp eval child { proc foo }` runs in a child interpreter, so its
-    // `proc foo` is isolated from the parent's `::foo`.  Renaming the parent
-    // `foo` rewrites the parent decl (line 0) and its call (line 2) but must
-    // never touch the child body on line 1.
-    let src = "proc foo {} {}\ninterp eval child { proc foo {} {} }\nfoo\n";
+    // `proc foo` is isolated from the parent's `::foo` (runnable Tcl: the
+    // child is created first).  Renaming the parent `foo` rewrites the
+    // parent decl (line 1) and its call (line 3) but must never touch the
+    // child body on line 2.
+    let src = "interp create child\nproc foo {} {}\ninterp eval child { proc foo {} {} }\nfoo\n";
     let analysis = analyse(src);
-    // Cursor on the parent `foo` declaration (line 0, col 6).
-    let edits = rename(src, "tcl", 0, 6, "bar", &analysis, None);
+    // Cursor on the parent `foo` declaration (line 1, col 6).
+    let edits = rename(src, "tcl", 1, 6, "bar", &analysis, None);
     assert!(
-        edits.iter().all(|e| e.range.start_line != 1),
+        edits.iter().all(|e| e.range.start_line != 2),
         "the isolated child interp body must be untouched: {edits:?}",
     );
     let lines = edit_lines(&edits);
     assert!(
-        lines.contains(&0) && lines.contains(&2),
+        lines.contains(&1) && lines.contains(&3),
         "the parent decl and call are still rewritten: {edits:?}",
     );
 }
