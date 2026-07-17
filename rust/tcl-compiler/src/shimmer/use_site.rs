@@ -368,10 +368,10 @@ fn resolve_tracked_var_use(
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return None;
     }
-    lattice.tcl_type.map(|current| (var, sym, ver, current))
+    lattice.tcl_type().map(|current| (var, sym, ver, current))
 }
 
 fn check_argument(
@@ -720,10 +720,10 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return;
     }
-    let Some(current) = lattice.tcl_type else {
+    let Some(current) = lattice.tcl_type() else {
         return;
     };
     // A prior use that committed a non-numeric intrep on every path makes this

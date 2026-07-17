@@ -140,9 +140,9 @@ pub fn operand_types(fu: &FunctionUnit) -> OperandTypes {
 
 /// Whether a type-lattice element is a known numeric Tcl type.
 fn lattice_is_numeric(t: &TypeLattice) -> bool {
-    t.kind == TypeKind::Known
+    t.kind() == TypeKind::Known
         && matches!(
-            t.tcl_type,
+            t.tcl_type(),
             Some(TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean)
         )
 }
@@ -152,7 +152,7 @@ fn lattice_is_numeric(t: &TypeLattice) -> bool {
 /// excluded too, since a boolean-typed operand may hold the word `true`, which
 /// is not an integer in `expr` (`expr {true << 0}` errors).
 fn lattice_is_integer(t: &TypeLattice) -> bool {
-    t.kind == TypeKind::Known && matches!(t.tcl_type, Some(TclType::Int))
+    t.kind() == TypeKind::Known && matches!(t.tcl_type(), Some(TclType::Int))
 }
 
 /// Whether `node` is provably numeric for `expr` arithmetic — so dropping it
@@ -250,7 +250,7 @@ pub fn try_fold_expr(expr: &str, dialect: Option<&str>) -> Option<String> {
     }
     let env = Env::new();
     let value = eval_tcl_expr_with_octal(&node, &env, dialect.and_then(leading_zero_is_octal))?;
-    let rendered = format_tcl_value(value);
+    let rendered = format_tcl_value(&value);
     if rendered == trimmed {
         return None;
     }
@@ -296,7 +296,7 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
         }
     }
     let value = eval_tcl_expr_with_octal(&node, &env, dialect.and_then(leading_zero_is_octal))?;
-    let rendered = format_tcl_value(value);
+    let rendered = format_tcl_value(&value);
     if rendered == trimmed {
         return None;
     }
@@ -1304,12 +1304,9 @@ fn is_boolean_expr(node: &ExprNode) -> bool {
         ExprNode::Unary { op, .. } => matches!(op, UnaryOp::Not | UnaryOp::WordNot),
         ExprNode::Literal { text, .. } => {
             let t = text.trim();
-            t == "0"
-                || t == "1"
-                || matches!(
-                    t.to_ascii_lowercase().as_str(),
-                    "true" | "false" | "yes" | "no" | "on" | "off"
-                )
+            // Full spellings only, deliberately conservative for rewrite
+            // safety — the canonical vocabulary, not a private word list.
+            t == "0" || t == "1" || tcl_syntax::boolean::is_boolean_full_word(t)
         }
         _ => false,
     }
@@ -1371,10 +1368,7 @@ fn is_numeric_or_boolean_string(text: &str) -> bool {
         .trim_start_matches(['"', '{'])
         .trim_end_matches(['"', '}'])
         .trim();
-    matches!(
-        stripped.to_ascii_lowercase().as_str(),
-        "true" | "false" | "yes" | "no" | "on" | "off"
-    )
+    tcl_syntax::boolean::is_boolean_full_word(stripped)
 }
 
 /// Extract an integer literal from an [`ExprNode::Literal`],

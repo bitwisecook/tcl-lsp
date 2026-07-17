@@ -34,6 +34,7 @@ pub fn spec() -> CommandSpec {
             | Traits::CSE_CANDIDATE,
         arity: Arity::exact(3),
         return_type: Some(TclType::List),
+        return_elements: Some(ReturnElements::SubListOf { container_arg: 0 }),
         hover: Some(HoverSnippet {
             summary: "Return one or more adjacent elements from a list",
             synopsis: &["lrange list first last"],

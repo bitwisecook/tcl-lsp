@@ -155,7 +155,7 @@ pub fn format_constant(value: &ConstValue) -> Option<String> {
     match value {
         ConstValue::Bool(b) => Some(if *b { "1".into() } else { "0".into() }),
         ConstValue::Int(i) => Some(i.to_string()),
-        ConstValue::Float(f) => Some(format_tcl_value(TclValue::Float(*f))),
+        ConstValue::Float(f) => Some(format_tcl_value(&TclValue::Float(*f))),
         ConstValue::String(s) => Some(s.clone()),
     }
 }

@@ -37,7 +37,7 @@ use tcl_registry::TclType;
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::sccp::cfg_order;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
-use crate::types::{TypeKind, TypeLattice};
+use crate::types::{TypeKind, TypeLattice, TypeShape};
 
 use super::graph::loop_body_blocks;
 use super::span::{def_range_map, phi_span};
@@ -69,6 +69,48 @@ struct PhiCtx<'a> {
     array_syms: &'a HashSet<Symbol>,
 }
 
+/// The per-predecessor type evidence of one phi's incomings, split by
+/// loop-body vs entry edges (empty-literal versions excluded).
+#[derive(Default)]
+struct IncomingTypes {
+    entry_types: HashSet<TclType>,
+    body_types: HashSet<TclType>,
+    nonempty_known: HashSet<TclType>,
+    has_shimmered_incoming: bool,
+}
+
+/// Classify each incoming version of `phi` as entry / loop-body evidence —
+/// the shared preamble of the merge-shimmer verdict.
+fn classify_incoming_types(ctx: &PhiCtx<'_>, phi: &Phi) -> IncomingTypes {
+    let empty_vers = ctx.empty_by_name.get(&phi.name);
+    let mut out = IncomingTypes::default();
+    for (pred, &inc_ver) in &phi.incoming {
+        if inc_ver == 0 {
+            continue;
+        }
+        let Some(inc_type) = ctx.types.get(&(phi.name, inc_ver)) else {
+            continue;
+        };
+        if inc_type.kind() == TypeKind::Unknown {
+            continue;
+        }
+        let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
+        if inc_type.kind() == TypeKind::Known && !is_empty {
+            if let Some(t) = inc_type.tcl_type() {
+                if ctx.loop_blocks.contains(ctx.cfg.block_name(*pred)) {
+                    out.body_types.insert(t);
+                } else {
+                    out.entry_types.insert(t);
+                }
+                out.nonempty_known.insert(t);
+            }
+        } else if inc_type.kind() == TypeKind::Shimmered {
+            out.has_shimmered_incoming = true;
+        }
+    }
+    out
+}
+
 /// Decide whether one phi node is a genuine merge-point shimmer, returning
 /// the warning when it is (the per-phi body of [`find_phi_shimmers`]).
 fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<ShimmerWarning> {
@@ -79,46 +121,31 @@ fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<Sh
         return None;
     }
     let lattice = ctx.types.get(&(phi.name, phi.version))?;
-    if lattice.kind != TypeKind::Shimmered {
+    if lattice.kind() != TypeKind::Shimmered {
         return None;
     }
-    let from = lattice.from_type?;
-    let to = lattice.tcl_type?;
+    // Every coarse type the union tracks, in canonical order. Two members is
+    // the classic pair; three or more (previously collapsed to OVERDEFINED
+    // and silently missed) now report every merging type.
+    let members: Vec<TclType> = {
+        let mut coarse: Vec<TclType> = lattice.shapes().iter().map(TypeShape::coarse).collect();
+        coarse.dedup();
+        coarse
+    };
+    let (&from, &to) = (members.first()?, members.last()?);
 
     // Refine the SHIMMERED-phi verdict.
     // A loop-header phi is SHIMMERED on any entry-vs-body type change,
     // but the empty-accumulator promotion (`set r {}`; `lappend r …`)
     // and a branch merge whose only shimmer comes from an empty literal
     // are not real per-use intrep conversions.
-    let empty_vers = ctx.empty_by_name.get(&phi.name);
-    let mut entry_types: HashSet<TclType> = HashSet::new();
-    let mut body_types: HashSet<TclType> = HashSet::new();
-    let mut nonempty_known: HashSet<TclType> = HashSet::new();
-    let mut has_shimmered_incoming = false;
-    for (pred, &inc_ver) in &phi.incoming {
-        if inc_ver == 0 {
-            continue;
-        }
-        let Some(inc_type) = ctx.types.get(&(phi.name, inc_ver)) else {
-            continue;
-        };
-        if inc_type.kind == TypeKind::Unknown {
-            continue;
-        }
-        let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
-        if inc_type.kind == TypeKind::Known && !is_empty {
-            if let Some(t) = inc_type.tcl_type {
-                if ctx.loop_blocks.contains(ctx.cfg.block_name(*pred)) {
-                    body_types.insert(t);
-                } else {
-                    entry_types.insert(t);
-                }
-                nonempty_known.insert(t);
-            }
-        } else if inc_type.kind == TypeKind::Shimmered {
-            has_shimmered_incoming = true;
-        }
-    }
+    let incoming = classify_incoming_types(ctx, phi);
+    let IncomingTypes {
+        entry_types,
+        body_types,
+        nonempty_known,
+        has_shimmered_incoming,
+    } = incoming;
     if in_loop {
         let mut all_body = body_types;
         if let Some(pl) = ctx.loop_body_types.get(&phi.name) {
@@ -148,9 +175,10 @@ fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<Sh
             def_map: ctx.def_map,
             destructure: ctx.destructure,
         };
-        [to, from]
-            .into_iter()
-            .find_map(|t| per_loop_type_span(&look, ctx.loop_blocks, phi.name, t))
+        members
+            .iter()
+            .rev()
+            .find_map(|&t| per_loop_type_span(&look, ctx.loop_blocks, phi.name, t))
             .unwrap_or_else(|| phi_span(phi, ctx.ssa, ctx.def_map))
     } else {
         phi_span(phi, ctx.ssa, ctx.def_map)
@@ -185,12 +213,23 @@ fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<Sh
         in_loop,
         code,
         message: format!(
-            "'{var}' merges {from} and {to} at control-flow join",
-            from = type_name(from),
-            to = type_name(to),
+            "'{var}' merges {list} at control-flow join",
+            list = join_type_names(&members),
         ),
         related,
     })
+}
+
+/// Render merged type names for the phi message: `"a and b"` for the pair,
+/// `"a, b, and c"` for a wider union.
+fn join_type_names(members: &[TclType]) -> String {
+    let names: Vec<String> = members.iter().map(|&t| type_name(t)).collect();
+    match names.as_slice() {
+        [] => String::new(),
+        [one] => one.clone(),
+        [a, b] => format!("{a} and {b}"),
+        [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
+    }
 }
 
 #[must_use]

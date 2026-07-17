@@ -361,11 +361,9 @@ mod tests {
                 .map_err(|_| ValueError::NotDouble(v.to_string()))
         }
         fn as_bool(&mut self, v: &Rc<str>) -> Result<bool, ValueError> {
-            match v.as_ref() {
-                "1" | "true" | "yes" | "on" => Ok(true),
-                "0" | "false" | "no" | "off" => Ok(false),
-                _ => Err(ValueError::NotBoolean(v.to_string())),
-            }
+            // The boolean-context acceptor (words by prefix, else any
+            // number vs zero) — the mock must honour the real contract.
+            crate::boolean::truthiness(v).ok_or_else(|| ValueError::NotBoolean(v.to_string()))
         }
         fn list_elements(&mut self, v: &Rc<str>) -> Result<Vec<Rc<str>>, ValueError> {
             Ok(v.split_whitespace().map(Rc::from).collect())

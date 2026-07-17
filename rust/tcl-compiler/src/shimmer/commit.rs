@@ -292,10 +292,10 @@ impl CommitWalker<'_> {
 /// non-empty may-set).
 fn initial_state(ctx: &CommitCtx<'_>, key: ValueKey) -> Option<CommitState> {
     let lattice = ctx.types.get(&key)?;
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return Some(CommitState::pure());
     }
-    let t = lattice.tcl_type?;
+    let t = lattice.tcl_type()?;
     Some(if is_pure_intrep(t, ctx.values.get(&key)) {
         CommitState::pure()
     } else {

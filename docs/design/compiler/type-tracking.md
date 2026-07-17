@@ -157,23 +157,67 @@ would not.
    `first_use_commitments_for_cu` feeds hover's
    "string (first used as: list)". Locked in by `shimmer/commit.rs` unit
    tests, FP-SH-22, and the `commit_dataflow_*` lsp_e2e suite.
-2. **P2 — TypeShape + unions**: introduce alongside `TypeLattice`, migrate
-   consumers via accessors; `element_class` generalises to `Elements`.
-   Unify the three ad-hoc union carriers (SCCP `ConstSet` ≤ 32, the
-   `Shimmered` pair, `class_lattice::ClassValue::Set`) behind one bounded
-   type-set primitive, un-masking the 3+-way merge collapse at
-   `types.rs` `type_join` (documented lossy point).
-3. **P3 — container element inference**: `list`/`dict create`/`lappend`
-   builders + literal parses populate `Elements`; retrieval sites read them.
-   The VM already stores per-element typed values (`IntRep::List(Rc<Vec<Value>>)`),
-   so the static facts mirror the runtime truth.
-4. **P4 — bignum-exact folding**: `ConstValue` gains exact beyond-wide
-   integers, folding `2**64` / `i64max+1` as C does. Reuse the faithful
-   runtime's tower (`runtime/rust/src/bignum.rs` — `NumVal::Wide/Big/Float`
-   with `store`'s demote-when-fits canonicalisation), which already matches
-   `docs/design/contracts/numeric-tower-and-expr-semantics.md`; today's
-   compiler folder *declines* on overflow (sound, never wraps), so this is an
-   enhancement, not a soundness fix.
+2. **P2 — TypeShape + unions** ✅ **landed**: `TypeLattice` is a bounded
+   canonical union of `TypeShape`s (`bounded_set::BoundedSet`, cap
+   `MAX_TYPE_UNION`); 3+-way merges stay tracked (phi reports every member,
+   hover/inlay render full unions), `Shimmered` survives as the ≥2-member
+   classification, numeric members collapse per the tower, and W126 runs a
+   must-policy over members. SCCP's `ConstSet` and the class lattice keep
+   their own storage deliberately — their dedup is not plain equality
+   (`cv_eq` numeric cross-equality; sorted persistent sets) — documented in
+   `bounded_set.rs`.
+3. **P3 — container element inference** ✅ **landed**: registry facts
+   (`ReturnElements` on `list`/`dict create`/`lindex`/`dict get`/`lrange`,
+   `VarElementsEffect` on `lappend`/`dict set/append/lappend`,
+   `VarWriteTyping::ElementsOf` on `lassign`/`foreach`/`lmap`) drive
+   `type_infer`'s element machinery — the old object-only
+   `collection_element_class` / `container_retrieval_object_type`
+   command-name matches are deleted. Pure/value-unknown element positions
+   stay agnostic (`None`) so FP-SH-17's pins hold; committed sources carry
+   real shapes (`[list [expr {2**20}] x]` is `List<Numeric, ?>`, and
+   `lassign` of an object list types its targets).
+4. **P4 — bignum-exact folding** ✅ **landed**: `TclValue::Big` over
+   `num-bigint` folds `2**64` / `i64::MAX + 1` / `1 << 63` to C's exact
+   values (demote-when-fits; SCCP carries a bignum as its canonical decimal
+   string so chained folds re-parse exactly). The operator semantics live
+   once in `tcl_syntax::number_tower` (`BigIntOps` backend trait — the
+   compiler adapts `num-bigint` behind the crate's `num-bigint` feature; the
+   faithful runtime can adapt the real libtommath `mp_int`, keeping the
+   backend swappable with zero semantic drift; the VM is the next adopter).
+   Float edges are oracle-pinned (`tcl_expr_eval::float_edge_oracle_table`):
+   NaN comparisons are IEEE-unordered values while NaN operands/results in
+   arithmetic decline (C errors), `Inf` propagates, signed zero and
+   denormals round-trip, `isqrt` is exact at the f64-rounding edge, and an
+   inexact bignum→double contamination declines rather than bet on rounding
+   parity.
+
+### P5 (planned) — arrays as per-constant-key scalars
+
+Element inference deliberately does **not** cover arrays yet. A Tcl array is
+a collection of *variables*, not a value, and today's SSA conflates every
+`arr(key)` element onto one base symbol (`normalise_var_name` strips the
+`(key)` suffix) — the very conflation the FP-SH-13 exclusions guard against
+in the shimmer passes. The oracle corpus ("array elements behave as
+independent scalars") fixes the faithful design: give each
+**constant-keyed** element (`arr(k)`, `arr(1)`) its own SSA symbol so it
+types/commits/folds as the independent scalar it is, while a dynamic key
+(`arr($i)`) keeps the conflated base with barrier semantics (it may alias
+any element). That is an SSA/naming-layer change, not a registry fact —
+registry-side, `array set` / `array get` then read naturally as
+`DictOfPairs`-shaped bulk moves over those element variables. Landing it
+retires the FP-SH-13 exclusions for constant keys.
+
+### Boolean acceptors (companion centralisation)
+
+C Tcl's two boolean acceptors live once in `tcl_syntax::boolean`, both
+oracle-table-pinned: `parse_boolean_strict` (`ParseBoolean` — word prefixes
+plus exactly `0`/`1`; `string is boolean`) and `truthiness`
+(`Tcl_GetBooleanFromObj` — word else any number vs zero; `NaN` is a domain
+error, `±Inf` truthy). Every former hand-rolled word list (`string is`
+const-fold, VM `as_bool`, intervals, the folder's boolean contexts, the
+type classifier, expr-simplify's vocabulary) now routes through them; the
+migration fixed two real divergences (VM treated `NaN` as truthy; the
+folder folded `!NaN`).
 
 Each phase lands with its slice of the oracle corpus as tests (unit + FP-SH
 catalogue + lsp_e2e where user-visible).

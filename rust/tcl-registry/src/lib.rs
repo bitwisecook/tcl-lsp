@@ -121,7 +121,7 @@ pub mod prelude {
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
-    pub use crate::types::{TclType, VarWriteTyping};
+    pub use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 }
 
 // Re-export key types at crate root.
@@ -153,7 +153,7 @@ pub use special_vars::{
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;
-pub use types::{TclType, VarWriteTyping};
+pub use types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 
 /// Crate version string.
 ///

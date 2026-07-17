@@ -136,7 +136,7 @@ fn infer_type(src: &str, qname: &str, var: &str) -> Option<TclType> {
         .iter()
         .filter(|((sym, _), _)| fu.ssa.var_name(*sym) == var)
         .max_by_key(|((_, ver), _)| *ver)
-        .and_then(|(_, t)| t.tcl_type)
+        .and_then(|(_, t)| t.tcl_type())
 }
 
 /// The inferred `TypeLattice` (kind + `tcl_type`) of `var`'s highest version
@@ -895,7 +895,7 @@ fn expr_ternary_mixed_branches_join_to_numeric() {
     // Double (`string is double` = 1, `string is integer` = 0), but the
     // static lattice over-approximates the unselected branch to Numeric.
     let lat = infer_lattice("set v [expr {1 ? 2.0 : 3}]", "v").expect("v typed");
-    assert_eq!(lat.tcl_type, Some(TclType::Numeric));
+    assert_eq!(lat.tcl_type(), Some(TclType::Numeric));
     // Two same-typed arms collapse to that concrete type.
     assert_eq!(ty("set v [expr {1 ? 5 : 9}]", "v"), TclType::Int);
 }
@@ -907,7 +907,7 @@ fn expr_unknown_function_is_numeric() {
     // pass conservatively widens to the abstract `Numeric` join (no direct
     // single-value tclsh analogue — it is the Int-or-Double lattice point).
     let lat = infer_lattice("set v [expr {not_a_real_fn($v)}]", "v").expect("v typed");
-    assert_eq!(lat.tcl_type, Some(TclType::Numeric));
+    assert_eq!(lat.tcl_type(), Some(TclType::Numeric));
 }
 
 #[test]
@@ -916,7 +916,7 @@ fn expr_arithmetic_over_untyped_var_is_numeric() {
     // pass can't decide Int vs Double, so it lands on the `Numeric` join.
     // (Top-level `$x` comes from a barrier-typed source, so it is untyped.)
     let lat = infer_lattice("set v [expr {$unknownvar + 1}]", "v").expect("v typed");
-    assert_eq!(lat.tcl_type, Some(TclType::Numeric));
+    assert_eq!(lat.tcl_type(), Some(TclType::Numeric));
 }
 
 // ===========================================================================
@@ -945,7 +945,7 @@ fn scope_alias_def_widens_to_overdefined() {
     let widened = fu
         .types
         .iter()
-        .any(|((n, _), t)| fu.ssa.var_name(*n) == "counter" && t.kind == TypeKind::Overdefined);
+        .any(|((n, _), t)| fu.ssa.var_name(*n) == "counter" && t.kind() == TypeKind::Overdefined);
     assert!(
         widened,
         "scope-aliased counter should be Overdefined: {:?}",
@@ -961,7 +961,7 @@ fn global_alias_def_widens_to_overdefined() {
     let widened = fu
         .types
         .iter()
-        .any(|((n, _), t)| fu.ssa.var_name(*n) == "g" && t.kind == TypeKind::Overdefined);
+        .any(|((n, _), t)| fu.ssa.var_name(*n) == "g" && t.kind() == TypeKind::Overdefined);
     assert!(
         widened,
         "global-aliased g should be Overdefined: {:?}",

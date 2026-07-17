@@ -209,7 +209,7 @@ fn try_rewrite_assign_expr(
     if !expr_uses_shadowed_mathfunc(expr, procedures)
         && let Some(val) = eval_tcl_expr_with_octal(expr, &env, octal)
     {
-        let folded = format_tcl_value(val);
+        let folded = format_tcl_value(&val);
         let original = crate::expr_ast::render_expr(expr);
         if folded != original.trim() {
             // Safe-word check: the folded value must inline as a
@@ -323,7 +323,7 @@ fn try_rewrite_expr(
     if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(expr, procedures)
         && let Some(val) = eval_tcl_expr_with_octal(expr, &env, octal)
     {
-        let folded = format_tcl_value(val);
+        let folded = format_tcl_value(&val);
         // Compare against the original body text slice when it is
         // recoverable; the outer span covers the whole `expr …`
         // command so we look at the `ExprNode::Command`-free

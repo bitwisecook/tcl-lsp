@@ -231,10 +231,10 @@ fn literal_int(node: &ExprNode) -> Option<i64> {
         return None;
     };
     let t = text.trim();
-    match t {
-        "true" | "yes" | "on" => return Some(1),
-        "false" | "no" | "off" => return Some(0),
-        _ => {}
+    // Boolean words resolve by unique prefix in expr context (`tru` is a
+    // boolean literal to C Tcl) — the canonical word acceptor.
+    if let Some(b) = tcl_syntax::boolean::parse_boolean_word(t) {
+        return Some(i64::from(b));
     }
     parse_radix_int(t)
 }

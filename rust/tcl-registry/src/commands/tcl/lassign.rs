@@ -50,7 +50,7 @@ pub fn spec() -> CommandSpec {
         // `lassign` writes list *elements* to its targets — of any intrep —
         // while returning the *leftover* list.  The elements are not the
         // return value, so they must not be typed `List` (issue #867).
-        var_write_typing: VarWriteTyping::Destructured,
+        var_write_typing: VarWriteTyping::ElementsOf { container_arg: 0 },
         hover: Some(HoverSnippet {
             summary: "Assign list elements to variables",
             synopsis: &["lassign list ?varName ...?"],

@@ -273,7 +273,7 @@ fn format_type<S: std::hash::BuildHasher>(
 ) -> String {
     match key.and_then(|k| types.and_then(|t| t.get(&k))) {
         None => String::new(),
-        Some(tl) => match tl.kind {
+        Some(tl) => match tl.kind() {
             TypeKind::Unknown => "UNKNOWN",
             TypeKind::Known => "KNOWN",
             TypeKind::Shimmered => "SHIMMERED",

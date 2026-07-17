@@ -178,18 +178,18 @@ impl Analyser {
             |fu: &crate::compilation_unit::FunctionUnit,
              out: &mut std::collections::HashMap<String, HashSet<String>>| {
                 for ((sym, _ver), tl) in &fu.types {
-                    if tl.kind != TypeKind::Known {
+                    if tl.kind() != TypeKind::Known {
                         continue;
                     }
-                    if !matches!(tl.tcl_type, Some(tcl_registry::TclType::Object)) {
+                    if !matches!(tl.tcl_type(), Some(tcl_registry::TclType::Object)) {
                         continue;
                     }
-                    let Some(class_name) = &tl.class_name else {
+                    let Some(class_name) = tl.class_name() else {
                         continue;
                     };
                     out.entry(fu.ssa.var_name(*sym).to_owned())
                         .or_default()
-                        .insert(class_name.clone());
+                        .insert(class_name.to_owned());
                 }
             };
         collect_object_types(&cu.top_level, &mut all_object_types);
@@ -1096,12 +1096,12 @@ impl Analyser {
 
             // ``Object`` return type — suppress W307; if the
             // class is known, validate the method (W308).
-            let is_object = ret_type.kind == crate::types::TypeKind::Known
-                && matches!(ret_type.tcl_type, Some(tcl_registry::TclType::Object));
+            let is_object = ret_type.kind() == crate::types::TypeKind::Known
+                && matches!(ret_type.tcl_type(), Some(tcl_registry::TclType::Object));
             if is_object {
                 if !self.disabled_diagnostics.contains("W308")
                     && let (Some(method), Some(class_name)) =
-                        (site.method_name.as_ref(), ret_type.class_name.as_ref())
+                        (site.method_name.as_ref(), ret_type.class_name().as_ref())
                 {
                     let cls_qn = self.canonicalise_class_name(class_name);
                     let cd = self.result.all_classes.get(&cls_qn).cloned();

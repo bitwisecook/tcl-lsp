@@ -1527,6 +1527,24 @@ impl ResolvedCall<'_> {
         self.sub
             .map_or(self.spec.var_write_typing, |s| s.var_write_typing)
     }
+
+    /// The result↔element-structure fact for this call — the subcommand's
+    /// when one matched, else the command's. See
+    /// [`crate::types::ReturnElements`].
+    #[must_use]
+    pub fn return_elements(&self) -> Option<crate::types::ReturnElements> {
+        self.sub
+            .map_or(self.spec.return_elements, |s| s.return_elements)
+    }
+
+    /// The in-place element evolution of the written variable for this call —
+    /// the subcommand's when one matched, else the command's. See
+    /// [`crate::types::VarElementsEffect`].
+    #[must_use]
+    pub fn var_elements_effect(&self) -> Option<crate::types::VarElementsEffect> {
+        self.sub
+            .map_or(self.spec.var_elements_effect, |s| s.var_elements_effect)
+    }
 }
 
 fn pick_form<'r>(

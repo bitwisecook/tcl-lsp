@@ -739,16 +739,11 @@ fn is_tcl_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{0b}' | '\u{0c}')
 }
 
-/// `Tcl_GetBoolean`: `0` / `1` plus the case-insensitive *unique*
-/// prefixes of `true` / `false` / `yes` / `no` / `on` / `off`.  Returns
-/// the boolean value, or `None` when the string is not a valid boolean.
-/// (`o` is ambiguous between `on` and `off`, so it is *not* a boolean.)
+/// `Tcl_GetBoolean`: the canonical strict acceptor — `0` / `1` plus the
+/// case-insensitive *unique* prefixes of the six boolean words. One home:
+/// [`tcl_syntax::boolean::parse_boolean_strict`] (oracle-table-pinned).
 fn tcl_bool(s: &str) -> Option<bool> {
-    match s.to_ascii_lowercase().as_str() {
-        "1" | "t" | "tr" | "tru" | "true" | "y" | "ye" | "yes" | "on" => Some(true),
-        "0" | "f" | "fa" | "fal" | "fals" | "false" | "n" | "no" | "of" | "off" => Some(false),
-        _ => None,
-    }
+    tcl_syntax::boolean::parse_boolean_strict(s)
 }
 
 /// Character classes accepted by `string is <class>`.

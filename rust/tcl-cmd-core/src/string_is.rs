@@ -130,16 +130,17 @@ fn char_class(class: &str, chars: &[char]) -> (bool, i64) {
 }
 
 fn check_boolean(chars: &[char], class: &str) -> bool {
-    // Tcl accepts `0`/`1` and any *unique* case-insensitive prefix of the
-    // boolean words (so `f`→false, `tru`→true, but `o` is ambiguous on/off).
-    let lc: String = chars.iter().collect::<String>().to_ascii_lowercase();
-    let s = lc.as_str();
-    let truthy = s == "1" || ["true", "yes", "on"].iter().any(|w| w.starts_with(s));
-    let falsy = s == "0" || ["false", "no", "off"].iter().any(|w| w.starts_with(s));
-    match class {
-        "true" => truthy && !falsy,
-        "false" => falsy && !truthy,
-        _ => truthy ^ falsy,
+    // The canonical strict acceptor (`ParseBoolean`): `0`/`1` plus any
+    // *unique* case-insensitive prefix of the boolean words (`f`→false,
+    // `tru`→true; `o` is ambiguous on/off and rejected).
+    let s: String = chars.iter().collect();
+    match tcl_syntax::boolean::parse_boolean_strict(&s) {
+        Some(value) => match class {
+            "true" => value,
+            "false" => !value,
+            _ => true,
+        },
+        None => false,
     }
 }
 

@@ -214,6 +214,9 @@ name = "tcl-compiler"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
  "regex",
  "rustc-hash",
  "tcl-bytecode",
@@ -289,6 +292,9 @@ name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
  "tcl-dialect",
  "tcl-lexer",
 ]

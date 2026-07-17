@@ -1635,7 +1635,7 @@ fn try_substitute_assign_expr(
     let env = Env::new();
     let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if let Some(val) = eval_tcl_expr_with_octal(&parsed, &env, octal) {
-        let folded = format_tcl_value(val);
+        let folded = format_tcl_value(&val);
         let needs_quoting = folded.is_empty()
             || folded.contains([
                 ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',

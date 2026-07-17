@@ -2458,6 +2458,66 @@ fn issue_940_committed_container_in_foreach_still_fires_s100() {
 }
 
 #[test]
+fn element_tracking_committed_lindex_retrieval_is_silent() {
+    // P3 (type-tracking.md): container elements are shared objects, so a
+    // committed numeric element retrieved by `lindex` is genuinely numeric —
+    // arithmetic on it is not a shimmer.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set l [list [expr {2**20}] other]\nset first [lindex $l 0]\nset n [expr {$first + 1}]\nputs $n\n",
+    );
+    assert!(
+        !has_code(&diags, "S100") && !has_code(&diags, "S101"),
+        "a committed numeric element is numeric — no shimmer: {diags:?}"
+    );
+}
+
+#[test]
+fn union_lattice_three_way_merge_reports_every_type() {
+    // P2: a three-way differently-typed merge stays a tracked union
+    // (previously OVERDEFINED and silent); the phi message names every
+    // member.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {c} {\n  if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [dict create a 1] } else { set x [expr {1+1}] }\n  return $x\n}\n",
+    );
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert!(
+        s100.iter().any(|d| {
+            let m = d["message"].as_str().unwrap_or("");
+            m.contains("merges") && m.contains("list") && m.contains("dict")
+        }),
+        "the 3-way merge message must name the merging types: {s100:?}"
+    );
+}
+
+#[test]
+fn bignum_values_raise_no_false_diagnostics() {
+    // P4: beyond-wide integers classify on the tower (`Bignum`, coarse Int)
+    // and fold exactly — a bignum literal chain must publish no shimmer /
+    // type diagnostics. (The exact fold value is pinned at the compiler
+    // tier: `fp_sh_23_bignum_folds_are_exact` and the tcl_expr_eval oracle
+    // corpus.)
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set big [expr {2**64}]\nset next [expr {$big + 1}]\nincr next\nputs $next\n",
+    );
+    assert!(
+        !has_code(&diags, "S100") && !has_code(&diags, "S101"),
+        "exact bignum arithmetic is not a shimmer: {diags:?}"
+    );
+}
+
+#[test]
 fn commit_dataflow_second_conversion_fires_s100_with_committed_from_type() {
     // First-use commit: `expr` commits the numeric intrep on a pure literal;
     // the later `lindex` genuinely re-represents it (oracle: rep int → list).

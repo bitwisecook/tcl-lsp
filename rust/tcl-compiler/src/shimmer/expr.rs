@@ -352,10 +352,10 @@ fn check_numeric_operand(
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return;
     }
-    let Some(current) = lattice.tcl_type else {
+    let Some(current) = lattice.tcl_type() else {
         return;
     };
     let (to_type, context_name) = match context {
@@ -441,10 +441,10 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return;
     }
-    let Some(current) = lattice.tcl_type else {
+    let Some(current) = lattice.tcl_type() else {
         return;
     };
     // A prior use that committed a non-list intrep on every path makes this
@@ -520,10 +520,10 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return;
     }
-    let Some(current) = lattice.tcl_type else {
+    let Some(current) = lattice.tcl_type() else {
         return;
     };
     // A numeric variable in a string comparison does NOT lose its intrep —

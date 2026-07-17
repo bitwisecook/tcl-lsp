@@ -1239,6 +1239,10 @@ pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
     match v {
         TclValue::Int(i) => ConstValue::Int(i),
         TclValue::Float(f) => ConstValue::Float(f),
+        // A beyond-wide integer's lattice form is its canonical decimal
+        // string — the value's one true rep, which downstream folds re-parse
+        // exactly (`set big [expr {2**64}]; expr {$big + 1}` chains).
+        TclValue::Big(b) => ConstValue::String(b.to_string()),
     }
 }
 

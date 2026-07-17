@@ -101,6 +101,9 @@ pub fn evaluate_expr_with_constants(
     let v = eval_tcl_expr_with_octal(expr, &tcl_env, octal)?;
     match v {
         TclValue::Int(i) => Some(i),
+        // A beyond-wide loop bound is pathological — decline static
+        // unrolling rather than saturate.
+        TclValue::Big(_) => None,
         TclValue::Float(f) => {
             if !f.is_finite() {
                 return None;

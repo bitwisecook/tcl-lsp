@@ -1558,3 +1558,76 @@ fn fp_sh_22_merge_use_matching_neither_arm_fires() {
         codes(src, D),
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-SH-23 — element-tracked containers and the union lattice (P2/P3)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-23: a committed element retrieved from a tracked container keeps its
+/// intrep — `lindex` on `[list [expr {…}] …]` yields the numeric element, so
+/// arithmetic on it is not a shimmer (the element is genuinely numeric by
+/// reference, oracle corpus in type-tracking.md).
+#[test]
+fn fp_sh_23_committed_element_arithmetic_silent() {
+    let src =
+        "set l [list [expr {2**20}] other]\nset first [lindex $l 0]\nset n [expr {$first + 1}]\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-23: a numeric element retrieved by lindex is numeric — no shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-23: a three-way branch merge stays a tracked union (previously
+/// collapsed to OVERDEFINED and silently missed) — the phi merge reports
+/// every member.
+#[test]
+fn fp_sh_23_three_way_merge_reports_all_members() {
+    let src = "proc f {c} {\n  if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [dict create a 1] } else { set x [expr {1+1}] }\n  return $x\n}\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-23: a 3-way differently-typed merge must be reported; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-23 FP-guard: the same 3-way merge where every arm produces the SAME
+/// type stays silent — the union canonicalises to a singleton.
+#[test]
+fn fp_sh_23_three_way_same_type_merge_silent() {
+    let src = "proc f {c} {\n  if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [list 2] } else { set x [list 3] }\n  return $x\n}\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-23 guard: same-typed 3-way merge must stay silent; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-23: exact bignum folding — `expr {2**64}` and a chained `$big + 1`
+/// fold to C Tcl's exact values, so the SCCP-driven checks see real
+/// constants, never a wrapped or declined value (P4; values tclsh-verified).
+#[test]
+fn fp_sh_23_bignum_folds_are_exact() {
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_registry::CommandRegistry;
+    let registry = CommandRegistry::build_default();
+    let cu = CompilationUnit::build_for(
+        "set big [expr {2**64}]\nset next [expr {$big + 1}]",
+        &registry,
+        false,
+    );
+    let fu = cu.function("::top").unwrap();
+    let next_const = fu
+        .sccp
+        .values
+        .iter()
+        .find(|((sym, ver), _)| fu.ssa.var_name(*sym) == "next" && *ver > 0)
+        .map(|(_, v)| v.clone());
+    assert_eq!(
+        next_const,
+        Some(crate::analyses::LatticeValue::Const(
+            crate::analyses::ConstValue::String("18446744073709551617".to_owned())
+        )),
+        "the chained bignum fold must land the exact decimal"
+    );
+}

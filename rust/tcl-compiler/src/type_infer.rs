@@ -44,15 +44,20 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use tcl_dialect::DialectSet;
-use tcl_registry::{CommandRegistry, TclType, VarWriteTyping};
+use tcl_registry::{CommandRegistry, ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 
+use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::SccpResult;
+use crate::shimmer::hints::is_pure_intrep;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
-use crate::types::{TypeKind, TypeLattice, type_join};
+use crate::types::{
+    Elements, MAX_EXACT_ELEMENTS, TypeKind, TypeLattice, TypeShape, join_elements, shape_join,
+    type_join,
+};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
 // Float literal pattern: requires a decimal point so that forms like `1e3`
@@ -62,39 +67,68 @@ fn looks_like_float(s: &str) -> bool {
     s.contains('.') && s.parse::<f64>().is_ok()
 }
 
-const BOOL_LITERALS: &[&str] = &["true", "false", "yes", "no", "on", "off"];
-
-/// True when `s` is a Tcl integer literal: decimal, or a `0x`/`0X` hex or
-/// `0b`/`0B` binary form (each optionally signed).  Hex/binary store an INT
-/// intrep (`set n 0x80; incr n` is one clean parse, not per-iteration
-/// shimmer), while `0o` octal stays STRING (the set-statement classifier
-/// excludes it).
+/// The integer-tower shape of a Tcl integer literal: decimal, or a `0x`/`0X`
+/// hex or `0b`/`0B` binary form (each optionally signed) — [`TypeShape::Int`]
+/// when the value fits a wide (`i64`), [`TypeShape::Bignum`] beyond it
+/// (`9223372036854775808`, `0xFFFFFFFFFFFFFFFF` — promotion is by magnitude,
+/// never wrapping; oracle corpus in type-tracking.md). `None` when the text
+/// is not an integer literal of these spellings — `0o` octal deliberately
+/// stays out (the set-statement classifier keeps it `String`, its canonical
+/// stringified intrep differing from the source text).
 #[must_use]
-fn is_tcl_int_literal(s: &str) -> bool {
+fn int_literal_shape(s: &str) -> Option<TypeShape> {
     if s.parse::<i64>().is_ok() {
-        return true;
+        return Some(TypeShape::Int);
     }
-    let body = s.strip_prefix(['+', '-']).unwrap_or(s);
-    if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
-        return !h.is_empty() && h.bytes().all(|c| c.is_ascii_hexdigit());
+    let (negative, body) = match s.strip_prefix(['+', '-']) {
+        Some(rest) => (s.starts_with('-'), rest),
+        None => (false, s),
+    };
+    let radix_body = |prefix_lower: &str, prefix_upper: &str| {
+        body.strip_prefix(prefix_lower)
+            .or_else(|| body.strip_prefix(prefix_upper))
+    };
+    let (digits, radix, valid): (&str, u32, fn(u8) -> bool) =
+        if let Some(h) = radix_body("0x", "0X") {
+            (h, 16, |c: u8| c.is_ascii_hexdigit())
+        } else if let Some(b) = radix_body("0b", "0B") {
+            (b, 2, |c: u8| matches!(c, b'0' | b'1'))
+        } else if !body.is_empty() && body.bytes().all(|c| c.is_ascii_digit()) {
+            // All-digit decimal that failed the i64 parse above: beyond a
+            // wide — the bignum rung.
+            return Some(TypeShape::Bignum);
+        } else {
+            return None;
+        };
+    if digits.is_empty() || !digits.bytes().all(valid) {
+        return None;
     }
-    if let Some(b) = body.strip_prefix("0b").or_else(|| body.strip_prefix("0B")) {
-        return !b.is_empty() && b.bytes().all(|c| matches!(c, b'0' | b'1'));
-    }
-    false
+    // A radix literal that fits i64 (sign applied) is a wide; a wider
+    // magnitude is a bignum.
+    let signed = if negative {
+        format!("-{digits}")
+    } else {
+        digits.to_owned()
+    };
+    Some(if i64::from_str_radix(&signed, radix).is_ok() {
+        TypeShape::Int
+    } else {
+        TypeShape::Bignum
+    })
 }
 
 /// Classify a literal string as its Tcl intrep type (set-statement context).
 fn literal_type(text: &str) -> TypeLattice {
     let s = text.trim();
-    if is_tcl_int_literal(s) {
-        return TypeLattice::of(TclType::Int);
+    if let Some(shape) = int_literal_shape(s) {
+        return TypeLattice::of_shape(shape);
     }
     if looks_like_float(s) {
         return TypeLattice::of(TclType::Double);
     }
-    // Case-insensitive boolean check.
-    if BOOL_LITERALS.contains(&s.to_ascii_lowercase().as_str()) {
+    // Case-insensitive boolean check (full spellings — the literal
+    // classifier's would-commit convention; prefixes commit only at use).
+    if tcl_syntax::boolean::is_boolean_full_word(s) {
         return TypeLattice::of(TclType::Boolean);
     }
     TypeLattice::of(TclType::String)
@@ -112,16 +146,25 @@ fn literal_type(text: &str) -> TypeLattice {
 fn expr_literal_type(text: &str) -> TypeLattice {
     let s = text.trim();
     let low = s.to_ascii_lowercase();
-    // Boolean first.
-    if BOOL_LITERALS.contains(&low.as_str()) {
+    // Boolean first (full spellings — see `literal_type`).
+    if tcl_syntax::boolean::is_boolean_full_word(s) {
         return TypeLattice::of(TclType::Boolean);
     }
-    // Every integer-form spelling tokenises to int in expr context.
-    if low.starts_with("0x") || low.starts_with("0o") || low.starts_with("0b") {
-        return TypeLattice::of(TclType::Int);
+    // Every integer-form spelling tokenises to an integer in expr context;
+    // the tower rung (wide vs bignum) follows the magnitude. `0o` octal —
+    // absent from the set-statement classifier — is an integer here, so it
+    // routes through the shared number grammar.
+    if let Some(shape) = int_literal_shape(s) {
+        return TypeLattice::of_shape(shape);
     }
-    if s.parse::<i64>().is_ok() {
-        return TypeLattice::of(TclType::Int);
+    if low.starts_with("0o") {
+        return match tcl_syntax::number::parse_whole(s) {
+            Some(tcl_syntax::number::Number::Int(_)) => TypeLattice::of(TclType::Int),
+            Some(tcl_syntax::number::Number::Big { .. }) => {
+                TypeLattice::of_shape(TypeShape::Bignum)
+            }
+            _ => TypeLattice::of(TclType::Numeric),
+        };
     }
     if s.parse::<f64>().is_ok() {
         return TypeLattice::of(TclType::Double);
@@ -295,7 +338,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::Pow => {
                     let lt = infer_expr_type(left, var_types);
                     let rt = infer_expr_type(right, var_types);
-                    if lt.kind == TypeKind::Known && rt.kind == TypeKind::Known {
+                    if lt.kind() == TypeKind::Known && rt.kind() == TypeKind::Known {
                         arithmetic_result(&lt, &rt)
                     } else {
                         TypeLattice::of(TclType::Numeric)
@@ -343,7 +386,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
 /// (boolean counts as int), DOUBLE anywhere → DOUBLE, otherwise
 /// NUMERIC.  Callers guarantee both operand types are `Known`.
 fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
-    match (lt.tcl_type, rt.tcl_type) {
+    match (lt.tcl_type(), rt.tcl_type()) {
         (Some(TclType::Int | TclType::Boolean), Some(TclType::Int | TclType::Boolean)) => {
             TypeLattice::of(TclType::Int)
         }
@@ -436,119 +479,347 @@ fn lookup_var_type(
     types.get(&(sym, ver)).cloned()
 }
 
-/// The object class an argument *text* provably denotes: a
-/// `[Class new|create …]` constructor, or a `$var` whose tracked type is
-/// `OBJECT(class)`.  `None` when the text is not provably a single object —
-/// the signal that harvests the element class of an object collection.
-fn arg_object_class<S: std::hash::BuildHasher>(
-    text: &str,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    ssa: &SsaFunction,
-    registry: &CommandRegistry,
-    known_classes: &HashSet<String, S>,
-    namespace: &str,
-) -> Option<String> {
-    let stripped = text.trim();
-    if is_pure_var_ref(stripped) {
-        let t = lookup_var_type(normalise_var_name(stripped), uses, types, ssa)?;
-        return (t.tcl_type == Some(TclType::Object))
-            .then_some(t.class_name)
-            .flatten();
-    }
-    if stripped.starts_with('[')
-        && stripped.ends_with(']')
-        && let Some((cmd, args)) = parse_command_substitution(stripped)
-    {
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let t = return_type_for_command(registry, &cmd, &arg_refs, known_classes, namespace);
-        if t.tcl_type == Some(TclType::Object)
-            && let Some(class) = t.class_name
-        {
-            return Some(class);
+/// Shared, read-only context for the word-shape / element-inference helpers —
+/// everything a value word's type depends on at one program point.
+struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
+    uses: &'a HashMap<Symbol, u32>,
+    types: &'a HashMap<ValueKey, TypeLattice>,
+    /// SCCP constants at this point — purity evidence (a numeric-typed
+    /// literal is still a pure string) and constant list/index values for
+    /// element facts.
+    values: &'a HashMap<ValueKey, LatticeValue>,
+    registry: &'a CommandRegistry,
+    known_classes: &'a HashSet<String, S>,
+    namespace: &'a str,
+    ssa: &'a SsaFunction,
+}
+
+impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
+    /// The SCCP constant of `name` at this site, when tracked.
+    fn const_of(&self, name: &str) -> Option<&LatticeValue> {
+        let sym = self.ssa.var_symbol(name)?;
+        let ver = *self.uses.get(&sym)?;
+        if ver == 0 {
+            return None;
         }
-        // A registry-modelled `[Class new|create]` factory is not typed through
-        // `return_type_for_command` (the class is a registered command, not a
-        // `known_classes` name), so resolve its declared object class directly.
-        if args.first().is_some_and(|a| a == "new" || a == "create") {
-            return registry
-                .object_class(&cmd)
-                .map(|c| c.class_name.to_string());
+        self.values.get(&(sym, ver))
+    }
+}
+
+/// The shape a builder argument *word* contributes as a container element,
+/// or `None` when no shape claim is defensible for downstream checks.
+///
+/// Faithful to the runtime's by-reference elements (oracle corpus,
+/// type-tracking.md): a container shares its argument objects, so a
+/// **committed** source keeps its intrep inside the container —
+/// `[list [expr {2**20}] x]` genuinely holds an int, `[list [C new]]` an
+/// object. A **pure** source (a literal word, an interpolation, a
+/// still-pure variable, a string-returning command) contributes a pure
+/// string whose downstream conversion validity depends on its *value* — a
+/// fact the type lattice cannot carry per element — so those positions stay
+/// agnostic rather than invite the FP classes either concrete claim brings
+/// (FP-SH-17 pins `lassign {1 2 3}` targets silent in both arithmetic and
+/// string comparisons). The purity split is [`is_pure_intrep`] — the same
+/// predicate the shimmer suppression uses.
+fn element_word_shape<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    word: &str,
+) -> Option<TypeShape> {
+    let stripped = word.trim();
+    if stripped.starts_with("{*}") {
+        return None;
+    }
+    if is_pure_var_ref(stripped) {
+        let name = normalise_var_name(stripped);
+        let t = lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)?;
+        let shape = t.single_shape()?.clone();
+        if is_pure_intrep(shape.coarse(), ctx.const_of(name)) {
+            return None;
+        }
+        return Some(shape);
+    }
+    if stripped.starts_with('[') && stripped.ends_with(']') {
+        let shape = value_word_type(ctx, stripped).single_shape()?.clone();
+        // A string-returning command (`string trim`, `format`) yields a pure
+        // result — no committed intrep enters the container.
+        if is_pure_intrep(shape.coarse(), None) {
+            return None;
+        }
+        return Some(shape);
+    }
+    // Bare literal or interpolation: a fresh pure string object of known
+    // spelling but per-element-untracked value.
+    None
+}
+
+/// Element facts for a builder's result, per the registry's
+/// [`ReturnElements`] declaration. `None` when the fact does not apply to
+/// this call shape (a multi-level `dict get`, an unknown container).
+fn return_elements_lattice<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    fact: ReturnElements,
+    args: &[&str],
+) -> Option<TypeLattice> {
+    match fact {
+        ReturnElements::ListOfArgs { from } => {
+            let words = args.get(usize::from(from)..).unwrap_or(&[]);
+            Some(TypeLattice::of_shape(TypeShape::List(
+                build_exact_elements(ctx, words),
+            )))
+        }
+        ReturnElements::DictOfPairs { from } => {
+            let words = args.get(usize::from(from)..).unwrap_or(&[]);
+            // Values are the odd offsets of the key/value pairs.
+            let value_words: Vec<&str> = words.iter().skip(1).step_by(2).copied().collect();
+            Some(TypeLattice::of_shape(TypeShape::Dict(uniform_elements_of(
+                ctx,
+                &value_words,
+            ))))
+        }
+        ReturnElements::ElementOf { container_arg } => {
+            // Single-step retrieval only: exactly one index/key word after
+            // the container (`lindex $l $i`, `dict get $d $k`).
+            let container_idx = usize::from(container_arg);
+            if args.len() != container_idx + 2 {
+                return None;
+            }
+            let container = args.get(container_idx)?;
+            if !is_pure_var_ref(container) {
+                return None;
+            }
+            let name = normalise_var_name(container);
+            let t = lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)?;
+            let elements = t.elements()?;
+            // A constant integer index resolves an Exact position; any
+            // other index falls back to the uniform bound.
+            let index_word = args.get(container_idx + 1)?;
+            let shape = constant_index(ctx, index_word)
+                .and_then(|i| elements.shape_at(i).cloned())
+                .or_else(|| elements.uniform_shape())?;
+            Some(TypeLattice::of_shape(shape))
+        }
+        ReturnElements::SubListOf { container_arg } => {
+            let container = args.get(usize::from(container_arg))?;
+            if !is_pure_var_ref(container) {
+                return None;
+            }
+            let name = normalise_var_name(container);
+            let elements = lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)?
+                .elements()?
+                .uniform_shape()
+                .map_or(Elements::Unknown, |u| Elements::Uniform(Box::new(u)));
+            Some(TypeLattice::of_shape(TypeShape::List(elements)))
+        }
+    }
+}
+
+/// `Exact` per-position elements for a builder's argument words, widening to
+/// a uniform bound (or no facts) past [`MAX_EXACT_ELEMENTS`] or on an
+/// `{*}`-expansion word (whose element count is unknown).
+fn build_exact_elements<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    words: &[&str],
+) -> Elements {
+    if words.iter().any(|w| w.trim().starts_with("{*}")) {
+        return uniform_elements_of(ctx, words);
+    }
+    if words.len() > MAX_EXACT_ELEMENTS {
+        return uniform_elements_of(ctx, words);
+    }
+    Elements::Exact(words.iter().map(|w| element_word_shape(ctx, w)).collect())
+}
+
+/// The uniform element bound of a word set: the single-shape join of every
+/// word's shape, or no facts when any word is shapeless / unjoinable.
+fn uniform_elements_of<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    words: &[&str],
+) -> Elements {
+    let mut acc: Option<TypeShape> = None;
+    for word in words {
+        // `{*}$expansion` contributes its *list's* element shapes, which are
+        // unknown here — no uniform claim survives.
+        let word = word.trim();
+        let shape = if let Some(expanded) = word.strip_prefix("{*}") {
+            let Some(TypeShape::List(elements)) = (if is_pure_var_ref(expanded) {
+                lookup_var_type(normalise_var_name(expanded), ctx.uses, ctx.types, ctx.ssa)
+                    .and_then(|t| t.single_shape().cloned())
+            } else {
+                None
+            }) else {
+                return Elements::Unknown;
+            };
+            match elements.uniform_shape() {
+                Some(u) => u,
+                None => return Elements::Unknown,
+            }
+        } else {
+            match element_word_shape(ctx, word) {
+                Some(s) => s,
+                None => return Elements::Unknown,
+            }
+        };
+        acc = Some(match acc {
+            None => shape,
+            Some(prev) => match shape_join(&prev, &shape) {
+                Some(joined) => joined,
+                None => return Elements::Unknown,
+            },
+        });
+    }
+    match acc {
+        Some(shape) => Elements::Uniform(Box::new(shape)),
+        None => Elements::Unknown,
+    }
+}
+
+/// The constant element index a retrieval word denotes: a literal integer
+/// (`lindex $l 0`) or a `$var` whose SCCP constant is an integer.
+fn constant_index<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    word: &str,
+) -> Option<usize> {
+    let word = word.trim();
+    if let Ok(i) = word.parse::<usize>() {
+        return Some(i);
+    }
+    if is_pure_var_ref(word)
+        && let Some(LatticeValue::Const(ConstValue::Int(i))) =
+            ctx.const_of(normalise_var_name(word))
+    {
+        return usize::try_from(*i).ok();
+    }
+    None
+}
+
+/// The evolved container shape after an in-place element write —
+/// `lappend var v…` / `dict set var … v` — per the registry's
+/// [`VarElementsEffect`]. Generalises the old object-only element-class
+/// harvesting: every element shape flows, so `lappend l [C new]` still
+/// yields `List<OBJECT(C)*>` and `lappend l [list 1]` now yields real
+/// element facts too.
+fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    effect: VarElementsEffect,
+    target: &str,
+    args: &[&str],
+    base: usize,
+) -> TypeLattice {
+    let (container_ctor, value_words): (fn(Elements) -> TypeShape, &[&str]) = match effect {
+        VarElementsEffect::AppendsListElements { values_from } => (
+            TypeShape::List,
+            args.get(base + usize::from(values_from)..).unwrap_or(&[]),
+        ),
+        VarElementsEffect::SetsDictValue => (
+            TypeShape::Dict,
+            args.len()
+                .checked_sub(1)
+                .map_or(&[][..], |last| &args[last..]),
+        ),
+        VarElementsEffect::ExtendsDictValues { values_from } => (
+            TypeShape::Dict,
+            args.get(base + usize::from(values_from)..).unwrap_or(&[]),
+        ),
+    };
+
+    let prior = prior_container_elements(ctx, target);
+    let evolved = match effect {
+        VarElementsEffect::AppendsListElements { .. } => {
+            append_list_elements(ctx, prior, value_words)
+        }
+        // Dict values: join the new values into the prior uniform bound —
+        // per-key tracking is out of scope (documented in type-tracking.md).
+        VarElementsEffect::SetsDictValue | VarElementsEffect::ExtendsDictValues { .. } => {
+            let incoming = uniform_elements_of(ctx, value_words);
+            match prior {
+                Some(prior) => join_elements(&prior, &incoming),
+                None => incoming,
+            }
+        }
+    };
+    TypeLattice::of_shape(container_ctor(evolved))
+}
+
+/// The target variable's element facts *before* this write: its tracked
+/// container elements, or — for a pure list-shaped constant (`set l {a b};
+/// lappend l c`) — the parsed literal's per-position pure-string elements.
+/// `None` when nothing is known (including an uninitialised accumulator).
+fn prior_container_elements<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    target: &str,
+) -> Option<Elements> {
+    if let Some(t) = lookup_var_type(target, ctx.uses, ctx.types, ctx.ssa) {
+        if let Some(e) = t.elements() {
+            return Some(e.clone());
+        }
+        // A pure string constant parses to a known element count of pure
+        // strings — `lappend` on `{a b}` starts from two `String` elements.
+        if t.tcl_type() == Some(TclType::String)
+            && let Some(LatticeValue::Const(ConstValue::String(text))) = ctx.const_of(target)
+            && let Ok(parsed) = tcl_syntax::list::split_list(text)
+        {
+            if parsed.len() > MAX_EXACT_ELEMENTS {
+                return Some(Elements::Uniform(Box::new(TypeShape::String)));
+            }
+            return Some(Elements::Exact(
+                parsed.iter().map(|_| Some(TypeShape::String)).collect(),
+            ));
         }
     }
     None
 }
 
-/// The element class a `dict set`/`dict append`/`dict lappend`/`lappend`
-/// statement leaves on its target collection: the object class of the appended
-/// value(s), joined with the collection's prior element class so a mixed-class
-/// or non-object write widens the container back to a plain `List`/`Dict`.
-///
-/// `value_args` are the words that become element values (the value(s) after
-/// the key for `dict set/append`, or after the var for `lappend`).  `target`
-/// is the collection variable's own name, consulted for its prior element
-/// class (monotone: an unknown-typed write carries the prior class forward
-/// rather than dropping it — the fixpoint's phi joins handle genuine merges).
-#[allow(clippy::too_many_arguments)] // mirrors the type-inference context threaded through this module
-fn collection_element_class<S: std::hash::BuildHasher>(
-    target: &str,
-    value_args: &[&str],
-    container: TclType,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    ssa: &SsaFunction,
-    registry: &CommandRegistry,
-    known_classes: &HashSet<String, S>,
-    namespace: &str,
-) -> TypeLattice {
-    let prior = lookup_var_type(target, uses, types, ssa)
-        .and_then(|t| t.element_class().map(str::to_owned));
-    let mut elem = prior;
-    for value in value_args {
-        let value_class =
-            arg_object_class(value, uses, types, ssa, registry, known_classes, namespace);
-        match (&elem, value_class) {
-            // No provable object class for this write — no new evidence for or
-            // against homogeneity; carry the prior class forward.
-            (_, None) => {}
-            (None, Some(v)) => elem = Some(v),
-            (Some(p), Some(v)) if *p == v => {}
-            // A different concrete class: the collection is not homogeneous.
-            (Some(_), Some(_)) => return TypeLattice::of(container),
+/// Append `value_words` as new elements after `prior`, keeping `Exact`
+/// arity when both sides pin one (the phi joins collapse mismatched
+/// loop-carried arities — see [`join_elements`] — so the fixpoint
+/// terminates).
+fn append_list_elements<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    prior: Option<Elements>,
+    value_words: &[&str],
+) -> Elements {
+    let appended = build_exact_elements(ctx, value_words);
+    match (prior, appended) {
+        (None, appended) => appended,
+        (Some(Elements::Exact(existing)), Elements::Exact(new)) => {
+            let mut merged = existing.into_vec();
+            merged.extend(new.into_vec());
+            if merged.len() > MAX_EXACT_ELEMENTS {
+                let shapes: Vec<TypeShape> = merged.into_iter().flatten().collect();
+                return uniform_bound_of_shapes(&shapes);
+            }
+            Elements::Exact(merged.into_boxed_slice())
         }
-    }
-    match elem {
-        Some(c) => TypeLattice::collection_of(container, c),
-        None => TypeLattice::of(container),
+        (Some(prior), appended) => {
+            // No exact arity on one side: fall back to the joint uniform
+            // bound when both sides admit one.
+            match (prior.uniform_shape(), appended.uniform_shape()) {
+                (Some(a), Some(b)) => match shape_join(&a, &b) {
+                    Some(joined) => Elements::Uniform(Box::new(joined)),
+                    None => Elements::Unknown,
+                },
+                _ => Elements::Unknown,
+            }
+        }
     }
 }
 
-/// The object type a container *retrieval* yields — `dict get $coll k` or
-/// `lindex $coll i` on a collection tracked as object-homogeneous → an
-/// `OBJECT(element_class)`.  `None` for any other shape, so the caller falls
-/// back to the command's declared return type.  Only a single-level `dict get`
-/// (one key) is modelled; a nested-path `dict get` is left untyped.
-fn container_retrieval_object_type(
-    command: &str,
-    args: &[&str],
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    ssa: &SsaFunction,
-) -> Option<TypeLattice> {
-    // Single-level retrieval only: `dict get $coll $key` (exactly one key) or
-    // `lindex $coll $idx`.  A nested-path `dict get` (4+ args) does not match.
-    let coll = match (command, args) {
-        ("dict", [sub, coll, _key]) if *sub == "get" => *coll,
-        ("lindex", [coll, _idx]) => *coll,
-        _ => return None,
-    };
-    if !is_pure_var_ref(coll) {
-        return None;
+/// The uniform bound over a shape list, or no facts when empty / unjoinable.
+fn uniform_bound_of_shapes(shapes: &[TypeShape]) -> Elements {
+    let mut acc: Option<TypeShape> = None;
+    for shape in shapes {
+        acc = Some(match acc {
+            None => shape.clone(),
+            Some(prev) => match shape_join(&prev, shape) {
+                Some(joined) => joined,
+                None => return Elements::Unknown,
+            },
+        });
     }
-    let class = lookup_var_type(normalise_var_name(coll), uses, types, ssa)?
-        .element_class()
-        .map(str::to_owned)?;
-    Some(TypeLattice::object_of(class))
+    match acc {
+        Some(shape) => Elements::Uniform(Box::new(shape)),
+        None => Elements::Unknown,
+    }
 }
 
 /// Infer the intrep a `set`-style value *word* stores.
@@ -561,24 +832,20 @@ fn container_retrieval_object_type(
 /// interpolated / otherwise-complex word is `String`, and a bare literal is
 /// classified by its Tcl intrep.
 fn value_word_type<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
     value: &str,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    registry: &CommandRegistry,
-    known_classes: &HashSet<String, S>,
-    namespace: &str,
-    ssa: &SsaFunction,
 ) -> TypeLattice {
     let stripped = value.trim();
     // Pure variable reference: inherit source type.
     if is_pure_var_ref(stripped) {
         let name = normalise_var_name(stripped);
-        if let Some(&ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s))
+        if let Some(&ver) = ctx.ssa.var_symbol(name).and_then(|s| ctx.uses.get(&s))
             && ver > 0
         {
-            return ssa
+            return ctx
+                .ssa
                 .var_symbol(name)
-                .and_then(|s| types.get(&(s, ver)))
+                .and_then(|s| ctx.types.get(&(s, ver)))
                 .cloned()
                 .unwrap_or_else(TypeLattice::unknown);
         }
@@ -590,13 +857,34 @@ fn value_word_type<S: std::hash::BuildHasher>(
         && let Some((cmd, args)) = parse_command_substitution(stripped)
     {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // A `dict get $coll k` / `lindex $coll i` on an object-homogeneous
-        // collection yields an `OBJECT(element_class)` — resolved before
-        // the command's declared (`String`/`Overdefined`) return type.
-        if let Some(t) = container_retrieval_object_type(&cmd, &arg_refs, uses, types, ssa) {
-            return t;
+        // The registry's result↔element fact refines the declared return
+        // type: `[list …]` builds per-position elements, `[lindex $l 0]` /
+        // `[dict get $d k]` retrieves the container's tracked element shape
+        // (subsuming the old object-only collection retrieval — an
+        // `Object(class)` element shape IS the `OBJECT(class)` result).
+        if let Some(resolved) = ctx
+            .registry
+            .resolve_call(&cmd, &arg_refs, DialectSet::empty())
+            && let Some(fact) = resolved.return_elements()
+        {
+            // The fact's indices are relative to after the subcommand word
+            // when one matched (`dict get $d k` counts from `$d`).
+            let elem_args = if resolved.sub.is_some() {
+                arg_refs.get(1..).unwrap_or(&[])
+            } else {
+                &arg_refs[..]
+            };
+            if let Some(t) = return_elements_lattice(ctx, fact, elem_args) {
+                return t;
+            }
         }
-        return return_type_for_command(registry, &cmd, &arg_refs, known_classes, namespace);
+        return return_type_for_command(
+            ctx.registry,
+            &cmd,
+            &arg_refs,
+            ctx.known_classes,
+            ctx.namespace,
+        );
     }
     // String interpolation or complex value.
     if value.contains('$') || value.contains('[') {
@@ -605,46 +893,51 @@ fn value_word_type<S: std::hash::BuildHasher>(
     literal_type(value)
 }
 
+/// How one statement types the variable(s) it defines.
+enum DefTyping {
+    /// One lattice applied to every def of the statement.
+    Uniform(TypeLattice),
+    /// Positional element typing (`lassign`, `foreach` element vars): each
+    /// def takes its own lattice; a def absent from the map widens to
+    /// `Overdefined`.
+    PerDef(HashMap<String, TypeLattice>),
+}
+
 /// Infer the type produced by `stmt` under the current `types` map.
 #[must_use]
 fn evaluate_type_def<S: std::hash::BuildHasher>(
     stmt: &Statement,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    registry: &CommandRegistry,
-    known_classes: &HashSet<String, S>,
-    namespace: &str,
-    ssa: &SsaFunction,
-) -> TypeLattice {
+    ctx: &WordTypingCtx<'_, S>,
+) -> DefTyping {
     match stmt {
-        Statement::AssignConst { value, .. } => literal_type(value),
+        Statement::AssignConst { value, .. } => DefTyping::Uniform(literal_type(value)),
 
         Statement::AssignExpr { expr, .. } => {
             // Build a name→TypeLattice map for variables used in the expression.
-            let var_types: HashMap<String, TypeLattice> = uses
+            let var_types: HashMap<String, TypeLattice> = ctx
+                .uses
                 .iter()
                 .filter_map(|(&sym, &ver)| {
                     if ver == 0 {
                         return None;
                     }
-                    let t = types.get(&(sym, ver))?;
-                    Some((ssa.var_name(sym).to_owned(), t.clone()))
+                    let t = ctx.types.get(&(sym, ver))?;
+                    Some((ctx.ssa.var_name(sym).to_owned(), t.clone()))
                 })
                 .collect();
-            infer_expr_type(expr, &var_types)
+            DefTyping::Uniform(infer_expr_type(expr, &var_types))
         }
 
-        Statement::AssignValue { value, .. } => {
-            value_word_type(value, uses, types, registry, known_classes, namespace, ssa)
-        }
+        Statement::AssignValue { value, .. } => DefTyping::Uniform(value_word_type(ctx, value)),
 
-        Statement::Incr { .. } => TypeLattice::of(TclType::Int),
+        Statement::Incr { .. } => DefTyping::Uniform(TypeLattice::of(TclType::Int)),
 
         Statement::Call {
             command,
             canonical_command,
             args,
             defs,
+            foreach_groups,
             ..
         } if !defs.is_empty() => {
             // Resolve the source spelling through the lowerer's
@@ -667,70 +960,47 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
             // getter, which has no def).
             if defs.len() == 1
                 && arg_refs.len() == 2
-                && registry.get(canon).and_then(|s| s.lowering_hook)
+                && ctx.registry.get(canon).and_then(|s| s.lowering_hook)
                     == Some(tcl_registry::hooks::LoweringHookId::Set)
             {
-                return value_word_type(
-                    arg_refs[1],
-                    uses,
-                    types,
-                    registry,
-                    known_classes,
-                    namespace,
-                    ssa,
-                );
+                return DefTyping::Uniform(value_word_type(ctx, arg_refs[1]));
             }
-            // A `dict set/append/lappend VAR …` or `lappend VAR …` that stores
-            // object handles types VAR as a collection *of* that class, so a
-            // later `[dict get $VAR k] method …` retrieval resolves the element.
-            // `dict set VAR ?key…? value` takes a single trailing value; the
-            // `*append`/`lappend` forms take every word after the key/var.
-            if let Some((container, target, value_args)) = match (canon, &arg_refs[..]) {
-                ("dict", ["set", target, rest @ ..]) if !rest.is_empty() => {
-                    Some((TclType::Dict, *target, &rest[rest.len() - 1..]))
+
+            let resolved = ctx
+                .registry
+                .resolve_call(canon, &arg_refs, DialectSet::empty());
+
+            // An in-place element write (`lappend VAR v…`, `dict set VAR … v`)
+            // evolves the target's container elements — the registry's
+            // `VarElementsEffect` fact, generalising the old object-only
+            // element-class harvesting to every element shape.
+            if let Some(effect) = resolved
+                .as_ref()
+                .and_then(tcl_registry::ResolvedCall::var_elements_effect)
+            {
+                let base = usize::from(resolved.as_ref().is_some_and(|r| r.sub.is_some()));
+                if let Some(target) = arg_refs.get(base) {
+                    return DefTyping::Uniform(var_elements_effect_lattice(
+                        ctx, effect, target, &arg_refs, base,
+                    ));
                 }
-                ("dict", ["append" | "lappend", target, _key, values @ ..])
-                    if !values.is_empty() =>
-                {
-                    Some((TclType::Dict, *target, values))
-                }
-                ("lappend", [target, values @ ..]) if !values.is_empty() => {
-                    Some((TclType::List, *target, values))
-                }
-                _ => None,
-            } {
-                return collection_element_class(
-                    target,
-                    value_args,
-                    container,
-                    uses,
-                    types,
-                    ssa,
-                    registry,
-                    known_classes,
-                    namespace,
-                );
             }
+
             // How a command types the variable(s) it *writes* is a distinct
             // fact from the value it *returns*.  A destructuring writer
-            // (`lassign`, `scan`, `regexp`, `binary scan`) returns a leftover
-            // list or a match/convert count while writing element-wise pieces;
-            // `gets` returns the character count while writing a text line;
-            // `lpop` returns the popped element while leaving a shortened list.
-            // The registry declares this per command / subcommand
-            // (`VarWriteTyping`), so the compiler never keys on the command
-            // name.  The former `defs.len() > 1` heuristic guessed it from the
-            // write count and mistyped every single-target destructure — a
-            // `lassign $l x` target wrongly typed `List`, a `regexp … capture`
-            // wrongly typed `Int` (issue #867).  Resolved through `canon`, not
-            // the source spelling, so an aliased / renamed destructuring writer
-            // (`rename lassign mylassign`) still resolves to the real command's
-            // `VarWriteTyping` — the same canonical-command indirection the
-            // value-passthrough store above and the collection-element typing
-            // use (FP-SH-15).
-            let typing = registry
-                .resolve_call(canon, &arg_refs, DialectSet::empty())
-                .map_or(VarWriteTyping::ReturnValue, |r| r.var_write_typing());
+            // (`scan`, `regexp`, `binary scan`) returns a match/convert count
+            // while writing element-wise pieces; `gets` returns the character
+            // count while writing a text line; `lassign` writes its
+            // container's *elements* positionally.  The registry declares this
+            // per command / subcommand (`VarWriteTyping`), so the compiler
+            // never keys on the command name.  Resolved through `canon`, not
+            // the source spelling, so an aliased / renamed destructuring
+            // writer (`rename lassign mylassign`) still resolves to the real
+            // command's `VarWriteTyping` (FP-SH-15).
+            let typing = resolved.as_ref().map_or(
+                VarWriteTyping::ReturnValue,
+                tcl_registry::ResolvedCall::var_write_typing,
+            );
             match typing {
                 // The default typing stores the command's *return value* in the
                 // target — meaningful only for a single-target writer (`append`,
@@ -744,12 +1014,25 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 // old `defs.len() > 1` fallback, now scoped to the default arm
                 // rather than a blanket heuristic (a registry `Destructured` /
                 // `Fixed` override still applies at any def count).
-                VarWriteTyping::ReturnValue if defs.len() > 1 => TypeLattice::overdefined(),
-                VarWriteTyping::ReturnValue => {
-                    return_type_for_command(registry, canon, &arg_refs, known_classes, namespace)
+                VarWriteTyping::ReturnValue if defs.len() > 1 => {
+                    DefTyping::Uniform(TypeLattice::overdefined())
                 }
-                VarWriteTyping::Fixed(t) => TypeLattice::of(t),
-                VarWriteTyping::Destructured => TypeLattice::overdefined(),
+                VarWriteTyping::ReturnValue => DefTyping::Uniform(return_type_for_command(
+                    ctx.registry,
+                    canon,
+                    &arg_refs,
+                    ctx.known_classes,
+                    ctx.namespace,
+                )),
+                VarWriteTyping::Fixed(t) => DefTyping::Uniform(TypeLattice::of(t)),
+                VarWriteTyping::Destructured => DefTyping::Uniform(TypeLattice::overdefined()),
+                VarWriteTyping::ElementsOf { container_arg } => elements_of_def_typing(
+                    ctx,
+                    &arg_refs,
+                    defs,
+                    foreach_groups.as_deref(),
+                    container_arg,
+                ),
             }
         }
 
@@ -757,7 +1040,153 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
         // statements (before CFG construction in some paths) all lack a
         // resolvable result type here — treat them conservatively as
         // overdefined.
-        _ => TypeLattice::overdefined(),
+        _ => DefTyping::Uniform(TypeLattice::overdefined()),
+    }
+}
+
+/// Positional element typing for a [`VarWriteTyping::ElementsOf`] writer.
+///
+/// Two shapes reach here:
+/// - **`lassign $l a b …`** (no `foreach_groups`): target `i` takes element
+///   `i` of the container. A tracked `Exact` container types each target
+///   from its position — a position past the container's arity is the empty
+///   string `lassign` pads with (`String`), an untracked position widens to
+///   `Overdefined` (the pre-element-tracking behaviour, issue #867).
+/// - **`foreach` / `lmap` / `dict for` headers** (`foreach_groups`
+///   present): `defs` is the flattened per-group element vars and `args`
+///   holds one container word per group. A single-var list group's element
+///   var is typed `String` (list elements stringify — the established
+///   convention the shimmer suite pins) unless the container tracks a
+///   uniform element shape; multi-var groups type var `j` from the join of
+///   the `Exact` positions congruent to `j` mod the group size, else
+///   `Overdefined` (the old multi-def behaviour). A dict group types its
+///   value var from the dict's tracked value shape when one exists.
+fn elements_of_def_typing<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    args: &[&str],
+    defs: &[String],
+    foreach_groups: Option<&[usize]>,
+    container_arg: u8,
+) -> DefTyping {
+    let mut per_def: HashMap<String, TypeLattice> = HashMap::new();
+
+    if let Some(groups) = foreach_groups {
+        let mut def_cursor = 0usize;
+        for (group, &nvars) in groups.iter().enumerate() {
+            let group_defs = defs.get(def_cursor..def_cursor + nvars).unwrap_or(&[]);
+            def_cursor += nvars;
+            let container_shape = args.get(group).and_then(|w| container_word_shape(ctx, w));
+            for (j, def) in group_defs.iter().enumerate() {
+                per_def.insert(
+                    def.clone(),
+                    foreach_var_lattice(container_shape.as_ref(), nvars, j),
+                );
+            }
+        }
+        return DefTyping::PerDef(per_def);
+    }
+
+    // lassign: targets follow the container word.
+    let container = args.get(usize::from(container_arg));
+    let elements = container
+        .filter(|w| is_pure_var_ref(w))
+        .and_then(|w| lookup_var_type(normalise_var_name(w), ctx.uses, ctx.types, ctx.ssa))
+        .and_then(|t| t.elements().cloned());
+    for (i, def) in defs.iter().enumerate() {
+        let lattice = match &elements {
+            Some(Elements::Exact(shapes)) => {
+                if i >= shapes.len() {
+                    // Past the container's arity: `lassign` pads with the
+                    // empty string.
+                    TypeLattice::of(TclType::String)
+                } else {
+                    shapes[i]
+                        .clone()
+                        .map_or_else(TypeLattice::overdefined, TypeLattice::of_shape)
+                }
+            }
+            _ => TypeLattice::overdefined(),
+        };
+        per_def.insert(def.clone(), lattice);
+    }
+    DefTyping::PerDef(per_def)
+}
+
+/// The container shape a `foreach` group's list word denotes, when tracked.
+fn container_word_shape<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    word: &str,
+) -> Option<TypeShape> {
+    let word = word.trim();
+    if is_pure_var_ref(word) {
+        return lookup_var_type(normalise_var_name(word), ctx.uses, ctx.types, ctx.ssa)
+            .and_then(|t| t.single_shape().cloned());
+    }
+    if word.starts_with('[') && word.ends_with(']') {
+        return value_word_type(ctx, word).single_shape().cloned();
+    }
+    None
+}
+
+/// The lattice for one `foreach` element variable — var `j` of an
+/// `nvars`-wide group iterating `container_shape`.
+fn foreach_var_lattice(container_shape: Option<&TypeShape>, nvars: usize, j: usize) -> TypeLattice {
+    match container_shape {
+        Some(TypeShape::List(elements)) => {
+            if nvars == 1 {
+                match elements.uniform_shape() {
+                    Some(u) => TypeLattice::of_shape(u),
+                    // List elements stringify — the established convention.
+                    None => TypeLattice::of(TclType::String),
+                }
+            } else if let Elements::Exact(shapes) = elements {
+                // Var `j` sees positions j, j+nvars, j+2·nvars, …
+                let mut acc: Option<TypeShape> = None;
+                for shape in shapes.iter().skip(j).step_by(nvars) {
+                    let Some(shape) = shape else {
+                        return TypeLattice::overdefined();
+                    };
+                    acc = Some(match acc {
+                        None => shape.clone(),
+                        Some(prev) => match shape_join(&prev, shape) {
+                            Some(joined) => joined,
+                            None => return TypeLattice::overdefined(),
+                        },
+                    });
+                }
+                acc.map_or_else(
+                    // No positions at this stride: the var gets the empty
+                    // string `foreach` pads with.
+                    || TypeLattice::of(TclType::String),
+                    TypeLattice::of_shape,
+                )
+            } else {
+                TypeLattice::overdefined()
+            }
+        }
+        // A dict group (`dict for {k v} $d`): the key stringifies, the value
+        // takes the dict's tracked value shape. Without a tracked value
+        // shape both stay conservative (the old multi-def behaviour).
+        Some(TypeShape::Dict(elements)) => {
+            if nvars == 2 && j == 1 {
+                elements
+                    .uniform_shape()
+                    .map_or_else(TypeLattice::overdefined, TypeLattice::of_shape)
+            } else if nvars == 2 && j == 0 && elements.uniform_shape().is_some() {
+                TypeLattice::of(TclType::String)
+            } else {
+                TypeLattice::overdefined()
+            }
+        }
+        // Untracked container: a single-var group keeps the established
+        // `String` element convention; wider groups stay conservative.
+        _ => {
+            if nvars == 1 {
+                TypeLattice::of(TclType::String)
+            } else {
+                TypeLattice::overdefined()
+            }
+        }
     }
 }
 
@@ -812,6 +1241,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         registry,
         known_classes,
         namespace: &namespace,
+        values: &sccp.values,
         escaping: &escaping,
         has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
     };
@@ -904,6 +1334,9 @@ struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     registry: &'a CommandRegistry,
     known_classes: &'a HashSet<String, S>,
     namespace: &'a str,
+    /// SCCP constants — purity evidence and constant list/index values for
+    /// the element-inference helpers (see [`WordTypingCtx::values`]).
+    values: &'a HashMap<ValueKey, LatticeValue>,
     /// Names [`crate::sccp::is_externally_mutable`] should treat as
     /// unconditionally aliased/escaping (per-function `analyse_var_observability`
     /// union'd with the caller's whole-module `extra_global_escaping` and
@@ -929,10 +1362,9 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
         // A barrier widens every def to OVERDEFINED (it may have mutated
         // them arbitrarily); a scope-alias declaration (`global`/`variable`/
         // `upvar`/`namespace upvar`) likewise widens its defs — the
-        // imported variable's intrep is external and unknown. Every def of
-        // one statement gets the same inferred type, so compute it once.
+        // imported variable's intrep is external and unknown.
         let inferred = match stmt {
-            Statement::Barrier { .. } => TypeLattice::overdefined(),
+            Statement::Barrier { .. } => DefTyping::Uniform(TypeLattice::overdefined()),
             Statement::Call {
                 command,
                 canonical_command,
@@ -946,17 +1378,20 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     args,
                 ) =>
             {
-                TypeLattice::overdefined()
+                DefTyping::Uniform(TypeLattice::overdefined())
             }
-            _ => evaluate_type_def(
-                stmt,
-                &ssa_stmt.uses,
-                types,
-                ctx.registry,
-                ctx.known_classes,
-                ctx.namespace,
-                ctx.ssa,
-            ),
+            _ => {
+                let word_ctx = WordTypingCtx {
+                    uses: &ssa_stmt.uses,
+                    types,
+                    values: ctx.values,
+                    registry: ctx.registry,
+                    known_classes: ctx.known_classes,
+                    namespace: ctx.namespace,
+                    ssa: ctx.ssa,
+                };
+                evaluate_type_def(stmt, &word_ctx)
+            }
         };
         for (&var, &ver) in &ssa_stmt.defs {
             let key = (var, ver);
@@ -964,14 +1399,23 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                 .get(&key)
                 .cloned()
                 .unwrap_or_else(TypeLattice::unknown);
+            let name = ctx.ssa.var_name(var);
             let def_type = if crate::sccp::is_externally_mutable(
-                ctx.ssa.var_name(var),
+                name,
                 ctx.escaping,
                 ctx.has_dynamic_variable_trace,
             ) {
                 TypeLattice::overdefined()
             } else {
-                inferred.clone()
+                match &inferred {
+                    DefTyping::Uniform(t) => t.clone(),
+                    // Positional element typing: a def the map does not
+                    // name widens to Overdefined.
+                    DefTyping::PerDef(map) => map
+                        .get(name)
+                        .cloned()
+                        .unwrap_or_else(TypeLattice::overdefined),
+                }
             };
             let merged = type_join(&old, &def_type);
             if merged != old {
@@ -1098,6 +1542,38 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    /// Evaluate one statement's def typing against empty context pieces and
+    /// return the lattice a def named `def_name` receives (`DefTyping::PerDef`
+    /// defs absent from the map widen to `Overdefined`, matching the
+    /// propagation pass).
+    fn eval_def(
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        ssa: &SsaFunction,
+        def_name: &str,
+    ) -> TypeLattice {
+        let uses = HashMap::new();
+        let types = HashMap::new();
+        let values = HashMap::new();
+        let known_classes: HashSet<String> = HashSet::new();
+        let ctx = WordTypingCtx {
+            uses: &uses,
+            types: &types,
+            values: &values,
+            registry,
+            known_classes: &known_classes,
+            namespace: "::",
+            ssa,
+        };
+        match evaluate_type_def(stmt, &ctx) {
+            DefTyping::Uniform(t) => t,
+            DefTyping::PerDef(map) => map
+                .get(def_name)
+                .cloned()
+                .unwrap_or_else(TypeLattice::overdefined),
+        }
+    }
+
     fn empty_sccp(f: &Function, blocks: &[&str]) -> SccpResult {
         SccpResult {
             values: HashMap::new(),
@@ -1173,15 +1649,7 @@ mod tests {
             safe_on_uninit: false,
         };
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
-        let t = evaluate_type_def(
-            &stmt,
-            &HashMap::new(),
-            &HashMap::new(),
-            &registry(),
-            &HashSet::new(),
-            "::",
-            &ssa,
-        );
+        let t = eval_def(&stmt, &registry(), &ssa, "__def__");
         assert_eq!(t, TypeLattice::of(TclType::Int));
     }
 
@@ -1207,15 +1675,7 @@ mod tests {
             foreach_groups: None,
         };
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
-        let t = evaluate_type_def(
-            &stmt,
-            &HashMap::new(),
-            &HashMap::new(),
-            &registry(),
-            &HashSet::new(),
-            "::",
-            &ssa,
-        );
+        let t = eval_def(&stmt, &registry(), &ssa, "__def__");
         assert_eq!(t, TypeLattice::overdefined());
     }
 
@@ -1239,15 +1699,7 @@ mod tests {
             foreach_groups: None,
         };
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
-        let t = evaluate_type_def(
-            &stmt,
-            &HashMap::new(),
-            &HashMap::new(),
-            &registry(),
-            &HashSet::new(),
-            "::",
-            &ssa,
-        );
+        let t = eval_def(&stmt, &registry(), &ssa, "__def__");
         assert_eq!(t, TypeLattice::overdefined());
     }
 
@@ -1270,15 +1722,7 @@ mod tests {
             foreach_groups: None,
         };
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
-        let t = evaluate_type_def(
-            &stmt,
-            &HashMap::new(),
-            &HashMap::new(),
-            &registry(),
-            &HashSet::new(),
-            "::",
-            &ssa,
-        );
+        let t = eval_def(&stmt, &registry(), &ssa, "__def__");
         assert_eq!(t, TypeLattice::of(TclType::String));
     }
 
@@ -1309,15 +1753,7 @@ mod tests {
             foreach_groups: None,
         };
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
-        let t = evaluate_type_def(
-            &stmt,
-            &HashMap::new(),
-            &HashMap::new(),
-            &registry(),
-            &HashSet::new(),
-            "::",
-            &ssa,
-        );
+        let t = eval_def(&stmt, &registry(), &ssa, "__def__");
         assert_eq!(t, TypeLattice::overdefined());
     }
 
@@ -1332,8 +1768,8 @@ mod tests {
         fn any_known(fu: &crate::compilation_unit::FunctionUnit, name: &str, t: TclType) -> bool {
             fu.types.iter().any(|((sym, _), lat)| {
                 fu.ssa.var_name(*sym) == name
-                    && lat.kind == TypeKind::Known
-                    && lat.tcl_type == Some(t)
+                    && lat.kind() == TypeKind::Known
+                    && lat.tcl_type() == Some(t)
             })
         }
         // Helper: is every version of `name` non-Known (OVERDEFINED/UNKNOWN)?
@@ -1341,7 +1777,7 @@ mod tests {
             fu.types
                 .iter()
                 .filter(|((sym, _), _)| fu.ssa.var_name(*sym) == name)
-                .all(|(_, lat)| lat.kind != TypeKind::Known)
+                .all(|(_, lat)| lat.kind() != TypeKind::Known)
         }
 
         // `lassign` element target — OVERDEFINED, never List.
@@ -1496,10 +1932,10 @@ mod tests {
         let fu = cu.function("::top").unwrap();
         // x should be Int; y (which copies x) should also be Int.
         let x_is_int = fu.types.iter().any(|((name, _), t)| {
-            fu.ssa.var_name(*name) == "x" && t.tcl_type == Some(TclType::Int)
+            fu.ssa.var_name(*name) == "x" && t.tcl_type() == Some(TclType::Int)
         });
         let y_is_int = fu.types.iter().any(|((name, _), t)| {
-            fu.ssa.var_name(*name) == "y" && t.tcl_type == Some(TclType::Int)
+            fu.ssa.var_name(*name) == "y" && t.tcl_type() == Some(TclType::Int)
         });
         assert!(x_is_int, "expected x to be Int");
         assert!(y_is_int, "expected y to inherit Int type from x");
@@ -1520,7 +1956,7 @@ mod tests {
         );
         let fu = cu.function("::g").unwrap();
         let x_is_int = fu.types.iter().any(|((name, _), t)| {
-            fu.ssa.var_name(*name) == "x" && t.tcl_type == Some(TclType::Int)
+            fu.ssa.var_name(*name) == "x" && t.tcl_type() == Some(TclType::Int)
         });
         assert!(
             x_is_int,
@@ -1541,7 +1977,7 @@ mod tests {
             CompilationUnit::build_for("set lst {a b c}\nset n [llength $lst]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let n_is_int = fu.types.iter().any(|((name, _), t)| {
-            fu.ssa.var_name(*name) == "n" && t.tcl_type == Some(TclType::Int)
+            fu.ssa.var_name(*name) == "n" && t.tcl_type() == Some(TclType::Int)
         });
         assert!(n_is_int, "expected n to be Int (llength return type)");
     }
@@ -1569,8 +2005,8 @@ mod tests {
         );
         let p_ok = fu.types.iter().any(|((name, _), t)| {
             fu.ssa.var_name(*name) == "p"
-                && t.tcl_type == Some(TclType::Object)
-                && t.class_name.as_deref() == Some("::Pin")
+                && t.tcl_type() == Some(TclType::Object)
+                && t.class_name() == Some("::Pin")
         });
         assert!(p_ok, "p (dict get) should be OBJECT(::Pin)");
     }
@@ -1586,8 +2022,8 @@ mod tests {
         let fu = cu.function("::top").expect("top level");
         let p_ok = fu.types.iter().any(|((name, _), t)| {
             fu.ssa.var_name(*name) == "p"
-                && t.tcl_type == Some(TclType::Object)
-                && t.class_name.as_deref() == Some("::Pin")
+                && t.tcl_type() == Some(TclType::Object)
+                && t.class_name() == Some("::Pin")
         });
         assert!(p_ok, "p (lindex) should be OBJECT(::Pin)");
     }
@@ -1629,28 +2065,28 @@ mod tests {
     #[test]
     fn math_function_calls_infer_their_return_type() {
         // (a) sqrt → Double, int → Int, bool → Boolean.
-        assert_eq!(infer_str("sqrt(2.0)").tcl_type, Some(TclType::Double));
-        assert_eq!(infer_str("sin($x)").tcl_type, Some(TclType::Double));
-        assert_eq!(infer_str("int($x)").tcl_type, Some(TclType::Int));
-        assert_eq!(infer_str("wide($x)").tcl_type, Some(TclType::Int));
-        assert_eq!(infer_str("isnan($x)").tcl_type, Some(TclType::Boolean));
+        assert_eq!(infer_str("sqrt(2.0)").tcl_type(), Some(TclType::Double));
+        assert_eq!(infer_str("sin($x)").tcl_type(), Some(TclType::Double));
+        assert_eq!(infer_str("int($x)").tcl_type(), Some(TclType::Int));
+        assert_eq!(infer_str("wide($x)").tcl_type(), Some(TclType::Int));
+        assert_eq!(infer_str("isnan($x)").tcl_type(), Some(TclType::Boolean));
         // abs is identity: abs(2) keeps the operand's Int type.
-        assert_eq!(infer_str("abs(2)").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("abs(2)").tcl_type(), Some(TclType::Int));
         // max/min join operands: max(1, 2) stays Int.
-        assert_eq!(infer_str("max(1, 2)").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("max(1, 2)").tcl_type(), Some(TclType::Int));
         // Tcl 9.1 C99 functions (TIP 745): double-valued, except `signbit`.
         for f in [
             "acosh", "cbrt", "exp2", "log2", "trunc", "erf", "expm1", "logb",
         ] {
             assert_eq!(
-                infer_str(&format!("{f}($x)")).tcl_type,
+                infer_str(&format!("{f}($x)")).tcl_type(),
                 Some(TclType::Double),
                 "{f} should infer Double",
             );
         }
-        assert_eq!(infer_str("signbit($x)").tcl_type, Some(TclType::Boolean));
+        assert_eq!(infer_str("signbit($x)").tcl_type(), Some(TclType::Boolean));
         // Unknown function → Numeric (conservative).
-        assert_eq!(infer_str("nope($x)").tcl_type, Some(TclType::Numeric));
+        assert_eq!(infer_str("nope($x)").tcl_type(), Some(TclType::Numeric));
     }
 
     #[test]
@@ -1658,7 +2094,7 @@ mod tests {
         // (c) bitwise / shift force Int even with untyped operands.
         for src in ["$x & $y", "$x | $y", "$x ^ $y", "$x << 2", "$x >> 2"] {
             assert_eq!(
-                infer_str(src).tcl_type,
+                infer_str(src).tcl_type(),
                 Some(TclType::Int),
                 "expected Int for `{src}`",
             );
@@ -1679,7 +2115,7 @@ mod tests {
         ] {
             let t = infer_str_dialect(src, Some("f5-irules"));
             assert_eq!(
-                t.tcl_type,
+                t.tcl_type(),
                 Some(TclType::Boolean),
                 "expected Boolean for `{src}`, got {t:?}",
             );
@@ -1689,33 +2125,33 @@ mod tests {
     #[test]
     fn arithmetic_promotes_double() {
         // `_arithmetic_result`: int + double → Double (was Numeric).
-        assert_eq!(infer_str("3 + 2.0").tcl_type, Some(TclType::Double));
+        assert_eq!(infer_str("3 + 2.0").tcl_type(), Some(TclType::Double));
         // int + int → Int.
-        assert_eq!(infer_str("3 + 4").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("3 + 4").tcl_type(), Some(TclType::Int));
     }
 
     #[test]
     fn expr_context_literal_typing() {
         // Every integer spelling tokenises to Int in expr context — including
         // octal `0o…`, which the set-statement classifier keeps as String.
-        assert_eq!(infer_str("0o17").tcl_type, Some(TclType::Int));
-        assert_eq!(infer_str("0xff").tcl_type, Some(TclType::Int));
-        assert_eq!(infer_str("0b1010").tcl_type, Some(TclType::Int));
-        assert_eq!(infer_str("42").tcl_type, Some(TclType::Int));
-        assert_eq!(infer_str("3.14").tcl_type, Some(TclType::Double));
+        assert_eq!(infer_str("0o17").tcl_type(), Some(TclType::Int));
+        assert_eq!(infer_str("0xff").tcl_type(), Some(TclType::Int));
+        assert_eq!(infer_str("0b1010").tcl_type(), Some(TclType::Int));
+        assert_eq!(infer_str("42").tcl_type(), Some(TclType::Int));
+        assert_eq!(infer_str("3.14").tcl_type(), Some(TclType::Double));
         // The set-statement classifier still keeps octal as String.
         assert_eq!(literal_type("0o17"), TypeLattice::of(TclType::String));
         // An unrecognised literal degrades to Numeric in expr context
         // (the set-statement classifier would say String).
-        assert_eq!(expr_literal_type("nope").tcl_type, Some(TclType::Numeric));
+        assert_eq!(expr_literal_type("nope").tcl_type(), Some(TclType::Numeric));
     }
 
     #[test]
     fn bitnot_coerces_to_int() {
         // `~$x` always yields Int, regardless of the operand's type
         // (was leaking the operand type via the identity arm).
-        assert_eq!(infer_str("~$x").tcl_type, Some(TclType::Int));
-        assert_eq!(infer_str("~3.5").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("~$x").tcl_type(), Some(TclType::Int));
+        assert_eq!(infer_str("~3.5").tcl_type(), Some(TclType::Int));
     }
 
     #[test]
@@ -1762,10 +2198,9 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let widened = fu
-            .types
-            .iter()
-            .any(|((n, _), t)| fu.ssa.var_name(*n) == "counter" && t.kind == TypeKind::Overdefined);
+        let widened = fu.types.iter().any(|((n, _), t)| {
+            fu.ssa.var_name(*n) == "counter" && t.kind() == TypeKind::Overdefined
+        });
         assert!(
             widened,
             "scope-aliased 'counter' should be OVERDEFINED: {:?}",
@@ -1790,7 +2225,7 @@ mod tests {
         let has_overdefined = fu
             .types
             .iter()
-            .any(|((n, _), t)| fu.ssa.var_name(*n) == "x" && t.kind == TypeKind::Overdefined);
+            .any(|((n, _), t)| fu.ssa.var_name(*n) == "x" && t.kind() == TypeKind::Overdefined);
         assert!(
             has_overdefined,
             "conditionally-assigned param 'x' should merge to OVERDEFINED: {:?}",
@@ -1804,7 +2239,7 @@ mod tests {
             .types
             .iter()
             .filter(|((n, _), t)| {
-                fu.ssa.var_name(*n) == "x" && matches!(t.tcl_type, Some(TclType::Int))
+                fu.ssa.var_name(*n) == "x" && matches!(t.tcl_type(), Some(TclType::Int))
             })
             .count();
         assert_eq!(
@@ -1831,11 +2266,200 @@ mod tests {
             .types
             .iter()
             .filter(|((n, _), _)| fu.ssa.var_name(*n) == "y")
-            .all(|(_, t)| matches!(t.tcl_type, Some(TclType::Int)) || t.kind == TypeKind::Unknown);
+            .all(|(_, t)| {
+                matches!(t.tcl_type(), Some(TclType::Int)) || t.kind() == TypeKind::Unknown
+            });
         assert!(
             all_int,
             "unconditionally-assigned 'y' should stay Int on every path: {:?}",
             fu.types
+        );
+    }
+
+    // --- P3: registry-driven container element inference (type-tracking.md) ---
+
+    /// Helper: the joined lattice of every version of `var` in `func`.
+    fn type_of(
+        cu: &crate::compilation_unit::CompilationUnit,
+        func: &str,
+        var: &str,
+    ) -> TypeLattice {
+        let fu = cu.function(func).unwrap();
+        let mut acc = TypeLattice::unknown();
+        for ((sym, ver), t) in &fu.types {
+            if *ver > 0 && fu.ssa.var_name(*sym) == var {
+                acc = type_join(&acc, t);
+            }
+        }
+        acc
+    }
+
+    /// Oracle: elements are shared objects — a committed computed element
+    /// keeps its intrep inside the list, and `lindex` retrieves it.
+    #[test]
+    fn list_builder_tracks_committed_element_and_lindex_retrieves_it() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "set l [list [expr {2**20}] other]\nset first [lindex $l 0]",
+            &registry(),
+            false,
+        );
+        let l = type_of(&cu, "::top", "l");
+        assert_eq!(l.tcl_type(), Some(TclType::List), "{l}");
+        let elements = l.elements().expect("tracked elements").clone();
+        assert_eq!(elements.known_len(), Some(2), "{l}");
+        assert!(
+            matches!(elements.shape_at(0), Some(s) if s.is_numeric_family()),
+            "committed element 0 keeps its numeric intrep: {l}"
+        );
+        assert_eq!(
+            elements.shape_at(1),
+            None,
+            "a literal word stays agnostic: {l}"
+        );
+        let first = type_of(&cu, "::top", "first");
+        assert!(
+            matches!(first.single_shape(), Some(s) if s.is_numeric_family()),
+            "lindex retrieves the element's shape: {first}"
+        );
+    }
+
+    /// Arity is a fact even with unknown element values: `[list $a $b]`
+    /// provably has two elements.
+    #[test]
+    fn list_builder_tracks_arity_of_unknown_words() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "proc f {a b} { set l [list $a $b]\n return $l }",
+            &registry(),
+            false,
+        );
+        let l = type_of(&cu, "::f", "l");
+        assert_eq!(
+            l.elements().and_then(Elements::known_len),
+            Some(2),
+            "arity of [list $a $b] is exactly 2: {l}"
+        );
+    }
+
+    /// The old object-collection behaviour, now through general elements:
+    /// `lappend`ing constructed objects yields `List<OBJECT(C)*>` and a
+    /// `lassign` / `lindex` retrieval resolves the class.
+    #[test]
+    fn lassign_of_committed_object_list_types_targets() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "oo::class create Foo {}\nset l [list [Foo new] [Foo new]]\nlassign $l a b",
+            &registry(),
+            false,
+        );
+        let a = type_of(&cu, "::top", "a");
+        assert_eq!(a.tcl_type(), Some(TclType::Object), "{a}");
+        assert_eq!(a.class_name(), Some("::Foo"), "{a}");
+        let b = type_of(&cu, "::top", "b");
+        assert_eq!(b.class_name(), Some("::Foo"), "{b}");
+    }
+
+    /// FP-SH-17 parity: `lassign` targets from a *pure-literal* list stay
+    /// Overdefined — no shape claim is defensible for value-dependent
+    /// conversion checks.
+    #[test]
+    fn lassign_of_literal_list_targets_stay_overdefined() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "set point [list 1 2 3]\nlassign $point x y z",
+            &registry(),
+            false,
+        );
+        let x = type_of(&cu, "::top", "x");
+        assert_eq!(x.kind(), TypeKind::Overdefined, "{x}");
+    }
+
+    /// A `lassign` target past the container's arity receives the empty
+    /// string the command pads with.
+    #[test]
+    fn lassign_past_arity_is_empty_string() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "set l [list [expr {1+1}]]\nlassign $l a b",
+            &registry(),
+            false,
+        );
+        let b = type_of(&cu, "::top", "b");
+        assert_eq!(b.tcl_type(), Some(TclType::String), "{b}");
+    }
+
+    /// `dict create` of constructed objects → `Dict<OBJECT(C)*>`; `dict get`
+    /// resolves the element class (the old object retrieval, generalised).
+    #[test]
+    fn dict_create_and_get_track_object_values() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "oo::class create Pin {}\nset pins [dict create p1 [Pin new] p2 [Pin new]]\nset p [dict get $pins p1]",
+            &registry(),
+            false,
+        );
+        let pins = type_of(&cu, "::top", "pins");
+        assert_eq!(pins.element_class(), Some("::Pin"), "{pins}");
+        let p = type_of(&cu, "::top", "p");
+        assert_eq!(p.class_name(), Some("::Pin"), "{p}");
+    }
+
+    /// `lappend var [C new]` evolves the variable's elements — the old
+    /// `collection_element_class` behaviour through the registry's
+    /// `VarElementsEffect`, aliased spellings included.
+    #[test]
+    fn lappend_object_evolves_element_class_through_rename() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "oo::class create Foo {}\nset acc [list]\nlappend acc [Foo new]\nlappend acc [Foo new]",
+            &registry(),
+            false,
+        );
+        let acc = type_of(&cu, "::top", "acc");
+        assert_eq!(acc.tcl_type(), Some(TclType::List), "{acc}");
+        assert_eq!(acc.element_class(), Some("::Foo"), "{acc}");
+    }
+
+    /// A `foreach` element var over a tracked homogeneous list takes the
+    /// element shape at its def (the loop-header phi separately joins the
+    /// live-in as Overdefined, by the conditionally-assigned rule).
+    #[test]
+    fn foreach_var_takes_uniform_element_shape() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for(
+            "oo::class create Foo {}\nset l [list [Foo new] [Foo new]]\nforeach o $l { puts $o }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let has_object_def = fu.types.iter().any(|((sym, ver), t)| {
+            *ver > 0 && fu.ssa.var_name(*sym) == "o" && t.class_name() == Some("::Foo")
+        });
+        assert!(
+            has_object_def,
+            "some version of 'o' must carry the element class: {:?}",
+            fu.types
+        );
+    }
+
+    /// Bignum literals classify on the tower: a beyond-wide decimal is
+    /// `Bignum` (coarse `Int`), never wrapped and never `String`.
+    #[test]
+    fn bignum_literal_classifies_on_the_tower() {
+        assert_eq!(
+            literal_type("18446744073709551616").single_shape(),
+            Some(&TypeShape::Bignum)
+        );
+        assert_eq!(
+            literal_type("0xFFFFFFFFFFFFFFFF").single_shape(),
+            Some(&TypeShape::Bignum)
+        );
+        assert_eq!(literal_type("5").single_shape(), Some(&TypeShape::Int));
+        assert_eq!(
+            literal_type("-9223372036854775808").single_shape(),
+            Some(&TypeShape::Int),
+            "i64::MIN still fits a wide"
         );
     }
 }

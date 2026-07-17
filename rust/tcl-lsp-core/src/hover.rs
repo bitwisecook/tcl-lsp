@@ -2542,13 +2542,13 @@ fn infer_var_type(
         let known: Vec<&TypeLattice> = entries
             .iter()
             .copied()
-            .filter(|t| t.kind == TypeKind::Known && t.tcl_type.is_some())
+            .filter(|t| t.kind() == TypeKind::Known && t.tcl_type().is_some())
             .collect();
         if !known.is_empty()
-            && known.iter().all(|t| t.tcl_type == known[0].tcl_type)
+            && known.iter().all(|t| t.tcl_type() == known[0].tcl_type())
             && known.len() == entries.len()
         {
-            let label = tcl_type_label(known[0].tcl_type.unwrap());
+            let label = tcl_type_label(known[0].tcl_type().unwrap());
             // A pure def whose every typed read commits one intrep reports it
             // at the creation site: `set l {1 2 3}` first used by `llength`
             // hovers as "string (first used as: list)".
@@ -2563,29 +2563,29 @@ fn infer_var_type(
             }
             return Some(label);
         }
-        // Every version agrees on the same SHIMMERED pair.
+        // Every version agrees on the same shimmer union — render every
+        // member (`shimmered (int / list / string)` for a 3-way merge).
         let shimmered: Vec<&TypeLattice> = entries
             .iter()
             .copied()
-            .filter(|t| {
-                t.kind == TypeKind::Shimmered && t.from_type.is_some() && t.tcl_type.is_some()
-            })
+            .filter(|t| t.kind() == TypeKind::Shimmered)
             .collect();
         if !shimmered.is_empty() && shimmered.len() == entries.len() {
             let s = shimmered[0];
             if shimmered.iter().all(|t| *t == s) {
-                return Some(format!(
-                    "shimmered ({} / {})",
-                    tcl_type_label(s.from_type.unwrap()),
-                    tcl_type_label(s.tcl_type.unwrap()),
-                ));
+                let members: Vec<String> = s
+                    .shapes()
+                    .iter()
+                    .map(|shape| tcl_type_label(shape.coarse()))
+                    .collect();
+                return Some(format!("shimmered ({})", members.join(" / ")));
             }
         }
         // Mixed, but a dominant KNOWN type exists.  Pick the
         // smallest by `Ord` so the choice is deterministic.
         if let Some(t) = known
             .iter()
-            .filter_map(|t| t.tcl_type)
+            .filter_map(|t| t.tcl_type())
             .min()
             .map(tcl_type_label)
         {

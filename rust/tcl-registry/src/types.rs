@@ -80,9 +80,83 @@ pub enum VarWriteTyping {
     Fixed(TclType),
     /// The written variables receive destructured elements / parsed pieces
     /// whose static intrep is unknown and unrelated to the return value —
-    /// `lassign` (list elements of any type), `scan` / `binary scan`
-    /// (format-dependent conversions), `regexp` / `regsub` (matched
-    /// substrings).  Each target widens to *overdefined* so no downstream
-    /// type check reads a bogus intrep.
+    /// `scan` / `binary scan` (format-dependent conversions), `regexp` /
+    /// `regsub` (matched substrings).  Each target widens to *overdefined*
+    /// so no downstream type check reads a bogus intrep.
     Destructured,
+    /// The written variables receive the container argument's elements
+    /// **positionally**: target `i` takes element `i` of the container at
+    /// `container_arg` (0-based, after the command / subcommand word).
+    /// `lassign $l a b` types `a` / `b` from `$l`'s tracked per-position
+    /// element shapes when known, and widens each target to *overdefined*
+    /// otherwise (the pre-element-tracking `Destructured` behaviour).
+    /// `foreach` / `lmap` element variables share this semantic; their
+    /// group→container mapping rides the lowered statement's `foreach_groups`
+    /// metadata rather than a single argument index.
+    ElementsOf {
+        /// 0-based index of the container argument.
+        container_arg: u8,
+    },
+}
+
+/// How a command's *result value* relates to container element structure —
+/// the registry fact behind per-element type inference
+/// (`docs/design/compiler/type-tracking.md`, P3). Read by the compiler's
+/// type-propagation pass; never keyed on command names in the compiler.
+///
+/// Faithful to the runtime: container elements are shared `Tcl_Obj`s, so a
+/// builder's computed argument keeps its intrep inside the container, and a
+/// retrieval hands back the same object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReturnElements {
+    /// The result is a list of exactly the argument words from `from`
+    /// onward, one element per word in order (`list ?value …?`).
+    ListOfArgs {
+        /// 0-based index of the first element word.
+        from: u8,
+    },
+    /// The result is a dict built from alternating key/value words from
+    /// `from` onward (`dict create ?key value …?`); element facts describe
+    /// the **values**.
+    DictOfPairs {
+        /// 0-based index of the first key word.
+        from: u8,
+    },
+    /// The result is one element of the container argument — `lindex $l $i`
+    /// (single-index form) / `dict get $d $k` (single-key form). Multi-level
+    /// paths are outside this fact; the compiler applies it only to the
+    /// single-step call shape.
+    ElementOf {
+        /// 0-based index of the container argument.
+        container_arg: u8,
+    },
+    /// The result is a sub-list of the container argument (`lrange $l a b`):
+    /// a list whose every element is bounded by the source's uniform element
+    /// shape.
+    SubListOf {
+        /// 0-based index of the container argument.
+        container_arg: u8,
+    },
+}
+
+/// How a command evolves the container *elements* of the variable it writes
+/// in place — the registry fact that generalises the old object-only
+/// element-class harvesting to every element shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VarElementsEffect {
+    /// `lappend var ?value …?` — appends each value word (from `values_from`
+    /// onward) as one new element of the variable's list.
+    AppendsListElements {
+        /// 0-based index of the first appended value word.
+        values_from: u8,
+    },
+    /// `dict set var ?key …? value` — stores the final word as one value of
+    /// the variable's dict.
+    SetsDictValue,
+    /// `dict append` / `dict lappend` `var key ?value …?` — extends the
+    /// variable's dict values with the words from `values_from` onward.
+    ExtendsDictValues {
+        /// 0-based index of the first value word.
+        values_from: u8,
+    },
 }

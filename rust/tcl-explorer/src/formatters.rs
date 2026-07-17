@@ -288,14 +288,30 @@ pub fn format_return_shape(s: &ProcSummary) -> String {
 /// Project a type lattice to its display string.
 #[must_use]
 pub fn format_type(tl: &TypeLattice) -> String {
-    match tl.kind {
+    match tl.kind() {
         TypeKind::Unknown => "?".to_owned(),
         TypeKind::Overdefined => "*".to_owned(),
-        TypeKind::Known => tl.tcl_type.map_or_else(|| "?".to_owned(), type_name),
-        TypeKind::Shimmered => match (tl.from_type, tl.tcl_type) {
-            (Some(from), Some(to)) => format!("shimmered({}/{})", type_name(from), type_name(to)),
-            _ => "?".to_owned(),
+        // A container with tracked element facts renders them
+        // (`List<Numeric, ?>` / `Dict<OBJECT(C)*>`); scalar shapes and
+        // fact-free containers keep the bare lowercase name.
+        TypeKind::Known => match tl.single_shape() {
+            Some(shape)
+                if !matches!(
+                    tl.elements(),
+                    None | Some(tcl_compiler::types::Elements::Unknown)
+                ) =>
+            {
+                shape.to_string()
+            }
+            _ => tl.tcl_type().map_or_else(|| "?".to_owned(), type_name),
         },
+        // A multi-member union renders every member (`shimmered(a/b)`,
+        // `shimmered(a/b/c)` for the 3+-way merges the union lattice now
+        // tracks instead of collapsing to overdefined).
+        TypeKind::Shimmered => {
+            let names: Vec<String> = tl.shapes().iter().map(|s| type_name(s.coarse())).collect();
+            format!("shimmered({})", names.join("/"))
+        }
     }
 }
 

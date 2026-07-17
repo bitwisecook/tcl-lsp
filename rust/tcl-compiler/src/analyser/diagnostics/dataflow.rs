@@ -1742,7 +1742,6 @@ file; this call falls through to the 'unknown' handler."
         registry: &tcl_registry::CommandRegistry,
     ) {
         use crate::ir::Statement;
-        use crate::types::TypeKind;
         use tcl_registry::ArgRole;
 
         const STANDARD_CHANNELS: &[&str] = &["stdout", "stderr", "stdin"];
@@ -1799,16 +1798,9 @@ file; this call falls through to the 'unknown' handler."
                         let Some(var_type) = fu.types.get(&key) else {
                             continue;
                         };
-                        if var_type.kind != TypeKind::Known {
-                            continue;
-                        }
-                        let Some(tcl_type) = var_type.tcl_type else {
+                        let Some(type_label) = non_channel_union_label(var_type) else {
                             continue;
                         };
-                        if matches!(tcl_type, tcl_registry::TclType::Channel) {
-                            continue;
-                        }
-                        let type_label = format!("{tcl_type:?}").to_uppercase();
                         let message = format!(
                             "Variable '${name}' passed as channel to '{command}' \
                              has type {type_label}, not CHANNEL.",
@@ -2653,4 +2645,32 @@ fn word_references_param(body: &str, param: &str) -> bool {
         i += 1;
     }
     false
+}
+
+/// Must-policy over a channel argument's type union: `Some(label)` when
+/// EVERY member is a non-channel — whatever path ran, the value cannot be a
+/// channel — with the members rendered `"INT | STRING"` for the message. A
+/// union with any Channel member, or an Unknown / Overdefined node, returns
+/// `None`: some path may be fine.
+fn non_channel_union_label(var_type: &crate::types::TypeLattice) -> Option<String> {
+    use crate::types::{TypeKind, TypeShape};
+    if !matches!(var_type.kind(), TypeKind::Known | TypeKind::Shimmered) {
+        return None;
+    }
+    let member_types: Vec<tcl_registry::TclType> =
+        var_type.shapes().iter().map(TypeShape::coarse).collect();
+    if member_types.is_empty()
+        || member_types
+            .iter()
+            .any(|t| matches!(t, tcl_registry::TclType::Channel))
+    {
+        return None;
+    }
+    Some(
+        member_types
+            .iter()
+            .map(|t| format!("{t:?}").to_uppercase())
+            .collect::<Vec<_>>()
+            .join(" | "),
+    )
 }
