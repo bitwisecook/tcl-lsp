@@ -3061,8 +3061,8 @@
           "tclLsp.suppressDiagnosticsInDiffEditors": {
             "scope": "resource",
             "type": "boolean",
-            "default": true,
-            "description": "Hide Tcl diagnostics (errors and warnings) for a file while it is shown only in a diff editor — a Git change in Source Control, 'Compare With…', or 'Compare with Saved'. On by default; set to false to keep seeing diagnostics in diffs. The file always keeps its diagnostics when it is also open in a normal editor, so analysis of files you are editing is never affected. Purely a client-side display choice; the server keeps analysing. (Deliberately not under tclLsp.diagnostics.*, which is reserved for per-code on/off toggles.)",
+            "default": false,
+            "description": "Hide Tcl diagnostics (errors and warnings) for a file while it is shown only in a diff editor — a Git change in Source Control, 'Compare With…', or 'Compare with Saved'. Diagnostics in a diff are the underlying file's own full-file diagnostics (the analyser never runs on diff content), so they are shown by default; enable this to read changes without the analyser's noise. The file always keeps its diagnostics when it is also open in a normal editor. Purely a client-side display choice; the server keeps analysing. (Deliberately not under tclLsp.diagnostics.*, which is reserved for per-code on/off toggles.)",
             "order": 6
           }
         }

@@ -19,21 +19,25 @@
 import * as vscode from "vscode";
 
 /**
- * Per-resource suppression of Tcl diagnostics for documents that are only being
- * viewed in a diff editor — a Git change (Source Control), "Compare With…",
- * "Compare with Saved", and similar. On by default;
- * `tclLsp.suppressDiagnosticsInDiffEditors: false` keeps diagnostics visible
- * in diffs. (Deliberately NOT under `tclLsp.diagnostics.*` — the server treats
- * every boolean key in that section as a per-code on/off toggle, so a
- * client-only key there would leak into `disabled_diagnostics` and the
- * config-file export.)
+ * Optional per-resource suppression of Tcl diagnostics for documents that are
+ * only being viewed in a diff editor — a Git change (Source Control), "Compare
+ * With…", "Compare with Saved", and similar. Off by default:
+ * `tclLsp.suppressDiagnosticsInDiffEditors: true` hides them while reviewing.
+ * (Deliberately NOT under `tclLsp.diagnostics.*` — the server treats every
+ * boolean key in that section as a per-code on/off toggle, so a client-only
+ * key there would leak into `disabled_diagnostics` and the config-file
+ * export.)
  *
  * "Diff editor" is a purely client-side concept: the language server publishes
  * diagnostics per URI and has no idea an editor is rendering that URI as a diff.
- * The modified side of a Git diff is the real working-tree file (`file:` scheme)
- * and is analysed exactly like any open file, so its *whole-file* diagnostics —
- * mostly findings that predate the change under review — would otherwise paint
- * the diff.
+ * The analyser never runs on diff *content* — a diff editor is two real
+ * documents rendered side by side. The modified side of a Git diff is the
+ * working-tree file (`file:` scheme), analysed exactly like any open file, so
+ * the squiggles a diff shows are that file's own correct, current, *whole-file*
+ * diagnostics (the `git:` original side is outside the document selector and
+ * never analysed). They are shown by default; this setting is for reading a
+ * change without the analyser's noise, since most findings predate the change
+ * under review.
  *
  * The gating happens in the `handleDiagnostics` middleware: the real diagnostics
  * are remembered per URI, but an empty set is handed to the client whenever the
@@ -205,5 +209,5 @@ export class DiffDiagnosticsSuppressor implements vscode.Disposable {
 
 /** Whether diff-editor suppression is enabled for the given resource. */
 function isSuppressionEnabled(uri: vscode.Uri): boolean {
-  return vscode.workspace.getConfiguration(CONFIG_SECTION, uri).get<boolean>(CONFIG_KEY, true);
+  return vscode.workspace.getConfiguration(CONFIG_SECTION, uri).get<boolean>(CONFIG_KEY, false);
 }

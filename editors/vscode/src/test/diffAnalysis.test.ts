@@ -129,7 +129,7 @@ suite("Diff Editor Diagnostics Suppression", () => {
   });
 
   // End-to-end: drive a real diff editor and the language server, and confirm
-  // the default-on setting hides — and disabling it restores — the file's
+  // the opt-in setting hides — and disabling it restores — the file's
   // diagnostics.
   suite("end-to-end", () => {
     const docUri = getDocUri("diagnostics.tcl");
@@ -141,13 +141,14 @@ suite("Diff Editor Diagnostics Suppression", () => {
       await vscode.commands.executeCommand("workbench.action.closeAllEditors");
     });
 
-    test("suppressDiagnosticsInDiffEditors defaults to true", () => {
-      assert.strictEqual(cfg().get<boolean>("suppressDiagnosticsInDiffEditors"), true);
+    test("suppressDiagnosticsInDiffEditors defaults to false", () => {
+      // Diagnostics in a diff are the underlying file's own diagnostics (the
+      // analyser never runs on diff content), so they stay visible by default.
+      assert.strictEqual(cfg().get<boolean>("suppressDiagnosticsInDiffEditors"), false);
     });
 
     test("hides diagnostics for a file shown only in a diff editor, then restores them", async () => {
-      // No explicit update here: the suppression must kick in from the
-      // setting's default (on).
+      await cfg().update("suppressDiagnosticsInDiffEditors", true, undefined);
 
       // Baseline: the file is open in a normal editor, so — even with the
       // setting on — its diagnostics are visible (it is not diff-only).
