@@ -35,6 +35,7 @@ pub fn spec() -> CommandSpec {
             | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
+        return_elements: Some(ReturnElements::ElementOf { container_arg: 0 }),
         hover: Some(HoverSnippet {
             summary: "Retrieve an element from a list",
             synopsis: &["lindex list ?index ...?"],

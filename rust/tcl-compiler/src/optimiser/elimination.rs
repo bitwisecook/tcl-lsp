@@ -490,9 +490,20 @@ fn emit_dead_stores_and_unused(
             continue;
         }
         // Skip if the variable is a scope alias — writes through
-        // global / upvar are visible in other scopes.
+        // global / upvar are visible in other scopes. Policy sets hold
+        // *base* names, so an element symbol (`a(k)`) checks its base too.
         let (var, _) = &chain.key;
-        if scope_aliases.contains(var) {
+        // A synthetic may-def (base refresh / element fan) is not a write
+        // the user made — never an O109/O126 candidate.
+        if fu.ssa.is_synthetic_def(
+            &chain.definition.block,
+            chain.definition.statement_index,
+            var,
+        ) {
+            continue;
+        }
+        let var_base = crate::naming::normalise_var_name(var);
+        if scope_aliases.contains(var) || scope_aliases.contains(var_base) {
             continue;
         }
         // Skip `::`-qualified globals: a direct write to a
@@ -504,13 +515,14 @@ fn emit_dead_stores_and_unused(
         if var.starts_with("::") {
             continue;
         }
-        // Skip cross-event vars (iRules scope).
-        if ctx.cross_event_vars.contains(var) {
+        // Skip cross-event vars (iRules scope; also TclOO instance state —
+        // both sets hold base names).
+        if ctx.cross_event_vars.contains(var) || ctx.cross_event_vars.contains(var_base) {
             continue;
         }
         // Skip a caller-local passed by name to an upvar
         // callee — the callee consumes it through the alias (O109 / O126).
-        if call_by_name.contains(var) {
+        if call_by_name.contains(var) || call_by_name.contains(var_base) {
             continue;
         }
         let any_other_live = fu
@@ -946,6 +958,7 @@ pub(crate) fn collect_rmw_hidden_reads(
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
         include_reads_before_write: true,
+        element_qualified: false,
     });
     let mut shallow = VarReferenceScanner::new(VarScanOptions::default());
     let mut out: HashSet<String> = HashSet::new();
@@ -1265,18 +1278,29 @@ mod tests {
 
     #[test]
     fn o109_array_element_overwrite_not_dead() {
-        // The place model: `set a(k) 1` is NOT a dead store — the
-        // later `set a(j) 2` bumps the name-level SSA version of base `a`, but
-        // `puts $a(k)` reads a(k) and a(k) ≠ a(j).  Goes through `optimise`,
-        // which binds the registry the place bridge needs (`run_pass` leaves it
-        // unbound, so the bare-path scalar test above is unaffected).
+        // Per-element SSA: `a(k)` and `a(j)` are independent variables, so
+        // `$a(k)` reads the value of `set a(k)` — never `set a(j)`. With a
+        // constant value the pipeline may forward + inline it and then
+        // delete the store as a *coupled* rewrite, but the forwarded value
+        // must be the same element's `1` (conflation would forward `2`).
         let opts = crate::optimiser::optimise(
             "proc f {} { set a(k) 1; set a(j) 2; puts $a(k) }",
             &registry(),
         );
         assert!(
-            opts.iter().all(|o| o.code != DiagCode::O109),
-            "no O109 expected — a(k) is read by `puts $a(k)`; got {opts:?}",
+            opts.iter()
+                .all(|o| o.code != DiagCode::O102 || o.replacement == "1"),
+            "a forwarded a(k) load must carry a(k)'s value, got {opts:?}",
+        );
+        // A non-constant element value cannot be forwarded, so the store
+        // stays live through its read — no dead-store report of any kind.
+        let live = crate::optimiser::optimise(
+            "proc f {x} { set a(k) $x; set a(j) 2; puts $a(k) }",
+            &registry(),
+        );
+        assert!(
+            live.iter().all(|o| o.code != DiagCode::O109),
+            "a(k) is read by `puts $a(k)`; got {live:?}",
         );
     }
 

@@ -1022,8 +1022,9 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// variable starts at 0). The numeric-tower addition goes through the shared
 /// [`ValueOps::int_add`](tcl_syntax::value::ValueOps::int_add) seam (the same one
 /// the bytecode `incr` opcodes and the WASM runtime use), so the number-model
-/// behaviour is identical everywhere: the VM has no bignum, so an overflowing
-/// `incr` reports `integer value too large to represent` instead of wrapping.
+/// behaviour is identical everywhere: an overflowing `incr` promotes through
+/// the integer tower (`i128`, then an arbitrary-precision bignum), matching
+/// tclsh, instead of wrapping or erroring.
 fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (name, amount) = match args {
         [name] => (name.to_str(), Value::int(1)),

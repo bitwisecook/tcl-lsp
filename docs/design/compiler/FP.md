@@ -4771,13 +4771,16 @@ re-deriving trace recognition — see
 ### FP-SH-13 — array-element writes collapse onto one SSA symbol; two stable-but-different elements must not read as one variable oscillating
 
 - **Verdict:** FALSE POSITIVE (S100/S101/S102) — fixed
-- **Status:** FIXED for all three shimmer codes. Originally fixed for S102 only
-  (Rust port deep review); the same `array_element_symbols` exclusion is now
-  shared by the use-site (S100/S101) and phi-merge (S101) passes, so an
-  independent-element conflation no longer false-positives through *any*
-  shimmer surface. Proper per-element SSA modelling (which would let a
-  genuinely-oscillating single element still fire) remains the larger,
-  out-of-scope alternative.
+- **Status:** SUPERSEDED by per-element SSA modelling (type-tracking P5).
+  Constant-keyed elements now carry their own SSA symbols, so independent
+  elements cannot conflate at all — the FP this entry guards is prevented
+  structurally, and the `array_element_symbols` exclusion survives only for
+  the *base* symbols (dynamic-key and whole-array flows, which still
+  conflate by design). The flip side landed with it: the reproducer below —
+  the SAME element oscillating int ↔ string each iteration — is a genuine
+  per-iteration re-thunk and now correctly fires S102
+  (`fp_sh_13_same_element_oscillation_fires_s102`); the independent-element
+  variant (`arr(x)` int-stable, `arr(y)` string-stable) stays silent.
 - **Codes:** S100, S101, S102
 - **Corpus:** synthetic (a per-element-stable array accumulator, the common
   Tcl idiom `set arr(id) [somefn $arr(id)]`).
@@ -5337,6 +5340,149 @@ detection still catches genuinely alternating intreps.
 - `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_non_numeric_silent` (FP)
 - `analyser/diagnostics/fp/sh.rs::fp_sh_20_ordering_compare_numeric_literal_stays_silent` (FP)
 - `shimmer/expr.rs::expr_shimmer_comparisons_never_flag` (FP)
+
+---
+
+### FP-SH-21 — a pure value's first conversion is free (issue #940)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `analyser/diagnostics/fp/sh.rs::fp_sh_21_*`, the
+  unit tests `shimmer/hints.rs::uncommitted_*` / `*_is_not_free`, and
+  `shimmer/use_site.rs::no_shimmer_for_foreach_header_with_pure_string` /
+  `no_shimmer_for_pure_literal_as_list`
+- **Codes:** S100 / S101 (use-site and expr-operator shimmer)
+
+#### Reproducer
+
+```tcl
+set fontSizes {10.0 12.0 16.0 24.0}
+foreach size $fontSizes { ... }   ;# was S100: "string intrep but foreach expects list"
+set empty {}
+foreach x $empty { ... }          ;# {} is the exact case in the issue title
+set a 1
+foreach b $a { ... }              ;# a "1" is still a valid 1-element list
+set d {a 1 b 2}
+dict for {k v} $d { ... }         ;# even-length list literal is a valid dict
+```
+
+#### Per-line reasoning
+
+A Tcl value is a *pure string* (`typePtr == NULL`) until something reads it as
+another type; that first read installs the intrep once, losslessly. The
+reference contract (`docs/design/contracts/shimmer-reference-behaviour.md`,
+"When shimmering does NOT occur") already states this: **pure string objects —
+first type assignment is not a shimmer**. `set fontSizes {…}` yields a pure
+string, and `foreach` merely parses it into a list intrep the first time —
+there is no cached intrep to throw away, so no shimmer.
+
+The old code typed the literal with a committed type (`literal_type` → `Int`
+for `5`, `String` for `{…}`) and treated any differing use as a shimmer, so it
+fired on the *first* — free — conversion. The fix adds
+`shimmer::hints::is_uncommitted_first_conversion`, which classifies committed-
+vs-pure generically from the type lattice plus the SCCP constant lattice (never
+by command name): `String` is always pure; a numeric type is pure only when the
+value is a compile-time constant (a folded literal push); `List`/`Dict`/
+`Object`/`ByteArray`/`Channel` are always committed. A pure value's read is
+suppressed only when it is a **valid instance** of the required type — a
+well-formed list, an even-length list for a dict, a parseable number — so a
+genuine error (`incr` on `hello`) still fires.
+
+#### tclsh ground truth (8.6 and 9.0)
+
+```
+% set fontSizes {10.0 12.0 16.0 24.0}
+% tcl::unsupported::representation $fontSizes   ;# pure string (typePtr == NULL)
+% foreach s $fontSizes {}
+% tcl::unsupported::representation $fontSizes   ;# now a list — a one-time, free parse
+% set x 5
+% tcl::unsupported::representation $x            ;# pure string, NOT a committed int
+% lindex $x 0                                    ;# first read → list, free
+% set real [list 1 2 3]
+% tcl::unsupported::representation $real          ;# committed list
+% string length $real                            ;# list -> string: a genuine shimmer (still fired)
+```
+
+#### Tests
+
+- `analyser/diagnostics/fp/sh.rs::fp_sh_21_braced_list_literal_in_foreach_silent` (FP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_21_empty_braces_in_foreach_silent` (FP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_21_scalar_literal_as_list_silent` (FP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_21_dict_literal_in_dict_for_silent` (FP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_21_committed_dict_in_foreach_still_fires` (TP control)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_21_incr_on_non_integer_literal_still_fires` (TP control)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_21_committed_list_as_string_still_fires` (TP control)
+- `shimmer/hints.rs::uncommitted_*` / `*_is_not_free` (predicate unit TP/FP/TN/FN)
+
+---
+
+### FP-SH-22 — first-use commit: a second conversion is a genuine shimmer
+
+- **Verdict:** FALSE NEGATIVE (now fixed) — FP-SH-21's per-use pure-origin
+  evaluation missed the conversion a *prior* use had already committed
+- **Status:** locked in by `analyser/diagnostics/fp/sh.rs::fp_sh_22_*`, the
+  dataflow unit tests in `shimmer/commit.rs`, and the
+  `commit_dataflow_*` lsp_e2e suite
+- **Codes:** S100 / S101 (use-site, expr-operand, and `incr` shimmer)
+
+#### Reproducer
+
+```tcl
+set v 5
+expr {$v + 1}     ;# first use commits the numeric intrep (free)
+lindex $v 0       ;# second conversion: numeric → list — S100 fires
+
+set l {a 1 b 2}
+foreach i {1 2 3} {
+    llength $l    ;# list ↔ dict re-thunk on every iteration —
+    dict size $l  ;# both S101 (oracle-verified oscillation)
+}
+
+proc f {c} {
+    set a {1 2}
+    if {$c} { llength $a } else { dict size $a }  ;# each arm free (first use)
+    string length $a   ;# matches NEITHER arm — every path pays: S100 fires
+    # a post-merge `llength $a` would match one arm — only one path pays: silent
+}
+```
+
+#### Per-line reasoning
+
+The commitment state is per program point, not per SSA version — a value is
+pure before `lindex $x 0` and a list after it with no new version in between —
+so the flow-insensitive type lattice cannot carry it. `shimmer::commit` runs a
+forward **must/may** dataflow over the SCCP-executable blocks: the may-set of
+committed intreps unions at merges (bounded), `all_committed` intersects, and
+a use fires precisely when it is committed on **every** path to a rep that
+satisfies neither the required intrep nor numeric-family compatibility. That
+quantifier is what keeps the branch case sound: each arm's own conversion is a
+free first commit, and a post-merge use matching one arm pays on only one path
+(silent) while a use matching neither pays on all (fires, with path-dependent
+wording naming the possibilities). The loop re-thunk is restored via the
+existing multi-target `LoopFacts` (two distinct targets in a loop bypass the
+free-first-conversion suppression) plus the steady-state may-rep naming the
+from side.
+
+#### tclsh ground truth (8.6)
+
+```
+% set v 5; expr {$v + 1}
+% tcl::unsupported::representation $v    ;# int — committed by expr
+% lindex $v 0
+% tcl::unsupported::representation $v    ;# list — a genuine re-representation
+% set l {a 1 b 2}
+% foreach i {1 2 3} { llength $l; dict size $l }
+                                          ;# rep alternates list ↔ dict each pass
+```
+
+#### Tests
+
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_second_conversion_after_expr_commit_fires` (TP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_incr_after_llength_commit_fires` (TP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_loop_two_target_rethunk_is_s101` (TP)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_branch_arms_first_conversions_stay_silent` (FP guard)
+- `analyser/diagnostics/fp/sh.rs::fp_sh_22_merge_use_matching_neither_arm_fires` (TP)
+- `shimmer/commit.rs` unit tests (must/may semantics, pushback)
+- lsp_e2e `commit_dataflow_*` (second conversion, loop re-thunk, path-dependent message)
 
 ---
 

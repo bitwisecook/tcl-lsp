@@ -105,11 +105,21 @@ pub fn defs_from_ir_script(script: &Script) -> Vec<String> {
 fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
     for stmt in &script.statements {
         match stmt {
-            Statement::AssignConst { name, .. }
-            | Statement::AssignExpr { name, .. }
-            | Statement::AssignValue { name, .. }
-            | Statement::Incr { name, .. } => {
-                let n = normalise_var_name(name);
+            Statement::AssignConst {
+                name, name_braced, ..
+            }
+            | Statement::AssignExpr {
+                name, name_braced, ..
+            }
+            | Statement::AssignValue {
+                name, name_braced, ..
+            }
+            | Statement::Incr {
+                name, name_braced, ..
+            } => {
+                // Element-qualified to match the SSA use scan: a collapsed
+                // arm's `set b(k) 1; puts $b(k)` must cancel its own read.
+                let n = crate::naming::element_var_name_braced(name, *name_braced);
                 if !n.is_empty() {
                     defs.push(n.to_owned());
                 }
@@ -141,7 +151,7 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
             } => {
                 for iter in iterators {
                     for vn in &iter.vars {
-                        let n = normalise_var_name(vn);
+                        let n = crate::naming::element_var_name(vn);
                         if !n.is_empty() {
                             defs.push(n.to_owned());
                         }

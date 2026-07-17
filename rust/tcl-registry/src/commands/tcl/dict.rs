@@ -73,6 +73,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
+        var_elements_effect: Some(VarElementsEffect::ExtendsDictValuesByName { values_from: 2 }),
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,
@@ -96,6 +97,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict create ?key value ...?",
         pure: true,
         return_type: Some(TclType::Dict),
+        return_elements: Some(ReturnElements::DictOfPairs { from: 0 }),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -161,6 +163,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict get dictionaryValue ?key ...?",
         pure: true,
         return_type: Some(TclType::String),
+        // Single-key form only — the compiler applies the element fact to
+        // the two-arg call shape (`dict get $d $k`).
+        return_elements: Some(ReturnElements::ElementOf { container_arg: 0 }),
         arg_types: &[(
             0,
             ArgTypeHint {
@@ -213,6 +218,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
+        var_elements_effect: Some(VarElementsEffect::ListifiesDictValue),
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
         safe_on_uninit: Some(DialectSet::ALL_TCL),
@@ -298,6 +304,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(3),
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
+        var_elements_effect: Some(VarElementsEffect::SetsDictValue),
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,

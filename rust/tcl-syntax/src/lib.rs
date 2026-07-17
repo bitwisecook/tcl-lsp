@@ -49,6 +49,7 @@ pub mod list;
 pub mod mro;
 pub mod naming;
 pub mod number;
+pub mod number_tower;
 pub mod scan;
 pub mod switch_body;
 pub mod value;

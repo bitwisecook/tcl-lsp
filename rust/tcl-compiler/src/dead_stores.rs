@@ -86,6 +86,15 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
         if hidden_reads.contains(var) {
             continue;
         }
+        // A synthetic may-def (base refresh / element fan) is not a write
+        // the user made — the element's own chain reports.
+        if fu.ssa.is_synthetic_def(
+            &chain.definition.block,
+            chain.definition.statement_index,
+            var,
+        ) {
+            continue;
+        }
         // Definitions in SCCP-unreachable blocks are reported as O107.
         if !fu
             .cfg

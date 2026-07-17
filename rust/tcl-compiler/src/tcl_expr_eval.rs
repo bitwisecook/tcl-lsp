@@ -54,31 +54,63 @@ use std::collections::HashMap;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
 /// Result of evaluating a constant Tcl expression.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TclValue {
-    /// Integer value (Tcl booleans are represented as `Int(0)` / `Int(1)`).
+    /// Integer value that fits a wide (Tcl booleans are `Int(0)` / `Int(1)`).
     Int(i64),
     /// IEEE-754 double.
     Float(f64),
+    /// Integer beyond a wide — the bignum rung of the numeric tower. Folded
+    /// exactly (`expr {2**64}` → `18446744073709551616`), mirroring the VM's
+    /// `num-bigint` tower and C Tcl's seamless wide→bignum promotion; a
+    /// bignum result that fits a wide is always demoted back to `Int`
+    /// (`$big - $big` → `Int(0)`), so `Big` is canonical: only ever
+    /// beyond-`i64` magnitudes.
+    Big(num_bigint::BigInt),
 }
 
 impl TclValue {
+    /// Wrap an arbitrary-precision integer, demoting to a wide when it fits
+    /// (the canonical form — mirrors the VM's `big_value` and C Tcl's
+    /// `mp_int` narrowing).
+    #[must_use]
+    pub fn from_big(value: num_bigint::BigInt) -> Self {
+        use num_traits::ToPrimitive;
+        value.to_i64().map_or(Self::Big(value), Self::Int)
+    }
+
     /// Return the raw float representation (converting integer → float
     /// when necessary). Used by arithmetic that promotes mixed operands.
+    /// A bignum converts with the same precision loss (to ±∞ past the
+    /// double range) as C Tcl's `Tcl_GetDoubleFromObj` on a bignum.
     #[must_use]
-    pub fn as_f64(self) -> f64 {
+    pub fn as_f64(&self) -> f64 {
+        use num_traits::ToPrimitive;
         match self {
-            Self::Int(i) => i as f64,
-            Self::Float(f) => f,
+            Self::Int(i) => *i as f64,
+            Self::Float(f) => *f,
+            Self::Big(b) => b.to_f64().unwrap_or(f64::NAN),
         }
     }
 
     /// True when the value is non-zero (Tcl truthiness).
     #[must_use]
-    pub fn is_truthy(self) -> bool {
+    pub fn is_truthy(&self) -> bool {
+        use num_traits::Zero;
         match self {
-            Self::Int(i) => i != 0,
-            Self::Float(f) => f != 0.0,
+            Self::Int(i) => *i != 0,
+            Self::Float(f) => *f != 0.0,
+            Self::Big(b) => !b.is_zero(),
+        }
+    }
+
+    /// The exact arbitrary-precision view of an integer value (`None` for a
+    /// float) — the promotion step of the integer arithmetic path.
+    fn to_bigint(&self) -> Option<num_bigint::BigInt> {
+        match self {
+            Self::Int(i) => Some(num_bigint::BigInt::from(*i)),
+            Self::Big(b) => Some(b.clone()),
+            Self::Float(_) => None,
         }
     }
 }
@@ -96,13 +128,6 @@ pub enum EnvValue {
 
 /// Variable environment for evaluation.
 pub type Env = HashMap<String, EnvValue>;
-
-/// Maximum exponent for integer `**` — guards against pathological
-/// inputs like `2 ** 999_999_999`.
-///
-/// Matches C Tcl's `INST_EXPON` limit (`exponent < 2^28`), so the value
-/// is `(1 << 28) - 1`.
-const MAX_EXPONENT: i64 = (1 << 28) - 1;
 
 // Public API
 
@@ -223,6 +248,7 @@ fn eval_with_config(
 #[derive(Clone)]
 enum FoldValue {
     Int(i64),
+    Big(num_bigint::BigInt),
     Float(f64),
     Str(String),
 }
@@ -232,6 +258,7 @@ impl FoldValue {
     fn to_number(&self) -> Option<TclValue> {
         match self {
             FoldValue::Int(i) => Some(TclValue::Int(*i)),
+            FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
             FoldValue::Float(f) => Some(TclValue::Float(*f)),
             FoldValue::Str(s) => parse_literal(s),
         }
@@ -240,13 +267,15 @@ impl FoldValue {
     fn to_string_val(&self) -> String {
         match self {
             FoldValue::Str(s) => s.clone(),
-            FoldValue::Int(i) => format_tcl_value(TclValue::Int(*i)),
-            FoldValue::Float(f) => format_tcl_value(TclValue::Float(*f)),
+            FoldValue::Int(i) => format_tcl_value(&TclValue::Int(*i)),
+            FoldValue::Big(b) => b.to_string(),
+            FoldValue::Float(f) => format_tcl_value(&TclValue::Float(*f)),
         }
     }
     fn from_tcl(v: TclValue) -> FoldValue {
         match v {
             TclValue::Int(i) => FoldValue::Int(i),
+            TclValue::Big(b) => FoldValue::Big(b),
             TclValue::Float(f) => FoldValue::Float(f),
         }
     }
@@ -293,7 +322,9 @@ enum Operand {
 /// [`Operand::Ambiguous`], applying the dialect's leading-zero rule.
 fn classify_operand(value: &FoldValue, octal: Option<bool>) -> Operand {
     let s = match value {
-        FoldValue::Int(_) | FoldValue::Float(_) => return Operand::Num(value.to_number().unwrap()),
+        FoldValue::Int(_) | FoldValue::Big(_) | FoldValue::Float(_) => {
+            return Operand::Num(value.to_number().unwrap());
+        }
         FoldValue::Str(s) => s.as_str(),
     };
     if is_bare_leading_zero(s) {
@@ -380,9 +411,13 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 } else {
                     strict_number_for_dialect(v, octal)
                 };
-                parsed.map(|t| match t {
-                    TclValue::Int(i) => Num::Int(i),
-                    TclValue::Float(f) => Num::Float(f),
+                parsed.and_then(|t| match t {
+                    TclValue::Int(i) => Some(Num::Int(i)),
+                    TclValue::Float(f) => Some(Num::Float(f)),
+                    // A beyond-wide integer argument: the math functions
+                    // dispatch over the wide/double pair, so decline rather
+                    // than approximate.
+                    TclValue::Big(_) => None,
                 })
             })
             .collect();
@@ -411,22 +446,39 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             // leading-zero run is non-zero under both), so no dialect
             // handling is needed here.
             UnaryOp::Not | UnaryOp::WordNot => {
-                let truthy = value.to_number().ok_or(())?.is_truthy();
+                // `!NaN` is the same boolean-context domain error as `?:` on
+                // NaN — decline, never fold a truth value.
+                let truthy = match value.to_number().ok_or(())? {
+                    TclValue::Float(f) if f.is_nan() => return Err(()),
+                    v => v.is_truthy(),
+                };
                 Ok(FoldValue::Int(i64::from(!truthy)))
             }
             // Arithmetic/bitwise unaries reject boolean words like the binary
             // arithmetic path (`expr {-true}`, `expr {~yes}` are errors), and
             // are dialect-sensitive the same way `arith` is (`expr {-010}`
             // is `-8` in tcl8.x, `-10` in tcl9.0).
-            UnaryOp::Pos => strict_number_for_dialect(&value, self.octal)
-                .map(FoldValue::from_tcl)
-                .ok_or(()),
+            UnaryOp::Pos => match strict_number_for_dialect(&value, self.octal).ok_or(())? {
+                // `+NaN` is "can't use non-numeric floating-point value as
+                // operand" in C — never a foldable value.
+                TclValue::Float(f) if f.is_nan() => Err(()),
+                v => Ok(FoldValue::from_tcl(v)),
+            },
             UnaryOp::Neg => match strict_number_for_dialect(&value, self.octal).ok_or(())? {
-                TclValue::Int(i) => i.checked_neg().map(FoldValue::Int).ok_or(()),
+                TclValue::Int(i) => Ok(match i.checked_neg() {
+                    Some(n) => FoldValue::Int(n),
+                    // −i64::MIN promotes to the bignum tier, exactly as C.
+                    None => FoldValue::from_tcl(TclValue::from_big(-num_bigint::BigInt::from(i))),
+                }),
+                TclValue::Big(b) => Ok(FoldValue::from_tcl(TclValue::from_big(-b))),
+                // `-NaN` is the same operand error as `+NaN` — decline.
+                TclValue::Float(f) if f.is_nan() => Err(()),
                 TclValue::Float(f) => Ok(FoldValue::Float(-f)),
             },
             UnaryOp::BitNot => match strict_number_for_dialect(&value, self.octal).ok_or(())? {
                 TclValue::Int(i) => Ok(FoldValue::Int(!i)),
+                // Two's-complement `~x` is `-x - 1` at any width.
+                TclValue::Big(b) => Ok(FoldValue::from_tcl(TclValue::from_big(-b - 1))),
                 TclValue::Float(_) => Err(()),
             },
         }
@@ -481,7 +533,13 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     }
 
     fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ()> {
-        Ok(value.to_number().ok_or(())?.is_truthy())
+        // Boolean contexts (`?:`, `&&`, `||`) reject NaN — a domain error in
+        // C Tcl ("floating point value is Not a Number"), so the fold
+        // declines rather than pick a truth value.
+        match value.to_number().ok_or(())? {
+            TclValue::Float(f) if f.is_nan() => Err(()),
+            v => Ok(v.is_truthy()),
+        }
     }
     fn bool_value(&mut self, b: bool) -> FoldValue {
         FoldValue::Int(i64::from(b))
@@ -505,12 +563,14 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
 /// Render a `TclValue` as a Tcl source literal. Matches Tcl's
 /// `Tcl_GetStringFromObj` output for numbers.
 #[must_use]
-pub fn format_tcl_value(v: TclValue) -> String {
+pub fn format_tcl_value(v: &TclValue) -> String {
     match v {
         TclValue::Int(i) => i.to_string(),
         // The shared canonical double formatter (also the runtime's `double`
         // string rep): integer-valued floats get `.0`, plus `Inf`/`NaN`.
-        TclValue::Float(f) => tcl_syntax::number::format_double(f),
+        TclValue::Float(f) => tcl_syntax::number::format_double(*f),
+        // A bignum's canonical string rep is its decimal spelling.
+        TclValue::Big(b) => b.to_string(),
     }
 }
 
@@ -533,15 +593,30 @@ pub fn parse_literal(text: &str) -> Option<TclValue> {
     }
     // The numeric grammar is the shared `tcl_syntax::number` (the same
     // `TclParseNumber` port the runtime const-folds with): `0x`/`0o`/`0b`,
-    // leading-zero decimal, `_` separators, `Inf`/`NaN`. The const-folder's
-    // value is `i64`/`f64`, so a magnitude past a wide (a `Big`) can't be
-    // folded — return `None` (give up), matching the old i64-overflow behaviour.
+    // leading-zero decimal, `_` separators, `Inf`/`NaN`. A magnitude past a
+    // wide builds the exact bignum (P4 of type-tracking.md), matching C
+    // Tcl's seamless promotion.
     match tcl_syntax::number::parse_whole(text)? {
         Number::Int(v) => Some(TclValue::Int(v)),
         Number::Double(d) => Some(TclValue::Float(d)),
         Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
-        Number::Big { .. } => None,
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => big_from_parts(negative, radix, &digits),
     }
+}
+
+/// Build the exact [`TclValue`] of a beyond-wide integer literal from the
+/// shared grammar's `Number::Big` parts (mirrors the VM's `value_as_bigint`).
+fn big_from_parts(
+    negative: bool,
+    radix: tcl_syntax::number::Radix,
+    digits: &str,
+) -> Option<TclValue> {
+    let b = num_bigint::BigInt::parse_bytes(digits.as_bytes(), radix as u32)?;
+    Some(TclValue::from_big(if negative { -b } else { b }))
 }
 
 /// Parse a *strict* Tcl number — the number grammar only, **without** the
@@ -555,11 +630,16 @@ fn strict_number(value: &FoldValue) -> Option<TclValue> {
     match value {
         FoldValue::Int(i) => Some(TclValue::Int(*i)),
         FoldValue::Float(f) => Some(TclValue::Float(*f)),
+        FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
         FoldValue::Str(s) => match tcl_syntax::number::parse_whole(s)? {
             Number::Int(v) => Some(TclValue::Int(v)),
             Number::Double(d) => Some(TclValue::Float(d)),
             Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
-            Number::Big { .. } => None,
+            Number::Big {
+                negative,
+                radix,
+                digits,
+            } => big_from_parts(negative, radix, &digits),
         },
     }
 }
@@ -608,59 +688,54 @@ fn strict_number_for_dialect(value: &FoldValue, octal: Option<bool>) -> Option<T
 fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
     match op {
         // Arithmetic.
-        BinOp::Add => Some(arith(a, b, i64::checked_add, |x, y| x + y)?),
-        BinOp::Sub => Some(arith(a, b, i64::checked_sub, |x, y| x - y)?),
-        BinOp::Mul => Some(arith(a, b, i64::checked_mul, |x, y| x * y)?),
-        BinOp::Div => tcl_div(a, b),
-        BinOp::Mod => tcl_mod(a, b),
-        BinOp::Pow => tcl_pow(a, b),
+        BinOp::Add => Some(arith(&a, &b, i64::checked_add, |x, y| x + y, |x, y| x + y)?),
+        BinOp::Sub => Some(arith(&a, &b, i64::checked_sub, |x, y| x - y, |x, y| x - y)?),
+        BinOp::Mul => Some(arith(&a, &b, i64::checked_mul, |x, y| x * y, |x, y| x * y)?),
+        BinOp::Div => tcl_div(&a, &b),
+        BinOp::Mod => tcl_mod(&a, &b),
+        BinOp::Pow => tcl_pow(&a, &b),
 
-        // Shifts and bitwise — integer only.
-        BinOp::LShift => match (a, b) {
-            (TclValue::Int(x), TclValue::Int(y)) if (0..64).contains(&y) => {
-                // Tcl promotes a wide-overflowing left shift to a bignum, which
-                // the const-folder cannot represent. `checked_shl` guards only
-                // the shift *count* (< 64), not value overflow, so `1 << 63`
-                // would fold to the wrapped `i64::MIN`. Compute in i128 and
-                // decline (None) unless the result still fits a wide, matching
-                // the "value past a wide → None" contract Add/Sub/Mul/Pow honour.
-                let shifted = i128::from(x) << (y as u32);
-                i64::try_from(shifted).ok().map(TclValue::Int)
+        // Shifts and bitwise — integer only (wide or bignum; exact).
+        BinOp::LShift => match (&a, &b) {
+            (TclValue::Int(0), TclValue::Int(y)) if *y >= 0 => Some(TclValue::Int(0)),
+            // The shift count is capped so a folded literal stays small
+            // (`1 << 100000` is a real Tcl value but not one worth
+            // materialising into source text — decline past the cap).
+            (TclValue::Int(_) | TclValue::Big(_), TclValue::Int(y)) if (0..=256).contains(y) => {
+                let x = a.to_bigint()?;
+                Some(TclValue::from_big(x << u32::try_from(*y).ok()?))
             }
-            // `0 << y` is 0 for any non-negative count (no overflow). A non-zero
-            // shift past a wide is a bignum, and a negative count is a Tcl
-            // error — both decline (fall through to `None`).
-            (TclValue::Int(0), TclValue::Int(y)) if y >= 64 => Some(TclValue::Int(0)),
             _ => None,
         },
-        BinOp::RShift => match (a, b) {
-            (TclValue::Int(x), TclValue::Int(y)) if y >= 0 => {
+        BinOp::RShift => match (&a, &b) {
+            (TclValue::Int(x), TclValue::Int(y)) if *y >= 0 => {
                 // At y == 64 the value has been fully shifted out, so an
                 // arithmetic right shift yields the sign bit replicated
                 // (0 for non-negative, -1 for negative). Executing `x >> 64`
                 // here would panic on shift-overflow in debug builds and mask
                 // to `x >> 0` in release. The boundary is therefore `>= 64`,
                 // not `> 64` (i64 has 64 bits).
-                if y >= 64 {
-                    Some(TclValue::Int(if x >= 0 { 0 } else { -1 }))
+                if *y >= 64 {
+                    Some(TclValue::Int(if *x >= 0 { 0 } else { -1 }))
                 } else {
                     Some(TclValue::Int(x >> y))
                 }
             }
+            (TclValue::Big(x), TclValue::Int(y)) if *y >= 0 => {
+                use num_traits::Signed;
+                // A count past the operand's width collapses to the sign.
+                match usize::try_from(*y) {
+                    Ok(count) if count <= x.bits() as usize => {
+                        Some(TclValue::from_big(x.clone() >> count))
+                    }
+                    _ => Some(TclValue::Int(if x.is_negative() { -1 } else { 0 })),
+                }
+            }
             _ => None,
         },
-        BinOp::BitAnd => match (a, b) {
-            (TclValue::Int(x), TclValue::Int(y)) => Some(TclValue::Int(x & y)),
-            _ => None,
-        },
-        BinOp::BitOr => match (a, b) {
-            (TclValue::Int(x), TclValue::Int(y)) => Some(TclValue::Int(x | y)),
-            _ => None,
-        },
-        BinOp::BitXor => match (a, b) {
-            (TclValue::Int(x), TclValue::Int(y)) => Some(TclValue::Int(x ^ y)),
-            _ => None,
-        },
+        BinOp::BitAnd => bitwise(&a, &b, |x, y| x & y, |x, y| x & y),
+        BinOp::BitOr => bitwise(&a, &b, |x, y| x | y, |x, y| x | y),
+        BinOp::BitXor => bitwise(&a, &b, |x, y| x ^ y, |x, y| x ^ y),
 
         // Numeric comparison — always returns Int(0) or Int(1). A NaN operand
         // is unordered: unequal to everything, ordered against nothing.
@@ -706,14 +781,70 @@ fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
     }
 }
 
-fn arith<F, G>(a: TclValue, b: TclValue, int_op: F, float_op: G) -> Option<TclValue>
+/// Integer-only bitwise operator over the wide/bignum tiers (`num-bigint`'s
+/// negative-operand semantics are two's-complement, matching Tcl).
+fn bitwise<F, B>(a: &TclValue, b: &TclValue, int_op: F, big_op: B) -> Option<TclValue>
+where
+    F: FnOnce(i64, i64) -> i64,
+    B: FnOnce(&num_bigint::BigInt, &num_bigint::BigInt) -> num_bigint::BigInt,
+{
+    match (a, b) {
+        (TclValue::Int(x), TclValue::Int(y)) => Some(TclValue::Int(int_op(*x, *y))),
+        (TclValue::Big(_) | TclValue::Int(_), TclValue::Big(_) | TclValue::Int(_)) => {
+            Some(TclValue::from_big(big_op(&a.to_bigint()?, &b.to_bigint()?)))
+        }
+        _ => None,
+    }
+}
+
+/// Whether a value's `f64` view is exact — always true for wides and floats
+/// (the wide→double rounding is C's own conversion), and true for a bignum
+/// only when the conversion round-trips. An inexact bignum→double declines
+/// the fold rather than depend on rounding-parity with `TclBignumToDouble`.
+fn big_to_f64_exact(v: &TclValue) -> bool {
+    match v {
+        TclValue::Big(b) => num_traits::FromPrimitive::from_f64(v.as_f64())
+            .is_some_and(|back: num_bigint::BigInt| back == *b),
+        TclValue::Int(_) | TclValue::Float(_) => true,
+    }
+}
+
+fn arith<F, B, G>(a: &TclValue, b: &TclValue, int_op: F, big_op: B, float_op: G) -> Option<TclValue>
 where
     F: FnOnce(i64, i64) -> Option<i64>,
+    B: FnOnce(&num_bigint::BigInt, &num_bigint::BigInt) -> num_bigint::BigInt,
     G: FnOnce(f64, f64) -> f64,
 {
     match (a, b) {
-        (TclValue::Int(x), TclValue::Int(y)) => int_op(x, y).map(TclValue::Int),
-        _ => Some(TclValue::Float(float_op(a.as_f64(), b.as_f64()))),
+        // Wide fast path; overflow promotes to the exact bignum tier
+        // (never wraps, never declines — C Tcl's seamless promotion).
+        (TclValue::Int(x), TclValue::Int(y)) => Some(match int_op(*x, *y) {
+            Some(r) => TclValue::Int(r),
+            None => TclValue::from_big(big_op(
+                &num_bigint::BigInt::from(*x),
+                &num_bigint::BigInt::from(*y),
+            )),
+        }),
+        // Any float operand contaminates to double arithmetic — including a
+        // bignum operand, with C's same double-conversion rounding. Two
+        // divergence guards (oracle-pinned):
+        // - a NaN *result* is C's "domain error" (`Inf - Inf`, `Inf * 0`),
+        //   and a NaN *operand* is "can't use non-numeric floating-point
+        //   value" — both decline (the NaN result covers both);
+        // - a bignum whose double conversion is inexact declines rather
+        //   than bet on rounding parity with C's `TclBignumToDouble`.
+        (TclValue::Float(_), _) | (_, TclValue::Float(_)) => {
+            if !big_to_f64_exact(a) || !big_to_f64_exact(b) {
+                return None;
+            }
+            let r = float_op(a.as_f64(), b.as_f64());
+            if r.is_nan() {
+                return None;
+            }
+            Some(TclValue::Float(r))
+        }
+        // At least one bignum, no float: exact arbitrary precision.
+        _ => Some(TclValue::from_big(big_op(&a.to_bigint()?, &b.to_bigint()?))),
     }
 }
 
@@ -738,7 +869,59 @@ fn numeric_cmp(a: TclValue, b: TclValue) -> Option<tcl_syntax::expr::NumericComp
             NumericCompare::Ordered(ord) => NumericCompare::Ordered(ord.reverse()),
             NumericCompare::Unordered => NumericCompare::Unordered,
         },
+        // Integer-vs-integer with a bignum side is exact at any width; a
+        // bignum is canonical (beyond i64), so against a wide only the sign
+        // matters and against a double the bignum's double view is what C
+        // compares (`mp_int` → double, same rounding).
+        (TclValue::Big(x), TclValue::Big(y)) => NumericCompare::Ordered(x.cmp(&y)),
+        (TclValue::Big(x), TclValue::Int(y)) => {
+            NumericCompare::Ordered(x.cmp(&num_bigint::BigInt::from(y)))
+        }
+        (TclValue::Int(x), TclValue::Big(y)) => {
+            NumericCompare::Ordered(num_bigint::BigInt::from(x).cmp(&y))
+        }
+        (TclValue::Big(x), TclValue::Float(y)) => big_vs_double(&x, y),
+        (TclValue::Float(x), TclValue::Big(y)) => match big_vs_double(&y, x) {
+            NumericCompare::Ordered(o) => NumericCompare::Ordered(o.reverse()),
+            NumericCompare::Unordered => NumericCompare::Unordered,
+        },
     })
+}
+
+/// Exact bignum-vs-double comparison — C converts the double to a bignum
+/// (`Tcl_InitBignumFromDouble`) and compares exactly, so
+/// `18446744073709551617 == 1.8446744073709552e19` is FALSE even though the
+/// bignum's rounded double view equals the float. NaN is unordered; ±Inf
+/// orders past every integer; a finite double compares by exact integer
+/// part with the fraction as tiebreak.
+fn big_vs_double(x: &num_bigint::BigInt, d: f64) -> tcl_syntax::expr::NumericCompare {
+    use std::cmp::Ordering;
+    use tcl_syntax::expr::NumericCompare;
+    if d.is_nan() {
+        return NumericCompare::Unordered;
+    }
+    if d.is_infinite() {
+        return NumericCompare::Ordered(if d > 0.0 {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        });
+    }
+    let trunc = <num_bigint::BigInt as num_traits::FromPrimitive>::from_f64(d.trunc())
+        .expect("finite double truncation is an exact integer");
+    match x.cmp(&trunc) {
+        Ordering::Equal => {
+            let frac = d.fract();
+            NumericCompare::Ordered(if frac > 0.0 {
+                Ordering::Less
+            } else if frac < 0.0 {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            })
+        }
+        other => NumericCompare::Ordered(other),
+    }
 }
 
 /// Exact wide-vs-double comparison, declining (`None`) in the C-UB sliver
@@ -757,19 +940,34 @@ fn int_vs_double(w: i64, d: f64) -> Option<tcl_syntax::expr::NumericCompare> {
     )
 }
 
-fn tcl_div(a: TclValue, b: TclValue) -> Option<TclValue> {
+fn tcl_div(a: &TclValue, b: &TclValue) -> Option<TclValue> {
+    use num_integer::Integer;
     match (a, b) {
         (TclValue::Int(_), TclValue::Int(0)) => None,
         (TclValue::Int(x), TclValue::Int(y)) => {
             // Floor division: r and y must have the same sign,
             // otherwise subtract 1 from the truncated quotient.
-            let q = x.checked_div(y)?;
-            let r = x.checked_rem(y)?;
-            if r != 0 && (r.signum() != y.signum()) {
-                Some(TclValue::Int(q.checked_sub(1)?))
-            } else {
-                Some(TclValue::Int(q))
+            // `i64::MIN / -1` overflows a wide — promote to the bignum tier
+            // like every other integer overflow.
+            match x.checked_div(*y) {
+                Some(q) => {
+                    let r = x.checked_rem(*y)?;
+                    if r != 0 && (r.signum() != y.signum()) {
+                        Some(TclValue::Int(q.checked_sub(1)?))
+                    } else {
+                        Some(TclValue::Int(q))
+                    }
+                }
+                None => Some(TclValue::from_big(
+                    num_bigint::BigInt::from(*x).div_floor(&num_bigint::BigInt::from(*y)),
+                )),
             }
+        }
+        // Exact floor division on the bignum tier — the shared tower
+        // semantics (`tcl_syntax::number_tower`).
+        (TclValue::Big(_) | TclValue::Int(_), TclValue::Big(_) | TclValue::Int(_)) => {
+            let (x, y) = (a.to_bigint()?, b.to_bigint()?);
+            tcl_syntax::number_tower::int_div(&x, &y).map(TclValue::from_big)
         }
         _ => {
             // A non-zero numerator over a zero divisor is Inf/-Inf, a real
@@ -788,23 +986,30 @@ fn tcl_div(a: TclValue, b: TclValue) -> Option<TclValue> {
     }
 }
 
-fn tcl_mod(a: TclValue, b: TclValue) -> Option<TclValue> {
+fn tcl_mod(a: &TclValue, b: &TclValue) -> Option<TclValue> {
     match (a, b) {
         (TclValue::Int(_), TclValue::Int(0)) => None,
         (TclValue::Int(x), TclValue::Int(y)) => {
-            // Sign follows divisor.
-            let r = x.checked_rem(y)?;
+            // Sign follows divisor. `i64::MIN % -1` overflows the checked
+            // rem — the true result is 0.
+            // `i64::MIN % -1` overflows the checked rem — the true result is 0.
+            let r = x.checked_rem(*y).unwrap_or_default();
             if r != 0 && (r.signum() != y.signum()) {
-                Some(TclValue::Int(r.checked_add(y)?))
+                Some(TclValue::Int(r.checked_add(*y)?))
             } else {
                 Some(TclValue::Int(r))
             }
+        }
+        // Floor modulus on the bignum tier — the shared tower semantics.
+        (TclValue::Big(_) | TclValue::Int(_), TclValue::Big(_) | TclValue::Int(_)) => {
+            let (x, y) = (a.to_bigint()?, b.to_bigint()?);
+            tcl_syntax::number_tower::int_mod(&x, &y).map(TclValue::from_big)
         }
         _ => None, // Tcl 9.0 rejects floats for `%`.
     }
 }
 
-fn tcl_pow(a: TclValue, b: TclValue) -> Option<TclValue> {
+fn tcl_pow(a: &TclValue, b: &TclValue) -> Option<TclValue> {
     if matches!(a, TclValue::Float(_)) || matches!(b, TclValue::Float(_)) {
         let fa = a.as_f64();
         let fb = b.as_f64();
@@ -820,45 +1025,41 @@ fn tcl_pow(a: TclValue, b: TclValue) -> Option<TclValue> {
         }
         return Some(TclValue::Float(r));
     }
-    // Integer path.
-    let (TclValue::Int(x), TclValue::Int(y)) = (a, b) else {
-        return None;
+    // Integer path — the shared tower semantics (`INST_EXPON`'s collapses,
+    // the 2^28 exponent ceiling, exact bignum powers). The exponent must be
+    // a wide: a beyond-wide exponent with |base| > 1 is C's "exponent too
+    // large" runtime error, and with a negative bignum exponent the result
+    // collapses to 0 (base magnitude ≥ 2 by bignum canonicality).
+    let y = match b {
+        TclValue::Int(y) => *y,
+        TclValue::Big(yy) => {
+            use num_traits::{One, Signed, Zero};
+            // The 0 / ±1 base collapses hold for ANY exponent magnitude and
+            // precede the negative-exponent rule: `0 ** -big` is C's
+            // domain error (decline the fold so it surfaces), `1 ** ±big`
+            // is 1, `(-1) ** ±big` is ±1 by exponent parity. Only then
+            // does |base| ≥ 2 collapse a negative exponent to 0.
+            let xb = a.to_bigint()?;
+            if xb.is_zero() {
+                return None;
+            }
+            if xb.is_one() {
+                return Some(TclValue::Int(1));
+            }
+            if (-&xb).is_one() {
+                let even = (yy % 2u8).is_zero();
+                return Some(TclValue::Int(if even { 1 } else { -1 }));
+            }
+            return if yy.is_negative() {
+                Some(TclValue::Int(0))
+            } else {
+                None
+            };
+        }
+        TclValue::Float(_) => return None,
     };
-    if y == 0 {
-        return Some(TclValue::Int(1));
-    }
-    if y == 1 {
-        return Some(TclValue::Int(x));
-    }
-    if x == 0 {
-        return if y < 0 { None } else { Some(TclValue::Int(0)) };
-    }
-    if x == 1 {
-        return Some(TclValue::Int(1));
-    }
-    if x == -1 {
-        return Some(TclValue::Int(if y % 2 == 0 { 1 } else { -1 }));
-    }
-    if y < 0 {
-        return Some(TclValue::Int(0));
-    }
-    if y > MAX_EXPONENT {
-        return None;
-    }
-    // Overflow-checked integer power.
-    let mut base = x;
-    let mut exp = y;
-    let mut acc: i64 = 1;
-    while exp > 0 {
-        if exp & 1 == 1 {
-            acc = acc.checked_mul(base)?;
-        }
-        exp >>= 1;
-        if exp > 0 {
-            base = base.checked_mul(base)?;
-        }
-    }
-    Some(TclValue::Int(acc))
+    let x = a.to_bigint()?;
+    tcl_syntax::number_tower::int_pow(&x, y).map(TclValue::from_big)
 }
 
 // Unary operators
@@ -905,6 +1106,35 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
 
 #[cfg(test)]
 mod tests {
+    /// Adversarial-review regressions (tclsh 8.6/9.0 verified): exact
+    /// bignum↔double comparison folds, the `**` base collapses for bignum
+    /// exponents, and NaN branch conditions declining.
+    #[test]
+    fn adversarial_fold_regressions() {
+        // B7: C compares a bignum and a double EXACTLY — never through the
+        // bignum's rounded double view.
+        assert_eq!(
+            eval_str("18446744073709551617 == 1.8446744073709552e19"),
+            Some(TclValue::Int(0)),
+            "exact compare: 2^64+1 != its rounded double"
+        );
+        assert_eq!(
+            eval_str("18446744073709551617 > 1.8446744073709552e19"),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(eval_str("10**308 == 1e308"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("(2**1024) == inf"), Some(TclValue::Int(0)));
+        // B8: 0/±1 base collapses precede the negative-bignum-exponent rule.
+        assert_eq!(
+            eval_str("0**(-(2**64))"),
+            None,
+            "0 ** -big is a runtime domain error — never fold"
+        );
+        assert_eq!(eval_str("1**(-(2**64))"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("(-1)**(-(2**64))"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("(-1)**(-(2**64)-1)"), Some(TclValue::Int(-1)));
+    }
+
     use super::*;
     use crate::expr_parser::parse_expr;
 
@@ -1453,17 +1683,22 @@ mod tests {
 
     #[test]
     fn format_tcl_value_int_and_float() {
-        assert_eq!(format_tcl_value(TclValue::Int(42)), "42");
-        assert_eq!(format_tcl_value(TclValue::Int(-7)), "-7");
-        assert_eq!(format_tcl_value(TclValue::Float(1.5)), "1.5");
+        assert_eq!(format_tcl_value(&TclValue::Int(42)), "42");
+        assert_eq!(format_tcl_value(&TclValue::Int(-7)), "-7");
+        assert_eq!(format_tcl_value(&TclValue::Float(1.5)), "1.5");
         // Integer-valued floats render with trailing .0.
-        assert_eq!(format_tcl_value(TclValue::Float(3.0)), "3.0");
+        assert_eq!(format_tcl_value(&TclValue::Float(3.0)), "3.0");
     }
 
     #[test]
-    fn overflow_returns_none() {
-        // 10 ** 100 overflows i64.
-        assert_eq!(eval_str("10 ** 100"), None);
+    fn overflow_promotes_to_exact_bignum() {
+        // 10 ** 100 overflows a wide: C Tcl promotes to a bignum and so does
+        // the folder (P4, type-tracking.md) — exactly, never wrapped.
+        let want = format!("1{}", "0".repeat(100));
+        assert_eq!(
+            eval_str("10 ** 100").map(|v| format_tcl_value(&v)),
+            Some(want)
+        );
     }
 
     // -- matches_regex is never constant-folded --
@@ -1649,14 +1884,23 @@ mod tests {
     }
 
     #[test]
-    fn lshift_overflowing_a_wide_declines() {
-        // RUST_ISSUE_069: `1 << 63` overflows a wide (Tcl → bignum
-        // 9223372036854775808), so the folder must decline, not fold the
-        // wrapped `i64::MIN`.
-        assert_eq!(eval_str("1 << 63"), None); // (TP) declines
-        assert_eq!(eval_str("1 << 64"), None); // past a wide → declines
-        assert_eq!(eval_str("2 << 62"), None); // 2^63 → declines
-        // (TN / FP-guard) In-range shifts still fold to the exact value.
+    fn lshift_overflowing_a_wide_promotes_exactly() {
+        // RUST_ISSUE_069 → P4: `1 << 63` overflows a wide; Tcl promotes to
+        // the bignum 9223372036854775808 and the folder now computes it
+        // exactly (never the wrapped `i64::MIN`).
+        assert_eq!(
+            eval_str("1 << 63").map(|v| format_tcl_value(&v)),
+            Some("9223372036854775808".to_owned())
+        );
+        assert_eq!(
+            eval_str("1 << 64").map(|v| format_tcl_value(&v)),
+            Some("18446744073709551616".to_owned())
+        );
+        assert_eq!(
+            eval_str("2 << 62").map(|v| format_tcl_value(&v)),
+            Some("9223372036854775808".to_owned())
+        );
+        // (TN / FP-guard) In-range shifts still fold to the exact wide.
         assert_eq!(eval_str("1 << 62"), Some(TclValue::Int(1i64 << 62)));
         assert_eq!(eval_str("1 << 0"), Some(TclValue::Int(1)));
         assert_eq!(eval_str("3 << 4"), Some(TclValue::Int(48)));
@@ -1665,6 +1909,155 @@ mod tests {
         assert_eq!(eval_str("0 << 100"), Some(TclValue::Int(0)));
         // A negative-magnitude shift that stays in range folds normally.
         assert_eq!(eval_str("-1 << 4"), Some(TclValue::Int(-16)));
+        // A count past the smallness cap declines — a folded literal of
+        // thousands of digits helps nobody.
+        assert_eq!(eval_str("1 << 100000"), None);
+    }
+
+    /// NaN in a boolean context is a C Tcl domain error ("floating point
+    /// value is Not a Number"), so the folder declines — it must never pick
+    /// a truth value (tclsh-verified; `Inf` IS truthy).
+    #[test]
+    fn nan_in_boolean_context_declines() {
+        assert_eq!(eval_str("NaN ? 1 : 0"), None);
+        assert_eq!(eval_str("!NaN"), None);
+        assert_eq!(eval_str("NaN && 1"), None);
+        assert_eq!(eval_str("Inf ? 1 : 0"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("!Inf"), Some(TclValue::Int(0)));
+    }
+
+    /// The float-edge oracle table (tclsh 8.6.14; 9.0 agrees). Errors fold
+    /// to `None`; values fold to C's exact canonical text:
+    ///
+    /// ```text
+    /// NaN + 1      => error (non-numeric operand)      -NaN / +NaN => error
+    /// NaN == NaN   => 0     NaN != 1.0 => 1   NaN < 1 => 0   (IEEE unordered,
+    ///                                                          NOT an error)
+    /// Inf - Inf    => error (domain)   Inf * 0 => error (domain)
+    /// Inf + 1      => Inf   -Inf * -1 => Inf   Inf == Inf => 1
+    /// 5.0 / 0      => Inf   -5.0 / 0 => -Inf   0.0/0.0 => error
+    /// 1e309        => Inf   4.9e-324 => 5e-324 (denormal round-trip)
+    /// -0.0         => -0.0  0.0 == -0.0 => 1   -0.0 + 0.0 => 0.0
+    /// isqrt(4611686018427387903) => 2147483647 (exact, not the f64 2^31)
+    /// ```
+    #[test]
+    fn float_edge_oracle_table() {
+        let fold = |e: &str| eval_str(e).map(|v| format_tcl_value(&v));
+        // NaN in arithmetic / unary: operand errors — decline.
+        assert_eq!(eval_str("NaN + 1"), None);
+        assert_eq!(eval_str("-NaN"), None);
+        assert_eq!(eval_str("+NaN"), None);
+        // NaN in comparisons: IEEE unordered values, NOT errors.
+        assert_eq!(eval_str("NaN == NaN"), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("NaN != 1.0"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("NaN < 1"), Some(TclValue::Int(0)));
+        // NaN results are domain errors — decline.
+        assert_eq!(eval_str("Inf - Inf"), None);
+        assert_eq!(eval_str("Inf * 0"), None);
+        // Inf propagates as a real value.
+        assert_eq!(fold("Inf + 1"), Some("Inf".into()));
+        assert_eq!(fold("-Inf * -1"), Some("Inf".into()));
+        assert_eq!(eval_str("Inf == Inf"), Some(TclValue::Int(1)));
+        assert_eq!(
+            eval_str("Inf > 9223372036854775807"),
+            Some(TclValue::Int(1))
+        );
+        // Float division by (any) zero: ±Inf; 0.0/0.0 is the domain error.
+        assert_eq!(fold("5.0 / 0"), Some("Inf".into()));
+        assert_eq!(fold("-5.0 / 0"), Some("-Inf".into()));
+        assert_eq!(eval_str("0.0 / 0.0"), None);
+        // Overflowing literals parse to Inf; denormals round-trip.
+        assert_eq!(fold("1e309"), Some("Inf".into()));
+        assert_eq!(fold("4.9e-324"), Some("5e-324".into()));
+        assert_eq!(fold("1e-330"), Some("0.0".into()));
+        // Signed zero.
+        assert_eq!(fold("-0.0"), Some("-0.0".into()));
+        assert_eq!(eval_str("0.0 == -0.0"), Some(TclValue::Int(1)));
+        assert_eq!(fold("-0.0 + 0.0"), Some("0.0".into()));
+        // Exact integer square root at the f64-rounding edge.
+        assert_eq!(
+            eval_str("isqrt(4611686018427387903)"),
+            Some(TclValue::Int(2_147_483_647))
+        );
+        assert_eq!(
+            eval_str("isqrt(9223372036854775806)"),
+            Some(TclValue::Int(3_037_000_499))
+        );
+        // int()/round() beyond a wide: int() is dialect-divergent (8.6 wraps
+        // mod 2^64, 9.0 is exact) — decline; int(Inf)/int(NaN) are errors.
+        assert_eq!(eval_str("int(1e300)"), None);
+        assert_eq!(eval_str("int(Inf)"), None);
+        assert_eq!(eval_str("int(NaN)"), None);
+    }
+
+    /// The P4 oracle corpus (tclsh 8.6.14/9.0-verified values from
+    /// type-tracking.md): exact integer arithmetic at and beyond the wide
+    /// boundary, floor div/mod, double contamination, and bignum demotion.
+    #[test]
+    fn bignum_oracle_corpus() {
+        let fold = |e: &str| eval_str(e).map(|v| format_tcl_value(&v));
+        // Exact integer arithmetic at 2^53 (f64 would merge these).
+        assert_eq!(
+            fold("9007199254740992 + 1"),
+            Some("9007199254740993".into())
+        );
+        // One double operand contaminates — with f64's genuine rounding.
+        assert_eq!(
+            fold("9007199254740992 + 1.0"),
+            Some("9007199254740992.0".into())
+        );
+        // Wide → bignum promotion by result magnitude.
+        assert_eq!(fold("2 ** 64"), Some("18446744073709551616".into()));
+        assert_eq!(
+            fold("9223372036854775807 + 1"),
+            Some("9223372036854775808".into())
+        );
+        assert_eq!(
+            fold("9223372036854775807 * 2"),
+            Some("18446744073709551614".into())
+        );
+        // Bignum arithmetic is exact, and demotes back to a wide when the
+        // result fits.
+        assert_eq!(
+            fold("18446744073709551616 + 1"),
+            Some("18446744073709551617".into())
+        );
+        assert_eq!(
+            eval_str("18446744073709551616 - 18446744073709551616"),
+            Some(TclValue::Int(0))
+        );
+        // Floor division / modulus, both tiers.
+        assert_eq!(eval_str("7 / 2"), Some(TclValue::Int(3)));
+        assert_eq!(eval_str("-7 / 2"), Some(TclValue::Int(-4)));
+        assert_eq!(eval_str("-7 % 2"), Some(TclValue::Int(1)));
+        assert_eq!(
+            fold("-18446744073709551616 / 3"),
+            Some("-6148914691236517206".into())
+        );
+        assert_eq!(eval_str("18446744073709551617 % 2"), Some(TclValue::Int(1)));
+        // Negation off the wide edge promotes; double negation demotes back.
+        assert_eq!(
+            fold("0 - (-9223372036854775807 - 1)"),
+            Some("9223372036854775808".into())
+        );
+        // Bignum comparisons are exact (distinct beyond-2^53 values).
+        assert_eq!(
+            eval_str("18446744073709551617 > 18446744073709551616"),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_str("9007199254740993 == 9007199254740992"),
+            Some(TclValue::Int(0))
+        );
+        // Bitwise on the bignum tier (two's-complement).
+        assert_eq!(
+            fold("18446744073709551616 | 1"),
+            Some("18446744073709551617".into())
+        );
+        assert_eq!(
+            fold("~18446744073709551616"),
+            Some("-18446744073709551617".into())
+        );
     }
 
     #[test]

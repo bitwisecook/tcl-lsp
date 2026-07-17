@@ -2387,12 +2387,13 @@ fn e103_abstains_when_missing_brace_swallows_more_than_one_statement() {
 }
 
 #[test]
-fn shimmer_incr_on_string_is_s100_info_with_tight_range() {
-    // The range must cover only the `$x` argument — not the whole `incr x`
-    // call and not the `[lindex $x 0]` substitution around it.
+fn shimmer_committed_value_with_lindex_is_s100_info_with_tight_range() {
+    // A *committed* Dict (from `[dict create]`) read as a list genuinely
+    // shimmers — a pure string literal would promote for free (issue #940). The
+    // range must cover only the `$x` argument, not the whole `lindex $x 0` call.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "set x hello\nlindex $x 0\n");
+    let diags = lsp.open_ready(&uri, "set x [dict create a 1 b 2]\nlindex $x 0\n");
     let s100: Vec<&Value> = diags
         .iter()
         .filter(|d| code_str(d).as_deref() == Some("S100"))
@@ -2417,6 +2418,166 @@ fn clean_list_used_with_lindex_has_no_s100() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "set x [list 1 2 3]\nlindex $x 0\n");
     assert!(!has_code(&diags, "S100"), "unexpected S100: {diags:?}");
+}
+
+#[test]
+fn issue_940_braced_list_literal_in_foreach_has_no_s100() {
+    // Issue #940: a braced list literal is a pure string that `foreach` parses
+    // into a list once, for free — no shimmer. Covers the reporter's exact
+    // snippet plus the `{}` empty-list case named in the issue title.
+    let mut lsp = Lsp::tcl();
+    for src in [
+        "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }\n",
+        "set empty {}\nforeach x $empty { puts $x }\n",
+        "set a 1\nforeach b $a { puts $b }\n",
+        "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n",
+    ] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(&uri, src);
+        assert!(
+            !has_code(&diags, "S100") && !has_code(&diags, "S101"),
+            "issue #940: pure list literal must not shimmer for {src:?}: {diags:?}"
+        );
+    }
+}
+
+#[test]
+fn issue_940_committed_container_in_foreach_still_fires_s100() {
+    // TP control: the fix must not blanket-silence genuine shimmers — a
+    // committed dict read as a list still fires.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set d [dict create a 1 b 2]\nforeach x $d { puts $x }\n",
+    );
+    assert!(
+        has_code(&diags, "S100"),
+        "committed dict in foreach must still shimmer: {diags:?}"
+    );
+}
+
+#[test]
+fn element_tracking_committed_lindex_retrieval_is_silent() {
+    // P3 (type-tracking.md): container elements are shared objects, so a
+    // committed numeric element retrieved by `lindex` is genuinely numeric —
+    // arithmetic on it is not a shimmer.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set l [list [expr {2**20}] other]\nset first [lindex $l 0]\nset n [expr {$first + 1}]\nputs $n\n",
+    );
+    assert!(
+        !has_code(&diags, "S100") && !has_code(&diags, "S101"),
+        "a committed numeric element is numeric — no shimmer: {diags:?}"
+    );
+}
+
+#[test]
+fn union_lattice_three_way_merge_reports_every_type() {
+    // P2: a three-way differently-typed merge stays a tracked union
+    // (previously OVERDEFINED and silent); the phi message names every
+    // member.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {c} {\n  if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [dict create a 1] } else { set x [expr {1+1}] }\n  return $x\n}\n",
+    );
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert!(
+        s100.iter().any(|d| {
+            let m = d["message"].as_str().unwrap_or("");
+            m.contains("merges") && m.contains("list") && m.contains("dict")
+        }),
+        "the 3-way merge message must name the merging types: {s100:?}"
+    );
+}
+
+#[test]
+fn bignum_values_raise_no_false_diagnostics() {
+    // P4: beyond-wide integers classify on the tower (`Bignum`, coarse Int)
+    // and fold exactly — a bignum literal chain must publish no shimmer /
+    // type diagnostics. (The exact fold value is pinned at the compiler
+    // tier: `fp_sh_23_bignum_folds_are_exact` and the tcl_expr_eval oracle
+    // corpus.)
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set big [expr {2**64}]\nset next [expr {$big + 1}]\nincr next\nputs $next\n",
+    );
+    assert!(
+        !has_code(&diags, "S100") && !has_code(&diags, "S101"),
+        "exact bignum arithmetic is not a shimmer: {diags:?}"
+    );
+}
+
+#[test]
+fn commit_dataflow_second_conversion_fires_s100_with_committed_from_type() {
+    // First-use commit: `expr` commits the numeric intrep on a pure literal;
+    // the later `lindex` genuinely re-represents it (oracle: rep int → list).
+    // The message names the *committed* from-type, not the def-time shape.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set v 5\nexpr {$v + 1}\nlindex $v 0\n");
+    let s100: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S100"))
+        .collect();
+    assert!(
+        s100.iter().any(|d| {
+            d["message"]
+                .as_str()
+                .is_some_and(|m| m.contains("numeric intrep") && m.contains("expects list"))
+        }),
+        "expected a numeric→list second-conversion S100: {diags:?}"
+    );
+}
+
+#[test]
+fn commit_dataflow_loop_rethunk_fires_s101_each_target() {
+    // A pure literal read as two distinct intreps inside a loop re-thunks
+    // per iteration (oracle: list ↔ dict every pass) — both reads are S101.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "set l {a 1 b 2}\nforeach i {1 2 3} {\n    llength $l\n    dict size $l\n}\n",
+    );
+    let s101: Vec<&Value> = diags
+        .iter()
+        .filter(|d| code_str(d).as_deref() == Some("S101"))
+        .collect();
+    assert!(
+        s101.len() >= 2,
+        "expected two per-iteration re-thunk S101s: {diags:?}"
+    );
+}
+
+#[test]
+fn commit_dataflow_path_dependent_merge_message() {
+    // Two branch arms commit two different intreps; a post-merge use matching
+    // neither pays on both paths — the message names the possibilities.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {c} {\n  set a {1 2}\n  if {$c} { llength $a } else { dict size $a }\n  string length $a\n}\n",
+    );
+    assert!(
+        diags.iter().any(|d| {
+            code_str(d).as_deref() == Some("S100")
+                && d["message"]
+                    .as_str()
+                    .is_some_and(|m| m.contains("path-dependent"))
+        }),
+        "expected a path-dependent merge S100: {diags:?}"
+    );
 }
 
 #[test]
@@ -2604,7 +2765,7 @@ fn my_arbitrary_method_call_does_not_draw_w001() {
 fn shimmer_fires_through_interp_alias() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "interp alias {} myindex {} ::lindex\nset x hello\nmyindex $x 0\n";
+    let src = "interp alias {} myindex {} ::lindex\nset x [dict create a 1 b 2]\nmyindex $x 0\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
         has_code(&diags, "S100"),
@@ -2618,7 +2779,10 @@ fn shimmer_noqa_suppresses_s100() {
     // suppress it through the live publishDiagnostics pipeline.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "set x hello\n# noqa: S100\nlindex $x 0\n");
+    let diags = lsp.open_ready(
+        &uri,
+        "set x [dict create a 1 b 2]\n# noqa: S100\nlindex $x 0\n",
+    );
     assert!(
         !has_code(&diags, "S100"),
         "S100 must be suppressed by a preceding '# noqa: S100': {diags:?}"
@@ -2629,7 +2793,10 @@ fn shimmer_noqa_suppresses_s100() {
 fn shimmer_noqa_for_unrelated_code_does_not_suppress_s100() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "set x hello\n# noqa: W100\nlindex $x 0\n");
+    let diags = lsp.open_ready(
+        &uri,
+        "set x [dict create a 1 b 2]\n# noqa: W100\nlindex $x 0\n",
+    );
     assert!(
         has_code(&diags, "S100"),
         "S100 must still fire when the preceding noqa names an unrelated code: {diags:?}"

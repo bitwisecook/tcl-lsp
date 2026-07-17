@@ -42,7 +42,17 @@ repository.workspace = true
 authors.workspace = true
 description = "Shared Tcl parse-tree + byte-exact-semantics layer (lists, subst, expr, format) for the LSP/compiler and the WASM runtime"
 
+[features]
+# The `num-bigint` backend adapter for the shared numeric-tower semantics
+# (`number_tower::BigIntOps`) — enabled by pure-Rust adopters (the compiler's
+# const-folder, the VM); the faithful runtime keeps its libtommath `mp_int`
+# backend and implements the trait itself.
+num-bigint = ["dep:num-bigint", "dep:num-integer", "dep:num-traits"]
+
 [dependencies]
+num-bigint = { version = "0.4", optional = true }
+num-integer = { version = "0.1", optional = true }
+num-traits = { version = "0.2", optional = true }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 bitflags = "2"

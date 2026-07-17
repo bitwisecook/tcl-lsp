@@ -34,7 +34,7 @@ function linesWithCode(diags: vscode.Diagnostic[], code: string): number[] {
 // write-trace awareness, and `# noqa` suppression directives.
 //
 // `shimmerPrecision.tcl` (0-indexed diagnostic lines):
-//   7  lindex $x 0             TRUE  — plain string shimmered to a list intrep
+//   7  lindex $x 0             TRUE  — committed dict shimmered to a list intrep
 //   13 lindex $y 0             FALSE — value already carries a list intrep
 //   20 myindex $z 0            TRUE  — shimmer detected through an interp alias
 //   27 incr a (TclOO method)   TRUE  — method bodies now get shimmer coverage
@@ -68,7 +68,7 @@ suite("Shimmer precision (S100 deep review)", () => {
     return diags;
   }
 
-  test("plain string shimmered by lindex fires S100 with a tight span (true case)", async () => {
+  test("committed dict shimmered by lindex fires S100 with a tight span (true case)", async () => {
     const diags = await s100Diagnostics();
     const x = diags.find((d) => codeOf(d) === "S100" && d.range.start.line === 7);
     assert.ok(x, `expected S100 on line 7 (lindex $x 0); got [${linesWithCode(diags, "S100")}]`);
@@ -135,6 +135,54 @@ suite("Shimmer precision (S100 deep review)", () => {
     assert.ok(
       linesWithCode(diags, "S100").includes(56),
       "'# noqa: W100' must not suppress an unrelated S100",
+    );
+  });
+});
+
+// Issue #940 — a pure list literal used as a list is a free first conversion,
+// not a shimmer. `issue940Shimmer.tcl` (0-indexed lines):
+//   4  foreach $fontSizes  FALSE — braced list literal (reporter's case)
+//   6  foreach $empty      FALSE — the `{}` empty list in the issue title
+//   8  foreach $a          FALSE — a number-shaped literal is still a valid list
+//   10 dict for $d         FALSE — even-length list literal is a valid dict
+//   12 foreach $committed  TRUE  — committed dict shimmers to a list
+suite("Shimmer pure-literal suppression (issue #940)", () => {
+  const docUri = getDocUri("issue940Shimmer.tcl");
+
+  async function shimmerDiagnostics(): Promise<vscode.Diagnostic[]> {
+    await activate(docUri);
+    // The committed-dict case on line 12 is the "analysis ran" settle signal:
+    // once its S100 lands, the absence of S100/S101 on the pure-literal lines
+    // is meaningful rather than a not-yet-analysed empty set.
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "S100" && x.range.start.line === 12),
+    });
+    assert.ok(
+      linesWithCode(diags, "S100").includes(12),
+      `shimmer analysis did not settle (no committed-case S100); got [${linesWithCode(diags, "S100")}]`,
+    );
+    return diags;
+  }
+
+  test("braced list, empty {}, scalar, and dict literals do not shimmer", async () => {
+    const diags = await shimmerDiagnostics();
+    for (const line of [4, 6, 8, 10]) {
+      assert.ok(
+        !linesWithCode(diags, "S100").includes(line) &&
+          !linesWithCode(diags, "S101").includes(line),
+        `a pure list literal on line ${line} must not shimmer; got S100 [${linesWithCode(
+          diags,
+          "S100",
+        )}] S101 [${linesWithCode(diags, "S101")}]`,
+      );
+    }
+  });
+
+  test("a committed container still shimmers (true-positive control)", async () => {
+    const diags = await shimmerDiagnostics();
+    assert.ok(
+      linesWithCode(diags, "S100").includes(12),
+      "a committed dict read as a list must still fire S100",
     );
   });
 });

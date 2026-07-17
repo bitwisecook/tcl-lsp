@@ -195,18 +195,21 @@ fn short_type(t: TclType) -> &'static str {
 }
 
 /// Render a [`TypeLattice`] as its inlay display string, or `None`
-/// when the lattice carries no concrete type (Unknown / Overdefined,
-/// or a Shimmered lattice missing an endpoint).  A `Known` type shows
-/// `int`; a `Shimmered` one shows `from → to`.
+/// when the lattice carries no concrete type (Unknown / Overdefined).
+/// A `Known` type shows `int`; a shimmer union chains every member
+/// (`int → str`, or `int → list → str` for the 3+-way merges the union
+/// lattice tracks).
 fn type_display(tl: &TypeLattice) -> Option<String> {
-    match tl.kind {
-        TypeKind::Known => tl.tcl_type.map(|t| short_type(t).to_owned()),
-        TypeKind::Shimmered => match (tl.from_type, tl.tcl_type) {
-            (Some(from), Some(to)) => {
-                Some(format!("{} \u{2192} {}", short_type(from), short_type(to)))
-            }
-            _ => None,
-        },
+    match tl.kind() {
+        TypeKind::Known => tl.tcl_type().map(|t| short_type(t).to_owned()),
+        TypeKind::Shimmered => {
+            let members: Vec<&str> = tl
+                .shapes()
+                .iter()
+                .map(|shape| short_type(shape.coarse()))
+                .collect();
+            Some(members.join(" \u{2192} "))
+        }
         TypeKind::Unknown | TypeKind::Overdefined => None,
     }
 }

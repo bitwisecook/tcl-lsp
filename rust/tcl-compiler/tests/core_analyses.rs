@@ -334,14 +334,14 @@ if {$total > 5} {
         // 0 → "0"; NaN → not a finite numeric literal).
         use tcl_compiler::{TclValue, format_tcl_value};
         // Non-NaN values format to their Tcl text. (Tcl booleans are Int(0/1).)
-        assert_eq!(format_tcl_value(TclValue::Int(42)), "42");
-        assert_eq!(format_tcl_value(TclValue::Int(1)), "1");
-        assert_eq!(format_tcl_value(TclValue::Int(0)), "0");
+        assert_eq!(format_tcl_value(&TclValue::Int(42)), "42");
+        assert_eq!(format_tcl_value(&TclValue::Int(1)), "1");
+        assert_eq!(format_tcl_value(&TclValue::Int(0)), "0");
         // A NaN float must not format to something an optimiser could splice
         // back as a number (it would defeat the runtime ARITH DOMAIN). The
         // formatter must not render it as a finite numeric literal like
         // "nan"/"0"/"" that would re-parse to a usable value.
-        let nan = format_tcl_value(TclValue::Float(f64::NAN));
+        let nan = format_tcl_value(&TclValue::Float(f64::NAN));
         assert!(
             !matches!(nan.parse::<f64>(), Ok(f) if f.is_finite()),
             "NaN must not render as a finite numeric literal, got {nan:?}"
@@ -403,10 +403,10 @@ mod new_lowering_analysis {
         // `hello` and items is a list.
         let cu = build("lappend items hello");
         if let Some(t) = ty(&cu.top_level, "items", 1)
-            && t.kind == TypeKind::Known
+            && t.kind() == TypeKind::Known
         {
             assert_eq!(
-                t.tcl_type,
+                t.tcl_type(),
                 Some(TclType::List),
                 "lappend result must be LIST"
             );
@@ -443,8 +443,8 @@ mod interpolation_folding {
         // value is Overdefined but the type is known).
         let cu = build("set c [expr {0+1}]\nset c \"${c}0\"");
         let t = ty(&cu.top_level, "c", 2).expect("c₂ has a type");
-        assert_eq!(t.kind, TypeKind::Known);
-        assert_eq!(t.tcl_type, Some(TclType::String));
+        assert_eq!(t.kind(), TypeKind::Known);
+        assert_eq!(t.tcl_type(), Some(TclType::String));
     }
 
     #[test]

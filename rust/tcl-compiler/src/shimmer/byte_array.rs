@@ -349,7 +349,7 @@ impl<'a> ByteCorruption<'a> {
             return None;
         }
         if is_pure_var_ref(a) {
-            let name = normalise_var_name(a);
+            let name = crate::naming::element_var_name(a);
             let sym = ssa.var_symbol(name)?;
             let ver = uses.get(&sym).copied().unwrap_or(0);
             return (ver > 0)

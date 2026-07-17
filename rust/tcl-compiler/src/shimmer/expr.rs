@@ -38,16 +38,17 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 use tcl_registry::TclType;
 
+use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
-use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
+use super::ShimmerWarning;
 use super::graph::loop_body_blocks;
-use super::{ShimmerWarning, type_name};
+use super::hints::is_uncommitted_first_conversion;
 
 /// Find expression-level shimmer warnings for a function.
 ///
@@ -64,9 +65,18 @@ pub(crate) fn find_expr_shimmers(
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<BlockId>,
+    values: &HashMap<ValueKey, LatticeValue>,
+    registry: &tcl_registry::CommandRegistry,
+    commit_facts: &super::commit::CommitFacts,
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
     let loop_blocks = loop_body_blocks(cfg);
+    let commit_ctx = super::commit::CommitCtx {
+        registry,
+        ssa,
+        types,
+        values,
+    };
 
     for block_id in cfg_order(cfg) {
         if !executable_blocks.contains(&block_id) {
@@ -82,6 +92,9 @@ pub(crate) fn find_expr_shimmers(
         // operands of the same statement that name the same variable emit one
         // warning, not one per operand.
         let mut seen: HashSet<(Span, String)> = HashSet::new();
+        // The committed-intrep walker replays the commit transfer in step with
+        // this walk, so each expr's operands see the state just before it.
+        let mut commit_walker = commit_facts.walker(&commit_ctx, block_id);
 
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
@@ -101,7 +114,9 @@ pub(crate) fn find_expr_shimmers(
                     let mut ctx = ExprShimmerCtx {
                         uses: &ss.uses,
                         types,
+                        values,
                         ssa,
+                        commit: &commit_walker,
                         stmt_span: *span,
                         expr_base: *expr_base,
                         in_loop,
@@ -112,6 +127,7 @@ pub(crate) fn find_expr_shimmers(
                 }
                 _ => {}
             }
+            commit_walker.step(&ss.statement, &ss.uses);
         }
 
         // 2. Branch terminator condition (if/while/for predicate).
@@ -129,7 +145,9 @@ pub(crate) fn find_expr_shimmers(
             let mut ctx = ExprShimmerCtx {
                 uses: &ssa_block.exit_versions,
                 types,
+                values,
                 ssa,
+                commit: &commit_walker,
                 stmt_span: branch_span,
                 expr_base: *condition_base,
                 in_loop,
@@ -151,7 +169,16 @@ pub(crate) fn find_expr_shimmers(
 struct ExprShimmerCtx<'a> {
     uses: &'a HashMap<Symbol, u32>,
     types: &'a HashMap<ValueKey, TypeLattice>,
+    /// SCCP constant values, for the uncommitted-value ("pure string") check —
+    /// a pure operand that is a valid instance of the required type converts for
+    /// free, so it must not be flagged (see [`is_uncommitted_first_conversion`]).
+    values: &'a HashMap<ValueKey, LatticeValue>,
     ssa: &'a SsaFunction,
+    /// Committed-intrep state just before this statement ([`super::commit`]) —
+    /// an operand whose value already committed a different intrep on every
+    /// path genuinely re-represents here even when the lattice sees no
+    /// mismatch.
+    commit: &'a super::commit::CommitWalker<'a>,
     stmt_span: Span,
     /// Absolute source offset of the expression text's first byte, when it
     /// is a verbatim source slice (see [`crate::ir::IfClause::condition_base`]).
@@ -306,10 +333,10 @@ fn check_numeric_operand(
     op: BinOp,
     context: NumericContext,
 ) {
-    let ExprNode::Var { name, .. } = node else {
+    let ExprNode::Var { text, .. } = node else {
         return;
     };
-    let base = normalise_var_name(name);
+    let base = crate::naming::element_var_name(text);
     let Some(sym) = ctx.ssa.var_symbol(base) else {
         return;
     };
@@ -324,53 +351,69 @@ fn check_numeric_operand(
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return;
     }
-    let Some(current) = lattice.tcl_type else {
+    let Some(current) = lattice.tcl_type() else {
         return;
     };
-    // Only flag clearly non-numeric types (String, List, Dict, ByteArray). A
-    // byte array in an arithmetic context is a textbook C Tcl shimmer: Tcl
-    // has no numeric intrep of its own, so `Tcl_GetNumberFromObj` falls back
-    // to parsing the byte array's *string* rep (each byte relabelled as a
-    // Latin-1 code point) as a number and, on success, replaces the cached
-    // byte-array intrep with Int/Double — exactly the same in-place intrep
-    // clobber as the String/List/Dict cases, just via the byte-array route.
-    if matches!(
+    let (to_type, context_name) = match context {
+        NumericContext::Arithmetic => (TclType::Numeric, "arithmetic expression"),
+        NumericContext::Boolean => (TclType::Boolean, "boolean context"),
+    };
+    // A prior use that committed a non-numeric intrep on every path makes this
+    // operand a genuine second conversion (`set v 5; llength $v; expr {$v+1}`
+    // re-represents List → Numeric) — even where the lattice type is numeric.
+    let commit_state = ctx.commit.state_of(sym, ver);
+    // Otherwise only flag clearly non-numeric types (String, List, Dict,
+    // ByteArray). A byte array in an arithmetic context is a textbook C Tcl
+    // shimmer: Tcl has no numeric intrep of its own, so `Tcl_GetNumberFromObj`
+    // falls back to parsing the byte array's *string* rep (each byte
+    // relabelled as a Latin-1 code point) as a number and, on success,
+    // replaces the cached byte-array intrep with Int/Double — exactly the same
+    // in-place intrep clobber as the String/List/Dict cases, just via the
+    // byte-array route.
+    let lattice_flags = matches!(
         current,
         TclType::String | TclType::List | TclType::Dict | TclType::ByteArray
-    ) {
-        // De-duplicate per (statement span, variable) within the block.
-        if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
+    );
+    if !commit_state.must_pay(to_type) {
+        if !lattice_flags {
             return;
         }
-        let code = if ctx.in_loop {
-            DiagCode::S101
-        } else {
-            DiagCode::S100
-        };
-        let (to_type, context_name) = match context {
-            NumericContext::Arithmetic => (TclType::Numeric, "arithmetic expression"),
-            NumericContext::Boolean => (TclType::Boolean, "boolean context"),
-        };
-        ctx.out.push(ShimmerWarning {
-            span: ctx.operand_span(node),
-            variable: base.to_owned(),
-            from_type: current,
-            to_type,
-            command: format!("expr:{op:?}"),
-            in_loop: ctx.in_loop,
-            code,
-            message: format!(
-                "variable '{var}' has {from} intrep used in {context_name} \
-                 (operand of '{op}')",
-                var = base,
-                from = type_name(current),
-            ),
-            related: Vec::new(),
-        });
+        // A pure (uncommitted) operand whose value is a valid number / boolean
+        // converts for free: `set s [string trim true]; expr {$s && 1}` and a
+        // numeric-valued string in arithmetic are not shimmers. A committed
+        // List/Dict/ByteArray, or a pure string that is not a valid instance
+        // (`set s hello; expr {$s + 1}`), still fires.
+        if is_uncommitted_first_conversion(current, to_type, ctx.values.get(&(sym, ver))) {
+            return;
+        }
     }
+    let (from, from_label) = super::committed_from_label(&commit_state, current, to_type);
+    // De-duplicate per (statement span, variable) within the block.
+    if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
+        return;
+    }
+    let code = if ctx.in_loop {
+        DiagCode::S101
+    } else {
+        DiagCode::S100
+    };
+    ctx.out.push(ShimmerWarning {
+        span: ctx.operand_span(node),
+        variable: base.to_owned(),
+        from_type: from,
+        to_type,
+        command: format!("expr:{op:?}"),
+        in_loop: ctx.in_loop,
+        code,
+        message: format!(
+            "variable '{base}' has {from_label} intrep used in {context_name} \
+             (operand of '{op}')",
+        ),
+        related: Vec::new(),
+    });
 }
 
 /// Emit a shimmer for the RIGHT operand of `in`/`ni` when its type shows an
@@ -379,10 +422,10 @@ fn check_numeric_operand(
 /// then parse, which is the same replacement, but a single number is a
 /// one-element list conversion so cheap it is not worth a warning.
 fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
-    let ExprNode::Var { name, .. } = node else {
+    let ExprNode::Var { text, .. } = node else {
         return;
     };
-    let base = normalise_var_name(name);
+    let base = crate::naming::element_var_name(text);
     let Some(sym) = ctx.ssa.var_symbol(base) else {
         return;
     };
@@ -397,42 +440,57 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return;
     }
-    let Some(current) = lattice.tcl_type else {
+    let Some(current) = lattice.tcl_type() else {
         return;
     };
-    if matches!(
+    // A prior use that committed a non-list intrep on every path makes this
+    // membership test a genuine second conversion (`expr {$v+1}` then
+    // `expr {"b" in $v}` re-represents Numeric → List).
+    let commit_state = ctx.commit.state_of(sym, ver);
+    let lattice_flags = matches!(
         current,
         TclType::String | TclType::Dict | TclType::ByteArray
-    ) {
-        if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
+    );
+    if !commit_state.must_pay(TclType::List) {
+        if !lattice_flags {
             return;
         }
-        let code = if ctx.in_loop {
-            DiagCode::S101
-        } else {
-            DiagCode::S100
-        };
-        ctx.out.push(ShimmerWarning {
-            span: ctx.stmt_span,
-            variable: base.to_owned(),
-            from_type: current,
-            to_type: TclType::List,
-            command: format!("expr:{op:?}"),
-            in_loop: ctx.in_loop,
-            code,
-            message: format!(
-                "variable '{var}' has {from} intrep converted to a list by \
-                 '{op_word}' membership",
-                var = base,
-                from = type_name(current),
-                op_word = if matches!(op, BinOp::In) { "in" } else { "ni" },
-            ),
-            related: Vec::new(),
-        });
+        // A pure string is a free first conversion to a list — `set hay [string
+        // trim "a b c"]; expr {"b" in $hay}` parses it once, losslessly (oracle:
+        // the value goes pure → list). Only a committed Dict/ByteArray genuinely
+        // re-represents on the `in` list conversion.
+        if is_uncommitted_first_conversion(current, TclType::List, ctx.values.get(&(sym, ver))) {
+            return;
+        }
     }
+    let (from, from_label) = super::committed_from_label(&commit_state, current, TclType::List);
+    if !ctx.seen.insert((ctx.stmt_span, base.to_owned())) {
+        return;
+    }
+    let code = if ctx.in_loop {
+        DiagCode::S101
+    } else {
+        DiagCode::S100
+    };
+    ctx.out.push(ShimmerWarning {
+        span: ctx.stmt_span,
+        variable: base.to_owned(),
+        from_type: from,
+        to_type: TclType::List,
+        command: format!("expr:{op:?}"),
+        in_loop: ctx.in_loop,
+        code,
+        message: format!(
+            "variable '{var}' has {from_label} intrep converted to a list by \
+             '{op_word}' membership",
+            var = base,
+            op_word = if matches!(op, BinOp::In) { "in" } else { "ni" },
+        ),
+        related: Vec::new(),
+    });
 }
 
 /// Emit a shimmer if `node` is a numeric variable used in a string
@@ -443,10 +501,10 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
 /// rewrite to the numeric-equivalent operator is generally safe — see the
 /// `BinOp::StrEq | …` match arm's doc comment in [`collect_expr_shimmers`].
 fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) {
-    let ExprNode::Var { name, .. } = node else {
+    let ExprNode::Var { text, .. } = node else {
         return;
     };
-    let base = normalise_var_name(name);
+    let base = crate::naming::element_var_name(text);
     let Some(sym) = ctx.ssa.var_symbol(base) else {
         return;
     };
@@ -461,10 +519,10 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
         .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    if lattice.kind != TypeKind::Known {
+    if lattice.kind() != TypeKind::Known {
         return;
     }
-    let Some(current) = lattice.tcl_type else {
+    let Some(current) = lattice.tcl_type() else {
         return;
     };
     // A numeric variable in a string comparison does NOT lose its intrep —
@@ -529,12 +587,41 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    /// Compute commit facts + run the expr detector for one function unit —
+    /// the production wiring `find_shimmer_warnings` performs.
+    fn expr_shimmers(
+        fu: &crate::compilation_unit::FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Vec<ShimmerWarning> {
+        let ctx = super::super::commit::CommitCtx {
+            registry,
+            ssa: &fu.ssa,
+            types: &fu.types,
+            values: &fu.sccp.values,
+        };
+        let facts = super::super::commit::compute_commit_facts(
+            &fu.cfg,
+            &ctx,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.executable_edges,
+        );
+        find_expr_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.values,
+            registry,
+            &facts,
+        )
+    }
+
     /// An Int variable in arithmetic — no shimmer.
     #[test]
     fn no_expr_shimmer_int_in_arithmetic() {
         let cu = CompilationUnit::build_for("set x 5\nset y [expr {$x + 1}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
     }
 
@@ -547,7 +634,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let has_shimmer = w
             .iter()
             .any(|sw| sw.variable == "x" && sw.from_type == TclType::String);
@@ -581,7 +668,7 @@ mod tests {
         ] {
             let cu = CompilationUnit::build_for(src, &registry(), false);
             let fu = cu.function("::top").unwrap();
-            let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+            let w = expr_shimmers(fu, &registry());
             assert!(
                 !w.iter()
                     .any(|sw| sw.variable == "s" || sw.variable == "lst"),
@@ -602,7 +689,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let warning = w.iter().find(|sw| sw.variable == "s");
         let warning = warning.expect("string operand of && must be flagged");
         assert_eq!(warning.to_type, TclType::Boolean);
@@ -613,21 +700,41 @@ mod tests {
         );
     }
 
-    /// `in`/`ni` convert the RIGHT operand to a list — flag a String-typed
-    /// haystack (tclsh-verified genuine shimmer), leave a List-typed one and
-    /// the needle alone.
+    /// `in`/`ni` convert the RIGHT operand to a list. A *committed* Dict
+    /// haystack genuinely re-represents (Dict → List); a *pure* string haystack
+    /// does not — `[string trim "a b c"]` is a pure string (oracle: it goes pure
+    /// → list on first read), so its list conversion is free. A List-typed
+    /// haystack is already a list, and the needle is read as a string — both
+    /// silent.
     #[test]
-    fn expr_shimmer_in_membership_flags_string_haystack() {
+    fn expr_shimmer_in_membership_flags_committed_not_pure_haystack() {
+        // TP: a committed Dict haystack re-represents to a list.
         let cu = CompilationUnit::build_for(
-            "set hay [string trim \"a b c\"]\nset y [expr {\"b\" in $hay}]",
+            "set hay [dict create a 1 b 2]\nset y [expr {\"a\" in $hay}]",
             &registry(),
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let warning = w.iter().find(|sw| sw.variable == "hay");
-        let warning = warning.expect("string haystack of `in` must be flagged");
+        let w = expr_shimmers(fu, &registry());
+        let warning = w
+            .iter()
+            .find(|sw| sw.variable == "hay")
+            .expect("committed Dict haystack of `in` must be flagged");
+        assert_eq!(warning.from_type, TclType::Dict);
         assert_eq!(warning.to_type, TclType::List);
+
+        // TN (issue #940): a pure string haystack is a free first conversion.
+        let cu_pure = CompilationUnit::build_for(
+            "set hay [string trim \"a b c\"]\nset y [expr {\"b\" in $hay}]",
+            &registry(),
+            false,
+        );
+        let fu_pure = cu_pure.function("::top").unwrap();
+        let w_pure = expr_shimmers(fu_pure, &registry());
+        assert!(
+            !w_pure.iter().any(|sw| sw.variable == "hay"),
+            "pure string haystack must not be flagged: {w_pure:?}"
+        );
 
         // A List-typed haystack is already a list — silent.
         let cu2 = CompilationUnit::build_for(
@@ -636,7 +743,7 @@ mod tests {
             false,
         );
         let fu2 = cu2.function("::top").unwrap();
-        let w2 = find_expr_shimmers(&fu2.cfg, &fu2.ssa, &fu2.types, &fu2.sccp.executable_blocks);
+        let w2 = expr_shimmers(fu2, &registry());
         assert!(
             !w2.iter().any(|sw| sw.variable == "hay"),
             "list haystack must not be flagged: {w2:?}"
@@ -644,12 +751,12 @@ mod tests {
 
         // The needle is read as a string — a String-typed needle is silent.
         let cu3 = CompilationUnit::build_for(
-            "set needle [string trim b]\nset hay [list a b c]\nset y [expr {$needle in $hay}]",
+            "set needle [string trim b]\nset hay [dict create a 1]\nset y [expr {$needle in $hay}]",
             &registry(),
             false,
         );
         let fu3 = cu3.function("::top").unwrap();
-        let w3 = find_expr_shimmers(&fu3.cfg, &fu3.ssa, &fu3.types, &fu3.sccp.executable_blocks);
+        let w3 = expr_shimmers(fu3, &registry());
         assert!(
             !w3.iter().any(|sw| sw.variable == "needle"),
             "the needle of `in` must not be flagged: {w3:?}"
@@ -662,7 +769,7 @@ mod tests {
         let cu =
             CompilationUnit::build_for("set x 42\nset z [expr {$x eq \"42\"}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let has_shimmer = w
             .iter()
             .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
@@ -682,7 +789,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let has_shimmer = w
             .iter()
             .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
@@ -702,7 +809,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let xs: Vec<_> = w.iter().filter(|sw| sw.variable == "x").collect();
         assert_eq!(
             xs.len(),
@@ -721,7 +828,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let s = w.iter().find(|sw| sw.variable == "x");
         assert!(s.is_some(), "expected expr shimmer for x in loop: {w:?}");
         let s = s.unwrap();
@@ -742,7 +849,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         // x is String; used with eq (string comparison) — no shimmer.
         let str_cmp_shimmers: Vec<_> = w
             .iter()
@@ -765,7 +872,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let has_shimmer = w
             .iter()
             .any(|sw| sw.variable == "b" && sw.from_type == TclType::ByteArray);
@@ -782,7 +889,7 @@ mod tests {
         let src = "set x \"hello\"\nset y [expr {$x + 1}]";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let s = w
             .iter()
             .find(|sw| sw.variable == "x")
@@ -803,7 +910,7 @@ mod tests {
         let src = "set x 42\nif {$x eq \"42\"} { set y 1 }";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let s = w
             .iter()
             .find(|sw| sw.variable == "x")
@@ -824,7 +931,7 @@ mod tests {
         let src = "proc f {} {\n  set x \"hello\"\n  set y [expr {$x * 2}]\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let s = w
             .iter()
             .find(|sw| sw.variable == "x")
@@ -848,7 +955,7 @@ mod tests {
         let src = "set x 42\nif \"$x eq 42\" { set y 1 }";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         // The quoted form substitutes before parsing, so the shimmer may or
         // may not fire; when it does, the span must contain the whole
         // fallback range and be non-degenerate.
@@ -873,7 +980,7 @@ mod tests {
         let src = "set x \"hi\"\nset y [expr {$x + $x}]";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let xs: Vec<_> = w.iter().filter(|sw| sw.variable == "x").collect();
         assert_eq!(xs.len(), 1, "one warning per statement+var: {xs:?}");
         let first = src.find("{$x").unwrap() + 1;
@@ -899,7 +1006,7 @@ mod tests {
         let src = "set x 10\nset y 2\nset z [expr {$x lt $y}]";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let w = expr_shimmers(fu, &registry());
         let s = w
             .iter()
             .find(|sw| sw.variable == "x" || sw.variable == "y")

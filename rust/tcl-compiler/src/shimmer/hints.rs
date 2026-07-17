@@ -22,8 +22,18 @@
 //!   when that position has `shimmers = true` in the registry.
 //! - [`is_numeric_compatible`] — true when two types are interchangeable
 //!   in Tcl's arithmetic/boolean contexts.
+//! - [`is_uncommitted_first_conversion`] — true when reading a value as a
+//!   different type is the *first* conversion of an uncommitted (pure) value,
+//!   which Tcl performs for free rather than a genuine shimmer.
+
+use std::borrow::Cow;
 
 use tcl_registry::{CommandRegistry, TclType};
+use tcl_syntax::boolean::parse_boolean_word;
+use tcl_syntax::list::split_list;
+use tcl_syntax::number::{self, ParseFlags};
+
+use crate::analyses::{ConstValue, LatticeValue};
 
 /// Return the expected `TclType` for argument `arg_index` of `command`
 /// when that argument position is tagged `shimmers = true` in the registry.
@@ -179,6 +189,153 @@ pub fn is_numeric_compatible(current: TclType, expected: TclType) -> bool {
     matches!(
         (current, expected),
         (Int | Numeric, Boolean) | (Boolean | Numeric, Int) | (Int | Boolean, Numeric)
+    )
+}
+
+/// Whether reading a value of committed intrep `current` at a position that
+/// expects `expected` is a **free first conversion of an uncommitted value**,
+/// not a genuine shimmer.
+///
+/// The Tcl object model — oracle-verified and set out in
+/// [`docs/design/contracts/shimmer-reference-behaviour.md`](../../../../docs/design/contracts/shimmer-reference-behaviour.md)
+/// ("When shimmering does NOT occur → Pure string objects (`typePtr == NULL`) —
+/// first type assignment is not a shimmer") — is that a value whose intrep is
+/// not yet committed pays nothing the *first* time it is read as another type it
+/// is a valid instance of. A bare literal (`set l {a b c}`), an interpolated
+/// string, and any string-producing command (`string trim`, `format`, `join`)
+/// all yield such a pure value: `foreach $l` / `lindex $l 0` merely parses it
+/// into a list intrep once, losslessly. Only a **committed** container / object
+/// / byte-array intrep — produced by `[list]`, `[dict create]`, an object
+/// factory, or `binary format` — genuinely re-represents when read as another
+/// type, which is the real shimmer this analysis exists to flag.
+///
+/// `current` classifies committed-ness generically, never by command name:
+/// - [`TclType::String`] is documented "pure string, no cached intrep" — always
+///   uncommitted.
+/// - A numeric `current` ([`TclType::Int`] / [`TclType::Double`] /
+///   [`TclType::Boolean`] / [`TclType::Numeric`]) is uncommitted only when the
+///   value is a compile-time constant — a constant-folded literal push, still
+///   `typePtr == NULL`. A *runtime* `expr` / `incr` result is a committed
+///   numeric intrep whose reconversion is a genuine shimmer.
+/// - [`TclType::List`] / [`TclType::Dict`] / [`TclType::ByteArray`] /
+///   [`TclType::Object`] / [`TclType::Channel`] are always committed.
+///
+/// `const_value` is the SCCP constant for the value at this use, when known; its
+/// string form(s) drive the "valid instance of `expected`" test. A [`ConstSet`]
+/// (a merge of several literals, e.g. a phi of two `set` arms) is still a set of
+/// pure literals, so it is uncommitted and free precisely when **every** member
+/// is a valid instance. A pure value that is *not* a valid instance (e.g. `set s
+/// hello; expr {$s + 1}`, or a bad-syntax list) is **not** suppressed — its
+/// conversion would fail at runtime, which the mismatch warning is right to
+/// surface.
+///
+/// [`ConstSet`]: LatticeValue::ConstSet
+#[must_use]
+pub fn is_uncommitted_first_conversion(
+    current: TclType,
+    expected: TclType,
+    const_value: Option<&LatticeValue>,
+) -> bool {
+    is_pure_intrep(current, const_value) && is_valid_instance_of(expected, const_value)
+}
+
+/// Whether a value of lattice type `current` (with SCCP constant `const_value`,
+/// if any) has an **uncommitted** intrep — a pure string with no cached typed
+/// representation (`typePtr == NULL`).
+///
+/// `String` is always uncommitted (documented "pure string, no cached intrep").
+/// A numeric type is uncommitted only when the value is a compile-time constant
+/// (a constant-folded literal push); a runtime `expr` / `incr` result is a
+/// committed numeric intrep. `List` / `Dict` / `Object` / `ByteArray` /
+/// `Channel` are always committed. See [`is_uncommitted_first_conversion`] for
+/// the full contract.
+#[must_use]
+pub fn is_pure_intrep(current: TclType, const_value: Option<&LatticeValue>) -> bool {
+    match current {
+        TclType::String => true,
+        TclType::Int | TclType::Double | TclType::Boolean | TclType::Numeric => {
+            const_value.and_then(const_string_forms).is_some()
+        }
+        TclType::List | TclType::Dict | TclType::ByteArray | TclType::Object | TclType::Channel => {
+            false
+        }
+    }
+}
+
+/// Whether a pure value with SCCP constant `const_value` is a **valid instance**
+/// of `expected` — its first conversion would succeed and cost nothing. A
+/// constant (or constant set) must have *every* member be a valid instance; a
+/// non-constant value is presumed valid only for the permissive [`TclType::List`]
+/// (any string is a list) and keeps its warning for the stricter targets.
+#[must_use]
+pub fn is_valid_instance_of(expected: TclType, const_value: Option<&LatticeValue>) -> bool {
+    match const_value.and_then(const_string_forms) {
+        Some(forms) => forms
+            .iter()
+            .all(|s| string_is_valid_instance(Some(s), expected)),
+        None => string_is_valid_instance(None, expected),
+    }
+}
+
+/// The canonical Tcl string form(s) of an SCCP constant value, or `None` when it
+/// is not known at compile time (unknown / top). A single [`Const`] yields one
+/// form; a [`ConstSet`] — a small set of possible literals from a merge — yields
+/// each, so a caller can require *all* of them to satisfy a predicate.
+///
+/// [`Const`]: LatticeValue::Const
+/// [`ConstSet`]: LatticeValue::ConstSet
+fn const_string_forms(value: &LatticeValue) -> Option<Vec<Cow<'_, str>>> {
+    match value {
+        LatticeValue::Const(c) => Some(vec![const_value_string(c)]),
+        LatticeValue::ConstSet(cs) => Some(cs.iter().map(const_value_string).collect()),
+        LatticeValue::Unknown | LatticeValue::Overdefined => None,
+    }
+}
+
+/// The canonical Tcl string form of one SCCP constant.
+fn const_value_string(value: &ConstValue) -> Cow<'_, str> {
+    match value {
+        ConstValue::String(s) => Cow::Borrowed(s),
+        ConstValue::Int(i) => Cow::Owned(i.to_string()),
+        ConstValue::Bool(b) => Cow::Borrowed(if *b { "1" } else { "0" }),
+        ConstValue::Float(f) => Cow::Owned(number::format_double(*f)),
+    }
+}
+
+/// Whether the pure-string form `s` (`None` ⇒ the value is not a compile-time
+/// constant) is a valid instance of `expected`, so its first conversion would
+/// succeed and cost nothing.
+///
+/// A [`TclType::List`] accepts virtually any string, so a non-constant pure
+/// value is presumed a valid (free) list promotion; the stricter targets — a
+/// [`TclType::Dict`]'s even length and the numeric tower — need the constant to
+/// prove validity, and a value that cannot be proven valid keeps its warning.
+fn string_is_valid_instance(s: Option<&str>, expected: TclType) -> bool {
+    match expected {
+        TclType::List => s.is_none_or(|s| split_list(s).is_ok()),
+        TclType::Dict => s.is_some_and(|s| split_list(s).is_ok_and(|els| els.len() % 2 == 0)),
+        TclType::Int => s.is_some_and(is_valid_integer),
+        TclType::Double | TclType::Numeric => s.is_some_and(|s| number::parse_whole(s).is_some()),
+        TclType::Boolean => {
+            s.is_some_and(|s| parse_boolean_word(s).is_some() || number::parse_whole(s).is_some())
+        }
+        TclType::String | TclType::ByteArray | TclType::Object | TclType::Channel => false,
+    }
+}
+
+/// Whether `s` is a whole Tcl integer literal (`Tcl_GetWideIntFromObj` /
+/// `TCL_PARSE_INTEGER_ONLY`): decimal, `0x`/`0o`/`0b`/`0d` radix, or a bignum —
+/// but not a fractional/exponent form, which `incr`/index positions reject.
+fn is_valid_integer(s: &str) -> bool {
+    matches!(
+        number::parse_whole_with(
+            s,
+            ParseFlags {
+                integer_only: true,
+                ..ParseFlags::default()
+            },
+        ),
+        Some(number::Number::Int(_) | number::Number::Big { .. })
     )
 }
 
@@ -449,5 +606,166 @@ mod tests {
         assert!(!is_numeric_compatible(TclType::String, TclType::Int));
         assert!(!is_numeric_compatible(TclType::List, TclType::Int));
         assert!(!is_numeric_compatible(TclType::String, TclType::List));
+    }
+
+    fn s(text: &str) -> LatticeValue {
+        LatticeValue::Const(ConstValue::String(text.to_owned()))
+    }
+
+    // --- is_uncommitted_first_conversion: TN (suppress — free first conversion)
+
+    /// TN (issue #940): a pure string literal that is a well-formed list is a
+    /// free first conversion — every list-shaped constant is suppressed.
+    #[test]
+    fn uncommitted_pure_string_valid_list_is_free() {
+        for lit in ["10.0 12.0 16.0 24.0", "hello", "", "a b c", "1"] {
+            assert!(
+                is_uncommitted_first_conversion(TclType::String, TclType::List, Some(&s(lit))),
+                "pure string {lit:?} used as a list must be a free conversion"
+            );
+        }
+    }
+
+    /// TN: an even-length list constant is a valid dict — free.
+    #[test]
+    fn uncommitted_pure_string_valid_dict_is_free() {
+        assert!(is_uncommitted_first_conversion(
+            TclType::String,
+            TclType::Dict,
+            Some(&s("a 1 b 2"))
+        ));
+    }
+
+    /// TN: a constant-folded numeric literal (`set x 5`) is a pure string, so
+    /// using it as a list is free — the define-time numeric shape is irrelevant.
+    #[test]
+    fn uncommitted_const_int_used_as_list_is_free() {
+        let v = LatticeValue::Const(ConstValue::Int(5));
+        assert!(is_uncommitted_first_conversion(
+            TclType::Int,
+            TclType::List,
+            Some(&v)
+        ));
+    }
+
+    /// TN: a non-constant pure string (interpolation / string command) is
+    /// presumed a valid list — lists accept virtually any string.
+    #[test]
+    fn uncommitted_nonconst_string_as_list_is_free() {
+        assert!(is_uncommitted_first_conversion(
+            TclType::String,
+            TclType::List,
+            None
+        ));
+    }
+
+    /// TN: every member of a `ConstSet` (a phi of literals) is a valid list, so
+    /// the merge is still a free promotion.
+    #[test]
+    fn uncommitted_constset_all_valid_lists_is_free() {
+        let v = LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::String("a b".into())]);
+        assert!(is_uncommitted_first_conversion(
+            TclType::Int,
+            TclType::List,
+            Some(&v)
+        ));
+    }
+
+    // --- is_uncommitted_first_conversion: TP (fire — genuine shimmer / error)
+
+    /// TP: a committed container intrep (`current == List`/`Dict`/`ByteArray`)
+    /// genuinely re-represents — never a free conversion.
+    #[test]
+    fn committed_container_is_not_free() {
+        for current in [TclType::List, TclType::Dict, TclType::ByteArray] {
+            assert!(
+                !is_uncommitted_first_conversion(current, TclType::String, Some(&s("1 2 3"))),
+                "committed {current:?} must not be treated as a free conversion"
+            );
+        }
+    }
+
+    /// TP: a pure string that is NOT a valid instance keeps its warning — `set s
+    /// hello; expr {$s + 1}` and `incr` on a non-integer both fail at runtime.
+    #[test]
+    fn pure_string_invalid_instance_is_not_free() {
+        assert!(!is_uncommitted_first_conversion(
+            TclType::String,
+            TclType::Int,
+            Some(&s("hello"))
+        ));
+        assert!(!is_uncommitted_first_conversion(
+            TclType::String,
+            TclType::Numeric,
+            Some(&s("hello"))
+        ));
+        // An odd-length list is not a valid dict.
+        assert!(!is_uncommitted_first_conversion(
+            TclType::String,
+            TclType::Dict,
+            Some(&s("a 1 b"))
+        ));
+    }
+
+    /// TP: a *runtime* numeric intrep (non-constant `expr`/`incr` result) is
+    /// committed — its list conversion is a genuine shimmer.
+    #[test]
+    fn runtime_numeric_used_as_list_is_not_free() {
+        assert!(!is_uncommitted_first_conversion(
+            TclType::Int,
+            TclType::List,
+            None
+        ));
+        assert!(!is_uncommitted_first_conversion(
+            TclType::Numeric,
+            TclType::List,
+            Some(&LatticeValue::Overdefined)
+        ));
+    }
+
+    /// TP: a malformed-list constant (unmatched brace) is not a valid list.
+    #[test]
+    fn malformed_list_constant_is_not_free() {
+        assert!(!is_uncommitted_first_conversion(
+            TclType::String,
+            TclType::List,
+            Some(&s("oops {unbalanced"))
+        ));
+    }
+
+    /// FN guard: a `ConstSet` where *one* member is not a valid instance must
+    /// fire — the merge is only free when every path is valid.
+    #[test]
+    fn constset_one_invalid_member_is_not_free() {
+        let v = LatticeValue::ConstSet(vec![
+            ConstValue::String("a 1 b 2".into()),
+            ConstValue::String("bad {".into()),
+        ]);
+        assert!(!is_uncommitted_first_conversion(
+            TclType::String,
+            TclType::List,
+            Some(&v)
+        ));
+    }
+
+    #[test]
+    fn is_valid_integer_matches_tcl_forms() {
+        for ok in [
+            "5",
+            "-5",
+            "0x1f",
+            "0o17",
+            "0b101",
+            "1_000",
+            "999999999999999999999",
+        ] {
+            assert!(is_valid_integer(ok), "{ok:?} should be a valid integer");
+        }
+        for bad in ["5.0", "hello", "", "1 2", "0x"] {
+            assert!(
+                !is_valid_integer(bad),
+                "{bad:?} should not be a valid integer"
+            );
+        }
     }
 }

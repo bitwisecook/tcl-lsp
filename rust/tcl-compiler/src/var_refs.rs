@@ -31,9 +31,10 @@ use std::collections::{BTreeSet, HashMap, VecDeque};
 use tcl_lexer::{Lexer, SourceMap, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::naming::normalise_var_name;
+use crate::naming::{element_var_name, normalise_var_name};
 
 /// Options controlling what a [`VarReferenceScanner`] looks for.
+#[allow(clippy::struct_excessive_bools)] // option flags, not a state machine
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarScanOptions {
     /// When `true`, also collect variable names passed as
@@ -47,6 +48,12 @@ pub struct VarScanOptions {
     /// only — intended for dead-store / unused-variable liveness recovery,
     /// kept out of SSA `uses` so read-before-set versioning is unperturbed.
     pub include_reads_before_write: bool,
+    /// When `true`, report constant-keyed array elements as their own
+    /// variables (`arr(k)`) instead of the conflated base — the SSA build's
+    /// per-element naming ([`crate::naming::element_var_name`]). Off for
+    /// name-level consumers (unused-variable liveness, scope bookkeeping),
+    /// which reason about the base.
+    pub element_qualified: bool,
 }
 
 impl Default for VarScanOptions {
@@ -55,6 +62,7 @@ impl Default for VarScanOptions {
             include_var_read_roles: false,
             recurse_cmd_substitutions: true,
             include_reads_before_write: false,
+            element_qualified: false,
         }
     }
 }
@@ -96,6 +104,24 @@ impl VarReferenceScanner {
             cache: HashMap::new(),
             order: VecDeque::new(),
             cache_size,
+        }
+    }
+
+    /// Whether this scanner reports element-qualified names
+    /// ([`VarScanOptions::element_qualified`]).
+    #[must_use]
+    pub fn element_qualified(&self) -> bool {
+        self.options.element_qualified
+    }
+
+    /// The canonical name this scanner's consumer records for a raw
+    /// variable word: element-qualified or base, per the options.
+    #[must_use]
+    pub fn canonical_name<'a>(&self, raw: &'a str) -> &'a str {
+        if self.options.element_qualified {
+            element_var_name(raw)
+        } else {
+            normalise_var_name(raw)
         }
     }
 
@@ -156,7 +182,16 @@ impl VarReferenceScanner {
             match tok.kind {
                 TokenType::Var => {
                     let text = source_map.token_text(*tok);
-                    let name = normalise_var_name(text);
+                    let name = if self.options.element_qualified {
+                        // The `${…}` brace form substitutes nothing inside,
+                        // so its key is literal even when it spells `$x` —
+                        // the sigil-stripped token text can't show that, but
+                        // the raw span keeps the `${` prefix.
+                        let braced = source_map.text(tok.span).starts_with("${");
+                        crate::naming::element_var_name_braced(text, braced)
+                    } else {
+                        normalise_var_name(text)
+                    };
                     if !name.is_empty() {
                         vars_found.insert(name.to_owned());
                     }
@@ -173,8 +208,12 @@ impl VarReferenceScanner {
         }
 
         if self.options.include_var_read_roles {
-            let role_vars =
-                scan_var_read_role_names(source, registry, self.options.include_reads_before_write);
+            let role_vars = scan_var_read_role_names(
+                source,
+                registry,
+                self.options.include_reads_before_write,
+                self.options.element_qualified,
+            );
             vars_found.extend(role_vars);
         }
 
@@ -191,6 +230,7 @@ fn scan_var_read_role_names(
     source: &str,
     registry: &CommandRegistry,
     include_rmw: bool,
+    element_qualified: bool,
 ) -> BTreeSet<String> {
     let mut result = BTreeSet::new();
     let source_map = SourceMap::new(source);
@@ -223,7 +263,11 @@ fn scan_var_read_role_names(
         }
         for idx in read_idx {
             if idx < args.len() {
-                let name = normalise_var_name(args[idx]);
+                let name = if element_qualified {
+                    element_var_name(args[idx])
+                } else {
+                    normalise_var_name(args[idx])
+                };
                 if !name.is_empty() {
                     result.insert(name.to_owned());
                 }
@@ -269,6 +313,7 @@ pub fn vars_in_word(text: &str, registry: &CommandRegistry) -> BTreeSet<String> 
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
         include_reads_before_write: false,
+        element_qualified: false,
     });
     scanner.scan_word(text, registry)
 }
@@ -431,6 +476,7 @@ mod tests {
             include_var_read_roles: false,
             recurse_cmd_substitutions: false,
             include_reads_before_write: false,
+            element_qualified: false,
         });
         // With recursion off, $inner inside [cmd $inner] should NOT be found.
         let vars = scanner.scan_word("[set x $inner]", &reg);
@@ -447,6 +493,7 @@ mod tests {
             include_var_read_roles: false,
             recurse_cmd_substitutions: true,
             include_reads_before_write: false,
+            element_qualified: false,
         });
         let vars = scanner.scan_word("[set x $inner]", &reg);
         assert!(

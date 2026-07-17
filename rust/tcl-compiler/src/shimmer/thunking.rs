@@ -47,7 +47,7 @@ use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
-use crate::types::{TypeKind, TypeLattice};
+use crate::types::{TypeKind, TypeLattice, TypeShape};
 
 use crate::codegen::values::split_array_ref;
 
@@ -191,8 +191,8 @@ pub(super) fn per_loop_body_types(
                     continue;
                 }
                 if let Some(t) = types.get(&(sym, ver))
-                    && t.kind == TypeKind::Known
-                    && let Some(tt) = t.tcl_type
+                    && t.kind() == TypeKind::Known
+                    && let Some(tt) = t.tcl_type()
                 {
                     out.entry(sym).or_default().insert(tt);
                 }
@@ -319,7 +319,7 @@ pub(super) fn per_loop_type_span(
             let matches_target = look
                 .types
                 .get(&(sym, ver))
-                .is_some_and(|t| t.kind == TypeKind::Known && t.tcl_type == Some(target));
+                .is_some_and(|t| t.kind() == TypeKind::Known && t.tcl_type() == Some(target));
             if !matches_target {
                 continue;
             }
@@ -413,7 +413,7 @@ fn classify_thunking_phi(
         return None;
     }
     let lattice = ctx.types.get(&(phi.name, phi.version))?;
-    if lattice.kind != TypeKind::Shimmered {
+    if lattice.kind() != TypeKind::Shimmered {
         // The header lattice only records oscillation that survives to the
         // loop-header phi (entry type ≠ body-exit type).  A body that
         // converts list→string→list *within one iteration* returns to the
@@ -422,8 +422,12 @@ fn classify_thunking_phi(
         // "$acc,"`).  Catch that shape from the body evidence instead.
         return classify_intra_iteration_thunk(ctx, phi, this_loop, per_loop);
     }
-    let type_a = lattice.from_type?;
-    let type_b = lattice.tcl_type?;
+    // The canonical extremes of the union name the oscillation pair; a 3+
+    // member union (now tracked instead of collapsing to OVERDEFINED) still
+    // reports its outermost pair here — the S102 message is a two-type
+    // oscillation claim, and the incoming-type analysis below drives the
+    // actual verdict.
+    let (type_a, type_b) = lattice.shimmer_extremes()?;
 
     // A loop-header phi is SHIMMERED whenever the entry type differs
     // from the body-exit type — but that includes the *one-time*
@@ -458,19 +462,18 @@ fn classify_thunking_phi(
         };
         let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
         if ctx.loop_blocks.contains(ctx.cfg.block_name(*pred)) {
-            if inc_type.kind == TypeKind::Known && !is_empty {
+            if inc_type.kind() == TypeKind::Known && !is_empty {
                 has_body_incoming = true;
-                if let Some(t) = inc_type.tcl_type {
+                if let Some(t) = inc_type.tcl_type() {
                     body_types.insert(t);
                 }
-            } else if self_referential && inc_type.kind == TypeKind::Shimmered {
+            } else if self_referential && inc_type.kind() == TypeKind::Shimmered {
                 has_body_incoming = true;
-                body_types.extend(inc_type.from_type);
-                body_types.extend(inc_type.tcl_type);
+                body_types.extend(inc_type.shapes().iter().map(TypeShape::coarse));
             }
-        } else if inc_type.kind == TypeKind::Known
+        } else if inc_type.kind() == TypeKind::Known
             && !is_empty
-            && let Some(t) = inc_type.tcl_type
+            && let Some(t) = inc_type.tcl_type()
         {
             entry_types.insert(t);
         }
@@ -984,6 +987,31 @@ mod tests {
     /// slots, not the same value shimmering back and forth.
     #[test]
     fn no_s102_for_array_element_conflation() {
+        // Independent elements: `arr(a)` holds ints, `arr(b)` strings — with
+        // per-element SSA symbols neither oscillates, so no S102 (the
+        // pre-P5 conflation FP this test has always guarded).
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set arr(a) 0\n while {1} { \
+             set arr(a) [expr {$arr(a) + 1}]\n set arr(b) [string range x 0 end] } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            None::<&HashSet<String>>,
+        );
+        assert!(
+            w.is_empty(),
+            "independent array elements must not merge into an S102 report: {w:?}"
+        );
+        // The SAME element oscillating int ↔ string every iteration is a
+        // genuine per-element re-thunk — per-key symbols now see it (the
+        // pre-P5 conflation exclusion was a forced false negative here).
         let cu = CompilationUnit::build_for(
             "proc f {} { set arr(x) 0\n while {1} { \
              set arr(x) [expr {$arr(x) + 1}]\n set arr(x) [string range $arr(x) 0 end] } }",
@@ -1000,8 +1028,8 @@ mod tests {
             None::<&HashSet<String>>,
         );
         assert!(
-            w.is_empty(),
-            "array-element writes must not be conflated into an S102 report: {w:?}"
+            w.iter().any(|w| w.variable == "arr(x)"),
+            "the same element oscillating every iteration is a real S102: {w:?}"
         );
     }
 

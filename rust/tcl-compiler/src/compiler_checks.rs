@@ -387,6 +387,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
         &fu.sccp.executable_blocks,
         registry,
         &fu.sccp.values,
+        &fu.sccp.executable_edges,
     ) {
         out.push(Diagnostic::from_shimmer(&w));
     }
@@ -704,9 +705,13 @@ mod tests {
         assert_eq!(s100.severity, Severity::Info, "S100 must be Info: {s100:?}");
         assert_eq!(s100.severity.as_str(), "info");
 
-        // S101 — a per-iteration shimmer inside a loop is a warning.
+        // S101 — a per-iteration shimmer inside a loop is a warning. `$x` is a
+        // loop element of unknown value used in arithmetic: a non-constant pure
+        // string is not provably a valid number, so the conversion is flagged
+        // per iteration (unlike a list target, where any string is a valid
+        // list — see `is_uncommitted_first_conversion`).
         let cu = CompilationUnit::build_for(
-            "proc f {l} {\n  foreach x $l {\n    set b [lindex $x 0]\n  }\n}\n",
+            "proc f {l} {\n  foreach x $l {\n    set y [expr {$x + 1}]\n  }\n}\n",
             &registry(),
             false,
         );

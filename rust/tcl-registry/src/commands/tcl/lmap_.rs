@@ -74,6 +74,7 @@ pub fn spec() -> CommandSpec {
         )],
         lowering_hook: Some(crate::hooks::LoweringHookId::Lmap),
         return_type: Some(TclType::List),
+        var_write_typing: VarWriteTyping::ElementsOf { container_arg: 0 },
         hover: Some(HoverSnippet {
             summary: "Iterate over all elements in one or more lists and collect results",
             synopsis: &[

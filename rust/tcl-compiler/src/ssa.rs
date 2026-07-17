@@ -107,6 +107,14 @@ pub struct SsaStatement {
     pub uses: HashMap<Symbol, Version>,
     /// Variables written: symbol → SSA version.
     pub defs: HashMap<Symbol, Version>,
+    /// The subset of [`Self::defs`] that are *synthetic* array-element
+    /// writes, not writes the statement performs itself: the base refresh
+    /// alongside an element write (`set arr(k) v` also defs `arr`), and the
+    /// element fan of a dynamic-key / whole-array write (`set arr($i) v`
+    /// defs every known `arr(*)`). Type inference **joins** across a
+    /// may-def (old type ⊔ written value); write-sensitive passes (shimmer
+    /// oscillation, dead-store) must not count one as a real write.
+    pub may_defs: HashSet<Symbol>,
 }
 
 /// A CFG basic block in SSA form.
@@ -227,6 +235,27 @@ impl SsaFunction {
     #[must_use]
     pub fn var_name(&self, sym: Symbol) -> &str {
         &self.var_names[sym.0 as usize]
+    }
+
+    /// Whether the def of `name` recorded at (`block_name`, `stmt_idx`) is a
+    /// **synthetic** array-element may-def ([`SsaStatement::may_defs`]) — the
+    /// base refresh of an element write, or the element fan of a dynamic-key
+    /// / whole-array write — rather than a write the statement performs
+    /// itself. Unused-variable / dead-store reporting skips these: the user
+    /// wrote one assignment, not one per fanned symbol.
+    #[must_use]
+    pub fn is_synthetic_def(&self, block_name: &str, stmt_idx: i32, name: &str) -> bool {
+        let Some(sym) = self.var_symbol(name) else {
+            return false;
+        };
+        let Ok(idx) = usize::try_from(stmt_idx) else {
+            return false;
+        };
+        self.blocks
+            .values()
+            .find(|b| b.name == block_name)
+            .and_then(|b| b.statements.get(idx))
+            .is_some_and(|st| st.may_defs.contains(&sym))
     }
 
     /// The [`Symbol`] a variable name resolves to, if it was interned during
@@ -370,10 +399,18 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
     use tcl_registry::{ArgRole, Traits};
 
     match stmt {
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. } => {
+        Statement::AssignConst {
+            name, name_braced, ..
+        }
+        | Statement::AssignExpr {
+            name, name_braced, ..
+        }
+        | Statement::AssignValue {
+            name, name_braced, ..
+        }
+        | Statement::Incr {
+            name, name_braced, ..
+        } => {
             // A write-target whose *name* is value-substituted (`set $p …`,
             // `set ${tok}(k) …`) denotes the variable named by the
             // substitution's value — a place that cannot be pinned down, so it
@@ -382,7 +419,10 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             if is_dynamic_write_target(name) {
                 return Vec::new();
             }
-            vec![normalise_var_name(name).to_owned()]
+            // A constant-keyed array element defs its own variable
+            // (`arr(k)`); a dynamic key stays on the base (the rename walk
+            // fans the def over the array's known elements).
+            vec![crate::naming::element_var_name_braced(name, *name_braced).to_owned()]
         }
         Statement::Call { defs, .. } if !defs.is_empty() => defs.clone(),
         Statement::Barrier { command, args, .. } => {
@@ -415,7 +455,10 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                 if !indices.is_empty() {
                     return indices
                         .into_iter()
-                        .filter_map(|idx| args.get(idx).map(|s| normalise_var_name(s).to_owned()))
+                        .filter_map(|idx| {
+                            args.get(idx)
+                                .map(|s| crate::naming::element_var_name(s).to_owned())
+                        })
                         .filter(|n| !n.is_empty())
                         .collect();
                 }
@@ -423,7 +466,7 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // Legacy string-match fallback for callers without a
             // registry (test helpers).
             if command == "trace" && args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
-                return vec![normalise_var_name(&args[2]).to_owned()];
+                return vec![crate::naming::element_var_name(&args[2]).to_owned()];
             }
             Vec::new()
         }
@@ -730,9 +773,11 @@ pub(crate) fn compute_phi_vars(
     func: &cfg::Function,
     df: &HashMap<BlockId, HashSet<BlockId>>,
     registry: &CommandRegistry,
+    elems: &ArrayElems,
 ) -> HashMap<BlockId, HashSet<String>> {
     let reachable = func.reachable_blocks();
-    let (nonlocal_names, all_defsites) = nonlocal_names_and_defsites(func, &reachable, registry);
+    let (nonlocal_names, all_defsites) =
+        nonlocal_names_and_defsites(func, &reachable, registry, elems);
 
     // Semi-pruned SSA (Briggs et al. 1998): place phis only for *non-local*
     // (upward-exposed-use) names. A phi for a purely-local name has no reader,
@@ -773,15 +818,138 @@ pub(crate) fn compute_phi_vars(
 /// so a phi at a merge is meaningful. A name only ever read after its in-block
 /// definition (or never read) needs no phi. `defsites` is unfiltered (all
 /// defined names); the caller restricts phi placement to the non-local names.
+/// The constant-keyed elements of each array base referenced anywhere in a
+/// function: `"arr"` -> `{"arr(a)", "arr(b)"}`. Feeds [`expand_defs`]'s
+/// fan-out — a dynamic-key or whole-array write may hit any of these.
+pub(crate) type ArrayElems = FxHashMap<String, BTreeSet<String>>;
+
+/// Collect every constant-keyed array element defined or read in `func`.
+fn collect_array_elems(func: &cfg::Function, registry: &CommandRegistry) -> ArrayElems {
+    let mut scanner = VarReferenceScanner::new(VarScanOptions {
+        include_var_read_roles: true,
+        recurse_cmd_substitutions: true,
+        include_reads_before_write: false,
+        element_qualified: true,
+    });
+    let mut elems: ArrayElems = ArrayElems::default();
+    let note = |name: &str, elems: &mut ArrayElems| {
+        if let Some(open) = name.find('(') {
+            elems
+                .entry(name[..open].to_owned())
+                .or_default()
+                .insert(name.to_owned());
+        }
+    };
+    for block in func.blocks.values() {
+        for stmt in &block.statements {
+            for d in defs_of_with_registry(stmt, Some(registry)) {
+                note(&d, &mut elems);
+            }
+            for u in uses_of(stmt, &mut scanner, registry) {
+                note(&u, &mut elems);
+            }
+        }
+        match &block.terminator {
+            Some(cfg::Terminator::Branch { condition, .. }) => {
+                for u in condition.vars_element_qualified() {
+                    note(&u, &mut elems);
+                }
+            }
+            Some(cfg::Terminator::Return { value, expr, .. }) => {
+                if let Some(v) = value {
+                    for u in scanner.scan_word(v, registry) {
+                        note(&u, &mut elems);
+                    }
+                }
+                if let Some(e) = expr {
+                    for u in e.vars_element_qualified() {
+                        note(&u, &mut elems);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    elems
+}
+
+/// Expand a statement's direct def names with the array-element fan-out:
+///
+/// - an element def (`arr(k)`) also defs its base `arr`, so whole-array
+///   reads (`array get arr`) see a fresh version;
+/// - a base def where constant-keyed elements exist (a dynamic-key write
+///   `set arr($i) v`, or a whole-array writer like `array set`) **fans**
+///   over every known element — the write may have hit any of them.
+///
+/// The rename walk records a *use* of each fanned-only name's prior
+/// version, so type inference joins the old element type with the written
+/// value instead of trusting either.
+fn expand_defs(direct: &[String], elems: &ArrayElems) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let push = |n: String, out: &mut Vec<String>| {
+        if !out.contains(&n) {
+            out.push(n);
+        }
+    };
+    for d in direct {
+        if let Some(open) = d.find('(') {
+            push(d.clone(), &mut out);
+            push(d[..open].to_owned(), &mut out);
+        } else {
+            push(d.clone(), &mut out);
+            if let Some(els) = elems.get(d) {
+                for e in els {
+                    push(e.clone(), &mut out);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The use-side counterpart of [`expand_defs`]: reading a base whose
+/// constant-keyed elements are known (`$a($i)`, `array get a`, `parray a`)
+/// reads *every* element, and a dynamic-key / whole-array write reads each
+/// fanned element's prior version (the may-def join input). Both make the
+/// element chains live and upward-exposed so phi placement and liveness see
+/// them (adversarial findings F1/F2/F5 on PR #944).
+fn expand_uses(direct_uses: &[String], direct_defs: &[String], elems: &ArrayElems) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let push = |n: &str, out: &mut Vec<String>| {
+        if !out.iter().any(|e| e == n) {
+            out.push(n.to_owned());
+        }
+    };
+    for u in direct_uses {
+        if let Some(els) = elems.get(u) {
+            for e in els {
+                push(e, &mut out);
+            }
+        }
+    }
+    for d in direct_defs {
+        if !d.contains('(')
+            && let Some(els) = elems.get(d)
+        {
+            for e in els {
+                push(e, &mut out);
+            }
+        }
+    }
+    out
+}
+
 fn nonlocal_names_and_defsites(
     func: &cfg::Function,
     reachable: &HashSet<BlockId>,
     registry: &CommandRegistry,
+    elems: &ArrayElems,
 ) -> (FxHashSet<String>, FxHashMap<String, FxHashSet<BlockId>>) {
     let mut scanner = VarReferenceScanner::new(VarScanOptions {
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
         include_reads_before_write: false,
+        element_qualified: true,
     });
     let mut nonlocal_names: FxHashSet<String> = FxHashSet::default();
     let mut defsites: FxHashMap<String, FxHashSet<BlockId>> = FxHashMap::default();
@@ -792,41 +960,49 @@ fn nonlocal_names_and_defsites(
         };
         let mut defined_here: FxHashSet<String> = FxHashSet::default();
         for stmt in &block.statements {
-            for u in uses_of(stmt, &mut scanner, registry) {
+            let direct_uses = uses_of(stmt, &mut scanner, registry);
+            let direct_defs = defs_of_with_registry(stmt, Some(registry));
+            for u in
+                direct_uses
+                    .iter()
+                    .cloned()
+                    .chain(expand_uses(&direct_uses, &direct_defs, elems))
+            {
                 if !defined_here.contains(&u) {
                     nonlocal_names.insert(u);
                 }
             }
-            for var in defs_of_with_registry(stmt, Some(registry)) {
+            for var in expand_defs(&direct_defs, elems) {
                 defsites.entry(var.clone()).or_default().insert(*bn);
                 defined_here.insert(var);
             }
         }
+        // Terminator reads are element-qualified like statement reads (a
+        // condition's `$a(k)` must place the element's phi), and a base
+        // read fans over known elements.
+        let mut term_uses: Vec<String> = Vec::new();
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                for u in vars_in_expr(condition) {
-                    if !defined_here.contains(&u) {
-                        nonlocal_names.insert(u);
-                    }
-                }
+                term_uses.extend(condition.vars_element_qualified());
             }
             Some(cfg::Terminator::Return { value, expr, .. }) => {
                 if let Some(v) = value {
-                    for u in scanner.scan_word(v, registry) {
-                        if !defined_here.contains(&u) {
-                            nonlocal_names.insert(u);
-                        }
-                    }
+                    term_uses.extend(scanner.scan_word(v, registry));
                 }
                 if let Some(e) = expr {
-                    for u in vars_in_expr(e) {
-                        if !defined_here.contains(&u) {
-                            nonlocal_names.insert(u);
-                        }
-                    }
+                    term_uses.extend(e.vars_element_qualified());
                 }
             }
             _ => {}
+        }
+        for u in term_uses
+            .iter()
+            .cloned()
+            .chain(expand_uses(&term_uses, &[], elems))
+        {
+            if !defined_here.contains(&u) {
+                nonlocal_names.insert(u);
+            }
         }
     }
     (nonlocal_names, defsites)
@@ -939,7 +1115,7 @@ pub fn uses_of(
 
     match stmt {
         Statement::ExprEval { expr, .. } => {
-            vars_found.extend(vars_in_expr(expr));
+            vars_found.extend(expr_vars_for(scanner, expr));
         }
 
         Statement::AssignConst { .. }
@@ -958,7 +1134,7 @@ pub fn uses_of(
                 vars_found.extend(scanner.scan_word(v, registry));
             }
             if let Some(e) = expr {
-                vars_found.extend(vars_in_expr(e));
+                vars_found.extend(expr_vars_for(scanner, e));
             }
         }
 
@@ -1105,7 +1281,12 @@ fn set_value_reads(
         && let Some((expr_arg, _)) =
             crate::lowering_hooks::extract_single_expr_arg(inner, &HashSet::new())
     {
-        return vars_in_expr(&crate::parse_expr(&expr_arg, None));
+        let expr = crate::parse_expr(&expr_arg, None);
+        return if scanner.element_qualified() {
+            expr.vars_element_qualified().into_iter().collect()
+        } else {
+            vars_in_expr(&expr)
+        };
     }
     scanner.scan_word(value, registry)
 }
@@ -1173,6 +1354,22 @@ fn uses_in_call(
             reads_own_def.insert(name.clone());
         }
     }
+    // A destroying command (`unset a(k)`) consumes the target's *existence*:
+    // the killed store is not dead — deleting it would make the unset error
+    // on every call. Record the prior version as a read (DESTROYS_VARIABLE,
+    // matching the pre-per-element behavior the base-level use gave).
+    let destroys = registry
+        .get(canonical_command.as_deref().unwrap_or(command))
+        .is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+        });
+    if destroys {
+        for name in defs {
+            vars_found.insert(name.clone());
+            reads_own_def.insert(name.clone());
+        }
+    }
 }
 
 fn uses_in_assignment(
@@ -1182,8 +1379,11 @@ fn uses_in_assignment(
     vars_found: &mut BTreeSet<String>,
     reads_own_def: &mut BTreeSet<String>,
 ) {
-    let note_reads_own = |name: &str, vars_found: &BTreeSet<String>, rod: &mut BTreeSet<String>| {
-        let norm = normalise_var_name(name);
+    let note_reads_own = |name: &str,
+                          scanner: &VarReferenceScanner,
+                          vars_found: &BTreeSet<String>,
+                          rod: &mut BTreeSet<String>| {
+        let norm = scanner.canonical_name(name);
         if !norm.is_empty() && vars_found.contains(norm) {
             rod.insert(norm.to_owned());
         }
@@ -1195,11 +1395,11 @@ fn uses_in_assignment(
             }
         }
         Statement::AssignExpr { name, expr, .. } => {
-            vars_found.extend(vars_in_expr(expr));
+            vars_found.extend(expr_vars_for(scanner, expr));
             if is_dynamic_write_target(name) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
-                note_reads_own(name, vars_found, reads_own_def);
+                note_reads_own(name, scanner, vars_found, reads_own_def);
             }
         }
         Statement::AssignValue { name, value, .. } => {
@@ -1207,14 +1407,14 @@ fn uses_in_assignment(
             if is_dynamic_write_target(name) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
-                note_reads_own(name, vars_found, reads_own_def);
+                note_reads_own(name, scanner, vars_found, reads_own_def);
             }
         }
         Statement::Incr { name, amount, .. } => {
             if is_dynamic_write_target(name) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
-                let norm = normalise_var_name(name);
+                let norm = scanner.canonical_name(name);
                 if !norm.is_empty() {
                     vars_found.insert(norm.to_owned());
                     reads_own_def.insert(norm.to_owned());
@@ -1225,6 +1425,19 @@ fn uses_in_assignment(
             }
         }
         _ => {}
+    }
+}
+
+/// The expression-AST variable reads, named per the scanner's qualification
+/// mode — element-qualified for the SSA build, base names otherwise.
+fn expr_vars_for(
+    scanner: &VarReferenceScanner,
+    expr: &crate::expr_ast::ExprNode,
+) -> BTreeSet<String> {
+    if scanner.element_qualified() {
+        expr.vars_element_qualified().into_iter().collect()
+    } else {
+        vars_in_expr(expr)
     }
 }
 
@@ -1512,7 +1725,7 @@ fn intern_terminator_reads(
     for block in func.blocks.values() {
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                for u in vars_in_expr(condition) {
+                for u in condition.vars_element_qualified() {
                     interner.intern(&u);
                 }
             }
@@ -1523,7 +1736,7 @@ fn intern_terminator_reads(
                     }
                 }
                 if let Some(e) = expr {
-                    for u in vars_in_expr(e) {
+                    for u in e.vars_element_qualified() {
                         interner.intern(&u);
                     }
                 }
@@ -1621,6 +1834,7 @@ impl RenameWalk {
                 include_var_read_roles: true,
                 recurse_cmd_substitutions: true,
                 include_reads_before_write: false,
+                element_qualified: true,
             }),
             interner: VarInterner::default(),
             out,
@@ -1666,6 +1880,7 @@ impl RenameWalk {
         func: &cfg::Function,
         phi_vars: &HashMap<BlockId, HashSet<String>>,
         registry: &CommandRegistry,
+        elems: &ArrayElems,
     ) {
         let bn = frame.block;
 
@@ -1706,12 +1921,40 @@ impl RenameWalk {
                     let v = self.top(var);
                     uses_map.insert(self.interner.intern(var), v);
                 }
+                // A base read (`$a($i)`, `array get a`) reads every known
+                // constant-keyed element — record their versions so the
+                // element chains are live.
+                for var in expand_uses(&uses_list, &[], elems) {
+                    let v = self.top(&var);
+                    uses_map.entry(self.interner.intern(&var)).or_insert(v);
+                }
 
+                let direct_defs = defs_of_with_registry(stmt, Some(registry));
+                let expanded = expand_defs(&direct_defs, elems);
+                // A fanned element def is a *may*-write — the dynamic-key /
+                // whole-array write may have hit it: record a use of its
+                // prior version so type inference joins old and new rather
+                // than trusting the written value alone. (The base refresh
+                // of an element write is also a may-def, but reads nothing —
+                // an extra base use would make dead-store analysis see every
+                // element write as an observation of the whole array.)
+                for var in expanded
+                    .iter()
+                    .filter(|v| !direct_defs.contains(v) && v.contains('('))
+                {
+                    let ver = self.top(var);
+                    uses_map.entry(self.interner.intern(var)).or_insert(ver);
+                }
                 let mut defs_map: HashMap<Symbol, Version> = HashMap::new();
-                for var in defs_of_with_registry(stmt, Some(registry)) {
+                let mut may_defs: HashSet<Symbol> = HashSet::new();
+                for var in expanded {
                     let ver = self.push_new(&var);
                     frame.pushed_vars.push(var.clone());
-                    defs_map.insert(self.interner.intern(&var), ver);
+                    let sym = self.interner.intern(&var);
+                    defs_map.insert(sym, ver);
+                    if !direct_defs.contains(&var) {
+                        may_defs.insert(sym);
+                    }
                 }
 
                 self.out
@@ -1722,6 +1965,7 @@ impl RenameWalk {
                         statement: stmt.clone(),
                         uses: uses_map,
                         defs: defs_map,
+                        may_defs,
                     });
             }
         }
@@ -1779,7 +2023,8 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     let idom = compute_idom_fast(func);
     let df = compute_dominance_frontier(func, &idom);
     let tree = build_dom_tree(&idom);
-    let phi_vars = compute_phi_vars(func, &df, registry);
+    let elems = collect_array_elems(func, registry);
+    let phi_vars = compute_phi_vars(func, &df, registry, &elems);
 
     // 2. Set up rename state: the transient version stacks / counters, the
     // use-scanner, name interner, and per-block outputs (keyed by variable
@@ -1802,7 +2047,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     while let Some(frame) = stack.last_mut() {
         match frame.phase {
             RenamePhase::Enter => {
-                walk.enter_block(frame, func, &phi_vars, registry);
+                walk.enter_block(frame, func, &phi_vars, registry, &elems);
                 frame.phase = RenamePhase::ProcessChildren;
             }
 
@@ -1959,6 +2204,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs: HashMap::from([(Symbol(0), 1)]),
+            may_defs: std::collections::HashSet::new(),
         };
         assert_eq!(stmt.defs[&Symbol(0)], 1);
         assert!(stmt.uses.is_empty());
@@ -2039,7 +2285,9 @@ mod tests {
                 "dynamic target {name:?} must not be a static def"
             );
         }
-        // A static array element keeps its concrete base as the def.
+        // A constant-keyed array element defs its own per-element variable
+        // (the rename walk adds the base def alongside); a dynamic key
+        // stays on the base.
         let arr = Statement::AssignValue {
             span: Span::new(0, 10),
             name: "arr(idx)".into(),
@@ -2048,7 +2296,26 @@ mod tests {
             value_needs_backsubst: false,
             tokens: None,
         };
-        assert_eq!(defs_of(&arr), vec!["arr"]);
+        assert_eq!(defs_of(&arr), vec!["arr(idx)"]);
+        let dyn_key = Statement::AssignValue {
+            span: Span::new(0, 10),
+            name: "arr($i)".into(),
+            name_braced: false,
+            value: "1".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        assert_eq!(defs_of(&dyn_key), vec!["arr"]);
+        // Braces suppress substitution: the key is the literal text `$i`.
+        let braced = Statement::AssignValue {
+            span: Span::new(0, 10),
+            name: "arr($i)".into(),
+            name_braced: true,
+            value: "1".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        assert_eq!(defs_of(&braced), vec!["arr($i)"]);
     }
 
     #[test]
@@ -2515,7 +2782,12 @@ mod tests {
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
-        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
+        let phi = compute_phi_vars(
+            &func,
+            &df,
+            &CommandRegistry::build_default(),
+            &ArrayElems::default(),
+        );
 
         assert!(phi[&end].contains("x"), "x should need a phi at 'end'");
         assert!(
@@ -2543,7 +2815,12 @@ mod tests {
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
-        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
+        let phi = compute_phi_vars(
+            &func,
+            &df,
+            &CommandRegistry::build_default(),
+            &ArrayElems::default(),
+        );
 
         for vars in phi.values() {
             assert!(!vars.contains("x"), "x should not need a phi anywhere");
@@ -2581,7 +2858,12 @@ mod tests {
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
-        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
+        let phi = compute_phi_vars(
+            &func,
+            &df,
+            &CommandRegistry::build_default(),
+            &ArrayElems::default(),
+        );
 
         assert!(
             phi[&header].contains("i"),
@@ -2595,7 +2877,12 @@ mod tests {
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
-        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
+        let phi = compute_phi_vars(
+            &func,
+            &df,
+            &CommandRegistry::build_default(),
+            &ArrayElems::default(),
+        );
 
         for vars in phi.values() {
             assert!(vars.is_empty(), "no defs → no phis");
@@ -2629,6 +2916,7 @@ mod tests {
             include_var_read_roles: true,
             recurse_cmd_substitutions: true,
             include_reads_before_write: false,
+            element_qualified: false,
         });
         let stmt = Statement::AssignValue {
             span: Span::new(0, 15),

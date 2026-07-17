@@ -626,10 +626,42 @@ fn sccp_process_statements(
             }
             continue;
         }
+        // An element write's base def carries no scalar value of its own —
+        // `set arr(k) 5` / `set arr($i) 5` refresh `arr` for whole-array
+        // readers but must never let `$arr` fold to the element's value.
+        let element_write_base = match &stmt_ssa.statement {
+            Statement::AssignConst { name, .. }
+            | Statement::AssignExpr { name, .. }
+            | Statement::AssignValue { name, .. }
+            | Statement::Incr { name, .. }
+                if name.contains('(') =>
+            {
+                ssa.var_symbol(crate::naming::normalise_var_name(name))
+            }
+            _ => None,
+        };
         for (&var, ver) in &stmt_ssa.defs {
             let val =
-                if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace) {
+                if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
+                    || element_write_base == Some(var)
+                {
                     LatticeValue::Overdefined
+                } else if stmt_ssa.may_defs.contains(&var) {
+                    // A synthetic array-element may-def: the write may or may
+                    // not have hit this element, so its value is the JOIN of
+                    // the prior version (recorded as a use) and the written
+                    // value. The base refresh of an element write carries no
+                    // prior use — the base holds no value of its own.
+                    match stmt_ssa.uses.get(&var) {
+                        Some(prev_ver) => {
+                            let prev = values
+                                .get(&(var, *prev_ver))
+                                .cloned()
+                                .unwrap_or(LatticeValue::Overdefined);
+                            join(&prev, &evaluate_def(stmt_ssa, &*values, ssa, octal))
+                        }
+                        None => LatticeValue::Overdefined,
+                    }
                 } else {
                     evaluate_def(stmt_ssa, &*values, ssa, octal)
                 };
@@ -1009,13 +1041,16 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
             // and AMOUNT is either absent (defaults to 1), a decimal
             // integer literal, or a simple `$var` reference that
             // resolves to Const(Int) via `uses`.
-            let sym = ssa.var_symbol(name);
-            let ver = sym
-                .and_then(|s| stmt_ssa.uses.get(&s))
-                .copied()
-                .unwrap_or(0);
-            let base = sym
-                .and_then(|s| values.get(&(s, ver)))
+            // A dynamic-key target (`incr a($i)`) never interns a symbol —
+            // that miss is permanent, so it must widen: returning Unknown
+            // would launder a fanned element's stale constant through
+            // `join(prev, Unknown) = prev`.
+            let Some(sym) = ssa.var_symbol(crate::naming::element_var_name(name)) else {
+                return LatticeValue::Overdefined;
+            };
+            let ver = stmt_ssa.uses.get(&sym).copied().unwrap_or(0);
+            let base = values
+                .get(&(sym, ver))
                 .cloned()
                 .unwrap_or(LatticeValue::Unknown);
             let base_int = match &base {
@@ -1181,6 +1216,12 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
         }
     }
     let v = eval_tcl_expr_with_octal(condition, &env, octal)?;
+    // A NaN condition is C's "floating point value is Not a Number" runtime
+    // error, not a truth value — folding either way would delete a branch
+    // that must raise. Decline.
+    if matches!(&v, crate::tcl_expr_eval::TclValue::Float(f) if f.is_nan()) {
+        return None;
+    }
     Some(v.is_truthy())
 }
 
@@ -1239,6 +1280,10 @@ pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
     match v {
         TclValue::Int(i) => ConstValue::Int(i),
         TclValue::Float(f) => ConstValue::Float(f),
+        // A beyond-wide integer's lattice form is its canonical decimal
+        // string — the value's one true rep, which downstream folds re-parse
+        // exactly (`set big [expr {2**64}]; expr {$big + 1}` chains).
+        TclValue::Big(b) => ConstValue::String(b.to_string()),
     }
 }
 
@@ -1764,6 +1809,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -1845,6 +1891,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         });
         let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
         let escaping: HashSet<String> = HashSet::new();
@@ -2052,6 +2099,7 @@ mod tests {
             },
             uses,
             defs,
+            may_defs: std::collections::HashSet::new(),
         };
 
         let mut values = HashMap::new();
@@ -2087,6 +2135,7 @@ mod tests {
             },
             uses,
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -2225,6 +2274,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -2373,6 +2423,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 

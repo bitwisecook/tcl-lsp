@@ -3761,19 +3761,31 @@ fn w220_scalar_overwrite_still_fires_via_analyse() {
 
 #[test]
 fn w220_braced_literal_arg_is_not_a_read() {
-    // A braced word performs no `$`-substitution, so `puts {$a(k)}` does
-    // NOT read `a(k)` — the place bridge must not treat the de-braced IR
-    // text as a read and wrongly suppress the genuine dead store on the
-    // first `set a(k)`.  (`puts $a(j)` keeps the base `a` live so `a(k)`
-    // is a W220 overwrite candidate rather than a W211.)
+    // A braced word performs no `$`-substitution at this call — but the
+    // name-level scan deliberately keeps `{$a(k)}` as a conservative
+    // liveness read (the word may be `eval`-ed / scheduled later, e.g.
+    // `after 100 {incr x}`), so under per-element SSA the mention keeps
+    // `a(k)` alive and no dead store fires. The control: an element with
+    // NO mention of any kind still reports.
     let mut a = Analyser::new();
     let r = a.analyse(
         "proc f {} { set a(k) 1; set a(j) 2; puts $a(j); puts {$a(k)} }",
         "tcl8.6",
     );
     assert!(
-        r.diagnostics.iter().any(|d| d.code == DiagCode::W220),
-        "braced literal must not suppress the a(k) dead store; got {:?}",
+        !r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W220 || d.code == DiagCode::W211),
+        "a braced mention conservatively keeps the element alive; got {:?}",
+        r.diagnostics,
+    );
+    let mut b = Analyser::new();
+    let r = b.analyse("proc f {} { set a(k) 1; set a(j) 2; puts $a(j) }", "tcl8.6");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W220 || d.code == DiagCode::W211),
+        "an unmentioned dead element write still reports; got {:?}",
         r.diagnostics,
     );
 }

@@ -716,16 +716,17 @@ fn s102_silent_for_traced_variable() {
 
 #[test]
 fn s102_silent_for_array_element_conflation() {
-    // FP guard: array-element writes collapse onto one SSA symbol per array
-    // (the `(key)` suffix is stripped before interning) — must not be
-    // reported as one variable oscillating.
+    // FP guard (per-element SSA): different constant-keyed elements are
+    // independent variables — per-element-stable types must never read as
+    // one variable oscillating. (The SAME element oscillating is the TP
+    // case — `s102_fires_for_same_array_element_oscillation`.)
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
         &uri,
         "proc f {} {\n    set arr(x) 0\n    while {1} {\n        \
          set arr(x) [expr {$arr(x) + 1}]\n        \
-         set arr(x) [string range $arr(x) 0 end]\n    }\n}\n",
+         set arr(y) [string range z 0 end]\n    }\n}\n",
     );
     assert!(!codes(&diags).contains("S102"), "{diags:?}");
 }
@@ -788,9 +789,9 @@ fn s102_fires_for_rename_indirection() {
 
 #[test]
 fn s100_silent_for_array_element_use_site() {
-    // FP-SH-13 extended to the use-site (S100/S101) pass: `arr(n)` is always
-    // int and `arr(label)` always string, but they collapse onto one symbol —
-    // `incr arr(n)` must not read the conflated symbol as string and fire S100.
+    // Per-element SSA (type-tracking P5): `arr(n)` and `arr(label)` are
+    // independent variables — `incr arr(n)` reads the INT element, never a
+    // conflated symbol carrying the sibling's string.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -799,6 +800,34 @@ fn s100_silent_for_array_element_use_site() {
     );
     let cs = codes(&diags);
     assert!(!cs.contains("S100") && !cs.contains("S101"), "{diags:?}");
+}
+
+#[test]
+fn array_dynamic_key_write_stays_silent_on_element_reads() {
+    // A dynamic-key write may hit any element: the element's type joins
+    // with the written type (INT ⊔ INT here), so the later `expr` read of
+    // `$cfg(a)` neither warns nor folds to the wrong constant.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {i} {\n    set cfg(a) 1\n    set cfg($i) 99\n    return [expr {$cfg(a) + 1}]\n}\n",
+    );
+    assert!(diags.is_empty(), "{diags:?}");
+}
+
+#[test]
+fn s102_fires_for_same_array_element_oscillation() {
+    // The flip side of per-element precision: ONE element oscillating
+    // int ↔ string every iteration is a genuine re-thunk (the old
+    // conflation exclusion was a forced false negative here).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc f {} {\n    set arr(x) 0\n    while {1} {\n        set arr(x) [expr {$arr(x) + 1}]\n        set arr(x) [string range $arr(x) 0 end]\n    }\n}\n",
+    );
+    assert!(codes(&diags).contains("S102"), "{diags:?}");
 }
 
 #[test]

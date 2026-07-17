@@ -242,24 +242,22 @@ impl Value {
         let s = self.to_str();
         let t = s.trim();
         if let Some(num) = number::parse_whole(t) {
-            return Ok(match num {
-                Number::Int(n) => n != 0,
-                Number::Double(f) => f != 0.0,
-                Number::Big { .. } | Number::Nan { .. } => true,
-            });
+            return match num {
+                Number::Int(n) => Ok(n != 0),
+                Number::Double(f) => Ok(f != 0.0),
+                // A parsed `Big` is beyond `i64`, hence never zero.
+                Number::Big { .. } => Ok(true),
+                // NaN is a domain error in a boolean context (tclsh 8.6/9.0:
+                // "floating point value is Not a Number"), never truthy.
+                Number::Nan { .. } => Err(TclError::new("floating point value is Not a Number")),
+            };
         }
-        // C's `ParseBoolean` accepts any unambiguous case-insensitive *prefix*
-        // of true / false / yes / no / on / off (`tclObj.c`). A bare `o` is
-        // ambiguous between `on` and `off`, so it needs at least two characters.
-        let lower = t.to_ascii_lowercase();
-        match lower.chars().next() {
-            Some('t') if "true".starts_with(lower.as_str()) => Ok(true),
-            Some('y') if "yes".starts_with(lower.as_str()) => Ok(true),
-            Some('f') if "false".starts_with(lower.as_str()) => Ok(false),
-            Some('n') if "no".starts_with(lower.as_str()) => Ok(false),
-            Some('o') if lower.len() >= 2 && "on".starts_with(lower.as_str()) => Ok(true),
-            Some('o') if lower.len() >= 2 && "off".starts_with(lower.as_str()) => Ok(false),
-            _ => Err(TclError::new(format!(
+        // The canonical word acceptor (`ParseBoolean`, tclObj.c): any
+        // unambiguous case-insensitive prefix of the six boolean words —
+        // one home in `tcl_syntax::boolean`, oracle-table-pinned.
+        match tcl_syntax::boolean::parse_boolean_word(t) {
+            Some(b) => Ok(b),
+            None => Err(TclError::new(format!(
                 "expected boolean value but got {}",
                 list::describe_bad_value(&s)
             ))),
@@ -320,5 +318,26 @@ mod tests {
         assert!(Value::string("yes").as_bool().unwrap());
         assert!(!Value::string("off").as_bool().unwrap());
         assert!(Value::string("3").as_bool().unwrap());
+    }
+
+    /// The boolean-context acceptor, oracle-pinned (tclsh 8.6/9.0): word
+    /// prefixes resolve, any number compares against zero, `Inf` is truthy —
+    /// and `NaN` is a domain error ("floating point value is Not a Number"),
+    /// never a truth value.
+    #[test]
+    fn boolean_context_matches_oracle() {
+        assert!(Value::string("tru").as_bool().unwrap());
+        assert!(!Value::string("of").as_bool().unwrap());
+        assert!(Value::string("0.5").as_bool().unwrap());
+        assert!(!Value::string("0x0").as_bool().unwrap());
+        assert!(Value::string("Inf").as_bool().unwrap());
+        assert!(Value::string("18446744073709551616").as_bool().unwrap());
+        let err = Value::string("NaN").as_bool().unwrap_err();
+        assert!(
+            err.message.contains("Not a Number"),
+            "NaN must be the C domain error, got: {}",
+            err.message
+        );
+        assert!(Value::string("o").as_bool().is_err(), "ambiguous prefix");
     }
 }

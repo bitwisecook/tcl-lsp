@@ -35,6 +35,36 @@ use tcl_syntax::value::{ValueError, ValueOps};
 use crate::interp::Vm;
 use crate::value::Value;
 
+/// `incr` / `dict incr` addition over the same integer tower `expr` uses: a
+/// sum past `i64` promotes to `i128` (e.g. `incr` at `i64::MAX` yields
+/// `9223372036854775808`), and one past `i128` promotes to an
+/// **arbitrary-precision bignum** rather than erroring — matching tclsh
+/// (`RUST_ISSUE_095`/`RUST_ISSUE_011`/`RUST_ISSUE_171`). A free function so the
+/// `dict incr` paths (command and `DICT_INCR_IMM` opcode) share it without
+/// needing the [`ValueOps`] receiver.
+pub(crate) fn int_add(a: Option<&Value>, b: &Value) -> Result<Value, ValueError> {
+    // Fast `i128` tier: both operands fit and the sum doesn't overflow.
+    let x_small = a.map_or(Some(0), Value::as_i128);
+    if let (Some(x), Some(y)) = (x_small, b.as_i128())
+        && let Some(sum) = x.checked_add(y)
+    {
+        return Ok(crate::expr::int_value(sum));
+    }
+    // Bignum tier: an operand (or the sum) exceeds `i128`. A non-integer
+    // operand is still the `NotInteger` error — the stored value's error
+    // surfacing before the increment's, as in C.
+    let to_big = |v: &Value| {
+        crate::expr::value_as_bigint(v)
+            .ok_or_else(|| ValueError::NotInteger(v.to_str().to_string()))
+    };
+    let xb = match a {
+        Some(v) => to_big(v)?,
+        None => num_bigint::BigInt::from(0),
+    };
+    let yb = to_big(b)?;
+    Ok(crate::expr::big_value(&(xb + yb)))
+}
+
 impl ValueOps for Vm {
     type Value = Value;
 
@@ -71,31 +101,10 @@ impl ValueOps for Vm {
             .map_err(|_| ValueError::NotInteger(v.to_str().to_string()))
     }
 
-    /// `incr` / `dict incr` addition over the same integer tower `expr` uses: a
-    /// sum past `i64` promotes to `i128` (e.g. `incr` at `i64::MAX` yields
-    /// `9223372036854775808`), and one past `i128` promotes to an
-    /// **arbitrary-precision bignum** rather than erroring — matching tclsh
-    /// (`RUST_ISSUE_095`/`RUST_ISSUE_011`/`RUST_ISSUE_171`).
+    /// The tower addition shared with `dict incr` — see the free
+    /// [`int_add`], which this merely re-exposes at the `ValueOps` seam.
     fn int_add(&mut self, a: Option<&Value>, b: &Value) -> Result<Value, ValueError> {
-        // Fast `i128` tier: both operands fit and the sum doesn't overflow.
-        let x_small = a.map_or(Some(0), Value::as_i128);
-        if let (Some(x), Some(y)) = (x_small, b.as_i128())
-            && let Some(sum) = x.checked_add(y)
-        {
-            return Ok(crate::expr::int_value(sum));
-        }
-        // Bignum tier: an operand (or the sum) exceeds `i128`. A non-integer
-        // operand is still the `NotInteger` error.
-        let to_big = |v: &Value| {
-            crate::expr::value_as_bigint(v)
-                .ok_or_else(|| ValueError::NotInteger(v.to_str().to_string()))
-        };
-        let xb = match a {
-            Some(v) => to_big(v)?,
-            None => num_bigint::BigInt::from(0),
-        };
-        let yb = to_big(b)?;
-        Ok(crate::expr::big_value(&(xb + yb)))
+        int_add(a, b)
     }
 
     fn as_double(&mut self, v: &Value) -> Result<f64, ValueError> {

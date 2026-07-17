@@ -1180,12 +1180,27 @@ fn seed_entry_taints(
     // to the local (version > 0) is unaffected; shadowing falls out of the SSA
     // versioning, not a check here.
     for spec in tcl_registry::special_vars::special_vars_for_dialect(dialect.unwrap_or("")) {
-        if let Some(colour) = spec.read_taint
-            && let Some(sym) = ssa.var_symbol(spec.name)
-        {
+        let Some(colour) = spec.read_taint else {
+            continue;
+        };
+        if let Some(sym) = ssa.var_symbol(spec.name) {
             taints.entry((sym, 0)).or_insert(TaintLattice {
                 colours: reg_colour(colour),
             });
+        }
+        // Per-element SSA: `$env(PATH)` reads its own `env(PATH)` symbol —
+        // every constant-keyed element of a tainted special array carries
+        // the source colour at version 0 too.
+        for name in ssa.var_names() {
+            if name.len() > spec.name.len()
+                && name.starts_with(spec.name)
+                && name.as_bytes()[spec.name.len()] == b'('
+                && let Some(sym) = ssa.var_symbol(name)
+            {
+                taints.entry((sym, 0)).or_insert(TaintLattice {
+                    colours: reg_colour(colour),
+                });
+            }
         }
     }
 }
@@ -3544,6 +3559,7 @@ mod tests {
             statement: stmt,
             uses: HashMap::new(),
             defs: [(x, 1u32)].into_iter().collect(),
+            may_defs: std::collections::HashSet::new(),
         };
         ssa.blocks.insert(
             entry,
@@ -3619,11 +3635,13 @@ mod tests {
             statement: assign,
             uses: HashMap::new(),
             defs: [(x, 1u32)].into_iter().collect(),
+            may_defs: std::collections::HashSet::new(),
         };
         let ssa_eval = SsaStatement {
             statement: eval_call,
             uses: [(x, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
 
         ssa.blocks.insert(
@@ -3692,6 +3710,7 @@ mod tests {
             statement: assign,
             uses: HashMap::new(),
             defs: [(ssa.intern_var("x"), 1u32)].into_iter().collect(),
+            may_defs: std::collections::HashSet::new(),
         };
         let ssa_sink = SsaStatement {
             statement: sink,
@@ -3700,6 +3719,7 @@ mod tests {
                 .map(|&(n, v)| (ssa.intern_var(n), v))
                 .collect(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
         ssa.blocks.insert(
             entry,
@@ -3849,16 +3869,19 @@ mod tests {
             statement: s0,
             uses: HashMap::new(),
             defs: [(x, 1u32)].into_iter().collect(),
+            may_defs: std::collections::HashSet::new(),
         };
         let ssa_s1 = SsaStatement {
             statement: s1,
             uses: [(x, 1u32)].into_iter().collect(),
             defs: [(y, 1u32)].into_iter().collect(),
+            may_defs: std::collections::HashSet::new(),
         };
         let ssa_s2 = SsaStatement {
             statement: s2,
             uses: [(y, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
         ssa.blocks.insert(
             entry,
@@ -3966,6 +3989,7 @@ mod tests {
                 statement: file_call(&["delete", "$p"]),
                 uses: [(ssa.intern_var("p"), 1u32)].into_iter().collect(),
                 defs: HashMap::new(),
+                may_defs: std::collections::HashSet::new(),
             }]
         });
         let d = w.iter().find(|w| w.code == DiagCode::W313).expect("W313");
@@ -3998,11 +4022,13 @@ mod tests {
                 statement: assign,
                 uses: [(base, 0u32)].into_iter().collect(),
                 defs: [(p, 1u32)].into_iter().collect(),
+                may_defs: std::collections::HashSet::new(),
             };
             let s1 = SsaStatement {
                 statement: file_call(&["delete", "$p"]),
                 uses: [(p, 1u32)].into_iter().collect(),
                 defs: HashMap::new(),
+                may_defs: std::collections::HashSet::new(),
             };
             vec![s0, s1]
         });
@@ -4032,6 +4058,7 @@ mod tests {
                     statement: file_call(&["delete", "/tmp/foo"]),
                     uses: HashMap::new(),
                     defs: HashMap::new(),
+                    may_defs: std::collections::HashSet::new(),
                 }]
             })
             .is_empty()
@@ -4105,6 +4132,7 @@ mod tests {
             statement: stmt,
             uses: HashMap::new(),
             defs: [(x, 1u32)].into_iter().collect(),
+            may_defs: std::collections::HashSet::new(),
         };
         ssa.blocks.insert(
             entry,
@@ -4181,11 +4209,13 @@ mod tests {
             statement: assign,
             uses: HashMap::new(),
             defs: [(pattern, 1u32)].into_iter().collect(),
+            may_defs: std::collections::HashSet::new(),
         };
         let ssa_regexp = SsaStatement {
             statement: regexp_call,
             uses: [(pattern, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
 
         ssa.blocks.insert(
@@ -4275,11 +4305,13 @@ mod tests {
             statement: assign,
             uses: HashMap::new(),
             defs: [(pattern, 1u32)].into_iter().collect(),
+            may_defs: std::collections::HashSet::new(),
         };
         let ssa_regexp = SsaStatement {
             statement: regexp_call,
             uses: [(pattern, 1u32)].into_iter().collect(),
             defs: HashMap::new(),
+            may_defs: std::collections::HashSet::new(),
         };
 
         ssa.blocks.insert(

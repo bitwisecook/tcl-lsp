@@ -81,6 +81,7 @@ pub fn spec() -> CommandSpec {
         )],
         lowering_hook: Some(crate::hooks::LoweringHookId::Foreach),
         return_type: Some(TclType::String),
+        var_write_typing: VarWriteTyping::ElementsOf { container_arg: 0 },
         hover: Some(HoverSnippet {
             summary: "Iterate over list elements with one or more loop variables.",
             synopsis: &[

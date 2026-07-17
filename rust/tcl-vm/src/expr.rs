@@ -34,38 +34,86 @@ use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 use tcl_runtime_api::Code;
 use tcl_syntax::expr::{BinOp, ExprOps, NumericCompare, UnaryOp};
 use tcl_syntax::number::{self, Number};
+use tcl_syntax::number_tower;
 
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
 
 /// A coerced numeric operand. `Big` carries an out-of-`i64` integer that still
-/// fits `i128` — the fast integer tier; an operand or result beyond `i128`
-/// promotes to the arbitrary-precision [`BigInt`] path (`RUST_ISSUE_011`) rather
-/// than wrapping.
-#[derive(Clone, Copy)]
+/// fits `i128` — the fast integer tier; `Huge` is the arbitrary-precision tier
+/// beyond it (`RUST_ISSUE_011`), so no integer magnitude wraps, errors, or
+/// degrades to a lossy `double`.
 enum Num {
     Int(i64),
     Big(i128),
+    Huge(BigInt),
     Dbl(f64),
 }
 
-fn num_f(n: Num) -> f64 {
+fn num_f(n: &Num) -> f64 {
     match n {
-        Num::Int(i) => i as f64,
-        Num::Big(i) => i as f64,
-        Num::Dbl(f) => f,
+        Num::Int(i) => *i as f64,
+        Num::Big(i) => *i as f64,
+        // Float contagion converts a bignum operand rather than refusing it —
+        // C's `Tcl_GetNumberFromObj` + `TclBignumToDouble` rounding.
+        Num::Huge(b) => big_to_f64(b),
+        Num::Dbl(f) => *f,
     }
 }
 
-/// The integer (`i128`) view of a non-float operand, for the integer arithmetic
-/// path. `None` for a float (which routes to `dbl_arith`).
-fn num_i128(n: Num) -> Option<i128> {
+/// The integer (`i128`) view of a fast-tier operand, for the integer arithmetic
+/// path. `None` for a float (which routes to `dbl_arith`) and for an integer
+/// past `i128` (which routes to `big_arith`).
+fn num_i128(n: &Num) -> Option<i128> {
     match n {
-        Num::Int(i) => Some(i128::from(i)),
-        Num::Big(i) => Some(i),
+        Num::Int(i) => Some(i128::from(*i)),
+        Num::Big(i) => Some(*i),
+        Num::Huge(_) | Num::Dbl(_) => None,
+    }
+}
+
+/// The exact bignum view of an integer operand (`None` for a float), for the
+/// arbitrary-precision path when the `i128` fast tier can't hold both operands.
+fn num_as_bigint(n: &Num) -> Option<BigInt> {
+    match n {
+        Num::Int(i) => Some(BigInt::from(*i)),
+        Num::Big(i) => Some(BigInt::from(*i)),
+        Num::Huge(b) => Some(b.clone()),
         Num::Dbl(_) => None,
     }
+}
+
+/// The nearest `f64` to an arbitrary-precision integer — C's
+/// `TclBignumToDouble`: round-to-nearest-even over the *full* value, overflowing
+/// to `±Inf` past the double range. (`num-bigint`'s `to_f64` truncates to the
+/// top 64 bits before rounding, which mis-rounds a tie whose deciding bits sit
+/// below the truncation — e.g. `2**127 + 2**74 + 1` must round up.)
+pub(crate) fn big_to_f64(b: &BigInt) -> f64 {
+    let mag = b.magnitude();
+    let bits = mag.bits();
+    let f = if bits <= 64 {
+        // Every bit is present in one word: the primitive u64→f64 cast is
+        // exactly the round-to-nearest-even C performs.
+        mag.to_u64().map_or(0.0, |m| m as f64)
+    } else if bits > 1024 {
+        // Past `DBL_MAX_EXP` no finite double exists; C returns ±HUGE_VAL.
+        f64::INFINITY
+    } else {
+        // Keep the top 64 bits. The dropped remainder matters only when the
+        // kept part sits exactly on a rounding tie (its low 11 bits are one
+        // half-ulp), where any dropped bit must break the tie upward.
+        let excess = bits - 64;
+        let mut top = (mag >> excess).to_u64().unwrap_or(u64::MAX);
+        let dropped_nonzero = mag.trailing_zeros().is_some_and(|tz| tz < excess);
+        if top & 0x7FF == 0x400 && dropped_nonzero {
+            top += 1;
+        }
+        // `excess` ≤ 960 here, so the exponent fits `i32` and the power-of-two
+        // scale is exact.
+        (top as f64) * 2f64.powi(i32::try_from(excess).unwrap_or(i32::MAX))
+    };
+    if b.is_negative() { -f } else { f }
 }
 
 /// Wrap an `i128` arithmetic result as a value: a plain wide when it fits,
@@ -106,48 +154,45 @@ pub(crate) fn value_as_bigint(v: &Value) -> Option<BigInt> {
 
 /// Integer arithmetic in arbitrary precision — the promotion target of the
 /// `i128` fast path ([`int_arith`]) on overflow, and the direct path when an
-/// operand already exceeds `i128`. Div/mod are floor (sign of divisor), matching
-/// Tcl; bit ops use two's-complement (`num-bigint`'s semantics = Tcl's).
+/// operand already exceeds `i128`. The value semantics — floor div/mod, the
+/// `**` collapses, the shift edge rules, two's-complement bit ops — are the
+/// shared tower's ([`number_tower`]); this adopter adds the error surfaces
+/// (message text) and the count/exponent narrowing.
 fn big_arith(op: BinOp, x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
     use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, Pow, RShift, Sub};
     let r = match op {
         Add => x + y,
         Sub => x - y,
         Mul => x * y,
-        Div => {
-            if y.is_zero() {
-                return Err(divzero());
-            }
-            x.div_floor(y)
-        }
-        Mod => {
-            if y.is_zero() {
-                return Err(divzero());
-            }
-            x.mod_floor(y)
-        }
+        Div => number_tower::int_div(x, y).ok_or_else(divzero)?,
+        Mod => number_tower::int_mod(x, y).ok_or_else(divzero)?,
         Pow => return big_pow(x, y),
-        LShift | RShift => {
-            let Some(shift) = y.to_usize() else {
-                if y.is_negative() {
-                    return Err(TclError::new("negative shift argument"));
-                }
-                // A shift wider than any representable result: `<<` overflows to
-                // an enormous value (unrepresentable — but such a huge shift is a
-                // pathological program), `>>` collapses to the sign.
-                return Ok(big_value(
-                    &(if matches!(op, RShift) && x.is_negative() {
-                        BigInt::from(-1)
-                    } else {
-                        BigInt::zero()
-                    }),
-                ));
-            };
-            if matches!(op, LShift) {
-                x << shift
-            } else {
-                x >> shift
+        LShift => {
+            if y.is_negative() {
+                return Err(TclError::new("negative shift argument"));
             }
+            // C checks the zero base before the count: `0 << huge` is 0,
+            // not the count-overflow error.
+            if num_traits::Zero::is_zero(x) {
+                return Ok(Value::int(0));
+            }
+            // C's left-shift count must fit an `int` (`mp_mul_2d`): past
+            // `INT_MAX` it raises the overflow error rather than attempt an
+            // astronomic result (tclsh: `2 << 2**32` errors).
+            let count = y
+                .to_u32()
+                .filter(|&c| i32::try_from(c).is_ok())
+                .ok_or_else(|| TclError::new("integer value too large to represent"))?;
+            number_tower::BigIntOps::shl(x, count)
+        }
+        RShift => {
+            // A count past `i64` collapses exactly like any count past the
+            // operand width, so fold it to a same-sign stand-in for the tower.
+            let count = y
+                .to_i64()
+                .unwrap_or(if y.is_negative() { -1 } else { i64::MAX });
+            number_tower::int_shr(x, count)
+                .ok_or_else(|| TclError::new("negative shift argument"))?
         }
         BitAnd => x & y,
         BitOr => x | y,
@@ -157,35 +202,26 @@ fn big_arith(op: BinOp, x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
     Ok(big_value(&r))
 }
 
-/// `x ** y` in arbitrary precision. A negative exponent on an integer base is `0`
-/// except for `±1` (C's `TclExecute` integer-power rule); a huge exponent that
-/// can't fit `u32` is only reachable with `|base| <= 1` (else the result is
-/// astronomically large), so those collapse to the base-driven value.
+/// `x ** y` in arbitrary precision, via the tower's
+/// [`int_pow`](number_tower::int_pow). An exponent past `i64` folds to an
+/// equal-sign, equal-parity stand-in: beyond [`number_tower::MAX_EXPONENT`]
+/// only the `0`/`±1` collapses remain computable, and those depend on nothing
+/// but the exponent's sign and parity (tclsh: `2 ** 10**20` is "exponent too
+/// large" while `(-1) ** 10**20` is `1`).
 fn big_pow(x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
-    if y.is_negative() {
-        let r = if x == &BigInt::from(1) {
-            1
-        } else if x == &BigInt::from(-1) {
-            if y.is_even() { 1 } else { -1 }
-        } else if x.is_zero() {
-            return Err(TclError::new("exponentiation of zero by negative power"));
-        } else {
-            0
-        };
-        return Ok(Value::int(r));
+    let exponent = y.to_i64().unwrap_or(match (y.is_negative(), y.is_even()) {
+        (true, true) => -2,
+        (true, false) => -1,
+        (false, true) => number_tower::MAX_EXPONENT + 1,
+        (false, false) => number_tower::MAX_EXPONENT + 2,
+    });
+    match number_tower::int_pow(x, exponent) {
+        Some(r) => Ok(big_value(&r)),
+        // `int_pow` declines exactly two cases: a zero base with a negative
+        // exponent (the domain error) and an exponent past the C limit.
+        None if x.is_zero() => Err(TclError::new("exponentiation of zero by negative power")),
+        None => Err(TclError::new("exponent too large")),
     }
-    if let Some(exp) = y.to_u32() {
-        return Ok(big_value(&x.pow(exp)));
-    }
-    // Exponent beyond `u32`: only `|x| <= 1` yields a representable result.
-    let r = if x == &BigInt::from(1) || x.is_zero() {
-        x.clone()
-    } else if x == &BigInt::from(-1) {
-        BigInt::from(if y.is_even() { 1 } else { -1 })
-    } else {
-        return Err(TclError::new("exponent too large"));
-    };
-    Ok(big_value(&r))
 }
 
 fn to_num(v: &Value) -> Result<Num, TclError> {
@@ -195,13 +231,18 @@ fn to_num(v: &Value) -> Result<Num, TclError> {
     if let Some(b) = v.as_i128() {
         return Ok(Num::Big(b));
     }
-    match v.as_double() {
-        Ok(f) => Ok(Num::Dbl(f)),
-        Err(_) => Err(TclError::new(format!(
-            "can't use non-numeric string \"{}\" as operand of arithmetic",
-            v.to_str()
-        ))),
+    if let Ok(f) = v.as_double() {
+        return Ok(Num::Dbl(f));
     }
+    // `as_double` declines an integer past `i128` (keeping the tower exact); it
+    // is still a numeric operand — the arbitrary-precision tier.
+    if let Some(b) = value_as_bigint(v) {
+        return Ok(Num::Huge(b));
+    }
+    Err(TclError::new(format!(
+        "can't use non-numeric string \"{}\" as operand of arithmetic",
+        v.to_str()
+    )))
 }
 
 /// Regenerate the canonical numeric string rep of an `expr` result
@@ -249,6 +290,11 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
     if let Ok(f) = v.as_double() {
         return Ok(Num::Dbl(f));
     }
+    // An integer past `i128` is a numeric operand (the arbitrary-precision
+    // tier), not an operand-type error.
+    if let Some(b) = value_as_bigint(v) {
+        return Ok(Num::Huge(b));
+    }
     // `nan` (and `±NaN`) is a valid floating-point *value* that simply cannot be
     // an arithmetic operand — C words that differently from a non-number string.
     let s = v.to_str();
@@ -286,7 +332,11 @@ fn unary_operand_err(v: &Value, op: &str) -> TclError {
     TclError::new(format!("cannot use {desc} \"{s}\" as operand of \"{op}\""))
 }
 
-/// Floored integer division (Tcl `/`: rounds toward negative infinity).
+/// Floored integer division (Tcl `/`: rounds toward negative infinity) — the
+/// `i128` fast-tier mirror of `tcl_syntax::number_tower::int_div`. The orphan
+/// rule forbids implementing the tower's `BigIntOps` for a primitive in this
+/// crate, so the fast tier hand-rolls the same floor rule; the bignum tier
+/// ([`big_arith`]) calls the tower directly.
 fn fdiv(x: i128, y: i128) -> i128 {
     let q = x.wrapping_div(y);
     let r = x.wrapping_rem(y);
@@ -297,7 +347,9 @@ fn fdiv(x: i128, y: i128) -> i128 {
     }
 }
 
-/// Floored integer modulo (Tcl `%`: result takes the sign of the divisor).
+/// Floored integer modulo (Tcl `%`: result takes the sign of the divisor) —
+/// the `i128` fast-tier mirror of `tcl_syntax::number_tower::int_mod`, kept
+/// hand-rolled for the same orphan-rule reason as [`fdiv`].
 fn fmod_i(x: i128, y: i128) -> i128 {
     let r = x.wrapping_rem(y);
     if r != 0 && ((r < 0) != (y < 0)) {
@@ -386,7 +438,14 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
         Sub => x - y,
         Mul => x * y,
         Div => x / y,
-        Pow => x.powf(y),
+        Pow => {
+            // C raises the domain error before computing (`tclExecute.c`
+            // EXPONENT_OF_ZERO): `0.0 ** -1` is an error, never Inf.
+            if x == 0.0 && y < 0.0 {
+                return Err(TclError::new("exponentiation of zero by negative power"));
+            }
+            x.powf(y)
+        }
         _ => {
             return Err(TclError::new(
                 "can't use floating-point value as operand of this operator",
@@ -426,26 +485,29 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
     let x = to_num_operand(a, "left", op)?;
     let y = to_num_operand(b, "right", op)?;
     // Fast integer path: both operands fit `i128` (promotes to bignum on overflow).
-    if let (Some(xi), Some(yi)) = (num_i128(x), num_i128(y)) {
+    if let (Some(xi), Some(yi)) = (num_i128(&x), num_i128(&y)) {
         return int_arith(op, xi, yi);
     }
     // Not both `i128`-fit. When *both* are integers (an operand already past
     // `i128`), stay exact via the arbitrary-precision path (`RUST_ISSUE_011`).
-    if let (Some(xb), Some(yb)) = (value_as_bigint(a), value_as_bigint(b)) {
+    if let (Some(xb), Some(yb)) = (num_as_bigint(&x), num_as_bigint(&y)) {
         return big_arith(op, &xb, &yb);
     }
-    // At least one operand is a genuine float (or non-number).
+    // At least one operand is a genuine float.
     if is_int_only(op) {
         // An integer-only operator with a float operand: that operand is the
         // error (a huge-integer operand took the bignum path above). Name the
         // offending side (left wins if both are floats, matching C's order).
-        if value_as_bigint(a).is_none() {
+        if matches!(x, Num::Dbl(_)) {
             Err(float_operand_err(a, "left", op))
         } else {
             Err(float_operand_err(b, "right", op))
         }
     } else {
-        dbl_arith(op, num_f(x), num_f(y))
+        // Float contagion: the integer operand — bignum included — converts to
+        // its nearest double (`num_f`), then the operation is pure `f64`
+        // (tclsh: `2**200 + 1.5` is `1.6069380442589903e+60`, not an error).
+        dbl_arith(op, num_f(&x), num_f(&y))
     }
 }
 
@@ -578,26 +640,26 @@ pub fn compare(op: BinOp, a: &Value, b: &Value) -> Result<bool, TclError> {
 pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
     use UnaryOp::{BitNot, Neg, Not, Pos, WordNot};
     match op {
-        // `to_num` promotes an out-of-wide literal to `Big`, so `-2^63` (and the
-        // rest of the i128 range) negates correctly: `int_value` narrows
-        // `-9223372036854775808` back to the most-negative wide. A non-numeric
-        // operand is the C operand-type error (`as operand of "-"`).
+        // `to_num` promotes an out-of-wide literal to `Big` (then `Huge`), so
+        // `-2^63` — and any magnitude beyond — negates exactly: `int_value` /
+        // `big_value` narrow back to a wide when the result re-fits. A
+        // non-numeric operand is the C operand-type error (`as operand of "-"`).
         Neg => match to_num(v) {
-            Ok(Num::Int(n)) => Ok(Value::int(n.wrapping_neg())),
+            // `-i64::MIN` does not fit a wide — promote through the i128
+            // tier exactly (a *computed* MIN reaches this arm as `Int`).
+            Ok(Num::Int(n)) => Ok(int_value(-i128::from(n))),
             Ok(Num::Big(b)) => Ok(int_value(b.wrapping_neg())),
-            // A huge integer (past `i128`) coerces to `Num::Dbl`; negate it
-            // exactly as a bignum, not as a lossy float (`RUST_ISSUE_011`).
-            Ok(Num::Dbl(f)) => {
-                Ok(value_as_bigint(v).map_or_else(|| Value::double(-f), |b| big_value(&-b)))
-            }
+            // An integer past `i128` negates exactly in arbitrary precision,
+            // never as a lossy float (`RUST_ISSUE_011`).
+            Ok(Num::Huge(b)) => Ok(big_value(&-b)),
+            Ok(Num::Dbl(f)) => Ok(Value::double(-f)),
             Err(_) => Err(unary_operand_err(v, "-")),
         },
         Pos => match to_num(v) {
             Ok(Num::Int(n)) => Ok(Value::int(n)),
             Ok(Num::Big(b)) => Ok(int_value(b)),
-            Ok(Num::Dbl(f)) => {
-                Ok(value_as_bigint(v).map_or_else(|| Value::double(f), |b| big_value(&b)))
-            }
+            Ok(Num::Huge(b)) => Ok(big_value(&b)),
+            Ok(Num::Dbl(f)) => Ok(Value::double(f)),
             Err(_) => Err(unary_operand_err(v, "+")),
         },
         // `~` needs an integer; a double is a "floating-point value" operand
@@ -605,11 +667,9 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
         BitNot => match to_num(v) {
             Ok(Num::Int(n)) => Ok(Value::int(!n)),
             Ok(Num::Big(b)) => Ok(int_value(!b)),
-            // A huge integer bit-complements exactly (`~x == -x-1`); a real float
-            // is the operand error.
-            Ok(Num::Dbl(_)) => value_as_bigint(v)
-                .map_or_else(|| Err(unary_operand_err(v, "~")), |b| Ok(big_value(&!b))),
-            Err(_) => Err(unary_operand_err(v, "~")),
+            // An integer past `i128` bit-complements exactly (`~x == -x-1`).
+            Ok(Num::Huge(b)) => Ok(big_value(&!b)),
+            Ok(Num::Dbl(_)) | Err(_) => Err(unary_operand_err(v, "~")),
         },
         // `!` accepts any boolean (incl. numbers and the boolean words); a NaN or
         // non-numeric non-boolean is the operand error (not "expected boolean").
@@ -808,6 +868,23 @@ mod tests {
                 .to_string(),
             "9223372036854775808"
         );
+        // The shared-tower oracle rows (tclsh 8.6/9.0): floor div/mod at and
+        // beyond the wide boundary, the shift width-collapse, and `1 << 63`
+        // crossing into bignum.
+        assert_eq!(big(BinOp::Mod, "18446744073709551616", "7"), "2");
+        assert_eq!(
+            big(BinOp::Div, "18446744073709551616", "-3"),
+            "-6148914691236517206"
+        );
+        assert_eq!(big(BinOp::RShift, "18446744073709551616", "64"), "1");
+        assert_eq!(big(BinOp::RShift, "-18446744073709551616", "200"), "-1");
+        assert_eq!(
+            arith(BinOp::LShift, &Value::int(1), &Value::int(63))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            "9223372036854775808"
+        );
         // Exact bignum comparison — an `f64` would collapse `2^100` and `2^100+1`.
         let (a, b) = (
             "1267650600228229401496703205376",
@@ -830,7 +907,214 @@ mod tests {
                 .to_string(),
             format!("-{b}")
         );
+        assert_eq!(
+            unary(UnaryOp::BitNot, &Value::string("18446744073709551616"))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            "-18446744073709551617"
+        );
         assert!(arith(BinOp::Pow, &Value::int(0), &Value::int(-1)).is_err());
+    }
+
+    /// Operands already past `i128` are numeric (`Num::Huge`), not the
+    /// non-numeric-string operand error: they reach the arbitrary-precision
+    /// path in `arith`/`unary` and stay exact. All rows pinned to tclsh
+    /// 8.6.14 (`2**200` is the 61-digit 16069…376).
+    #[test]
+    fn operands_past_i128_reach_the_bignum_path() {
+        const P200: &str = "1606938044258990275541962092341162602522202993782792835301376";
+        let big = |op: BinOp, a: &str, b: &str| {
+            arith(op, &Value::string(a), &Value::string(b))
+                .unwrap()
+                .to_str()
+                .to_string()
+        };
+        // tclsh: 2**200 + 1 (the divergence that motivated the gap fix).
+        assert_eq!(
+            big(BinOp::Add, P200, "1"),
+            "1606938044258990275541962092341162602522202993782792835301377"
+        );
+        // tclsh: floor div/mod, shifts and bit ops over a beyond-i128 operand.
+        assert_eq!(big(BinOp::Mod, P200, "7"), "4");
+        assert_eq!(
+            big(BinOp::Div, P200, "-3"),
+            "-535646014752996758513987364113720867507400997927597611767126"
+        );
+        assert_eq!(big(BinOp::RShift, P200, "137"), "9223372036854775808");
+        assert_eq!(
+            big(BinOp::RShift, &format!("-{P200}"), "500"),
+            "-1",
+            "sign collapse past the width"
+        );
+        assert_eq!(big(BinOp::BitAnd, P200, "255"), "0");
+        assert_eq!(
+            big(BinOp::BitOr, P200, "1"),
+            "1606938044258990275541962092341162602522202993782792835301377"
+        );
+        // Unary over a beyond-i128 operand: exact negate / complement / pass.
+        assert_eq!(
+            unary(UnaryOp::Neg, &Value::string(P200))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            format!("-{P200}")
+        );
+        assert_eq!(
+            unary(UnaryOp::BitNot, &Value::string(P200))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            "-1606938044258990275541962092341162602522202993782792835301377"
+        );
+        assert_eq!(
+            unary(UnaryOp::Pos, &Value::string(P200))
+                .unwrap()
+                .to_str()
+                .to_string(),
+            P200
+        );
+        // Error surfaces on the bignum path keep C's message text.
+        let div0 = arith(BinOp::Div, &Value::string(P200), &Value::int(0)).unwrap_err();
+        assert_eq!(div0.message, "divide by zero");
+        let mod0 = arith(BinOp::Mod, &Value::string(P200), &Value::int(0)).unwrap_err();
+        assert_eq!(mod0.message, "divide by zero");
+    }
+
+    /// The `**` and shift guards of the shared tower, with C's message text:
+    /// the exponent limit is `MAX_EXPONENT` (2^28 - 1 — tclsh errors at
+    /// `2**268435456` where the old code computed a 33 MB number), a bignum
+    /// exponent keeps the `0`/`±1` collapses, and a left-shift count past
+    /// `INT_MAX` is C's overflow error rather than an astronomic attempt.
+    #[test]
+    fn pow_and_shift_guards_match_c() {
+        let errmsg = |op: BinOp, a: &Value, b: &Value| arith(op, a, b).unwrap_err().message;
+        // tclsh: expr {2**268435456} → exponent too large (268435455 is legal).
+        assert_eq!(
+            errmsg(BinOp::Pow, &Value::int(2), &Value::int(268_435_456)),
+            "exponent too large"
+        );
+        assert_eq!(
+            errmsg(BinOp::Pow, &Value::int(2), &Value::int(5_000_000_000)),
+            "exponent too large"
+        );
+        // tclsh: a beyond-i64 exponent still collapses for |base| <= 1 —
+        // parity included — and errors for any other base.
+        let huge = "99999999999999999999";
+        let pow = |a: i64, b: &str| {
+            arith(BinOp::Pow, &Value::int(a), &Value::string(b))
+                .unwrap()
+                .to_str()
+                .to_string()
+        };
+        assert_eq!(pow(1, huge), "1");
+        assert_eq!(pow(-1, huge), "-1"); // odd exponent
+        assert_eq!(pow(-1, "99999999999999999998"), "1"); // even exponent
+        assert_eq!(pow(0, huge), "0");
+        assert_eq!(
+            errmsg(BinOp::Pow, &Value::int(2), &Value::string(huge)),
+            "exponent too large"
+        );
+        assert_eq!(
+            errmsg(
+                BinOp::Pow,
+                &Value::int(0),
+                &Value::string(format!("-{huge}"))
+            ),
+            "exponentiation of zero by negative power"
+        );
+        // tclsh: expr {2 << 4294967296} → integer value too large to
+        // represent (count must fit C's int); negative counts keep their
+        // error on both tiers.
+        assert_eq!(
+            errmsg(BinOp::LShift, &Value::int(2), &Value::int(4_294_967_296)),
+            "integer value too large to represent"
+        );
+        assert_eq!(
+            errmsg(
+                BinOp::LShift,
+                &Value::int(2),
+                &Value::string("99999999999999999999")
+            ),
+            "integer value too large to represent"
+        );
+        assert_eq!(
+            errmsg(
+                BinOp::RShift,
+                &Value::string("18446744073709551616"),
+                &Value::int(-1)
+            ),
+            "negative shift argument"
+        );
+        // tclsh: a beyond-wide right-shift count collapses to the sign.
+        let big = |op: BinOp, a: &str, b: &str| {
+            arith(op, &Value::string(a), &Value::string(b))
+                .unwrap()
+                .to_str()
+                .to_string()
+        };
+        assert_eq!(big(BinOp::RShift, "2", huge), "0");
+        assert_eq!(big(BinOp::RShift, "-2", huge), "-1");
+    }
+
+    /// Float contagion over bignum operands: C converts the integer with
+    /// `TclBignumToDouble` (round-to-nearest-even over the full value) and
+    /// computes in `f64` — it does not refuse. Rows pinned to tclsh 8.6.14,
+    /// including the tie whose deciding bit sits below the top 64 (2^127 +
+    /// 2^74 + 1 must round *up*; a bare 64-bit truncation rounds it down).
+    #[test]
+    fn bignum_float_contagion_matches_c() {
+        let s = |t: &str| Value::string(t);
+        let f = |op: BinOp, a: &Value, b: &Value| arith(op, a, b).unwrap().to_str().to_string();
+        // tclsh: expr {1.5 + 18446744073709551616} — the *value* is exactly
+        // 2^64 (tclsh: entier of it is 18446744073709551616). tclsh 8.6
+        // prints it "1.844674407370955e+19", which does not round-trip (it
+        // re-parses as 2^64 - 2048); this toolchain's `format_double` is
+        // pinned to the shortest *round-tripping* form.
+        assert_eq!(
+            f(BinOp::Add, &Value::double(1.5), &s("18446744073709551616")),
+            "1.8446744073709552e+19"
+        );
+        // tclsh: expr {2**200 + 1.5} → 1.6069380442589903e+60
+        let p200 = "1606938044258990275541962092341162602522202993782792835301376";
+        assert_eq!(
+            f(BinOp::Add, &s(p200), &Value::double(1.5)),
+            "1.6069380442589903e+60"
+        );
+        // Round-to-nearest-even ties: 2^127+2^74 is exactly halfway (stays
+        // even → 2^127), 2^127+2^74+1 is just above it (rounds up).
+        assert_eq!(
+            f(
+                BinOp::Mul,
+                &s("170141183460469250621153235194464960512"),
+                &Value::double(1.0)
+            ),
+            "1.7014118346046923e+38"
+        );
+        assert_eq!(
+            f(
+                BinOp::Mul,
+                &s("170141183460469250621153235194464960513"),
+                &Value::double(1.0)
+            ),
+            "1.7014118346046927e+38"
+        );
+        // Past the double range the conversion overflows to Inf, as C's
+        // `TclBignumToDouble` does (tclsh: expr {1.0 + 10**309} → Inf).
+        let p1100 = arith(BinOp::Pow, &Value::int(2), &Value::int(1100)).unwrap();
+        assert_eq!(f(BinOp::Add, &p1100, &Value::double(1.0)), "Inf");
+        // An integer-only operator still rejects the *float* operand — the
+        // bignum side is fine (tclsh 9 wording, sided).
+        let e = arith(BinOp::Mod, &s(p200), &Value::double(1.5)).unwrap_err();
+        assert_eq!(
+            e.message,
+            "cannot use floating-point value \"1.5\" as right operand of \"%\""
+        );
+        let e = arith(BinOp::Mod, &Value::double(1.5), &s(p200)).unwrap_err();
+        assert_eq!(
+            e.message,
+            "cannot use floating-point value \"1.5\" as left operand of \"%\""
+        );
     }
 
     #[test]
@@ -858,7 +1142,7 @@ mod tests {
         assert!(!compare(BinOp::Eq, &big, &dbl).unwrap());
         assert!(compare(BinOp::Gt, &big, &dbl).unwrap());
         assert!(compare(BinOp::Lt, &dbl, &big).unwrap());
-        // Integers past i128 (lossy `Dbl` in `to_num`) against a double —
+        // Integers past i128 (the `CmpNum::Big` tier) against a double —
         // the bignum-vs-double arm: 2¹³⁰ vs 1.5×2¹³⁰-ish.
         let huge = Value::string("1361129467683753853853498429727072845824"); // 2^130
         assert!(compare(BinOp::Gt, &huge, &Value::double(1e39)).unwrap());

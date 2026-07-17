@@ -90,6 +90,7 @@ pub mod alias;
 pub mod analyser;
 pub mod analyses;
 pub mod auto_path_eval;
+pub mod bounded_set;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod cfg_layout;

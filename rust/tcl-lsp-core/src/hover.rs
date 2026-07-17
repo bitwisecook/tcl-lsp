@@ -44,6 +44,8 @@
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
+use std::collections::HashMap;
+
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -187,10 +189,8 @@ pub fn hover_with_profile(
             // pipeline (`CompilationUnit`), which requires a
             // registry; without one we surface just the reference
             // count.
-            let (type_info, taint_info) = match registry {
-                Some(reg) => infer_var_type_and_taint(source, reg, &var_name),
-                None => (None, None),
-            };
+            let (type_info, taint_info) =
+                var_type_annotations(source, line, character, &var_name, registry);
             return Some(Hover::markdown(var_hover_text(
                 var_def,
                 type_info.as_deref(),
@@ -2172,6 +2172,68 @@ pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<S
     None
 }
 
+/// The hover type/taint annotations for the variable at the cursor. Type
+/// inference is keyed by element-qualified SSA names (`arr(idx)` is its own
+/// variable), so the lookup name comes from
+/// [`find_var_element_at_position`]; scope-chain resolution stays on the
+/// base form the caller already has.
+fn var_type_annotations(
+    source: &str,
+    line: u32,
+    character: u32,
+    var_name: &str,
+    registry: Option<&CommandRegistry>,
+) -> (Option<String>, Option<String>) {
+    let type_var = find_var_element_at_position(source, line, character)
+        .unwrap_or_else(|| var_name.to_owned());
+    match registry {
+        Some(reg) => infer_var_type_and_taint(source, reg, &type_var),
+        None => (None, None),
+    }
+}
+
+/// [`find_var_at_position`] keeping a constant array key: `$arr(idx)` under
+/// the cursor resolves to the per-element SSA variable `arr(idx)` (a dynamic
+/// key falls back to the base). Used for the type-inference lookup, which is
+/// keyed by element-qualified SSA names; scope-chain / references lookups
+/// stay on the base form.
+fn find_var_element_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let cursor = utf16_col_to_char_col(line_text, character).min(chars.len());
+
+    let base = find_var_at_position(source, line, character)?;
+    // Locate the ref's `(` — scan right from the cursor's var name for a
+    // literal key suffix. Walk left to the nearest `$`, then forward over
+    // the name; a following `(key)` with a literal key element-qualifies.
+    let mut pos = cursor.min(chars.len());
+    let stop_chars: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
+    while pos > 0 && !stop_chars.contains(&chars[pos - 1]) {
+        pos -= 1;
+    }
+    if pos > 0 && chars[pos - 1] == '$' {
+        pos -= 1;
+    }
+    if pos < chars.len() && chars[pos] == '$' {
+        let start = pos + 1;
+        let end = scan_var_name_end(&chars, start);
+        if end > start && chars.get(end) == Some(&'(') {
+            let mut close = end + 1;
+            while close < chars.len() && chars[close] != ')' {
+                close += 1;
+            }
+            if close < chars.len() {
+                let full: String = chars[start..=close].iter().collect();
+                let qualified = tcl_syntax::naming::element_var_name(&full);
+                if qualified == full {
+                    return Some(full);
+                }
+            }
+        }
+    }
+    Some(base)
+}
+
 /// Find a `${name}` braced variable reference containing `cursor`.
 /// Walks left from `cursor` to find a `${`, then matches it with
 /// the next `}` to its right.  Returns the inner name when the
@@ -2491,8 +2553,9 @@ fn infer_var_type_and_taint(
     var_name: &str,
 ) -> (Option<String>, Option<String>) {
     let unit = CompilationUnit::build_for(source, registry, false);
+    let first_use = tcl_compiler::shimmer::first_use_commitments_for_cu(&unit, registry);
     (
-        infer_var_type(&unit, var_name),
+        infer_var_type(&unit, var_name, &first_use),
         infer_var_taint(&unit, var_name),
     )
 }
@@ -2514,7 +2577,17 @@ fn function_units_in_order(unit: &CompilationUnit) -> Vec<&FunctionUnit> {
 /// `_infer_var_type`: returns the first function (top-level, then
 /// procs in name order) that has type entries for the variable
 /// and resolves them to a single label.
-fn infer_var_type(unit: &CompilationUnit, var_name: &str) -> Option<String> {
+///
+/// A **pure** variable — a literal / interpolation / string-command result
+/// whose intrep is not committed at the def — additionally reports the intrep
+/// its first use commits when every executable typed read agrees ("first used
+/// as"), the def-site pushback of the committed-intrep dataflow
+/// (`tcl_compiler::shimmer::first_use_commitments_for_cu`).
+fn infer_var_type(
+    unit: &CompilationUnit,
+    var_name: &str,
+    first_use: &HashMap<String, HashMap<String, TclType>>,
+) -> Option<String> {
     for func in function_units_in_order(unit) {
         let entries: Vec<&TypeLattice> = func
             .types
@@ -2529,37 +2602,50 @@ fn infer_var_type(unit: &CompilationUnit, var_name: &str) -> Option<String> {
         let known: Vec<&TypeLattice> = entries
             .iter()
             .copied()
-            .filter(|t| t.kind == TypeKind::Known && t.tcl_type.is_some())
+            .filter(|t| t.kind() == TypeKind::Known && t.tcl_type().is_some())
             .collect();
         if !known.is_empty()
-            && known.iter().all(|t| t.tcl_type == known[0].tcl_type)
+            && known.iter().all(|t| t.tcl_type() == known[0].tcl_type())
             && known.len() == entries.len()
         {
-            return Some(tcl_type_label(known[0].tcl_type.unwrap()));
+            let label = tcl_type_label(known[0].tcl_type().unwrap());
+            // A pure def whose every typed read commits one intrep reports it
+            // at the creation site: `set l {1 2 3}` first used by `llength`
+            // hovers as "string (first used as: list)".
+            if let Some(committed) = first_use
+                .get(&func.name)
+                .and_then(|vars| vars.get(var_name))
+            {
+                let committed_label = tcl_type_label(*committed);
+                if committed_label != label {
+                    return Some(format!("{label} (first used as: {committed_label})"));
+                }
+            }
+            return Some(label);
         }
-        // Every version agrees on the same SHIMMERED pair.
+        // Every version agrees on the same shimmer union — render every
+        // member (`shimmered (int / list / string)` for a 3-way merge).
         let shimmered: Vec<&TypeLattice> = entries
             .iter()
             .copied()
-            .filter(|t| {
-                t.kind == TypeKind::Shimmered && t.from_type.is_some() && t.tcl_type.is_some()
-            })
+            .filter(|t| t.kind() == TypeKind::Shimmered)
             .collect();
         if !shimmered.is_empty() && shimmered.len() == entries.len() {
             let s = shimmered[0];
             if shimmered.iter().all(|t| *t == s) {
-                return Some(format!(
-                    "shimmered ({} / {})",
-                    tcl_type_label(s.from_type.unwrap()),
-                    tcl_type_label(s.tcl_type.unwrap()),
-                ));
+                let members: Vec<String> = s
+                    .shapes()
+                    .iter()
+                    .map(|shape| tcl_type_label(shape.coarse()))
+                    .collect();
+                return Some(format!("shimmered ({})", members.join(" / ")));
             }
         }
         // Mixed, but a dominant KNOWN type exists.  Pick the
         // smallest by `Ord` so the choice is deterministic.
         if let Some(t) = known
             .iter()
-            .filter_map(|t| t.tcl_type)
+            .filter_map(|t| t.tcl_type())
             .min()
             .map(tcl_type_label)
         {
@@ -2995,6 +3081,40 @@ mod tests {
         let h = hover(src, 1, 7, &analysis, Some(&registry)).expect("hover");
         assert!(h.value.contains("**Variable** `x`"), "{}", h.value);
         assert!(h.value.contains("**Inferred intrep**: int"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_on_pure_literal_surfaces_first_used_as() {
+        // `l` is a pure list-shaped literal whose only typed read commits the
+        // list intrep — the def-site pushback of the committed-intrep
+        // dataflow surfaces "first used as: list" at the creation site.
+        let src = "set l {1 2 3}\nllength $l\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 1, 9, &analysis, Some(&registry)).expect("hover");
+        assert!(h.value.contains("**Variable** `l`"), "{}", h.value);
+        assert!(
+            h.value
+                .contains("**Inferred intrep**: string (first used as: list)"),
+            "{}",
+            h.value
+        );
+    }
+
+    #[test]
+    fn hover_committed_producer_has_no_first_used_as() {
+        // A committed producer (`[list …]`) is not "first used as" anything —
+        // its intrep is set at the def, so the pushback annotation must not
+        // appear.
+        let src = "set l [list 1 2 3]\nllength $l\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 1, 9, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            !h.value.contains("first used as"),
+            "committed producers must not carry the pushback label: {}",
+            h.value
+        );
     }
 
     #[test]

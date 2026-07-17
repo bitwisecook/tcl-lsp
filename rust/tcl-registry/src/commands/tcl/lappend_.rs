@@ -40,6 +40,7 @@ pub fn spec() -> CommandSpec {
         assigns_variable_at: Some(0),
         safe_on_uninit: Some(DialectSet::ALL_TCL),
         return_type: Some(TclType::List),
+        var_elements_effect: Some(VarElementsEffect::AppendsListElements { values_from: 1 }),
         inferred_storage_type: Some(StorageType::List),
         arg_types: &[(
             0,

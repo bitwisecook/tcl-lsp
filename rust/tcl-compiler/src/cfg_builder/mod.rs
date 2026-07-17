@@ -1829,6 +1829,8 @@ impl CfgBuilder {
         match eval_tcl_expr(condition, &env) {
             Some(TclValue::Int(i)) => i != 0,
             Some(TclValue::Float(f)) => f != 0.0,
+            // A bignum is canonical (beyond i64), hence never zero.
+            Some(TclValue::Big(_)) => true,
             None => false,
         }
     }

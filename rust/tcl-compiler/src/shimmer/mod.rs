@@ -35,6 +35,7 @@
 //! | [`byte_array`]| S110 byte-array-corruption detection            |
 
 pub mod byte_array;
+pub mod commit;
 pub mod expr;
 pub mod graph;
 pub mod hints;
@@ -130,6 +131,44 @@ pub fn type_name(t: TclType) -> String {
     format!("{t:?}").to_ascii_lowercase()
 }
 
+/// Resolve the `from` side of a warning against the committed-intrep state:
+/// the single committed rep when every path agrees, a *path-dependent* label
+/// naming the possibilities when different paths committed different reps,
+/// the steady-state may-rep of a loop-carried value, or the lattice fallback.
+/// Returns the struct-level `from_type` plus the message label (they differ
+/// only in the path-dependent case, where no single `TclType` is truthful).
+///
+/// A candidate equal to `expected` never names the from side — a loop header
+/// re-joins its own conversion via the back edge (`dict for`'s list argument
+/// is already a dict on iterations 2+), and that same-type path is exactly
+/// the one *not* paying; the reported conversion is from the other state.
+#[must_use]
+pub(crate) fn committed_from_label(
+    state: &commit::CommitState,
+    fallback: TclType,
+    expected: TclType,
+) -> (TclType, String) {
+    if let Some(t) = state.single_committed()
+        && t != expected
+    {
+        return (t, type_name(t));
+    }
+    let may: Vec<TclType> = state
+        .may_types()
+        .iter()
+        .copied()
+        .filter(|&t| t != expected)
+        .collect();
+    if may.len() >= 2 {
+        let names: Vec<String> = may.iter().map(|&t| type_name(t)).collect();
+        return (fallback, format!("path-dependent ({})", names.join(" or ")));
+    }
+    if let [t] = may[..] {
+        return (t, type_name(t));
+    }
+    (fallback, type_name(fallback))
+}
+
 /// Find intrep-shimmer warnings for a single function.
 ///
 /// Runs three sub-passes in order:
@@ -148,7 +187,20 @@ pub(crate) fn find_shimmer_warnings(
     executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
+    executable_edges: &HashSet<(BlockId, BlockId)>,
 ) -> Vec<ShimmerWarning> {
+    // The committed-intrep dataflow (first-use commit) is shared by the
+    // use-site and expr detectors: it tells each use whether the value has
+    // already committed a different intrep on every path (a genuine second
+    // conversion) or is still pure (a free first conversion).
+    let commit_ctx = commit::CommitCtx {
+        registry,
+        ssa,
+        types,
+        values,
+    };
+    let commit_facts =
+        commit::compute_commit_facts(cfg, &commit_ctx, executable_blocks, executable_edges);
     let mut out = Vec::new();
     out.extend(use_site::find_use_site_shimmers(
         cfg,
@@ -157,9 +209,18 @@ pub(crate) fn find_shimmer_warnings(
         executable_blocks,
         registry,
         values,
+        &commit_facts,
     ));
     out.extend(phi::find_phi_shimmers(cfg, ssa, types, executable_blocks));
-    out.extend(expr::find_expr_shimmers(cfg, ssa, types, executable_blocks));
+    out.extend(expr::find_expr_shimmers(
+        cfg,
+        ssa,
+        types,
+        executable_blocks,
+        values,
+        registry,
+        &commit_facts,
+    ));
     out
 }
 
@@ -184,7 +245,57 @@ pub fn find_shimmer_warnings_for_cu(
             &fu.sccp.executable_blocks,
             registry,
             &fu.sccp.values,
+            &fu.sccp.executable_edges,
         ));
+    }
+    out
+}
+
+/// The "first used as" intrep pushback for every function unit: variables
+/// whose def is **pure** (a literal / interpolation / string-command result)
+/// and whose every executable typed read committed the **same** intrep map to
+/// that intrep, keyed by function name then variable name (all versions must
+/// agree).  Consumed by hover to surface e.g. "pure string — first used as:
+/// list" at the creation site.
+#[must_use]
+pub fn first_use_commitments_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+) -> HashMap<String, HashMap<String, TclType>> {
+    let mut out: HashMap<String, HashMap<String, TclType>> = HashMap::new();
+    for fu in cu.analysable_functions() {
+        let ctx = commit::CommitCtx {
+            registry,
+            ssa: &fu.ssa,
+            types: &fu.types,
+            values: &fu.sccp.values,
+        };
+        let facts = commit::compute_commit_facts(
+            &fu.cfg,
+            &ctx,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.executable_edges,
+        );
+        // Collapse (sym, ver) → name: every version with a pushback must agree
+        // on the same intrep, else the name is dropped (conflicting uses).
+        let mut per_name: HashMap<String, Option<TclType>> = HashMap::new();
+        for ((sym, _ver), t) in facts.single_commitments(&ctx) {
+            per_name
+                .entry(fu.ssa.var_name(sym).to_owned())
+                .and_modify(|slot| {
+                    if *slot != Some(t) {
+                        *slot = None;
+                    }
+                })
+                .or_insert(Some(t));
+        }
+        let agreed: HashMap<String, TclType> = per_name
+            .into_iter()
+            .filter_map(|(name, t)| t.map(|t| (name, t)))
+            .collect();
+        if !agreed.is_empty() {
+            out.insert(fu.name.clone(), agreed);
+        }
     }
     out
 }
@@ -362,6 +473,7 @@ mod tests {
                 &sccp.executable_blocks,
                 &registry(),
                 &sccp.values,
+                &sccp.executable_edges,
             )
             .is_empty()
         );

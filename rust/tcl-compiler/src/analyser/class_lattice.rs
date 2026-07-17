@@ -633,13 +633,13 @@ fn seed_from_type_lattice<S: std::hash::BuildHasher + Clone>(
 ) {
     use crate::types::TypeKind;
     for ((sym, _ver), tl) in &fu.types {
-        if tl.kind != TypeKind::Known {
+        if tl.kind() != TypeKind::Known {
             continue;
         }
-        if !matches!(tl.tcl_type, Some(tcl_registry::TclType::Object)) {
+        if !matches!(tl.tcl_type(), Some(tcl_registry::TclType::Object)) {
             continue;
         }
-        let Some(class_name) = &tl.class_name else {
+        let Some(class_name) = &tl.class_name() else {
             continue;
         };
         // The type lattice's class name is already namespace-resolved by the

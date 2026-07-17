@@ -83,7 +83,7 @@ fn var_type(src: &str, var: &str) -> Option<TypeLattice> {
 /// variable was never typed).
 fn tcl_type(src: &str, var: &str) -> TclType {
     let t = var_type(src, var).unwrap_or_else(|| panic!("no type inferred for `{var}` in {src:?}"));
-    t.tcl_type
+    t.tcl_type()
         .unwrap_or_else(|| panic!("type for `{var}` has no tcl_type: {t} in {src:?}"))
 }
 
@@ -93,16 +93,16 @@ fn tcl_type(src: &str, var: &str) -> TclType {
 fn literal_scalar_types() {
     // tclsh: `set x 42` -> 42, `string is integer 42` = 1  => Int
     let t = var_type("set x 42", "x").expect("x typed");
-    assert_eq!(t.kind, TypeKind::Known);
-    assert_eq!(t.tcl_type, Some(TclType::Int));
+    assert_eq!(t.kind(), TypeKind::Known);
+    assert_eq!(t.tcl_type(), Some(TclType::Int));
 
     // tclsh: `-7` is `string is integer` = 1 => Int
     assert_eq!(tcl_type("set x -7", "x"), TclType::Int);
 
     // tclsh: `string is integer hello` = 0, `string is double hello` = 0 => String
     let s = var_type("set x hello", "x").expect("x typed");
-    assert_eq!(s.kind, TypeKind::Known);
-    assert_eq!(s.tcl_type, Some(TclType::String));
+    assert_eq!(s.kind(), TypeKind::Known);
+    assert_eq!(s.tcl_type(), Some(TclType::String));
 
     // tclsh: `string is double 3.14` = 1, `string is integer 3.14` = 0 => Double
     assert_eq!(tcl_type("set x 3.14", "x"), TclType::Double);
@@ -121,8 +121,8 @@ fn boolean_literals_are_boolean() {
         ("set z off", "z"),
     ] {
         let t = var_type(src, var).unwrap_or_else(|| panic!("{var} typed for {src:?}"));
-        assert_eq!(t.kind, TypeKind::Known, "{src}");
-        assert_eq!(t.tcl_type, Some(TclType::Boolean), "{src}");
+        assert_eq!(t.kind(), TypeKind::Known, "{src}");
+        assert_eq!(t.tcl_type(), Some(TclType::Boolean), "{src}");
     }
 }
 
@@ -183,11 +183,11 @@ fn expr_known_int() {
     // Int or Numeric is acceptable (SCCP-dependent); this pass pins it to Int.
     let t = var_type("set x [expr {1 + 2}]", "x").expect("x typed");
     assert!(
-        matches!(t.tcl_type, Some(TclType::Int | TclType::Numeric)),
+        matches!(t.tcl_type(), Some(TclType::Int | TclType::Numeric)),
         "expected Int or Numeric, got {t}"
     );
     assert_eq!(
-        t.tcl_type,
+        t.tcl_type(),
         Some(TclType::Int),
         "Rust pins SCCP result to Int"
     );
@@ -205,7 +205,7 @@ fn phi_same_type_stays_int() {
     assert!(!all.is_empty(), "x should be typed");
     for (ver, t) in &all {
         assert_eq!(
-            t.tcl_type,
+            t.tcl_type(),
             Some(TclType::Int),
             "version {ver} should be Int, got {t}"
         );
@@ -224,7 +224,7 @@ fn phi_incompatible_types_shimmer() {
     let all = var_types(src, "::top", "x");
     let conflict: Vec<&TypeLattice> = all
         .values()
-        .filter(|t| matches!(t.kind, TypeKind::Shimmered | TypeKind::Overdefined))
+        .filter(|t| matches!(t.kind(), TypeKind::Shimmered | TypeKind::Overdefined))
         .collect();
     assert!(
         !conflict.is_empty(),
@@ -236,12 +236,12 @@ fn phi_incompatible_types_shimmer() {
     // here it is SHIMMERED(String, Int) because `String < Int` in `TclType`.
     let shim = conflict
         .iter()
-        .find(|t| t.kind == TypeKind::Shimmered)
+        .find(|t| t.kind() == TypeKind::Shimmered)
         .expect("a shimmered version");
-    let pair = (shim.from_type, shim.tcl_type);
+    let pair = shim.shimmer_pair();
     assert_eq!(
         pair,
-        (Some(TclType::String), Some(TclType::Int)),
+        Some((TclType::String, TclType::Int)),
         "merge should shimmer between Int and String, got {shim}"
     );
 }
@@ -260,7 +260,7 @@ fn barrier_does_not_drop_var_type() {
     // Both the pre-barrier Int and the in-eval String defs are present.
     let all = var_types(src, "::top", "x");
     let kinds: Vec<Option<TclType>> = {
-        let mut v: Vec<Option<TclType>> = all.values().map(|t| t.tcl_type).collect();
+        let mut v: Vec<Option<TclType>> = all.values().map(TypeLattice::tcl_type).collect();
         v.sort();
         v
     };
@@ -665,13 +665,13 @@ fn command_sub_in_expr_stays_typed() {
     // exact Int-vs-Double can't be known statically — no single Tcl analogue).
     let t = var_type("set z [expr {[some_cmd] + 1}]", "z").expect("z typed");
     assert!(matches!(
-        t.tcl_type,
+        t.tcl_type(),
         Some(TclType::Numeric | TclType::Int | TclType::Double)
     ));
     // tclsh: a fully-constant nested expr `expr {[expr {1 + 2}] + 1}` -> 4 (Int
     // at runtime); the analyser keeps the inner command-sub abstract => Numeric.
     let n = var_type("set z [expr {[expr {1 + 2}] + 1}]", "z").expect("z typed");
-    assert!(n.tcl_type.is_some(), "nested-expr result stays typed");
+    assert!(n.tcl_type().is_some(), "nested-expr result stays typed");
 }
 
 // Complex multi-operator expressions
@@ -726,7 +726,7 @@ fn namespaced_scalar_keeps_qualified_symbol_type() {
     // just conservatively OVERDEFINED, not the literal's own type.
     let src = "set ::ns::x \"alpha beta\"\nset n [llength $::ns::x]";
     let t = var_type(src, "::ns::x").expect("::ns::x typed");
-    assert_eq!(t.kind, TypeKind::Overdefined);
+    assert_eq!(t.kind(), TypeKind::Overdefined);
 }
 
 #[test]
@@ -736,26 +736,28 @@ fn namespaced_array_element_uses_base_array_symbol_type() {
     // above.
     let src = "set ::ns::arr(k) \"alpha beta\"\nset n [llength $::ns::arr(k)]";
     let t = var_type(src, "::ns::arr").expect("::ns::arr typed");
-    assert_eq!(t.kind, TypeKind::Overdefined);
+    assert_eq!(t.kind(), TypeKind::Overdefined);
 }
 
 #[test]
-fn braced_array_like_name_flows_under_base_array_symbol() {
-    // Braced `${a(1)}` is a whole-name load of array element a(1); the type
-    // flows under the base array symbol `a`.
+fn braced_array_like_name_flows_under_element_symbol() {
+    // Braced `${a(1)}` is a whole-name load of array element a(1); under
+    // per-element SSA (type-tracking P5) the type flows on the element's
+    // own symbol `a(1)` — the base carries no value type.
     let src = "set {a(1)} \"alpha beta\"\nset n [llength ${a(1)}]";
-    let t = var_type(src, "a").expect("a typed");
-    assert_eq!(t.kind, TypeKind::Known);
-    assert_eq!(t.tcl_type, Some(TclType::String));
+    let t = var_type(src, "a(1)").expect("a(1) typed");
+    assert_eq!(t.kind(), TypeKind::Known);
+    assert_eq!(t.tcl_type(), Some(TclType::String));
 }
 
 #[test]
-fn unbraced_array_ref_normalises_to_base_array_symbol() {
-    // `set a(1) ...` normalises to the base array symbol `a`.
+fn unbraced_array_ref_is_the_element_symbol() {
+    // `set a(1) ...` writes the per-element symbol `a(1)` (type-tracking
+    // P5): its type is the element's own, and independent of siblings.
     let src = "set a(1) \"alpha beta\"\nset n [llength $a(1)]";
-    let t = var_type(src, "a").expect("a typed");
-    assert_eq!(t.kind, TypeKind::Known);
-    assert_eq!(t.tcl_type, Some(TclType::String));
+    let t = var_type(src, "a(1)").expect("a(1) typed");
+    assert_eq!(t.kind(), TypeKind::Known);
+    assert_eq!(t.tcl_type(), Some(TclType::String));
 }
 
 #[test]

@@ -35,6 +35,7 @@ pub fn spec() -> CommandSpec {
             | Traits::PRODUCES_CANONICAL_LIST,
         arity: Arity::any(),
         return_type: Some(TclType::List),
+        return_elements: Some(ReturnElements::ListOfArgs { from: 0 }),
         hover: Some(HoverSnippet {
             summary: "Create a list",
             synopsis: &["list ?arg arg ...?", "list ?arg ...?"],

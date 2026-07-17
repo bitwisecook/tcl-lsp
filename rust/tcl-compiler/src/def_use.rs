@@ -265,26 +265,7 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
         if let Some(cfg) = cfg
             && let Some(cfg_block) = cfg.blocks.get(bn)
         {
-            for var_name in terminator_read_vars(cfg_block.terminator.as_ref()) {
-                let version = ssa
-                    .var_symbol(&var_name)
-                    .and_then(|s| block.exit_versions.get(&s))
-                    .copied()
-                    .unwrap_or(0);
-                let key = (var_name, version);
-                add_use(
-                    &mut chains,
-                    entry_name,
-                    key,
-                    UseSite {
-                        block: block.name.clone(),
-                        kind: UseKind::Terminator,
-                        statement_index: -1,
-                        variable: String::new(),
-                        phi_version: 0,
-                    },
-                );
-            }
+            add_terminator_uses(&mut chains, entry_name, ssa, block, cfg_block);
         }
     }
 
@@ -296,18 +277,20 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
 /// overwritten store is a real dead store, not a "truly unused" var.
 fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<String> {
     match terminator {
-        Some(Terminator::Branch { condition, .. }) => condition.vars().into_iter().collect(),
+        Some(Terminator::Branch { condition, .. }) => {
+            condition.vars_element_qualified().into_iter().collect()
+        }
         Some(Terminator::Return { value, expr, .. }) => {
             let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
             if let Some(v) = value {
                 set.extend(
                     crate::var_refs::scan_var_ref_forms(v)
                         .into_iter()
-                        .map(|n| crate::naming::normalise_var_name(&n).to_string()),
+                        .map(|n| crate::naming::element_var_name(&n).to_string()),
                 );
             }
             if let Some(e) = expr {
-                set.extend(e.vars());
+                set.extend(e.vars_element_qualified());
             }
             set.into_iter().collect()
         }
@@ -347,6 +330,50 @@ fn add_use(
 }
 
 // Tests
+
+/// Record a block terminator's reads as uses at its exit versions. A base
+/// read (`return $opts($name)`) also reads every known constant-keyed
+/// element — keep their chains live too.
+fn add_terminator_uses(
+    chains: &mut HashMap<SsaValueKey, DefUseChain>,
+    entry_name: &str,
+    ssa: &SsaFunction,
+    block: &crate::ssa::SsaBlock,
+    cfg_block: &crate::cfg::Block,
+) {
+    for var_name in terminator_read_vars(cfg_block.terminator.as_ref()) {
+        let fanned: Vec<String> = ssa
+            .var_names()
+            .iter()
+            .filter(|n| {
+                n.len() > var_name.len()
+                    && n.starts_with(&var_name)
+                    && n.as_bytes()[var_name.len()] == b'('
+            })
+            .cloned()
+            .collect();
+        for name in std::iter::once(var_name).chain(fanned) {
+            let version = ssa
+                .var_symbol(&name)
+                .and_then(|s| block.exit_versions.get(&s))
+                .copied()
+                .unwrap_or(0);
+            let key = (name, version);
+            add_use(
+                chains,
+                entry_name,
+                key,
+                UseSite {
+                    block: block.name.clone(),
+                    kind: UseKind::Terminator,
+                    statement_index: -1,
+                    variable: String::new(),
+                    phi_version: 0,
+                },
+            );
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -409,6 +436,7 @@ mod tests {
             },
             uses: HashMap::new(),
             defs,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 
@@ -436,6 +464,7 @@ mod tests {
             },
             uses: u,
             defs: d,
+            may_defs: std::collections::HashSet::new(),
         }
     }
 

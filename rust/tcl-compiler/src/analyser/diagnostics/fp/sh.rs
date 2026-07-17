@@ -463,10 +463,33 @@ proc f {} {
 /// FP-SH-13: `normalise_var_name` strips the `(key)` suffix before SSA
 /// interning, so every element of an array shares one symbol / version
 /// chain.  A loop that keeps writing different-but-per-element-stable types
-/// to different array elements must not fire S102 — the elements are
+/// to *different* array elements must not fire S102 — the elements are
 /// independent runtime slots, not the same value shimmering back and forth.
+/// (Per-element SSA symbols make this precise; the *same* element
+/// oscillating is a genuine S102 — see the TP control below.)
 #[test]
 fn fp_sh_13_array_element_conflation_no_s102() {
+    let src = "\
+proc f {} {
+    set arr(x) 0
+    while {1} {
+        set arr(x) [expr {$arr(x) + 1}]
+        set arr(y) [string range z 0 end]
+    }
+}
+";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S102"),
+        "FP-SH-13: independent array elements must not fire S102; got {got:?}"
+    );
+}
+
+/// Per-element TP: the SAME element oscillating int ↔ string every
+/// iteration is a real per-iteration re-thunk (the pre-P5 conflation
+/// exclusion was a forced false negative here).
+#[test]
+fn fp_sh_13_same_element_oscillation_fires_s102() {
     let src = "\
 proc f {} {
     set arr(x) 0
@@ -478,8 +501,8 @@ proc f {} {
 ";
     let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S102"),
-        "FP-SH-13: array-element writes must not fire S102; got {got:?}"
+        got.iter().any(|c| c == "S102"),
+        "the same element oscillating every iteration is a real S102; got {got:?}"
     );
 }
 
@@ -1388,5 +1411,246 @@ fn fp_sh_20_ordering_compare_numeric_literal_stays_silent() {
         !fires(src, D, "S100") && !fires(src, D, "S101"),
         "FP-SH-20: `$s <= 5` must not shimmer-flag `s`; got {:?}",
         codes(src, D),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-21 — a pure value's first conversion is free (issue #940)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-21 (issue #940): a braced list literal used as a list must NOT fire
+/// S100. `{10.0 12.0 16.0 24.0}` is a pure string (oracle: `typePtr == NULL`),
+/// and `foreach` parses it into a list intrep once, for free — the reference
+/// contract's "pure string first type assignment is not a shimmer".
+#[test]
+fn fp_sh_21_braced_list_literal_in_foreach_silent() {
+    let src = "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-21: braced list literal in foreach must not shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21: the empty list `{}` — the exact case named in issue #940's title —
+/// is a valid (empty) list, so `foreach` over it is free.
+#[test]
+fn fp_sh_21_empty_braces_in_foreach_silent() {
+    let src = "set empty {}\nforeach x $empty { puts $x }\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-21: empty {{}} in foreach must not shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21: a number-shaped or word-shaped literal is still a valid list — the
+/// define-time shape does not matter (`set a 1; foreach b $a`).
+#[test]
+fn fp_sh_21_scalar_literal_as_list_silent() {
+    for src in [
+        "set a 1\nforeach b $a { puts $b }\n",
+        "set x 5\nlindex $x 0\n",
+        "set l hello\nforeach y $l { puts $y }\n",
+    ] {
+        assert!(
+            !fires(src, D, "S100") && !fires(src, D, "S101"),
+            "FP-SH-21: scalar literal used as a list must not shimmer; got {:?}",
+            codes(src, D),
+        );
+    }
+}
+
+/// FP-SH-21: an even-length list literal is a valid dict — `dict for` over it is
+/// free.
+#[test]
+fn fp_sh_21_dict_literal_in_dict_for_silent() {
+    let src = "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-21: dict literal in dict for must not shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21 TP control: a *committed* container (`[dict create]`) read as a list
+/// still fires — the pure-value suppression must not blanket-silence genuine
+/// shimmers. `foreach` on a committed Dict re-represents it (Dict → List).
+#[test]
+fn fp_sh_21_committed_dict_in_foreach_still_fires() {
+    let src = "set d [dict create a 1 b 2]\nforeach x $d { puts $x }\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-21 TP: committed dict in foreach must still shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21 TP control: a pure string that is NOT a valid instance keeps its
+/// warning — `incr` on a non-integer literal fails at runtime, so the mismatch
+/// is real.
+#[test]
+fn fp_sh_21_incr_on_non_integer_literal_still_fires() {
+    let src = "set bad hello\nincr bad\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-21 TP: incr on a non-integer literal must still fire; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-21 TP control: a committed list read as a *string* (`string length`)
+/// still fires — the genuine `[list …]` → String shimmer is untouched.
+#[test]
+fn fp_sh_21_committed_list_as_string_still_fires() {
+    let src = "set real [list 1 2 3]\nstring length $real\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-21 TP: committed list used as a string must still fire; got {:?}",
+        codes(src, D),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-22 — first-use commit: a second conversion is a genuine shimmer
+// ---------------------------------------------------------------------------
+
+/// FP-SH-22 TP: a pure literal's *first* use commits its intrep; a later use
+/// as a different type re-represents on every execution. `expr` commits the
+/// numeric intrep, then `lindex` re-reads it as a list (oracle: `set v 5;
+/// expr {$v+1}` → rep `int`; `lindex $v 0` → rep `list`).
+#[test]
+fn fp_sh_22_second_conversion_after_expr_commit_fires() {
+    let src = "set v 5\nexpr {$v + 1}\nlindex $v 0\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-22 TP: expr-committed value read as a list must fire; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-22 TP: the same chain through `llength` then `incr` — List committed,
+/// then re-read as Int.
+#[test]
+fn fp_sh_22_incr_after_llength_commit_fires() {
+    let src = "set w 5\nllength $w\nincr w\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-22 TP: llength-committed value incremented must fire; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-22 TP: a pure literal read as **two distinct intreps inside a loop**
+/// re-thunks every iteration (oracle: list ↔ dict on each pass) — the
+/// free-first-conversion suppression must not apply, and the code is the
+/// per-iteration S101.
+#[test]
+fn fp_sh_22_loop_two_target_rethunk_is_s101() {
+    let src = "set l {a 1 b 2}\nforeach i {1 2 3} {\n    llength $l\n    dict size $l\n}\n";
+    assert!(
+        fires(src, D, "S101"),
+        "FP-SH-22 TP: list/dict re-thunk inside a loop must fire S101; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-22 FP guard: the branch case — two arms committing two different
+/// intreps — must NOT fire at either arm's own (first) conversion, and a
+/// post-merge use matching one arm stays silent (only one path pays).
+#[test]
+fn fp_sh_22_branch_arms_first_conversions_stay_silent() {
+    let src = "proc f {c} {\n  set a {1 2}\n  if {$c} { llength $a } else { string length $a }\n  llength $a\n}\n";
+    let got = codes(src, D);
+    assert!(
+        !got.iter().any(|c| c == "S100" || c == "S101"),
+        "FP-SH-22 FP: neither arm's first conversion nor a one-path-pays merge use may fire; got {got:?}"
+    );
+}
+
+/// FP-SH-22 TP: a post-merge use matching *neither* arm's committed intrep
+/// pays on every path — the multiple-different-dominator-types warning, with
+/// path-dependent wording. One arm commits List (`llength`), the other Dict
+/// (`dict size`); the `string length` read after the merge converts on both.
+#[test]
+fn fp_sh_22_merge_use_matching_neither_arm_fires() {
+    let src = "proc f {c} {\n  set a {1 2}\n  if {$c} { llength $a } else { dict size $a }\n  string length $a\n}\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-22 TP: a merge use matching neither committed arm must fire; got {:?}",
+        codes(src, D),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FP-SH-23 — element-tracked containers and the union lattice (P2/P3)
+// ---------------------------------------------------------------------------
+
+/// FP-SH-23: a committed element retrieved from a tracked container keeps its
+/// intrep — `lindex` on `[list [expr {…}] …]` yields the numeric element, so
+/// arithmetic on it is not a shimmer (the element is genuinely numeric by
+/// reference, oracle corpus in type-tracking.md).
+#[test]
+fn fp_sh_23_committed_element_arithmetic_silent() {
+    let src =
+        "set l [list [expr {2**20}] other]\nset first [lindex $l 0]\nset n [expr {$first + 1}]\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-23: a numeric element retrieved by lindex is numeric — no shimmer; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-23: a three-way branch merge stays a tracked union (previously
+/// collapsed to OVERDEFINED and silently missed) — the phi merge reports
+/// every member.
+#[test]
+fn fp_sh_23_three_way_merge_reports_all_members() {
+    let src = "proc f {c} {\n  if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [dict create a 1] } else { set x [expr {1+1}] }\n  return $x\n}\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-23: a 3-way differently-typed merge must be reported; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-23 FP-guard: the same 3-way merge where every arm produces the SAME
+/// type stays silent — the union canonicalises to a singleton.
+#[test]
+fn fp_sh_23_three_way_same_type_merge_silent() {
+    let src = "proc f {c} {\n  if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [list 2] } else { set x [list 3] }\n  return $x\n}\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-23 guard: same-typed 3-way merge must stay silent; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-23: exact bignum folding — `expr {2**64}` and a chained `$big + 1`
+/// fold to C Tcl's exact values, so the SCCP-driven checks see real
+/// constants, never a wrapped or declined value (P4; values tclsh-verified).
+#[test]
+fn fp_sh_23_bignum_folds_are_exact() {
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_registry::CommandRegistry;
+    let registry = CommandRegistry::build_default();
+    let cu = CompilationUnit::build_for(
+        "set big [expr {2**64}]\nset next [expr {$big + 1}]",
+        &registry,
+        false,
+    );
+    let fu = cu.function("::top").unwrap();
+    let next_const = fu
+        .sccp
+        .values
+        .iter()
+        .find(|((sym, ver), _)| fu.ssa.var_name(*sym) == "next" && *ver > 0)
+        .map(|(_, v)| v.clone());
+    assert_eq!(
+        next_const,
+        Some(crate::analyses::LatticeValue::Const(
+            crate::analyses::ConstValue::String("18446744073709551617".to_owned())
+        )),
+        "the chained bignum fold must land the exact decimal"
     );
 }

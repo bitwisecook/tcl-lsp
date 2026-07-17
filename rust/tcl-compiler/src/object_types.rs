@@ -105,8 +105,8 @@ fn propagate_object_flow(
         .procedures
         .values()
         .filter_map(|fu| {
-            (fu.return_type.tcl_type == Some(tcl_registry::TclType::Object))
-                .then_some(fu.return_type.class_name.as_deref())
+            (fu.return_type.tcl_type() == Some(tcl_registry::TclType::Object))
+                .then_some(fu.return_type.class_name())
                 .flatten()
                 .map(|c| (fu.name.as_str(), c))
         })
@@ -418,12 +418,12 @@ fn harvest_unit(
     // SSA values typed `OBJECT(class)` — includes collection retrievals
     // (`set p [dict get $pins $k]`) the syntactic scan above cannot see.
     for ((sym, _ver), t) in &fu.types {
-        if t.tcl_type == Some(tcl_registry::TclType::Object)
-            && let Some(class) = &t.class_name
+        if t.tcl_type() == Some(tcl_registry::TclType::Object)
+            && let Some(class) = t.class_name()
         {
             out.entry(fu.ssa.var_name(*sym).to_owned())
                 .or_default()
-                .insert(class.clone());
+                .insert(class.to_owned());
         }
     }
 }

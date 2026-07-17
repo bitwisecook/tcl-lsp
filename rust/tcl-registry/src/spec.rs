@@ -39,7 +39,7 @@ use crate::side_effects::{SideEffect, StorageType};
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
-use crate::types::{TclType, VarWriteTyping};
+use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 
 /// Dynamic argument role resolver.
 ///
@@ -314,6 +314,16 @@ pub struct CommandSpec {
     /// variables.  See [`VarWriteTyping`].  Default
     /// [`VarWriteTyping::ReturnValue`].
     pub var_write_typing: VarWriteTyping,
+
+    /// How the result value relates to container element structure
+    /// (`list` builds a list of its args; `lindex` retrieves one element) —
+    /// the per-element type-inference fact. See [`ReturnElements`].
+    pub return_elements: Option<ReturnElements>,
+
+    /// How the command evolves the container *elements* of the variable it
+    /// writes in place (`lappend` appends value words as elements). See
+    /// [`VarElementsEffect`].
+    pub var_elements_effect: Option<VarElementsEffect>,
 
     /// Per-argument type hints. Each tuple is `(arg_index, hint)`.
     pub arg_types: &'static [(u8, ArgTypeHint)],
@@ -722,6 +732,8 @@ impl CommandSpec {
         command_prefix_resolver: None,
         return_type: None,
         var_write_typing: VarWriteTyping::ReturnValue,
+        return_elements: None,
+        var_elements_effect: None,
         arg_types: &[],
         subcommands: &[],
         allow_unknown_subcommands: false,
@@ -1126,6 +1138,15 @@ pub struct SubCommand {
     /// not).  See [`VarWriteTyping`].  Default [`VarWriteTyping::ReturnValue`].
     pub var_write_typing: VarWriteTyping,
 
+    /// Result↔element-structure fact for this subcommand (`dict create`
+    /// builds a dict of its pairs; `dict get` retrieves one value). See
+    /// [`ReturnElements`].
+    pub return_elements: Option<ReturnElements>,
+
+    /// In-place element evolution of the written variable for this
+    /// subcommand (`dict set var … value`). See [`VarElementsEffect`].
+    pub var_elements_effect: Option<VarElementsEffect>,
+
     /// Per-argument type hints.
     pub arg_types: &'static [(u8, ArgTypeHint)],
 
@@ -1343,6 +1364,8 @@ impl SubCommand {
         command_prefix_resolver: None,
         return_type: None,
         var_write_typing: VarWriteTyping::ReturnValue,
+        return_elements: None,
+        var_elements_effect: None,
         arg_types: &[],
         pure: false,
         mutator: false,

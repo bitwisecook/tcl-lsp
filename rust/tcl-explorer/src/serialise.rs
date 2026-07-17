@@ -698,7 +698,7 @@ fn ssa_value_detail(
             d.insert("lattice".to_owned(), json!(format_lattice(lat)));
         }
         if let Some(tl) = types.get(&(sym, ver))
-            && tl.kind != tcl_compiler::types::TypeKind::Unknown
+            && tl.kind() != tcl_compiler::types::TypeKind::Unknown
         {
             d.insert("type".to_owned(), json!(format_type(tl)));
         }
@@ -861,7 +861,7 @@ fn post_ssa_analysis(
     for key in tkeys {
         let tl = &snap.unit.types[key];
         if matches!(
-            tl.kind,
+            tl.kind(),
             tcl_compiler::types::TypeKind::Known | tcl_compiler::types::TypeKind::Shimmered
         ) {
             inferred.insert(
@@ -1168,7 +1168,7 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
                 "variable": "(return)",
                 "version": 0,
                 "type": format_type(rt),
-                "kind": type_kind_name(rt.kind),
+                "kind": type_kind_name(rt.kind()),
             }));
             let ssa = &snap.unit.ssa;
             let mut keys: Vec<_> = snap.unit.types.keys().collect();
@@ -1179,7 +1179,7 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
                     "variable": ssa.var_name(key.0),
                     "version": key.1,
                     "type": format_type(tl),
-                    "kind": type_kind_name(tl.kind),
+                    "kind": type_kind_name(tl.kind()),
                 }));
             }
             (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))

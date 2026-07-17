@@ -48,7 +48,7 @@
 //!   (`None`) when they disagree (`010`: octal 8 vs decimal 10) rather than
 //!   guessing.
 //! * **`format_tcl_value`** takes a `TclValue`, so free-float cases are written
-//!   `format_tcl_value(TclValue::Float(3.14))`.
+//!   `format_tcl_value(&TclValue::Float(3.14))`.
 //!
 //! No test is `#[ignore]`d; every const-fold result here matches tclsh.
 
@@ -269,18 +269,16 @@ fn exponentiation_float_negative_exponent() {
 }
 
 #[test]
-fn exponentiation_big_results_past_wide_decline_to_fold() {
-    // The folder is i64-width. tclsh (bignum) gives:
-    //   10**17=100000000000000000   (≤ i64::MAX → folds)
-    //   10**18=1000000000000000000  (≤ i64::MAX → folds)
-    //   10**19=10000000000000000000 (> i64::MAX → a Tcl `Big`)
-    // The const-folder's value is i64/f64, so a magnitude past a wide "can't
-    // fold" → None (matching the documented "value past a wide" behaviour and
-    // the in-crate `overflow_returns_none` test). Here the runtime form takes
-    // over instead.
+fn exponentiation_big_results_past_wide_stay_exact() {
+    // The folder is bignum-exact (type-tracking P4): a result past a wide
+    // promotes to the exact bignum tclsh computes — never wrapped, never
+    // declined, never a rounded double.
     assert_eq!(eval_str("10 ** 17"), Some(int(100_000_000_000_000_000)));
     assert_eq!(eval_str("10 ** 18"), Some(int(1_000_000_000_000_000_000)));
-    assert_eq!(eval_str("10 ** 19"), None); // 1e19 > i64::MAX → declined
+    assert_eq!(
+        eval_str("10 ** 19"),
+        Some(TclValue::Big("10000000000000000000".parse().unwrap()))
+    );
 }
 
 #[test]
@@ -729,40 +727,43 @@ fn unevaluable_command_substitution_and_empty() {
 
 #[test]
 fn format_tcl_value_integers() {
-    assert_eq!(format_tcl_value(TclValue::Int(42)), "42");
-    assert_eq!(format_tcl_value(TclValue::Int(-7)), "-7");
-    assert_eq!(format_tcl_value(TclValue::Int(0)), "0");
+    assert_eq!(format_tcl_value(&TclValue::Int(42)), "42");
+    assert_eq!(format_tcl_value(&TclValue::Int(-7)), "-7");
+    assert_eq!(format_tcl_value(&TclValue::Int(0)), "0");
 }
 
 #[test]
 fn format_tcl_value_floats() {
     // Whole-valued doubles keep a trailing `.0`; fractional ones round-trip.
-    assert_eq!(format_tcl_value(TclValue::Float(3.0)), "3.0");
-    assert_eq!(format_tcl_value(TclValue::Float(3.14)), "3.14");
-    assert_eq!(format_tcl_value(TclValue::Float(42.0)), "42.0");
-    assert_eq!(format_tcl_value(TclValue::Float(-1.0)), "-1.0");
+    assert_eq!(format_tcl_value(&TclValue::Float(3.0)), "3.0");
+    assert_eq!(format_tcl_value(&TclValue::Float(3.14)), "3.14");
+    assert_eq!(format_tcl_value(&TclValue::Float(42.0)), "42.0");
+    assert_eq!(format_tcl_value(&TclValue::Float(-1.0)), "-1.0");
 }
 
 #[test]
 fn format_tcl_value_signed_zero() {
     // IEEE-754 sign bit survives: Tcl renders -0.0 as "-0.0".
-    assert_eq!(format_tcl_value(TclValue::Float(0.0)), "0.0");
-    assert_eq!(format_tcl_value(TclValue::Float(-0.0)), "-0.0");
+    assert_eq!(format_tcl_value(&TclValue::Float(0.0)), "0.0");
+    assert_eq!(format_tcl_value(&TclValue::Float(-0.0)), "-0.0");
     // -1.0 * 0.0 == -0.0 by IEEE-754.
     let neg_zero = -0.0_f64;
     assert!(neg_zero.is_sign_negative());
-    assert_eq!(format_tcl_value(TclValue::Float(neg_zero)), "-0.0");
+    assert_eq!(format_tcl_value(&TclValue::Float(neg_zero)), "-0.0");
 }
 
 #[test]
 fn format_tcl_value_specials_and_large() {
     // tclsh 9.0.3: Inf/-Inf/NaN (capitalised), and 1e308 stays scientific
     // (not a huge integer string).
-    assert_eq!(format_tcl_value(TclValue::Float(f64::INFINITY)), "Inf");
-    assert_eq!(format_tcl_value(TclValue::Float(f64::NEG_INFINITY)), "-Inf");
-    assert_eq!(format_tcl_value(TclValue::Float(f64::NAN)), "NaN");
-    assert_eq!(format_tcl_value(TclValue::Float(1e308)), "1e+308");
-    assert_eq!(format_tcl_value(TclValue::Float(-1e308)), "-1e+308");
+    assert_eq!(format_tcl_value(&TclValue::Float(f64::INFINITY)), "Inf");
+    assert_eq!(
+        format_tcl_value(&TclValue::Float(f64::NEG_INFINITY)),
+        "-Inf"
+    );
+    assert_eq!(format_tcl_value(&TclValue::Float(f64::NAN)), "NaN");
+    assert_eq!(format_tcl_value(&TclValue::Float(1e308)), "1e+308");
+    assert_eq!(format_tcl_value(&TclValue::Float(-1e308)), "-1e+308");
 }
 
 // =========================================================================

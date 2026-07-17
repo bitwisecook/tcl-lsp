@@ -95,7 +95,7 @@ fn int_var_names(fu: &FunctionUnit) -> HashSet<String> {
 
 /// Whether a type-lattice element is a known `TclType::Int`.
 fn lattice_is_int(t: &TypeLattice) -> bool {
-    t.kind == TypeKind::Known && t.tcl_type == Some(TclType::Int)
+    t.kind() == TypeKind::Known && t.tcl_type() == Some(TclType::Int)
 }
 
 fn walk_script(ctx: &mut PassContext<'_>, script: &Script, int_vars: &HashSet<String>) {

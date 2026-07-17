@@ -89,6 +89,7 @@ fn inner_read_places(text: &str, ctx: &ResolveContext, registry: &CommandRegistr
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
         include_reads_before_write: false,
+        element_qualified: false,
     });
     let names = scanner.scan_word(text, registry);
     let mut places: Vec<Place> = names.iter().map(|n| bind_scalar(n, ctx, None)).collect();

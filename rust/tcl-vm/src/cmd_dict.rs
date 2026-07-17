@@ -307,28 +307,15 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             let [varname, key, amt @ ..] = rest else {
                 return err("wrong # args: should be \"dict incr dictVarName key ?increment?\"");
             };
-            // Read the increment and the stored value over the `i128` bignum
-            // stand-in (as `incr`/`expr` do), so a sum past `i64` promotes rather
-            // than silently wrapping (RUST_ISSUE_095).
-            let inc: i128 = match amt.first() {
-                Some(v) => match v.as_i128() {
-                    Some(n) => n,
-                    None => return err(format!("expected integer but got \"{}\"", v.to_str())),
-                },
-                None => 1,
-            };
+            // The same tower addition `incr` uses (`value_ops::int_add`): a sum
+            // past `i64` promotes to `i128` and past that to an
+            // arbitrary-precision bignum, matching tclsh (RUST_ISSUE_095 —
+            // `dict incr` at `i64::MAX` yields `9223372036854775808`, never an
+            // overflow error).
+            let one = Value::int(1);
+            let inc = amt.first().unwrap_or(&one);
             dict_update(vm, varname, key, |old| {
-                let base = match old {
-                    Some(v) => match v.as_i128() {
-                        Some(n) => n,
-                        None => return Err(format!("expected integer but got \"{}\"", v.to_str())),
-                    },
-                    None => 0,
-                };
-                let sum = base
-                    .checked_add(inc)
-                    .ok_or_else(|| "integer value too large to represent".to_string())?;
-                Ok(crate::expr::int_value(sum))
+                crate::value_ops::int_add(old, inc).map_err(|e| e.message())
             })
         }
         "append" => {

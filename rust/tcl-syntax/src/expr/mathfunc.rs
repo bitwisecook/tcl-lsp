@@ -314,7 +314,21 @@ fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
         "ceil" => Some(Num::Float(v.as_f64().ceil())),
         "floor" => Some(Num::Float(v.as_f64().floor())),
         "isqrt" => match v {
-            Num::Int(i) if i >= 0 => Some(Num::Int((i as f64).sqrt() as i64)),
+            Num::Int(i) if i >= 0 => {
+                // Float sqrt is only an estimate: a near-2^62 operand rounds
+                // up in the i64→f64 conversion and lands the estimate one too
+                // high vs C's exact `mp_sqrt` (oracle:
+                // `isqrt(4611686018427387903)` is 2147483647, not 2^31).
+                // Correct to the exact integer square root.
+                let mut r = (i as f64).sqrt() as i64;
+                while r > 0 && r.checked_mul(r).is_none_or(|sq| sq > i) {
+                    r -= 1;
+                }
+                while (r + 1).checked_mul(r + 1).is_some_and(|sq| sq <= i) {
+                    r += 1;
+                }
+                Some(Num::Int(r))
+            }
             _ => None,
         },
         _ => None,

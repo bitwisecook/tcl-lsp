@@ -22,6 +22,7 @@
 // `entier`/… follow Tcl's expr numeric conversions, not lossless casts).
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
+use num_traits::{FromPrimitive, Signed, ToPrimitive};
 use tcl_runtime_api::Completion;
 use tcl_syntax::number::{self, Number};
 
@@ -36,6 +37,24 @@ use crate::value::Value;
 fn num_arg(v: &Value) -> Result<f64, String> {
     v.as_double()
         .map_err(|_| format!("expected number but got \"{}\"", v.to_str()))
+}
+
+/// A double argument for the libm-backed functions: `as_double`, with an
+/// integer beyond the double-parse range coercing through the tower's
+/// correctly-rounded bignum→double conversion — `sqrt(2**200)` computes
+/// (C's `Tcl_GetDoubleFromObj` view), instead of rejecting the operand the
+/// operators already accept.
+fn libm_arg(v: &Value) -> Result<f64, String> {
+    if let Ok(d) = v.as_double() {
+        return Ok(d);
+    }
+    if let Some(b) = crate::expr::value_as_bigint(v) {
+        return Ok(crate::expr::big_to_f64(&b));
+    }
+    Err(format!(
+        "expected floating-point number but got \"{}\"",
+        v.to_str()
+    ))
 }
 
 /// Coerce `v` to a double for the classification predicates (`isnan` /
@@ -69,23 +88,49 @@ fn num_or_nan(v: &Value) -> Result<f64, String> {
     match number::parse_whole(v.to_str().trim()) {
         Some(Number::Nan { .. }) => Ok(f64::NAN),
         // A bignum coerces to its nearest double (overflowing to ±Inf past the
-        // double range), matching C's `Tcl_GetDoubleFromObj`.
-        Some(Number::Big {
-            negative,
-            radix,
-            digits,
-        }) => {
-            let base = radix as u32;
-            let mut acc = 0.0f64;
-            for c in digits.chars() {
-                if let Some(d) = c.to_digit(base) {
-                    acc = acc * f64::from(base) + f64::from(d);
-                }
-            }
-            Ok(if negative { -acc } else { acc })
+        // double range), matching C's `Tcl_GetDoubleFromObj` — the same
+        // `TclBignumToDouble` rounding the expr tower uses.
+        Some(Number::Big { .. }) => {
+            Ok(crate::expr::value_as_bigint(v).map_or(f64::NAN, |b| crate::expr::big_to_f64(&b)))
         }
         _ => Err(format!("expected number but got \"{}\"", v.to_str())),
     }
+}
+
+/// Coerce the argument of an integer-producing conversion (`int`/`wide`/
+/// `entier`/`round`) to a *finite* double, with C's special-value errors:
+/// NaN — spelled or typed — is "floating point value is Not a Number" and
+/// ±Inf is "integer value too large to represent" (tclsh 8.6/9.0); a
+/// non-number keeps the generic expected-number message. Callers handle
+/// integer arguments first, so a bignum never reaches here.
+fn finite_num_arg(v: &Value) -> Result<f64, String> {
+    let f = num_or_nan(v)?;
+    if f.is_nan() {
+        return Err("floating point value is Not a Number".to_string());
+    }
+    if f.is_infinite() {
+        return Err("integer value too large to represent".to_string());
+    }
+    Ok(f)
+}
+
+/// A finite double truncated toward zero, as an exact integer — `from_f64` on
+/// a finite integral double is lossless, so `int(1e300)`-style conversions
+/// see the full 10^300-scale value C does (the `None` fallback is unreachable
+/// for the finite values [`finite_num_arg`] admits).
+fn exact_trunc(f: f64) -> num_bigint::BigInt {
+    num_bigint::BigInt::from_f64(f.trunc()).unwrap_or_default()
+}
+
+/// Fold an exact integer into the signed 64-bit window (modulo 2^64, bit-cast
+/// to `i64`) — what `int()`/`wide()` do to an out-of-range value. The
+/// integer-*string* case lives in `Value::as_wide`; this is the same fold for
+/// values arriving as a bignum (a truncated double).
+fn wide_window(b: &num_bigint::BigInt) -> i64 {
+    // num-bigint's `&` is two's-complement, so the mask keeps the low 64 bits
+    // with the wrap C computes (`-1 & mask` is 2^64-1, folding back to `-1`).
+    let low = b & &num_bigint::BigInt::from(u64::MAX);
+    low.to_u64().map_or(0, u64::cast_signed)
 }
 
 /// The message and `errorCode` C raises (`tclExecute.c`, errno `EDOM`) when a
@@ -225,50 +270,53 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Ok(n) = x.as_int() {
         return ok(crate::expr::int_value(i128::from(n).abs()));
     }
-    if let Some(b) = x.as_i128() {
-        return ok(crate::expr::int_value(b.saturating_abs()));
+    if let Some(b) = x.as_i128()
+        && b != i128::MIN
+    {
+        return ok(crate::expr::int_value(b.abs()));
     }
-    match num_arg(x) {
+    // An integer past `i128` (or exactly `-2^127`, whose magnitude has no
+    // `i128`) stays exact: tclsh's `abs(-(2**150))` is the full 2^150,
+    // never a rounded double.
+    if let Some(b) = crate::expr::value_as_bigint(x) {
+        return ok(crate::expr::big_value(&b.abs()));
+    }
+    match num_or_nan(x) {
+        // C's domain error — `abs(nan)` is not a number (±Inf is fine:
+        // `abs(-inf)` is `inf`).
+        Ok(f) if f.is_nan() => err("floating point value is Not a Number".to_string()),
         Ok(f) => ok(Value::double(f.abs())),
         Err(m) => err(m),
     }
 }
 
 fn m_int(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let x = match one(args, "int") {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    // An integer operand is returned exactly — never round-tripped through `f64`,
-    // which would lose precision above 2^53 (`int(9007199254740993)` must stay
-    // `9007199254740993`, not become `…992`). A bignum-magnitude integer within
-    // the VM's `i128` stand-in is likewise preserved. Only a non-integer goes
-    // through the float path, where `int()` truncates toward zero
-    // (RUST_ISSUE_096, matching the `abs`/`round`/`wide` siblings).
-    if let Ok(n) = x.as_int() {
-        return ok(crate::expr::int_value(i128::from(n)));
-    }
-    if let Some(b) = x.as_i128() {
-        return ok(crate::expr::int_value(b));
-    }
-    match num_arg(x) {
-        Ok(f) => ok(Value::int(f.trunc() as i64)),
-        Err(m) => err(m),
-    }
+    int_window(args, "int")
 }
 
 fn m_wide(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // `wide()` truncates to a 64-bit integer — the same width as our `int`.
-    let x = match one(args, "wide") {
+    int_window(args, "wide")
+}
+
+/// `int(x)` / `wide(x)` — one conversion since 8.6 (`int` is no longer the
+/// narrower "long"): an integer of any magnitude is taken modulo 2^64,
+/// two's-complement folded (`int(2**64 + 1)` is `1`, `int(-(2**64 + 1))` is
+/// `-1`); a double truncates toward zero first, then wraps the same way
+/// (`int(1e300)` is `0` — 10^300 divides by 2^64). The integer path is exact —
+/// never round-tripped through `f64`, which would lose precision above 2^53
+/// (`int(9007199254740993)` must stay `…993`, `RUST_ISSUE_096`).
+fn int_window(args: &[Value], name: &str) -> Completion<Value> {
+    let x = match one(args, name) {
         Ok(v) => v,
         Err(c) => return c,
     };
+    // `as_wide` is exactly this window for integer inputs of any size.
     if let Ok(n) = x.as_wide() {
         return ok(Value::int(n));
     }
-    match x.as_double() {
-        Ok(f) => ok(Value::int(f.trunc() as i64)),
-        Err(e) => err(e.message),
+    match finite_num_arg(x) {
+        Ok(f) => ok(Value::int(wide_window(&exact_trunc(f)))),
+        Err(m) => err(m),
     }
 }
 
@@ -278,8 +326,26 @@ fn m_double(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(c) => return c,
     };
     match x.as_double() {
+        // A typed NaN is not a usable number here, same as the spelled one
+        // below (tclsh: "floating point value is Not a Number").
+        Ok(f) if f.is_nan() => err("floating point value is Not a Number"),
         Ok(f) => ok(Value::double(f)),
-        Err(e) => err(e.message),
+        Err(e) => {
+            // `as_double` declines integers past its range and NaN spellings;
+            // both are still numbers to `double()`: a bignum converts with
+            // C's `TclBignumToDouble` rounding (`double(2**200)` is
+            // `1.6069380442589903e+60`), NaN is the domain-style error.
+            if let Some(b) = crate::expr::value_as_bigint(x) {
+                return ok(Value::double(crate::expr::big_to_f64(&b)));
+            }
+            if matches!(
+                number::parse_whole(x.to_str().trim()),
+                Some(Number::Nan { .. })
+            ) {
+                return err("floating point value is Not a Number");
+            }
+            err(e.message)
+        }
     }
 }
 
@@ -288,11 +354,20 @@ fn m_round(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
+    // Integers of any magnitude pass through exactly (tclsh: `round(2**200)`
+    // is 2^200 itself).
     if let Ok(n) = x.as_int() {
         return ok(Value::int(n));
     }
-    match num_arg(x) {
-        Ok(f) => ok(Value::int(f.round() as i64)),
+    if let Some(b) = crate::expr::value_as_bigint(x) {
+        return ok(crate::expr::big_value(&b));
+    }
+    // Round half away from zero, then keep the result *exact*: tclsh's
+    // `round(1e300)` is the full 309-digit integer, not a saturated wide.
+    match finite_num_arg(x) {
+        Ok(f) => ok(crate::expr::big_value(
+            &num_bigint::BigInt::from_f64(f.round()).unwrap_or_default(),
+        )),
         Err(m) => err(m),
     }
 }
@@ -302,9 +377,9 @@ fn dbl_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_double() {
+    match libm_arg(x) {
         Ok(d) => ok(Value::double(f(d))),
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -316,7 +391,7 @@ fn dom_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_double() {
+    match libm_arg(x) {
         Ok(d) => {
             let r = f(d);
             if r.is_nan() && !d.is_nan() {
@@ -324,7 +399,7 @@ fn dom_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
             }
             ok(Value::double(r))
         }
-        Err(e) => err(e.message),
+        Err(m) => err(m),
     }
 }
 
@@ -339,7 +414,7 @@ fn dom_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> f64) -> Completio
         };
         return err(format!("{which} for math function \"{name}\""));
     };
-    match (lhs.as_double(), rhs.as_double()) {
+    match (libm_arg(lhs), libm_arg(rhs)) {
         (Ok(x), Ok(y)) => {
             let r = f(x, y);
             if r.is_nan() && !x.is_nan() && !y.is_nan() {
@@ -347,7 +422,7 @@ fn dom_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> f64) -> Completio
             }
             ok(Value::double(r))
         }
-        (Err(e), _) | (_, Err(e)) => err(e.message),
+        (Err(m), _) | (_, Err(m)) => err(m),
     }
 }
 
@@ -370,7 +445,7 @@ fn m_pow(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
         return err(format!("{which} for math function \"pow\""));
     };
-    match (b.as_double(), e.as_double()) {
+    match (libm_arg(b), libm_arg(e)) {
         (Ok(bb), Ok(ee)) => {
             let r = bb.powf(ee);
             if r.is_nan() && !bb.is_nan() && !ee.is_nan() {
@@ -378,13 +453,14 @@ fn m_pow(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::double(r))
         }
-        (Err(er), _) | (_, Err(er)) => err(er.message),
+        (Err(m), _) | (_, Err(m)) => err(m),
     }
 }
 
-/// `entier(x)` — the integer part of `x` (truncated toward zero). Like `int` but
-/// without `int`'s word-size wrap; the VM's `i64` is its bound on the bignum C
-/// would return.
+/// `entier(x)` — the exact integer value of `x`, truncated toward zero and
+/// **unbounded** (TIP 237): an integer of any magnitude passes through; a
+/// double becomes the full exact integer (`entier(1e300)` is all 309 digits),
+/// with no 64-bit window — that wrap is `int`/`wide`'s ([`int_window`]).
 fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let x = match one(args, "entier") {
         Ok(v) => v,
@@ -393,8 +469,11 @@ fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Ok(n) = x.as_int() {
         return ok(Value::int(n));
     }
-    match num_arg(x) {
-        Ok(f) => ok(Value::int(f.trunc() as i64)),
+    if let Some(b) = crate::expr::value_as_bigint(x) {
+        return ok(crate::expr::big_value(&b));
+    }
+    match finite_num_arg(x) {
+        Ok(f) => ok(crate::expr::big_value(&exact_trunc(f))),
         Err(m) => err(m),
     }
 }
@@ -409,6 +488,14 @@ fn m_isqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let n = if let Ok(n) = x.as_int() {
         n
+    } else if let Some(b) = crate::expr::value_as_bigint(x) {
+        // Beyond-wide integers take the exact arbitrary-precision floor
+        // root — tclsh's `isqrt(2**200)` is the full 2^100, never a
+        // rounded double.
+        if num_traits::Signed::is_negative(&b) {
+            return err_with_code("square root of negative argument", DOMAIN_CODE);
+        }
+        return ok(crate::expr::big_value(&num_integer::Roots::sqrt(&b)));
     } else {
         match num_arg(x) {
             Ok(f) => f.trunc() as i64,
@@ -461,12 +548,12 @@ fn min_max(args: &[Value], name: &str, want_max: bool) -> Completion<Value> {
     // not `2.0`. A non-numeric argument reports the integer-flavoured
     // "expected number but got …".
     let mut best = first;
-    let mut best_d = match num_arg(first) {
+    let mut best_d = match num_arg(first).or_else(|m| libm_arg(first).map_err(|_| m)) {
         Ok(d) => d,
         Err(m) => return err(m),
     };
     for a in rest {
-        let d = match num_arg(a) {
+        let d = match num_arg(a).or_else(|m| libm_arg(a).map_err(|_| m)) {
             Ok(d) => d,
             Err(m) => return err(m),
         };

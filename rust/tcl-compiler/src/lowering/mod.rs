@@ -1957,14 +1957,16 @@ impl<'r> Lowerer<'r> {
                 .iter()
                 .filter_map(|&i| {
                     let real = i.checked_sub(prepend_n)?;
-                    args.get(real).map(|a| normalise_var_name(a).to_owned())
+                    args.get(real)
+                        .map(|a| crate::naming::element_var_name(a).to_owned())
                 })
                 .collect();
             let var_reads: Vec<String> = var_read_indices
                 .iter()
                 .filter_map(|&i| {
                     let real = i.checked_sub(prepend_n)?;
-                    args.get(real).map(|a| normalise_var_name(a).to_owned())
+                    args.get(real)
+                        .map(|a| crate::naming::element_var_name(a).to_owned())
                 })
                 .collect();
             return Statement::Call {

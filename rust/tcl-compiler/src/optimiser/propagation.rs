@@ -237,6 +237,16 @@ fn run_load_forwarding(
         {
             continue;
         }
+        // A synthetic may-def (the element fan of a dynamic-key write, or a
+        // base refresh) is not a real reaching definition — forwarding its
+        // statement's value would forward the *other* element's literal.
+        if fu.ssa.is_synthetic_def(
+            &chain.definition.block,
+            chain.definition.statement_index,
+            var_name,
+        ) {
+            continue;
+        }
         // Find the defining statement — must be an AssignConst
         // with a literal value to forward. AssignValue without
         // substitutions could also work, but we're conservative
@@ -277,6 +287,22 @@ fn run_load_forwarding(
             let Some(use_stmt) = use_block.statements.get(use_idx) else {
                 continue;
             };
+            // A fanned may-def's prior-version read is a synthetic use —
+            // there is no `$var` in that statement to rewrite.
+            if fu
+                .ssa
+                .blocks
+                .values()
+                .find(|b| b.name == use_site.block)
+                .and_then(|b| b.statements.get(use_idx))
+                .is_some_and(|st| {
+                    fu.ssa
+                        .var_symbol(var_name)
+                        .is_some_and(|sym| st.may_defs.contains(&sym))
+                })
+            {
+                continue;
+            }
             if has_intervening_barrier(fu, &chain.definition.block, idx, &use_site.block, use_idx) {
                 continue;
             }
@@ -1635,7 +1661,7 @@ fn try_substitute_assign_expr(
     let env = Env::new();
     let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if let Some(val) = eval_tcl_expr_with_octal(&parsed, &env, octal) {
-        let folded = format_tcl_value(val);
+        let folded = format_tcl_value(&val);
         let needs_quoting = folded.is_empty()
             || folded.contains([
                 ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',

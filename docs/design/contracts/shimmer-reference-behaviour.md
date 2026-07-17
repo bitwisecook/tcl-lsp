@@ -38,6 +38,53 @@ BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1) c
 - Pure string objects (`typePtr == NULL`) — first type assignment is not a shimmer
 - Shared object duplication (`Tcl_DuplicateObj`) — original intrep is not affected
 
+#### How the analyser implements "first type assignment is not a shimmer"
+
+The compiler classifies committed-vs-pure generically (never by command name)
+through `shimmer::hints::is_uncommitted_first_conversion`, using the type
+lattice plus the SCCP constant lattice:
+
+- A `String`-typed value (`TclType::String` is documented "pure string, no
+  cached intrep") is always uncommitted.
+- A numeric-typed value is uncommitted only when it is a compile-time constant
+  (a constant-folded literal push, still `typePtr == NULL`); a runtime
+  `expr` / `incr` result is a committed numeric intrep.
+- `List` / `Dict` / `Object` / `ByteArray` / `Channel` are always committed
+  (only `[list]` / `[dict create]` / a constructor / `binary format` produce
+  them).
+
+A use is suppressed only when the pure value is a **valid instance** of the
+required type — a well-formed list (`Tcl_SplitList` succeeds), an even-length
+list for a dict, or a parseable number — so a genuine runtime error (`incr` on
+`hello`) still fires. This is what fixed issue #940 (`foreach $bracedList`); see
+`docs/design/compiler/FP.md` §FP-SH-21.
+
+#### The committed-intrep dataflow (first-use commit)
+
+The follow-up above is implemented by `shimmer::commit` — a forward must/may
+dataflow over the SCCP-executable blocks, shared by the use-site, expr, and
+`incr` detectors. Per SSA value it tracks the bounded set of intreps the value
+*may* have committed on some path and whether *every* path has committed one:
+
+- **Second conversions fire with the true from-type**: straight-line
+  `set v 5; expr {$v + 1}; lindex $v 0` reports "numeric intrep but `lindex`
+  expects list" (oracle: rep `int` → `list`), with an "intrep first committed
+  here" related span. Same through `llength` → `incr` (List → Int).
+- **Branch arms stay silent, merges fire only when every path pays**: with
+  `if {$c} { llength $a } else { dict size $a }`, each arm's own first
+  conversion is free; a post-merge use matching *one* arm stays silent (only
+  the other path pays — not an every-execution claim), while a use matching
+  *neither* fires with path-dependent wording ("has path-dependent (list or
+  dict) intrep …").
+- **Loop re-thunk**: a pure value read as two distinct intreps inside a loop
+  (`llength $l` + `dict size $l` per pass) re-converts every iteration
+  (oracle: list ↔ dict) — both reads are S101, the steady-state rep naming the
+  from side.
+- **Def-site pushback**: a pure def whose every executable typed read commits
+  the same intrep exposes it via
+  `shimmer::first_use_commitments_for_cu` — hover renders
+  "string (first used as: list)" at the creation site.
+
 ## Reference validation status
 
 C source analysis completed against Tcl 9.0.3. The `arg_types` shimmer hints

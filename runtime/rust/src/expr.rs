@@ -87,6 +87,9 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
         }
         ArithError::NegativeShift => ExprError::msg(b"negative shift argument"),
         ArithError::ExponentTooLarge => ExprError::msg(b"exponent too large"),
+        ArithError::TooLargeToRepresent => {
+            ExprError::msg(b"integer value too large to represent")
+        }
         ArithError::Alloc => ExprError::msg(b"out of memory"),
     }
 }

@@ -246,8 +246,11 @@ pub enum ArithError {
     DivideByZero,
     /// A negative shift count (`negative shift argument`).
     NegativeShift,
-    /// An exponent / shift too large to compute (`exponent too large`).
+    /// An exponent too large to compute (`exponent too large`).
     ExponentTooLarge,
+    /// A left-shift count too large to compute (`integer value too large to
+    /// represent`) — C raises this, not "exponent too large", for `<<`.
+    TooLargeToRepresent,
     /// A bignum allocation failed (out of memory).
     Alloc,
 }
@@ -831,23 +834,36 @@ pub fn bnot(a: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     }
 }
 
-/// Read a non-negative shift count (integer-only). A huge bignum count is
-/// `NegativeShift` when negative, else `ExponentTooLarge`.
-fn shift_count(b: *mut TclObj) -> Result<i64, ArithError> {
+/// A validated shift count: a small non-negative wide, or a beyond-wide
+/// positive bignum. The two shift directions disagree about the huge case —
+/// `<<` raises "integer value too large to represent" while `>>` collapses
+/// to the operand's sign (`2 >> 10**20` is `0`, `-2 >> 10**20` is `-1` —
+/// tclsh 8.6/9.0 verified) — so the caller decides.
+enum ShiftCount {
+    Small(i64),
+    HugePositive,
+}
+
+/// Read a non-negative shift count (integer-only). A negative count of any
+/// width is `NegativeShift`.
+fn shift_count(b: *mut TclObj) -> Result<ShiftCount, ArithError> {
     match read_int(b)? {
-        IntVal::Wide(c) if c >= 0 => Ok(c),
+        IntVal::Wide(c) if c >= 0 => Ok(ShiftCount::Small(c)),
         IntVal::Wide(_) => Err(ArithError::NegativeShift),
         IntVal::Big(m) if mp_is_neg(&m) => Err(ArithError::NegativeShift),
-        IntVal::Big(_) => Err(ArithError::ExponentTooLarge),
+        IntVal::Big(_) => Ok(ShiftCount::HugePositive),
     }
 }
 
 /// `a << b` over the tower (integer-only). Always via the bignum path
 /// (`mp_mul_2d`); `store` demotes a small result back to a wide.
 pub fn shl(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
-    let count = shift_count(b)?;
+    let count = match shift_count(b)? {
+        ShiftCount::Small(c) => c,
+        ShiftCount::HugePositive => return Err(ArithError::TooLargeToRepresent),
+    };
     if count > i64::from(i32::MAX) {
-        return Err(ArithError::ExponentTooLarge);
+        return Err(ArithError::TooLargeToRepresent);
     }
     let base = int_to_mp(read_int(a)?)?;
     let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
@@ -860,7 +876,17 @@ pub fn shl(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
 
 /// `a >> b` over the tower (integer-only, arithmetic/sign-extending).
 pub fn shr(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
-    let count = shift_count(b)?;
+    let count = match shift_count(b)? {
+        ShiftCount::Small(c) => c,
+        // A beyond-wide count out-shifts any operand: collapse to the sign.
+        ShiftCount::HugePositive => {
+            let neg = match read_int(a)? {
+                IntVal::Wide(w) => w < 0,
+                IntVal::Big(m) => mp_is_neg(&m),
+            };
+            return Ok(obj::new_wide_int_obj(if neg { -1 } else { 0 }));
+        }
+    };
     match read_int(a)? {
         IntVal::Wide(w) => {
             // Shifting a wide past its width saturates to 0 / -1 (sign).
@@ -1013,10 +1039,172 @@ fn store(mut mp: MpInt) -> *mut TclObj {
     obj::alloc_typed(&TCL_BIGNUM_TYPE, boxed as u64)
 }
 
+// ---------------------------------------------------------------------------
+// The shared-tower backend adapter: `BigIntOps` over the real `mp_int`.
+// ---------------------------------------------------------------------------
+
+/// The libtommath backend for the shared tower semantics
+/// (`tcl_syntax::number_tower::BigIntOps`) — the adapter that closes the
+/// tower's backend seam over the real `mp_int`. The pure-Rust adopters (the
+/// compiler's const-folder, the VM) run the identical oracle-conformance
+/// corpus over `num-bigint`; this type runs it over libtommath, so the two
+/// backends cannot drift on any covered semantic. The trait is infallible,
+/// so allocation failure — libtommath's only failure mode on these
+/// operations — panics, matching Rust's global-allocator convention.
+pub struct TowerMp(Mp);
+
+impl TowerMp {
+    /// Run `f` into a fresh `mp_int` and wrap it.
+    fn build(f: impl FnOnce(*mut MpInt) -> c_int) -> Self {
+        let mut out = Mp::zero().expect("libtommath alloc");
+        assert!(f(&mut out.0) == MP_OKAY, "libtommath alloc");
+        TowerMp(out)
+    }
+
+    /// Three-way compare via `mp_cmp`.
+    fn cmp_mp(&self, other: &Self) -> core::cmp::Ordering {
+        // SAFETY: both live mp_ints; mp_cmp returns -1/0/1.
+        match unsafe { mp_cmp(self.0.ptr(), other.0.ptr()) } {
+            n if n < 0 => core::cmp::Ordering::Less,
+            0 => core::cmp::Ordering::Equal,
+            _ => core::cmp::Ordering::Greater,
+        }
+    }
+}
+
+impl Clone for TowerMp {
+    fn clone(&self) -> Self {
+        TowerMp(Mp::copy_of(self.0.ptr()).expect("libtommath alloc"))
+    }
+}
+
+impl PartialEq for TowerMp {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp_mp(other) == core::cmp::Ordering::Equal
+    }
+}
+impl Eq for TowerMp {}
+impl PartialOrd for TowerMp {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for TowerMp {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp_mp(other)
+    }
+}
+
+impl core::fmt::Debug for TowerMp {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Decimal via mp_to_radix (small values only appear in test output).
+        let p = self.0.ptr();
+        // SAFETY: live mp_int; buffer sized by mp_radix_size (incl. NUL).
+        unsafe {
+            let mut size: c_int = 0;
+            if mp_radix_size(p, 10, &mut size) != MP_OKAY || size <= 0 {
+                return write!(f, "<mp?>");
+            }
+            let mut buf = vec![0u8; size as usize];
+            let mut written: usize = 0;
+            if mp_to_radix(
+                p,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len(),
+                &mut written,
+                10,
+            ) != MP_OKAY
+            {
+                return write!(f, "<mp?>");
+            }
+            let end = written.saturating_sub(1).min(buf.len());
+            write!(f, "{}", String::from_utf8_lossy(&buf[..end]))
+        }
+    }
+}
+
+impl tcl_syntax::number_tower::BigIntOps for TowerMp {
+    fn from_i64(v: i64) -> Self {
+        TowerMp(Mp::from_i64(v).expect("libtommath alloc"))
+    }
+    fn to_i64(&self) -> Option<i64> {
+        // Exact range check (`store`'s demote is deliberately conservative
+        // about i64::MIN; the trait contract is exact).
+        let min = Self::from_i64(i64::MIN);
+        let max = Self::from_i64(i64::MAX);
+        (self.cmp_mp(&min) != core::cmp::Ordering::Less
+            && self.cmp_mp(&max) != core::cmp::Ordering::Greater)
+            // SAFETY: live mp_int within i64 range.
+            .then(|| unsafe { mp_get_i64(self.0.ptr()) })
+    }
+    fn is_zero(&self) -> bool {
+        self.0 .0.used == 0
+    }
+    fn is_negative(&self) -> bool {
+        self.0 .0.used != 0 && self.0 .0.sign != 0
+    }
+    fn add(&self, other: &Self) -> Self {
+        // SAFETY (each op below): live operand mp_ints; out is initialised.
+        Self::build(|out| unsafe { mp_add(self.0.ptr(), other.0.ptr(), out) })
+    }
+    fn sub(&self, other: &Self) -> Self {
+        Self::build(|out| unsafe { mp_sub(self.0.ptr(), other.0.ptr(), out) })
+    }
+    fn mul(&self, other: &Self) -> Self {
+        Self::build(|out| unsafe { mp_mul(self.0.ptr(), other.0.ptr(), out) })
+    }
+    fn div_floor(&self, other: &Self) -> Self {
+        let (q, _) = mp_floor_divmod(&self.0, &other.0).expect("libtommath alloc");
+        TowerMp(q)
+    }
+    fn mod_floor(&self, other: &Self) -> Self {
+        let (_, r) = mp_floor_divmod(&self.0, &other.0).expect("libtommath alloc");
+        TowerMp(r)
+    }
+    fn neg(&self) -> Self {
+        Self::build(|out| unsafe { mp_neg(self.0.ptr(), out) })
+    }
+    fn pow_u32(&self, exp: u32) -> Self {
+        let e = c_int::try_from(exp).expect("exponent fits c_int (tower-capped)");
+        Self::build(|out| unsafe { mp_expt_n(self.0.ptr(), e, out) })
+    }
+    fn shl(&self, count: u32) -> Self {
+        let c = c_int::try_from(count).expect("shift count fits c_int");
+        Self::build(|out| unsafe { mp_mul_2d(self.0.ptr(), c, out) })
+    }
+    fn shr(&self, count: usize) -> Self {
+        // The tower only calls this with `count <= bit_len` (the collapse
+        // guard), so the count always fits c_int.
+        let c = c_int::try_from(count).expect("shift count fits c_int");
+        Self::build(|out| unsafe { mp_signed_rsh(self.0.ptr(), c, out) })
+    }
+    fn bitand(&self, other: &Self) -> Self {
+        Self::build(|out| unsafe { mp_and(self.0.ptr(), other.0.ptr(), out) })
+    }
+    fn bitor(&self, other: &Self) -> Self {
+        Self::build(|out| unsafe { mp_or(self.0.ptr(), other.0.ptr(), out) })
+    }
+    fn bitxor(&self, other: &Self) -> Self {
+        Self::build(|out| unsafe { mp_xor(self.0.ptr(), other.0.ptr(), out) })
+    }
+    fn bit_len(&self) -> u64 {
+        // SAFETY: live mp_int; count is non-negative.
+        u64::try_from(unsafe { mp_count_bits(self.0.ptr()) }).unwrap_or(0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::obj;
+
+    /// The real libtommath backend passes the shared tower conformance
+    /// corpus — the differential proof that `mp_int` and the pure-Rust
+    /// `num-bigint` backend (compiler/VM) implement identical semantics.
+    #[test]
+    fn tower_conformance_libtommath() {
+        tcl_syntax::number_tower::conformance::assert_backend::<TowerMp>();
+    }
 
     fn string_of(obj: *mut TclObj) -> Vec<u8> {
         // Force the string rep and read it back.
@@ -1343,6 +1531,33 @@ mod tests {
         assert_eq!(shl(a, n), Err(ArithError::NegativeShift));
         drop1(a);
         drop1(n);
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    /// A beyond-wide positive shift count: `>>` collapses to the operand's
+    /// sign while `<<` is C's "integer value too large to represent" —
+    /// `expr {2 >> 10**20}` is `0`, `{-2 >> 10**20}` is `-1` (tclsh
+    /// 8.6/9.0 verified), never "exponent too large".
+    #[test]
+    fn huge_shift_counts() {
+        crate::counters::reset();
+        let huge = rc1(from_big_digits(false, Radix::Dec, "100000000000000000000"));
+        let two = int_obj(2);
+        let neg_two = int_obj(-2);
+        let r = rc1(shr(two, huge).expect("2 >> huge collapses"));
+        assert_eq!(string_of(r), b"0");
+        drop1(r);
+        let r = rc1(shr(neg_two, huge).expect("-2 >> huge collapses"));
+        assert_eq!(string_of(r), b"-1");
+        drop1(r);
+        assert_eq!(shl(two, huge), Err(ArithError::TooLargeToRepresent));
+        // A wide count past c_int is the same error, not "exponent".
+        let wide_count = int_obj(4_294_967_296);
+        assert_eq!(shl(two, wide_count), Err(ArithError::TooLargeToRepresent));
+        drop1(wide_count);
+        drop1(two);
+        drop1(neg_two);
+        drop1(huge);
         assert_eq!(crate::counters::finalize(), 0);
     }
 }
