@@ -927,6 +927,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 value: "0".into(),
+                value_span: None,
             }]),
             init_span: Span::new(4, 13),
             condition: ExprNode::Binary {

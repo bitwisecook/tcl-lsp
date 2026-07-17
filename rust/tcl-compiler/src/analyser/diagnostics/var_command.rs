@@ -1299,6 +1299,8 @@ impl Analyser {
                 callback_arity: None,
                 callback_baked_args: 0,
                 indirect: false,
+                rename_safe: true,
+                existence_probe: false,
             });
         }
         self.result.command_invocations.extend(new_invocations);

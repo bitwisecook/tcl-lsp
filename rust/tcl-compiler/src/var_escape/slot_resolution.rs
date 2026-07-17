@@ -442,6 +442,7 @@ mod tests {
             name: name.to_string(),
             value: value.to_string(),
             name_braced: false,
+            value_span: None,
         }
     }
 

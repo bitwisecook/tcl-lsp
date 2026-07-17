@@ -106,7 +106,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
         dialects: None,
-        traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL,
+        traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),

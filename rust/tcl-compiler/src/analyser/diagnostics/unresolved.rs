@@ -443,6 +443,13 @@ impl Analyser {
         let invocations = std::mem::take(&mut self.result.command_invocations);
         for inv in &invocations {
             let name = &inv.name;
+            // An existence probe (`namespace which -command NAME`, exact
+            // `info commands NAME`) asserts nothing about the name's
+            // existence — reference identity and existence are orthogonal
+            // (issue #945 fault 9), so the record never feeds W123.
+            if inv.existence_probe {
+                continue;
+            }
             if self.w123_invocation_resolves(known, name, inv.range) {
                 continue;
             }

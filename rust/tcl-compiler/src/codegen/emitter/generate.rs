@@ -972,6 +972,7 @@ mod tests {
                 name: "x".into(),
                 value: "42".into(),
                 name_braced: false,
+                value_span: None,
             });
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
@@ -1017,6 +1018,7 @@ mod tests {
                 name: "x".into(),
                 value: "42".into(),
                 name_braced: false,
+                value_span: None,
             });
         cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
@@ -1085,6 +1087,7 @@ mod tests {
                 name: "r".into(),
                 value: "1".into(),
                 name_braced: false,
+                value_span: None,
             });
         cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
             target: end,
@@ -1099,6 +1102,7 @@ mod tests {
                 name: "r".into(),
                 value: "2".into(),
                 name_braced: false,
+                value_span: None,
             });
         cfg.blocks.get_mut(&els).unwrap().terminator = Some(Terminator::Goto {
             target: end,

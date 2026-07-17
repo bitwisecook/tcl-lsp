@@ -2011,6 +2011,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             },
             uses: HashMap::new(),
             defs: HashMap::new(),
@@ -2565,6 +2566,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 value: "0".into(),
+                value_span: None,
             },
             uses: Map::new(),
             defs,
@@ -2778,6 +2780,7 @@ mod tests {
                     name: "x".into(),
                     name_braced: false,
                     value: "1".into(),
+                    value_span: None,
                 },
                 Statement::Return {
                     span: Span::new(0, 0),

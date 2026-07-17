@@ -255,6 +255,26 @@ pub struct SignatureCommandInvocation {
     /// other span-rewriting consumer must skip it** (rewriting the span would
     /// splice the new command name over unrelated source text).
     pub indirect: bool,
+    /// `false` when renaming this invocation's resolved command cannot be
+    /// completed soundly from source edits alone: the site reaches the
+    /// command through a value at least one of whose contributing constant
+    /// definitions has **no exact writable source span** (a synthesised /
+    /// folded constant, a list element the harvester cannot span).  Rename
+    /// must abstain for the whole symbol rather than emit an edit set that
+    /// leaves this site dispatching the old name (issue #945 fault 1: a
+    /// "successful" rename that produces broken Tcl).  `true` for every
+    /// ordinary direct call (the span *is* the written name) and for
+    /// indirect sites whose full contributor set is writable (their
+    /// literal-anchored twin references carry the edits).
+    pub rename_safe: bool,
+    /// `true` when this reference comes from an existence **probe**
+    /// ([`tcl_registry::ArgRole::CommandNameProbe`] — `namespace which
+    /// -command NAME`, an exact `info commands NAME`): the named command
+    /// legitimately may not exist, so the W123 unresolved-command pass
+    /// must skip this record — reference identity and existence assertion
+    /// are orthogonal (issue #945 fault 9).  Navigation and rename treat
+    /// the record exactly like any other direct reference.
+    pub existence_probe: bool,
 }
 
 /// The full result returned by `extract_signatures`.

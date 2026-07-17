@@ -1670,6 +1670,7 @@ mod tests {
             name: name.to_owned(),
             value: value.to_owned(),
             name_braced: false,
+            value_span: None,
         }
     }
 

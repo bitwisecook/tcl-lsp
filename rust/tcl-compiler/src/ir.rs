@@ -255,6 +255,15 @@ pub enum Statement {
         name_braced: bool,
         /// Constant value text.
         value: String,
+        /// Content span of the value *word* when `value` is written
+        /// verbatim in the source at this statement (the writable
+        /// provenance a rename may splice a new command name over).
+        /// `None` when the constant has no exact source
+        /// representation — a synthesised constant (folding,
+        /// desugaring, an optimiser rewrite) or a word whose content
+        /// was reconstructed — in which case value-provenance
+        /// consumers must abstain rather than guess a span.
+        value_span: Option<Span>,
     },
 
     /// Expression assignment: `set name [expr ...]`.
@@ -901,6 +910,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         }];
         let script = Script::from_statements(stmts);
         assert_eq!(script.statements.len(), 1);
@@ -1025,6 +1035,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "42".into(),
+            value_span: None,
         };
         if let Statement::AssignConst { name, value, .. } = &stmt {
             assert_eq!(name, "x");
@@ -1106,6 +1117,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 value: "0".into(),
+                value_span: None,
             }]),
             init_span: Span::new(4, 13),
             condition: ExprNode::Binary {
@@ -1344,6 +1356,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         };
         let cloned = stmt.clone();
         assert_eq!(stmt, cloned);
@@ -1432,6 +1445,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         };
         assert_eq!(stmt.canonical_command_or_source(), "");
     }

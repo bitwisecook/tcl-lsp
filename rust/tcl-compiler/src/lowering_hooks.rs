@@ -224,6 +224,17 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
     let name_braced = matches!(cmd.arg_kinds.first(), Some(ArgTokenKind::Str))
         && cmd.single_token_word.get(1).copied().unwrap_or(false);
 
+    // Content span of the value word when it is a verbatim source slice —
+    // the writable provenance for command-name-in-variable rename.
+    let value_span = cmd.tokens.as_ref().and_then(|t| {
+        let base = word_content_base(
+            *t.argv.get(2)?,
+            t.single_token_word.get(2).copied().unwrap_or(false),
+            value,
+        )?;
+        Some(Span::new(base, base + u32::try_from(value.len()).ok()?))
+    });
+
     // Check if value arg is a single token.
     if cmd.single_token_word.len() >= 3 && cmd.single_token_word[2] && cmd.arg_kinds.len() >= 2 {
         match cmd.arg_kinds[1] {
@@ -233,6 +244,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     name: name.clone(),
                     name_braced,
                     value: value.clone(),
+                    value_span,
                 };
             }
             ArgTokenKind::Esc => {
@@ -261,6 +273,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                         name: name.clone(),
                         name_braced,
                         value: int_val,
+                        value_span,
                     };
                 }
                 let needs_backsubst = value.contains('\\');

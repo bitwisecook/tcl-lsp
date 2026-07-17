@@ -226,6 +226,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W129",
+    section: "warning",
+    description:
+      "Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`.",
+    defaultEnabled: true,
+  },
+  {
     code: "W135",
     section: "warning",
     description: "Command requires a newer package version than the resolved `package require`.",
@@ -254,6 +261,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     section: "warning",
     description:
       "Command/option removed at the resolved package version (present only in earlier releases).",
+    defaultEnabled: true,
+  },
+  {
+    code: "W140",
+    section: "warning",
+    description:
+      "`interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.",
     defaultEnabled: true,
   },
   {

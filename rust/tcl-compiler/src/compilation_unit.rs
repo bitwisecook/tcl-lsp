@@ -1201,6 +1201,41 @@ impl CompilationUnit {
         std::iter::once(&self.top_level).chain(procs)
     }
 
+    /// The **narrowest** function unit whose source range covers `offset`
+    /// (absolute): procedures, `TclOO` methods, and synthetic body units
+    /// (`apply` lambdas, `namespace eval` bodies) all participate; the
+    /// top-level unit is the containing fallback.  This is the locator a
+    /// program-point query (e.g. the constant-`$cmd` value-provenance
+    /// settlement) uses to find the SSA form that actually contains a
+    /// site — a site inside a `namespace eval` body lives in that body's
+    /// own unit, not in `::top`'s statement list.
+    #[must_use]
+    pub fn function_unit_at(&self, offset: u32) -> &FunctionUnit {
+        let procs = self
+            .procedures
+            .iter()
+            .filter_map(|(qname, fu)| Some((self.ir_module.procedures.get(qname)?.span, fu)));
+        let methods = self
+            .methods
+            .iter()
+            .filter_map(|(qname, fu)| Some((self.ir_module.methods.get(qname)?.span?, fu)));
+        let bodies = self
+            .body_units
+            .iter()
+            .filter_map(|(qname, fu)| Some((self.ir_module.body_units.get(qname)?.span, fu)));
+        let mut best: Option<(u32, &FunctionUnit)> = None;
+        for (range, fu) in procs.chain(methods).chain(bodies) {
+            if !(range.start() <= offset && offset <= range.end()) {
+                continue;
+            }
+            let width = range.end() - range.start();
+            if best.is_none_or(|(bw, _)| width < bw) {
+                best = Some((width, fu));
+            }
+        }
+        best.map_or(&self.top_level, |(_, fu)| fu)
+    }
+
     /// Instance-variable names in scope for the named function when it is a
     /// `TclOO`/snit *method* body (class-level `variable` declarations plus
     /// the method's own) — the alias-shaped names the shimmer thunking pass

@@ -333,6 +333,23 @@ pub enum AnalyserHookId {
     /// not merge into the parent namespace (stamped on `interp`'s `eval`
     /// subcommand).
     InterpEval,
+    /// `interp create ?-safe? ?--? ?path?` — records the interpreter's
+    /// existence and safe state in the analyser's interpreter-domain map
+    /// (stamped on `interp`'s `create` subcommand).  A safe child's
+    /// evaluation contexts hide every [`crate::Traits::SAFE_INTERP_HIDDEN`]
+    /// command (issue #945 fault 7).
+    InterpCreate,
+    /// `interp delete ?path ...?` — removes the recorded interpreter
+    /// state (stamped on `interp`'s `delete` subcommand).
+    InterpDelete,
+    /// `interp hide path cmdName ?hiddenName?` — marks the command
+    /// hidden in the target interpreter's domain (stamped on `interp`'s
+    /// `hide` subcommand).
+    InterpHide,
+    /// `interp expose path hiddenName ?newName?` — re-exposes a hidden
+    /// command in the target interpreter's domain (stamped on `interp`'s
+    /// `expose` subcommand).
+    InterpExpose,
     /// `rename oldName newName` — records a static rename / deletion;
     /// a dynamic operand reports back so the caller can widen the
     /// dynamic-providers flag.

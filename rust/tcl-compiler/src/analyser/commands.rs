@@ -233,6 +233,50 @@ impl Analyser {
         self.body_depth -= 1;
     }
 
+    /// Returns `true` when `cmd_name` is hidden in the enclosing safe
+    /// interpreter and the caller must skip the command entirely.
+    /// Extracted from [`Self::process_command`] to keep that function
+    /// within the line budget.
+    fn safe_interp_visibility_gate(&mut self, cmd_name: &str, cmd_tok: Token) -> bool {
+        // Safe-interpreter visibility gate (issue #945 fault 7): inside a
+        // safe interpreter's evaluation body, a command whose registry spec
+        // is safe-hidden (`Traits::SAFE_INTERP_HIDDEN`) — or was
+        // `interp hide`-den — and not re-exposed raises `invalid command
+        // name` in C *before* any effect happens.  Flag it (W129) and skip
+        // the command entirely: no invocation record, no handler dispatch,
+        // no source / package / definition edges built from a call that
+        // never executes.  The set membership is registry data; no command
+        // name appears here.
+        let Some(ctx) = self.safe_interp_stack.last() else {
+            return false;
+        };
+        let bare = cmd_name.trim_start_matches(':');
+        let spec_hidden = ctx.base_hidden
+            && self.registry.and_then(|r| r.get(bare)).is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN)
+            });
+        let hidden =
+            (spec_hidden || ctx.hidden_extra.contains(bare)) && !ctx.exposed.contains(bare);
+        if !hidden {
+            return false;
+        }
+        if !self.structure_only {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: tcl_core_types::DiagCode::W129,
+                span: cmd_tok.span,
+                message: format!(
+                    "'{cmd_name}' is hidden in this safe interpreter — the call \
+                     raises `invalid command name` unless it is exposed or \
+                     invoked via `interp invokehidden`"
+                ),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+        true
+    }
+
     /// Process a single segmented command.
     ///
     /// Walks `args` against every handler and stops at the first
@@ -263,6 +307,12 @@ impl Analyser {
             return;
         }
         let cmd_name = argv_texts[0].as_str();
+        // Safe-interpreter visibility gate (issue #945 fault 7): a command
+        // hidden in the enclosing safe interpreter never executes — see
+        // `safe_interp_visibility_gate`'s doc for the full rationale.
+        if self.safe_interp_visibility_gate(cmd_name, arg_tokens_in[0]) {
+            return;
+        }
         let args = if argv_texts.len() > 1 {
             &argv_texts[1..]
         } else {
@@ -312,6 +362,8 @@ impl Analyser {
                     callback_arity: None,
                     callback_baked_args: 0,
                     indirect: false,
+                    rename_safe: true,
+                    existence_probe: false,
                 },
             );
 
@@ -337,6 +389,8 @@ impl Analyser {
                         callback_arity: None,
                         callback_baked_args: 0,
                         indirect: false,
+                        rename_safe: true,
+                        existence_probe: false,
                     },
                 );
             }
@@ -383,6 +437,7 @@ impl Analyser {
             // post-walk W307 / W308 emitters can resolve them.
             self.record_var_or_cmd_command_site(
                 cmd_tok,
+                arg_expand_in.first().copied().unwrap_or(false),
                 args,
                 arg_tokens,
                 arg_expand_in.get(1..).unwrap_or(&[]),
@@ -582,6 +637,22 @@ impl Analyser {
 
             // Void families: run the handler(s), then fall through to
             // the shared tail.
+            Hook::InterpCreate => {
+                self.handle_interp_create_command(args);
+                false
+            }
+            Hook::InterpDelete => {
+                self.handle_interp_delete_command(args);
+                false
+            }
+            Hook::InterpHide => {
+                self.handle_interp_hide_command(args);
+                false
+            }
+            Hook::InterpExpose => {
+                self.handle_interp_expose_command(args);
+                false
+            }
             Hook::Set => {
                 self.handle_set_command(args, arg_tokens, arg_single, scope_path);
                 self.handle_auto_path_set(args, arg_tokens);
@@ -1208,6 +1279,8 @@ impl Analyser {
                     callback_arity: Some(inv.appended),
                     callback_baked_args: inv.baked,
                     indirect: false,
+                    rename_safe: true,
+                    existence_probe: false,
                 },
             );
         }
@@ -1229,6 +1302,21 @@ impl Analyser {
         resolved: String,
         argc: Option<usize>,
     ) {
+        self.push_command_reference_with_policy(written, span, resolved, argc, false);
+    }
+
+    /// [`Self::push_command_reference`] with an explicit existence policy:
+    /// `existence_probe: true` records a reference the W123 pass must skip
+    /// (the probed command legitimately may not exist — issue #945
+    /// fault 9).
+    pub(in crate::analyser) fn push_command_reference_with_policy(
+        &mut self,
+        written: String,
+        span: Span,
+        resolved: String,
+        argc: Option<usize>,
+        existence_probe: bool,
+    ) {
         self.result.command_invocations.push(
             crate::signature_scan::types::SignatureCommandInvocation {
                 name: written,
@@ -1239,6 +1327,8 @@ impl Analyser {
                 callback_arity: None,
                 callback_baked_args: 0,
                 indirect: false,
+                rename_safe: true,
+                existence_probe,
             },
         );
     }
@@ -1259,20 +1349,34 @@ impl Analyser {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let indices = registry.arg_indices_for_role(
-            cmd_name,
-            &arg_strs,
-            tcl_registry::arg_role::ArgRole::CommandName,
-        );
-        for idx in indices {
-            let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
-                continue;
-            };
-            if name.is_empty() || crate::naming::is_dynamic_word(name) {
-                continue;
+        // Required-existence references and probe references share the
+        // recording; only the existence policy carried on the record
+        // differs (a probe never feeds W123 — issue #945 fault 9).
+        for (role, probe) in [
+            (tcl_registry::arg_role::ArgRole::CommandName, false),
+            (tcl_registry::arg_role::ArgRole::CommandNameProbe, true),
+        ] {
+            for idx in registry.arg_indices_for_role(cmd_name, &arg_strs, role) {
+                let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
+                    continue;
+                };
+                if name.is_empty() || crate::naming::is_dynamic_word(name) {
+                    continue;
+                }
+                // A glob pattern probes a *set* of commands, not one exact
+                // name — no single reference identity exists, so abstain.
+                if probe && name.contains(['*', '?']) {
+                    continue;
+                }
+                let resolved = self.resolve_command_qualified_name(name, scope_path);
+                self.push_command_reference_with_policy(
+                    name.clone(),
+                    tok.span,
+                    resolved,
+                    None,
+                    probe,
+                );
             }
-            let resolved = self.resolve_command_qualified_name(name, scope_path);
-            self.push_command_reference(name.clone(), tok.span, resolved, None);
         }
     }
 
@@ -1573,6 +1677,7 @@ impl Analyser {
         // substitutions and the W307/W308 emitters never see them.
         self.record_var_or_cmd_command_site(
             cmd_tok,
+            arg_expand.first().copied().unwrap_or(false),
             args,
             arg_tokens,
             arg_expand.get(1..).unwrap_or(&[]),
@@ -1788,6 +1893,8 @@ impl Analyser {
                     callback_arity,
                     callback_baked_args: 0,
                     indirect: false,
+                    rename_safe: true,
+                    existence_probe: false,
                 },
             );
         }
@@ -1836,6 +1943,8 @@ impl Analyser {
                     callback_arity: None,
                     callback_baked_args: 0,
                     indirect: false,
+                    rename_safe: true,
+                    existence_probe: false,
                 },
             );
         }
@@ -1848,6 +1957,7 @@ impl Analyser {
     fn record_var_or_cmd_command_site(
         &mut self,
         cmd_tok: Token,
+        head_expanded: bool,
         args: &[String],
         arg_tokens: &[Token],
         arg_expand: &[bool],
@@ -1876,24 +1986,24 @@ impl Analyser {
                     .map_or(raw, |(name, _)| name)
                     .to_string();
                 let method_name = args.first().cloned();
-                // M7: a *constant* `$cmd` head is a statically-known dispatch.
-                // Record it for post-walk settlement (only a value resolving
-                // to a known command becomes a reference; anything else is
-                // dropped — the documented non-const abstention).  A braced
-                // composite head (`${ns}::tail …`) is the W307 ensemble
-                // shape, not a whole-command variable, so it is skipped.
-                if var_name == raw
-                    && let Some(value) = self.lookup_const_string(&var_name, scope_path)
-                    && !crate::naming::is_dynamic_word(value)
-                    && !value.trim().is_empty()
-                {
-                    let value = value.to_string();
+                // M7: a simple-`$cmd` head may be a statically-known
+                // dispatch.  Record the *site* for settlement in the
+                // CFG/SSA phase, where the flow-sensitive value model can
+                // prove (or soundly refuse to prove) the finite set of
+                // command names reaching this exact program point —
+                // never the walk's lexical constant map, whose
+                // last-write-wins view collapses `if`/loop joins (issue
+                // #945 fault 2).  A braced composite head (`${ns}::tail
+                // …`) is the W307 ensemble shape, not a whole-command
+                // variable, so it is skipped.
+                if var_name == raw {
                     let ns = self.command_resolution_namespace(scope_path);
                     self.pending_const_dispatches
                         .push(super::state::ConstDispatchSite {
-                            value,
+                            var_name: var_name.clone(),
                             span: cmd_tok.span,
                             ns,
+                            head_expanded,
                         });
                 }
                 self.var_command_sites.push(super::state::VarCommandSite {

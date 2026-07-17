@@ -134,11 +134,13 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             name,
             name_braced,
             value,
+            value_span,
         } => Statement::AssignConst {
             span: *span,
             name: rename_var_name(name, rename),
             name_braced: *name_braced,
             value: value.clone(),
+            value_span: *value_span,
         },
         Statement::AssignValue {
             span,

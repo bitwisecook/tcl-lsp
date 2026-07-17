@@ -30,7 +30,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
         dialects: None,
-        traits: Traits::BYTE_COMPILED | Traits::TERMINATES_BLOCK,
+        traits: Traits::BYTE_COMPILED | Traits::TERMINATES_BLOCK | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::new(0, 1),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,

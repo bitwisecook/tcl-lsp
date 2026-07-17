@@ -34,7 +34,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "load",
         dialects: None,
-        traits: Traits::BYTE_COMPILED,
+        traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::String),
         // ``--`` is the option terminator that drives W304's

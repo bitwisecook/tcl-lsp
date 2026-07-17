@@ -1806,6 +1806,7 @@ mod tests {
                 name: name.into(),
                 name_braced: false,
                 value: value.into(),
+                value_span: None,
             },
             uses: HashMap::new(),
             defs,

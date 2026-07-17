@@ -85,7 +85,10 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "socket",
         dialects: None,
-        traits: Traits::BYTE_COMPILED | Traits::OPENS_CHANNEL | Traits::TAINT_SOURCE,
+        traits: Traits::BYTE_COMPILED
+            | Traits::OPENS_CHANNEL
+            | Traits::TAINT_SOURCE
+            | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(2),
         return_type: Some(TclType::Channel),
         side_effects: &[SideEffect {

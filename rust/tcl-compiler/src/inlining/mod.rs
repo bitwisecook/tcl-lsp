@@ -1422,6 +1422,7 @@ fn wrap_with_irreturn_loop(
             name: result_var.to_owned(),
             name_braced: false,
             value: String::new(),
+            value_span: None,
         },
         Statement::While {
             span,
@@ -1649,6 +1650,7 @@ fn build_param_bindings(
                 name,
                 name_braced: false,
                 value: v.clone(),
+                value_span: None,
             });
         } else {
             bindings.push(Statement::AssignValue {
@@ -1729,6 +1731,7 @@ fn build_with_defaults(
                     name,
                     name_braced: false,
                     value: v.clone(),
+                    value_span: None,
                 }
             } else {
                 Statement::AssignValue {

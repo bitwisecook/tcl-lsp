@@ -399,32 +399,18 @@ impl Analyser {
         let r = frag.result;
         self.result.all_procs.extend(r.all_procs);
         self.result.all_classes.extend(r.all_classes);
-        for (k, v) in r.all_variables {
-            match self.result.all_variables.get_mut(&k) {
-                Some(existing) if shell_var_keys.contains(&k) => {
-                    // Param / top-level key the shell already owns: take this
-                    // body's references / warn / indices (last-definition-wins for
-                    // a duplicate proc — analyse's `define_var` resets them on each
-                    // redefinition) but keep the shell's real definition span.
-                    let def = existing.definition_span;
-                    *existing = v;
-                    existing.definition_span = def;
-                }
-                Some(existing) => {
-                    // Body-owned local already present (an earlier duplicate
-                    // definition): last-definition-wins.
-                    *existing = v;
-                }
-                None => {
-                    self.result.all_variables.insert(k, v);
-                }
-            }
-        }
+        self.merge_body_variables(r.all_variables, shell_var_keys);
         self.result.command_aliases.extend(r.command_aliases);
         self.result.renamed_commands.extend(r.renamed_commands);
         self.result
             .rename_target_spans
             .extend(r.rename_target_spans);
+        // Per-object methods accumulate per receiver name across bodies —
+        // the binding-identity consumer scopes them by objdefine site
+        // (issue #945 fault 5), so records from different procs coexist.
+        for (k, v) in r.object_methods {
+            self.result.object_methods.entry(k).or_default().extend(v);
+        }
         self.result.instance_classes.extend(r.instance_classes);
         self.result
             .created_instance_commands
@@ -473,19 +459,7 @@ impl Analyser {
         // any deferred body, so without this guard a later definition would
         // spuriously absorb the read.  Gate on the body token start (the proc
         // header precedes it, and no top-level command can fall inside the body).
-        let body_start = db.body_tok.span.start();
-        for (name, span) in frag.global_reads {
-            let base = crate::naming::normalise_var_name(&name);
-            let visible = self
-                .result
-                .global_scope
-                .variables
-                .get(base)
-                .is_some_and(|v| v.definition_span.start() < body_start);
-            if visible {
-                self.record_var_read(&name, shift(span, delta), &[]);
-            }
-        }
+        self.replay_body_global_reads(frag.global_reads, db.body_tok.span.start(), delta);
         // Re-defer the body's would-be-W002 sites (already rebased by
         // `rebase_fragment`); the tail re-applies the shadow check against
         // the merged `all_procs` / `command_aliases` / `renamed_commands` /
@@ -509,6 +483,63 @@ impl Analyser {
         // rebasing is needed.
         for (cmd, args) in frag.instances {
             self.record_instance_creation(&cmd, &args);
+        }
+    }
+
+    /// Merge a grafted body's `all_variables` into the shell's, keyed by the
+    /// shell-ownership rule [`Self::graft_proc_body`]'s doc comment
+    /// describes.  Extracted to keep that function within the line budget.
+    fn merge_body_variables(
+        &mut self,
+        body_vars: std::collections::HashMap<String, super::types::VarDef>,
+        shell_var_keys: &std::collections::HashSet<String>,
+    ) {
+        for (k, v) in body_vars {
+            match self.result.all_variables.get_mut(&k) {
+                Some(existing) if shell_var_keys.contains(&k) => {
+                    // Param / top-level key the shell already owns: take this
+                    // body's references / warn / indices (last-definition-wins for
+                    // a duplicate proc — analyse's `define_var` resets them on each
+                    // redefinition) but keep the shell's real definition span.
+                    let def = existing.definition_span;
+                    *existing = v;
+                    existing.definition_span = def;
+                }
+                Some(existing) => {
+                    // Body-owned local already present (an earlier duplicate
+                    // definition): last-definition-wins.
+                    *existing = v;
+                }
+                None => {
+                    self.result.all_variables.insert(k, v);
+                }
+            }
+        }
+    }
+
+    /// Replay a grafted body's qualified global reads against the shell's
+    /// real global scope: a `$::g` read lands as a reference on the
+    /// enclosing `::g` exactly as a whole-file walk would.  Extracted from
+    /// [`Self::graft_proc_body`], whose doc comment covers the
+    /// visibility-ordering rule (`body_start` gates out a definition that
+    /// only appears *after* this body in source order).
+    fn replay_body_global_reads(
+        &mut self,
+        global_reads: Vec<(String, tcl_lexer::Span)>,
+        body_start: u32,
+        delta: u32,
+    ) {
+        for (name, span) in global_reads {
+            let base = crate::naming::normalise_var_name(&name);
+            let visible = self
+                .result
+                .global_scope
+                .variables
+                .get(base)
+                .is_some_and(|v| v.definition_span.start() < body_start);
+            if visible {
+                self.record_var_read(&name, shift(span, delta), &[]);
+            }
         }
     }
 }
@@ -808,6 +839,13 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for sp in r.rename_target_spans.values_mut() {
         *sp = shift(*sp, d);
+    }
+    for records in r.object_methods.values_mut() {
+        for om in records {
+            om.objdefine_offset += d;
+            om.def.name_span = shift(om.def.name_span, d);
+            om.def.body_span = shift(om.def.body_span, d);
+        }
     }
     for x in &mut r.auto_path_entries {
         x.range = shift(x.range, d);

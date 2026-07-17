@@ -95,25 +95,27 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
 /// `VarRead` reference — navigation only, and variables draw no
 /// unknown-variable diagnostic, so a probe of an absent variable is harmless.
 ///
-/// The default / `-command` form is deliberately **not** marked as a
-/// `CommandName` reference: that role feeds the name into the W123
-/// unresolved-command pass, which would flag a perfectly valid existence check
-/// (`if {[namespace which -command foo] eq ""} …`) of a command the analyser
-/// cannot see.  Navigating a probed *command* needs a reference role that
-/// records the link without asserting existence, which the model does not have
-/// yet — so the `-command` form contributes no role.  `args` are the words
-/// after the `which` subcommand.
+/// The default / `-command` form is a [`ArgRole::CommandNameProbe`]
+/// reference (issue #945 fault 9): the name navigates — find-references /
+/// go-to-definition / rename reach it like any direct reference — while
+/// the probe existence policy keeps it out of the W123 unresolved-command
+/// pass, so a perfectly valid existence check
+/// (`if {[namespace which -command foo] eq ""} …`) of a command the
+/// analyser cannot see is never flagged.  `args` are the words after the
+/// `which` subcommand.
 fn namespace_which_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let is_variable = args
         .iter()
         .any(|a| a.len() > 1 && "-variable".starts_with(*a));
-    if !is_variable {
-        return Vec::new();
-    }
     let Some(idx) = args.iter().rposition(|a| !a.starts_with('-')) else {
         return Vec::new();
     };
-    u8::try_from(idx).map_or_else(|_| Vec::new(), |i| vec![(i, ArgRole::VarRead)])
+    let role = if is_variable {
+        ArgRole::VarRead
+    } else {
+        ArgRole::CommandNameProbe
+    };
+    u8::try_from(idx).map_or_else(|_| Vec::new(), |i| vec![(i, role)])
 }
 
 static WHICH_OPTIONS: &[OptionSpec] = &[

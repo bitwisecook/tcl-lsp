@@ -686,6 +686,7 @@ fn literal_with_embedded_stx_appears_escaped_in_disassembly() {
             name: "x".into(),
             name_braced: false,
             value: "\x00\x02-".into(),
+            value_span: None,
         });
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
         value: None,

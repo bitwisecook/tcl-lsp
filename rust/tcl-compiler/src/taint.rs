@@ -4111,6 +4111,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "hello".into(),
+            value_span: None,
         };
         let mut cfg = Function::new("::top", "entry");
         let entry = cfg.entry;

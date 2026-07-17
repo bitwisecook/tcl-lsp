@@ -31,7 +31,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        traits: Traits::RETURNS_PATH,
+        traits: Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         ..CommandSpec::DEFAULT
     }
 }

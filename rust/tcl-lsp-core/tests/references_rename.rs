@@ -161,20 +161,37 @@ fn references_proc_called_inside_oo_objdefine_method_body() {
 }
 
 #[test]
-fn namespace_which_command_probe_is_not_a_reference() {
-    // `namespace which -command greet` is an existence PROBE (it returns "" for
-    // an unknown command), not a call or a navigable reference.  Recording it
-    // as a command reference fed the probe into the W123 unresolved-command
-    // pass, flagging a legitimate `[namespace which -command foo] eq ""`
-    // existence check.  So Find-All-References from the declaration does NOT
-    // include the probe site — only the decl itself.
+fn namespace_which_command_probe_navigates_and_renames_945() {
+    // `namespace which -command greet` is an existence PROBE (it returns ""
+    // for an unknown command) — but reference identity and existence
+    // assertion are orthogonal (issue #945 fault 9): the typed
+    // `CommandNameProbe` role records a first-class, exactly-writable
+    // reference (Find-All-References and rename reach the probe site)
+    // whose record never feeds W123.
     let src = "proc greet {} {}\nnamespace which -command greet\n";
     let analysis = analyse(src);
     let refs = references(src, "tcl", 0, 6, &analysis, true);
     assert_eq!(
         ref_lines(&refs),
-        vec![0],
-        "only the decl; the probe is not a reference: got {refs:?}",
+        vec![0, 1],
+        "the probe site is a navigable reference: got {refs:?}",
+    );
+    // Rename rewrites the exact probe token alongside the declaration.
+    let edits = rename(src, "tcl", 0, 6, "salute", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![0, 1],
+        "rename rewrites the probe's exact name token: {edits:?}",
+    );
+    // A glob-pattern probe (`info commands gr*`) names no single command —
+    // no reference, no rename edit (the dynamic/pattern abstention).
+    let src2 = "proc greet {} {}\ninfo commands gr*\ninfo commands greet\n";
+    let analysis2 = analyse(src2);
+    let refs2 = references(src2, "tcl", 0, 6, &analysis2, true);
+    assert_eq!(
+        ref_lines(&refs2),
+        vec![0, 2],
+        "exact `info commands` probes navigate; patterns abstain: {refs2:?}",
     );
 }
 
@@ -785,18 +802,21 @@ fn rename_class_two_level_nested_namespace_scoped_correctly() {
 #[test]
 fn references_variable_held_command_name_is_not_resolved_documented_limitation() {
     // A command name stored in a variable and invoked indirectly is, in the
-    // general case, statically undecidable.  M7 narrows the limitation: a
-    // *constant* head (`set cmd helper; $cmd`) IS resolved (see the M7 tests
-    // below), so the remaining honest abstention is the genuinely dynamic
-    // value — a head whose variable was assigned from another variable.
-    // This pins that boundary: no crash, no false attribution, no reference.
-    let src = "proc helper {} { return hi }\nset src helper\nset cmd $src\n$cmd\n";
+    // general case, statically undecidable.  The flow-sensitive value model
+    // (issue #945 faults 1–2) narrows the limitation further than M7's
+    // original constant map: a pure single-`$var` copy chain
+    // (`set src helper; set cmd $src; $cmd`) now resolves — see
+    // `const_cmd_head_resolves_through_a_pure_copy_chain_m7` — so the
+    // remaining honest abstention is a *computed* value.  This pins that
+    // boundary: no crash, no false attribution, no reference.
+    let src =
+        "proc helper {} { return hi }\nset cmd [dict get $tbl k]\n$cmd\nset cmd2 x$suffix\n$cmd2\n";
     let analysis = analyse(src);
     let refs = references(src, "tcl", 0, 6, &analysis, true);
     assert_eq!(
         ref_lines(&refs),
         vec![0],
-        "only the declaration; a dynamic `$cmd` is not statically resolved: {refs:?}"
+        "only the declaration; a computed `$cmd` is not statically resolved: {refs:?}"
     );
 }
 
@@ -866,20 +886,21 @@ fn rename_proc_updates_definition_and_all_call_sites() {
 #[test]
 fn rename_parent_proc_does_not_edit_a_child_interp_body() {
     // `interp eval child { proc foo }` runs in a child interpreter, so its
-    // `proc foo` is isolated from the parent's `::foo`.  Renaming the parent
-    // `foo` rewrites the parent decl (line 0) and its call (line 2) but must
-    // never touch the child body on line 1.
-    let src = "proc foo {} {}\ninterp eval child { proc foo {} {} }\nfoo\n";
+    // `proc foo` is isolated from the parent's `::foo` (runnable Tcl: the
+    // child is created first).  Renaming the parent `foo` rewrites the
+    // parent decl (line 1) and its call (line 3) but must never touch the
+    // child body on line 2.
+    let src = "interp create child\nproc foo {} {}\ninterp eval child { proc foo {} {} }\nfoo\n";
     let analysis = analyse(src);
-    // Cursor on the parent `foo` declaration (line 0, col 6).
-    let edits = rename(src, "tcl", 0, 6, "bar", &analysis, None);
+    // Cursor on the parent `foo` declaration (line 1, col 6).
+    let edits = rename(src, "tcl", 1, 6, "bar", &analysis, None);
     assert!(
-        edits.iter().all(|e| e.range.start_line != 1),
+        edits.iter().all(|e| e.range.start_line != 2),
         "the isolated child interp body must be untouched: {edits:?}",
     );
     let lines = edit_lines(&edits);
     assert!(
-        lines.contains(&0) && lines.contains(&2),
+        lines.contains(&1) && lines.contains(&3),
         "the parent decl and call are still rewritten: {edits:?}",
     );
 }
@@ -1708,31 +1729,164 @@ fn namespace_variables_in_different_namespaces_do_not_unify() {
 #[test]
 fn references_include_a_const_cmd_dispatch_site_m7() {
     // tclsh: `proc target {} {..}; set cmd target; $cmd` runs `target` — the
-    // `$cmd` head is a genuine (indirect) invocation of it.
+    // `$cmd` head is a genuine (indirect) invocation of it, and the defining
+    // literal in `set cmd target` is the writable reference feeding it
+    // (issue #945 fault 1).
     let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
     let analysis = analyse(src);
     let refs = references(src, "tcl", 0, 6, &analysis, true);
     assert_eq!(
         ref_lines(&refs),
-        vec![0, 2, 3],
-        "decl + $cmd dispatch + direct call expected; got {refs:?}",
+        vec![0, 1, 2, 3],
+        "decl + defining literal + $cmd dispatch + direct call expected; got {refs:?}",
     );
 }
 
+/// Find a tclsh to execute transformed rename output under:
+/// `TCL_LSP_TCLSH`, then common `PATH` names (mirrors
+/// `command_resolution_conformance`).  `None` skips the execution leg.
+fn find_tclsh() -> Option<std::path::PathBuf> {
+    if let Ok(explicit) = std::env::var("TCL_LSP_TCLSH") {
+        let p = std::path::PathBuf::from(explicit);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    for name in ["tclsh9.0", "tclsh8.6", "tclsh"] {
+        if let Ok(out) = std::process::Command::new(name).arg("--version").output()
+            && (out.status.success() || !out.stderr.is_empty() || !out.stdout.is_empty())
+        {
+            return Some(std::path::PathBuf::from(name));
+        }
+    }
+    None
+}
+
+/// Apply line-based [`lsp_core::rename::TextEdit`]s to `src`.
+fn apply_edits(src: &str, edits: &[tcl_lsp_core::rename::TextEdit]) -> String {
+    let mut lines: Vec<String> = src.lines().map(str::to_owned).collect();
+    let mut sorted: Vec<_> = edits.iter().collect();
+    sorted.sort_by_key(|e| {
+        (
+            std::cmp::Reverse(e.range.start_line),
+            std::cmp::Reverse(e.range.start_character),
+        )
+    });
+    for e in sorted {
+        assert_eq!(
+            e.range.start_line, e.range.end_line,
+            "single-line edits expected in this fixture"
+        );
+        let line = &mut lines[e.range.start_line as usize];
+        let (s, t) = (
+            e.range.start_character as usize,
+            e.range.end_character as usize,
+        );
+        line.replace_range(s..t, &e.new_text);
+    }
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
+}
+
 #[test]
-fn rename_never_rewrites_the_const_cmd_dispatch_span_m7() {
-    // The `$cmd` head references the proc, but its span is `$cmd`, not the
-    // name — a rename must rewrite the declaration and the direct call and
-    // leave `$cmd` intact (the variable's *value* still names the old proc at
-    // runtime; splicing text over `$cmd` would corrupt the source).
+fn rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945() {
+    // Issue #945 fault 1: the correct non-corrupting rename rewrites the
+    // *defining constant's literal* (`set cmd target` → `set cmd renamed`),
+    // never the `$cmd` head — the old expectation (leave the literal stale)
+    // produced Tcl that fails with `invalid command name "target"` under
+    // tclsh 9.0.4.
     let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
     let analysis = analyse(src);
     let edits = rename(src, "tcl", 0, 6, "renamed", &analysis, None);
     assert_eq!(
         edit_lines(&edits),
-        vec![0, 3],
-        "decl + direct call only; the $cmd span must stay untouched: {edits:?}",
+        vec![0, 1, 3],
+        "decl + defining literal + direct call; the $cmd span stays: {edits:?}",
     );
+    let renamed_src = apply_edits(src, &edits);
+    assert!(
+        renamed_src.contains("set cmd renamed") && renamed_src.contains("$cmd"),
+        "the literal follows the rename and the head is untouched:\n{renamed_src}",
+    );
+    // Execute the transformed output under a real Tcl — the renamed script
+    // must still dispatch (this is exactly what the old edit set broke).
+    if let Some(tclsh) = find_tclsh() {
+        use std::io::Write;
+        let mut child = std::process::Command::new(&tclsh)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn tclsh");
+        let script = format!("{renamed_src}puts [$cmd]\n");
+        child
+            .stdin
+            .as_mut()
+            .expect("tclsh stdin")
+            .write_all(script.as_bytes())
+            .expect("write script");
+        let out = child.wait_with_output().expect("tclsh run");
+        assert!(
+            out.status.success(),
+            "renamed output must execute cleanly under {}:\n{}\nstderr: {}",
+            tclsh.display(),
+            script,
+            String::from_utf8_lossy(&out.stderr),
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout).trim(),
+            "hi",
+            "the dispatch must still reach the renamed proc",
+        );
+    } else {
+        eprintln!("skipping tclsh execution leg: no tclsh on PATH (set TCL_LSP_TCLSH)");
+    }
+}
+
+#[test]
+fn rename_from_the_defining_literal_cursor_follows_the_dispatch_945() {
+    // The cursor on the *literal* (`set cmd target`, on `target`) names the
+    // same command — rename from there produces the identical edit set.
+    let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
+    let analysis = analyse(src);
+    let edits = rename(src, "tcl", 1, 8, "renamed", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![0, 1, 3],
+        "identical edit set from the literal cursor: {edits:?}",
+    );
+}
+
+#[test]
+fn rename_abstains_when_a_contributing_constant_has_no_writable_span_945() {
+    // `foreach cmd {target other} { $cmd }` proves the value set finitely
+    // (SCCP folds the loop variable to the element CONSTSET) but the list
+    // elements carry no per-element writable span — an edit set could not
+    // keep the dispatch alive, so the rename must abstain wholly rather
+    // than corrupt (issue #945 fault 1's "sound abstention" arm).
+    let src = "proc target {} { return hi }\nforeach cmd {target other} { $cmd }\ntarget\n";
+    let analysis = analyse(src);
+    let has_unsafe_indirect = analysis
+        .command_invocations
+        .iter()
+        .any(|i| i.indirect && !i.rename_safe);
+    let edits = rename(src, "tcl", 0, 6, "renamed", &analysis, None);
+    if has_unsafe_indirect {
+        assert!(
+            edits.is_empty(),
+            "an unwritable contributor must abstain the whole rename: {edits:?}",
+        );
+    } else {
+        // The value oracle abstained entirely (no indirect reference at
+        // all) — the rename then legitimately proceeds over the direct
+        // sites only, and no stale-literal claim was ever made.
+        assert_eq!(
+            edit_lines(&edits),
+            vec![0, 2],
+            "direct sites only: {edits:?}"
+        );
+    }
 }
 
 #[test]

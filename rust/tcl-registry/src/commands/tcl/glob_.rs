@@ -30,7 +30,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "glob",
         dialects: None,
-        traits: Traits::BYTE_COMPILED,
+        traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         side_effects: &[SideEffect {

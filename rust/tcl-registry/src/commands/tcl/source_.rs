@@ -34,7 +34,8 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::SOURCES_FILE
-            | Traits::DYNAMIC_EVAL_BODY,
+            | Traits::DYNAMIC_EVAL_BODY
+            | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::new(1, 2),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

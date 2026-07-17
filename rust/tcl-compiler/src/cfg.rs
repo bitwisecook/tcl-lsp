@@ -631,6 +631,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         });
         block.terminator = Some(make_return(None));
         assert_eq!(block.statements.len(), 1);

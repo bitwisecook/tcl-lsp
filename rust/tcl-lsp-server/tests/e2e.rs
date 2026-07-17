@@ -55,6 +55,8 @@ mod hover;
 mod invariants;
 #[path = "e2e/irules.rs"]
 mod irules;
+#[path = "e2e/issue945.rs"]
+mod issue945;
 #[path = "e2e/navigation.rs"]
 mod navigation;
 #[path = "e2e/navigation_extras.rs"]

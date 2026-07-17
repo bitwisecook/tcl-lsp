@@ -4507,12 +4507,40 @@
             "markdownDescription": "Display severity for **W128:** Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.",
             "order": 25
           },
+          "tclLsp.diagnostics.W129": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W129:** Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`.",
+            "order": 26
+          },
+          "tclLsp.diagnosticSeverity.W129": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W129:** Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`.",
+            "order": 26
+          },
           "tclLsp.diagnostics.W135": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W135:** Command requires a newer package version than the resolved `package require`.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.diagnosticSeverity.W135": {
             "scope": "resource",
@@ -4533,14 +4561,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W135:** Command requires a newer package version than the resolved `package require`.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.diagnostics.W136": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W136:** Option requires a newer package version than the resolved `package require`.",
-            "order": 27
+            "order": 28
           },
           "tclLsp.diagnosticSeverity.W136": {
             "scope": "resource",
@@ -4561,14 +4589,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W136:** Option requires a newer package version than the resolved `package require`.",
-            "order": 27
+            "order": 28
           },
           "tclLsp.diagnostics.W137": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W137:** Argument value requires a newer Tcl version than the dialect provides.",
-            "order": 28
+            "order": 29
           },
           "tclLsp.diagnosticSeverity.W137": {
             "scope": "resource",
@@ -4589,14 +4617,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W137:** Argument value requires a newer Tcl version than the dialect provides.",
-            "order": 28
+            "order": 29
           },
           "tclLsp.diagnostics.W138": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W138:** Format/scan conversion requires a newer Tcl version than the dialect provides.",
-            "order": 29
+            "order": 30
           },
           "tclLsp.diagnosticSeverity.W138": {
             "scope": "resource",
@@ -4617,14 +4645,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W138:** Format/scan conversion requires a newer Tcl version than the dialect provides.",
-            "order": 29
+            "order": 30
           },
           "tclLsp.diagnostics.W139": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W139:** Command/option removed at the resolved package version (present only in earlier releases).",
-            "order": 30
+            "order": 31
           },
           "tclLsp.diagnosticSeverity.W139": {
             "scope": "resource",
@@ -4645,14 +4673,42 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W139:** Command/option removed at the resolved package version (present only in earlier releases).",
-            "order": 30
+            "order": 31
+          },
+          "tclLsp.diagnostics.W140": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W140:** `interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.",
+            "order": 32
+          },
+          "tclLsp.diagnosticSeverity.W140": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W140:** `interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.",
+            "order": 32
           },
           "tclLsp.diagnostics.W200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 31
+            "order": 33
           },
           "tclLsp.diagnosticSeverity.W200": {
             "scope": "resource",
@@ -4673,14 +4729,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 31
+            "order": 33
           },
           "tclLsp.diagnostics.W201": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 32
+            "order": 34
           },
           "tclLsp.diagnosticSeverity.W201": {
             "scope": "resource",
@@ -4701,14 +4757,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W201:** Manual path concatenation — use `file join` instead.",
-            "order": 32
+            "order": 34
           },
           "tclLsp.diagnostics.W230": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 33
+            "order": 35
           },
           "tclLsp.diagnosticSeverity.W230": {
             "scope": "resource",
@@ -4729,14 +4785,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 33
+            "order": 35
           },
           "tclLsp.diagnostics.W231": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 34
+            "order": 36
           },
           "tclLsp.diagnosticSeverity.W231": {
             "scope": "resource",
@@ -4757,14 +4813,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 34
+            "order": 36
           },
           "tclLsp.diagnostics.W232": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 35
+            "order": 37
           },
           "tclLsp.diagnosticSeverity.W232": {
             "scope": "resource",
@@ -4785,14 +4841,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 35
+            "order": 37
           },
           "tclLsp.diagnostics.W233": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 36
+            "order": 38
           },
           "tclLsp.diagnosticSeverity.W233": {
             "scope": "resource",
@@ -4813,14 +4869,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 36
+            "order": 38
           },
           "tclLsp.diagnostics.W240": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
-            "order": 37
+            "order": 39
           },
           "tclLsp.diagnosticSeverity.W240": {
             "scope": "resource",
@@ -4841,14 +4897,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W240:** Loop condition is a constant false — body never executes.",
-            "order": 37
+            "order": 39
           },
           "tclLsp.diagnostics.W241": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 38
+            "order": 40
           },
           "tclLsp.diagnosticSeverity.W241": {
             "scope": "resource",
@@ -4869,14 +4925,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 38
+            "order": 40
           },
           "tclLsp.diagnostics.W250": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 39
+            "order": 41
           },
           "tclLsp.diagnosticSeverity.W250": {
             "scope": "resource",
@@ -4897,14 +4953,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 39
+            "order": 41
           },
           "tclLsp.diagnostics.W308": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 40
+            "order": 42
           },
           "tclLsp.diagnosticSeverity.W308": {
             "scope": "resource",
@@ -4925,14 +4981,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 40
+            "order": 42
           },
           "tclLsp.diagnostics.W314": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W314:** Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
-            "order": 41
+            "order": 43
           },
           "tclLsp.diagnosticSeverity.W314": {
             "scope": "resource",
@@ -4953,7 +5009,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W314:** Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
-            "order": 41
+            "order": 43
           }
         }
       },

@@ -30,7 +30,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open",
         dialects: None,
-        traits: Traits::BYTE_COMPILED | Traits::OPENS_CHANNEL,
+        traits: Traits::BYTE_COMPILED | Traits::OPENS_CHANNEL | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::Channel),
         side_effects: &[SideEffect {

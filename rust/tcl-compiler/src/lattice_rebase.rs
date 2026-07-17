@@ -144,9 +144,13 @@ fn rebase_terminator(term: &mut Terminator, delta: i64) {
 
 fn rebase_statement(stmt: &mut Statement, delta: i64) {
     match stmt {
-        Statement::AssignConst { span, .. }
-        | Statement::Incr { span, .. }
-        | Statement::Return { span, .. } => shift(span, delta),
+        Statement::AssignConst {
+            span, value_span, ..
+        } => {
+            shift(span, delta);
+            shift_opt(value_span, delta);
+        }
+        Statement::Incr { span, .. } | Statement::Return { span, .. } => shift(span, delta),
         Statement::AssignExpr {
             span, expr_base, ..
         }
@@ -175,6 +179,20 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
         Statement::If { .. } | Statement::Try { .. } | Statement::Switch { .. } => {
             rebase_branching_statement(stmt, delta);
         }
+        Statement::For { .. }
+        | Statement::While { .. }
+        | Statement::Foreach { .. }
+        | Statement::Catch { .. } => {
+            rebase_loop_statement(stmt, delta);
+        }
+    }
+}
+
+/// Rebase the span-bearing looping/catch statements (`For` / `While` /
+/// `Foreach` / `Catch`), extracted from [`rebase_statement`] to keep each
+/// function small.
+fn rebase_loop_statement(stmt: &mut Statement, delta: i64) {
+    match stmt {
         Statement::For {
             span,
             init,
@@ -239,6 +257,7 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             rebase_script(body, delta);
             rebase_tokens(tokens, delta);
         }
+        _ => unreachable!("rebase_loop_statement called on non-loop statement"),
     }
 }
 

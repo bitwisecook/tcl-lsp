@@ -1018,6 +1018,7 @@ mod tests {
             value: "  hello  ".to_string(),
             span: Span::new(0, 0),
             name_braced: false,
+            value_span: None,
         };
         assert_eq!(
             possible_paste_fingerprint(&stmt),

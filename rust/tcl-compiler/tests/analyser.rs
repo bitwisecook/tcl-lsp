@@ -1293,8 +1293,17 @@ mod interp_alias {
     }
 
     #[test]
-    fn alias_target_in_child_interp_not_tracked() {
-        assert!(alias("interp alias {} myexpr child expr", "::myexpr").is_none());
+    fn alias_target_in_child_interp_is_domain_qualified_945() {
+        // A cross-domain alias deliberately crosses interpreter domains
+        // (issue #945 fault 8): the current-interp `myexpr` runs the
+        // *child's* `expr`, so the recorded target is qualified into the
+        // child's `@interp@` domain — never treated as the parent's own
+        // `expr` (the old model skipped the record entirely, losing the
+        // cross-domain link).
+        assert_eq!(
+            alias("interp alias {} myexpr child expr", "::myexpr"),
+            Some(("::@interp@child::expr".to_string(), vec![])),
+        );
     }
 
     #[test]
@@ -1362,12 +1371,21 @@ mod interp_alias {
     }
 
     #[test]
-    fn real_world_safe_and_cross_interp_aliases_not_tracked() {
-        // Aliases whose source/target path is a non-empty interp are skipped.
+    fn real_world_safe_and_cross_interp_aliases_945() {
+        // A *dynamic* source path (`interp alias $i add …`) names no
+        // literal domain — the record abstains, exactly as before.
         let safe = "set i [interp create -safe]\ninterp alias $i add {} ::api::add\nproc ::api::add {a b} {\n    return [expr {$a + $b}]\n}\n";
         assert!(alias(safe, "::add").is_none());
+        // A literal parent-side alias into a live child is tracked with a
+        // domain-qualified target (issue #945 fault 8): `localGreet` runs
+        // the child's `greet`, so navigation follows the alias link into
+        // the child's `@interp@` domain, where `interp eval` homed the
+        // proc's definition.
         let cross = "interp create child\ninterp eval child { proc greet {} { return hello } }\ninterp alias {} localGreet child greet\nlocalGreet\ninterp delete child\n";
-        assert!(alias(cross, "::localGreet").is_none());
+        assert_eq!(
+            alias(cross, "::localGreet"),
+            Some(("::@interp@child::greet".to_string(), vec![])),
+        );
     }
 
     #[test]

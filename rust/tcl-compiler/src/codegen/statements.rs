@@ -798,6 +798,7 @@ mod tests {
             name: "x".into(),
             value: "42".into(),
             name_braced: false,
+            value_span: None,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -814,6 +815,7 @@ mod tests {
             name: "x".into(),
             value: "42".into(),
             name_braced: false,
+            value_span: None,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -908,6 +910,7 @@ mod tests {
             name: "x".into(),
             value: "1".into(),
             name_braced: false,
+            value_span: None,
         };
         ctx.emit_stmt_with_start_cmd(&stmt, None, None);
         assert!(!opcodes(&ctx).contains(&Op::START_CMD));
@@ -918,6 +921,7 @@ mod tests {
             name: "y".into(),
             value: "2".into(),
             name_braced: false,
+            value_span: None,
         };
         ctx.emit_stmt_with_start_cmd(&stmt2, None, None);
         assert!(opcodes(&ctx).contains(&Op::START_CMD));
