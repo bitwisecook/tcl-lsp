@@ -374,7 +374,6 @@ impl Analyser {
             .cloned()
             .chain(self.deleted_commands.keys().cloned())
             .collect();
-        let pending_const_dispatches = std::mem::take(&mut self.pending_const_dispatches);
         let result = &mut self.result;
         let (procs, classes, aliases, renames) = (
             &result.all_procs,
@@ -437,41 +436,13 @@ impl Analyser {
             // cross-file consumers (the reference matchers treat it, and the
             // candidate list above, as candidates rather than ground truth).
         }
-        // M7: settle the constant-`$cmd` dispatch sites now `known` is
-        // complete.  Only a value that resolves to a *user* command becomes a
-        // reference — a builtin carries no navigable definition, and an
-        // unknown value abstains entirely (no phantom invocation, no W123
-        // delta; the W307 story at the site is unchanged).
-        let settled: Vec<crate::signature_scan::types::SignatureCommandInvocation> =
-            pending_const_dispatches
-                .iter()
-                .filter_map(|site| {
-                    let path: &[String] = paths.get(&site.ns).map_or(&[], Vec::as_slice);
-                    let winner =
-                        crate::naming::resolve_command_with(&site.ns, path, &site.value, known)?;
-                    let user_defined = procs.contains_key(&winner)
-                        || classes.contains_key(&winner)
-                        || aliases.contains_key(&winner)
-                        || renames.contains_key(&winner);
-                    user_defined.then(
-                        || crate::signature_scan::types::SignatureCommandInvocation {
-                            name: site.value.clone(),
-                            range: site.span,
-                            resolved_qualified_name: Some(winner),
-                            resolution_candidates: crate::naming::command_resolution_candidates(
-                                &site.ns,
-                                path,
-                                &site.value,
-                            ),
-                            argc: None,
-                            callback_arity: None,
-                            callback_baked_args: 0,
-                            indirect: true,
-                        },
-                    )
-                })
-                .collect();
-        result.command_invocations.extend(settled);
+        // The constant-`$cmd` dispatch sites (M7) are *not* settled here:
+        // their value facts come from the compiler's flow-sensitive value
+        // model, which needs the CFG/SSA `CompilationUnit` — see
+        // `settle_const_dispatches` in the diagnostics phase (issue #945
+        // faults 1–2: the lexical constant map this pass once read is
+        // last-write-wins across `if`/loop joins and discards the defining
+        // literal's writable span).
     }
 
     /// Record a constant string assignment for `var_name` in the

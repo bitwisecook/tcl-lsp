@@ -86,6 +86,7 @@ fn set_const_toplevel() {
         name: "x".into(),
         name_braced: false,
         value: "42".into(),
+        value_span: None,
     }]);
     let registry = CommandRegistry::build_default();
     let asm = codegen_function(&cfg, &[], false, &registry);
@@ -102,12 +103,14 @@ fn multiple_statements_numbered() {
             name: "a".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         },
         Statement::AssignConst {
             span: sp(),
             name: "b".into(),
             name_braced: false,
             value: "2".into(),
+            value_span: None,
         },
     ]);
     let registry = CommandRegistry::build_default();
@@ -205,6 +208,7 @@ fn if_else_diamond_emits_conditional_jump() {
             name: "r".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         });
     cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
         target: end,
@@ -219,6 +223,7 @@ fn if_else_diamond_emits_conditional_jump() {
             name: "r".into(),
             name_braced: false,
             value: "2".into(),
+            value_span: None,
         });
     cfg.blocks.get_mut(&els).unwrap().terminator = Some(Terminator::Goto {
         target: end,
@@ -349,6 +354,7 @@ fn switch_dispatch_emits_jump_table() {
             name: "r".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         });
     cfg.blocks.get_mut(&arm_a).unwrap().terminator = Some(Terminator::Goto {
         target: switch_end,
@@ -363,6 +369,7 @@ fn switch_dispatch_emits_jump_table() {
             name: "r".into(),
             name_braced: false,
             value: "2".into(),
+            value_span: None,
         });
     cfg.blocks.get_mut(&arm_b).unwrap().terminator = Some(Terminator::Goto {
         target: switch_end,
@@ -463,6 +470,7 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
             name: "r".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         }])),
         body_span: Some(sp()),
         fallthrough: false,
@@ -563,6 +571,7 @@ fn foreach_emits_native_opcodes() {
             name: "r".into(),
             name_braced: false,
             value: "42".into(),
+            value_span: None,
         });
     cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
         target: header,
@@ -749,6 +758,7 @@ fn while_in_proc_emits_start_cmd() {
             name: "i".into(),
             name_braced: false,
             value: "0".into(),
+            value_span: None,
         });
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Goto {
         target: header,

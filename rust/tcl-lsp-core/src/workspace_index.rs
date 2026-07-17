@@ -87,16 +87,73 @@ pub struct WorkspaceClass {
     pub superclasses: Vec<String>,
     /// Declared class-level mixin names (as written).
     pub mixins: Vec<String>,
-    /// Names of methods the class *directly defines* (instance methods +
-    /// class-side methods), for computing cross-file override families in
-    /// method rename.  Spans aren't stored — the server re-analyses each
-    /// family member's document to collect the precise decl / call sites.
-    pub defined_methods: Vec<String>,
+    /// The methods this record *directly defines* — the typed method table
+    /// (issue #945 fault 4): each entry carries its receiver kind and its
+    /// **effective export state** at the end of this record's body, so
+    /// cross-file dispatch can honour TclOO visibility instead of treating
+    /// every name as callable.  Spans aren't stored — the server
+    /// re-analyses each family member's document to collect the precise
+    /// decl / call sites.
+    pub methods: Vec<WorkspaceMethod>,
+    /// Methods this record explicitly `export`s (an `oo::define` extension
+    /// stub can flip visibility on a class defined elsewhere).
+    pub exports: Vec<String>,
+    /// Methods this record explicitly `unexport`s.
+    pub unexports: Vec<String>,
     /// `true` when this record is a cross-file `oo::define` extension stub
     /// rather than the class's own `oo::class create` site (see
     /// [`tcl_compiler::analyser::ClassDef::via_define`]).  Go-to-definition
     /// prefers a real creation site over a stub.
     pub via_define: bool,
+}
+
+impl WorkspaceClass {
+    /// Whether this record directly defines `name` (any receiver kind).
+    #[must_use]
+    pub fn defines_method(&self, name: &str) -> bool {
+        self.methods.iter().any(|m| m.name == name)
+    }
+
+    /// The typed record for the *instance-receiver* method `name`
+    /// (an ordinary `method` or a `forward`), if this record defines one.
+    #[must_use]
+    pub fn instance_method(&self, name: &str) -> Option<&WorkspaceMethod> {
+        self.methods
+            .iter()
+            .find(|m| m.name == name && m.kind != "classmethod")
+    }
+}
+
+/// One method a class record directly defines, as indexed for cross-file
+/// dispatch (issue #945 faults 4 and 6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceMethod {
+    /// Simple method name.
+    pub name: String,
+    /// Declaration kind: `"method"`, `"classmethod"`, or `"forward"`.
+    pub kind: String,
+    /// Effective TclOO export state at the end of the defining record's
+    /// body: the family's name default (`[a-z]*` for TclOO) plus any
+    /// explicit `export` / `unexport`, last writer wins (tclsh
+    /// 9.0.4-pinned).  Externally callable iff `true`.
+    pub exported: bool,
+    /// `true` for a TclOO `private` definition — invisible to external
+    /// dispatch *and* to subclasses; callable only via `my` within the
+    /// declaring class's own methods.
+    pub private: bool,
+}
+
+/// The access context of a method call site — TclOO dispatches an
+/// external `$obj m` through exported methods only, while an internal
+/// `my m` reaches unexported ones too (issue #945 fault 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MethodAccess {
+    /// `$obj m` / `objcmd m` — exported methods only.
+    External,
+    /// `my m` (or a declaration-side query from inside the class body) —
+    /// exported and unexported methods; `private` methods only from the
+    /// declaring class itself.
+    Internal,
 }
 
 /// One command-invocation (call) site recorded in the index.
@@ -122,6 +179,12 @@ pub struct WorkspaceInvocation {
     /// a constant `$cmd` head, M7): references may report it, but the
     /// cross-document rename path must not rewrite it.
     pub indirect: bool,
+    /// `false` when renaming this invocation's resolved command cannot be
+    /// completed soundly from source edits (an indirect site with at least
+    /// one contributing constant that has no exact writable source span) —
+    /// the rename providers must abstain for the whole symbol rather than
+    /// leave the site dispatching the old name (issue #945 fault 1).
+    pub rename_safe: bool,
 }
 
 /// One `source FILE` reference recorded in the index.
@@ -237,6 +300,22 @@ impl WorkspaceIndex {
             });
         }
         for class_def in analysis.all_classes.values() {
+            let methods: Vec<WorkspaceMethod> = class_def
+                .methods
+                .values()
+                .map(|m| WorkspaceMethod {
+                    name: m.name.clone(),
+                    kind: m.kind.clone(),
+                    exported: m.visibility == "public",
+                    private: m.visibility == "private",
+                })
+                .chain(class_def.class_methods.values().map(|m| WorkspaceMethod {
+                    name: m.name.clone(),
+                    kind: "classmethod".to_string(),
+                    exported: m.visibility == "public",
+                    private: m.visibility == "private",
+                }))
+                .collect();
             self.classes.push(WorkspaceClass {
                 uri: uri.to_owned(),
                 name: class_def.name.clone(),
@@ -244,12 +323,9 @@ impl WorkspaceIndex {
                 name_span: class_def.name_span,
                 superclasses: class_def.superclasses.clone(),
                 mixins: class_def.mixins.clone(),
-                defined_methods: class_def
-                    .methods
-                    .keys()
-                    .chain(class_def.class_methods.keys())
-                    .cloned()
-                    .collect(),
+                methods,
+                exports: class_def.exports.iter().cloned().collect(),
+                unexports: class_def.unexports.iter().cloned().collect(),
                 via_define: class_def.via_define,
             });
         }
@@ -260,6 +336,7 @@ impl WorkspaceIndex {
                 resolution_candidates: inv.resolution_candidates.clone(),
                 range: inv.range,
                 indirect: inv.indirect,
+                rename_safe: inv.rename_safe,
             });
         }
         for target in &analysis.source_targets {
@@ -581,6 +658,120 @@ impl WorkspaceIndex {
             .collect()
     }
 
+    /// The **class linearisation** of `class_q` — the order TclOO searches
+    /// classes for a method implementation (mixins fully linearised first,
+    /// then the class, then superclasses; diamond duplicates keep their
+    /// late placement — tclsh 9.0.4-pinned via `info object call`).
+    ///
+    /// A thin workspace adapter over the canonical
+    /// [`tcl_syntax::mro::tcloo_linearise`]: the super / mixin edges are
+    /// resolved **owner-aware** ([`resolve_class_name`]) and unioned
+    /// across every indexed record of each class (an `oo::define` stub
+    /// must not hide the creation site's edges).  Empty when the
+    /// hierarchy is cyclic or too complex to linearise (the shared
+    /// budget guard) — consumers abstain rather than guess.
+    #[must_use]
+    pub fn class_linearisation(&self, class_q: &str) -> Vec<String> {
+        let (known, tail_index) = self.class_name_universe();
+        // Build the resolved edge maps over the classes reachable from
+        // `class_q` (bounded: every indexed class at worst).
+        let mut supers_map: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        let mut mixins_map: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for c in &self.classes {
+            let owner = c.qualified_name.as_str();
+            let resolve = |name: &str| {
+                resolve_class_name(name, owner, |cand| known.contains(cand), &tail_index)
+            };
+            let supers = supers_map.entry(owner.to_owned()).or_default();
+            for s in c.superclasses.iter().filter_map(|s| resolve(s)) {
+                if !supers.contains(&s) {
+                    supers.push(s);
+                }
+            }
+            let mixins = mixins_map.entry(owner.to_owned()).or_default();
+            for m in c.mixins.iter().filter_map(|m| resolve(m)) {
+                if !mixins.contains(&m) {
+                    mixins.push(m);
+                }
+            }
+        }
+        tcl_syntax::mro::tcloo_linearise(class_q, &supers_map, &mixins_map).unwrap_or_default()
+    }
+
+    /// The C-Tcl-faithful **method dispatch chain** for an instance of
+    /// `receiver_class` calling `method` under `access` (issue #945
+    /// faults 4 and 6): the linearisation's classes that define an
+    /// instance-receiver implementation of `method`, in dispatch order,
+    /// visibility-filtered —
+    ///
+    /// * [`MethodAccess::External`] keeps only **exported**
+    ///   implementations (an unexported method is not externally
+    ///   callable: `unknown method`, tclsh 9.0.4-pinned);
+    /// * [`MethodAccess::Internal`] keeps exported + unexported;
+    ///   `private` definitions are visible only when the defining class
+    ///   *is* the receiver's own class (TclOO private scoping).
+    ///
+    /// The **first** record is the implementation the call actually
+    /// enters — go-to-definition's single target; the rest is the `next`
+    /// chain.  Several records of one class (creation site + `oo::define`
+    /// stubs) are all kept, adjacent, when each defines the method; a
+    /// class exported/unexported by a *different* record than the definer
+    /// honours the union of that class's records (last state is
+    /// load-order-dependent across files, so any exporting record keeps
+    /// the method dispatchable — the navigation-permissive reading).
+    #[must_use]
+    pub fn method_dispatch_chain<'a>(
+        &'a self,
+        receiver_class: &str,
+        method: &str,
+        access: MethodAccess,
+    ) -> Vec<&'a WorkspaceClass> {
+        let mut out: Vec<&WorkspaceClass> = Vec::new();
+        for class_q in self.class_linearisation(receiver_class) {
+            let records: Vec<&WorkspaceClass> = self
+                .classes
+                .iter()
+                .filter(|c| c.qualified_name == class_q)
+                .collect();
+            // The class-level effective export union: any record exporting
+            // the name keeps it callable; explicit unexports matter only
+            // when no record exports it.
+            let any_exports = records
+                .iter()
+                .any(|c| c.exports.iter().any(|e| e == method));
+            let any_unexports = records
+                .iter()
+                .any(|c| c.unexports.iter().any(|e| e == method));
+            for record in records {
+                let Some(m) = record.instance_method(method) else {
+                    continue;
+                };
+                // Effective export across the class's records: an explicit
+                // `export` anywhere wins, else an explicit `unexport`
+                // anywhere, else the definer's own effective state.  (True
+                // cross-file order is load-order; explicit-export-wins is
+                // the navigation-permissive reading.)
+                let exported = if any_exports {
+                    true
+                } else if any_unexports {
+                    false
+                } else {
+                    m.exported
+                };
+                let visible = match access {
+                    MethodAccess::External => exported && !m.private,
+                    MethodAccess::Internal => !m.private || class_q == receiver_class,
+                };
+                if visible {
+                    out.push(record);
+                }
+            }
+        }
+        out
+    }
+
     /// The **cross-file override family** of `method` seeded at
     /// `seed_class`: every indexed class that directly defines `method` and
     /// sits in the same subtype-connected component as `seed_class` (or the
@@ -639,15 +830,13 @@ impl WorkspaceIndex {
         let defines = |qname: &str| {
             self.classes
                 .iter()
-                .any(|c| c.qualified_name == qname && c.defined_methods.iter().any(|m| m == method))
+                .any(|c| c.qualified_name == qname && c.defines_method(method))
         };
         self.classes
             .iter()
             .filter(|c| {
                 // A definer is handled by the family itself, not here.
-                if c.defined_methods.iter().any(|m| m == method)
-                    || family_set.contains(c.qualified_name.as_str())
-                {
+                if c.defines_method(method) || family_set.contains(c.qualified_name.as_str()) {
                     return false;
                 }
                 // Every method-defining ancestor this class can reach.
@@ -703,7 +892,7 @@ impl WorkspaceIndex {
         let class_defines = |qname: &str| {
             self.classes
                 .iter()
-                .any(|c| c.qualified_name == qname && c.defined_methods.iter().any(|m| m == method))
+                .any(|c| c.qualified_name == qname && c.defines_method(method))
         };
         // Seed: the class under the cursor if it defines `method`, else the
         // nearest ancestor that does (any definer ancestor is in the same
@@ -733,7 +922,7 @@ impl WorkspaceIndex {
             let mut ds: Vec<String> = self
                 .classes
                 .iter()
-                .filter(|c| c.defined_methods.iter().any(|m| m == method))
+                .filter(|c| c.defines_method(method))
                 .map(|c| c.qualified_name.clone())
                 .collect();
             ds.sort();
@@ -896,6 +1085,19 @@ impl WorkspaceIndex {
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceInvocation> {
         self.invocations_settling_to(qualified_name, exclude_uri, false)
+    }
+
+    /// Whether renaming `qualified_name` must be refused outright: some
+    /// invocation of it, anywhere in the workspace, is marked
+    /// `rename_safe: false` — an indirect dispatch at least one of whose
+    /// contributing constants has no exact writable source span, so no
+    /// edit set can keep that dispatch running the renamed command
+    /// (issue #945 fault 1's corruption, inverted into abstention).
+    #[must_use]
+    pub fn rename_blocked(&self, qualified_name: &str) -> bool {
+        self.invocations_of(qualified_name, "")
+            .iter()
+            .any(|inv| !inv.rename_safe)
     }
 
     /// Invocation sites that reach `qualified_name` **through** a command

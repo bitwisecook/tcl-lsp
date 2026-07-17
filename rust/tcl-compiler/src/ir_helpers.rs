@@ -572,6 +572,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         }]);
         assert_eq!(defs_from_ir_script(&script), vec!["x"]);
     }
@@ -609,6 +610,7 @@ mod tests {
                     name: "y".into(),
                     name_braced: false,
                     value: "2".into(),
+                    value_span: None,
                 }]),
                 body_span: Span::new(5, 14),
                 condition_base: None,
@@ -647,6 +649,7 @@ mod tests {
                 name: "inner".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             }]),
             body_span: Span::new(6, 15),
             result_var: Some("result".into()),

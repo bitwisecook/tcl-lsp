@@ -459,6 +459,7 @@ mod defs_from_ir_script_arms {
             name: name.into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         }
     }
 

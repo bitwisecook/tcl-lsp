@@ -2088,12 +2088,21 @@ impl Analyser {
         // Record the per-object method declarations so `$obj m` navigation
         // resolves the per-object override ahead of a same-named class method.
         // Accumulate across multiple `oo::objdefine` blocks on the same object.
+        // Each record carries the objdefine site's receiver offset, so
+        // consumers key it by the receiver's *binding identity* — never by
+        // the textual tail alone (issue #945 fault 5).
         if !obj_name.is_empty() && !object_class.methods.is_empty() {
+            let objdefine_offset = arg_tokens.first().map_or(0, |t| t.span.start());
             self.result
                 .object_methods
                 .entry(obj_name)
                 .or_default()
-                .extend(object_class.methods.into_values());
+                .extend(object_class.methods.into_values().map(|def| {
+                    super::types::ObjectMethodDef {
+                        def,
+                        objdefine_offset,
+                    }
+                }));
         }
 
         true

@@ -144,9 +144,13 @@ fn rebase_terminator(term: &mut Terminator, delta: i64) {
 
 fn rebase_statement(stmt: &mut Statement, delta: i64) {
     match stmt {
-        Statement::AssignConst { span, .. }
-        | Statement::Incr { span, .. }
-        | Statement::Return { span, .. } => shift(span, delta),
+        Statement::AssignConst {
+            span, value_span, ..
+        } => {
+            shift(span, delta);
+            shift_opt(value_span, delta);
+        }
+        Statement::Incr { span, .. } | Statement::Return { span, .. } => shift(span, delta),
         Statement::AssignExpr {
             span, expr_base, ..
         }

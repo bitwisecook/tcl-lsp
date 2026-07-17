@@ -107,6 +107,7 @@ pub(in crate::analyser::diagnostics) use validity::contains_gated_word;
 // dispatch in `crate::analyser::commands`.
 pub(in crate::analyser) use usage::W110Anchor;
 
+mod const_dispatch;
 mod dataflow;
 mod helpers;
 mod security;
@@ -340,6 +341,12 @@ impl Analyser {
         // when ``$suffix`` resolves cleanly to a finite set of
         // known commands via SCCP.
         self.resolve_interpolated_w123_diagnostics(cu);
+
+        // M7 settlement (issue #945 faults 1–2): resolve the constant-
+        // `$cmd` dispatch sites against the flow-sensitive value model,
+        // emitting the indirect head references and their writable
+        // literal-anchored twins.
+        self.settle_const_dispatches(cu);
     }
 
     /// Per-function diagnostic dispatcher.

@@ -156,13 +156,50 @@ pub fn definition(
         // A per-object method (`oo::objdefine $obj { method m … }`) is layered
         // ahead of the object's class methods, so resolve it first — `$obj m`
         // must reach the per-object override, not a same-named class method.
-        if let Some(span) = lookup_object_method(analysis, &inst, &method) {
-            return vec![span_to_range(source, &line_index, span)];
-        }
-        if let Some(class_q) = receiver_instance_class(analysis, &inst, is_dollar)
-            && let Some(span) = lookup_method_in_class(analysis, class_q, &method)
+        // Binding-identity keyed (issue #945 fault 5): the lookup honours the
+        // receiver's scope, not just its textual tail.
+        if let Some(span) = lookup_object_method(analysis, source, &inst, &method, line, character)
         {
             return vec![span_to_range(source, &line_index, span)];
+        }
+        // `my m` — an internal call: dispatch starts at the *enclosing*
+        // class and reaches unexported methods too (issue #945 fault 4).
+        if inst == "my" {
+            let cursor = byte_offset_at(&line_index, source, line, character);
+            if let Some(class_q) = enclosing_class_at(analysis, cursor) {
+                return method_dispatch_definition(
+                    analysis,
+                    source,
+                    &line_index,
+                    &class_q,
+                    &method,
+                    false,
+                );
+            }
+        }
+        if let Some(class_q) = receiver_instance_class(analysis, &inst, is_dollar) {
+            // External `$obj m`: the C-faithful dispatch entry — the first
+            // exported implementation on the receiver's linearisation
+            // (mixins before the class, subclasses before bases; issue
+            // #945 faults 4 + 6).  A resolved receiver is a definitive
+            // answer either way: an unexported/undefined method yields
+            // *nothing* rather than falling through to a same-named proc.
+            let class_q = class_q.clone();
+            let dispatch =
+                method_dispatch_definition(analysis, source, &line_index, &class_q, &method, true);
+            if !dispatch.is_empty() {
+                return dispatch;
+            }
+            // `configure` / `cget` accessors and properties have no method
+            // entry; keep the property fallback before giving up.
+            if let Some(p) = analysis
+                .all_classes
+                .get(&class_q)
+                .and_then(|cd| cd.properties.get(method.as_str()))
+            {
+                return vec![span_to_range(source, &line_index, p.name_span)];
+            }
+            return Vec::new();
         }
     }
     // `next` / `nextto` inside a method body — jump to the super-method in
@@ -295,24 +332,139 @@ fn lookup_class_member(
     None
 }
 
-/// Look up `method` among the per-object methods added to the object named
-/// `receiver` by `oo::objdefine` — the per-object override `TclOO` layers ahead
-/// of the object's class methods.  Returns the declaration's `name_span`.
+/// Look up `method` among the per-object methods added by `oo::objdefine`
+/// to the object the receiver variable at the *call site* denotes — the
+/// per-object override `TclOO` layers ahead of the object's class methods.
+/// Returns the declaration's `name_span`.
 ///
-/// Keyed by the receiver's simple name; the analyser stores `$obj` / `${obj}`
-/// / bare `obj` all under `obj`, and `instance_method_at_cursor` yields that
-/// same bare name, so a `$`-receiver and a bare object command both match.
+/// Keyed by **binding identity**, not the receiver's textual tail (issue
+/// #945 fault 5): two unrelated locals both named `o` in different procs
+/// are different objects with different per-object methods, so the
+/// candidate set is scoped to the `oo::objdefine` sites whose receiver
+/// resolves to the *same variable binding* as the call site's receiver —
+/// the innermost scope (proc / method body, else the top level) declaring
+/// the name that encloses both.  A dispatch whose binding cannot be
+/// matched to exactly one `objdefine` receiver abstains.
 fn lookup_object_method(
     analysis: &AnalysisResult,
+    source: &str,
     receiver: &str,
     method: &str,
+    line: u32,
+    character: u32,
 ) -> Option<tcl_lexer::Span> {
-    analysis
-        .object_methods
-        .get(receiver)?
+    let records = analysis.object_methods.get(receiver)?;
+    let line_index = LineIndex::new(source);
+    let call_offset = byte_offset_at(&line_index, source, line, character);
+    let call_scope = variable_scope_extent(analysis, receiver, call_offset);
+    let matched: Vec<&tcl_compiler::analyser::ObjectMethodDef> = records
         .iter()
-        .find(|m| m.name == method)
-        .map(|m| m.name_span)
+        .filter(|m| variable_scope_extent(analysis, receiver, m.objdefine_offset) == call_scope)
+        .filter(|m| m.def.name == method)
+        .collect();
+    // Exactly one binding-compatible override may answer; several distinct
+    // same-scope objects (reassignment) or none at all abstain to the
+    // class chain.
+    match matched.as_slice() {
+        [only] => Some(only.def.name_span),
+        _ => None,
+    }
+}
+
+/// The extent (byte range) of the innermost proc / method body scope that
+/// declares or contains variable `name` at `offset` — the binding-identity
+/// key for per-object method matching.  Two uses of the same simple name
+/// belong to the same binding iff their innermost enclosing proc/method
+/// body is the same span (or both sit at the top level, extent `None`).
+fn variable_scope_extent(
+    analysis: &AnalysisResult,
+    _name: &str,
+    offset: u32,
+) -> Option<(u32, u32)> {
+    fn innermost(
+        scope: &tcl_compiler::analyser::Scope,
+        offset: u32,
+        best: &mut Option<(u32, u32)>,
+    ) {
+        for child in &scope.children {
+            if let Some(span) = child.body_span
+                && span.start() <= offset
+                && offset <= span.end()
+            {
+                let is_frame = matches!(
+                    child.kind,
+                    tcl_compiler::analyser::ScopeKind::Proc
+                        | tcl_compiler::analyser::ScopeKind::Method
+                );
+                if is_frame {
+                    let width = span.end() - span.start();
+                    if best.is_none_or(|(s, e)| width < e - s) {
+                        *best = Some((span.start(), span.end()));
+                    }
+                }
+                innermost(child, offset, best);
+            }
+        }
+    }
+    let mut best = None;
+    innermost(&analysis.global_scope, offset, &mut best);
+    best
+}
+
+/// The qualified name of the class whose body contains `offset`, if any —
+/// the enclosing class for `my`-call dispatch.
+fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Option<String> {
+    analysis
+        .all_classes
+        .values()
+        .filter(|c| c.body_span.start() < offset && offset < c.body_span.end())
+        .min_by_key(|c| c.body_span.end() - c.body_span.start())
+        .map(|c| c.qualified_name.clone())
+}
+
+/// Go-to-definition for a method call dispatched on an instance of
+/// `class_q`: the **first applicable implementation** on the class's
+/// TclOO linearisation (the entry `$obj m` / `my m` actually runs —
+/// issue #945 fault 6), visibility-filtered (issue #945 fault 4):
+/// `external` keeps exported implementations only; an internal (`my`)
+/// dispatch reaches unexported ones, and `private` ones only in the
+/// receiver's own class.  Empty when no implementation is callable in
+/// this context — a definitive "unknown method" answer, mirroring C.
+fn method_dispatch_definition(
+    analysis: &AnalysisResult,
+    source: &str,
+    line_index: &LineIndex,
+    class_q: &str,
+    method: &str,
+    external: bool,
+) -> Vec<LspRange> {
+    let hierarchy = tcl_compiler::analyser::class_hierarchy::build_class_hierarchy(
+        analysis.all_classes.clone(),
+    );
+    let Some(mro) = hierarchy.mro_map.get(class_q) else {
+        return Vec::new();
+    };
+    for provider_q in mro {
+        let Some(cd) = analysis.all_classes.get(provider_q) else {
+            continue;
+        };
+        let Some(md) = cd
+            .methods
+            .get(method)
+            .or_else(|| cd.class_methods.get(method))
+        else {
+            continue;
+        };
+        let visible = if external {
+            md.visibility == "public"
+        } else {
+            md.visibility != "private" || provider_q == class_q
+        };
+        if visible {
+            return vec![span_to_range(source, line_index, md.name_span)];
+        }
+    }
+    Vec::new()
 }
 
 /// Look up `method` against the class identified by qualified

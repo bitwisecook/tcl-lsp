@@ -255,6 +255,18 @@ pub struct SignatureCommandInvocation {
     /// other span-rewriting consumer must skip it** (rewriting the span would
     /// splice the new command name over unrelated source text).
     pub indirect: bool,
+    /// `false` when renaming this invocation's resolved command cannot be
+    /// completed soundly from source edits alone: the site reaches the
+    /// command through a value at least one of whose contributing constant
+    /// definitions has **no exact writable source span** (a synthesised /
+    /// folded constant, a list element the harvester cannot span).  Rename
+    /// must abstain for the whole symbol rather than emit an edit set that
+    /// leaves this site dispatching the old name (issue #945 fault 1: a
+    /// "successful" rename that produces broken Tcl).  `true` for every
+    /// ordinary direct call (the span *is* the written name) and for
+    /// indirect sites whose full contributor set is writable (their
+    /// literal-anchored twin references carry the edits).
+    pub rename_safe: bool,
 }
 
 /// The full result returned by `extract_signatures`.

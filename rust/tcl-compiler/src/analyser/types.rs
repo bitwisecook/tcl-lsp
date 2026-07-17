@@ -461,6 +461,20 @@ pub struct MethodDef {
     pub forward_target: Option<(String, Vec<String>)>,
 }
 
+/// One per-object method added by an `oo::objdefine` (issue #945
+/// fault 5): the method declaration plus the **objdefine site's**
+/// receiver offset, the anchor a consumer resolves to a variable
+/// binding so same-named receivers in different scopes never collide.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectMethodDef {
+    /// The declared method (name, spans, kind, visibility).
+    pub def: MethodDef,
+    /// Byte offset of the `oo::objdefine` receiver word — inside the
+    /// scope whose binding of the receiver variable this record
+    /// belongs to.
+    pub objdefine_offset: u32,
+}
+
 /// `TclOO` property definition.
 ///
 /// Recorded by the OO body walker for ``property`` subcommands
@@ -861,9 +875,13 @@ pub struct AnalysisResult {
     /// class methods, so `$obj m` navigation resolves the per-object override
     /// recorded here before falling back to the class.  The method **bodies**
     /// are walked into the scope tree at analysis time (so in-body diagnostics
-    /// and variable/command resolution work); this map carries only each
-    /// declaration's `name_span` for the receiver-dispatch name lookup.
-    pub object_methods: HashMap<String, Vec<MethodDef>>,
+    /// and variable/command resolution work); this map carries each
+    /// declaration plus its `oo::objdefine` **site offset**, so a consumer
+    /// keys the record by the receiver's *binding identity* — the scope
+    /// declaring the variable — never by the textual tail alone (two
+    /// unrelated locals both named `o` in different procs are different
+    /// objects; issue #945 fault 5).
+    pub object_methods: HashMap<String, Vec<ObjectMethodDef>>,
     /// Call sites of unresolved (unknown) commands — `(span, bare name)`, the
     /// same set the W123 diagnostic is emitted for, but recorded **regardless of
     /// whether W123 is disabled** (only the *diagnostic* honours the toggle).

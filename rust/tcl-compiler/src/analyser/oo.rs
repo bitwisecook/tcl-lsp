@@ -1319,13 +1319,44 @@ fn apply_oo_private(
     }
 }
 
+/// The effective default visibility string for a freshly-(re)defined
+/// member under `grammar`'s family rule (`"public"` / `"unexported"`).
+fn default_visibility(grammar: &DefinitionBodyGrammar, name: &str) -> String {
+    if grammar.member_default_exported(name) {
+        "public".to_string()
+    } else {
+        "unexported".to_string()
+    }
+}
+
+/// Set the recorded visibility of each named member (instance or
+/// class-side) to `visibility` — the `export` / `unexport` member effect.
+/// A name with no recorded member yet is skipped: a later `method`
+/// definition re-applies the name default anyway (tclsh 9.0.4-pinned),
+/// and an export-only stub has no declaration to navigate to.
+fn set_member_visibility(class_def: &mut ClassDef, names: &[String], visibility: &str) {
+    for name in names {
+        if let Some(md) = class_def.methods.get_mut(name) {
+            md.visibility = visibility.to_string();
+        }
+        if let Some(md) = class_def.class_methods.get_mut(name) {
+            md.visibility = visibility.to_string();
+        }
+    }
+}
+
 /// `oo::define Cls forward name target ...` — records a forward
 /// alias as a method, keeping the target command and any prepended
 /// arguments (`forward`'s own version of `interp alias` partial
 /// application) so a call through the forward can be arity-checked
 /// against `target`'s own signature, shifted by the prepended count —
 /// see `Analyser::resolve_indirect_call_target`.
-fn apply_oo_forward(sub_args: &[String], sub_tokens: &[Token], class_def: &mut ClassDef) {
+fn apply_oo_forward(
+    grammar: &DefinitionBodyGrammar,
+    sub_args: &[String],
+    sub_tokens: &[Token],
+    class_def: &mut ClassDef,
+) {
     if let Some(name) = sub_args.first() {
         let span = sub_tokens
             .first()
@@ -1339,7 +1370,9 @@ fn apply_oo_forward(sub_args: &[String], sub_tokens: &[Token], class_def: &mut C
             name_span: span,
             body_span: span,
             kind: "forward".to_string(),
-            visibility: "public".to_string(),
+            // A forward is dispatched by the same name rule as a method
+            // (C computes `isPublic` identically for both).
+            visibility: default_visibility(grammar, name),
             doc: String::new(),
             forward_target,
         };
@@ -1388,16 +1421,22 @@ fn apply_oo_subcommand(
             }
         }
         "method" => {
-            if let Some(md) = member
+            if let Some(mut md) = member
                 .and_then(|m| extract_method_def(m, sub_args, sub_tokens, "method", "public", ""))
             {
+                // A method (re)definition applies the family's name-based
+                // default export state, discarding any earlier explicit
+                // `export`/`unexport` of the name (tclsh 9.0.4-pinned; the
+                // rule itself is registry data — `[a-z]*` for TclOO).
+                md.visibility = default_visibility(grammar, &md.name);
                 class_def.methods.insert(md.name.clone(), md);
             }
         }
         "classmethod" => {
-            if let Some(md) = member.and_then(|m| {
+            if let Some(mut md) = member.and_then(|m| {
                 extract_method_def(m, sub_args, sub_tokens, "classmethod", "public", "")
             }) {
+                md.visibility = default_visibility(grammar, &md.name);
                 class_def.class_methods.insert(md.name.clone(), md);
             }
         }
@@ -1447,14 +1486,19 @@ fn apply_oo_subcommand(
         }
         "export" => {
             class_def.exports.extend(sub_args.iter().cloned());
+            // Flip already-recorded members to exported (last explicit
+            // state wins; a later re-`method` resets to the default —
+            // tclsh 9.0.4-pinned).
+            set_member_visibility(class_def, sub_args, "public");
         }
         "unexport" => {
             class_def.unexports.extend(sub_args.iter().cloned());
+            set_member_visibility(class_def, sub_args, "unexported");
         }
         "property" => {
             extract_property_defs(sub_args, sub_tokens, class_def);
         }
-        "forward" => apply_oo_forward(sub_args, sub_tokens, class_def),
+        "forward" => apply_oo_forward(grammar, sub_args, sub_tokens, class_def),
         "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def),
         // No `ClassDef` mutation here for the remaining subcommands.
         // ``initialise`` / ``initialize`` are class-level initialisation

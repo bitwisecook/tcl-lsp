@@ -80,6 +80,7 @@ pub use snapshot::AnalyserSnapshot;
 pub use state::{Analyser, NonAsciiMode};
 pub use tcl_syntax::mro::{self, MroError, build_mro_map, tcloo_linearise};
 pub use types::{
-    AnalysisResult, ClassDef, CodeFix, DefinedSymbol, Diagnostic, MethodDef, ProcArgTrait, ProcDef,
-    PropertyDef, Scope, ScopeKind, Severity, StubFlags, UnknownProcInfo, VarDef,
+    AnalysisResult, ClassDef, CodeFix, DefinedSymbol, Diagnostic, MethodDef, ObjectMethodDef,
+    ProcArgTrait, ProcDef, PropertyDef, Scope, ScopeKind, Severity, StubFlags, UnknownProcInfo,
+    VarDef,
 };

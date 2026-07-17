@@ -478,19 +478,49 @@ pub fn method_rename_target(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<(String, String)> {
+    method_target_with_access(source, line, character, analysis).map(|(c, m, _)| (c, m))
+}
+
+/// Like [`method_rename_target`] but also reports the **access context**
+/// of the cursor's call shape (issue #945 fault 4): an external
+/// `$obj m` dispatches through exported methods only, while a `my m`
+/// call or a declaration-side cursor inside the class body reaches
+/// unexported methods too.
+#[must_use]
+pub fn method_target_with_access(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<(String, String, crate::workspace_index::MethodAccess)> {
+    use crate::workspace_index::MethodAccess;
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
-    // External `$obj method` — resolve `$obj`'s class.
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some((inst, method, is_dollar)) =
         crate::definition::instance_method_at_cursor(source, line, character)
         && method == word
-        && let Some(class_q) =
-            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
     {
-        return Some((class_q.clone(), method));
+        // `my method` — an internal call from inside the enclosing class.
+        if inst == "my"
+            && let Some(class_q) = analysis
+                .all_classes
+                .values()
+                .filter(|c| c.body_span.start() < cursor && cursor < c.body_span.end())
+                .min_by_key(|c| c.body_span.end() - c.body_span.start())
+                .map(|c| c.qualified_name.clone())
+        {
+            return Some((class_q, method, MethodAccess::Internal));
+        }
+        // External `$obj method` — resolve `$obj`'s class.
+        if let Some(class_q) =
+            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
+        {
+            return Some((class_q.clone(), method, MethodAccess::External));
+        }
     }
-    // Inside a class body on one of its method / classmethod names.
-    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    // Inside a class body on one of its method / classmethod names — the
+    // declaration side, an internal context.
     for class_def in analysis.all_classes.values() {
         let body = class_def.body_span;
         if body.start() < cursor
@@ -498,7 +528,11 @@ pub fn method_rename_target(
             && (class_def.methods.contains_key(&word)
                 || class_def.class_methods.contains_key(&word))
         {
-            return Some((class_def.qualified_name.clone(), word));
+            return Some((
+                class_def.qualified_name.clone(),
+                word,
+                MethodAccess::Internal,
+            ));
         }
     }
     None
@@ -736,6 +770,16 @@ fn rename_proc(
     }) {
         return Some(Vec::new());
     }
+    // Provenance gate (issue #945 fault 1): an indirect dispatch of this
+    // proc whose contributing constants are not all source-writable cannot
+    // be kept alive by any edit set — refuse the whole rename rather than
+    // emit edits that leave the dispatch running the old name.
+    if analysis.command_invocations.iter().any(|inv| {
+        !inv.rename_safe
+            && crate::references::invocation_references_proc(analysis, inv, qname, proc_def)
+    }) {
+        return Some(Vec::new());
+    }
     let mut edits = vec![TextEdit {
         range: span_to_range(source, line_index, proc_def.name_span),
         new_text: new_decl_text,
@@ -806,6 +850,15 @@ fn rename_class(
     } else {
         new_name.to_owned()
     };
+    // Provenance gate (issue #945 fault 1) — mirrors `rename_proc`: an
+    // indirect dispatch with unwritable contributing constants cannot
+    // follow the rename, so refuse it outright.
+    if analysis.command_invocations.iter().any(|inv| {
+        !inv.rename_safe
+            && crate::references::invocation_references_class(analysis, inv, qname, class_def)
+    }) {
+        return Some(Vec::new());
+    }
     let mut edits = vec![TextEdit {
         range: span_to_range(source, line_index, class_def.name_span),
         new_text: new_decl_text,
@@ -1170,6 +1223,12 @@ pub fn workspace_symbol_rename_edits(
     let namespace_prefix = namespace_prefix_of(qualified_name);
     let (new_qualified, _) = qualified_and_decl_text(namespace_prefix, new_name);
     if index.workspace_command_exists(&new_qualified) {
+        return None;
+    }
+    // Provenance gate (issue #945 fault 1): an indirect dispatch of this
+    // command anywhere in the workspace whose contributing constants are
+    // not all source-writable cannot follow any edit set — abstain.
+    if index.rename_blocked(qualified_name) {
         return None;
     }
     Some(cross_document_symbol_edits(

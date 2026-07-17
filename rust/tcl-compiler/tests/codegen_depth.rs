@@ -1105,6 +1105,7 @@ fn backend_lower_function_handbuilt_assign_const() {
         name: "x".into(),
         name_braced: false,
         value: "42".into(),
+        value_span: None,
     }]);
     let mut backend = BytecodeBackend;
     let fa = backend.lower_function(&cfg, &[], false, &[], &reg);

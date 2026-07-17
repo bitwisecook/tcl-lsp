@@ -29,11 +29,15 @@ use tcl_lexer::Span;
 
 use super::types::AnalysisResult;
 
-/// One constant-`$cmd` dispatch site (M7), pending post-walk settlement.
+/// One `$cmd`-head dispatch site (M7), pending settlement against the
+/// compiler's flow-sensitive value model once the CFG/SSA
+/// `CompilationUnit` is built (issue #945 faults 1–2: the value and its
+/// writable provenance come from the SSA use-version's reaching
+/// constant definitions, never from a lexical last-write-wins map).
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct ConstDispatchSite {
-    /// The variable's constant string value — the command name it dispatches.
-    pub value: String,
+    /// The dispatching variable's name (no leading `$`).
+    pub var_name: String,
     /// Span of the `$cmd` head token (the reference anchor).
     pub span: Span,
     /// Command-resolution namespace at the dispatch site.
@@ -256,13 +260,17 @@ pub struct Analyser {
     pub(super) namespace_paths: HashMap<String, Vec<String>>,
     /// Variable-as-command call sites; resolved post-walk by W307.
     pub var_command_sites: Vec<VarCommandSite>,
-    /// Constant-`$cmd` dispatch sites (M7): a `$cmd args…` head whose
-    /// variable held a known constant string at the call site.  Settled in
-    /// `finalise_invocation_resolutions` — a value that resolves to a known
-    /// command becomes an ordinary [`SignatureCommandInvocation`] (so
-    /// references / go-to-definition / rename / call hierarchy reach the
-    /// dispatched command); an unresolvable value is dropped (abstention —
-    /// the documented non-const limit stays intact and no new W123 arises).
+    /// `$cmd`-head dispatch sites (M7): every simple-`$var` command head,
+    /// pending settlement against the compiler's flow-sensitive value
+    /// model (`value_provenance::const_contributors`) in the CFG/SSA
+    /// diagnostic phase, where the `CompilationUnit` exists.  A site whose
+    /// contributors form a finite set of written constants settles into
+    /// [`SignatureCommandInvocation`]s — an *indirect* one at the `$cmd`
+    /// head per resolved user-command target (navigation), plus a
+    /// *writable* literal-anchored one at each contributing definition
+    /// (rename rewrites the defining constant, keeping the dispatch
+    /// alive).  Anything unprovable is dropped (sound abstention — no
+    /// phantom invocation, no W123 delta).
     pub(super) pending_const_dispatches: Vec<ConstDispatchSite>,
     /// M9: the namespace key a seeded analysis wraps the whole file in (set
     /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it

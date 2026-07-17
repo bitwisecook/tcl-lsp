@@ -3660,13 +3660,15 @@ impl Backend {
         // base class's own document.  A method call's head is `$obj`, not the
         // method token, so this is not gated on `on_command_head`.  Resolved
         // oracle-aware so a pure-consumer receiver (class defined elsewhere)
-        // still identifies the method.
-        if let Some((class_q, method)) = self
+        // still identifies the method, and access-context-aware so an
+        // external call resolves the exported dispatch entry only
+        // (issue #945 faults 4 + 6).
+        if let Some((class_q, method, access)) = self
             .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
             .await
         {
             let method_defs = self
-                .cross_file_method_definition(uri, &class_q, &method)
+                .cross_file_method_definition(uri, &class_q, &method, access)
                 .await;
             if !method_defs.is_empty() {
                 return Ok(method_defs);
@@ -3831,41 +3833,51 @@ impl Backend {
         // Reconcile the index with the source graph first (M9): sourced
         // documents answer under their source-site namespaces.
         self.refresh_source_rehoming().await;
-        // Resolve the call at the cursor to its single qualified target through
-        // the workspace oracle, then jump to *that* symbol's definition — never
-        // every same-simple-name proc/class across the project, which a bare
-        // name lookup would surface as spurious extra jump targets.
-        let Some(qualified) = self
-            .resolve_workspace_symbol(uri, source, analysis, pos)
-            .await
-        else {
+        // Resolve the call at the cursor to its qualified identity set
+        // through the workspace oracle, then jump to *those* symbols'
+        // definitions — never every same-simple-name proc/class across the
+        // project, which a bare name lookup would surface as spurious extra
+        // jump targets.  (A multi-seeded declaration cursor yields several
+        // identities sharing one physical definition — the target set
+        // dedupes to the physical site.)
+        let symbols = self
+            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .await;
+        if symbols.is_empty() {
             return Ok(Vec::new());
-        };
+        }
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
-            let classes = index.class_definitions_qualified(&qualified, "");
-            // Prefer real `oo::class create` sites over cross-file `oo::define`
-            // extension stubs; fall back to every site only when no true
-            // creation site is indexed (the class is defined solely by
-            // `oo::define`, e.g. on a built-in).
-            let creation_sites: Vec<_> = classes.iter().filter(|c| !c.via_define).collect();
-            let class_targets: Vec<(String, tcl_lexer::Span)> = if creation_sites.is_empty() {
-                classes
-                    .iter()
-                    .map(|c| (c.uri.clone(), c.name_span))
-                    .collect()
-            } else {
-                creation_sites
-                    .iter()
-                    .map(|c| (c.uri.clone(), c.name_span))
-                    .collect()
-            };
-            index
-                .proc_definitions_qualified(&qualified, "")
-                .into_iter()
-                .map(|p| (p.uri.clone(), p.name_span))
-                .chain(class_targets)
-                .collect()
+            let mut targets: Vec<(String, tcl_lexer::Span)> = Vec::new();
+            for qualified in &symbols {
+                let classes = index.class_definitions_qualified(qualified, "");
+                // Prefer real `oo::class create` sites over cross-file
+                // `oo::define` extension stubs; fall back to every site only
+                // when no true creation site is indexed (the class is defined
+                // solely by `oo::define`, e.g. on a built-in).
+                let creation_sites: Vec<_> = classes.iter().filter(|c| !c.via_define).collect();
+                let class_targets: Vec<(String, tcl_lexer::Span)> = if creation_sites.is_empty() {
+                    classes
+                        .iter()
+                        .map(|c| (c.uri.clone(), c.name_span))
+                        .collect()
+                } else {
+                    creation_sites
+                        .iter()
+                        .map(|c| (c.uri.clone(), c.name_span))
+                        .collect()
+                };
+                targets.extend(
+                    index
+                        .proc_definitions_qualified(qualified, "")
+                        .into_iter()
+                        .map(|p| (p.uri.clone(), p.name_span))
+                        .chain(class_targets),
+                );
+            }
+            targets.sort_by_key(|(u, s)| (u.clone(), s.start(), s.end()));
+            targets.dedup();
+            targets
         };
         Ok(self.resolve_target_locations(targets).await)
     }
@@ -3907,13 +3919,17 @@ impl Backend {
     }
 
     /// Resolve the proc / class symbol at `pos` (a bare command word, not a
-    /// `$var`) to its fully-qualified name.  Used by cross-document references /
-    /// rename to identify which symbol's call sites to gather.
+    /// `$var`) to its **runtime identity set**.  Used by cross-document
+    /// references / rename / definition to identify which symbols' call
+    /// sites to gather.
     ///
     /// Two cursor shapes resolve, both namespace-exact:
     ///
     /// 1. On a proc / class **declaration name** in this document — the symbol
-    ///    whose name span covers the cursor.
+    ///    whose name span covers the cursor.  A declaration in a document
+    ///    sourced under several namespaces is one physical token with one
+    ///    runtime identity **per source-site view** (issue #945 fault 3), so
+    ///    every seed-mapped identity is returned, never an arbitrary first.
     /// 2. On a **command-head call** — the invocation's ordered resolution
     ///    candidates (caller namespace, each `namespace path` entry, then
     ///    global) walked in Tcl priority order; the first defined in the current
@@ -3922,41 +3938,45 @@ impl Backend {
     ///    `name == word` scan and an arbitrary same-simple-name sibling pick.
     ///
     /// Anything else (a bareword argument, whitespace, a `$var`) resolves to
-    /// nothing, so no coincidental word links to a sibling symbol.
-    async fn resolve_workspace_symbol(
+    /// nothing (an empty set), so no coincidental word links to a sibling
+    /// symbol.
+    async fn resolve_workspace_symbols(
         &self,
         uri: &Uri,
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Option<String> {
+    ) -> Vec<String> {
         if core_hover::find_var_at_position(source, pos.line, pos.character).is_some() {
-            return None;
+            return Vec::new();
         }
-        let offset = line_col_to_byte_offset(source, pos.line, pos.character)?;
+        let Some(offset) = line_col_to_byte_offset(source, pos.line, pos.character) else {
+            return Vec::new();
+        };
         let covers =
             |sp: tcl_lexer::Span| (sp.start() as usize) <= offset && offset < (sp.end() as usize);
 
         // A declaration in a *sourced* document resolves standalone to its
-        // global-rooted name; the index holds the source-site re-homed twin
-        // (M9), so map through the applied seeds.
+        // global-rooted name; the index holds one source-site re-homed twin
+        // per seed (M9), so map through the applied seeds to the full set.
         if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
-            return Some(
-                self.seed_mapped_symbol(uri, proc_def.qualified_name.clone())
-                    .await,
-            );
+            return self
+                .seed_mapped_symbols(uri, proc_def.qualified_name.clone())
+                .await;
         }
         if let Some(class_def) = analysis.all_classes.values().find(|c| covers(c.name_span)) {
-            return Some(
-                self.seed_mapped_symbol(uri, class_def.qualified_name.clone())
-                    .await,
-            );
+            return self
+                .seed_mapped_symbols(uri, class_def.qualified_name.clone())
+                .await;
         }
 
-        let inv = analysis
+        let Some(inv) = analysis
             .command_invocations
             .iter()
-            .find(|i| covers(i.range))?;
+            .find(|i| covers(i.range))
+        else {
+            return Vec::new();
+        };
         {
             let index = self.workspace_index.read().await;
             if let Some(cand) = inv.resolution_candidates.iter().find(|cand| {
@@ -3970,20 +3990,25 @@ impl Backend {
                 // locally; follow the link so the cursor resolves to the
                 // command it ultimately runs, gathering its references with
                 // that command's.
-                return Some(index.resolve_command_target(cand));
+                return vec![index.resolve_command_target(cand)];
             }
         }
         // Autoload tier (M8): the command resolves nowhere in the open
         // workspace.  Ask the auto-load / package database, merging the
         // defining library file into the index so this query — and every
         // later references / rename / definition — sees its definitions.
-        let (word, namespace) = core_definition::command_head_and_namespace_at(
+        let Some((word, namespace)) = core_definition::command_head_and_namespace_at(
             source,
             analysis,
             pos.line,
             pos.character,
-        )?;
-        self.ensure_autoload_indexed(&word, &namespace).await
+        ) else {
+            return Vec::new();
+        };
+        self.ensure_autoload_indexed(&word, &namespace)
+            .await
+            .into_iter()
+            .collect()
     }
 
     /// Cross-document references for the proc / class at `pos`:
@@ -4000,34 +4025,45 @@ impl Backend {
         include_declaration: bool,
     ) -> Vec<Location> {
         self.refresh_source_rehoming().await;
-        let Some(qualified) = self
-            .resolve_workspace_symbol(uri, source, analysis, pos)
-            .await
-        else {
+        let symbols = self
+            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .await;
+        if symbols.is_empty() {
             return Vec::new();
-        };
+        }
+        // A multi-seeded declaration names several runtime identities
+        // (issue #945 fault 3) — the reference set is the **union over
+        // every view**, so a `::x::helper` caller and a `::y::helper`
+        // caller both surface from the one physical declaration.
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
-            // References follow command name-links: a call reaching the target
-            // through an `interp alias` / `rename` / `namespace import` is a
-            // use of it, as is the word that names it in such a declaration.
-            let mut t: Vec<(String, tcl_lexer::Span)> = index
-                .linked_invocations_of(&qualified, uri.as_str())
-                .into_iter()
-                .map(|i| (i.uri.clone(), i.range))
-                .collect();
-            t.extend(index.link_target_spans(&qualified, uri.as_str()));
-            if include_declaration {
-                // Match the declaration sites by *qualified* name — a same
-                // simple name in an unrelated namespace/file is a different
-                // symbol and must not be surfaced as this one's declaration.
-                for p in index.proc_definitions_qualified(&qualified, uri.as_str()) {
-                    t.push((p.uri.clone(), p.name_span));
-                }
-                for c in index.class_definitions_qualified(&qualified, uri.as_str()) {
-                    t.push((c.uri.clone(), c.name_span));
+            let mut t: Vec<(String, tcl_lexer::Span)> = Vec::new();
+            for qualified in &symbols {
+                // References follow command name-links: a call reaching the
+                // target through an `interp alias` / `rename` / `namespace
+                // import` is a use of it, as is the word that names it in
+                // such a declaration.
+                t.extend(
+                    index
+                        .linked_invocations_of(qualified, uri.as_str())
+                        .into_iter()
+                        .map(|i| (i.uri.clone(), i.range)),
+                );
+                t.extend(index.link_target_spans(qualified, uri.as_str()));
+                if include_declaration {
+                    // Match the declaration sites by *qualified* name — a same
+                    // simple name in an unrelated namespace/file is a different
+                    // symbol and must not be surfaced as this one's declaration.
+                    for p in index.proc_definitions_qualified(qualified, uri.as_str()) {
+                        t.push((p.uri.clone(), p.name_span));
+                    }
+                    for c in index.class_definitions_qualified(qualified, uri.as_str()) {
+                        t.push((c.uri.clone(), c.name_span));
+                    }
                 }
             }
+            t.sort_by_key(|(u, s)| (u.clone(), s.start(), s.end()));
+            t.dedup();
             t
         };
         self.resolve_target_locations(targets).await
@@ -4100,25 +4136,26 @@ impl Backend {
         .unwrap_or_default()
     }
 
-    /// Resolve the `TclOO` method `(class, name)` under the cursor.  Tries the
-    /// cached (single-file) analysis first; if that finds nothing — the common
-    /// pure-consumer case where `$obj`'s class is defined in another file and so
-    /// is invisible to the file-local instance inference — retries against an
-    /// analysis carrying the workspace class oracle.
+    /// Resolve the `TclOO` method `(class, name, access)` under the cursor.
+    /// Tries the cached (single-file) analysis first; if that finds nothing
+    /// — the common pure-consumer case where `$obj`'s class is defined in
+    /// another file and so is invisible to the file-local instance
+    /// inference — retries against an analysis carrying the workspace
+    /// class oracle.
     async fn resolve_method_target(
         &self,
         source: &str,
         dialect: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Option<(String, String)> {
+    ) -> Option<(String, String, core_workspace_index::MethodAccess)> {
         if let Some(target) =
-            core_rename::method_rename_target(source, pos.line, pos.character, analysis)
+            core_rename::method_target_with_access(source, pos.line, pos.character, analysis)
         {
             return Some(target);
         }
         let oracle = self.analyse_with_workspace_classes(source, dialect).await;
-        core_rename::method_rename_target(source, pos.line, pos.character, &oracle)
+        core_rename::method_target_with_access(source, pos.line, pos.character, &oracle)
     }
 
     /// Cross-file references from **pure-consumer** documents: `$obj method`
@@ -4455,32 +4492,36 @@ impl Backend {
     }
 
     /// Cross-file go-to-definition for a `TclOO` method: the declaration
-    /// site(s) of `(class_q, method)` in *sibling* documents.
+    /// site of the **dispatch entry** — the first implementation on the
+    /// receiver class's C-faithful linearisation that is callable under
+    /// `access` (issue #945 fault 6: a definition request identifies the
+    /// implementation the call actually enters, never the whole override
+    /// family; fault 4: an externally-uncallable method resolves to
+    /// nothing, mirroring C's `unknown method`).
     ///
-    /// Walks the method's workspace-wide override family and, for every definer
-    /// in another file, re-analyses that document and returns the method's
-    /// name-token span.  This resolves the common inherited-method case — a
-    /// `$obj method` call whose method is declared in the base class's own file
-    /// — that the single-document provider (which only sees this file's class
-    /// table) cannot.  The current document is excluded; the single-document
-    /// provider already jumps to a same-file declaration.
+    /// The current document participates: a mixin override in this file
+    /// outranks the receiver class's own method in another.  (Same-file
+    /// simple cases are answered by the in-document provider before this
+    /// runs, with the same chain rule.)
     async fn cross_file_method_definition(
         &self,
-        current_uri: &Uri,
+        _current_uri: &Uri,
         class_q: &str,
         method: &str,
+        access: core_workspace_index::MethodAccess,
     ) -> Vec<Location> {
-        let definers: Vec<(String, String)> = {
+        let chain: Vec<(String, String)> = {
             let index = self.workspace_index.read().await;
             index
-                .method_override_family(class_q, method)
+                .method_dispatch_chain(class_q, method, access)
                 .into_iter()
-                .filter(|wc| wc.uri != current_uri.as_str())
                 .map(|wc| (wc.uri.clone(), wc.qualified_name.clone()))
                 .collect()
         };
-        let mut targets: Vec<(String, tcl_lexer::Span)> = Vec::new();
-        for (u, cq) in definers {
+        // The chain's first record is the dispatch entry; later records are
+        // the `next` chain, reachable through the call-hierarchy /
+        // references views rather than definition.
+        for (u, cq) in chain {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
@@ -4496,10 +4537,10 @@ impl Backend {
                     .get(method)
                     .or_else(|| class_def.class_methods.get(method))
             {
-                targets.push((u, m.name_span));
+                return self.resolve_target_locations(vec![(u, m.name_span)]).await;
             }
         }
-        self.resolve_target_locations(targets).await
+        Vec::new()
     }
 
     /// Add cross-document rename edits for the proc / class at
@@ -4508,6 +4549,17 @@ impl Backend {
     /// edit intents (call sites + definition sites), converts
     /// each byte span to a range against its target document,
     /// and merges into the per-URI edit map (deduped).
+    /// Returns `true` when the rename must be **aborted wholesale**: a
+    /// sibling document holds an indirect dispatch of this symbol whose
+    /// contributing constants are not all source-writable (issue #945
+    /// fault 1) — no edit set can keep that dispatch alive, so not even
+    /// the in-document edits may apply.
+    ///
+    /// A multi-seeded declaration (issue #945 fault 3) is an explicit
+    /// **multi-symbol rename**: the one physical token names every
+    /// source-site identity, so the edit set is the union over all of
+    /// them — each view's callers rewritten — keeping every runtime
+    /// identity consistent with the edited declaration.
     async fn add_cross_document_rename_edits(
         &self,
         uri: &Uri,
@@ -4516,19 +4568,29 @@ impl Backend {
         pos: Position,
         new_name: &str,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
-    ) {
+    ) -> bool {
         self.refresh_source_rehoming().await;
-        let Some(qualified) = self
-            .resolve_workspace_symbol(uri, source, analysis, pos)
-            .await
-        else {
-            return;
-        };
+        let symbols = self
+            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .await;
         let intents = {
             let index = self.workspace_index.read().await;
-            core_rename::cross_document_symbol_edits(&qualified, new_name, &index, uri.as_str())
+            if symbols.iter().any(|q| index.rename_blocked(q)) {
+                return true;
+            }
+            let mut intents: Vec<core_rename::WorkspaceTextEdit> = Vec::new();
+            for qualified in &symbols {
+                intents.extend(core_rename::cross_document_symbol_edits(
+                    qualified,
+                    new_name,
+                    &index,
+                    uri.as_str(),
+                ));
+            }
+            intents
         };
         self.merge_rename_intents(intents, changes).await;
+        false
     }
 
     /// Consumer-document rename (M8): the cursor's command has no local
@@ -4549,18 +4611,28 @@ impl Backend {
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
     ) {
         self.refresh_source_rehoming().await;
-        let Some(qualified) = self
-            .resolve_workspace_symbol(uri, source, analysis, pos)
-            .await
-        else {
+        let symbols = self
+            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .await;
+        if symbols.is_empty() {
             return;
-        };
+        }
         let intents = {
             let index = self.workspace_index.read().await;
-            core_rename::workspace_symbol_rename_edits(&qualified, new_name, &index)
-        };
-        let Some(intents) = intents else {
-            return;
+            // Every identity of a multi-seeded declaration must accept the
+            // rename (no collision, no unwritable indirect dispatch) — a
+            // partial multi-symbol edit would leave the views inconsistent,
+            // so one refusal aborts them all (issue #945 faults 1 + 3).
+            let mut intents: Vec<core_rename::WorkspaceTextEdit> = Vec::new();
+            for qualified in &symbols {
+                let Some(symbol_intents) =
+                    core_rename::workspace_symbol_rename_edits(qualified, new_name, &index)
+                else {
+                    return;
+                };
+                intents.extend(symbol_intents);
+            }
+            intents
         };
         self.merge_rename_intents(intents, changes).await;
     }
@@ -6631,10 +6703,15 @@ impl Backend {
 
     /// M9, declaration side: a cursor on a definition inside a *sourced*
     /// document resolves, in that document's standalone analysis, to its
-    /// global-rooted name — but the index holds the re-homed twin.  Map the
-    /// name through the document's applied seeds so references / rename /
-    /// definition line up with the sourcing side.
-    async fn seed_mapped_symbol(&self, uri: &Uri, qualified: String) -> String {
+    /// global-rooted name — but the index holds one re-homed twin **per
+    /// source-site namespace**.  One physical declaration is several
+    /// runtime identities (`namespace eval ::x {source b.tcl}` +
+    /// `namespace eval ::y {source b.tcl}` creates both `::x::helper`
+    /// and `::y::helper` — tclsh 9.0.4), so the mapping returns the
+    /// **full identity set**, never an arbitrary first seed (issue #945
+    /// fault 3): references union every view's call sites, and a rename
+    /// of the one physical token is explicitly a multi-symbol edit.
+    async fn seed_mapped_symbols(&self, uri: &Uri, qualified: String) -> Vec<String> {
         let seeds = self
             .rehomed_source_seeds
             .lock()
@@ -6643,20 +6720,28 @@ impl Backend {
             .cloned()
             .unwrap_or_default();
         if seeds.is_empty() {
-            return qualified;
+            return vec![qualified];
         }
         let index = self.workspace_index.read().await;
+        let mut out: Vec<String> = Vec::new();
         for seed in &seeds {
-            if seed == "::" {
-                // A standalone view exists alongside; the plain name is real.
-                return qualified;
-            }
-            let mapped = format!("{seed}{qualified}");
-            if index.workspace_command_exists(&mapped) {
-                return mapped;
+            let mapped = if seed == "::" {
+                // A standalone / global-sourced view exists alongside; the
+                // plain name is one of the real identities.
+                qualified.clone()
+            } else {
+                format!("{seed}{qualified}")
+            };
+            if index.workspace_command_exists(&mapped) && !out.contains(&mapped) {
+                out.push(mapped);
             }
         }
-        qualified
+        if out.is_empty() {
+            // No seeded twin materialised (stale index edge): the plain
+            // name is still the best identity.
+            out.push(qualified);
+        }
+        out
     }
 
     async fn scan_workspace_folders(&self) {
@@ -8002,7 +8087,7 @@ impl LanguageServer for Backend {
         // sibling documents — the single-document provider above only sees this
         // file.  The target is resolved oracle-aware so a pure-consumer cursor
         // (`$obj`'s class defined in another file) still identifies the method.
-        if let Some((seed_class, method)) = self
+        if let Some((seed_class, method, _access)) = self
             .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
             .await
         {
@@ -9512,10 +9597,10 @@ impl LanguageServer for Backend {
         let Some(word_p) = core_rename::word_prepare_at(&doc.text, pos.line, pos.character) else {
             return Ok(None);
         };
-        if self
-            .resolve_workspace_symbol(&uri, &doc.text, &analysis, pos)
+        if !self
+            .resolve_workspace_symbols(&uri, &doc.text, &analysis, pos)
             .await
-            .is_some()
+            .is_empty()
         {
             return Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
                 range: lift_lsp_range(word_p.range),
@@ -9617,15 +9702,22 @@ impl LanguageServer for Backend {
         let new_name_safe = core_rename::is_safe_symbol_name(&new_name)
             && !core_rename::is_builtin_command_name(&new_name, &registry);
         if !local_rejected && new_name_safe {
-            self.add_cross_document_rename_edits(
-                &uri,
-                &doc.text,
-                &analysis,
-                pos,
-                &new_name,
-                &mut changes,
-            )
-            .await;
+            let blocked = self
+                .add_cross_document_rename_edits(
+                    &uri,
+                    &doc.text,
+                    &analysis,
+                    pos,
+                    &new_name,
+                    &mut changes,
+                )
+                .await;
+            // A sibling document dispatches this symbol through a value
+            // whose provenance is not fully writable — the whole rename
+            // (in-document edits included) must abort (issue #945 fault 1).
+            if blocked {
+                return Ok(None);
+            }
         } else if local_rejected && new_name_safe {
             // An empty in-document result also covers the *consumer document*
             // shape: the cursor's command is defined in a sibling document (or
@@ -17961,6 +18053,70 @@ mod tests {
         );
     }
 
+    /// Issue #945 fault 3: a file sourced into **several** namespaces is one
+    /// physical declaration with one runtime identity per source site
+    /// (tclsh 9.0.4: `namespace eval ::x {source b.tcl}` + `namespace eval
+    /// ::y {source b.tcl}` yields both `::x::helper` and `::y::helper`).
+    /// Declaration-side navigation must union every view — never map the
+    /// cursor to the first sorted seed and lose the other callers.
+    #[tokio::test]
+    async fn multi_seeded_declaration_unions_every_runtime_identity_945() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        let b_src = "proc helper {} {namespace current}\n";
+        register(&backend, &b, b_src).await;
+        register(
+            &backend,
+            &a,
+            "namespace eval ::x { source b.tcl }\nnamespace eval ::y { source b.tcl }\n::x::helper\n::y::helper\n",
+        )
+        .await;
+        backend.refresh_source_rehoming().await;
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(b_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&b, b_src, &analysis, Position::new(0, 6), false)
+            .await;
+        let caller_lines: std::collections::BTreeSet<u32> = refs
+            .iter()
+            .filter(|l| l.uri == a)
+            .map(|l| l.range.start.line)
+            .collect();
+        assert_eq!(
+            caller_lines,
+            [2, 3].into_iter().collect(),
+            "both seeded views' callers must surface: {refs:?}"
+        );
+        // Rename from the declaration is an explicit multi-symbol edit:
+        // the one physical token changes, and *every* view's callers
+        // follow — leaving no runtime identity dispatching the old name.
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        let blocked = backend
+            .add_cross_document_rename_edits(
+                &b,
+                b_src,
+                &analysis,
+                Position::new(0, 6),
+                "assist",
+                &mut changes,
+            )
+            .await;
+        assert!(!blocked, "nothing blocks this rename");
+        let a_edit_lines: std::collections::BTreeSet<u32> = changes
+            .get(&a)
+            .map(|edits| edits.iter().map(|e| e.range.start.line).collect())
+            .unwrap_or_default();
+        assert_eq!(
+            a_edit_lines,
+            [2, 3].into_iter().collect(),
+            "both views' callers must be rewritten: {changes:?}"
+        );
+    }
+
     /// M9 stage 9.2: a statically-foldable computed source path
     /// (`[file join [file dirname [info script]] b.tcl]`) resolves like a
     /// literal; an unfoldable one abstains.
@@ -18715,7 +18871,12 @@ mod tests {
         )
         .await;
         let defs = backend
-            .cross_file_method_definition(&dog, "::Dog", "speak")
+            .cross_file_method_definition(
+                &dog,
+                "::Dog",
+                "speak",
+                core_workspace_index::MethodAccess::External,
+            )
             .await;
         assert_eq!(defs.len(), 1, "{defs:?}");
         assert_eq!(defs[0].uri, animal);

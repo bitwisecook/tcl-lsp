@@ -312,6 +312,7 @@ impl Analyser {
                     callback_arity: None,
                     callback_baked_args: 0,
                     indirect: false,
+                    rename_safe: true,
                 },
             );
 
@@ -337,6 +338,7 @@ impl Analyser {
                         callback_arity: None,
                         callback_baked_args: 0,
                         indirect: false,
+                        rename_safe: true,
                     },
                 );
             }
@@ -1208,6 +1210,7 @@ impl Analyser {
                     callback_arity: Some(inv.appended),
                     callback_baked_args: inv.baked,
                     indirect: false,
+                    rename_safe: true,
                 },
             );
         }
@@ -1239,6 +1242,7 @@ impl Analyser {
                 callback_arity: None,
                 callback_baked_args: 0,
                 indirect: false,
+                rename_safe: true,
             },
         );
     }
@@ -1788,6 +1792,7 @@ impl Analyser {
                     callback_arity,
                     callback_baked_args: 0,
                     indirect: false,
+                    rename_safe: true,
                 },
             );
         }
@@ -1836,6 +1841,7 @@ impl Analyser {
                     callback_arity: None,
                     callback_baked_args: 0,
                     indirect: false,
+                    rename_safe: true,
                 },
             );
         }
@@ -1876,22 +1882,21 @@ impl Analyser {
                     .map_or(raw, |(name, _)| name)
                     .to_string();
                 let method_name = args.first().cloned();
-                // M7: a *constant* `$cmd` head is a statically-known dispatch.
-                // Record it for post-walk settlement (only a value resolving
-                // to a known command becomes a reference; anything else is
-                // dropped — the documented non-const abstention).  A braced
-                // composite head (`${ns}::tail …`) is the W307 ensemble
-                // shape, not a whole-command variable, so it is skipped.
-                if var_name == raw
-                    && let Some(value) = self.lookup_const_string(&var_name, scope_path)
-                    && !crate::naming::is_dynamic_word(value)
-                    && !value.trim().is_empty()
-                {
-                    let value = value.to_string();
+                // M7: a simple-`$cmd` head may be a statically-known
+                // dispatch.  Record the *site* for settlement in the
+                // CFG/SSA phase, where the flow-sensitive value model can
+                // prove (or soundly refuse to prove) the finite set of
+                // command names reaching this exact program point —
+                // never the walk's lexical constant map, whose
+                // last-write-wins view collapses `if`/loop joins (issue
+                // #945 fault 2).  A braced composite head (`${ns}::tail
+                // …`) is the W307 ensemble shape, not a whole-command
+                // variable, so it is skipped.
+                if var_name == raw {
                     let ns = self.command_resolution_namespace(scope_path);
                     self.pending_const_dispatches
                         .push(super::state::ConstDispatchSite {
-                            value,
+                            var_name: var_name.clone(),
                             span: cmd_tok.span,
                             ns,
                         });

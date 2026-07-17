@@ -278,6 +278,27 @@ impl DefinitionBodyGrammar {
     pub fn is_member(&self, keyword: &str) -> bool {
         self.members.iter().any(|m| m.keyword == keyword)
     }
+
+    /// Whether a member named `name` is **exported by default** under this
+    /// family's visibility model — before any explicit `export` /
+    /// `unexport`, which a consumer applies on top (and which a later
+    /// re-`method` definition *resets* back to this default; pinned
+    /// against tclsh 9.0.4).
+    ///
+    /// `TclOO`'s C rule is `Tcl_StringMatch(name, PUBLIC_PATTERN)` with
+    /// `PUBLIC_PATTERN "[a-z]*"` (`tclOODefineCmds.c`, 9.0.4): exported
+    /// iff the first character is an ASCII lowercase letter — `Upper`,
+    /// `_under`, `9digit`, and non-ASCII initials (`ümlaut`) are all
+    /// unexported by default.  snit and itcl members are dispatched by
+    /// their own access models (itcl's modifier wrappers carry the
+    /// visibility explicitly), so they default to exported here.
+    #[must_use]
+    pub fn member_default_exported(&self, name: &str) -> bool {
+        match self.family {
+            DefinerFamily::TclOo => name.starts_with(|c: char| c.is_ascii_lowercase()),
+            DefinerFamily::Snit | DefinerFamily::Itcl => true,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

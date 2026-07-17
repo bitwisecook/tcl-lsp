@@ -1981,12 +1981,14 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             },
             Statement::AssignConst {
                 span: Span::new(8, 15),
                 name: "y".into(),
                 name_braced: false,
                 value: "2".into(),
+                value_span: None,
             },
         ]);
         let func = build_cfg_function("::test", &script, true);
@@ -2003,6 +2005,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             },
             Statement::Return {
                 span: Span::new(8, 16),
@@ -2015,6 +2018,7 @@ mod tests {
                 name: "y".into(),
                 name_braced: false,
                 value: "2".into(), // dead code
+                value_span: None,
             },
         ]);
         let func = build_cfg_function("::test", &script, true);
@@ -2041,6 +2045,7 @@ mod tests {
                     name: "y".into(),
                     name_braced: false,
                     value: "1".into(),
+                    value_span: None,
                 }]),
                 body_span: Span::new(6, 15),
                 condition_base: None,
@@ -2077,6 +2082,7 @@ mod tests {
                 name: "inner".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             }]),
             body_span: Span::new(6, 15),
             result_var: Some("result".into()),
@@ -2107,6 +2113,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         }]);
         let script = Script::from_statements(vec![Statement::Foreach {
             span: Span::new(0, 0),

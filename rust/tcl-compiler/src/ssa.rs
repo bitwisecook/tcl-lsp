@@ -2201,6 +2201,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             },
             uses: HashMap::new(),
             defs: HashMap::from([(Symbol(0), 1)]),
@@ -2263,6 +2264,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         };
         assert_eq!(defs_of(&stmt), vec!["x"]);
     }
@@ -2767,6 +2769,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             });
         func.blocks
             .get_mut(&els)
@@ -2777,6 +2780,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "2".into(),
+                value_span: None,
             });
 
         let dom = compute_dominators(&func);
@@ -2810,6 +2814,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             });
 
         let dom = compute_dominators(&func);
@@ -2842,6 +2847,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 value: "0".into(),
+                value_span: None,
             });
         func.blocks
             .get_mut(&body)
@@ -2904,6 +2910,7 @@ mod tests {
             name: "x".into(),
             name_braced: false,
             value: "1".into(),
+            value_span: None,
         };
         let uses = uses_of(&stmt, &mut scanner, &reg);
         assert!(uses.is_empty(), "constant assignment reads nothing");
@@ -3006,6 +3013,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             },
             Statement::AssignValue {
                 span: Span::new(8, 16),
@@ -3055,6 +3063,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "0".into(),
+                value_span: None,
             });
 
         func.blocks
@@ -3066,6 +3075,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "1".into(),
+                value_span: None,
             });
         func.blocks
             .get_mut(&els)
@@ -3076,6 +3086,7 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 value: "2".into(),
+                value_span: None,
             });
         // Read `x` after the join so it is upward-exposed at `end` — under
         // semi-pruned SSA a phi is placed only for a name with a downstream
@@ -3139,6 +3150,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 value: "0".into(),
+                value_span: None,
             });
         func.blocks
             .get_mut(&body)
