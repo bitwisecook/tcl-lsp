@@ -1406,7 +1406,14 @@ fn run_step(
         body: Rc::clone(&m.body),
         body_src: m.body_src.clone(),
         usage_name: Some(usage_prefix.clone()),
+        compiled_epoch: 0,
     };
+    // A method body is rebuilt fresh from `m.body_src` every call (never
+    // cached back onto the class), so it always picks up the interp's
+    // current trace-deopt mode — no separate epoch bookkeeping needed for
+    // methods; `ensure_proc_traced` only recompiles when it's actually
+    // needed (step_trace_active).
+    let proc = vm.ensure_proc_traced(Rc::new(proc));
     let frame = OoFrame {
         object: obj_key.to_string(),
         chain: chain.to_vec(),

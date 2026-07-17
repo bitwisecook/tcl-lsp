@@ -64,6 +64,13 @@ pub struct ProcDef {
     /// message reads `wrong # args: should be "apply lambdaExpr …"` rather than
     /// leaking the internal temp proc name (apply-4.*).
     pub usage_name: Option<String>,
+    /// The `Vm::trace_deopt_epoch` this `body` was compiled under (`0` for
+    /// every proc defined the ordinary way, before any step-capable
+    /// execution trace exists). A call site compares this against the
+    /// interp's current epoch and recompiles from `body_src` — traced or
+    /// fast, matching whether a step trace is currently active — when they
+    /// differ (issue #946 fault 3). See [`crate::interp::Vm::ensure_proc_traced`].
+    pub compiled_epoch: u64,
 }
 
 /// A registered command.
@@ -77,24 +84,25 @@ pub enum Command {
     /// (the target command plus any fixed prefix arguments) with the call's own
     /// arguments appended.
     Alias(Rc<Vec<Value>>),
-    /// A cross-interp `interp alias` whose source lives HERE and whose target
-    /// runs in a direct child (`interp alias {} cmd CHILD target…`): invoking
-    /// it dispatches the target words in that child at its global frame.
-    ChildAlias {
-        /// The child interpreter (a `children`-table key) the target runs in.
-        child: String,
+    /// A cross-interp `interp alias` whose target runs in a DIFFERENT
+    /// interpreter (parent, child, sibling, or any node reachable through the
+    /// shared engine): invoking it switches the engine to `target` and
+    /// evaluates the target words there at its global frame (C's
+    /// `TclAliasObjCmd` → `Tcl_EvalObjv(targetInterp, …)`).  The target interp
+    /// is addressed by stable [`crate::interp::InterpId`], so it can be a
+    /// child, the owning parent, or a sibling reached via the parent, and it
+    /// works whether the current interp is executing at top level or is
+    /// re-entered deeper on the stack.
+    CrossAlias {
+        /// The interpreter the target words run in.
+        target: crate::interp::InterpId,
         /// Target command + fixed prefix arguments.
         words: Rc<Vec<Value>>,
     },
-    /// A cross-interp `interp alias` registered IN a child whose target runs
-    /// in the owning parent (`interp alias CHILD cmd {} target…`): dispatch
-    /// suspends this interp ([`crate::exec::YieldReq::ParentCall`]) and the
-    /// parent's pump loop executes the words, resuming with the completion.
-    ParentAlias(Rc<Vec<Value>>),
-    /// A child interpreter addressable as a command (`$child eval …`): the name
-    /// keys into the parent's `children` table. Invoking it dispatches the
-    /// `interp` ensemble restricted to that child.
-    ChildInterp(String),
+    /// A child interpreter addressable as a command (`$child eval …`): the id
+    /// addresses the child in the engine's interp arena. Invoking it dispatches
+    /// the `interp` ensemble restricted to that child.
+    ChildInterp(crate::interp::InterpId),
     /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
     /// the ensemble's subcommands and dispatches to the mapped target.
     Ensemble(Rc<EnsembleDef>),
@@ -377,6 +385,7 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
         body: body_asm,
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
+        compiled_epoch: 0,
     });
     Ok(name)
 }
@@ -482,10 +491,11 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             other => other,
         };
-        let is_alias = matches!(
-            &cmd,
-            Command::Alias(_) | Command::ChildAlias { .. } | Command::ParentAlias(_)
-        );
+        let is_alias = matches!(&cmd, Command::Alias(_) | Command::CrossAlias { .. });
+        let cross_target = match &cmd {
+            Command::CrossAlias { target, .. } => Some(*target),
+            _ => None,
+        };
         vm.register_command(&key, cmd);
         // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
         // a name its own target chain resolves back to is refused, with the
@@ -496,10 +506,24 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .remove_command_exact(&key)
                 .expect("the alias was just registered under this key");
             vm.register_command(&old_key, restored);
+            // `register_command` just dropped the backref sitting at `old_key`
+            // (stale since `take_command` doesn't touch the backref table) —
+            // put it back now the alias is confirmed to still live there.
+            if let Some(target) = cross_target {
+                vm.note_alias_backref(&old_key, target);
+            }
             let tail = crate::interp::key_holder_and_tail_unrooted(&key).1;
             return err(format!(
                 "cannot define or rename alias \"{tail}\": would create a loop"
             ));
+        }
+        // A renamed cross-interp alias keeps its target-death backref current
+        // (the source-side sweep keys on the command's table key). Retargeted
+        // only now — any earlier and `register_command`'s own overwrite
+        // cleanup (which unconditionally drops a backref at the key it just
+        // wrote) would immediately undo it.
+        if let Some(target) = cross_target {
+            vm.retarget_alias_backref(&old_key, &key, target);
         }
         // The rename happened: fire the command's `rename` traces
         // (`callback ::old ::new rename`, both fully qualified — tclsh-
@@ -593,13 +617,62 @@ fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if path.is_empty() {
         return err("limits on current interpreter inaccessible");
     }
-    match vm.child_mut(&path) {
-        Some(child) => match child.limit_apply(&ltype, opts) {
-            Ok(v) => ok(v),
-            Err(m) => err(m),
-        },
-        None => err(format!("could not find interpreter \"{path}\"")),
+    let id = match vm.resolve_interp_path(&path) {
+        Ok(id) => id,
+        Err(c) => return c,
+    };
+    let ltype = ltype.to_string();
+    let opts = opts.to_vec();
+    match vm.in_interp(id, |vm| vm.limit_apply(&ltype, &opts)) {
+        Ok(v) => ok(v),
+        Err(m) => err(m),
     }
+}
+
+/// `interp eval path arg ?arg ...?` — empty path evaluates like `eval`; a
+/// named path (possibly multi-word, addressing a grandchild) routes into
+/// that interpreter.
+fn interp_eval_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let [path, scripts @ ..] = rest else {
+        return err("wrong # args: should be \"interp eval path arg ?arg ...?\"");
+    };
+    if scripts.is_empty() {
+        return err("wrong # args: should be \"interp eval path arg ?arg ...?\"");
+    }
+    let p = path.to_str();
+    let script = scripts
+        .iter()
+        .map(|v| v.to_str().to_string())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if p.is_empty() {
+        return match vm.eval_source(&script) {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        };
+    }
+    match vm.resolve_interp_path(&p) {
+        Ok(id) => vm.eval_in_interp(id, &script),
+        Err(c) => c,
+    }
+}
+
+/// `interp delete ?path ...?` — destroy each named interpreter.
+fn interp_delete_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    for path in rest {
+        let p = path.to_str();
+        if p.is_empty() {
+            return err(format!("could not find interpreter \"{p}\""));
+        }
+        match vm.resolve_interp_path(&p) {
+            Ok(id) if !vm.delete_interp(id) => {
+                return err(format!("could not find interpreter \"{p}\""));
+            }
+            Ok(_) => {}
+            Err(c) => return c,
+        }
+    }
+    ok(Value::empty())
 }
 
 /// `interp bgerror path ?cmdPrefix?` — get/set the background-error handler.
@@ -625,10 +698,14 @@ fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     if path.is_empty() {
         ok(vm.bgerror_apply(bargs))
-    } else if let Some(child) = vm.child_mut(&path) {
-        ok(child.bgerror_apply(bargs))
     } else {
-        err(format!("could not find interpreter \"{path}\""))
+        match vm.resolve_interp_path(&path) {
+            Ok(id) => {
+                let bargs = bargs.to_vec();
+                ok(vm.in_interp(id, |vm| vm.bgerror_apply(&bargs)))
+            }
+            Err(c) => c,
+        }
     }
 }
 
@@ -640,10 +717,14 @@ fn interp_debug_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let p = path.to_str();
     let res = if p.is_empty() {
         vm.debug_apply(dargs)
-    } else if let Some(child) = vm.child_mut(&p) {
-        child.debug_apply(dargs)
     } else {
-        return err(format!("could not find interpreter \"{p}\""));
+        match vm.resolve_interp_path(&p) {
+            Ok(id) => {
+                let dargs = dargs.to_vec();
+                vm.in_interp(id, |vm| vm.debug_apply(&dargs))
+            }
+            Err(c) => return c,
+        }
     };
     match res {
         Ok(v) => ok(v),
@@ -812,35 +893,9 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         // interp eval path arg ?arg ...? — empty path is the current interp
         // (evaluate like `eval`); a named path routes into that child.
-        "eval" => match rest {
-            [path, scripts @ ..] if !scripts.is_empty() => {
-                let p = path.to_str();
-                let script = scripts
-                    .iter()
-                    .map(|v| v.to_str().to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                if p.is_empty() {
-                    match vm.eval_source(&script) {
-                        Ok(c) => c,
-                        Err(e) => err(e.message),
-                    }
-                } else {
-                    vm.eval_in_child(&p, &script)
-                }
-            }
-            _ => err("wrong # args: should be \"interp eval path arg ?arg ...?\""),
-        },
+        "eval" => interp_eval_cmd(vm, rest),
         // interp delete ?path ...?
-        "delete" => {
-            for path in rest {
-                let p = path.to_str();
-                if p.is_empty() || !vm.delete_child(&p) {
-                    return err(format!("could not find interpreter \"{p}\""));
-                }
-            }
-            ok(Value::empty())
-        }
+        "delete" => interp_delete_cmd(vm, rest),
         "issafe" => match rest {
             [] => ok(Value::bool(vm.is_safe())),
             [path] => {
@@ -1173,6 +1228,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body,
         body_src: body_text.clone(),
         usage_name: None,
+        compiled_epoch: 0,
     });
     ok(Value::empty())
 }

@@ -367,17 +367,33 @@ design above:
   Base (`safe.tcl` access-path virtualisation) and `interp limit`/`target`/
   `debug`/`share` are the remaining gaps.
 
-- **`tcl-vm`** (bytecode VM) uses a simpler model fit to its plain-struct
-  `Vm`: a child **is** a full `Vm` sharing the parent's output sink and
-  (stateless) compile service via `Rc`, held in a `children` map and reachable
-  as a command through the `Command::ChildInterp` variant. `interp eval` takes
-  the child out of the map for the call and restores it (no aliased `&mut`), so
-  there is no cross-interp re-entry yet — `interp alias` from a child back to
-  the parent is the main deferred piece. `create ?-safe?`/`eval`/`delete`/
-  `exists`/`children`/`issafe`/`marktrusted`/`hide`/`expose`/`hidden`/
-  `recursionlimit` are implemented; `-safe` hides the host-reaching commands
-  into a per-interp hidden table; `share`/`transfer` are accepted so top-level
-  channel wiring does not abort a test file.
+- **`tcl-vm`** (bytecode VM) is an engine (`Vm`) driving a tree of
+  interpreters in one arena: each interpreter's state (`InterpState`) lives
+  in a slot addressed by a stable `InterpId` (never reused), and the
+  currently-executing interpreter's state is held directly on `Vm`
+  (`Deref<Target = InterpState>`, one pointer hop, no lookup on the hot
+  path). Cross-interp evaluation — `interp eval`, an `interp alias` crossing
+  in *any* direction (parent→child, child→parent, sibling→sibling routed
+  through the shared parent, arbitrary-depth grandchild paths),
+  `invokehidden` — is `Vm::in_interp`: a plain nested native call that swaps
+  which arena slot is current and swaps back on return, mirroring C's
+  `Tcl_EvalObjv(targetInterp, …)` on one shared C stack. This makes the
+  interp tree fully re-entrant: a parent-target alias works from any native
+  re-entry (coroutine resume, `lsort -command`, trace/event callbacks), and a
+  parent alias target may re-enter the child that called it, a sibling, or a
+  grandchild, because every interpreter's state stays live in its arena slot
+  whether or not it is "current" ([issue #946](https://github.com/bitwisecook/tcl-lsp/issues/946)).
+  An `InterpSlot` tracks liveness (`dying`) and an in-flight-evaluation count
+  (`active`), so `interp delete` on a currently-executing interpreter defers
+  teardown until the last nested call unwinds (C's
+  `Tcl_Preserve`/`Tcl_Release`), and deleting a target sweeps cross-interp
+  aliases that pointed at it out of their source interpreters. `create
+  ?-safe?`/`eval`/`delete`/`exists`/`children`/`issafe`/`marktrusted`/`hide`/
+  `expose`/`hidden`/`invokehidden`/`recursionlimit`/`limit` are implemented;
+  `-safe` hides the host-reaching commands into a per-interp hidden table;
+  `share`/`transfer` are accepted so top-level channel wiring does not abort
+  a test file. Remaining gaps: the Safe Base (`safe.tcl` access-path
+  virtualisation), `target`, and `debug` beyond the `-frame` switch.
 
 Both are gated against the upstream `interp.test`/`safe.test` suites through the
 [tier scoreboard](rust-vm-tier-parity.md); child interpreters are the

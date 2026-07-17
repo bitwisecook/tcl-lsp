@@ -31,7 +31,7 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_traced};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -47,6 +47,15 @@ impl CompileService for CompilerSvc {
             return Err(CompileError(msg));
         }
         let ir = lower_to_ir(src, &self.registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, &self.registry))
+    }
+
+    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir_traced(src, &self.registry);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }
@@ -223,17 +232,17 @@ const VECTORS: &[Vector] = &[
     },
 ];
 
-/// Documented divergence from C: step traces observe **dispatched** commands
-/// (procs, non-inlined builtins).  Commands the compiler lowers to inline
-/// opcodes (`set`, `incr`, `return`, …) never reach the dispatcher, so they
-/// do not step — where C Tcl forces a step-traced proc out of bytecode and
-/// fires for every inner command transitively (tclsh8.6-verified: the same
-/// script prints `S:helperp|enterstep`, `S:return H|enterstep`,
-/// `S:return H|2|H|leavestep`, `S:helperp|0|H|leavestep`).  Pinned here so a
-/// future engine change (trace-aware compilation) shows up as a conscious
-/// update, not silent drift.
+/// Former divergence from C (issue #946 fault 3), now fixed: step traces used
+/// to observe only **dispatched** commands (procs, non-inlined builtins) —
+/// commands the compiler lowers to inline opcodes (`set`, `incr`, `return`, …)
+/// never reached the dispatcher, so they did not step. C Tcl forces a
+/// step-traced proc "out of bytecode" (`DONT_COMPILE_CMDS_INLINE`,
+/// `tclTrace.c`) so every inner command fires transitively — this recompiles
+/// the traced proc trace-visible on its next entry (and reverts the same way
+/// once the last step-capable trace is removed), matching tclsh 8.6/9.0
+/// exactly (tclsh9.0.3-verified).
 #[test]
-fn step_traces_observe_dispatched_commands_only_vm_divergence() {
+fn step_traces_observe_inlined_commands_too() {
     let out = vm_output(
         "proc st args { puts \"S:[join $args |]\" }\n\
          proc stepped2 {} { helperp }\n\
@@ -242,8 +251,12 @@ fn step_traces_observe_dispatched_commands_only_vm_divergence() {
          stepped2\n",
     );
     assert_eq!(
-        out, "S:helperp|enterstep\nS:helperp|0|H|leavestep",
-        "the dispatched proc call steps; its inlined `return` body does not"
+        out,
+        "S:helperp|enterstep\n\
+         S:return H|enterstep\n\
+         S:return H|2|H|leavestep\n\
+         S:helperp|0|H|leavestep",
+        "the dispatched proc call steps, AND its inlined `return` body steps too"
     );
 }
 

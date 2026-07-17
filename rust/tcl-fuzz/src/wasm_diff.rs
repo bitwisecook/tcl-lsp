@@ -52,7 +52,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::wasm::wasm_codegen_module;
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_traced};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Vm};
 use wasmtime::{Caller, Config, Engine, Linker, Memory, MemoryType, Module, Store, Trap};
@@ -104,6 +104,11 @@ impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let ir = lower_to_ir(src, &self.registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, &self.registry))
+    }
+    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let ir = lower_to_ir_traced(src, &self.registry);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }

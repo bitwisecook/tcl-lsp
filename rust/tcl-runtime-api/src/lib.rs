@@ -65,6 +65,23 @@ pub trait CompileService {
 
     /// Compile `src` to a [`Module`](Self::Module), or report why it could not.
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError>;
+
+    /// Compile `src` with every registry-driven inline/structured lowering
+    /// hook suppressed: every command compiles to a plain dispatch, so
+    /// execution traces — including `enterstep`/`leavestep` step traces —
+    /// observe it (C Tcl's `DONT_COMPILE_CMDS_INLINE`, `tclTrace.c`; a step
+    /// trace forces the traced proc "out of bytecode" so no inner command,
+    /// including `set`/`incr`/`if`/`while`, is invisible to the trace).
+    ///
+    /// Used to recompile a proc's (or any dynamically-evaluated script's)
+    /// body once a step-capable execution trace targets it, and reverted the
+    /// same way once the last such trace is removed — the VM never leaves a
+    /// proc permanently de-optimised. The default falls back to [`compile`]
+    /// (an embedder that never threads trace-deopt information keeps its
+    /// existing behaviour; the divergence stays but nothing breaks).
+    fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
+        self.compile(src)
+    }
 }
 
 // -- Family-B role traits --
