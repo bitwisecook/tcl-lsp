@@ -18,7 +18,7 @@
 
 //! End-to-end coverage for the issue #945 resolution-model follow-up:
 //! flow-sensitive constant dispatch with writable provenance (faults 1–2),
-//! multi-seed source views (fault 3), TclOO export visibility + dispatch
+//! multi-seed source views (fault 3), `TclOO` export visibility + dispatch
 //! entry + per-object binding identity (faults 4–6), the interpreter
 //! domain model (faults 7–8), and probe references (fault 9).
 //!

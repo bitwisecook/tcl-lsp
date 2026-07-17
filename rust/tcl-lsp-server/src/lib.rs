@@ -2338,6 +2338,18 @@ impl std::fmt::Debug for Backend {
     }
 }
 
+/// The rename call-site facts
+/// [`Backend::extend_rename_with_cross_document_edits`] needs, bundled to
+/// stay within clippy's argument-count budget.
+struct RenameContext<'a> {
+    uri: &'a Uri,
+    source: &'a str,
+    analysis: &'a AnalysisResult,
+    pos: Position,
+    new_name: &'a str,
+    registry: &'a CommandRegistry,
+}
+
 impl Backend {
     /// Build a fresh backend wrapping the given client.
     ///
@@ -4635,6 +4647,55 @@ impl Backend {
             intents
         };
         self.merge_rename_intents(intents, changes).await;
+    }
+
+    /// Extend `changes` with cross-document rename edits — or resolve
+    /// through the workspace oracle when the in-document rename found
+    /// nothing local to resolve against (the consumer-document shape).
+    /// Extracted from [`LanguageServer::rename`] to keep it within the line
+    /// budget.  Returns `true` when the caller must abort the whole rename
+    /// (`Ok(None)`): a sibling document dispatches this symbol through a
+    /// value whose provenance is not fully writable (issue #945 fault 1).
+    ///
+    /// Gated on the same safety checks as the in-document path
+    /// (`is_safe_symbol_name`, no built-in shadow) so a cross-doc rename
+    /// can't produce an unsafe edit set — and skipped entirely when the
+    /// in-document rename was rejected (collision, unrenameable cursor;
+    /// adding cross-document edits for a locally-rejected rename would leak
+    /// a partial, inconsistent edit set into sibling documents).
+    async fn extend_rename_with_cross_document_edits(
+        &self,
+        ctx: RenameContext<'_>,
+        local_rejected: bool,
+        changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
+    ) -> bool {
+        let new_name_safe = core_rename::is_safe_symbol_name(ctx.new_name)
+            && !core_rename::is_builtin_command_name(ctx.new_name, ctx.registry);
+        if !new_name_safe {
+            return false;
+        }
+        if !local_rejected {
+            return self
+                .add_cross_document_rename_edits(
+                    ctx.uri,
+                    ctx.source,
+                    ctx.analysis,
+                    ctx.pos,
+                    ctx.new_name,
+                    changes,
+                )
+                .await;
+        }
+        self.add_workspace_resolved_rename_edits(
+            ctx.uri,
+            ctx.source,
+            ctx.analysis,
+            ctx.pos,
+            ctx.new_name,
+            changes,
+        )
+        .await;
+        false
     }
 
     /// Resolve each byte-span edit intent to an LSP range against its target
@@ -9693,50 +9754,27 @@ impl LanguageServer for Backend {
                 .collect();
             changes.insert(uri.clone(), lifted);
         }
-        // Cross-document rename: rewrite the symbol's call /
-        // definition sites in sibling documents.  Gated on the
-        // same safety checks as the in-document path
-        // (`is_safe_symbol_name`, no built-in shadow) so a
-        // cross-doc rename can't produce an unsafe edit set — and
-        // skipped entirely when the in-document rename was rejected.
-        let new_name_safe = core_rename::is_safe_symbol_name(&new_name)
-            && !core_rename::is_builtin_command_name(&new_name, &registry);
-        if !local_rejected && new_name_safe {
-            let blocked = self
-                .add_cross_document_rename_edits(
-                    &uri,
-                    &doc.text,
-                    &analysis,
+        // Cross-document rename: rewrite the symbol's call / definition
+        // sites in sibling documents (or resolve through the workspace
+        // oracle when the in-document rename found nothing local to
+        // resolve against).  Aborts the whole rename when a sibling's
+        // provenance isn't fully writable (issue #945 fault 1).
+        if self
+            .extend_rename_with_cross_document_edits(
+                RenameContext {
+                    uri: &uri,
+                    source: &doc.text,
+                    analysis: &analysis,
                     pos,
-                    &new_name,
-                    &mut changes,
-                )
-                .await;
-            // A sibling document dispatches this symbol through a value
-            // whose provenance is not fully writable — the whole rename
-            // (in-document edits included) must abort (issue #945 fault 1).
-            if blocked {
-                return Ok(None);
-            }
-        } else if local_rejected && new_name_safe {
-            // An empty in-document result also covers the *consumer document*
-            // shape: the cursor's command is defined in a sibling document (or
-            // a library file the autoload tier can merge — M8), so there was
-            // no local definition to resolve against.  The workspace oracle
-            // distinguishes that from a genuine rejection: when it resolves
-            // the symbol, build the edit set from the index (current
-            // document's call sites included); a real rejection (collision,
-            // unrenameable cursor) resolves to nothing — or to a collision the
-            // workspace-level gate refuses — and still aborts wholesale.
-            self.add_workspace_resolved_rename_edits(
-                &uri,
-                &doc.text,
-                &analysis,
-                pos,
-                &new_name,
+                    new_name: &new_name,
+                    registry: &registry,
+                },
+                local_rejected,
                 &mut changes,
             )
-            .await;
+            .await
+        {
+            return Ok(None);
         }
         if changes.is_empty() {
             return Ok(None);
