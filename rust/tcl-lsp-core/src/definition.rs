@@ -152,55 +152,9 @@ pub fn definition(
     // declaration.  Checked before the proc lookup so a method
     // call resolves to the method even when a same-named proc
     // exists.
-    if let Some((inst, method, is_dollar)) = instance_method_at_cursor(source, line, character) {
-        // A per-object method (`oo::objdefine $obj { method m … }`) is layered
-        // ahead of the object's class methods, so resolve it first — `$obj m`
-        // must reach the per-object override, not a same-named class method.
-        // Binding-identity keyed (issue #945 fault 5): the lookup honours the
-        // receiver's scope, not just its textual tail.
-        if let Some(span) = lookup_object_method(analysis, source, &inst, &method, line, character)
-        {
-            return vec![span_to_range(source, &line_index, span)];
-        }
-        // `my m` — an internal call: dispatch starts at the *enclosing*
-        // class and reaches unexported methods too (issue #945 fault 4).
-        if inst == "my" {
-            let cursor = byte_offset_at(&line_index, source, line, character);
-            if let Some(class_q) = enclosing_class_at(analysis, cursor) {
-                return method_dispatch_definition(
-                    analysis,
-                    source,
-                    &line_index,
-                    &class_q,
-                    &method,
-                    false,
-                );
-            }
-        }
-        if let Some(class_q) = receiver_instance_class(analysis, &inst, is_dollar) {
-            // External `$obj m`: the C-faithful dispatch entry — the first
-            // exported implementation on the receiver's linearisation
-            // (mixins before the class, subclasses before bases; issue
-            // #945 faults 4 + 6).  A resolved receiver is a definitive
-            // answer either way: an unexported/undefined method yields
-            // *nothing* rather than falling through to a same-named proc.
-            let class_q = class_q.clone();
-            let dispatch =
-                method_dispatch_definition(analysis, source, &line_index, &class_q, &method, true);
-            if !dispatch.is_empty() {
-                return dispatch;
-            }
-            // `configure` / `cget` accessors and properties have no method
-            // entry; keep the property fallback before giving up.
-            if let Some(p) = analysis
-                .all_classes
-                .get(&class_q)
-                .and_then(|cd| cd.properties.get(method.as_str()))
-            {
-                return vec![span_to_range(source, &line_index, p.name_span)];
-            }
-            return Vec::new();
-        }
+    if let Some(result) = instance_method_definition(analysis, source, &line_index, line, character)
+    {
+        return result;
     }
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
@@ -278,6 +232,67 @@ pub fn definition(
         return vec![span_to_range(source, &line_index, proc_def.name_span)];
     }
     Vec::new()
+}
+
+/// Go-to-definition for an instance-method call site (`$obj method` /
+/// `[$obj method]` / `my method`).  Extracted from [`definition`] to keep
+/// that function within the line budget.
+///
+/// `None` means the cursor isn't on an instance-method call at all — the
+/// caller falls through to the remaining checks (proc / class / alias).
+/// `Some` is definitive: once the receiver's per-object override or class
+/// is resolved, the call reaches exactly what this returns (possibly an
+/// empty vector for an unexported/undefined method — issue #945 faults 4
+/// + 5 + 6), never a same-named proc.
+fn instance_method_definition(
+    analysis: &AnalysisResult,
+    source: &str,
+    line_index: &LineIndex,
+    line: u32,
+    character: u32,
+) -> Option<Vec<LspRange>> {
+    let (inst, method, is_dollar) = instance_method_at_cursor(source, line, character)?;
+    // A per-object method (`oo::objdefine $obj { method m … }`) is layered
+    // ahead of the object's class methods, so resolve it first — `$obj m`
+    // must reach the per-object override, not a same-named class method.
+    // Binding-identity keyed (issue #945 fault 5): the lookup honours the
+    // receiver's scope, not just its textual tail.
+    if let Some(span) = lookup_object_method(analysis, source, &inst, &method, line, character) {
+        return Some(vec![span_to_range(source, line_index, span)]);
+    }
+    // `my m` — an internal call: dispatch starts at the *enclosing*
+    // class and reaches unexported methods too (issue #945 fault 4).
+    if inst == "my" {
+        let cursor = byte_offset_at(line_index, source, line, character);
+        if let Some(class_q) = enclosing_class_at(analysis, cursor) {
+            return Some(method_dispatch_definition(
+                analysis, source, line_index, &class_q, &method, false,
+            ));
+        }
+    }
+    let class_q = receiver_instance_class(analysis, &inst, is_dollar)?;
+    // External `$obj m`: the C-faithful dispatch entry — the first
+    // exported implementation on the receiver's linearisation (mixins
+    // before the class, subclasses before bases; issue #945 faults 4 +
+    // 6).  A resolved receiver is a definitive answer either way: an
+    // unexported/undefined method yields *nothing* rather than falling
+    // through to a same-named proc.
+    let class_q = class_q.clone();
+    let dispatch =
+        method_dispatch_definition(analysis, source, line_index, &class_q, &method, true);
+    if !dispatch.is_empty() {
+        return Some(dispatch);
+    }
+    // `configure` / `cget` accessors and properties have no method entry;
+    // keep the property fallback before giving up.
+    if let Some(p) = analysis
+        .all_classes
+        .get(&class_q)
+        .and_then(|cd| cd.properties.get(method.as_str()))
+    {
+        return Some(vec![span_to_range(source, line_index, p.name_span)]);
+    }
+    Some(Vec::new())
 }
 
 /// Walk every class whose `body_span` contains the cursor
@@ -424,7 +439,7 @@ fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Option<String> 
 
 /// Go-to-definition for a method call dispatched on an instance of
 /// `class_q`: the **first applicable implementation** on the class's
-/// TclOO linearisation (the entry `$obj m` / `my m` actually runs —
+/// `TclOO` linearisation (the entry `$obj m` / `my m` actually runs —
 /// issue #945 fault 6), visibility-filtered (issue #945 fault 4):
 /// `external` keeps exported implementations only; an internal (`my`)
 /// dispatch reaches unexported ones, and `private` ones only in the

@@ -90,7 +90,7 @@ pub struct WorkspaceClass {
     /// The methods this record *directly defines* — the typed method table
     /// (issue #945 fault 4): each entry carries its receiver kind and its
     /// **effective export state** at the end of this record's body, so
-    /// cross-file dispatch can honour TclOO visibility instead of treating
+    /// cross-file dispatch can honour `TclOO` visibility instead of treating
     /// every name as callable.  Spans aren't stored — the server
     /// re-analyses each family member's document to collect the precise
     /// decl / call sites.
@@ -132,18 +132,18 @@ pub struct WorkspaceMethod {
     pub name: String,
     /// Declaration kind: `"method"`, `"classmethod"`, or `"forward"`.
     pub kind: String,
-    /// Effective TclOO export state at the end of the defining record's
-    /// body: the family's name default (`[a-z]*` for TclOO) plus any
+    /// Effective `TclOO` export state at the end of the defining record's
+    /// body: the family's name default (`[a-z]*` for `TclOO`) plus any
     /// explicit `export` / `unexport`, last writer wins (tclsh
     /// 9.0.4-pinned).  Externally callable iff `true`.
     pub exported: bool,
-    /// `true` for a TclOO `private` definition — invisible to external
+    /// `true` for a `TclOO` `private` definition — invisible to external
     /// dispatch *and* to subclasses; callable only via `my` within the
     /// declaring class's own methods.
     pub private: bool,
 }
 
-/// The access context of a method call site — TclOO dispatches an
+/// The access context of a method call site — `TclOO` dispatches an
 /// external `$obj m` through exported methods only, while an internal
 /// `my m` reaches unexported ones too (issue #945 fault 4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -658,7 +658,7 @@ impl WorkspaceIndex {
             .collect()
     }
 
-    /// The **class linearisation** of `class_q` — the order TclOO searches
+    /// The **class linearisation** of `class_q` — the order `TclOO` searches
     /// classes for a method implementation (mixins fully linearised first,
     /// then the class, then superclasses; diamond duplicates keep their
     /// late placement — tclsh 9.0.4-pinned via `info object call`).
@@ -711,7 +711,7 @@ impl WorkspaceIndex {
     ///   callable: `unknown method`, tclsh 9.0.4-pinned);
     /// * [`MethodAccess::Internal`] keeps exported + unexported;
     ///   `private` definitions are visible only when the defining class
-    ///   *is* the receiver's own class (TclOO private scoping).
+    ///   *is* the receiver's own class (`TclOO` private scoping).
     ///
     /// The **first** record is the implementation the call actually
     /// enters — go-to-definition's single target; the rest is the `next`
