@@ -495,6 +495,10 @@ struct DiagInputs {
     client: Client,
     registry: Arc<CommandRegistry>,
     disabled: HashSet<String>,
+    /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
+    /// resolved for this document's folder. Applied as a display-side re-label
+    /// to the lifted diagnostics; empty ⇒ no overrides.
+    severity_overrides: HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
     /// `tclLsp.extraCommands` — names treated as known by W123.
     extra_commands: HashSet<String>,
     /// `tclLsp.diagnostics.genericVariablePatterns` — IRULE4002 generic-name
@@ -1204,6 +1208,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         client,
         registry,
         disabled,
+        severity_overrides,
         extra_commands,
         generic_variable_patterns,
         style_line_length,
@@ -1277,6 +1282,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         text: &text,
         dialect: &dialect,
         disabled: &disabled,
+        severity_overrides: &severity_overrides,
         opt_disabled: &opt_disabled,
         optimiser_enabled,
         style_line_length,
@@ -1577,6 +1583,7 @@ async fn publish_fast_tier(
     let analysis_lifts = Arc::clone(analysis);
     let text = lift_inputs.text.to_owned();
     let disabled = lift_inputs.disabled.clone();
+    let severity_overrides = lift_inputs.severity_overrides.clone();
     let style_line_length = lift_inputs.style_line_length;
     let lifted = tokio::task::spawn_blocking(move || {
         let mut diagnostics = lift_analyser_diagnostics(&text, &fast);
@@ -1586,6 +1593,7 @@ async fn publish_fast_tier(
             &disabled,
             style_line_length as usize,
         ));
+        apply_severity_overrides(&mut diagnostics, &severity_overrides);
         diagnostics
     })
     .await;
@@ -1600,6 +1608,11 @@ struct LiftInputs<'a> {
     text: &'a str,
     dialect: &'a str,
     disabled: &'a HashSet<String>,
+    /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
+    /// applied as a display-side re-label once the lift completes; empty ⇒
+    /// no overrides (see [`apply_severity_overrides`]).
+    severity_overrides:
+        &'a std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
     opt_disabled: &'a HashSet<String>,
     optimiser_enabled: bool,
     style_line_length: u32,
@@ -1645,6 +1658,7 @@ async fn refine_and_lift_diagnostics(
     let analysis_lifts = Arc::clone(analysis);
     let lift_text = inputs.text.to_owned();
     let disabled = inputs.disabled.clone();
+    let severity_overrides = inputs.severity_overrides.clone();
     let opt_disabled = inputs.opt_disabled.clone();
     let optimiser_enabled = inputs.optimiser_enabled;
     let style_line_length = inputs.style_line_length;
@@ -1678,6 +1692,7 @@ async fn refine_and_lift_diagnostics(
                 &analysis_lifts.suppressed_lines,
             ));
         }
+        apply_severity_overrides(&mut diagnostics, &severity_overrides);
         diagnostics
     })
     .await
@@ -1855,6 +1870,12 @@ pub struct Backend {
     /// = false`). Threaded into every analyser build so the disabled
     /// codes are filtered, and consulted by the source-style pass.
     disabled_diagnostics: Mutex<HashSet<String>>,
+    /// Per-code LSP severity overrides (`tclLsp.diagnosticSeverity.<CODE>`).
+    /// A purely display-side re-labelling applied to the lifted diagnostics
+    /// after analysis: a listed code is published at the chosen severity,
+    /// leaving its range / message / code untouched. Empty ⇒ no overrides
+    /// (the analyser's emitted severity stands).
+    severity_overrides: Mutex<HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>>,
     /// Cross-document proc / class definition index, maintained
     /// incrementally as documents open / change / close.  Lets
     /// completion enumerate procs from sibling files.
@@ -2263,6 +2284,10 @@ enum FolderGenericPatterns {
 struct FolderConfig {
     feature_toggles: FeatureToggles,
     disabled_diagnostics: Option<HashSet<String>>,
+    /// `tclLsp.diagnosticSeverity` per-code LSP severity overrides; `None`
+    /// inherits the process-global map (`Some`, possibly empty, when the
+    /// folder's config sets the section in either shape).
+    severity_overrides: Option<HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>>,
     non_ascii_mode: Option<NonAsciiMode>,
     optimiser_enabled: Option<bool>,
     optimiser_profile: Option<tcl_compiler::optimiser::profiles::OptimisationProfile>,
@@ -2347,6 +2372,7 @@ impl Backend {
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
+            severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
@@ -2831,6 +2857,9 @@ impl Backend {
         }
         if let Some(disabled) = settings_disabled_diagnostics(opts) {
             *self.disabled_diagnostics.lock().await = disabled;
+        }
+        if let Some(overrides) = settings_severity_overrides(opts) {
+            *self.severity_overrides.lock().await = overrides;
         }
     }
 
@@ -5527,6 +5556,9 @@ impl Backend {
         if let Some(disabled) = settings_disabled_diagnostics(&wrapped) {
             *self.disabled_diagnostics.lock().await = disabled;
         }
+        if let Some(overrides) = settings_severity_overrides(&wrapped) {
+            *self.severity_overrides.lock().await = overrides;
+        }
     }
 
     /// Store the per-folder editor configs and refresh the per-folder salsa
@@ -5918,6 +5950,24 @@ impl Backend {
         (disabled, non_ascii_mode, optimiser_enabled, opt_disabled)
     }
 
+    /// Resolve the per-code severity overrides for `uri`: the longest-matching
+    /// folder's `tclLsp.diagnosticSeverity` map when set, else the process-global
+    /// map. Mirrors the `disabled_diagnostics` resolution in
+    /// [`Self::resolved_analysis_settings`].
+    async fn resolved_severity_overrides(
+        &self,
+        uri: &Uri,
+    ) -> std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity> {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).cloned()
+        };
+        match folder.and_then(|f| f.severity_overrides) {
+            Some(m) => m,
+            None => self.severity_overrides.lock().await.clone(),
+        }
+    }
+
     /// Resolve the formatter line length for `uri` (per-folder override, else
     /// the global `tclLsp.formatting.lineLength`).
     async fn resolved_line_length(&self, uri: &Uri) -> u32 {
@@ -6029,6 +6079,7 @@ impl Backend {
     async fn diag_inputs(&self, uri: &Uri, dialect: &str) -> DiagInputs {
         let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
+        let severity_overrides = self.resolved_severity_overrides(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         let cross_file_resolution = self.cross_file_resolution_enabled(uri).await;
@@ -6045,6 +6096,7 @@ impl Backend {
             client: self.client.clone(),
             registry,
             disabled,
+            severity_overrides,
             extra_commands,
             generic_variable_patterns,
             style_line_length,
@@ -6273,6 +6325,7 @@ impl Backend {
         )
         .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
+        let severity_overrides = self.resolved_severity_overrides(uri).await;
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
             append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
@@ -6300,6 +6353,7 @@ impl Backend {
                     &analysis.suppressed_lines,
                 ));
             }
+            apply_severity_overrides(&mut diagnostics, &severity_overrides);
             diagnostics
         })
         .await
@@ -7204,6 +7258,9 @@ impl LanguageServer for Backend {
         }
         if let Some(disabled) = settings_disabled_diagnostics(&params.settings) {
             *self.disabled_diagnostics.lock().await = disabled;
+        }
+        if let Some(overrides) = settings_severity_overrides(&params.settings) {
+            *self.severity_overrides.lock().await = overrides;
         }
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
@@ -10506,6 +10563,64 @@ fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet
     found.then_some(set)
 }
 
+/// Map a `tclLsp.diagnosticSeverity.<CODE>` config value to an LSP severity
+/// (case-insensitive). `"error"`, `"warning"`, `"information"` / `"info"`, and
+/// `"hint"` select the matching [`DiagnosticSeverity`]; anything else —
+/// including `"default"` and `""` — yields `None`, meaning "no override" (the
+/// analyser's emitted severity stands).
+fn parse_severity_value(s: &str) -> Option<tower_lsp_server::ls_types::DiagnosticSeverity> {
+    use tower_lsp_server::ls_types::DiagnosticSeverity;
+    if s.eq_ignore_ascii_case("error") {
+        Some(DiagnosticSeverity::ERROR)
+    } else if s.eq_ignore_ascii_case("warning") {
+        Some(DiagnosticSeverity::WARNING)
+    } else if s.eq_ignore_ascii_case("information") || s.eq_ignore_ascii_case("info") {
+        Some(DiagnosticSeverity::INFORMATION)
+    } else if s.eq_ignore_ascii_case("hint") {
+        Some(DiagnosticSeverity::HINT)
+    } else {
+        None
+    }
+}
+
+/// Parse per-code LSP severity overrides from a `tclLsp` settings payload,
+/// accepting the nested object (`{"tclLsp":{"diagnosticSeverity":{"W211":"warning"}}}`)
+/// and the flat-dotted (`{"tclLsp.diagnosticSeverity.W211":"warning"}`) shapes.
+/// Returns `Some(map)` (possibly empty) when the section is present in either
+/// shape, else `None` (so the caller leaves the current map untouched). Entries
+/// whose value is not a recognised severity string ([`parse_severity_value`])
+/// are skipped, so the analyser's emitted severity stands for them. Mirrors
+/// [`settings_disabled_diagnostics`].
+fn settings_severity_overrides(
+    settings: &serde_json::Value,
+) -> Option<std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>> {
+    if let Some(map) = settings
+        .get("tclLsp")
+        .and_then(|v| v.get("diagnosticSeverity"))
+        .and_then(serde_json::Value::as_object)
+    {
+        let mut overrides = HashMap::new();
+        for (code, v) in map {
+            if let Some(severity) = v.as_str().and_then(parse_severity_value) {
+                overrides.insert(code.clone(), severity);
+            }
+        }
+        return Some(overrides);
+    }
+    let obj = settings.as_object()?;
+    let mut overrides = HashMap::new();
+    let mut found = false;
+    for (k, v) in obj {
+        if let Some(code) = k.strip_prefix("tclLsp.diagnosticSeverity.") {
+            found = true;
+            if let Some(severity) = v.as_str().and_then(parse_severity_value) {
+                overrides.insert(code.to_owned(), severity);
+            }
+        }
+    }
+    found.then_some(overrides)
+}
+
 /// Parse one folder's resolved `tclLsp` config object into a [`FolderConfig`]
 /// of overrides.  Keys absent from the object stay `None` / empty so the
 /// resolver inherits the process-global value.  Returns `None` when `cfg` is
@@ -10650,6 +10765,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let wrapped = serde_json::json!({ "tclLsp": cfg });
     fc.non_ascii_mode = settings_non_ascii_mode(&wrapped);
     fc.disabled_diagnostics = settings_disabled_diagnostics(&wrapped);
+    fc.severity_overrides = settings_severity_overrides(&wrapped);
     Some(fc)
 }
 
@@ -11371,6 +11487,28 @@ fn append_brace_expr_perf_hints(
         })
         .collect();
     diagnostics.extend(hints);
+}
+
+/// Apply user severity overrides (`tclLsp.diagnosticSeverity.<CODE>`) to the
+/// lifted diagnostics: a code present in `overrides` is re-published at the
+/// chosen [`DiagnosticSeverity`], leaving its range/message/code untouched.
+/// A no-op when `overrides` is empty (the common case), so the hot path pays
+/// nothing. The analyser's emitted severity stands for any code not listed.
+fn apply_severity_overrides(
+    diagnostics: &mut [tower_lsp_server::ls_types::Diagnostic],
+    overrides: &std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+) {
+    use tower_lsp_server::ls_types::NumberOrString;
+    if overrides.is_empty() {
+        return;
+    }
+    for d in diagnostics.iter_mut() {
+        if let Some(NumberOrString::String(code)) = &d.code
+            && let Some(&severity) = overrides.get(code)
+        {
+            d.severity = Some(severity);
+        }
+    }
 }
 
 /// Lift the source-style pass (W111 line length,
@@ -13041,6 +13179,75 @@ mod tests {
         assert!(got.contains("W210") && !got.contains("W211"));
         // No diagnostics config -> None (leave current set untouched).
         assert!(settings_disabled_diagnostics(&serde_json::json!({"x": 1})).is_none());
+    }
+
+    #[test]
+    fn settings_severity_overrides_nested_and_flat() {
+        use tower_lsp_server::ls_types::DiagnosticSeverity;
+        // Nested shape: recognised values map (case-insensitively); "default"
+        // and unknown values mean "no override" and are skipped.
+        let nested = serde_json::json!({
+            "tclLsp": {"diagnosticSeverity": {
+                "W211": "warning",
+                "W220": "Error",
+                "W210": "info",
+                "W214": "default",
+                "W111": "loud",
+            }}
+        });
+        let got = settings_severity_overrides(&nested).unwrap();
+        assert_eq!(got.get("W211"), Some(&DiagnosticSeverity::WARNING));
+        assert_eq!(got.get("W220"), Some(&DiagnosticSeverity::ERROR));
+        assert_eq!(got.get("W210"), Some(&DiagnosticSeverity::INFORMATION));
+        assert!(!got.contains_key("W214"), "'default' must not override");
+        assert!(!got.contains_key("W111"), "unknown value must be skipped");
+        // Flat-dotted shape.
+        let flat = serde_json::json!({
+            "tclLsp.diagnosticSeverity.W211": "hint",
+            "tclLsp.diagnosticSeverity.S100": "warning",
+        });
+        let got = settings_severity_overrides(&flat).unwrap();
+        assert_eq!(got.get("W211"), Some(&DiagnosticSeverity::HINT));
+        assert_eq!(got.get("S100"), Some(&DiagnosticSeverity::WARNING));
+        // No diagnosticSeverity section -> None (leave current map untouched);
+        // an explicit empty section -> Some(empty) (clear all overrides).
+        assert!(settings_severity_overrides(&serde_json::json!({"x": 1})).is_none());
+        let cleared =
+            settings_severity_overrides(&serde_json::json!({"tclLsp": {"diagnosticSeverity": {}}}))
+                .unwrap();
+        assert!(cleared.is_empty());
+    }
+
+    #[test]
+    fn apply_severity_overrides_relabels_only_listed_codes() {
+        use tower_lsp_server::ls_types::{
+            Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range,
+        };
+        let mk = |code: &str, sev: DiagnosticSeverity| Diagnostic {
+            range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+            severity: Some(sev),
+            code: Some(NumberOrString::String(code.to_owned())),
+            code_description: None,
+            source: Some("tcl-lsp".to_owned()),
+            message: String::new(),
+            related_information: None,
+            tags: None,
+            data: None,
+        };
+        let mut diags = vec![
+            mk("W211", DiagnosticSeverity::HINT),
+            mk("W220", DiagnosticSeverity::HINT),
+        ];
+        let overrides =
+            std::collections::HashMap::from([("W211".to_owned(), DiagnosticSeverity::WARNING)]);
+        apply_severity_overrides(&mut diags, &overrides);
+        assert_eq!(diags[0].severity, Some(DiagnosticSeverity::WARNING));
+        // A code not in the map keeps its emitted severity.
+        assert_eq!(diags[1].severity, Some(DiagnosticSeverity::HINT));
+        // An empty map is a no-op.
+        let before = diags.clone();
+        apply_severity_overrides(&mut diags, &std::collections::HashMap::new());
+        assert_eq!(diags, before);
     }
 
     #[test]
@@ -14823,6 +15030,7 @@ mod tests {
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
+            severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),

@@ -2131,12 +2131,79 @@ Companion: `compiler/ir.py:IRBlock` use-extraction now reads `source_args[1]`
 so `namespace eval $ns {…}`'s `$ns` is recovered as a read of `ns` (was
 invisible pre-fix — would have looked unused).
 
+#### Refinement (issue #941) — the *pure-read* alias
+
+The original fix recognised the alias-def but its reproducer wrote through the
+alias before reading (`set var 99; return $var`), so the read consumed a
+concrete definition. The **pure-read** shape — `upvar 1 $name v; return $v`,
+with no intervening write — still fired W210, because a later
+"dynamic-upvar-local" override *re-enabled* the read-before-set on any dynamic
+target. That override was inconsistent: the *literal*-target twin
+(`upvar 1 outer v; return $v`) has identical runtime risk — both raise
+`can't read` only when the caller variable is missing — yet was silent. Since
+`upvar 1 $name v` is the standard pass-by-reference-for-reading idiom (e.g.
+`proc getField {arrayName field} {upvar 1 $arrayName arr; return $arr($field)}`),
+the override false-fired on every such accessor.
+
+The override was removed: a scope-aliased local is now suppressed for W210
+regardless of whether the `upvar` target is literal or dynamic, matching C Tcl
+(the two forms are indistinguishable at runtime) and the codebase's
+"assume the may-run path does run" stance. An *unrelated* local — not an
+alias, never set — is absent from the scope-alias set and still fires.
+
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_08_dynamic_upvar_target_silent` (FP, the
-  `upvar 1 $name var` pattern)
-- `tests/test_fp_rbs.py::test_FP_RBS_08_unrelated_local_still_fires` (TP
-  control — a local that's *not* aliased and never set still fires W210)
+- `tests/unused_var_tricky_features.rs::upvar_dynamic_target::*` (Rust; the
+  pure-read FP, the literal/dynamic parity control, and the unrelated-local TP)
+- `src/analyser/diagnostics/fp/rbs.rs::fp_rbs_08_*` (in-crate; set-then-read
+  silent + unrelated-local TP)
+- `src/analyser/state.rs::w210_dynamic_target_upvar_alias_read_is_silent`
+- `tests/fp_depth.rs::dynamic_upvar_local_unconditional_read_silent_w210`
+
+---
+
+### FP-RBS-11 — top-level global consumed only by a proc read (issue #941)
+
+- **Verdict:** FALSE POSITIVE (W211 / W220) — a global assigned at the top
+  level (`set cfg 1`, which runs in the global namespace) and read only inside
+  a proc (`proc f {} {global cfg; return $cfg}`, or `$::cfg`) looked like a
+  dead store / unused variable to single-unit dataflow, which sees the
+  top-level script and each proc as separate function units.
+- **Status:** FIXED (issue #941). The read-side mirror of the existing
+  `globals_written_by_procs` (which already suppresses the reverse direction:
+  a proc *write* feeding a top-level read, keeping W210 quiet). A new
+  `globals_read_by_procs` folds the bare tails of every proc's qualified
+  (`$::x`) reads and its `global`-aliased reads into the top-level unit's
+  cross-scope suppression set, which both W220 and W211 honour. Independently,
+  the W211 emitter now exempts `::`-qualified names, matching the W220 and W210
+  emitters (a `set ::ns::cfg 1` names an externally-consumable global).
+- **Codes:** W211, W220
+- **Corpus:** the "config global set at the top, read inside handlers" shape.
+
+#### Reproducer
+
+```tcl
+proc f {} { global cfg; return $cfg }
+set cfg 1          ;# was W220 — but `f` reads it
+puts [f]
+```
+
+#### tclsh ground truth
+
+`proc f {} {global cfg; return $cfg}; set cfg 1; f` → `1`. The top-level
+assignment is the value the proc returns, so it is neither dead nor unused.
+
+#### TP control (must still fire)
+
+```tcl
+proc f {} { return 0 }
+set cfg 1          ;# W211 — no proc (and nothing else) ever reads cfg
+puts [f]
+```
+
+#### Tests
+
+- `tests/unused_var_tricky_features.rs::cross_scope_globals::*`
 
 ---
 

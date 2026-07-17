@@ -1831,6 +1831,29 @@ disabled = O109
 For the complete reference, see
 [`docs/kcs/kcs-howto-suppress-diagnostics.md`](docs/kcs/kcs-howto-suppress-diagnostics.md).
 
+## Changing how prominent a diagnostic is
+
+Some checks are intentionally quiet — an unused variable
+([W211](docs/kcs/codes/kcs-diagnostic-w211-variable-set-not-used.md)), a dead
+store, or a style hint render at *hint* severity, a faint underline that is
+easy to miss.  Rather than turn a check off, you can re-level it per code so the
+editor shows it more (or less) prominently:
+
+```json
+{ "tclLsp.diagnosticSeverity.W211": "warning" }
+```
+
+Accepted values are `"error"`, `"warning"`, `"information"`, and `"hint"`, plus
+`"default"` (keep the analyser's built-in severity).  This changes only how the
+diagnostic is displayed — never whether the analysis runs.  Any diagnostic code
+can be re-levelled with `tclLsp.diagnosticSeverity.<CODE>`; combine it with the
+`tclLsp.diagnostics.<CODE>` on/off toggle above.  In `.tcl-lsp.ini`:
+
+```ini
+[diagnosticSeverity]
+W211 = warning
+```
+
 ## Multi-file projects and `package require`
 
 In a project with an "entry" file that runs the `package require`s and then

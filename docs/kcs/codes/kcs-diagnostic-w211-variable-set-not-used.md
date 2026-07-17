@@ -21,7 +21,7 @@ Unused variables waste memory and make the code harder to read; they often indic
 
 ## Symptoms
 
-- A yellow squiggle appears under the variable name, with the message "variable set but never used".
+- A faint hint-severity underline (the subtle "three dots") appears under the variable name, with the message "variable set but never used". Raise its prominence with `tclLsp.diagnosticSeverity.W211` (see [How to suppress](#how-to-suppress)).
 
 ## Example that triggers it
 
@@ -42,7 +42,22 @@ puts $result
 
 ## How to suppress
 
-Add `# noqa: W211` at the end of the offending line.
+Add `# noqa: W211` at the end of the offending line, or set
+`tclLsp.diagnostics.W211` to `false` to turn the check off entirely.
+
+## How to change its severity
+
+If the default hint is too subtle (or too loud), re-level it without disabling
+it. In VS Code settings:
+
+```json
+{ "tclLsp.diagnosticSeverity.W211": "warning" }
+```
+
+Accepted values are `"error"`, `"warning"`, `"information"`, and `"hint"` (the
+default). Any diagnostic code can be re-levelled with
+`tclLsp.diagnosticSeverity.<CODE>`; this changes only how the editor renders the
+diagnostic, never the analysis.
 
 ## Related
 
