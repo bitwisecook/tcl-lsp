@@ -492,12 +492,10 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             other => other,
         };
         let is_alias = matches!(&cmd, Command::Alias(_) | Command::CrossAlias { .. });
-        // A renamed cross-interp alias keeps its target-death backref current
-        // (the source-side sweep keys on the command's table key).
-        if let Command::CrossAlias { target, .. } = &cmd {
-            let target = *target;
-            vm.retarget_alias_backref(&old_key, &key, target);
-        }
+        let cross_target = match &cmd {
+            Command::CrossAlias { target, .. } => Some(*target),
+            _ => None,
+        };
         vm.register_command(&key, cmd);
         // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
         // a name its own target chain resolves back to is refused, with the
@@ -508,10 +506,24 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .remove_command_exact(&key)
                 .expect("the alias was just registered under this key");
             vm.register_command(&old_key, restored);
+            // `register_command` just dropped the backref sitting at `old_key`
+            // (stale since `take_command` doesn't touch the backref table) —
+            // put it back now the alias is confirmed to still live there.
+            if let Some(target) = cross_target {
+                vm.note_alias_backref(&old_key, target);
+            }
             let tail = crate::interp::key_holder_and_tail_unrooted(&key).1;
             return err(format!(
                 "cannot define or rename alias \"{tail}\": would create a loop"
             ));
+        }
+        // A renamed cross-interp alias keeps its target-death backref current
+        // (the source-side sweep keys on the command's table key). Retargeted
+        // only now — any earlier and `register_command`'s own overwrite
+        // cleanup (which unconditionally drops a backref at the key it just
+        // wrote) would immediately undo it.
+        if let Some(target) = cross_target {
+            vm.retarget_alias_backref(&old_key, &key, target);
         }
         // The rename happened: fire the command's `rename` traces
         // (`callback ::old ::new rename`, both fully qualified — tclsh-

@@ -353,6 +353,20 @@ const VECTORS: &[Vector] = &[
         want: "bt\n1:invalid command name \"hi\"\nn=0",
     },
     Vector {
+        name: "TP: deleting the target interp removes a renamed alias from its source",
+        script: "interp create a\n\
+                 interp create b\n\
+                 interp eval b { proc t {} { return bt } }\n\
+                 interp alias a hi b t\n\
+                 interp eval a { rename hi bye }\n\
+                 puts [interp eval a { bye }]\n\
+                 interp delete b\n\
+                 puts [catch {interp eval a { bye }} m]:$m\n\
+                 puts n=[interp eval a { llength [info commands bye] }]\n\
+                 interp delete a\n",
+        want: "bt\n1:invalid command name \"bye\"\nn=0",
+    },
+    Vector {
         name: "TN: recreating a same-named target does not resurrect the old alias",
         script: "interp create b\n\
                  interp eval b { proc t {} { return old } }\n\
