@@ -20,7 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { activate, getDocUri, pollUntil, waitForDiagnostics } from "./helper";
 
-// TP/FP/TN/FN matrix for the "preview version:" tickets #954-#958, exercised
+// TP/FP/TN/FN matrix for the "preview version:" issues #954-#958, exercised
 // through the real VS Code client → language-server round trip:
 //
 //   #954  commands inside an `apply` lambda body highlight as a script and a
@@ -85,10 +85,10 @@ async function lensTitleOnLine(uri: vscode.Uri, line: number): Promise<string | 
   return lenses.find((l) => l.range.start.line === line)?.command?.title;
 }
 
-suite("Preview tickets #954-#958 matrix", () => {
+suite("Name resolution matrix (issues #954-#958)", () => {
   // ── #954 — apply lambda semantic tokens ────────────────────────────────
   test("#954 TP: apply body highlights and the bare arg-list name is a parameter", async () => {
-    const uri = getDocUri("apply954.tcl");
+    const uri = getDocUri("applyLambda.tcl");
     await activate(uri);
     const tokens = (await vscode.commands.executeCommand(
       "vscode.provideDocumentSemanticTokens",
@@ -143,7 +143,7 @@ suite("Preview tickets #954-#958 matrix", () => {
 
   // ── #956 — `$obj method` references + lens ─────────────────────────────
   test("#956 TP: `$obj method` dispatch is a reference and the lens counts it", async () => {
-    const uri = getDocUri("objMethod956.tcl");
+    const uri = getDocUri("objMethodDispatch.tcl");
     await activate(uri);
     // `method get` — cursor inside `get` on line 1 (col 11).
     const position = new vscode.Position(1, 11);
@@ -163,7 +163,7 @@ suite("Preview tickets #954-#958 matrix", () => {
 
   // ── #957 — `my method` references + lens ───────────────────────────────
   test("#957 TP: `my method` nested in `[ … ]` is a reference and the lens counts it", async () => {
-    const uri = getDocUri("myMethod957.tcl");
+    const uri = getDocUri("myMethodDispatch.tcl");
     await activate(uri);
     // `method getOptions` — cursor inside `getOptions` on line 1 (col 11).
     const position = new vscode.Position(1, 11);
@@ -183,7 +183,7 @@ suite("Preview tickets #954-#958 matrix", () => {
 
   // ── #958 — `::tcl::mathfunc` expr functions ────────────────────────────
   test("#958 TP: an expr math-function application is a reference to its proc", async () => {
-    const uri = getDocUri("mathfunc958.tcl");
+    const uri = getDocUri("mathfunc.tcl");
     await activate(uri);
     // `proc Pi958` — cursor inside `Pi958` on line 1 (col 9).
     const position = new vscode.Position(1, 9);

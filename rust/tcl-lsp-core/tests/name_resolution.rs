@@ -16,15 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! TP/FP/TN/FN matrix for tickets #954-#958 (Rust LSP), unit level.
+//! TP/FP/TN/FN matrix for issues #954-#958 (Rust LSP), unit level.
 //!
-//! Each ticket is exercised across the confusion matrix:
+//! Each issue is exercised across the confusion matrix:
 //!   * **TP** — the feature fires where it should (the call *is* a reference,
 //!     the token *is* a parameter, the read *is* suppressed).
 //!   * **FP guard** — a look-alike that must *not* fire (a different class /
 //!     method / function, a non-`pkgIndex` file, a `$lambda` variable).
 //!   * **TN** — nothing relevant present, nothing emitted.
-//!   * **FN** (the regression) — the exact shape each ticket reported, which
+//!   * **FN** (the regression) — the exact shape each issue reported, which
 //!     used to be missed and now resolves.
 //!
 //! `references`/`semantic_tokens` come from `tcl-lsp-core`; W210 diagnostics
@@ -102,7 +102,7 @@ fn kind_of(src: &str, dialect: &str, needle: &str) -> Option<String> {
 
 // ───────────────────────── #956 — `$obj method` references ────────────────
 
-mod ticket_956_obj_method {
+mod obj_method_dispatch {
     use super::*;
 
     /// FN→TP: the reported shape — `$b get` dispatches to `Bar956::get`, so the
@@ -160,7 +160,7 @@ mod ticket_956_obj_method {
 
 // ───────────────────────── #957 — `my method` references ──────────────────
 
-mod ticket_957_my_method {
+mod my_method_dispatch {
     use super::*;
 
     /// FN→TP: the reported shape — `my getOptions` nested in `return [ … ]`.
@@ -222,7 +222,7 @@ mod ticket_957_my_method {
 
 // ─────────────────── #958 — `::tcl::mathfunc` expr functions ──────────────
 
-mod ticket_958_mathfunc {
+mod mathfunc_expr {
     use super::*;
 
     /// FN→TP: the reported shape — `Pi958()` inside `[expr { … }]` dispatches to
@@ -260,7 +260,7 @@ mod ticket_958_mathfunc {
 
 // ─────────────────────── #955 — pkgIndex `$dir` W210 ──────────────────────
 
-mod ticket_955_pkgindex_dir {
+mod pkgindex_dir {
     use super::*;
 
     const READ_DIR: &str = "set f [file join $dir pkg.tcl]\nsource $f\n";
@@ -320,7 +320,7 @@ mod ticket_955_pkgindex_dir {
 
 // ──────────────────────── #954 — apply lambda tokens ──────────────────────
 
-mod ticket_954_apply {
+mod apply_lambda {
     use super::*;
 
     /// FN→TP: commands inside an `apply` lambda body are highlighted as a

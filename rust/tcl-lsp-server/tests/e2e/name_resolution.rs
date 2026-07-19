@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end TP/FP/TN/FN matrix for preview tickets #954-#958, driven over
+//! End-to-end TP/FP/TN/FN matrix for preview issues #954-#958, driven over
 //! real JSON-RPC against the packaged server:
 //!
 //! * #954 — commands inside an `apply` lambda body highlight as a script, and
@@ -106,7 +106,7 @@ fn has_diag_code(diags: &[Value], code: &str) -> bool {
 
 // ───────────────────────── #954 — apply lambda tokens ─────────────────────
 
-mod ticket_954 {
+mod apply_lambda {
     use super::*;
 
     #[test]
@@ -143,7 +143,7 @@ mod ticket_954 {
 
 // ─────────────────────── #955 — pkgIndex `$dir` W210 ──────────────────────
 
-mod ticket_955 {
+mod pkgindex_dir {
     use super::*;
 
     const READ_DIR: &str = "set f [file join $dir pkg.tcl]\nsource $f\n";
@@ -184,7 +184,7 @@ mod ticket_955 {
 
 // ───────────────────────── #956 — `$obj method` refs ──────────────────────
 
-mod ticket_956 {
+mod obj_method_dispatch {
     use super::*;
 
     const SRC: &str = "oo::class create Bar956 {\n    method get {key} { return $key }\n}\nset b [Bar956 new]\nputs [$b get foo]\n";
@@ -221,7 +221,7 @@ mod ticket_956 {
 
 // ───────────────────────── #957 — `my method` refs ────────────────────────
 
-mod ticket_957 {
+mod my_method_dispatch {
     use super::*;
 
     const SRC: &str = "oo::class create Bar957 {\n    method getOptions {key} { return $key }\n    method get {key} { return [my getOptions $key] }\n}\n";
@@ -259,7 +259,7 @@ mod ticket_957 {
 
 // ─────────────────── #958 — `::tcl::mathfunc` expr functions ──────────────
 
-mod ticket_958 {
+mod mathfunc_expr {
     use super::*;
 
     const SRC: &str = "namespace eval ::tcl::mathfunc {\n    proc Pi958 {} { return 3.14 }\n}\nset x [expr {Pi958() / 2.0}]\n";
