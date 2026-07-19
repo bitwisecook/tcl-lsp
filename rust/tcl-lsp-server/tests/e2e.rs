@@ -57,6 +57,8 @@ mod invariants;
 mod irules;
 #[path = "e2e/issue945.rs"]
 mod issue945;
+#[path = "e2e/name_resolution.rs"]
+mod name_resolution;
 #[path = "e2e/navigation.rs"]
 mod navigation;
 #[path = "e2e/navigation_extras.rs"]

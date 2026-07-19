@@ -226,16 +226,20 @@ impl Analyser {
         // pkgIndex.tcl files have ``$dir`` set by the package
         // loader before the script body runs — suppress dead-
         // store / unused-variable diagnostics for it at the
-        // top-level.
-        let mut top_level_cross_event_vars: HashSet<String> = if self
-            .file_path
-            .as_deref()
-            .is_some_and(|p| p.ends_with("pkgIndex.tcl"))
-        {
-            HashSet::from(["dir".to_string()])
-        } else {
-            HashSet::new()
-        };
+        // top-level.  Match the *basename* exactly (not a suffix):
+        // ``ends_with("pkgIndex.tcl")`` would also swallow a file
+        // literally named ``notpkgIndex.tcl``.
+        let pkgindex_implicit_vars: HashSet<String> =
+            if self.file_path.as_deref().is_some_and(|p| {
+                std::path::Path::new(p)
+                    .file_name()
+                    .is_some_and(|n| n == "pkgIndex.tcl")
+            }) {
+                HashSet::from(["dir".to_string()])
+            } else {
+                HashSet::new()
+            };
+        let mut top_level_cross_event_vars: HashSet<String> = pkgindex_implicit_vars.clone();
         top_level_cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
             &cu.top_level.cfg,
             &cbn_proc_index,
@@ -249,6 +253,21 @@ impl Analyser {
         // this set (W211 via `textually_referenced.extend(cross_event_vars)`).
         top_level_cross_event_vars.extend(globals_read_by_procs(cu));
 
+        // pkgIndex.tcl's ``$dir`` is set by the package loader before the
+        // index script runs, so a read of it is not read-before-set (W210).
+        // `cross_event_vars` only reaches the dead-store / unused checks, so
+        // fold the implicit set into `extra_known_defined` too — that is the
+        // argument the W210 emitters consult (#955).
+        let top_level_known_defined: HashSet<String> = if pkgindex_implicit_vars.is_empty() {
+            globals_written.clone()
+        } else {
+            globals_written
+                .iter()
+                .chain(pkgindex_implicit_vars.iter())
+                .cloned()
+                .collect()
+        };
+
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of
         // ``CompilationUnit::functions``.
@@ -257,7 +276,7 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             &cu.top_level,
             &cu.ir_module,
-            &globals_written,
+            &top_level_known_defined,
             &top_level_cross_event_vars,
         );
         self.emit_channel_diagnostics(&cu.top_level, registry);

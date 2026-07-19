@@ -285,6 +285,12 @@ and arg-value highlighting, hover, and completion, plus unknown-subcommand
 (`W001`) and arity (`E002`/`E003`) diagnostics — for both the bareword form
 and a variable holding the constructor's return value.
 
+Script-body arguments are highlighted as scripts, not opaque strings. The body
+of an `apply {argList body}` lambda literal has its commands, variables, and
+strings tokenised like any other body, and the argument list names — a braced
+`{a b}` list or a bare single name (`apply {dir { … }}`) — are painted as
+parameter declarations.
+
 ### Diagnostics
 
 Arity errors, unknown subcommands, best-practice violations, and security
@@ -309,6 +315,11 @@ interp create -safe s
 interp eval s { source setup.tcl }   ;# W129: 'source' is hidden in this safe interpreter
 interp eval ghost { puts hi }        ;# W140: interpreter 'ghost' is never created in this file
 ```
+
+Analysis is file-aware where Tcl semantics demand it: in a `pkgIndex.tcl` the
+`$dir` variable the package loader injects before the index script runs is
+treated as already defined, so reading it is not flagged read-before-set
+(`W210`) — while the same read in an ordinary file still is.
 
 ### Completions
 
@@ -365,6 +376,22 @@ proc add {a b} { expr {$a + $b} }
 set sum [add 1 2]       ;# ← reference to 'add'
 puts [add 3 4]           ;# ← reference to 'add'
 # "Find all references" on 'add' highlights all three locations
+```
+
+References follow `TclOO` dispatch, too. A method is found through every
+`$obj method` call on a tracked instance, every intra-class `my method`
+dispatch, and `next` / `nextto` super-dispatch — including calls nested in a
+`[…]` substitution or embedded in a quoted / compound word. Expr math
+functions resolve to their backing proc, so a `proc ::tcl::mathfunc::foo` is
+found (and renamed) from every `foo(...)` used inside `expr`.
+
+```tcl
+oo::class create Store {
+    method get {key} { return [my lookup $key] }   ;# ← 'lookup' reference (my dispatch)
+    method lookup {key} { return $key }
+}
+set s [Store new]
+puts "value: [$s get k]"                            ;# ← 'get' reference (in a quoted word)
 ```
 
 ### Call hierarchy

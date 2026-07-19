@@ -1461,9 +1461,10 @@ impl Analyser {
         // Collect the inner heads first (this borrows `self.source`
         // through the `SourceMap`); resolve + push afterwards so the
         // immutable source borrow has ended.
-        let heads = {
+        let (heads, expr_toks) = {
             let sm = SourceMap::new(&self.source);
             let mut heads: Vec<CollectedHead> = Vec::new();
+            let mut expr_toks: Vec<Token> = Vec::new();
             // `arg_tok` is the *merged* argv token.  For a compound word
             // whose first fragment is a `[…]` substitution (`[foo]bar`,
             // `[foo]$x`, `[foo]bar[baz]`), `segments_from_tree` widens the
@@ -1474,11 +1475,24 @@ impl Analyser {
             // unmerged token stream; a single-fragment `[…]` word yields
             // just itself.
             for frag in self.cmd_fragments(arg_tok, config) {
-                collect_substitution_heads(&sm, self.registry, frag, config, &mut heads);
+                collect_substitution_heads(
+                    &sm,
+                    self.registry,
+                    frag,
+                    config,
+                    &mut heads,
+                    &mut expr_toks,
+                );
             }
-            heads
+            (heads, expr_toks)
         };
         self.push_collected_heads(heads, scope_path);
+        // Math-function applications inside any nested `[expr {…}]` dispatch
+        // to `::tcl::mathfunc::<fn>` — recorded here (with `&mut self`) because
+        // the free-function collection can't resolve that namespace.
+        for expr_tok in expr_toks {
+            self.record_expr_function_invocations(expr_tok);
+        }
     }
 
     /// Run the per-command syntactic dispatch
@@ -1809,14 +1823,27 @@ impl Analyser {
     /// generic word scanner would do on a braced *data* word.
     fn record_invocations_from_expr_token(&mut self, expr_tok: Token, scope_path: &[usize]) {
         let config = self.lexer_config();
-        let heads = {
+        let (heads, expr_toks) = {
             let sm = SourceMap::new(&self.source);
             let mut heads: Vec<CollectedHead> = Vec::new();
-            collect_expr_substitutions(&sm, self.registry, expr_tok, config, &mut heads);
-            heads
+            let mut expr_toks: Vec<Token> = Vec::new();
+            collect_expr_substitutions(
+                &sm,
+                self.registry,
+                expr_tok,
+                config,
+                &mut heads,
+                &mut expr_toks,
+            );
+            (heads, expr_toks)
         };
         self.push_collected_heads(heads, scope_path);
+        // This expr's own math functions, plus any nested inside a `[expr {…}]`
+        // substitution the collection surfaced (`if {[expr {Pi()}]}`).
         self.record_expr_function_invocations(expr_tok);
+        for nested in expr_toks {
+            self.record_expr_function_invocations(nested);
+        }
     }
 
     /// Every math-function application inside the expression `expr_tok`, as
@@ -2385,13 +2412,14 @@ fn collect_substitution_heads(
     cmd_tok: Token,
     config: LexerConfig,
     out: &mut Vec<CollectedHead>,
+    expr_tokens: &mut Vec<Token>,
 ) {
     if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
         return;
     }
     let descended = descend_token(sm, cmd_tok, config);
     for seg in segments_from_tree(descended.tree(), sm) {
-        record_command_invocations(sm, registry, &seg, config, out);
+        record_command_invocations(sm, registry, &seg, config, out, expr_tokens);
     }
 }
 
@@ -2415,6 +2443,7 @@ fn record_command_invocations(
     seg: &SegmentedCommand,
     config: LexerConfig,
     out: &mut Vec<CollectedHead>,
+    expr_tokens: &mut Vec<Token>,
 ) {
     // Head — record the `word_piece` form in `texts[0]` for *every*
     // command, whatever the head's kind: a bare word, a `$var`
@@ -2449,7 +2478,7 @@ fn record_command_invocations(
     // stream; a `{brace}` region stays opaque).
     for tok in &seg.all_tokens {
         if tok.kind == TokenType::Cmd {
-            collect_substitution_heads(sm, registry, *tok, config, out);
+            collect_substitution_heads(sm, registry, *tok, config, out, expr_tokens);
         }
     }
     // Registry-resolved body arguments (`if` / `foreach` / `eval` / …
@@ -2489,7 +2518,14 @@ fn record_command_invocations(
                     if arm_text != "-" && arm_tok.kind == TokenType::Str {
                         let arm = descend_token(sm, *arm_tok, config);
                         for inner in segments_from_tree(arm.tree(), sm) {
-                            record_command_invocations(sm, Some(registry), &inner, config, out);
+                            record_command_invocations(
+                                sm,
+                                Some(registry),
+                                &inner,
+                                config,
+                                out,
+                                expr_tokens,
+                            );
                         }
                     }
                     k += 2;
@@ -2497,17 +2533,22 @@ fn record_command_invocations(
                 continue;
             }
             for inner in segments_from_tree(body.descended.tree(), sm) {
-                record_command_invocations(sm, Some(registry), &inner, config, out);
+                record_command_invocations(sm, Some(registry), &inner, config, out, expr_tokens);
             }
         }
         // Expr arguments (`if` / `while` / `expr` / … conditions): a
         // command substitution inside the expression is an invocation
         // too (`if {[acl_ok]} …` → `acl_ok`).  `descend_command`
         // deliberately excludes `Expr` args (they are not scripts), so
-        // handle them here.
+        // handle them here.  The expr token itself is also stashed in
+        // `expr_tokens` so the caller can record its math-function
+        // applications (`[expr {Pi()}]` → `::tcl::mathfunc::Pi`) — the
+        // free-function path can't resolve `::tcl::mathfunc::` names, so
+        // that resolution is deferred to the owning `&mut self` walk.
         for index in registry.arg_indices_for_role(name, &args, ArgRole::Expr) {
             if let Some(&tok) = arg_tokens.get(index) {
-                collect_expr_substitutions(sm, Some(registry), tok, config, out);
+                expr_tokens.push(tok);
+                collect_expr_substitutions(sm, Some(registry), tok, config, out, expr_tokens);
             }
         }
     }
@@ -2526,6 +2567,7 @@ fn collect_expr_substitutions(
     expr_tok: Token,
     config: LexerConfig,
     out: &mut Vec<CollectedHead>,
+    expr_tokens: &mut Vec<Token>,
 ) {
     if expr_tok.kind != TokenType::Str || sm.token_text(expr_tok).is_empty() {
         return;
@@ -2534,7 +2576,7 @@ fn collect_expr_substitutions(
     for seg in segments_from_tree(descended.tree(), sm) {
         for tok in &seg.all_tokens {
             if tok.kind == TokenType::Cmd {
-                collect_substitution_heads(sm, registry, *tok, config, out);
+                collect_substitution_heads(sm, registry, *tok, config, out, expr_tokens);
             }
         }
     }
