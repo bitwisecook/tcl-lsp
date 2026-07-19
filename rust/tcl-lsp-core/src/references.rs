@@ -660,52 +660,125 @@ fn scan_my_method_sites(
     method: &str,
     skip: Option<tcl_lexer::Span>,
 ) -> Vec<tcl_lexer::Span> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    let ctx = MyMethodScan {
+        source,
+        dialect,
+        method,
+        skip,
+    };
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     for &body_span in bodies {
-        if body_span.is_empty() {
-            continue;
-        }
-        let mut start = body_span.start() as usize;
-        let mut end = body_span.end() as usize;
-        if start >= source.len() || end > source.len() || start > end {
-            continue;
-        }
-        if source.as_bytes().get(start) == Some(&b'{') {
-            start += 1;
-        }
-        if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-            end -= 1;
-        }
-        let body_text = &source[start..end];
-        let commands = segment_commands_with_offset_and_config(
-            body_text,
-            u32::try_from(start).unwrap_or(0),
-            tcl_lexer::LexerConfig::for_dialect(dialect),
-        );
-        for cmd in &commands {
-            let Some(head) = cmd.argv.first() else {
-                continue;
-            };
-            let h_start = head.span.start() as usize;
-            let h_end = head.span.end() as usize;
-            if h_start >= source.len() || h_end > source.len() || &source[h_start..h_end] != "my" {
-                continue;
-            }
-            let Some(name_tok) = cmd.argv.get(1) else {
-                continue;
-            };
-            let n_start = name_tok.span.start() as usize;
-            let n_end = name_tok.span.end() as usize;
-            if n_start >= source.len() || n_end > source.len() {
-                continue;
-            }
-            if &source[n_start..n_end] == method && Some(name_tok.span) != skip {
-                out.push(name_tok.span);
-            }
-        }
+        let mut sink = SpanSink {
+            out: &mut out,
+            seen: &mut seen,
+        };
+        scan_my_method_body(ctx, body_span, &mut sink);
     }
     out
+}
+
+/// Read-only context for the intra-class `my method` call-site scan: the
+/// document `source`, its `dialect`, the `method` being looked up, and the
+/// declaration span to `skip` (so the method's own name token isn't reported
+/// as a call to itself).
+#[derive(Clone, Copy)]
+struct MyMethodScan<'a> {
+    source: &'a str,
+    dialect: &'a str,
+    method: &'a str,
+    skip: Option<tcl_lexer::Span>,
+}
+
+/// Scan a brace-delimited body span for `my method` call sites (stripping the
+/// surrounding braces first), mirroring [`scan_obj_method_body`].
+fn scan_my_method_body(ctx: MyMethodScan<'_>, body_span: tcl_lexer::Span, sink: &mut SpanSink<'_>) {
+    if body_span.is_empty() {
+        return;
+    }
+    let source = ctx.source;
+    let mut start = body_span.start() as usize;
+    let mut end = body_span.end() as usize;
+    if start >= source.len() || end > source.len() || start > end {
+        return;
+    }
+    if source.as_bytes().get(start) == Some(&b'{') {
+        start += 1;
+    }
+    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+        end -= 1;
+    }
+    scan_my_method_region(ctx, start, end, sink);
+}
+
+/// Segment `source[start..end]` and record the argv[1] span of every
+/// `my <method>` invocation whose method name is `ctx.method`, recursing into
+/// command-substitution (`[...]`) args so dispatches nested inside
+/// `return [my …]` / `set x [my …]` are found too.  This is the same `[...]`
+/// recursion [`scan_obj_method_region`] performs, keeping intra-class `my`
+/// dispatch and external `$obj` dispatch at parity.  The declaration span
+/// (`ctx.skip`) and already-seen spans are elided.
+///
+/// A bare head equal to the method name is *not* a call (a `TclOO` method is
+/// not a command in the body's namespace; `<method> …` without `my`/an object
+/// errors "invalid command name"), so only `my`-headed sites match.
+fn scan_my_method_region(ctx: MyMethodScan<'_>, start: usize, end: usize, sink: &mut SpanSink<'_>) {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    use tcl_lexer::TokenType;
+    let source = ctx.source;
+    if start >= end || end > source.len() {
+        return;
+    }
+    let region = &source[start..end];
+    let commands = segment_commands_with_offset_and_config(
+        region,
+        u32::try_from(start).unwrap_or(0),
+        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+    );
+    for cmd in &commands {
+        if let (Some(head), Some(name_tok)) = (cmd.argv.first(), cmd.argv.get(1)) {
+            let h_start = head.span.start() as usize;
+            let h_end = head.span.end() as usize;
+            if h_start < source.len() && h_end <= source.len() && &source[h_start..h_end] == "my" {
+                let n_start = name_tok.span.start() as usize;
+                let n_end = name_tok.span.end() as usize;
+                if n_start < source.len()
+                    && n_end <= source.len()
+                    && &source[n_start..n_end] == ctx.method
+                    && Some(name_tok.span) != ctx.skip
+                {
+                    let key = (name_tok.span.start(), name_tok.span.end());
+                    if sink.seen.insert(key) {
+                        sink.out.push(name_tok.span);
+                    }
+                }
+            }
+        }
+        // Recurse into command-substitution args.
+        for arg in &cmd.argv {
+            if arg.kind != TokenType::Cmd {
+                continue;
+            }
+            let a_start = arg.span.start() as usize;
+            let a_end = arg.span.end() as usize;
+            if a_start >= source.len() || a_end > source.len() || a_start >= a_end {
+                continue;
+            }
+            // Strip the surrounding `[` `]`.
+            let inner_start = if source.as_bytes().get(a_start) == Some(&b'[') {
+                a_start + 1
+            } else {
+                a_start
+            };
+            let inner_end =
+                if a_end > inner_start && source.as_bytes().get(a_end - 1) == Some(&b']') {
+                    a_end - 1
+                } else {
+                    a_end
+                };
+            scan_my_method_region(ctx, inner_start, inner_end, sink);
+        }
+    }
 }
 
 /// Re-segment a single `method`-named method `body` and return the head-token

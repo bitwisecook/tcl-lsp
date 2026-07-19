@@ -81,6 +81,8 @@ mod signature_help;
 mod structure;
 #[path = "e2e/tcl91.rs"]
 mod tcl91;
+#[path = "e2e/tickets_954_958.rs"]
+mod tickets_954_958;
 #[path = "e2e/tk_dialect.rs"]
 mod tk_dialect;
 #[path = "e2e/unicode_positions.rs"]

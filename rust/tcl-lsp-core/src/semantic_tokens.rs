@@ -4053,8 +4053,11 @@ fn collect_apply_lambda(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>
         words.extend(seg.argv.iter().copied());
     }
     for (idx, word_tok) in words.iter().enumerate() {
-        if idx == 0 && matches!(word_tok.kind, TokenType::Str) {
-            // Element 0 is the parameter list — its names are declarations.
+        if idx == 0 {
+            // Element 0 is the parameter list — a braced `{a b}` list or a
+            // bare single name (`apply {dir {…}}`); `collect_param_list`
+            // emits its names as declarations either way, and leaves a
+            // computed (`$dynamic`) list to the default classifier.
             collect_param_list(ctx, *word_tok, entries);
         } else if idx == 1
             && let Some((bstart, body)) = subspec_content(full_source, *word_tok)
@@ -4122,7 +4125,25 @@ fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) 
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
-        if let Some(kind) = classify_arg_token(tok, full_source) {
+        // A bare (unbraced) argument list is a single-element list naming one
+        // parameter (`apply {dir {…}}`, `proc p x {…}`).  When it is a plain
+        // name, emit it as a `Parameter` declaration — matching the braced
+        // path — rather than letting it fall through to `string`.  A computed
+        // arg list (`$dynamic`) is not a plain name and keeps its default
+        // classification.
+        if full_source
+            .get(tok.span.start() as usize..tok.span.end() as usize)
+            .is_some_and(is_plain_var_name)
+        {
+            push_token(
+                line_index,
+                full_source,
+                tok,
+                TokenKind::Parameter,
+                MOD_DECLARATION,
+                entries,
+            );
+        } else if let Some(kind) = classify_arg_token(tok, full_source) {
             push_token(line_index, full_source, tok, kind, 0, entries);
         }
         return;
@@ -7858,6 +7879,45 @@ mod tests {
         assert!(
             ks.contains(&(TokenKind::Variable as u32)),
             "expected the $lambda variable token; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn apply_bare_arglist_param_is_a_parameter() {
+        // Issue #954: `apply {dir { … }}` — the argument list is a bare,
+        // unbraced single name.  Its parameter (`dir`) must highlight as a
+        // `Parameter` declaration (not a `string`), and the body commands
+        // must still tokenise as a script.
+        let registry = reg();
+        let src = "apply {dir {\n    puts $dir\n}} /tmp\n";
+        assert!(
+            has_token_kind(src, "tcl", &registry, "dir", TokenKind::Parameter),
+            "bare arg-list param `dir` must be a Parameter declaration; got {:?}",
+            decode_full(src, "tcl", &registry)
+        );
+        assert!(
+            has_token_kind(src, "tcl", &registry, "puts", TokenKind::Function),
+            "apply body command `puts` must tokenise as a Function; got {:?}",
+            decode_full(src, "tcl", &registry)
+        );
+        // A braced arg list still emits its names as parameters.
+        let braced = "apply {{a b} { expr {$a + $b} }} 1 2\n";
+        assert!(
+            has_token_kind(braced, "tcl", &registry, "a", TokenKind::Parameter)
+                && has_token_kind(braced, "tcl", &registry, "b", TokenKind::Parameter),
+            "braced arg-list params must stay parameters; got {:?}",
+            decode_full(braced, "tcl", &registry)
+        );
+        // A computed (`$dynamic`) arg list is not painted as a parameter.
+        assert!(
+            !has_token_kind(
+                "apply [list $al $body]\n",
+                "tcl",
+                &registry,
+                "al",
+                TokenKind::Parameter
+            ),
+            "a computed arg list must not be a parameter declaration"
         );
     }
 
