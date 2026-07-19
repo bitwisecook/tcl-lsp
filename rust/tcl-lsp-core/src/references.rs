@@ -724,7 +724,6 @@ fn scan_my_method_body(ctx: MyMethodScan<'_>, body_span: tcl_lexer::Span, sink: 
 /// errors "invalid command name"), so only `my`-headed sites match.
 fn scan_my_method_region(ctx: MyMethodScan<'_>, start: usize, end: usize, sink: &mut SpanSink<'_>) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    use tcl_lexer::TokenType;
     let source = ctx.source;
     if start >= end || end > source.len() {
         return;
@@ -754,29 +753,12 @@ fn scan_my_method_region(ctx: MyMethodScan<'_>, start: usize, end: usize, sink: 
                 }
             }
         }
-        // Recurse into command-substitution args.
+        // Recurse into command-substitution args, including a `[…]` embedded
+        // in a bareword / quoted compound word.
         for arg in &cmd.argv {
-            if arg.kind != TokenType::Cmd {
-                continue;
+            for (inner_start, inner_end) in cmd_substitution_regions(source, ctx.dialect, *arg) {
+                scan_my_method_region(ctx, inner_start, inner_end, sink);
             }
-            let a_start = arg.span.start() as usize;
-            let a_end = arg.span.end() as usize;
-            if a_start >= source.len() || a_end > source.len() || a_start >= a_end {
-                continue;
-            }
-            // Strip the surrounding `[` `]`.
-            let inner_start = if source.as_bytes().get(a_start) == Some(&b'[') {
-                a_start + 1
-            } else {
-                a_start
-            };
-            let inner_end =
-                if a_end > inner_start && source.as_bytes().get(a_end - 1) == Some(&b']') {
-                    a_end - 1
-                } else {
-                    a_end
-                };
-            scan_my_method_region(ctx, inner_start, inner_end, sink);
         }
     }
 }
@@ -1163,30 +1145,83 @@ fn scan_obj_method_region(
                 }
             }
         }
-        // Recurse into command-substitution args.
+        // Recurse into command-substitution args, including a `[…]` embedded
+        // in a bareword / quoted compound word.
         for arg in &cmd.argv {
-            if arg.kind != TokenType::Cmd {
-                continue;
+            for (inner_start, inner_end) in cmd_substitution_regions(source, ctx.dialect, *arg) {
+                scan_obj_method_region(ctx, inner_start, inner_end, sink);
             }
-            let a_start = arg.span.start() as usize;
-            let a_end = arg.span.end() as usize;
-            if a_start >= source.len() || a_end > source.len() || a_start >= a_end {
-                continue;
-            }
-            // Strip the surrounding `[` `]`.
-            let inner_start = if source.as_bytes().get(a_start) == Some(&b'[') {
-                a_start + 1
-            } else {
-                a_start
-            };
-            let inner_end =
-                if a_end > inner_start && source.as_bytes().get(a_end - 1) == Some(&b']') {
-                    a_end - 1
-                } else {
-                    a_end
-                };
-            scan_obj_method_region(ctx, inner_start, inner_end, sink);
         }
+    }
+}
+
+/// The inner regions of every `[…]` command substitution reachable from a
+/// command argument `arg`, as `(start, end)` byte offsets into `source` with
+/// the surrounding brackets stripped, for the caller to re-scan.
+///
+/// A bare `Cmd` arg yields its single bracket-stripped body.  A **bareword or
+/// double-quoted** compound word (`"pre [x]"`, `[x]-suf`, `a[x]b`) is merged
+/// by the segmenter into one `Esc` token whose embedded substitutions would
+/// otherwise be skipped, so its slice is re-lexed and each `[…]` fragment
+/// recovered — the same fragment recovery the analyser's `cmd_fragments`
+/// performs.  This keeps intra-word `my` / `$obj` dispatch discoverable
+/// (references, rename), not only dispatch that is a whole bare argument.
+///
+/// A braced `Str` word (`{…}`) is left alone: `[…]` inside braces is literal
+/// text, not a substitution, so re-lexing it would invent phantom calls.
+fn cmd_substitution_regions(
+    source: &str,
+    dialect: &str,
+    arg: tcl_lexer::Token,
+) -> Vec<(usize, usize)> {
+    use tcl_lexer::TokenType;
+    let a_start = arg.span.start() as usize;
+    let a_end = arg.span.end() as usize;
+    if a_start >= source.len() || a_end > source.len() || a_start >= a_end {
+        return Vec::new();
+    }
+    // Strip the surrounding `[` `]` of a `[…]` fragment span.
+    let strip = |f_start: usize, f_end: usize| -> (usize, usize) {
+        let inner_start = if source.as_bytes().get(f_start) == Some(&b'[') {
+            f_start + 1
+        } else {
+            f_start
+        };
+        let inner_end = if f_end > inner_start && source.as_bytes().get(f_end - 1) == Some(&b']') {
+            f_end - 1
+        } else {
+            f_end
+        };
+        (inner_start, inner_end)
+    };
+    match arg.kind {
+        TokenType::Cmd => vec![strip(a_start, a_end)],
+        // Only a bareword / quoted word can carry an *active* `[…]`; re-lex it
+        // (and only when it actually embeds one) to recover the fragments the
+        // argv merge hid.
+        TokenType::Esc => {
+            let slice = &source[a_start..a_end];
+            if !slice.as_bytes().contains(&b'[') {
+                return Vec::new();
+            }
+            let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+            let Ok(tokens) =
+                tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(slice), config)
+                    .tokenise_all()
+            else {
+                return Vec::new();
+            };
+            tokens
+                .into_iter()
+                .filter(|t| t.kind == TokenType::Cmd)
+                .filter_map(|t| {
+                    let f_start = a_start + t.span.start() as usize;
+                    let f_end = a_start + t.span.end() as usize;
+                    (f_start < f_end && f_end <= source.len()).then(|| strip(f_start, f_end))
+                })
+                .collect()
+        }
+        _ => Vec::new(),
     }
 }
 

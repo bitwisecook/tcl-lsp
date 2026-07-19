@@ -122,6 +122,19 @@ mod ticket_956_obj_method {
         assert_eq!(refs_at(src, 1, 11), vec![1, 4], "decl + `rex bark`");
     }
 
+    /// TP: `$b get` embedded in a quoted / compound word
+    /// (`"result: [$b get foo]"`) is still a reference — the merged word's
+    /// substitution is recovered by re-lexing its slice.
+    #[test]
+    fn tp_obj_dispatch_in_quoted_word() {
+        let src = "oo::class create Bar {\n    method get {key} { return $key }\n}\nset b [Bar new]\nputs \"result: [$b get foo]\"\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 4],
+            "decl + `$b` dispatch in a quote"
+        );
+    }
+
     /// FP guard: a same-named method on an *unrelated* class must not be pulled
     /// into `Bar`'s reference set — `$b get` resolves to `Bar`, never `Foo`.
     #[test]
@@ -163,6 +176,31 @@ mod ticket_957_my_method {
     fn tp_my_dispatch_top_level() {
         let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method run {} { my getOptions x }\n}\n";
         assert_eq!(refs_at(src, 1, 11), vec![1, 2], "decl + bare `my`");
+    }
+
+    /// TP: `my getOptions` embedded in a quoted / compound word
+    /// (`"opts: [my getOptions $k]"`) is still a reference — the segmenter
+    /// merges the whole word into one token, so the substitution is recovered
+    /// by re-lexing the word slice.
+    #[test]
+    fn tp_my_dispatch_in_quoted_word() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} { return \"opts: [my getOptions $k]\" }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 2],
+            "decl + `my` inside a quote"
+        );
+    }
+
+    /// TP: `my getOptions` in a bareword concatenation (`[my getOptions]x`).
+    #[test]
+    fn tp_my_dispatch_in_compound_word() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} { return [my getOptions $k]-tail }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 2],
+            "decl + `my` in a compound word"
+        );
     }
 
     /// FP guard: `my other` must not count as a reference to `getOptions`.
