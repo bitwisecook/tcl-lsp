@@ -59,7 +59,7 @@ dev = [
     "pytest-cov>=7.0",
     "pytest-xdist>=3.8.0",
     "ruff>=0.15",
-    "ty==0.0.59",
+    "ty==0.0.61",
     # Architectural dependency contracts — see `.importlinter`.  Keeps the
     # seven-concern Python layout (shared/, compiler/, dialects/, analyser/,
     # server/, tooling/, ai/) from drifting back into a tangle.
@@ -175,5 +175,5 @@ output = "tmp/coverage/python/coverage.xml"
 
 [dependency-groups]
 dev = [
-    "ty==0.0.59",
+    "ty==0.0.61",
 ]
