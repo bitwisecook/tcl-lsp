@@ -258,6 +258,17 @@ mod ticket_955_pkgindex_dir {
         );
     }
 
+    /// FP guard: the gate matches the *basename* exactly, so a look-alike
+    /// filename that merely ends in `pkgIndex.tcl` (`notpkgIndex.tcl`) is not
+    /// a package index and its `$dir` read still fires.
+    #[test]
+    fn fp_lookalike_filename_still_fires() {
+        assert!(
+            has_w210(READ_DIR, Some("/proj/notpkgIndex.tcl")),
+            "a file merely ending in `pkgIndex.tcl` is not a package index"
+        );
+    }
+
     /// TN: a `dir` the script sets itself reads cleanly everywhere.
     #[test]
     fn tn_locally_set_dir_is_clean() {

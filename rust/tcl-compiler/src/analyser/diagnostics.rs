@@ -226,16 +226,19 @@ impl Analyser {
         // pkgIndex.tcl files have ``$dir`` set by the package
         // loader before the script body runs — suppress dead-
         // store / unused-variable diagnostics for it at the
-        // top-level.
-        let pkgindex_implicit_vars: HashSet<String> = if self
-            .file_path
-            .as_deref()
-            .is_some_and(|p| p.ends_with("pkgIndex.tcl"))
-        {
-            HashSet::from(["dir".to_string()])
-        } else {
-            HashSet::new()
-        };
+        // top-level.  Match the *basename* exactly (not a suffix):
+        // ``ends_with("pkgIndex.tcl")`` would also swallow a file
+        // literally named ``notpkgIndex.tcl``.
+        let pkgindex_implicit_vars: HashSet<String> =
+            if self.file_path.as_deref().is_some_and(|p| {
+                std::path::Path::new(p)
+                    .file_name()
+                    .is_some_and(|n| n == "pkgIndex.tcl")
+            }) {
+                HashSet::from(["dir".to_string()])
+            } else {
+                HashSet::new()
+            };
         let mut top_level_cross_event_vars: HashSet<String> = pkgindex_implicit_vars.clone();
         top_level_cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
             &cu.top_level.cfg,

@@ -113,9 +113,16 @@ suite("Preview tickets #954-#958 matrix", () => {
   test("#955 TP: `$dir` in pkgIndex.tcl draws no W210", async () => {
     const uri = getDocUri("pkgIndex.tcl");
     await activate(uri);
-    // `set guard955 10 10` guarantees a diagnostic (arity), proving analysis
-    // ran; the `$dir` reads must not add a W210.
-    const diags = await waitForDiagnostics(uri, { minCount: 1 });
+    // The `source $f` line always yields a W300 (dynamic source path) — a
+    // stable marker that the analysis pass which also decides W210 has run.
+    // Wait for the *settled* batch (progressive publishes can briefly carry a
+    // pre-suppression W210 that later clears), then assert the suppressed
+    // `$dir` read left no W210 behind. Same content as `pkgIndexControl.tcl` —
+    // only the filename differs, which is exactly what flips the suppression.
+    const diags = await waitForDiagnostics(uri, {
+      predicate: (ds) =>
+        ds.some((d) => codeOf(d) === "W300") && !ds.some((d) => codeOf(d) === "W210"),
+    });
     assert.ok(
       !diags.map(codeOf).includes("W210"),
       `#955: unexpected W210 on pkgIndex.tcl in [${diags.map(codeOf)}]`,
