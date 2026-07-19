@@ -28,6 +28,7 @@ from __future__ import annotations
 import io
 import logging
 import re
+from collections.abc import Sequence
 
 from compiler.ir import (
     IRAssignConst,
@@ -36,6 +37,8 @@ from compiler.ir import (
 )
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
 from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.green_tree import tokenise
+from compiler.parsing.token_positions import token_content_base
 from compiler.registry import REGISTRY
 from shared.codes import diag
 from shared.document_buffer import DocumentBuffer
@@ -77,6 +80,33 @@ def _inclusive_word_end(source: str, tok_type: TokenType, start_off: int, end_of
     return end_off
 
 
+def _find_read_var_token(
+    tokens: Sequence[Token], target: str, *, max_depth: int = 8
+) -> Token | None:
+    """Find the first ``$target`` read token, descending into ``[cmd]`` subs.
+
+    A read-before-set can occur inside a command substitution (``[list ... $x]``,
+    ``return [foo $x]``), where a flat scan of the statement's own words finds
+    no matching ``VAR`` token and the diagnostic falls back to the whole
+    statement.  Recurse into ``CMD`` words to locate the real read; braced
+    ``{...}`` words are skipped because their ``$var`` is literal text, not a
+    substitution at this scope.  Returned positions share the caller's base.
+    """
+    for tok in tokens:
+        if tok.type is TokenType.VAR and normalise_var_name(tok.text) == target:
+            return tok
+    if max_depth <= 0:
+        return None
+    for tok in tokens:
+        if tok.type is TokenType.CMD:
+            base_offset, base_line, base_col = token_content_base(tok)
+            sub_tokens, _ = tokenise(tok.text, base_offset, base_line, base_col)
+            found = _find_read_var_token(sub_tokens, target, max_depth=max_depth - 1)
+            if found is not None:
+                return found
+    return None
+
+
 def narrow_to_variable(
     source: str,
     buffer: DocumentBuffer,
@@ -110,14 +140,7 @@ def narrow_to_variable(
             tok = cmd.argv[1]
     elif kind == "read_var":
         target = normalise_var_name(variable)
-        tok = next(
-            (
-                t
-                for t in cmd.all_tokens
-                if t.type is TokenType.VAR and normalise_var_name(t.text) == target
-            ),
-            None,
-        )
+        tok = _find_read_var_token(cmd.all_tokens, target)
     elif kind == "named_arg":
         target = normalise_var_name(variable)
         tok = next(

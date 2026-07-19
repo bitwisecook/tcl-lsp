@@ -46,6 +46,7 @@ from ..semantic_model import (
     _FILE_SUPPRESS_KEY,
     _NOQA_ALL,
     AnalysisResult,
+    CommandInvocation,
     Diagnostic,
     Range,
     Scope,
@@ -130,6 +131,16 @@ class _AnalyserBase:
         # Each entry: (cmd_text, method_name_or_None, cmd_token_range,
         # in_method, is_single_token_word).
         self._cmd_command_sites: list[tuple[str, str | None, Range, bool, bool]] = []
+        # Raw TclOO method-dispatch sites for find-references (#956, #957).
+        # Each entry: (receiver, key, method_name, method_name_range,
+        # enclosing_class).  ``receiver`` is "obj" ($var), "cmd" ([...]) or
+        # "my"; ``key`` is the receiver variable name / command-substitution
+        # text (None for ``my``); ``enclosing_class`` is the qualified class of
+        # the surrounding method for ``my`` (None otherwise).  The receiver's
+        # class is resolved in a post-pass from the SSA OBJECT type lattice, so
+        # only genuine objects — never channels or callbacks — become
+        # references.
+        self._method_dispatch_sites: list[tuple[str, str | None, str, Range, str | None]] = []
         # Cache: id(scope) -> namespace string, for _namespace_from_scope.
         self._ns_cache: dict[int, str] = {}
         # Cache: (target_ns, var_part) -> VarDef, for _resolve_qualified_var.
@@ -183,6 +194,7 @@ class _AnalyserBase:
             # Tuples inside the list are immutable — shallow copy suffices.
             var_command_sites=list(self._var_command_sites),
             cmd_command_sites=list(self._cmd_command_sites),
+            method_dispatch_sites=list(self._method_dispatch_sites),
             pending_trace_callbacks=list(self._pending_trace_callbacks),
             objdefined_vars=set(self._objdefined_vars),
             ensemble_namespaces=set(self._ensemble_namespaces),
@@ -235,6 +247,7 @@ class _AnalyserBase:
         # entries store Range, not scope references).
         self._var_command_sites = list(snap.var_command_sites)
         self._cmd_command_sites = list(snap.cmd_command_sites)
+        self._method_dispatch_sites = list(snap.method_dispatch_sites)
         self._pending_trace_callbacks = list(snap.pending_trace_callbacks)
         self._objdefined_vars = set(snap.objdefined_vars)
         self._ensemble_namespaces = set(snap.ensemble_namespaces)
@@ -686,7 +699,8 @@ class _AnalyserBase:
             except Exception:
                 dead_cmd_ranges = frozenset()
 
-        for tok in tokenise_expr(expr, dialect=active_dialect()):
+        expr_tokens = list(tokenise_expr(expr, dialect=active_dialect()))
+        for idx, tok in enumerate(expr_tokens):
             if tok.type is ExprTokenType.VARIABLE:
                 start = position_from_relative(
                     expr,
@@ -703,6 +717,24 @@ class _AnalyserBase:
                     base_offset=base_offset,
                 )
                 self._record_var_read(tok.text, Range(start=start, end=end), scope)
+                continue
+
+            # A ``expr`` function call ``Foo(...)`` dispatches to the command
+            # ``::tcl::mathfunc::Foo`` (Tcl 8.5+).  When such a proc is defined
+            # in the workspace, record the call as a reference so find-references
+            # and the reference code-lens credit the mathfunc proc (#958).  Only
+            # a FUNCTION token immediately followed by ``(`` is a genuine call —
+            # a bareword operand (``$x eq foo``) also lexes as FUNCTION.
+            if tok.type is ExprTokenType.FUNCTION:
+                self._record_expr_function_call(
+                    tok,
+                    expr_tokens,
+                    idx,
+                    expr,
+                    base_line=base_line,
+                    base_col=base_col,
+                    base_offset=base_offset,
+                )
                 continue
 
             if tok.type is ExprTokenType.COMMAND and len(tok.text) >= 2:
@@ -733,6 +765,66 @@ class _AnalyserBase:
                         end=cmd_end,
                     )
                     self._analyse_body(cmd_text, scope, body_token=synthetic)
+
+    def _record_expr_function_call(
+        self,
+        tok: Any,
+        expr_tokens: list[Any],
+        idx: int,
+        expr: str,
+        *,
+        base_line: int,
+        base_col: int,
+        base_offset: int,
+    ) -> None:
+        """Record an ``expr`` function call ``Foo(...)`` as a mathfunc reference.
+
+        Tcl resolves an expression function ``Foo(...)`` to the command
+        ``::tcl::mathfunc::Foo``.  When the workspace defines such a proc (e.g.
+        ``proc ::tcl::mathfunc::Foo`` or one inside ``namespace eval
+        ::tcl::mathfunc``), the call is a genuine reference to that proc, so we
+        append a :class:`CommandInvocation` for it — that is what
+        ``find_proc_call_sites`` matches on for find-references and the
+        reference code-lens.  Built-in math functions (``acos``, ``sin``, …)
+        have no user proc and are skipped, so no spurious invocation is created.
+        """
+        # A FUNCTION token is only a call when immediately followed by ``(``
+        # (skipping whitespace).  A bareword operand — ``$x eq foo`` — also lexes
+        # as FUNCTION but is not a call.
+        j = idx + 1
+        while j < len(expr_tokens) and expr_tokens[j].type is ExprTokenType.WHITESPACE:
+            j += 1
+        if j >= len(expr_tokens) or expr_tokens[j].type is not ExprTokenType.PAREN_OPEN:
+            return
+
+        qualified = f"::tcl::mathfunc::{tok.text}"
+        if qualified not in self.result.all_procs:
+            return
+
+        start = position_from_relative(
+            expr,
+            tok.start,
+            base_line=base_line,
+            base_col=base_col,
+            base_offset=base_offset,
+        )
+        end = position_from_relative(
+            expr,
+            tok.end,
+            base_line=base_line,
+            base_col=base_col,
+            base_offset=base_offset,
+        )
+        # ``resolved_qualified_name`` is always the mathfunc command, so
+        # ``find_proc_call_sites`` matches on it directly — no enclosing
+        # namespace is needed to disambiguate a bare name.
+        self.result.command_invocations.append(
+            CommandInvocation(
+                name=tok.text,
+                range=Range(start=start, end=end),
+                resolved_qualified_name=qualified,
+            )
+        )
 
     def _dedupe_diagnostics(self) -> None:
         """Drop exact duplicate diagnostics emitted by multiple passes."""

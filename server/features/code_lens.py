@@ -54,15 +54,24 @@ class _WorkspaceLike(Protocol):
 # (e.g. unit tests) that don't need a working peek.
 FindReferences = Callable[[str, str], list[types.Location]]
 
+# ``find_method_references(uri, class_qname, method_name) -> list[Location]`` —
+# the method-dispatch call sites backing a method's reference lens.
+FindMethodReferences = Callable[[str, str, str], list[types.Location]]
+
 
 @dataclass(slots=True)
 class _LensData:
     kind: str
     uri: str
     qname: str
+    # Method name, for ``method_ref_count`` lenses (``qname`` is the class).
+    method: str = ""
 
     def to_dict(self) -> dict[str, str]:
-        return {"kind": self.kind, "uri": self.uri, "qname": self.qname}
+        payload = {"kind": self.kind, "uri": self.uri, "qname": self.qname}
+        if self.method:
+            payload["method"] = self.method
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict) -> _LensData:
@@ -70,6 +79,7 @@ class _LensData:
             kind=str(payload.get("kind", "")),
             uri=str(payload.get("uri", "")),
             qname=str(payload.get("qname", "")),
+            method=str(payload.get("method", "")),
         )
 
 
@@ -85,12 +95,24 @@ def _proc_ref_lens(uri: str, proc: ProcDef) -> types.CodeLens:
     )
 
 
+def _method_ref_lens(uri: str, class_qname: str, method) -> types.CodeLens:
+    return types.CodeLens(
+        range=to_lsp_range(method.name_range),
+        data=_LensData(
+            kind="method_ref_count",
+            uri=uri,
+            qname=class_qname,
+            method=method.name,
+        ).to_dict(),
+    )
+
+
 def get_code_lenses(
     source: str,
     uri: str,
     analysis: AnalysisResult | None,
 ) -> list[types.CodeLens]:
-    """Return unresolved code lenses for every proc in ``analysis``.
+    """Return unresolved code lenses for every proc and TclOO method.
 
     When ``analysis`` is ``None`` the function runs a throwaway
     :func:`analyse` inline so callers can pass through unprepared document
@@ -101,6 +123,12 @@ def get_code_lenses(
     lenses: list[types.CodeLens] = []
     for _qname, proc in analysis.all_procs.items():
         lenses.append(_proc_ref_lens(uri, proc))
+    for class_qname, class_def in analysis.all_classes.items():
+        for method in (*class_def.methods.values(), *class_def.class_methods.values()):
+            # A method-name token with a zero range is synthesised (e.g. a
+            # constructor); only real, addressable method names get a lens.
+            if method.name and method.name_range.end.offset > method.name_range.start.offset:
+                lenses.append(_method_ref_lens(uri, class_qname, method))
     return lenses
 
 
@@ -108,6 +136,7 @@ def resolve_code_lens(
     lens: types.CodeLens,
     workspace_index: _WorkspaceLike,
     find_references: FindReferences | None = None,
+    find_method_references: FindMethodReferences | None = None,
 ) -> types.CodeLens:
     """Populate ``title``/``command`` on ``lens`` using cached usage counts.
 
@@ -138,6 +167,25 @@ def resolve_code_lens(
             locations = []
             counts = workspace_index.proc_usage_counts()
             count = counts.get(data.qname, 0)
+        title = f"{count} reference" if count == 1 else f"{count} references"
+        return types.CodeLens(
+            range=lens.range,
+            command=types.Command(
+                title=title,
+                command="tcl-lsp.showReferences",
+                arguments=[data.uri, lens.range.start, locations],
+            ),
+            data=lens.data,
+        )
+    if data.kind == "method_ref_count":
+        # Mirrors the proc path: the count is the number of dispatch sites the
+        # peek resolves, so the lens title and the peek stay consistent.
+        if find_method_references is not None:
+            locations = find_method_references(data.uri, data.qname, data.method)
+            count = len(locations)
+        else:
+            locations = []
+            count = 0
         title = f"{count} reference" if count == 1 else f"{count} references"
         return types.CodeLens(
             range=lens.range,

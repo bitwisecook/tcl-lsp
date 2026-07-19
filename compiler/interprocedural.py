@@ -70,6 +70,7 @@ from compiler.ir import (
     IRWhile,
 )
 from compiler.lowering import lower_to_ir
+from compiler.parsing.expr_parser import parse_expr
 from compiler.parsing.green_tree import tokenise
 from compiler.parsing.token_scanning import is_simple_scalar_var_word
 from compiler.proc_arg_traits import (
@@ -77,6 +78,7 @@ from compiler.proc_arg_traits import (
     infer_param_traits_deep,
     merge_traits,
 )
+from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import arg_indices_for_role, resolve_arg_role_map
 from compiler.registry.signatures import ArgRole, Arity
 from compiler.side_effects import EffectRegion, classify_side_effects
@@ -492,20 +494,34 @@ def _process_command_words(
                 facts=facts,
             )
         if ArgRole.EXPR in roles:
-            # Expression argument — its command substitutions are
-            # call sites too.  Re-lex with the embedded-command scanner;
-            # full ExprNode AST analysis happens at the IR level for
-            # control-flow primitives.
+            # Expression argument — its command substitutions are call sites,
+            # and a math function call ``Foo(...)`` dispatches to the command
+            # ``::tcl::mathfunc::Foo`` (#958).  Parse the expression so both
+            # surface as call-graph edges; ``_scan_expr_for_calls`` handles
+            # ``[cmd]`` substitutions and ExprRaw fall-through identically to
+            # the embedded-command scanner.
             frag = words[idx + 1]
             if not frag.is_static:
                 continue
             expr_text = _strip_braces(frag.text) if frag.is_braced else frag.text
-            _scan_embedded_commands(
-                expr_text,
-                caller_qname=caller_qname,
-                known_procs=known_procs,
-                facts=facts,
-            )
+            try:
+                expr_ast = parse_expr(expr_text, dialect=active_dialect())
+            except Exception:
+                expr_ast = None
+            if expr_ast is not None:
+                _scan_expr_for_calls(
+                    expr_ast,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
+            else:
+                _scan_embedded_commands(
+                    expr_text,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
 
 
 def _scan_embedded_commands(
@@ -589,7 +605,15 @@ def _scan_expr_for_calls(
             _scan_expr_for_calls(
                 fb, caller_qname=caller_qname, known_procs=known_procs, facts=facts
             )
-        case ExprCall(args=args):
+        case ExprCall(function=func, args=args):
+            # A ``expr`` function call ``Foo(...)`` dispatches to the command
+            # ``::tcl::mathfunc::Foo``.  When such a proc is defined, record the
+            # call-graph edge so a proc calling a user-defined math function is
+            # not treated as a leaf (#958).  Built-in functions (``sin``, …)
+            # have no proc and are simply skipped by the membership test.
+            math_target = f"::tcl::mathfunc::{func}"
+            if math_target in known_procs:
+                facts.calls.add(math_target)
             for arg in args:
                 _scan_expr_for_calls(
                     arg, caller_qname=caller_qname, known_procs=known_procs, facts=facts

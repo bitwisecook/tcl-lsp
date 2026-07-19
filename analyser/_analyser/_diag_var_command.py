@@ -36,7 +36,7 @@ from compiler.ir import (
 from compiler.parsing.known_commands import known_command_names
 from compiler.value_shapes import parse_command_substitution
 
-from ..semantic_model import Diagnostic, Severity
+from ..semantic_model import Diagnostic, MethodInvocation, Severity
 
 # snit reserved object/type self-references — ``$self``/``$type``/``$selfns``/
 # ``$win``/``$hull`` used as a command word are object dispatch, but *only*
@@ -164,8 +164,93 @@ def _last_return_var(cfg) -> str | None:
     return last
 
 
+def _object_var_type_map(cu: CompilationUnit) -> dict[str, set[str]]:
+    """Map each variable to the TclOO class(es) the SSA lattice typed it as.
+
+    Reads ``TclType.OBJECT`` entries carrying a known ``class_name`` from every
+    function's type analysis (top level and each proc/method).  This is the
+    single ``$obj`` → class resolution shared by the W308 unknown-method check
+    and method-reference recording, so both agree on which variables hold
+    objects — and, crucially, non-objects such as channels never appear here.
+    """
+    from compiler.types import TclType, TypeKind
+
+    all_types: dict[str, set[str]] = {}
+    for _qname, fu_unit in [("::top", cu.top_level), *cu.procedures.items()]:
+        for (var_name, _ver), tl in fu_unit.analysis.types.items():
+            if tl.kind is TypeKind.KNOWN and tl.tcl_type is TclType.OBJECT and tl.class_name:
+                all_types.setdefault(var_name, set()).add(tl.class_name)
+    return all_types
+
+
 class _AnalyserDiagVarCommandMixin(_Base):
     """W307/W308 diagnostics: variable-as-command patterns."""
+
+    if TYPE_CHECKING:
+        # Provided by _AnalyserCommandsMixin when composed into Analyser.
+        def _class_from_construction(self, cmd_text: str) -> str | None: ...
+
+    def _method_provider(self, class_qname: str, method_name: str, hierarchy) -> str | None:
+        """Return the class that provides *method_name* for a *class_qname* receiver.
+
+        Resolves through the class hierarchy (so an inherited method is credited
+        to the ancestor that defines it), falling back to a direct definition on
+        the class.  Returns ``None`` when no user method matches — a built-in
+        such as ``new`` / ``destroy`` is not a reference to anything.
+        """
+        if hierarchy is not None:
+            target = hierarchy.method_target(class_qname, method_name)
+            if target is not None:
+                return target
+        class_def = self.result.all_classes.get(class_qname)
+        if class_def is not None and (
+            method_name in class_def.methods or method_name in class_def.class_methods
+        ):
+            return class_qname
+        return None
+
+    def _record_method_invocations(self, cu: CompilationUnit) -> None:
+        """Resolve captured method-dispatch sites into references (#956, #957).
+
+        Types a ``$obj`` receiver from the SSA OBJECT lattice (shared with the
+        W308 check), so only genuine objects resolve — a ``$chan gets`` channel
+        call never does.  ``my`` self-dispatch uses its enclosing class and
+        ``[Class new] method`` parses the construction.  Each resolved site
+        records a :class:`MethodInvocation` naming the class that actually
+        provides the method, which find-references and the reference code-lens
+        consume.  Runs unconditionally — references must not depend on whether
+        W307/W308 are enabled.
+        """
+        if not self._method_dispatch_sites:
+            return
+        from ..class_hierarchy import build_class_hierarchy
+
+        all_types = _object_var_type_map(cu)
+        hierarchy = (
+            build_class_hierarchy(self.result.all_classes) if self.result.all_classes else None
+        )
+        for receiver, key, method_name, method_range, enclosing in self._method_dispatch_sites:
+            if receiver == "my":
+                candidates: set[str] = {enclosing} if enclosing else set()
+            elif receiver == "obj":
+                candidates = all_types.get(key, set()) if key is not None else set()
+            elif receiver == "cmd":
+                built = self._class_from_construction(key) if key is not None else None
+                candidates = {built} if built else set()
+            else:
+                candidates = set()
+            for class_qname in candidates:
+                provider = self._method_provider(class_qname, method_name, hierarchy)
+                if provider is not None:
+                    self.result.method_invocations.append(
+                        MethodInvocation(
+                            method_name=method_name,
+                            range=method_range,
+                            receiver=receiver,
+                            class_name=provider,
+                        )
+                    )
+                    break
 
     def _emit_var_command_diagnostics(self, cu: CompilationUnit) -> None:
         """Resolve ``$var method`` patterns using the type lattice.
@@ -256,18 +341,14 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 )
             )
 
-        # Collect all SSA type entries across top-level and procedures.
-        all_types: dict[str, set[str]] = {}  # var_name → set of class_names
-        all_typed_vars: set[str] = set()  # vars known to be OBJECT
+        # SSA OBJECT typing (shared with method-reference recording).
+        all_types = _object_var_type_map(cu)  # var_name → set of class_names
+        all_typed_vars: set[str] = set(all_types)  # vars known to be OBJECT
         # Per-function CONSTSET maps: keyed by function qname, then var_name.
         _func_constsets: dict[str, dict[str, frozenset[int | float | bool | str]]] = {}
         _all_fus_named = [("::top", cu.top_level)] + list(cu.procedures.items())
         for qname, fu_unit in _all_fus_named:
             analysis = fu_unit.analysis
-            for (var_name, _ver), tl in analysis.types.items():
-                if tl.kind is TypeKind.KNOWN and tl.tcl_type is TclType.OBJECT and tl.class_name:
-                    all_typed_vars.add(var_name)
-                    all_types.setdefault(var_name, set()).add(tl.class_name)
             func_cs: dict[str, frozenset[int | float | bool | str]] = {}
             for (var_name, _ver), lv in analysis.values.items():
                 vs = _lattice_to_set(lv)

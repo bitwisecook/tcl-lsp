@@ -283,13 +283,25 @@ puts $x              ;# Ctrl+Click on '$x' → jumps to the set statement
 ### Find references
 
 Locate every usage of a proc or variable, including inside nested braced
-script bodies such as `if`, `foreach`, and `namespace eval`.
+script bodies such as `if`, `foreach`, and `namespace eval`.  References also
+follow TclOO method dispatch (`$obj method` and `my method`) and `expr`
+function calls that resolve to a `::tcl::mathfunc` proc.
 
 ```tcl
 proc add {a b} { expr {$a + $b} }
 set sum [add 1 2]       ;# ← reference to 'add'
 puts [add 3 4]           ;# ← reference to 'add'
 # "Find all references" on 'add' highlights all three locations
+
+oo::class create Bar {
+    method get {key} { return [my fetch $key] }   ;# ← reference to 'fetch'
+    method fetch {key} { return $key }
+}
+set b [Bar new]
+puts [$b get foo]        ;# ← reference to method 'get'
+
+namespace eval ::tcl::mathfunc { proc double {x} { return [expr {$x * 2}] } }
+set n [expr {double(21)}] ;# ← reference to proc '::tcl::mathfunc::double'
 ```
 
 ### Call hierarchy

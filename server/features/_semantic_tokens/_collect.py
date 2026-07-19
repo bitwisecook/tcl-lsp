@@ -58,6 +58,7 @@ from ._format_args import (
     _proc_param_list_arg_index,
     _procedure_name_arg_index,
     _regsub_subspec_arg_index,
+    _split_words,
     _sprintf_format_arg_index,
     _string_map_mapping_arg_index,
     _subcommand_arg_index,
@@ -298,6 +299,68 @@ def _collect_switch_case_bodies(
             )
 
     return {i}
+
+
+def _collect_apply_lambda(
+    out: list[tuple[int, int, int, int, int]],
+    args: list[str],
+    arg_tokens: list[Token],
+    regex_positions: frozenset[tuple[int, int]] = frozenset(),
+    *,
+    line_starts: list[int] | tuple[int, ...] = (),
+    source_len: int = 0,
+) -> set[int]:
+    """Collect tokens for the lambda argument of ``apply``.
+
+    ``apply {argList body ?namespace?} ?arg ...?`` takes a lambda as its first
+    argument — a braced list whose first element is a proc-style parameter list
+    and whose second element is a script body.  Neither element is a whole
+    argument, so the generic ``ArgRole.BODY`` recursion (which treats a whole
+    braced argument as a script) cannot reach the body.  This mirrors
+    :func:`_collect_switch_case_bodies`: parse the braced lambda, emit its
+    parameter list, and recurse into its body as a nested script so commands
+    inside it are highlighted (#954).
+
+    Returns ``{0}`` (the lambda argument index) so the caller skips the generic
+    handling of that argument, or an empty set when the lambda is not a braced
+    literal (e.g. ``apply $lambdaVar``), in which case it is left untouched.
+    """
+    if not arg_tokens:
+        return set()
+    lambda_tok = arg_tokens[0]
+    if lambda_tok.type is not TokenType.STR:
+        # ``apply $var`` / ``apply [cmd]`` — the lambda is not a literal, so it
+        # cannot be split for highlighting.
+        return set()
+
+    base_offset, base_line, base_col = token_content_base(lambda_tok)
+    words, word_tokens = _split_words(
+        lambda_tok.text,
+        base_offset=base_offset,
+        base_line=base_line,
+        base_col=base_col,
+    )
+    if not word_tokens:
+        return {0}
+
+    # Element 0 — the formal parameter list (``dir`` or ``{a {b 5} args}``).
+    _collect_param_list_tokens(out, word_tokens[0])
+
+    # Element 1 — the body script.  Recurse only when it is a non-empty braced
+    # word; a bare or substituted body word is left for the generic handling.
+    if len(word_tokens) >= 2:
+        body_tok = word_tokens[1]
+        if body_tok.type is TokenType.STR and body_tok.text.strip():
+            _collect_tokens(
+                out,
+                body_tok.text,
+                body_token=body_tok,
+                regex_positions=regex_positions,
+                _line_starts=line_starts,
+                _source_len=source_len or None,
+            )
+
+    return {0}
 
 
 def _recover_stray_close_bracket_in_flush(
@@ -662,7 +725,16 @@ def _collect_tokens(
         glob_pattern_indices = _glob_pattern_arg_indices(cmd_name, argv_texts)
         option_indices = _option_arg_indices(cmd_name, argv_texts[1:])
         skip_body_indices: set[int] = set()
-        if cmd_name == "switch":
+        if cmd_name == "apply":
+            skip_body_indices = _collect_apply_lambda(
+                tokens,
+                argv_texts[1:],
+                argv[1:],
+                regex_positions=regex_positions,
+                line_starts=_line_starts or (),
+                source_len=_source_len or len(source),
+            )
+        elif cmd_name == "switch":
             skip_body_indices = _collect_switch_case_bodies(
                 tokens,
                 argv_texts[1:],

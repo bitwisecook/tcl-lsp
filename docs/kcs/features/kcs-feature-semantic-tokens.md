@@ -20,6 +20,8 @@ all-editors, analyser
 
 Semantic tokens add highlighting for constructs the TextMate grammar cannot handle: regular expression syntax inside `regexp`/`regsub`, `format`/`scan` specifiers, `binary format`/`scan` field descriptors, and `clock format`/`scan` directives.
 
+The provider also recurses into script bodies that are not a whole command argument. An `apply` lambda `{argList body}` has its parameter list highlighted as parameters and its body highlighted as code — commands, variables, and nested substitutions inside the lambda body are tokenised the same way a `proc` body is, instead of appearing as one opaque braced string.
+
 ## Performance and caching
 
 - **Delta encoding**: The server advertises `textDocument/semanticTokens/full/delta`. After the first full response, editors request deltas — only the changed portion of the token array is sent.  If the delta would be larger than a full response, the server falls back to full automatically.

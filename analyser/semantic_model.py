@@ -276,6 +276,28 @@ class CommandInvocation:
 
 
 @dataclass(frozen=True, slots=True)
+class MethodInvocation:
+    """A TclOO method dispatch site observed during analysis.
+
+    Covers the three dispatch forms whose command word is *not* the method
+    name — ``$obj method args`` (object variable), ``my method args`` /
+    ``self ... method`` (self-dispatch inside a method body), and
+    ``[cmd] method args`` (object from a command result).  These never appear
+    in :class:`CommandInvocation` under the method name, so find-references and
+    the reference code-lens need this dedicated record to credit a method
+    definition with its call sites (#956, #957).
+    """
+
+    method_name: str
+    range: Range  # the method-name token span
+    receiver: str  # "obj" | "my" | "self" | "cmd"
+    # Qualified class name the call dispatches to, when resolvable — the class
+    # of ``$obj`` (from ``set obj [Class new]``) or the enclosing class for a
+    # ``my`` / ``self`` call.  ``None`` when the receiver type is unknown.
+    class_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PackageRequire:
     """A ``package require`` invocation observed during analysis."""
 
@@ -453,6 +475,7 @@ class AnalysisResult:
     suppressed_lines: dict[int, frozenset[str]] = field(default_factory=dict)
     regex_patterns: list[RegexPattern] = field(default_factory=list)
     command_invocations: list[CommandInvocation] = field(default_factory=list)
+    method_invocations: list[MethodInvocation] = field(default_factory=list)
     package_requires: list[PackageRequire] = field(default_factory=list)
     package_provides: list[PackageProvide] = field(default_factory=list)
     has_dynamic_providers: bool = False  # True if load/auto_path detected
@@ -540,6 +563,7 @@ class AnalysisResult:
             suppressed_lines=self.suppressed_lines.copy(),
             regex_patterns=self.regex_patterns[:],
             command_invocations=self.command_invocations[:],
+            method_invocations=self.method_invocations[:],
             package_requires=self.package_requires[:],
             package_provides=self.package_provides[:],
             has_dynamic_providers=self.has_dynamic_providers,
@@ -555,9 +579,10 @@ class AnalysisResult:
     def for_index(self) -> AnalysisResult:
         """Return a lightweight copy retaining only fields cross-file readers touch.
 
-        The workspace index and its callers read six fields on non-OPEN
+        The workspace index and its callers read these fields on non-OPEN
         entries: ``all_procs`` / ``all_classes`` (symbol index),
         ``command_invocations`` (workspace usage counts),
+        ``method_invocations`` (cross-file method reference counts),
         ``package_requires`` (workspace Tcl-version upgrade and
         ``active_package_names``), ``command_aliases`` (workspace
         diagnostics context), and ``source_targets`` (rename of a
@@ -573,6 +598,7 @@ class AnalysisResult:
             all_procs=self.all_procs,
             all_classes=self.all_classes,
             command_invocations=self.command_invocations,
+            method_invocations=self.method_invocations,
             package_requires=self.package_requires,
             command_aliases=self.command_aliases,
             source_targets=self.source_targets,

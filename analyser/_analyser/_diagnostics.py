@@ -51,6 +51,7 @@ class _AnalyserDiagsMixin(_Base):
         def _resolve_interpolated_commands(self, cu: CompilationUnit) -> None: ...
 
         def _emit_var_command_diagnostics(self, cu: CompilationUnit) -> None: ...
+        def _record_method_invocations(self, cu: CompilationUnit) -> None: ...
 
         def _emit_renamed_command_diagnostics(self, cu: CompilationUnit) -> None: ...
 
@@ -240,6 +241,11 @@ class _AnalyserDiagsMixin(_Base):
 
         # Post-pass: resolve $var-as-command sites using the type lattice.
         self._emit_var_command_diagnostics(cu)
+
+        # Post-pass: resolve TclOO method-dispatch sites into references using
+        # the same OBJECT type lattice.  Runs unconditionally — find-references
+        # must not depend on the W307/W308 diagnostics being enabled.
+        self._record_method_invocations(cu)
 
         # Post-pass: resolve interpolated command names using CONSTSET.
         self._resolve_interpolated_commands(cu)

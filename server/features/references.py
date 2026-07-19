@@ -94,6 +94,127 @@ def find_proc_call_sites(name: str, qualified_name: str, analysis: AnalysisResul
     return locations
 
 
+def _pos_in_range(r: Range, line: int, character: int) -> bool:
+    """Return True when the 0-based position falls within *r* (inclusive)."""
+    if line < r.start.line or line > r.end.line:
+        return False
+    if line == r.start.line and character < r.start.character:
+        return False
+    if line == r.end.line and character > r.end.character:
+        return False
+    return True
+
+
+def find_method_call_sites(
+    class_qname: str, method_name: str, analysis: AnalysisResult
+) -> list[Range]:
+    """Find all dispatch sites that call *method_name* of class *class_qname*.
+
+    ``AnalysisResult.method_invocations`` are pre-resolved by the analyser: each
+    ``class_name`` is the class that actually *provides* the method (via the SSA
+    OBJECT type of the receiver and the class hierarchy), so a match here is an
+    exact ``(class, method)`` equality.  A call through a subclass that inherits
+    the method is already attributed to the defining ancestor.
+    """
+    locations: list[Range] = []
+    seen: set[tuple[int, int, int, int]] = set()
+    for inv in analysis.method_invocations:
+        if inv.method_name != method_name or inv.class_name != class_qname:
+            continue
+        key = (
+            inv.range.start.line,
+            inv.range.start.character,
+            inv.range.end.line,
+            inv.range.end.character,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        locations.append(inv.range)
+    return locations
+
+
+def _method_declaration(class_def, method_name: str):
+    """Return the MethodDef for *method_name* on *class_def*, if defined."""
+    return class_def.methods.get(method_name) or class_def.class_methods.get(method_name)
+
+
+def _resolve_method_target(
+    analysis: AnalysisResult, word: str, line: int, character: int
+) -> tuple[str, str] | None:
+    """Resolve the ``(class_qname, method_name)`` the cursor addresses, if any.
+
+    Prefers a precise match — the cursor sitting on a method definition's name
+    token or on a recorded dispatch site — then falls back to a uniquely-named
+    method across the workspace's classes.
+    """
+    # Cursor on a method definition's name token.
+    for qname, class_def in analysis.all_classes.items():
+        for method in (*class_def.methods.values(), *class_def.class_methods.values()):
+            if method.name == word and _pos_in_range(method.name_range, line, character):
+                return (qname, word)
+
+    # Cursor on a recorded dispatch site (``$obj method`` / ``my method``).
+    for inv in analysis.method_invocations:
+        if inv.method_name == word and _pos_in_range(inv.range, line, character):
+            class_name = inv.class_name
+            if class_name is not None:
+                class_def = analysis.all_classes.get(class_name)
+                if class_def is not None and _method_declaration(class_def, word) is not None:
+                    return (class_name, word)
+            # Receiver type unknown at the call: fall back to a unique definer.
+            break
+
+    # Fallback: a single class defines a method with this name.
+    definers = [
+        qname
+        for qname, class_def in analysis.all_classes.items()
+        if _method_declaration(class_def, word) is not None
+    ]
+    if len(definers) == 1:
+        return (definers[0], word)
+    return None
+
+
+def get_method_references(
+    uri: str,
+    word: str,
+    line: int,
+    character: int,
+    analysis: AnalysisResult,
+    include_declaration: bool,
+) -> list[types.Location] | None:
+    """Return references to the TclOO method under the cursor, or ``None``.
+
+    ``None`` means the cursor is not on a method (so the caller continues to
+    other symbol kinds); an empty list means it is a method with no found uses.
+    """
+    target = _resolve_method_target(analysis, word, line, character)
+    if target is None:
+        return None
+    class_qname, method_name = target
+
+    locations: list[types.Location] = []
+    seen: set[tuple[int, int]] = set()
+
+    def _add(r: Range) -> None:
+        key = (r.start.line, r.start.character)
+        if key not in seen:
+            seen.add(key)
+            locations.append(to_lsp_location(uri, r))
+
+    if include_declaration:
+        class_def = analysis.all_classes.get(class_qname)
+        method = _method_declaration(class_def, method_name) if class_def else None
+        if method is not None:
+            _add(method.name_range)
+
+    for r in find_method_call_sites(class_qname, method_name, analysis):
+        _add(r)
+
+    return locations
+
+
 def get_references(
     source: str,
     uri: str,
@@ -174,5 +295,12 @@ def get_references(
                 locations.append(loc)
 
         return locations
+
+    # Check for TclOO method references (``$obj method`` / ``my method``).
+    method_locations = get_method_references(
+        uri, word, line, character, analysis, include_declaration
+    )
+    if method_locations is not None:
+        return method_locations
 
     return []

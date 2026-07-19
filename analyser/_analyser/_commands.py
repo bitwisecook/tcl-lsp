@@ -129,6 +129,92 @@ class _AnalyserCommandsMixin(_Base):
             s = s.parent
         return False
 
+    def _resolve_class_qname(self, name: str) -> str | None:
+        """Resolve a class name (simple or qualified) to its stored qualified name."""
+        if not name:
+            return None
+        if name in self.result.all_classes:
+            return name
+        candidate = name if name.startswith("::") else f"::{name}"
+        if candidate in self.result.all_classes:
+            return candidate
+        simple = name.rsplit("::", 1)[-1]
+        for qname, class_def in self.result.all_classes.items():
+            if class_def.name == simple:
+                return qname
+        return None
+
+    def _enclosing_method_class(self, scope: Scope) -> str | None:
+        """Return the qualified class of the enclosing TclOO method body, if any.
+
+        Method scopes are named ``<ClassSimpleName>::<methodName>`` (see
+        ``_extract_method_def``), so the class name is the part before the final
+        ``::``.  Resolves that to the stored qualified class name.
+        """
+        s: Scope | None = scope
+        while s is not None:
+            if s.kind == "method":
+                simple = s.name.rsplit("::", 1)[0] if "::" in s.name else s.name
+                return self._resolve_class_qname(simple)
+            s = s.parent
+        return None
+
+    def _class_from_construction(self, cmd_text: str) -> str | None:
+        """Return the class of an object built by ``[Class new|create ...]``.
+
+        *cmd_text* is a command-substitution word, e.g. ``Bar new`` or
+        ``[Bar create obj]``.  Only the simple ``Class new`` / ``Class create``
+        forms are recognised — enough to type the common object-construction
+        idioms without a full evaluation.
+        """
+        inner = cmd_text.strip()
+        if inner.startswith("[") and inner.endswith("]"):
+            inner = inner[1:-1].strip()
+        parts = inner.split()
+        if len(parts) >= 2 and parts[1] in ("new", "create"):
+            return self._resolve_class_qname(parts[0])
+        return None
+
+    def _capture_method_dispatch(
+        self,
+        cmd_name: str,
+        cmd_tok: Token | None,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+        cmd_word_single: bool,
+    ) -> None:
+        """Record a raw TclOO method-dispatch site for find-references (#956, #957).
+
+        Captures the shape only — the receiver's class is resolved later from
+        the SSA OBJECT type lattice (``_record_method_invocations``), so a
+        ``$chan gets`` / ``$sock read`` channel call (whose variable is never an
+        object) never becomes a spurious method reference.  ``my method`` is
+        self-dispatch and carries the enclosing class directly; ``self`` is an
+        object-introspection command, not a dispatcher, so it is excluded.  The
+        recorded range is the method-name token so a reference lands on the
+        method word, not the receiver.
+        """
+        if not args or not arg_tokens:
+            return
+        method_name = args[0]
+        if not method_name:
+            return
+        method_range = range_from_token(arg_tokens[0])
+
+        if cmd_name == "my":
+            self._method_dispatch_sites.append(
+                ("my", None, method_name, method_range, self._enclosing_method_class(scope))
+            )
+        elif cmd_tok is not None and cmd_tok.type is TokenType.VAR and cmd_word_single:
+            self._method_dispatch_sites.append(
+                ("obj", cmd_tok.text, method_name, method_range, None)
+            )
+        elif cmd_tok is not None and cmd_tok.type is TokenType.CMD and cmd_word_single:
+            self._method_dispatch_sites.append(
+                ("cmd", cmd_tok.text, method_name, method_range, None)
+            )
+
     # Keywords that are only valid as arguments within a parent command.
     # When they appear as standalone commands it almost always means a
     # misplaced newline split the parent command (e.g. ``}\nelse {`` instead
@@ -242,6 +328,10 @@ class _AnalyserCommandsMixin(_Base):
                     cmd_word_single,
                 )
             )
+
+        # TclOO method-reference tracking (#956, #957): record the raw dispatch
+        # site; the receiver's class is resolved later from the SSA type lattice.
+        self._capture_method_dispatch(cmd_name, cmd_tok, args, arg_tokens, scope, cmd_word_single)
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.
         # In iRules, procs must be invoked via ``call proc_name``, not

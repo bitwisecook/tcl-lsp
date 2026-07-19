@@ -73,7 +73,7 @@ from .features.hover import get_hover
 from .features.implementation import get_implementations
 from .features.inlay_hints import get_inlay_hints
 from .features.linked_editing_range import get_linked_editing_ranges
-from .features.references import find_proc_call_sites, get_references
+from .features.references import find_method_call_sites, find_proc_call_sites, get_references
 from .features.rename import get_rename_edits, prepare_rename
 from .features.selection_range import get_selection_ranges
 from .features.signature_help import get_signature_help
@@ -1347,7 +1347,21 @@ def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
             locations.extend(to_lsp_location(indexed_uri, r) for r in ranges)
         return locations
 
-    return resolve_code_lens(lens, workspace_index, find_refs)
+    def find_method_refs(uri: str, class_qname: str, method_name: str) -> list[types.Location]:
+        # Sweep every indexed document for method dispatch sites, matching the
+        # workspace-wide scope of the proc reference peek above.
+        locations: list[types.Location] = []
+        for indexed_uri in workspace_index.all_uris():
+            analysis = workspace_index.get_analysis(indexed_uri)
+            if analysis is None:
+                continue
+            ranges = find_method_call_sites(class_qname, method_name, analysis)
+            if not ranges:
+                continue
+            locations.extend(to_lsp_location(indexed_uri, r) for r in ranges)
+        return locations
+
+    return resolve_code_lens(lens, workspace_index, find_refs, find_method_refs)
 
 
 # Pull diagnostics

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Reference counts shown above each proc definition. Click the lens to find all references.
+Reference counts shown above each proc and TclOO method definition. Click the lens to find all references.
 
 ## Applies to
 
@@ -17,7 +17,7 @@ What are the numbers that appear above my proc definitions?
 
 ## How to use
 
-Code lenses appear automatically above every `proc` definition in a Tcl or iRules file. Each lens shows how many references exist to that proc across the current file (and the workspace, if indexing is enabled). Click the lens to open the Find References panel.
+Code lenses appear automatically above every `proc` definition — and every TclOO `method` / `classmethod` definition — in a Tcl or iRules file. Each lens shows how many references exist to that proc or method across the current file (and the workspace, if indexing is enabled). A method lens counts dispatch sites (`$obj method`, `my method`). Click the lens to open the Find References panel.
 
 No configuration is needed. The feature can be toggled with `tclLsp.features.codeLens`.
 

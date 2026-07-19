@@ -51,6 +51,11 @@ class AnalyserSnapshot:
     # Command-substitution-as-command sites: (cmd_text, method_name_or_None,
     # range, in_method, is_single_token_word).
     cmd_command_sites: list[tuple[str, str | None, Range, bool, bool]] = field(default_factory=list)
+    # TclOO method-dispatch sites for find-references: (receiver, key,
+    # method_name, method_name_range, enclosing_class).  See ``_core`` init.
+    method_dispatch_sites: list[tuple[str, str | None, str, Range, str | None]] = field(
+        default_factory=list
+    )
     # Pending trace-callback registrations: tuples of candidate qualified
     # proc names for callbacks whose target may not yet be parsed.
     pending_trace_callbacks: list[tuple[str, ...]] = field(default_factory=list)

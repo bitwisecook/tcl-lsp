@@ -128,13 +128,19 @@ class _AnalyserOOMixin(_Base):
             doc=preceding_doc,
         )
 
+        # Register the class before analysing its body so self-references — a
+        # method calling a sibling via ``my`` (#957), or ``set x [Class new]``
+        # inside the class — resolve against the class being defined.  The
+        # ``ClassDef`` is mutable; ``_parse_oo_definition_body`` adds methods to
+        # the same object the map already holds.
+        scope.classes[class_name] = class_def
+        self.result.all_classes[qualified] = class_def
+
         if body:
             self._parse_oo_definition_body(
                 body, arg_tokens[2] if len(arg_tokens) > 2 else None, class_def, scope
             )
 
-        scope.classes[class_name] = class_def
-        self.result.all_classes[qualified] = class_def
         return True
 
     def _handle_oo_define_command(
