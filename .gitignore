@@ -89,6 +89,11 @@ var*.txt
 rust/tcl-lsp-rust/.venv/
 iso2022.txt
 
+# Zig runtime build outputs / fetched deps — regenerable, never source.
+.zig-cache/
+zig-out/
+/runtime/zig/vendor/
+
 # Compiler-explorer screenshot debug snapshot — written by the webview
 # when SCREENSHOT_OUTPUT_DIR is set, captures the live HTML for offline
 # inspection.  Not a source artefact and historically tripped CodeQL
