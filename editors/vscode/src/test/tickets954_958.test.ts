@@ -75,7 +75,9 @@ async function lensTitleOnLine(uri: vscode.Uri, line: number): Promise<string | 
       const ls = r as vscode.CodeLens[] | undefined;
       return (
         !!ls &&
-        ls.some((l) => l.range.start.line === line && l.command && typeof l.command.title === "string")
+        ls.some(
+          (l) => l.range.start.line === line && l.command && typeof l.command.title === "string",
+        )
       );
     },
     { timeout: 10_000, label: `resolved lens on line ${line}` },
@@ -98,7 +100,11 @@ suite("Preview tickets #954-#958 matrix", () => {
     )) as vscode.SemanticTokensLegend;
     const decoded = decodeTokens(tokens, legend);
     // `apply {dir {` — `dir` starts at col 7 on line 0.
-    assert.strictEqual(typeAt(decoded, 0, 7), "parameter", "#954: bare arg-list `dir` is a parameter");
+    assert.strictEqual(
+      typeAt(decoded, 0, 7),
+      "parameter",
+      "#954: bare arg-list `dir` is a parameter",
+    );
     // `    puts $dir` — `puts` starts at col 4 on line 1.
     assert.strictEqual(typeAt(decoded, 1, 4), "function", "#954: apply body command highlights");
   });
@@ -141,7 +147,11 @@ suite("Preview tickets #954-#958 matrix", () => {
     )) as vscode.Location[];
     const lines = new Set(locations.map((l) => l.range.start.line));
     assert.ok(lines.has(1) && lines.has(4), `#956: decl + dispatch, got ${[...lines]}`);
-    assert.strictEqual(await lensTitleOnLine(uri, 1), "1 reference", "#956: lens counts the dispatch");
+    assert.strictEqual(
+      await lensTitleOnLine(uri, 1),
+      "1 reference",
+      "#956: lens counts the dispatch",
+    );
   });
 
   // ── #957 — `my method` references + lens ───────────────────────────────
@@ -157,7 +167,11 @@ suite("Preview tickets #954-#958 matrix", () => {
     )) as vscode.Location[];
     const lines = new Set(locations.map((l) => l.range.start.line));
     assert.ok(lines.has(1) && lines.has(2), `#957: decl + my-dispatch, got ${[...lines]}`);
-    assert.strictEqual(await lensTitleOnLine(uri, 1), "1 reference", "#957: lens counts the my-dispatch");
+    assert.strictEqual(
+      await lensTitleOnLine(uri, 1),
+      "1 reference",
+      "#957: lens counts the my-dispatch",
+    );
   });
 
   // ── #958 — `::tcl::mathfunc` expr functions ────────────────────────────
