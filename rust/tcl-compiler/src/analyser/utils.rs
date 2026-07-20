@@ -30,7 +30,9 @@ use tcl_registry::{CommandRegistry, Traits};
 
 use crate::ir::Statement;
 
-pub use crate::signature_scan::params::{param_name_spans, parse_param_list};
+pub use crate::signature_scan::params::{
+    param_name_spans, param_name_spans_for_token, parse_param_list,
+};
 
 /// Cap on how many leading lines the file-suppression scanner
 /// inspects. Pathological all-comment files stop scanning past

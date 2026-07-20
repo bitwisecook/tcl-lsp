@@ -69,6 +69,15 @@ pub struct WorkspaceProc {
     /// The server resolves this to an LSP range against the
     /// target document at query time.
     pub name_span: Span,
+    /// Whether this proc's own declaration sits inside another proc's or
+    /// class's body — i.e. it exists only conditionally, when and if that
+    /// enclosing definition actually runs (the "rename a builtin away,
+    /// install a same-named shadow proc, restore it" idiom). A nested
+    /// definition must not permanently outrank a real registry builtin for
+    /// workspace-wide command existence, mirroring the same judgement
+    /// `tcl_compiler::analyser::AnalysisResult::offset_is_inside_any_definition_body`
+    /// already applies same-file in `resolve_called_proc`.
+    pub nested: bool,
 }
 
 /// One class definition recorded in the workspace index.
@@ -297,6 +306,7 @@ impl WorkspaceIndex {
                 qualified_name: proc_def.qualified_name.clone(),
                 param_count: proc_def.params.len(),
                 name_span: proc_def.name_span,
+                nested: analysis.offset_is_inside_any_definition_body(proc_def.name_span.start()),
             });
         }
         for class_def in analysis.all_classes.values() {
@@ -1280,6 +1290,42 @@ impl WorkspaceIndex {
             .contains(qualified_name.trim_start_matches("::"))
     }
 
+    /// [`Self::workspace_command_exists`], but a proc whose own declaration
+    /// is nested inside another proc's or class's body (so it exists only
+    /// conditionally, when and if that enclosing definition actually runs)
+    /// counts only when `has_builtin` is `false`.
+    ///
+    /// A nested `proc ::set {...}` written to temporarily shadow the real
+    /// `set` builtin — `rename` it away, install the shadow, `rename` it
+    /// back — must not make `::set` permanently "exist in the workspace" for
+    /// every cross-file call-site resolution the way a real top-level
+    /// definition would; that call always reaches the builtin unless a
+    /// caller can prove the shadow's narrow active window actually contains
+    /// it, which this index does not attempt to prove. Mirrors the same
+    /// judgement `resolve_called_proc` already applies same-file
+    /// (`AnalysisResult::offset_is_inside_any_definition_body`), extended to
+    /// the cross-file existence oracle so hover / definition / references
+    /// agree instead of one abstaining and the other still finding the
+    /// shadow.
+    #[must_use]
+    pub fn workspace_command_exists_for_call(
+        &self,
+        qualified_name: &str,
+        has_builtin: bool,
+    ) -> bool {
+        if !has_builtin {
+            return self.workspace_command_exists(qualified_name);
+        }
+        let target = qualified_name.trim_start_matches("::");
+        self.procs
+            .iter()
+            .any(|p| !p.nested && p.qualified_name.trim_start_matches("::") == target)
+            || self
+                .classes
+                .iter()
+                .any(|c| c.qualified_name.trim_start_matches("::") == target)
+    }
+
     /// The set of `::`-stripped qualified names of every indexed proc and
     /// class, for O(1) membership in the candidate-resolution loop of
     /// [`Self::invocations_of`].  With `include_links`, the names an import /
@@ -1834,6 +1880,58 @@ mod tests {
         assert!(index.workspace_command_exists("ns::p")); // leading `::` optional
         assert!(index.workspace_command_exists("::C"));
         assert!(!index.workspace_command_exists("::ns::missing"));
+    }
+
+    #[test]
+    fn nested_proc_flagged_and_workspace_command_exists_for_call_excludes_it_from_a_builtin() {
+        // TP — a `proc ::set {...}` written inside another proc's body (the
+        // "rename the builtin away, install a shadow, restore it" idiom)
+        // must be recorded as `nested`, and must not count as "::set exists
+        // in the workspace" once a builtin is in play — the cross-file twin
+        // of `resolve_called_proc`'s same-file gate.
+        let a = analyse("proc outer {} {\n    proc ::set {v val} {}\n}\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        let set_proc = index
+            .procs()
+            .iter()
+            .find(|p| p.qualified_name == "::set")
+            .expect("nested ::set proc indexed");
+        assert!(
+            set_proc.nested,
+            "the shadow proc must be recorded as nested"
+        );
+        assert!(
+            index.workspace_command_exists("::set"),
+            "the unconditional existence check (no builtin gate) still finds it",
+        );
+        assert!(
+            !index.workspace_command_exists_for_call("::set", true),
+            "a nested shadow of a real builtin must not count as existing \
+             for call-target resolution",
+        );
+        assert!(
+            index.workspace_command_exists_for_call("::set", false),
+            "with no colliding builtin, the nested definition still counts \
+             (e.g. `namespace which -command` probes, W120 existence checks)",
+        );
+    }
+
+    #[test]
+    fn top_level_proc_workspace_command_exists_for_call_regardless_of_builtin() {
+        // TN / regression guard — an *unnested* (top-level) proc named after
+        // a builtin unconditionally overrides it for the rest of the file,
+        // exactly like real Tcl's `proc puts {args} {...}`; it must keep
+        // counting as existing even when a builtin of the same name is
+        // known, unlike the nested case above.
+        let a = analyse("proc ::puts {args} {}\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        let puts_proc = index
+            .procs()
+            .iter()
+            .find(|p| p.qualified_name == "::puts")
+            .expect("top-level ::puts proc indexed");
+        assert!(!puts_proc.nested, "a top-level proc is never nested");
+        assert!(index.workspace_command_exists_for_call("::puts", true));
     }
 
     #[test]

@@ -1116,8 +1116,23 @@ fn proc_visible_from_namespace<'a>(
 /// statically visible at the call, made deterministic by
 /// [`fallback_proc_by_simple_name`].
 ///
+/// A candidate whose own declaration is nested inside another proc's (or
+/// class's) body is never allowed to win this gate: nested code runs only
+/// conditionally, when and if the enclosing definition is actually invoked,
+/// so a `proc ::set {...}` written inside some unrelated proc must not
+/// permanently outrank the real `set` builtin for every call site in the
+/// workspace — the classic "rename the builtin away, install a shadow,
+/// restore it" idiom (e.g. `rest.tcl`'s `describe`) otherwise leaves hover /
+/// go-to-definition / references pointing at the shadow forever, even at a
+/// call site that runs strictly after the shadow has been renamed back off.
+/// [`AnalysisResult::offset_is_inside_any_definition_body`] is the same
+/// judgement the analyser's own W123 gate (`registry_name_deleted_before`)
+/// already applies to a *deletion* recorded inside a body — reused here
+/// rather than re-derived, so both agree on what "load-time" means.
+///
 /// `registry`, when `Some`, supplies the builtin gate; `None` skips the gate
-/// (callers without a registry keep the lenient behaviour).
+/// (callers without a registry keep the lenient behaviour, including the
+/// nested-shadow one — there is no builtin to protect).
 pub(crate) fn resolve_called_proc<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
@@ -1125,10 +1140,15 @@ pub(crate) fn resolve_called_proc<'a>(
     word: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    let has_builtin = registry.is_some_and(|r| r.get(word).is_some());
     if let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word) {
-        return Some(proc_def);
+        let nested_shadow = has_builtin
+            && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
+        if !nested_shadow {
+            return Some(proc_def);
+        }
     }
-    if registry.is_some_and(|r| r.get(word).is_some()) {
+    if has_builtin {
         return None;
     }
     fallback_proc_by_simple_name(analysis, source, word)
@@ -1397,6 +1417,61 @@ mod tests {
         // At global scope the builtin wins — no definition to jump to.
         let global = definition(src, 4, 1, &analysis);
         assert!(global.is_empty(), "{global:?}");
+    }
+
+    #[test]
+    fn nested_shadow_of_builtin_never_outranks_the_builtin() {
+        // TP — the "rename the builtin away, install a same-named shadow,
+        // restore it" idiom (`rest.tcl`'s `describe`, tcllib): a `proc ::set
+        // {...}` written *inside* another proc's body exists only
+        // conditionally (when and if the enclosing proc runs), and is
+        // renamed back off again before the enclosing proc returns. A call
+        // site that runs strictly after the enclosing proc returns is
+        // unambiguously the real builtin — the shadow definition existing
+        // *somewhere in the file* must not make it win.
+        let src = "proc outer {} {\n    rename ::set ::_set\n    proc ::set {var val} { ::_set $var $val }\n    rename ::set {}\n    rename ::_set ::set\n}\nouter\nset final restored\n";
+        let analysis = analyse(src);
+        // `set` on the last line, well after `outer` (and its nested shadow)
+        // has returned.
+        let after_restore = definition(src, 7, 0, &analysis);
+        assert!(
+            after_restore.is_empty(),
+            "a call after the shadow is restored must resolve to the \
+             builtin (no jump target), not the nested shadow: {after_restore:?}",
+        );
+    }
+
+    #[test]
+    fn ordinary_nested_proc_still_resolves_when_not_shadowing_a_builtin() {
+        // TN / regression guard — the nested-shadow gate is scoped to names
+        // that collide with a real registry builtin; an ordinary nested
+        // helper proc (no such collision) must keep resolving exactly as
+        // before.
+        let src = "proc outer {} {\n    proc helper {} { return 1 }\n    return [helper]\n}\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 2, 13, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must still resolve to the nested helper"
+        );
+    }
+
+    #[test]
+    fn top_level_builtin_override_still_resolves_to_itself() {
+        // FN guard — a proc that shadows a builtin at *file* (top-level)
+        // scope is not a conditional nested definition; it unconditionally
+        // replaces the builtin for the rest of the file, exactly as real
+        // Tcl's `proc puts {args} {...}` would, and must keep resolving to
+        // itself rather than being caught by the nested-shadow gate.
+        let src = "proc puts {args} { return }\nputs hello\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 1, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 0,
+            "must resolve to the top-level override"
+        );
     }
 
     #[test]

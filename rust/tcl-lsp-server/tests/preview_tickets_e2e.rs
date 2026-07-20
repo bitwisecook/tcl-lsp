@@ -346,3 +346,210 @@ async fn method_param_definition_resolves_to_name_e2e() {
     drop(writer);
     server.abort();
 }
+
+/// Regression for a multi-parameter span bug found by differential audit
+/// against real-world code (a `reduce`/`foldl`-style proc): the token-span
+/// slice feeding `param_name_spans` was missing the closing `}` a braced
+/// param-list token's span never included, so its own outer-brace check
+/// silently misfired and swallowed every parameter after the first — only
+/// the *first* formal ever got a real declaration span; every later one
+/// fell back to whatever span the caller defaulted to.
+///
+/// The sibling `method_param_definition_resolves_to_name_e2e` test above
+/// already used a two-parameter method (`arg1 arg2`) but only ever checked
+/// `arg1` — the one parameter this bug never broke — so it passed both
+/// before and after the regression was introduced. These tests exist
+/// specifically to close that blind spot: every parameter must be checked
+/// individually, not just the first.
+#[tokio::test]
+async fn proc_param_definition_resolves_to_name_for_every_param_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    // `proc reduce {f z xs} { ... }` — 3 formals; check the 2nd and 3rd, each
+    // used in the body so go-to-definition has a call site to start from.
+    did_open(
+        &mut writer,
+        "file:///reduce.tcl",
+        "proc reduce {f z xs} {\n    puts $z\n    return $xs\n}\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+
+    // `$z` usage is on line 1 (`    puts $z`); the 'z' byte (after `$`) is
+    // at character 10. 'z' is declared on line 0 at character 15 (`proc
+    // reduce {f z xs}`, 0-based: p-r-o-c- -r-e-d-u-c-e- -{-f- -z...). The
+    // pre-fix bug resolved this to the *proc name*'s span instead (line 0,
+    // character 5, "reduce").
+    let req_z = r#"{"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///reduce.tcl"},"position":{"line":1,"character":10}}}"#;
+    writer.write_all(frame(req_z).as_bytes()).await.unwrap();
+    let resp_z = read_until_id(&mut reader, "\"id\":3", 8)
+        .await
+        .expect("definition response for z");
+    assert!(
+        resp_z.contains(r#""line":0"#) && resp_z.contains(r#""character":15"#),
+        "2nd param 'z' must resolve to its own name (line 0, char 15), \
+         not fall back to the proc name: {resp_z}",
+    );
+    assert!(
+        !resp_z.contains(r#""character":5"#),
+        "2nd param 'z' must not resolve to the proc name 'reduce' \
+         (char 5) — the pre-fix bug's exact wrong answer: {resp_z}",
+    );
+
+    // `$xs` usage is on line 2 (`    return $xs`); the 'x' byte (after `$`)
+    // is at character 12. 'xs' is declared on line 0 at character 17.
+    let req_xs = r#"{"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///reduce.tcl"},"position":{"line":2,"character":12}}}"#;
+    writer.write_all(frame(req_xs).as_bytes()).await.unwrap();
+    let resp_xs = read_until_id(&mut reader, "\"id\":4", 8)
+        .await
+        .expect("definition response for xs");
+    assert!(
+        resp_xs.contains(r#""line":0"#) && resp_xs.contains(r#""character":17"#),
+        "3rd param 'xs' must resolve to its own name (line 0, char 17), \
+         not fall back to the proc name or merge with 'z': {resp_xs}",
+    );
+    assert!(
+        !resp_xs.contains(r#""character":15"#) && !resp_xs.contains(r#""character":5"#),
+        "3rd param 'xs' must not share 'z's span or fall back to the proc \
+         name — before the fix every param past the first collapsed onto \
+         the same wrong fallback span: {resp_xs}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+#[tokio::test]
+async fn method_param_definition_resolves_to_name_for_second_param_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    // Same source shape as `method_param_definition_resolves_to_name_e2e`,
+    // but this time checking `arg2` — the parameter that bug actually broke.
+    did_open(
+        &mut writer,
+        "file:///oo2.tcl",
+        "oo::class create C {\n    method m {arg1 arg2} {\n        puts $arg2\n    }\n}\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    // `$arg2` usage is on line 2, character 14 (after `$`).
+    let req = r#"{"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///oo2.tcl"},"position":{"line":2,"character":14}}}"#;
+    writer.write_all(frame(req).as_bytes()).await.unwrap();
+    let resp = read_until_id(&mut reader, "\"id\":5", 8)
+        .await
+        .expect("definition response");
+    // `arg2` is declared on line 1 (`    method m {arg1 arg2} {`) — the
+    // pre-fix bug fell back to `m`'s method-name span instead.
+    assert!(
+        resp.contains(r#""line":1"#),
+        "2nd method param 'arg2' must resolve to its own declaration on \
+         line 1, not fall back to the method name or body: {resp}",
+    );
+    assert!(
+        !resp.contains(r#""line":3"#),
+        "2nd method param 'arg2' must not resolve to the whole method body: {resp}",
+    );
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+#[tokio::test]
+async fn nested_shadow_of_builtin_does_not_leak_across_files_e2e() {
+    // Regression for a bug found by differential audit against tcllib's
+    // rest.tcl (`::rest::describe`): a `proc ::set {...}` written *inside*
+    // another proc's body — to temporarily intercept `set` calls, then
+    // `rename` the builtin back — permanently outranked the real builtin for
+    // hover / go-to-definition everywhere in the *workspace*, including an
+    // entirely unrelated file that never calls the proc containing the
+    // shadow at all.
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///shadow_lib.tcl",
+        "proc ::demo::describe {} {\n    rename ::set ::_set\n    proc ::set {v val} { ::_set $v $val }\n    rename ::set {}\n    rename ::_set ::set\n}\n",
+    )
+    .await;
+    did_open(
+        &mut writer,
+        "file:///shadow_main.tcl",
+        "set final_check restored\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+
+    // `set` in shadow_main.tcl never runs anywhere near `describe` — it is
+    // unambiguously the builtin.
+    let def_req = r#"{"jsonrpc":"2.0","id":7,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///shadow_main.tcl"},"position":{"line":0,"character":0}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":7", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        !def_resp.contains("shadow_lib.tcl"),
+        "an unrelated file's nested shadow of `set` must never leak into \
+         another file's go-to-definition: {def_resp}",
+    );
+
+    let hover_req = r#"{"jsonrpc":"2.0","id":8,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///shadow_main.tcl"},"position":{"line":0,"character":0}}}"#;
+    writer.write_all(frame(hover_req).as_bytes()).await.unwrap();
+    let hover_resp = read_until_id(&mut reader, "\"id\":8", 8)
+        .await
+        .expect("hover response");
+    assert!(
+        hover_resp.contains("built-in") || hover_resp.contains("Built-in"),
+        "hover must describe the real `set` builtin, not the unrelated \
+         file's shadow proc: {hover_resp}",
+    );
+    assert!(
+        !hover_resp.contains("::_set"),
+        "hover must not surface the shadow proc's body: {hover_resp}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+#[tokio::test]
+async fn apply_lambda_param_definition_resolves_to_name_for_second_param_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    // `apply {{a b} {...}} args...` — an inline lambda; the 3rd
+    // `param_name_spans` call site the same bug affected. Must be a
+    // top-level statement: `apply` is only specially recognised as the head
+    // of its own command, not nested inside another command substitution
+    // (e.g. `puts [apply ...]` walks `{a b}` as an ordinary nested command
+    // instead, per the existing `apply {dir {...}}`-style tests).
+    did_open(
+        &mut writer,
+        "file:///apply.tcl",
+        "apply {{a b} {return $b}} 1 2\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    // `$b` usage is at line 0, character 22 (after `$`, inside the lambda body).
+    let req = r#"{"jsonrpc":"2.0","id":6,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///apply.tcl"},"position":{"line":0,"character":22}}}"#;
+    writer.write_all(frame(req).as_bytes()).await.unwrap();
+    let resp = read_until_id(&mut reader, "\"id\":6", 8)
+        .await
+        .expect("definition response");
+    // `b` is declared at character 10 (`apply {{a b} ...`, 0-based).
+    assert!(
+        resp.contains(r#""character":10"#),
+        "lambda's 2nd param 'b' must resolve to its own name (char 10): {resp}",
+    );
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}

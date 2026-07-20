@@ -57,7 +57,7 @@ use tcl_registry::definer::{DefinitionBodyGrammar, MemberSpec};
 use super::scope::scope_at_mut;
 use super::state::Analyser;
 use super::types::{ClassDef, MethodDef, PropertyDef, Scope, ScopeKind, UnknownProcInfo};
-use super::utils::{param_name_spans, parse_param_list};
+use super::utils::{param_name_spans_for_token, parse_param_list};
 use crate::ir::{Module, Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
 
@@ -436,11 +436,9 @@ impl Analyser {
         // #727) so go-to-definition / references / rename resolve to the
         // parameter, not the whole method body.  Falls back to the body token
         // when the param-list word or a name can't be located.
-        let param_spans = mb.params_tok.and_then(|pt| {
-            self.source
-                .get(pt.span.start() as usize..pt.span.end() as usize)
-                .map(|raw| param_name_spans(raw, pt.span.start()))
-        });
+        let param_spans = mb
+            .params_tok
+            .map(|pt| param_name_spans_for_token(&self.source, pt));
         for (i, p) in mb.params.iter().enumerate() {
             let def_span = param_spans.as_ref().and_then(|s| s.get(i).copied());
             self.define_var(&p.name, mb.body_tok, &method_path, false, def_span);

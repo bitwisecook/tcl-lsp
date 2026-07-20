@@ -102,4 +102,57 @@ suite("Preview-version regression tickets", () => {
       "#727: param def must be a name-sized span",
     );
   });
+
+  test("go-to-definition resolves the *second* method parameter too, not just the first", async () => {
+    // Regression for a bug the #727 test above never could have caught: it
+    // only ever checks `name`, the *first* declared parameter
+    // (`method greet {name greeting}`) — which a later token-span
+    // miscomputation left working by construction while silently breaking
+    // every parameter after it. This test targets `greeting`, the second
+    // parameter, using the same fixture and the same `$greeting` usage
+    // already present on line 4.
+    const methodUri = getDocUri("methodParam.tcl");
+    await activate(methodUri);
+    const doc = await vscode.workspace.openTextDocument(methodUri);
+    const line = doc.lineAt(4).text;
+    const greetingIdx = line.indexOf("greeting");
+    const pos = new vscode.Position(4, greetingIdx + 1);
+    const locations = (await vscode.commands.executeCommand(
+      "vscode.executeDefinitionProvider",
+      methodUri,
+      pos,
+    )) as vscode.Location[];
+    assert.ok(locations && locations.length >= 1, "expected a definition location");
+    const target = locations[0].range;
+    // Declared on line 2 (`method greet {name greeting} {`) — the pre-fix
+    // bug instead resolved this to the *method name*'s span (`greet`,
+    // still line 2, but the wrong column) or, worse, the whole body.
+    assert.strictEqual(
+      target.start.line,
+      2,
+      `2nd param def should be on the declaration line 2, got ${target.start.line}`,
+    );
+    assert.strictEqual(
+      target.start.line,
+      target.end.line,
+      "2nd param def must be a single-line name span, not the body",
+    );
+    assert.ok(
+      target.end.character - target.start.character <= "greeting".length,
+      "2nd param def must be a name-sized span",
+    );
+    // Distinguish this from the *first* param `name`'s declaration column,
+    // so a fix that just makes every param resolve to the same (wrong)
+    // fallback span can't accidentally satisfy both tests.
+    const nameLocations = (await vscode.commands.executeCommand(
+      "vscode.executeDefinitionProvider",
+      methodUri,
+      new vscode.Position(4, line.lastIndexOf("name") + 1),
+    )) as vscode.Location[];
+    assert.notStrictEqual(
+      target.start.character,
+      nameLocations[0].range.start.character,
+      "'greeting' and 'name' must resolve to distinct declaration columns",
+    );
+  });
 });

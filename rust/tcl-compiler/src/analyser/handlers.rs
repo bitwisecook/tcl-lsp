@@ -39,7 +39,7 @@ use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
 use super::types::{DefinedSymbol, ProcDef};
-use super::utils::{param_name_spans, parse_param_list};
+use super::utils::{param_name_spans_for_token, parse_param_list};
 
 /// Tcl *library* procedures (defined in init.tcl / auto.tcl / history.tcl /
 /// package.tcl / word.tcl) that are script-defined and documented as
@@ -778,11 +778,7 @@ impl Analyser {
             // (`arg_tokens[1]`); any param whose name can't be located falls
             // back to the proc name token.
             let params_tok = arg_tokens[1];
-            let param_spans = self
-                .source
-                .get(params_tok.span.start() as usize..params_tok.span.end() as usize)
-                .map(|raw| param_name_spans(raw, params_tok.span.start()))
-                .unwrap_or_default();
+            let param_spans = param_name_spans_for_token(&self.source, params_tok);
             for (i, p) in params.iter().enumerate() {
                 self.define_var(
                     &p.name,
@@ -971,11 +967,7 @@ impl Analyser {
         // Parameters become locals, each anchored to its name in the param-list
         // literal (issue #727) so go-to-definition / references / rename on a
         // formal resolve to the parameter, not the `apply` call.
-        let param_spans = self
-            .source
-            .get(params_tok.span.start() as usize..params_tok.span.end() as usize)
-            .map(|raw| param_name_spans(raw, params_tok.span.start()))
-            .unwrap_or_default();
+        let param_spans = param_name_spans_for_token(&self.source, params_tok);
         for (i, p) in params.iter().enumerate() {
             self.define_var(
                 &p.name,
