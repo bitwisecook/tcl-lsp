@@ -11,9 +11,10 @@ not opted into pre-releases, and a `2.1.x` build never becomes the "latest"
 GitHub release or the default Marketplace download.
 
 v2.1.12's JetBrains build failed its own packaging check, which correctly
-blocked *both* the VS Code and JetBrains Marketplace publishes for that tag —
-so nothing from that cycle reached either Marketplace. This release fixes
-the JetBrains packaging bug and otherwise carries the same content forward:
+blocked the JetBrains Marketplace publish for that tag (the VS Code
+Marketplace publish is gated independently of the JetBrains build and was
+unaffected by this bug). This release fixes the JetBrains packaging bug and
+otherwise carries the same content forward:
 six more confirmed fixes from the issue #923 differential-audit campaign — a
 tclsh-vs-analyser sweep across tricky TclOO, namespace, and `interp` idioms —
 to reference resolution, go-to-definition, and rename, plus platform-targeted
@@ -42,7 +43,7 @@ packaging for VS Code and JetBrains.
   so the staged binaries landed under the wrong directory and never made
   it into the distributable zip. The plugin's own packaging check caught
   this and failed the build rather than shipping a broken package, which
-  is why v2.1.12 never reached the JetBrains or VS Code Marketplace.
+  is why v2.1.12 never reached the JetBrains Marketplace.
 - **`superclass`, `mixin`, and (incr Tcl) `inherit` targets are tracked as
   class references.** Find All References on a base class previously
   returned only its own declaration, missing every subclass that named it,
