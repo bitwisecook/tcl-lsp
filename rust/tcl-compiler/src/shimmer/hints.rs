@@ -113,7 +113,7 @@ pub fn arg_shimmer_expectation(
         // `$mapping` to positional 0, not 1). A query landing *inside* the
         // option prefix (`rel < skip`) is an option word — never a hint.
         let rel = arg_index.checked_sub(1)?;
-        let skip = leading_option_words(sub, args.get(1..).unwrap_or(&[]));
+        let skip = sub.leading_option_word_count(args.get(1..).unwrap_or(&[]));
         let sub_idx = u8::try_from(rel.checked_sub(skip)?).ok()?;
         return sub
             .arg_types
@@ -127,51 +127,6 @@ pub fn arg_shimmer_expectation(
         .iter()
         .find(|(i, _)| *i == needle)
         .and_then(|(_, h)| expectation(h))
-}
-
-/// Count the leading words of `sub_args` that are declared options of `sub`
-/// — the `?-nocase? ?-length N?` prefix `string`-style subcommands accept
-/// before their positional arguments — so positional `arg_types` hints can
-/// be resolved against the true positional index.
-///
-/// A word counts as an option when it begins with `-`, is at least two
-/// characters, and resolves to exactly one declared option — by exact name,
-/// declared alias, or unique prefix (C Tcl's option tables accept any
-/// unambiguous prefix of two or more characters: `string map -noc …`
-/// behaves like `-nocase`, verified in `tclCmdMZ.c`'s
-/// `strncmp(string, "-nocase", length)` loops). A value-taking option also
-/// consumes its following word. Counting stops at the first
-/// non-option-shaped word; a subcommand with no declared options returns 0
-/// unconditionally, so purely positional subcommands are untouched.
-fn leading_option_words(sub: &tcl_registry::SubCommand, sub_args: &[&str]) -> usize {
-    if sub.options.is_empty() {
-        return 0;
-    }
-    let mut i = 0;
-    while let Some(&word) = sub_args.get(i) {
-        if !word.starts_with('-') || word.len() < 2 {
-            break;
-        }
-        // Exact name / declared alias wins outright; otherwise require a
-        // unique prefix match (an ambiguous prefix is a runtime `bad
-        // option` error — treat it as ending the option prefix).
-        let resolved = sub
-            .options
-            .iter()
-            .find(|o| o.name == word || o.aliases.contains(&word))
-            .or_else(|| {
-                let mut prefixed = sub.options.iter().filter(|o| o.name.starts_with(word));
-                let first = prefixed.next();
-                if prefixed.next().is_some() {
-                    None
-                } else {
-                    first
-                }
-            });
-        let Some(opt) = resolved else { break };
-        i += 1 + usize::from(opt.takes_value());
-    }
-    i
 }
 
 /// Return `true` when the two types are numerically compatible — i.e. a

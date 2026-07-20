@@ -520,6 +520,57 @@ async fn nested_shadow_of_builtin_does_not_leak_across_files_e2e() {
 }
 
 #[tokio::test]
+async fn interp_handle_eval_isolates_from_a_sibling_interpreter_e2e() {
+    // Regression for a bug found by differential audit against
+    // docstrip_util.tcl: `NAME eval { … }` (the interpreter's own object
+    // command, `interp create sandbox` binds `sandbox` itself as a callable
+    // command) is the far more common real-world spelling of `interp eval
+    // NAME { … }`, but was only ever recognised in the literal `interp eval`
+    // form — the handle form's body was neither isolated nor walked, so a
+    // call inside it fell back to a scope-blind, file-wide "any proc
+    // anywhere with this bare name" match. With two separate interpreters
+    // each defining their own `helper` — one via literal `interp eval`, one
+    // via the handle form — a call inside the handle-form script must
+    // resolve to *its own* interpreter's helper, never the other's.
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///twointerp.tcl",
+        "interp create sandboxA\ninterp create sandboxB\n\
+         interp eval sandboxA { proc helper {} { return A } }\n\
+         sandboxB eval {\n    proc helper {} { return B }\n    helper\n}\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+
+    // The `helper` call on line 5 (`    helper`), inside sandboxB's own
+    // script.
+    let def_req = r#"{"jsonrpc":"2.0","id":11,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///twointerp.tcl"},"position":{"line":5,"character":5}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":11", 8)
+        .await
+        .expect("definition response");
+    // sandboxB's own `helper` is declared on line 4, not sandboxA's on
+    // line 2.
+    assert!(
+        def_resp.contains(r#""line":4"#),
+        "the call inside sandboxB's script must resolve to sandboxB's own \
+         helper on line 4, not sandboxA's on line 2: {def_resp}",
+    );
+    assert!(
+        !def_resp.contains(r#""line":2"#),
+        "must never cross-resolve into the other interpreter's helper: {def_resp}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+#[tokio::test]
 async fn qualified_namespace_var_definition_resolves_from_anywhere_in_the_file_e2e() {
     // Regression for a bug found by differential audit against tcllib's
     // defer.tcl (`$::defer::idVar`) / uri.tcl: a fully `::`-qualified

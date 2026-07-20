@@ -1125,10 +1125,33 @@ impl Analyser {
         if args.len() > 3 {
             return true;
         }
-        let body_span = arg_tokens.get(2).map(|t| t.span);
-        let body_text = args[2].clone();
-        let body_tok = arg_tokens.get(2).copied();
+        let Some(body_tok) = arg_tokens.get(2).copied() else {
+            return true;
+        };
+        self.isolate_interp_eval_body(&key, &args[2], body_tok, scope_path);
+        true
+    }
 
+    /// Isolate `body_text` — already known to belong to interpreter `key` —
+    /// into a synthetic `@interp@<key>` child scope, so its `proc` /
+    /// `oo::class` / variable definitions and calls don't merge into the
+    /// parent namespace. Shared core of [`Self::handle_interp_eval_command`]
+    /// (literal `interp eval PATH { … }`) and
+    /// [`Self::handle_interp_handle_eval_command`] (`NAME eval { … }` via the
+    /// interpreter's own object command) — both recognise the *same*
+    /// isolated-body shape, just via different call-site spellings, so both
+    /// must isolate it identically rather than maintaining two copies of
+    /// this logic that could drift apart.
+    ///
+    /// Returns `false` (never isolated) only when the scope-tree path has
+    /// gone stale — shouldn't happen during a healthy walk.
+    fn isolate_interp_eval_body(
+        &mut self,
+        key: &str,
+        body_text: &str,
+        body_tok: Token,
+        scope_path: &[usize],
+    ) -> bool {
         let outer = scope_path.to_vec();
         let child_scope_idx = {
             // The child's global namespace is its own domain, not a parent
@@ -1143,9 +1166,9 @@ impl Analyser {
             // (issue #945 fault 8's temporal identity).
             let mut child = super::types::Scope::new(
                 super::types::ScopeKind::Namespace,
-                self.interp_domain_name(&key),
+                self.interp_domain_name(key),
             );
-            child.body_span = body_span;
+            child.body_span = Some(body_tok.span);
             let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &outer)
             else {
                 return false;
@@ -1156,38 +1179,92 @@ impl Analyser {
         let mut child_path = outer;
         child_path.push(child_scope_idx);
 
-        if let Some(tok) = body_tok {
-            // A safe target interpreter evaluates the body with the unsafe
-            // command set hidden, and any interpreter with explicit
-            // `interp hide`s carries those deltas (issue #945 fault 7):
-            // push the visibility context so the per-command gate flags
-            // hidden calls (W129) and builds no effects from them.  A
-            // tainted state (dynamic hide/expose) abstains.
-            let safe_ctx = self.interpreters.get(&key).and_then(|st| {
-                (!st.tainted && (st.safe || !st.hidden.is_empty())).then(|| {
-                    super::state::SafeInterpCtx {
-                        base_hidden: st.safe,
-                        hidden_extra: st.hidden.clone(),
-                        exposed: st.exposed.clone(),
-                    }
-                })
-            });
-            let pushed = if let Some(ctx) = safe_ctx {
-                self.safe_interp_stack.push(ctx);
-                true
-            } else {
-                false
-            };
-            // `interp` operations inside the body name paths relative to
-            // *this* child — push its path so they qualify correctly.
-            self.interp_path_stack.push(key.clone());
-            self.analyse_body(&body_text, tok, &child_path);
-            self.interp_path_stack.pop();
-            if pushed {
-                self.safe_interp_stack.pop();
-            }
+        // A safe target interpreter evaluates the body with the unsafe
+        // command set hidden, and any interpreter with explicit `interp
+        // hide`s carries those deltas (issue #945 fault 7): push the
+        // visibility context so the per-command gate flags hidden calls
+        // (W129) and builds no effects from them.  A tainted state (dynamic
+        // hide/expose) abstains.
+        let safe_ctx = self.interpreters.get(key).and_then(|st| {
+            (!st.tainted && (st.safe || !st.hidden.is_empty())).then(|| {
+                super::state::SafeInterpCtx {
+                    base_hidden: st.safe,
+                    hidden_extra: st.hidden.clone(),
+                    exposed: st.exposed.clone(),
+                }
+            })
+        });
+        let pushed = if let Some(ctx) = safe_ctx {
+            self.safe_interp_stack.push(ctx);
+            true
+        } else {
+            false
+        };
+        // `interp` operations inside the body name paths relative to *this*
+        // child — push its path so they qualify correctly.
+        self.interp_path_stack.push(key.to_string());
+        self.analyse_body(body_text, body_tok, &child_path);
+        self.interp_path_stack.pop();
+        if pushed {
+            self.safe_interp_stack.pop();
         }
         true
+    }
+
+    /// Handle `NAME eval SCRIPT` — a far more common real-world spelling of
+    /// `interp eval NAME SCRIPT` than the `interp eval` form itself: `interp
+    /// create` binds the child interpreter's *own* object command to its
+    /// create-time name (`interp create sandbox` makes `sandbox` itself
+    /// callable; `sandbox eval { … }` dispatches exactly like `interp eval
+    /// sandbox { … }`). Without this, the body is neither isolated nor
+    /// walked at all: no symbols are produced for procs defined inside it,
+    /// and hover/go-to-definition on a call inside falls back to a
+    /// scope-blind, file-wide "any proc anywhere with this bare name" match
+    /// — which can resolve to a same-named proc in a completely unrelated
+    /// interpreter.
+    ///
+    /// Recognised purely from analysis state — `cmd_name` is looked up
+    /// against [`Self::interpreters`] (built by
+    /// [`Self::handle_interp_create_command`]), never matched against a
+    /// hardcoded name — so an ordinary proc that happens to be named `eval`
+    /// as its first argument (`foo eval bar`, `foo` an unrelated command) is
+    /// untouched. Only the single-script form is isolated, mirroring
+    /// [`Self::handle_interp_eval_command`]; every other shape (no `eval`
+    /// first word, wrong arity, an untracked head) falls through to the
+    /// generic per-command dispatch by returning `false`.
+    ///
+    /// Deliberately narrower than the mined idiom's `$handle eval { … }`
+    /// spelling: `cmd_name` is the literal, unsubstituted head text, so a
+    /// `$`-prefixed handle (the value of a variable, not a name this file
+    /// spells out) never matches an entry in [`Self::interpreters`] (which is
+    /// keyed by literal `interp create`/`interp eval` path text) and falls
+    /// through untouched — resolving a *variable's* interpreter value is the
+    /// separate, harder value-flow problem `interp alias`'s cross-domain
+    /// tracking already has its own narrower literal-path requirement for
+    /// (issue #945 fault 8), not one this handler takes on.
+    ///
+    /// Dispatched from [`Self::dispatch_analyser_hook`]'s hookless fallback
+    /// chain — `cmd_name` never matches a registry command (it's a
+    /// user-chosen interpreter name), so this can't be reached via a
+    /// registry hook the way the literal `interp eval` form is.
+    pub fn handle_interp_handle_eval_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if args.len() != 2 || args[0] != "eval" {
+            return false;
+        }
+        let key = self.qualified_interp_key(cmd_name);
+        if !self.interpreters.contains_key(&key) {
+            return false;
+        }
+        let Some(body_tok) = arg_tokens.get(1).copied() else {
+            return false;
+        };
+        self.isolate_interp_eval_body(&key, &args[1], body_tok, scope_path)
     }
 
     /// Qualify a literal `interp` path operand against the enclosing
@@ -3986,6 +4063,110 @@ mod tests {
         assert!(
             !r.all_procs.contains_key("::child::foo"),
             "the child's global is not the parent namespace `::child`: {keys:?}",
+        );
+    }
+
+    /// `sandbox eval { proc foo }` via the interpreter's own object command
+    /// (`interp create sandbox` binds `sandbox` itself as a callable
+    /// command) isolates definitions from the parent exactly like the
+    /// literal `interp eval sandbox { … }` form above — the far more common
+    /// real-world spelling (`docstrip_util.tcl`'s `$c eval {...}`, reduced to
+    /// a literal name for a statically-resolvable repro).
+    #[test]
+    fn interp_handle_eval_isolates_definitions_from_the_parent() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandbox\nproc foo {} {}\nsandbox eval { proc foo {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(r.all_procs.contains_key("::foo"), "parent proc: {keys:?}");
+        assert!(
+            r.all_procs.contains_key("::@interp@sandbox::foo"),
+            "child proc isolated under the interpreter domain: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn interp_handle_eval_and_literal_interp_eval_agree_on_the_same_domain() {
+        // The two spellings of the same operation must home under the
+        // *same* synthetic domain — the analyser can't tell them apart at
+        // run time (both dispatch on the identical interpreter object
+        // command), so it must not tell them apart statically either.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandbox\ninterp eval sandbox { proc viaLiteral {} {} }\n\
+             sandbox eval { proc viaHandle {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::@interp@sandbox::viaLiteral"),
+            "{keys:?}"
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@sandbox::viaHandle"),
+            "{keys:?}"
+        );
+    }
+
+    #[test]
+    fn two_interp_handles_never_cross_contaminate_same_named_procs() {
+        // TP — the exact scenario differential audit confirmed: two
+        // separate safe child interpreters, each independently defining
+        // their own same-named `helper`, must never merge — a call inside
+        // one script must resolve to *that* interpreter's helper, never
+        // the other's.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandboxA\ninterp create sandboxB\n\
+             interp eval sandboxA { proc helper {} { return A } }\n\
+             sandboxB eval { proc helper {} { return B } }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::@interp@sandboxA::helper"),
+            "{keys:?}"
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@sandboxB::helper"),
+            "{keys:?}"
+        );
+        // Each interpreter's own `helper` is a genuinely distinct
+        // ProcDef, not the same entry aliased twice.
+        assert_ne!(
+            r.all_procs["::@interp@sandboxA::helper"].body_span,
+            r.all_procs["::@interp@sandboxB::helper"].body_span,
+        );
+    }
+
+    #[test]
+    fn untracked_bareword_eval_is_not_isolated() {
+        // TN / FN guard — a bareword shaped exactly like the tracked-handle
+        // idiom (`NAME eval { script }`) but never created via `interp
+        // create` must fall through to the generic dispatch untouched: no
+        // isolated scope, no crash.
+        let mut a = Analyser::new();
+        let r = a.analyse("untracked eval { proc foo {} {} }\n", "tcl8.6");
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains("@interp@")),
+            "an untracked head must never open an interpreter domain: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn ordinary_proc_with_eval_as_sole_argument_is_untouched() {
+        // FP guard — an unrelated proc whose single argument merely happens
+        // to be the literal text `eval` must resolve as an ordinary call,
+        // never trip the arity/shape check into isolating anything.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {a} { return $a }\nfoo eval\n", "tcl8.6");
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains("@interp@")),
+            "a 1-arg call must never be treated as NAME eval SCRIPT: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
         );
     }
 

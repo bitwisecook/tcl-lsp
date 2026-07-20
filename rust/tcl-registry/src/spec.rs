@@ -718,6 +718,54 @@ pub struct CommandSpec {
     pub defines_command_at: Option<u8>,
 }
 
+/// Count the leading words of `args` that are declared options in
+/// `options` — the `?-flag? ?-opt val?` prefix many commands/subcommands
+/// accept before their positional arguments. Shared core of
+/// [`CommandSpec::leading_option_word_count`] /
+/// [`SubCommand::leading_option_word_count`], so every consumer that needs
+/// "where do the true positionals start" (an `arg_types` hint, a
+/// [`CommandSpec::defines_command_at`] / [`SubCommand::defines_command_at`]
+/// name lookup, …) agrees with the one declared option table instead of
+/// assuming a fixed offset that a `-safe`/`--`-style flag silently shifts.
+///
+/// A word counts as an option when it begins with `-`, is at least two
+/// characters, and resolves to exactly one declared option — by exact name,
+/// declared alias, or unique prefix (C Tcl's option tables accept any
+/// unambiguous prefix of two or more characters: `string map -noc …`
+/// behaves like `-nocase`, verified in `tclCmdMZ.c`'s
+/// `strncmp(string, "-nocase", length)` loops). A value-taking option also
+/// consumes its following word. Counting stops at the first
+/// non-option-shaped word; an empty `options` table returns 0
+/// unconditionally, so purely positional commands/subcommands are
+/// untouched. Dialect-agnostic — callers that need dialect gating (e.g. an
+/// option added in a later Tcl release) should filter `options` first.
+fn leading_option_word_count(options: &[OptionSpec], args: &[&str]) -> usize {
+    if options.is_empty() {
+        return 0;
+    }
+    let mut i = 0;
+    while let Some(&word) = args.get(i) {
+        if !word.starts_with('-') || word.len() < 2 {
+            break;
+        }
+        let resolved = options
+            .iter()
+            .find(|o| o.name == word || o.aliases.contains(&word))
+            .or_else(|| {
+                let mut prefixed = options.iter().filter(|o| o.name.starts_with(word));
+                let first = prefixed.next();
+                if prefixed.next().is_some() {
+                    None
+                } else {
+                    first
+                }
+            });
+        let Some(opt) = resolved else { break };
+        i += 1 + usize::from(opt.takes_value());
+    }
+    i
+}
+
 impl CommandSpec {
     /// Default value for all fields — used with `..CommandSpec::DEFAULT`.
     pub const DEFAULT: Self = Self {
@@ -982,6 +1030,15 @@ impl CommandSpec {
             }
         }
         specs
+    }
+
+    /// [`leading_option_word_count`] against this command's own
+    /// [`Self::options`] — how many of `args`' leading words are declared
+    /// flags/options, so a positional argument index (e.g.
+    /// [`Self::defines_command_at`]) can be shifted past them.
+    #[must_use]
+    pub fn leading_option_word_count(&self, args: &[&str]) -> usize {
+        leading_option_word_count(self.options, args)
     }
 
     /// Like [`Self::switch_names`], but optionally including documented
@@ -1416,6 +1473,17 @@ impl SubCommand {
         std::iter::once(self.synopsis)
             .chain(self.hover.iter().flat_map(|h| h.synopsis.iter().copied()))
             .find(|s| !s.is_empty())
+    }
+
+    /// [`leading_option_word_count`] against this subcommand's own
+    /// [`Self::options`] — how many of `args`' leading words (*after* the
+    /// subcommand word itself) are declared flags/options, so a positional
+    /// argument index (e.g. [`Self::defines_command_at`]) can be shifted
+    /// past them. The subcommand counterpart of
+    /// [`CommandSpec::leading_option_word_count`].
+    #[must_use]
+    pub fn leading_option_word_count(&self, args: &[&str]) -> usize {
+        leading_option_word_count(self.options, args)
     }
 
     /// Run this subcommand's constant folder for `args` under `dialect` —
