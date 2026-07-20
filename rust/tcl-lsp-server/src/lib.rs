@@ -4629,6 +4629,20 @@ impl Backend {
         if symbols.is_empty() {
             return;
         }
+        // The open document's own call sites are edited from the index here (its
+        // in-document rename found nothing local to resolve against), and only
+        // its *focused* analysis carries the resolution candidates a
+        // cross-document match needs.  The background workspace scan can leave
+        // this file indexed without that focused walk, dropping the consumer's
+        // own edit while the library declaration (matched by name) still lands
+        // — a partial rename.  Commit the live focused analysis into the index
+        // before reading it, so the current document's edits are deterministic
+        // rather than dependent on scan timing.
+        {
+            let mut index = self.workspace_index.write().await;
+            index.remove_document(uri.as_str());
+            index.add_document(uri.as_str(), analysis);
+        }
         let intents = {
             let index = self.workspace_index.read().await;
             // Every identity of a multi-seeded declaration must accept the

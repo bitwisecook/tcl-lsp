@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, getServerLogSize, waitForServerLog } from "./helper";
 
 suite("Rename Symbol", () => {
   const docUri = getDocUri("procs.tcl");
@@ -160,44 +160,42 @@ suite("Rename Symbol", () => {
   // the whole request.)
   test("rename from a consumer document rewrites the auto-loaded library definition (M8)", async () => {
     const uri = getDocUri("autoloadLibrary.tcl");
+    // Snapshot the log cursor BEFORE opening so the wait below only matches
+    // this document's settle, not a stale line from an earlier test.
+    const since = getServerLogSize();
     await activate(uri);
 
-    // `Rbc_ActiveLegend .g` — line 0; the definition lives in
-    // rbclib/graph.tcl (line 2, after two comment lines).
-    const pos = new vscode.Position(0, 3);
+    // Deterministic readiness via message passing — no polling.  The consumer's
+    // own call site (`Rbc_ActiveLegend .g`) only becomes a cross-document
+    // reference once its *focused* analysis is committed to the workspace index
+    // (that walk is what gives the invocation its resolution candidates, which
+    // the cross-document rename matches against).  The server logs
+    // `[timing] workspace_state.update (uri=…autoloadLibrary.tcl …)` at the end
+    // of that commit, so wait for exactly that message.  The timeout is only a
+    // backstop against a total hang, never the synchronisation mechanism.
+    const settled = await waitForServerLog(
+      (line) => line.includes("workspace_state.update") && line.includes("autoloadLibrary.tcl"),
+      { since, timeout: 20_000 },
+    );
+    assert.ok(
+      settled,
+      "server must report the consumer document's workspace_state.update before the deadline",
+    );
 
-    // The workspace scan / package database loads asynchronously at startup;
-    // retry until the rename resolves cross-document (or the deadline).
-    // While the scan is still warming up the server answers `null`, which
-    // VS Code surfaces by THROWING "The element can't be renamed." from the
-    // command — treat that as "not yet" and keep polling rather than dying
-    // on the first early attempt.  The autoloaded library declaration and the
-    // consumer's own cross-document call-site edit both settle asynchronously;
-    // on a slow runner the library edit can appear an instant before the
-    // consumer edit, so wait for BOTH before asserting (not just the library).
-    const deadline = Date.now() + 15000;
-    let libEntry: [vscode.Uri, vscode.TextEdit[]] | undefined;
-    let docEntry: [vscode.Uri, vscode.TextEdit[]] | undefined;
-    let edit: vscode.WorkspaceEdit | undefined;
-    while (Date.now() < deadline && !(libEntry && docEntry)) {
-      try {
-        edit = (await vscode.commands.executeCommand(
-          "vscode.executeDocumentRenameProvider",
-          uri,
-          pos,
-          "Rbc_ShinyLegend",
-        )) as vscode.WorkspaceEdit | undefined;
-      } catch {
-        edit = undefined; // rejected while the autoload index is still filling
-      }
-      libEntry = edit?.entries().find(([u]) => u.path.endsWith("rbclib/graph.tcl"));
-      docEntry = edit?.entries().find(([u]) => u.toString() === uri.toString());
-      if (!(libEntry && docEntry)) {
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    }
+    // `Rbc_ActiveLegend .g` — line 0; the definition lives in
+    // rbclib/graph.tcl (line 2, after two comment lines).  A single rename now
+    // resolves the whole edit set (the library file is merged synchronously by
+    // the autoload tier within this request).
+    const pos = new vscode.Position(0, 3);
+    const edit = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentRenameProvider",
+      uri,
+      pos,
+      "Rbc_ShinyLegend",
+    )) as vscode.WorkspaceEdit | undefined;
 
     assert.ok(edit, "Rename should return a workspace edit");
+    const libEntry = edit!.entries().find(([u]) => u.path.endsWith("rbclib/graph.tcl"));
     assert.ok(libEntry, "the library declaration in rbclib/graph.tcl must be rewritten");
     const [, libEdits] = libEntry!;
     assert.ok(
@@ -206,6 +204,7 @@ suite("Rename Symbol", () => {
         libEdits.map((te) => te.range.start.line),
       )}`,
     );
+    const docEntry = edit!.entries().find(([u]) => u.toString() === uri.toString());
     assert.ok(docEntry, "the consumer's own call site must be rewritten too");
     assert.ok(
       docEntry![1].some((te) => te.range.start.line === 0),
