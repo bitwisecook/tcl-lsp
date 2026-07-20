@@ -155,4 +155,34 @@ suite("Preview-version regression tickets", () => {
       "'greeting' and 'name' must resolve to distinct declaration columns",
     );
   });
+
+  test("go-to-definition resolves a fully-qualified namespace variable reference", async () => {
+    // Regression for a bug found by differential audit against tcllib
+    // (defer.tcl's `$::defer::idVar`, uri.tcl's namespace-current pattern):
+    // a fully `::`-qualified variable reference like `$::simple::v` never
+    // resolved at all, because the shared scope-chain lookup only
+    // special-cased bare (unqualified) names.
+    const qualVarUri = getDocUri("qualifiedVar.tcl");
+    await activate(qualVarUri);
+    const doc = await vscode.workspace.openTextDocument(qualVarUri);
+    // `puts $::simple::v` on line 9 (0-based); put the cursor on the `v`.
+    const usageLine = doc.lineAt(9).text;
+    const pos = new vscode.Position(9, usageLine.lastIndexOf("v") + 1);
+    const locations = (await vscode.commands.executeCommand(
+      "vscode.executeDefinitionProvider",
+      qualVarUri,
+      pos,
+    )) as vscode.Location[];
+    assert.ok(
+      locations && locations.length >= 1,
+      "expected a definition location for $::simple::v",
+    );
+    const target = locations[0].range;
+    // Declared on line 6 (`    variable v "hello"`).
+    assert.strictEqual(
+      target.start.line,
+      6,
+      `qualified var should resolve to the 'variable v' declaration line, got ${target.start.line}`,
+    );
+  });
 });

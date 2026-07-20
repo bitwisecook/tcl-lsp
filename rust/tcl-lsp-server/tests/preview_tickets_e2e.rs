@@ -520,6 +520,57 @@ async fn nested_shadow_of_builtin_does_not_leak_across_files_e2e() {
 }
 
 #[tokio::test]
+async fn qualified_namespace_var_definition_resolves_from_anywhere_in_the_file_e2e() {
+    // Regression for a bug found by differential audit against tcllib's
+    // defer.tcl (`$::defer::idVar`) / uri.tcl: a fully `::`-qualified
+    // variable reference never resolved at all — `lookup_var_in_scope_chain`
+    // only special-cased bare names; a qualified name fell through to a
+    // literal scope-chain key match that could never hit, since `VarDef`
+    // entries are keyed by their bare name inside the namespace's own scope,
+    // not by the fully qualified string. Both hover and go-to-definition
+    // share that one resolver, so both must pick up the fix.
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///qualvar.tcl",
+        "namespace eval ::simple {\n    variable v \"hello\"\n}\nputs $::simple::v\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+
+    // Cursor on `v` inside `$::simple::v` (line 3, char 16).
+    let def_req = r#"{"jsonrpc":"2.0","id":9,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///qualvar.tcl"},"position":{"line":3,"character":16}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":9", 8)
+        .await
+        .expect("definition response");
+    // `v` is declared on line 1 (`    variable v "hello"`), character 13.
+    assert!(
+        def_resp.contains(r#""line":1"#) && def_resp.contains(r#""character":13"#),
+        "a fully-qualified $::simple::v must resolve to the namespace's \
+         `variable v` declaration on line 1: {def_resp}",
+    );
+
+    let hover_req = r#"{"jsonrpc":"2.0","id":10,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///qualvar.tcl"},"position":{"line":3,"character":16}}}"#;
+    writer.write_all(frame(hover_req).as_bytes()).await.unwrap();
+    let hover_resp = read_until_id(&mut reader, "\"id\":10", 8)
+        .await
+        .expect("hover response");
+    assert!(
+        hover_resp.contains("Variable"),
+        "hover must also resolve the qualified variable, sharing the same \
+         resolver as go-to-definition: {hover_resp}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+#[tokio::test]
 async fn apply_lambda_param_definition_resolves_to_name_for_second_param_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
     // `apply {{a b} {...}} args...` — an inline lambda; the 3rd
