@@ -285,6 +285,45 @@ pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
     out
 }
 
+/// [`param_name_spans`] computed directly from the parameter-list *token*,
+/// rather than a hand-sliced `(raw, base)` pair.
+///
+/// `param_name_spans` expects `raw` to be either a bare word or the
+/// parameter list's **full** `{…}`-delimited text (both braces present) —
+/// but a braced (`Str`) token's span does not hold that: the lexer's
+/// inner-end convention starts the span *at* the opening `{` while ending it
+/// one byte short of the closing `}`, so `source[tok.span]` alone yields a
+/// one-sided slice like `"{f z xs"` for `{f z xs}`. Fed straight into
+/// `param_name_spans`, that mismatched leading `{` with no matching closer
+/// makes its outer-brace check fail and its scanner misread the stray `{` as
+/// opening a single nested spec that swallows every remaining parameter —
+/// only the first name ever gets a real span, every later one silently falls
+/// back to whatever the caller uses as a default.
+///
+/// Skipping exactly `tok.content_offset` leading bytes (the same field
+/// [`tcl_lexer::SourceMap::token_text`] strips) yields the pure inner
+/// content for both braced and bare tokens uniformly — no delimiters, so
+/// `param_name_spans`'s own brace handling never has to guess. The `{}`
+/// empty-list degenerate (whose span is widened to cover the closing brace,
+/// leaving a bare `"}"` remainder after the strip) is clamped to `""`,
+/// mirroring `token_text`'s identical clamp.
+#[must_use]
+pub fn param_name_spans_for_token(source: &str, tok: tcl_lexer::Token) -> Vec<tcl_lexer::Span> {
+    let content_start = tok
+        .span
+        .start()
+        .saturating_add(u32::from(tok.content_offset));
+    let Some(raw) = source.get(content_start as usize..tok.span.end() as usize) else {
+        return Vec::new();
+    };
+    let raw = if tok.kind == tcl_lexer::TokenType::Str && raw == "}" {
+        ""
+    } else {
+        raw
+    };
+    param_name_spans(raw, content_start)
+}
+
 #[inline]
 fn is_whitespace_byte(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r')
@@ -558,5 +597,124 @@ mod tests {
             params[0].default_value.as_deref(),
             Some("default with spaces")
         );
+    }
+
+    /// Lex `source` and return the *n*th non-separator, non-EOL token — for
+    /// `proc <name> <params> <body>` sources, index 2 is always the
+    /// parameter-list word, matching how `handle_proc_command` /
+    /// `handle_method_body` pull `arg_tokens[1]` / `mb.params_tok` from the
+    /// real segmented command. Lexing real source (rather than
+    /// hand-constructing a `Token`) is deliberate: the bug this guards
+    /// against is specifically about what the *real* lexer's span/
+    /// `content_offset` convention produces for a braced word, which a
+    /// hand-built token could accidentally get "right" by construction.
+    fn nth_word_token(source: &str, n: usize) -> tcl_lexer::Token {
+        tcl_lexer::Lexer::new(source)
+            .tokenise_all()
+            .expect("lexes")
+            .into_iter()
+            .filter(|t| {
+                !matches!(
+                    t.kind,
+                    tcl_lexer::TokenType::Sep | tcl_lexer::TokenType::Eol
+                )
+            })
+            .nth(n)
+            .expect("token exists")
+    }
+
+    #[test]
+    fn param_name_spans_for_token_finds_every_param_not_just_first() {
+        // TP — the exact regression this function exists to fix: a real
+        // lexed `Str` (braced) param-list token's span starts *at* the `{`
+        // but, per the inner-end convention, ends one byte short of the `}`
+        // (confirmed against the live lexer, not assumed), so naively
+        // slicing `source[tok.span]` and handing it to `param_name_spans`
+        // yields a mismatched one-sided string that made every parameter
+        // after the first silently lose its span.
+        let source = "proc reduce {f z xs} {}";
+        let params_tok = nth_word_token(source, 2);
+        assert_eq!(params_tok.kind, tcl_lexer::TokenType::Str);
+        // Confirm the inner-end convention actually holds for this token —
+        // if the lexer's span contract ever changes, this test should fail
+        // loudly here rather than the assertions below silently passing for
+        // the wrong reason.
+        assert_eq!(&source[params_tok.span.as_range()], "{f z xs");
+
+        let spans = param_name_spans_for_token(source, params_tok);
+        let names: Vec<&str> = spans.iter().map(|s| &source[s.as_range()]).collect();
+        assert_eq!(names, vec!["f", "z", "xs"]);
+        assert_eq!(spans.len(), parse_param_list("f z xs").len());
+    }
+
+    #[test]
+    fn param_name_spans_for_token_two_param_minimal_repro() {
+        // TP — the smallest possible reproduction (2 params is already
+        // enough to expose the bug: the first swallows the rest, so the
+        // second silently vanishes).
+        let source = "proc p {a b} {}";
+        let params_tok = nth_word_token(source, 2);
+        let spans = param_name_spans_for_token(source, params_tok);
+        let names: Vec<&str> = spans.iter().map(|s| &source[s.as_range()]).collect();
+        assert_eq!(names, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn param_name_spans_for_token_handles_bare_single_param() {
+        // FN guard — a single unbraced parameter (`Esc` token, no
+        // delimiter, `content_offset == 0`) must keep working exactly as
+        // before; this shape never triggered the bug, so it must not
+        // regress.
+        let source = "proc p a {}";
+        let params_tok = nth_word_token(source, 2);
+        assert_eq!(params_tok.kind, tcl_lexer::TokenType::Esc);
+        let spans = param_name_spans_for_token(source, params_tok);
+        let names: Vec<&str> = spans.iter().map(|s| &source[s.as_range()]).collect();
+        assert_eq!(names, vec!["a"]);
+    }
+
+    #[test]
+    fn param_name_spans_for_token_handles_empty_param_list() {
+        // TN — a genuinely empty `{}` param list has no names to find at
+        // all; the degenerate span (widened to cover the closing brace,
+        // per the lexer's empty-wrapper convention) must clamp to zero
+        // spans, not a spurious one-character `}` "parameter".
+        let source = "proc p {} {}";
+        let params_tok = nth_word_token(source, 2);
+        assert_eq!(&source[params_tok.span.as_range()], "{}");
+        let spans = param_name_spans_for_token(source, params_tok);
+        assert!(spans.is_empty());
+    }
+
+    #[test]
+    fn param_name_spans_for_token_handles_default_value_specs() {
+        // FP guard — a mix of bare and braced-with-default specs must keep
+        // each span anchored to the *name* only, excluding default text,
+        // and stay index-aligned with `parse_param_list` even when a
+        // default spec sits in the middle (not just at the end).
+        let source = "proc p {a {b 1} c} {}";
+        let params_tok = nth_word_token(source, 2);
+        let spans = param_name_spans_for_token(source, params_tok);
+        let names: Vec<&str> = spans.iter().map(|s| &source[s.as_range()]).collect();
+        assert_eq!(names, vec!["a", "b", "c"]);
+        let params = parse_param_list("a {b 1} c");
+        assert_eq!(spans.len(), params.len());
+        for (span, p) in spans.iter().zip(params.iter()) {
+            assert_eq!(&source[span.as_range()], p.name);
+        }
+    }
+
+    #[test]
+    fn param_name_spans_for_token_out_of_bounds_token_returns_empty() {
+        // TN — a token whose span/content_offset don't fit inside `source`
+        // (e.g. a stale span after an edit) must abstain, never panic or
+        // index out of range.
+        let bogus = tcl_lexer::Token {
+            kind: tcl_lexer::TokenType::Str,
+            span: tcl_lexer::Span::new(100, 200),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert!(param_name_spans_for_token("short", bogus).is_empty());
     }
 }

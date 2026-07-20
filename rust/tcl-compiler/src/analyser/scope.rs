@@ -187,6 +187,51 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
     ns
 }
 
+/// The [`VarDef`] a `::`-qualified variable reference names — `base_name`
+/// declared directly in the namespace whose fully qualified, `::`-rooted
+/// resolution path is `target_ns` — the single-table, no-searching lookup
+/// real Tcl performs for a qualified variable name (tclsh 9.0.4 / 8.6.16
+/// -verified: unlike command resolution, `$other::v` never searches
+/// enclosing namespaces or falls back to global; exactly one namespace is
+/// consulted, whichever the qualifier names).
+///
+/// A real namespace can be `namespace eval`-reopened any number of times in
+/// any number of lexically unrelated places (even nested inside unrelated
+/// procs — `namespace eval` always addresses the one real namespace tree
+/// regardless of where it's textually written), so no single [`Scope`] tree
+/// node can be assumed to hold every variable a qualified reference might
+/// mean. This walks the *whole* tree, accumulating each node's
+/// resolution-namespace with the same [`advance_command_resolution_namespace`]
+/// rule [`command_resolution_namespace_at`] uses, and consults the
+/// `variables` table of every [`ScopeKind::Namespace`] / [`ScopeKind::Global`]
+/// node whose accumulated namespace equals `target_ns` — deliberately never a
+/// [`ScopeKind::Proc`] / [`ScopeKind::Method`] node's own local table, even
+/// when *its* command-resolution namespace happens to equal `target_ns`: a
+/// proc's locals are never the namespace's cells (a plain `set` local has no
+/// relation to a same-named namespace variable; only an explicit
+/// `variable`/`global` link would, and that link already resolves through
+/// the ordinary scope-chain walk, not this path).
+#[must_use]
+pub fn lookup_var_in_namespace<'a>(
+    root: &'a Scope,
+    target_ns: &str,
+    base_name: &str,
+) -> Option<&'a VarDef> {
+    fn walk<'a>(ns: &str, node: &'a Scope, target: &str, name: &str) -> Option<&'a VarDef> {
+        if ns == target
+            && matches!(node.kind, ScopeKind::Namespace | ScopeKind::Global)
+            && let Some(v) = node.variables.get(name)
+        {
+            return Some(v);
+        }
+        node.children.iter().find_map(|child| {
+            let child_ns = advance_command_resolution_namespace(ns, child);
+            walk(&child_ns, child, target, name)
+        })
+    }
+    walk("::", root, target_ns, base_name)
+}
+
 impl Analyser {
     /// Resolve the current scope path to a borrow of the active
     /// [`Scope`] inside [`Self::result`]. Convenience wrapper
@@ -1577,5 +1622,122 @@ mod tests {
             .push(Scope::new(ScopeKind::Namespace, "ns2"));
         let paths = a.walk_scopes_from(&[]);
         assert_eq!(paths, vec![vec![], vec![0], vec![0, 0], vec![1]]);
+    }
+
+    fn var(name: &str, def_span: Span) -> VarDef {
+        VarDef {
+            name: name.to_string(),
+            definition_span: def_span,
+            references: Vec::new(),
+            warn_if_unused: false,
+            array_indices: std::collections::BTreeSet::new(),
+            link_target: None,
+        }
+    }
+
+    #[test]
+    fn lookup_var_in_namespace_finds_var_in_matching_top_level_namespace() {
+        // TP — the base case both mined findings (idx=107, idx=115) reduce
+        // to: `namespace eval ::simple { variable v ... }`, then `$::simple::v`
+        // referenced elsewhere.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "::A");
+        ns_a.variables
+            .insert("v".to_string(), var("v", span(10, 11)));
+        root.children.push(ns_a);
+
+        let found = lookup_var_in_namespace(&root, "::A", "v");
+        assert_eq!(found.map(|v| v.definition_span), Some(span(10, 11)));
+        assert!(lookup_var_in_namespace(&root, "::A", "missing").is_none());
+    }
+
+    #[test]
+    fn lookup_var_in_namespace_accumulates_through_nested_namespaces() {
+        // TP — a namespace written 2+ levels deep must accumulate through
+        // every enclosing `namespace eval`, exactly like command resolution
+        // (`advance_command_resolution_namespace`, reused verbatim here).
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "A");
+        let mut ns_b = Scope::new(ScopeKind::Namespace, "B");
+        ns_b.variables
+            .insert("v".to_string(), var("v", span(20, 21)));
+        ns_a.children.push(ns_b);
+        root.children.push(ns_a);
+
+        assert_eq!(
+            lookup_var_in_namespace(&root, "::A::B", "v").map(|v| v.definition_span),
+            Some(span(20, 21))
+        );
+        // The intermediate namespace's own (empty) table must not be
+        // mistaken for the leaf's.
+        assert!(lookup_var_in_namespace(&root, "::A", "v").is_none());
+    }
+
+    #[test]
+    fn lookup_var_in_namespace_finds_var_defined_in_a_reopened_block() {
+        // TP — the generalisation the mined findings' fix direction calls
+        // for: a namespace can be `namespace eval`-reopened any number of
+        // times (even lexically unrelated ones), so a single Scope tree
+        // node must never be assumed to hold every variable a qualified
+        // reference might mean. Two independent `::A` blocks here; only the
+        // second declares `v`.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        root.children.push(Scope::new(ScopeKind::Namespace, "::A"));
+        let mut ns_a_reopened = Scope::new(ScopeKind::Namespace, "::A");
+        ns_a_reopened
+            .variables
+            .insert("v".to_string(), var("v", span(30, 31)));
+        root.children.push(ns_a_reopened);
+
+        assert_eq!(
+            lookup_var_in_namespace(&root, "::A", "v").map(|v| v.definition_span),
+            Some(span(30, 31))
+        );
+    }
+
+    #[test]
+    fn lookup_var_in_namespace_skips_proc_locals_even_when_namespace_matches() {
+        // FP guard — a proc's own defining ("command-resolution") namespace
+        // can coincide with a target namespace path (any proc's does, by
+        // construction), but its *local* variable table is never the
+        // namespace's cells: a plain `set v 1` inside `proc ::A::f` has no
+        // relation to a same-named `::A::v` unless linked via `variable`/
+        // `global` (which resolves through the ordinary scope-chain walk,
+        // not this namespace-table lookup). Only `f`'s *own* locals exist
+        // here — `::A` itself declares nothing — so a hit would prove the
+        // guard is missing.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "::A");
+        let mut proc_f = Scope::new(ScopeKind::Proc, "f");
+        proc_f
+            .variables
+            .insert("v".to_string(), var("v", span(40, 41)));
+        ns_a.children.push(proc_f);
+        root.children.push(ns_a);
+
+        assert!(
+            lookup_var_in_namespace(&root, "::A", "v").is_none(),
+            "a proc-local variable must never satisfy a namespace-qualified lookup"
+        );
+    }
+
+    #[test]
+    fn lookup_var_in_namespace_returns_none_for_unknown_namespace() {
+        // TN — a target namespace that appears nowhere in the tree.
+        let root = Scope::new(ScopeKind::Global, "::");
+        assert!(lookup_var_in_namespace(&root, "::Nope", "v").is_none());
+    }
+
+    #[test]
+    fn lookup_var_in_namespace_finds_global_scope_variable() {
+        // TP — the degenerate `target_ns == "::"` case: the root scope
+        // itself is `::`, so an absolute `$::v` reference must resolve
+        // directly against the root's own variable table.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        root.variables.insert("v".to_string(), var("v", span(0, 1)));
+        assert_eq!(
+            lookup_var_in_namespace(&root, "::", "v").map(|v| v.definition_span),
+            Some(span(0, 1))
+        );
     }
 }

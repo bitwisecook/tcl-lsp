@@ -330,12 +330,7 @@ impl Analyser {
     /// Whether byte offset `off` falls inside any recorded proc or class
     /// definition body — code there runs at *call* time, not load time.
     fn offset_is_inside_definition_body(&self, off: u32) -> bool {
-        self.result
-            .all_procs
-            .values()
-            .map(|p| p.body_span)
-            .chain(self.result.all_classes.values().map(|c| c.body_span))
-            .any(|span| span.start() <= off && off < span.end())
+        self.result.offset_is_inside_any_definition_body(off)
     }
 
     /// Whether the command head `name`, invoked at `range`, resolves through

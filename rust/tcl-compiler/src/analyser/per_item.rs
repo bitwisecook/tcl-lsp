@@ -401,6 +401,7 @@ impl Analyser {
         self.result.all_classes.extend(r.all_classes);
         self.merge_body_variables(r.all_variables, shell_var_keys);
         self.result.command_aliases.extend(r.command_aliases);
+        self.result.alias_offsets.extend(r.alias_offsets);
         self.result.renamed_commands.extend(r.renamed_commands);
         self.result
             .rename_target_spans
@@ -836,6 +837,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for sp in r.rename_target_spans.values_mut() {
         *sp = shift(*sp, d);
+    }
+    for off in r.alias_offsets.values_mut() {
+        *off += d;
     }
     for records in r.object_methods.values_mut() {
         for om in records {

@@ -793,6 +793,16 @@ pub struct AnalysisResult {
     pub source_targets: Vec<SignatureSource>,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
+    /// Byte offset of the `interp alias` command token that established each
+    /// [`Self::command_aliases`] entry, keyed the same way (by qualified
+    /// alias name) — the promoted, cross-document twin of
+    /// [`Self::rename_target_spans`] for aliases: lets a consumer such as
+    /// [`Self::offset_is_inside_any_definition_body`] tell an alias declared
+    /// inside a proc/class body (conditional — exists only while that
+    /// enclosing definition is running) apart from a top-level one
+    /// (unconditional), the same distinction [`Self::rename_target_spans`]
+    /// already lets it draw for a `rename`.
+    pub alias_offsets: HashMap<String, u32>,
     /// Static `rename OLD NEW` records: `new_qname → old_qname`. `NEW`
     /// resolves to whatever `OLD` denoted (unchanged) — see
     /// [`super::state::Analyser::renamed_commands`] for why a dynamic
@@ -933,6 +943,26 @@ impl AnalysisResult {
     #[must_use]
     pub fn ns_var_global_fallback(&self) -> bool {
         tcl_registry::prelude::DialectSet::namespace_var_global_fallback(&self.dialect)
+    }
+
+    /// Whether byte offset `off` falls inside any recorded proc or class
+    /// definition body — code there runs at *call* time, not load time, so
+    /// anything it declares (a nested `proc`, a `rename`, an alias) exists
+    /// only conditionally, when and if the enclosing definition is actually
+    /// invoked. Shared by the analyser's own W123 gate
+    /// (`registry_name_deleted_before`) and `tcl-lsp-core`'s call-target
+    /// resolver (`resolve_called_proc`), so both agree on what "load-time"
+    /// means for the same underlying question: a `proc ::set {...}` written
+    /// inside another proc's body must not permanently outrank the real
+    /// `set` builtin for every call site in the workspace, the same way a
+    /// `rename ::set {}` written there must not permanently un-resolve it.
+    #[must_use]
+    pub fn offset_is_inside_any_definition_body(&self, off: u32) -> bool {
+        self.all_procs
+            .values()
+            .map(|p| p.body_span)
+            .chain(self.all_classes.values().map(|c| c.body_span))
+            .any(|span| span.start() <= off && off < span.end())
     }
 }
 

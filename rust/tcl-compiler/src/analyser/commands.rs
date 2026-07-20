@@ -601,14 +601,19 @@ impl Analyser {
         use tcl_registry::hooks::AnalyserHookId as Hook;
         let Some(hook) = self.resolve_analyser_hook(cmd_name, args) else {
             // No stamped family — the definition-grammar-driven definers
-            // (TclOO metaclass create, snit::type/widget, itcl::class)
-            // get their chance.  Their registry conditions are disjoint
-            // from every stamped hook (pinned by tcl-registry's
-            // analyser-hook drift tests), so running them only on the
-            // hookless path preserves the old chain's order.
+            // (TclOO metaclass create, snit::type/widget, itcl::class) get
+            // their chance, then the tracked-interpreter-handle dispatch
+            // (`sandbox eval { … }`, `cmd_name` never a registry name so it
+            // can never reach a stamped hook the way literal `interp eval`
+            // does).  Their registry/analysis-state conditions are disjoint
+            // from every stamped hook and from each other (pinned by
+            // tcl-registry's analyser-hook drift tests for the registry
+            // ones), so running them only on the hookless path preserves
+            // the old chain's order.
             return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path)
-                || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path);
+                || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path)
+                || self.handle_interp_handle_eval_command(cmd_name, args, arg_tokens, scope_path);
         };
         match hook {
             // Early-return families: the handler owns the whole command
@@ -2195,13 +2200,18 @@ impl Analyser {
     /// create ?-safe? ?--? ?NAME?` at the subcommand level).  The name goes
     /// into [`AnalysisResult::created_instance_commands`] so the W123
     /// unresolved-command pass treats later calls to it as resolved.  Purely
-    /// registry-driven — no command name is matched here.
+    /// registry-driven — no command name is matched here: `idx` is shifted
+    /// past any leading declared option words
+    /// ([`tcl_registry::CommandSpec::leading_option_word_count`] /
+    /// [`tcl_registry::SubCommand::leading_option_word_count`], the same
+    /// declared-option table `interp create`'s own doc comment already names)
+    /// so `interp create -safe NAME` lands `idx` on `NAME`, not `-safe`.
     ///
     /// Conservative by construction: only a plain literal word is recorded (a
-    /// `$var` / `[cmd]` / `%AUTO%` name is runtime-computed), and a word
-    /// starting with `-` at the name index is an option flag (`interp create
-    /// -safe`), never a name — a missing name is auto-generated at run time
-    /// and needs no recording.
+    /// `$var` / `[cmd]` / `%AUTO%` name is runtime-computed), and a word that
+    /// still starts with `-` after the option-word skip is an undeclared or
+    /// ambiguous flag, never a name — a missing name is auto-generated at run
+    /// time and needs no recording.
     fn record_registry_defined_command(&mut self, cmd_name: &str, args: &[String]) {
         let Some(reg) = self.registry else {
             return;
@@ -2209,15 +2219,20 @@ impl Analyser {
         let Some(spec) = reg.get(cmd_name) else {
             return;
         };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         // Command-level index, else the resolved subcommand's index shifted
-        // past the subcommand word itself.
+        // past the subcommand word itself — either way, further shifted past
+        // any leading declared option words the command/subcommand accepts
+        // before its name argument.
         let name_idx = if let Some(idx) = spec.defines_command_at {
-            Some(usize::from(idx))
+            Some(usize::from(idx) + spec.leading_option_word_count(&arg_strs))
         } else {
             args.first()
                 .and_then(|sub| spec.resolve_subcommand(sub))
-                .and_then(|sub| sub.defines_command_at)
-                .map(|idx| usize::from(idx) + 1)
+                .and_then(|sub| {
+                    let idx = usize::from(sub.defines_command_at?) + 1;
+                    Some(idx + sub.leading_option_word_count(arg_strs.get(1..).unwrap_or(&[])))
+                })
         };
         let Some(idx) = name_idx else {
             return;
@@ -2225,7 +2240,16 @@ impl Analyser {
         let Some(name) = args.get(idx) else {
             return;
         };
-        if name.starts_with('-') || !is_plain_created_name(name) {
+        // A word right after a consumed `--` terminator is positional no
+        // matter its shape (Tcl's own convention: `--` means "every later
+        // word is an argument, not an option"), so `interp create -- -safe`
+        // must record `-safe` as the created command rather than treating it
+        // like the undeclared/ambiguous flag it would be without that `--`.
+        let past_double_dash = idx
+            .checked_sub(1)
+            .and_then(|i| arg_strs.get(i))
+            .is_some_and(|&w| w == "--");
+        if (!past_double_dash && name.starts_with('-')) || !is_plain_created_name(name) {
             return;
         }
         self.result.created_instance_commands.insert(name.clone());
@@ -2963,6 +2987,107 @@ mod tests {
             Some("button"),
             "instance_classes: {:?}",
             res.instance_classes
+        );
+    }
+
+    #[test]
+    fn interp_create_safe_with_literal_name_registers_the_command() {
+        // TP — regression for a bug found by differential audit against
+        // docstrip_util.tcl: `interp create -safe NAME` (or `-- NAME`) read
+        // `defines_command_at`'s fixed index straight into the raw sub-args
+        // without skipping the leading option words first, so it landed on
+        // `-safe` itself, saw it start with `-`, and recorded nothing —
+        // leaving every later literal call to `NAME` a false-positive W123.
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("interp create -safe sandbox\n", "tcl9.0");
+        assert!(
+            res.created_instance_commands.contains("sandbox"),
+            "created_instance_commands: {:?}",
+            res.created_instance_commands
+        );
+    }
+
+    #[test]
+    fn interp_create_double_dash_with_literal_name_registers_the_command() {
+        // TP — the `--` option-terminator form of the same idiom.
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("interp create -- sandbox\n", "tcl9.0");
+        assert!(
+            res.created_instance_commands.contains("sandbox"),
+            "created_instance_commands: {:?}",
+            res.created_instance_commands
+        );
+    }
+
+    #[test]
+    fn interp_create_double_dash_with_option_shaped_literal_name_registers_the_command() {
+        // TP — regression for a bug found by Codex review of PR #963:
+        // `leading_option_word_count` kept matching option-shaped words
+        // *after* a `--` terminator, so `interp create -- -safe` (which real
+        // `tclsh9.0` accepts and names the child interpreter literally
+        // `-safe` — verified empirically: `interp create -- -safe` then
+        // `info commands -safe` lists it) wrongly consumed `-safe` too,
+        // as if it were the `-safe` flag rather than the positional name.
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("interp create -- -safe\n", "tcl9.0");
+        assert!(
+            res.created_instance_commands.contains("-safe"),
+            "created_instance_commands: {:?}",
+            res.created_instance_commands
+        );
+    }
+
+    #[test]
+    fn interp_create_safe_and_double_dash_with_literal_name_registers_the_command() {
+        // TP — both option words stacked (`-safe --`), each consumed once.
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("interp create -safe -- sandbox\n", "tcl9.0");
+        assert!(
+            res.created_instance_commands.contains("sandbox"),
+            "created_instance_commands: {:?}",
+            res.created_instance_commands
+        );
+    }
+
+    #[test]
+    fn interp_create_with_no_flags_still_registers_the_command() {
+        // FN guard — the pre-existing, always-worked shape (`interp create
+        // NAME`, no leading options at all) must not regress: with an empty
+        // leading-option skip, `idx` must land exactly where it always did.
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("interp create sandbox\n", "tcl9.0");
+        assert!(
+            res.created_instance_commands.contains("sandbox"),
+            "created_instance_commands: {:?}",
+            res.created_instance_commands
+        );
+    }
+
+    #[test]
+    fn interp_create_safe_with_literal_name_suppresses_w123_on_later_call() {
+        // TP — the user-visible symptom: before the fix, every literal call
+        // to the interpreter's own object command raised a false-positive
+        // W123 "unknown command", since the name was never recorded at all.
+        let src = "interp create -safe sandbox\nsandbox eval {set x 1}\n";
+        assert!(
+            !has_code(src, "tcl9.0", "W123"),
+            "a literal call to a `interp create -safe`-created name must \
+             not raise W123: {:?}",
+            diag_codes(src, "tcl9.0")
+        );
+    }
+
+    #[test]
+    fn interp_create_with_no_name_records_nothing() {
+        // TN — a missing name auto-generates one at run time; there is no
+        // literal text to record, and the (former) `-safe`-as-name misread
+        // must not resurface as some other spurious entry.
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("interp create -safe\n", "tcl9.0");
+        assert!(
+            res.created_instance_commands.is_empty(),
+            "created_instance_commands: {:?}",
+            res.created_instance_commands
         );
     }
 

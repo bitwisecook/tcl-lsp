@@ -257,7 +257,7 @@ class LspClient:
                 break
 
             if "id" in msg and "method" not in msg:
-                # Response to a request
+                # Response to a request this client sent
                 rid = msg["id"]
                 with self._lock:
                     if rid in self._pending:
@@ -268,6 +268,33 @@ class LspClient:
                 # Notification from server
                 with self._lock:
                     self._notifications.append(msg)
+            elif "method" in msg and "id" in msg:
+                # Server-to-client *request* (e.g. `workspace/configuration`,
+                # `client/registerCapability`) — every real editor answers
+                # these, and the server can block on the reply (the native
+                # server's `initialized` handler pulls `tclLsp` config via
+                # `workspace/configuration` before it scans the workspace
+                # folders, so an unanswered request here silently stalls
+                # cross-document indexing, not just the request itself).
+                self._answer_server_request(msg["method"], msg["id"], msg.get("params"))
+
+    def _answer_server_request(
+        self, method: str, request_id: int, params: dict | None
+    ) -> None:
+        """Reply to a server-initiated request the way a real editor would.
+
+        Only `workspace/configuration` needs a meaningful payload (an empty
+        settings object per requested item, so the server falls back to its
+        built-in defaults). Everything else this server sends
+        (`client/registerCapability`, `window/workDoneProgress/create`, …)
+        expects an acknowledgement with a `null` result.
+        """
+        if method == "workspace/configuration":
+            item_count = len((params or {}).get("items", [])) or 1
+            result: Any = [{} for _ in range(item_count)]
+        else:
+            result = None
+        self._send({"jsonrpc": "2.0", "id": request_id, "result": result})
 
     def send_request(self, method: str, params: dict, timeout: float = 30.0) -> Any:
         """Send a request and wait for the response."""

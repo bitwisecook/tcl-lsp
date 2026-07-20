@@ -1,0 +1,1175 @@
+[
+  {
+    "feature": "tricky_indirection",
+    "file": "argparse.tcl",
+    "lineStart": 19,
+    "lineEnd": 34,
+    "snippet": "set validateHelper {apply {{name opt args} {\n    if {[dict exists $opt enum]} {\n        set command [list tcl::prefix match -message \"$name value\"\\\n                             {*}[if {[uplevel 1 {info exists exact}]} {list -exact}] [dict get $opt enum]]\n        set args [lmap arg $args {{*}$command $arg}]\n    } elseif {[dict exists $opt validate]} {\n        foreach arg $args [list if [dict get $opt validate] {} else {\n            if {[dict exists $opt errormsg]} {\n                return -code error -level 2 [subst [dict get $opt errormsg]]\n            } else {\n                return -code error -level 2 \"$name value \\\"$arg\\\" fails [dict get $opt validateMsg]\"\n            }\n        }]\n    }\n    return $args\n}}}",
+    "note": "The 'command' to run is assembled at runtime as a list (tcl::prefix match plus optional -exact flag whose presence is probed with uplevel into the caller frame), stored in a local, then invoked via {*}$command $arg inside an lmap. A static resolver would need to both simulate the [list ...] construction and understand that {*}$command dispatches to tcl::prefix::match, not to anything textually named 'command'.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "argparse.tcl",
+    "lineStart": 100,
+    "lineEnd": 108,
+    "snippet": "        } elseif {$switch ni {enum level pass template validate help helplevel}} {\n            # Process switches with no arguments.\n            set $switch {}\n        } elseif {$i == [llength $args]-1} {\n            return -code error \"-$switch requires an argument\"\n        } else {\n            # Process switches with arguments.\n            set $switch [lindex $args [incr i]]\n        }",
+    "note": "The name of the local variable being created is itself the runtime value of $switch (the result of tcl::prefix-matching a user-supplied global switch like -inline/-keep/-mixed/-pfirst). None of these locals (inline, keep, mixed, pfirst, level, boolean, exact...) appear as literal 'set' targets anywhere in the source, so a textual variable-definition scanner will never discover them; they are only found later via 'info exists <name>' checks scattered through the rest of the proc (e.g. lines 111-121, 383-419).",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "test/arbitaryTest.tcl",
+    "lineStart": 15,
+    "lineEnd": 21,
+    "snippet": "    foreach locVar [info locals] {\n        if {$locVar in $exclude} {\n            continue\n        } else {\n            dict append resultDict $locVar [subst $[subst $locVar]]\n        }\n    }",
+    "note": "Double indirection: [subst $locVar] first expands to the *name* held by locVar, and the outer $[...] then dereferences a variable whose name was just computed - i.e. a runtime-built '$name' dollar-substitution. A resolver that only understands literal $var syntax cannot know which variables this reads without evaluating 'info locals' and the templated proc body together.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "namespaces",
+    "file": "argparse.tcl",
+    "lineStart": 379,
+    "lineEnd": 406,
+    "snippet": "    ####  Build help string\n    if {[info exists help]} {\n        package require textutil::adjust\n        namespace import textutil::adjust::*\n        if {({-help} in $argv) || ([info exists long] && ({--help} in $argv))} {\n            set enumStrBuild {apply {{name opt} {\n                ...\n            }}}\n            set 4spaces {    }\n            set 8spaces {        }\n            if {![info exists helplevel]} {\n                set helplevel 2\n            }\n            if {$help ne {}} {\n                set providedHelp [adjust $help -length 80].\n                lappend description $providedHelp\n            }",
+    "note": "The wildcard 'namespace import textutil::adjust::*' happens conditionally, deep inside a proc body, gated on 'info exists help' (itself a dynamically-created local from the switch-parsing loop above). Every subsequent bare call to 'adjust' and 'indent' later in this same proc (e.g. lines 400, 498, 505, 511) only resolves because this conditional import ran first - a resolver that treats namespace import as file-scope-only, or that doesn't track the guard, will fail to bind those bare names to ::textutil::adjust::adjust/::indent.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "package_loading",
+    "file": "argparse.tcl",
+    "lineStart": 380,
+    "lineEnd": 382,
+    "snippet": "    if {[info exists help]} {\n        package require textutil::adjust\n        namespace import textutil::adjust::*",
+    "note": "textutil::adjust is loaded lazily - only on the -help/help code path of a single proc invocation, not at package-load time. A dependency/require graph built by scanning top-level 'package require' statements would miss this dependency entirely, and a caller that never uses -help never triggers the load, so command availability for 'adjust'/'indent' is call-pattern-dependent.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "rename",
+    "file": "test/arbitaryTest.tcl",
+    "lineStart": 25,
+    "lineEnd": 37,
+    "snippet": "proc testTemplate {testName descr arguments definitionsStr inputStr refStr} {\n    variable templateProcStr\n    test $testName $descr -body {\n        eval [string map [list @definitions@ $definitionsStr @additionalArgs@ $arguments] $templateProcStr]\n        if {[catch {set result [templateProc {*}$inputStr]} errorStr]} {\n            return $errorStr\n        } else {\n            return $result\n        }\n    } -result $refStr -cleanup {\n        rename templateProc {}\n    }\n}",
+    "note": "'templateProc' never exists as a lexical 'proc templateProc' definition anywhere in the file - it is materialized per-test by string-map templating + eval (see the eval finding below), then invoked, then deleted with 'rename templateProc {}'. A resolver that finds proc definitions via textual pattern-matching for 'proc <name>' will never see this proc created, so it can neither validate the later call to it nor the rename-to-delete.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "eval",
+    "file": "test/arbitaryTest.tcl",
+    "lineStart": 5,
+    "lineEnd": 28,
+    "snippet": "const templateProcStr {proc templateProc {args} {\n    set arguments [argparse @additionalArgs@ {\n        @definitions@\n    }]\n    set resultDict {}\n    if {$arguments ne {}} {\n        set exclude {args resultDict exclude}\n    } else {\n        set exclude {args resultDict arguments exclude}\n    }\n    foreach locVar [info locals] {\n        if {$locVar in $exclude} {\n            continue\n        } else {\n            dict append resultDict $locVar [subst $[subst $locVar]]\n        }\n    }\n    return $resultDict\n}}\n\nproc testTemplate {testName descr arguments definitionsStr inputStr refStr} {\n    variable templateProcStr\n    test $testName $descr -body {\n        eval [string map [list @definitions@ $definitionsStr @additionalArgs@ $arguments] $templateProcStr]",
+    "body_continued": "",
+    "note": "The entire proc body of 'templateProc' - including a nested call to 'argparse' whose element-definition list is spliced in from a per-test-case string ($definitionsStr) via @definitions@/@additionalArgs@ placeholders - is built with [string map] and then handed to [eval]. Every 'testTemplate' call in the file (e.g. line 44 onward) produces a textually distinct proc body, so the set of element definitions the inner argparse call sees, and thus which caller-scope variables get set by argparse's own uplevel-based writes, is only knowable by simulating the string-map substitution and then re-parsing the resulting source.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "upvar",
+    "file": "argparse.tcl",
+    "lineStart": 964,
+    "lineEnd": 974,
+    "snippet": "        ####  Process results.\n        dict for {key val} $result {\n            if {[dict exists $upvars $key]} {\n                # If this element uses -upvar, link to the named variable.\n                uplevel 1 [list ::upvar [dict get $def [dict get $upvars $key] level] $val $key]\n            } else {\n                # Store result into caller variables.\n                uplevel 1 [list ::set $key $val]\n            }\n        }",
+    "note": "The level argument to 'upvar' is not a literal - it is [dict get $def [dict get $upvars $key] level], a lookup of the element name that owns output key $key, then a lookup of that element's 'level' option (itself defaulted at line 258-260 from the -level global switch, or overridden per-element with -level). The linked-to caller variable name ($val) and the local alias it's bound to ($key) are equally data-driven, coming from the parsed definition dict. Resolving which caller frame and which variable name any given argparse call actually links requires evaluating the whole definition-list parse, not just this call site.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "uplevel",
+    "file": "argparse.tcl",
+    "lineStart": 71,
+    "lineEnd": 77,
+    "snippet": "            # Extract definition and args from the argument list, pulling from\n            # the caller's args variable if the args parameter is omitted.\n            switch [expr {[llength $args]-$i}] {\n            0 {\n                break\n            } 1 {\n                set definition [lindex $args end]\n                set argv [uplevel 1 {::set args}]\n            } 2 {",
+    "note": "When argparse is called with only a definition list (no explicit argv), it fetches the value of a variable literally named 'args' one stack frame up via 'uplevel 1 {::set args}' - i.e. the *caller's* own 'args' parameter, not argparse's own 'args' parameter (which is a different variable of the same name in a different scope). A resolver that treats 'args' references as always-local, or that doesn't special-case 'uplevel 1 {::set args}' as caller-frame variable access, will misattribute this read.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "argparse.tcl",
+    "lineStart": 629,
+    "lineEnd": 641,
+    "snippet": "            #####   Perform switch name lookup.\n            if {[dict exists $def $name switch]} {\n                # Exact match.  No additional lookup needed.\n            } elseif {![info exists exact] &&\\\n                              ![catch {tcl::prefix match -message switch\\\n                                               [lmap {key data} $def {\n                                                   if {[dict exists $data switch]} {\n                                                       set key\n                                                   } else {\n                                                       continue\n                                                   }\n                                               }] $name\n                              } name]} {",
+    "note": "tcl::prefix::match (fully-qualified into the ::tcl namespace) is called with a candidate list that is itself computed on the fly via an lmap/continue filter over the $def dict (picking only switch-type element names), and the match result is captured back into the same variable 'name' that supplied the input, then reused as the new switch name below. A resolver needs both namespace-qualified command resolution for tcl::prefix and dataflow tracking of the lmap-built argument to know what candidates match() sees.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "source",
+    "file": "test/all_codeCoverage.tcl",
+    "lineStart": 1,
+    "lineEnd": 6,
+    "snippet": "package require tcltest\nnamespace import ::tcltest::*\npackage require argparse\nset currentDir [file normalize [file dirname [info script]]]\nsource [file join $currentDir .. argparse.tcl]\nsource [file join $currentDir argparse.test]",
+    "note": "The script first loads ::argparse via the package system (package require argparse, resolved through pkgIndex/package ifneeded) and then immediately re-sources the raw library file directly from a computed path ([file join $currentDir .. argparse.tcl]), redefining the same ::argparse proc from a second, textually different code path. A definition-provenance resolver that only records the first 'package require' binding will miss that the proc actually in effect afterward is the one from the direct source, not the package-loaded one.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "proc_args",
+    "file": "argparse.tcl",
+    "lineStart": 61,
+    "lineEnd": 83,
+    "snippet": "    for {set i 0} {$i<[llength $args]} {incr i} {\n        if {[catch {regsub {^-} [tcl::prefix match -message switch $globalSwitches [lindex $args $i]] {} switch}\\\n                     errorMsg]} {\n            # Do not allow \"--\" or definition lists nested within the special\n            # empty-string element containing extra overall switches.\n            # Stop after \"--\" or at the first non-switch argument.\n            if {[lindex $args $i] eq {--}} {\n                incr i\n            }\n            # Extract definition and args from the argument list, pulling from\n            # the caller's args variable if the args parameter is omitted.\n            switch [expr {[llength $args]-$i}] {\n            0 {\n                break\n            } 1 {\n                set definition [lindex $args end]\n                set argv [uplevel 1 {::set args}]\n            } 2 {\n                set definition [lindex $args end-1]\n                set argv [lindex $args end]\n            } default {\n                return -code error {too many arguments}\n            }}",
+    "note": "::argparse's own signature is just 'proc ::argparse {args}' - there is no formal parameter for the global switches, the definition list, or the argument vector; all three are carved out of the single 'args' list by hand, keyed off how many trailing elements remain after switch-prefix-matching fails (0/1/2/default cases) and whether a literal '--' was seen. A caller-argument-count checker that only looks at the proc's formal parameter list ('args') cannot express argparse's real, positional-count-dependent arity rules without interpreting this loop.",
+    "corpus": "georgtree_argparse"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "src/ngspice/netlistParserClassNgspice.tcl",
+    "lineStart": 1022,
+    "lineEnd": 1037,
+    "snippet": "set functsDict [dict create pulse {low high td tr tf pw per np} sin {v0 va freq td theta phase}\n                        exp {v1 v2 td1 tau1 td2 tau2} pwl {seq} sffm {v0 va fc mdi fs phasec phases}\n                        am {v0 va mf fc td phases}]\nset nmspPath ${NamespacePath}::Sources\nswitch -- [lindex $lineList 0] {\n    pulse {\n        lappend paramsList {*}[my ParsePosParams [lrange $lineList 1 end] [dict get $functsDict pulse]]\n        return [list ${nmspPath}::[string toupper ${type}]pulse new $elemName $pin1 $pin2 {*}$paramsList]\n    }\n    sin {\n        lappend paramsList {*}[my ParsePosParams [lrange $lineList 1 end] [dict get $functsDict sin]]\n        return [list ${nmspPath}::[string toupper ${type}]sin new $elemName $pin1 $pin2 {*}$paramsList]\n    }\n    exp {\n        lappend paramsList {*}[my ParsePosParams [lrange $lineList 1 end] [dict get $functsDict exp]]\n        return [list ${nmspPath}::[string toupper ${type}]exp new $elemName $pin1 $pin2 {*}$paramsList]\n    }",
+    "note": "The invoked class command is assembled from three runtime pieces: the `NamespacePath` instance variable (`::SpiceGenTcl::Ngspice`), `[string toupper ${type}]` where `type` was set earlier (line 979) to `[string index $elemName 0]` -- the first character of a device name parsed out of an external .cir netlist file -- and a literal suffix like `pulse`/`sin`/`exp`. The concrete target (e.g. `::SpiceGenTcl::Ngspice::Sources::Vpulse`) never appears as a literal string anywhere in the source; it only exists after the parser has actually read a netlist file at runtime, so no static grep for 'Vpulse new' will find this call site.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 2850,
+    "lineEnd": 2874,
+    "snippet": "if {$firstChar eq {.}} {\n    set restChars [string tolower $restChars]\n    if {$restChars in $dots} {\n        if {$restChars eq {model}} {\n            ##nagelfar ignore Non static subcommand\n            set modelCommands [my [dict get $DotsMethods $restChars] $line]\n            if {[llength $modelCommands]==2} {\n                lappend netlist [lindex $modelCommands 0]\n                lappend netlist [lindex $modelCommands 1]\n            } else {\n                ##nagelfar ignore Non static subcommand\n                lappend netlist [my [dict get $DotsMethods $restChars] $line]\n            }\n        } else {\n            ##nagelfar ignore Non static subcommand\n            lappend netlist [my [dict get $DotsMethods $restChars] $line]\n        }\n    } ...\n} elseif {[string match {[a-z]} $firstChar]} {\n    if {$firstChar in $elems} {\n        ##nagelfar ignore Non static subcommand\n        lappend netlist [my [dict get $ElemsMethods $firstChar] $line]\n    } ...\n}",
+    "note": "`ElemsMethods`/`DotsMethods` are dicts (built in the NgspiceParser constructor, a different file) mapping a single parsed character/keyword to a TclOO method name; the method to invoke is picked with `my [dict get $ElemsMethods $firstChar] $line`, so the method name is itself a dict-lookup result, not a literal. The codebase's own static checker (nagelfar) cannot resolve this either -- note the `##nagelfar ignore Non static subcommand` annotations the authors had to add by hand at every call site.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 2809,
+    "lineEnd": 2822,
+    "snippet": "if {![info exists noeval]} {\n    foreach element $topDefinitions {\n        # check the netlist string for presence of class definition\n        if {$element eq {}} {\n            continue\n        }\n        if {[regexp {^oo::class\\s+(\\S+)} $element]} {\n            # noqa: W301\n            uplevel 1 $element\n        } else {\n            $topNetlist add [{*}$element]\n        }\n    }\n}",
+    "note": "`$element` is a fully-formed command+args list built earlier by string templating (e.g. `[list [string totitle $subName] new]`); `[{*}$element]` expands and invokes it directly with no literal command name anywhere at the call site -- the callee is 100% data computed from parsing an external netlist file at runtime.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "tclOO",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 76,
+    "lineEnd": 90,
+    "snippet": "oo::configurable create SPICEElement {\n    self mixin -append oo::abstract\n    # Abstract class of all elements of SPICE netlist\n    variable name\n    method genSPICEString {} {\n        error {Not implemented}\n    }\n}\n\noo::class create Utility {\n    self mixin -append oo::abstract\n    method ParamsProcess {paramsOrder arguments params} {\n        upvar $params paramsLoc\n        ...",
+    "note": "`self mixin -append oo::abstract` runs inside the class body and calls `oo::objdefine`'s `self`-forwarded `mixin` on the class object being defined, retroactively making the class (not its instances) abstract. A resolver that only looks for `oo::class create ... { ... superclass/mixin ... }` keywords at the top level will miss that `SPICEElement`'s own metaclass is being mutated via `self`, which changes what `SPICEElement create` (vs `new`) is even allowed to do.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "tclOO",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 342,
+    "lineEnd": 374,
+    "snippet": "oo::configurable create Parameter {\n    superclass ParameterSwitch\n    property value\n    constructor {args} {\n        set arguments [argparse -inline -help {...} {\n            {name -help {Name of the parameter}}\n            {value -help {Value of the parameter}}\n        }]\n        dict for {elName elValue} $arguments {\n            my configure -$elName $elValue\n        }\n    }\n    method genSPICEString {} {\n        return [my configure -name]=[my configure -value]\n    }\n}\noo::define Parameter {\n    variable value\n    method <WriteProp-value> val {\n        if {[regexp {^([+-]?\\d*(\\.\\d+)?([eE][+-]?\\d+)?)(f|p|n|u|m|k|g|t|meg)?([a-zA-Z]*)$} $val]} {\n            set value [string tolower $val]\n        } else {\n            return -code error \"Value '$val' is not a valid value\"\n        }\n    }\n}",
+    "note": "`<WriteProp-value>` is a magic method name from Tcl 9's oo property/configure machinery (TIP 558): it is the implicit setter invoked whenever `-value` is configured, but it is defined in a *second*, separate `oo::define Parameter { ... }` block appended after the class body, and it is never called by that literal name anywhere else in the source. A naive resolver sees an unreferenced method with an unusual bracketed name and would miss that it is silently wired to every `my configure -value ...` / `$obj configure -value ...` call.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "tclOO",
+    "file": "src/specAnalysesClassesCommon.tcl",
+    "lineStart": 26,
+    "lineEnd": 58,
+    "snippet": "oo::class create Dc {\n    superclass ::SpiceGenTcl::Analysis\n    mixin ::SpiceGenTcl::Utility\n    constructor {args} {\n        set arguments [argparse -inline -help {...} {\n            {-name= -help {Name argument}}\n            {-src= -required -help {...}}\n            {-start= -required -help {Start value}}\n            {-stop= -required -help {Stop value}}\n            {-incr= -required -help {Incrementing value}}\n        }]\n        my NameProcess $arguments [self object]\n        lappend params [list -posnocheck src [dict get $arguments src]]\n        set paramsOrder {start stop incr}\n        my ParamsProcess $paramsOrder $arguments params\n        ##nagelfar variable name\n        next dc $params -name $name\n    }\n}",
+    "note": "`Dc` is defined in this file but both its superclass `::SpiceGenTcl::Analysis` and its mixin `::SpiceGenTcl::Utility` live in generalClasses.tcl; `my NameProcess` is resolved through the mixin (not the superclass chain) via TclOO's linearization, and it silently defines the local `name` used two lines later at `next dc $params -name $name` through an `upvar` inside the mixin method -- `name` is never `set` in this constructor's own body. The `##nagelfar variable name` comment is the authors manually suppressing their own static checker's false positive about an apparently-undefined variable.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "namespaces",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 17,
+    "lineEnd": 74,
+    "snippet": "namespace eval ::SpiceGenTcl {\n    namespace export Pin ParameterSwitch Parameter ... Function\n    namespace export importNgspice importXyce importCommon importLtspice forgetNgspice forgetXyce forgetCommon\\\n            forgetLtspice\n\n    proc importCommon {} {\n        # Imports all `::SpiceGenTcl::Common` commands to caller namespace\n        uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Common] {\n            namespace import ${nameSpc}::*\n        }}\n    }\n    proc forgetCommon {} {\n        uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Common] {\n            namespace forget ${nameSpc}::*\n        }}\n    }\n    proc importNgspice {} {\n        uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Ngspice] {\n            namespace import ${nameSpc}::*\n        }}\n    }\n    ...",
+    "note": "`importCommon`/`importNgspice`/etc. don't import a fixed namespace list -- they `uplevel 1` a `foreach` over `[namespace children ::SpiceGenTcl::Ngspice]`, which is only populated because other files (specElementsClassesNgspice.tcl, specAnalysesClassesNgspice.tcl, ...) each ran their own `namespace eval ::SpiceGenTcl::Ngspice::X { ... }` earlier. Which commands actually become visible in a user script that calls `importNgspice` depends on source order and cannot be determined by reading this proc alone; it requires unioning `namespace export` lists across every ngspice source file.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "namespaces",
+    "file": "src/xyce/specElementsClassesXyce.tcl",
+    "lineStart": 17,
+    "lineEnd": 32,
+    "snippet": "namespace eval ::SpiceGenTcl {\n    namespace eval Xyce::BasicDevices {\n        namespace export Resistor R Capacitor C Inductor L SubcircuitInstance X SubcircuitInstanceAuto XAuto VSwitch\\\n                VSw CSwitch W GenSwitch GenS\n    }\n    namespace eval Xyce::Sources {\n        namespace export Vdc Idc Vac Iac Vpulse Ipulse Vsin Isin Vexp Iexp Vpwl Ipwl Vsffm Isffm Vccs G Vcvs E Cccs F\\\n                Ccvs H BehaviouralSource B\n    }\n    namespace eval Xyce::SemiconductorDevices {\n        namespace export Diode D Bjt Q BjtSub QSub BjtSubTj QSubTj Jfet J Mesfet Z Mosfet M\n    }\n}\n\n\nnamespace eval ::SpiceGenTcl::Xyce::BasicDevices {\n\n    oo::class create Resistor {",
+    "note": "The relative `namespace eval Xyce::BasicDevices { namespace export ... }` inside the outer `::SpiceGenTcl` eval pre-declares the export list of `::SpiceGenTcl::Xyce::BasicDevices` (creating it as an *empty* namespace), and the class bodies that actually populate it are added afterwards via a completely separate, fully-qualified `namespace eval ::SpiceGenTcl::Xyce::BasicDevices { oo::class create Resistor ... }` block. A resolver must merge two textually disjoint `namespace eval` blocks (one relative-nested, one absolute) to know both what is exported and what is defined.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "rename",
+    "file": "test/testUtilities.tcl",
+    "lineStart": 28,
+    "lineEnd": 73,
+    "snippet": "proc stdout2var {var} { \n    set level [info level]\n    if {[string length [info commands putsorig]]==0} { \n        rename ::puts ::putsorig\n    } \n    eval [subst -nocommands {proc ::puts {args} { \n        set fd stdout \n        switch -exact -- [llength \\$args] {\n            1 { set fd stdout } \n            2 { if {![string equal \"-nonewline\" [lindex \\$args 0]]} { set fd [lindex \\$args 0] } }\n            3 { set fd [lindex \\$args 1] }\n            default { error \\\"to many or too few args...\\\" } \n        }\n        if {[string equal \"stdout\" \\$fd ]} {\n            set message [lindex \\$args end]\n            uplevel [expr {[info level]-$level+1}] set $var \\\\\\\"\\$message\\\\\\\"\n        } else {\n            eval ::putsorig \\$args \n        }\n    }}]\n} \n\nproc restorestdout { } {\n    if {[string length [info commands putsorig]]!=0} { \n        rename ::puts {}\n        rename ::putsorig ::puts \n    } \n}",
+    "note": "Classic rename-wrap-restore shim over a builtin: `::puts` is renamed to `::putsorig`, then a brand-new `::puts` is defined via `eval [subst ...]` of a proc-definition string (so the replacement proc body is only visible after substitution, not as literal proc source), and `restorestdout` deletes the wrapper with `rename ::puts {}` before restoring the original with `rename ::putsorig ::puts`. Any static caller of `puts` in code that runs between `stdout2var` and `restorestdout` is actually calling this dynamically-generated wrapper, not the builtin.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "aliasing",
+    "file": "test/codeCoverage.tcl",
+    "lineStart": 17,
+    "lineEnd": 22,
+    "snippet": "interp alias {} dict get {} dict get\ninterp alias {} @ {} lindex\ninterp alias {} = {} expr\ninterp alias {} dict exists {} dict exists\ninterp alias {} dict create {} dict create\ninterp alias {} dict set {} dict set",
+    "note": "`interp alias {} @ {} lindex` and `interp alias {} = {} expr` create brand-new top-level commands named `@` and `=` (non-identifier-looking symbols) that alias to `lindex`/`expr` in the same interpreter, purely so the coverage-instrumented sources (which apparently call `@ ...` / `= ...`) resolve. A lexer treating `@`/`=` as punctuation rather than command words, or a resolver that doesn't special-case `interp alias {} <name> {} <target>` (empty src/dst interp = same interp), will fail to connect calls to `@`/`=` back to `lindex`/`expr`.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "upvar",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 89,
+    "lineEnd": 125,
+    "snippet": "oo::class create Utility {\n    self mixin -append oo::abstract\n    method ParamsProcess {paramsOrder arguments params} {\n        upvar $params paramsLoc\n        ...\n    }\n    method ParamsProcessM {paramsOrder arguments params} {\n        upvar $params paramsLoc\n        ...\n    }\n    method NameProcess {arguments object} {\n        upvar name name\n        ##nagelfar ignore #2 {Found constant \"name\"}\n        if {[dict exists $arguments name]} {\n            set name [dict get $arguments name]\n        } else {\n            set name $object\n        }\n    }",
+    "note": "Two distinct tricky upvar shapes in the same mixin: `upvar $params paramsLoc` links to a caller-frame variable whose *name* is only known by evaluating the `params` parameter's value at the call site (every real caller happens to pass the literal word `params`, e.g. `my ParamsProcess $paramsOrder $arguments params`, but that's a convention, not something visible from this method alone). `upvar name name` in `NameProcess` links directly into whichever constructor mixed this class in and calls `my NameProcess`, silently creating/overwriting a `name` local there even though `NameProcess`'s own body never mentions the constructors that use it.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "uplevel",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 2787,
+    "lineEnd": 2799,
+    "snippet": "my BuildSubcktFromDef $node\nif {[$SubcktsTree parent $node] eq {/}} {\n    set definition [$SubcktsTree get $node definition]\n    lappend definitions $definition\n    if {![info exists noeval]} {\n        uplevel 1 $definition\n    }\n    set definition [list [string totitle [file tail $node]] new]\n    lappend definitions $definition\n    if {![info exists noeval]} {\n        $topNetlist add [eval {*}$definition]\n    }\n}",
+    "note": "`$definition` holds a whole `oo::class create <Name> { superclass ...; constructor {} {...} }` script that was built earlier via `string map` substitution into a template (see `SubcircuitTemplate`, lines 2611-2620). `uplevel 1 $definition` splices this generated class definition directly into the caller's stack frame (the script that invoked `buildTopNetlist`, e.g. an examples/*.tcl file), so the resulting class exists in whatever namespace the caller happens to be in -- it is not declared anywhere lexically in this file or reachable by following `source`/`namespace eval` statically.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "eval",
+    "file": "test/testUtilities.tcl",
+    "lineStart": 33,
+    "lineEnd": 63,
+    "snippet": "if {[string length [info commands putsorig]]==0} { \n    rename ::puts ::putsorig\n} \neval [subst -nocommands {proc ::puts {args} { \n    ...\n    if {[string equal \"stdout\" \\$fd ]} {\n        set message [lindex \\$args end]\n        uplevel [expr {[info level]-$level+1}] set $var \\\\\\\"\\$message\\\\\\\"\n    } else {\n        eval ::putsorig \\$args \n    }\n}}]",
+    "note": "The replacement `::puts` proc's *source text* is produced by `subst -nocommands` on a doubly-escaped brace-quoted template (mixing literal `\\$` for the generated proc's runtime variables with unescaped `$var`/`$level` for values captured from `stdout2var`'s own frame at definition time), then handed to `eval`. A resolver must simulate `subst`'s escaping rules to know that `$var` and `$level` are baked in as constants at eval-time while `\\$args`, `\\$fd`, `\\$message` become the generated proc's own live parameters -- textually they look identical.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "SpiceGenTcl.tcl",
+    "lineStart": 17,
+    "lineEnd": 24,
+    "snippet": "package require Tcl 9.0-\npackage require textutil::split\npackage require struct::tree\npackage require struct::list\npackage require csv\npackage require argparse\npackage require tclmeasure\nnamespace import ::tcl::mathop::*",
+    "note": "This `namespace import ::tcl::mathop::*` executes at global scope in the package's bootstrap file, injecting bare-word commands like `+`, `-`, `*` into the *global* namespace. Every file `source`d afterward (generalClasses.tcl, all the spec*Classes*.tcl files) can then call e.g. `[+ $i 1]` (see src/generalClasses.tcl:2356) as if it were a builtin operator; nothing at the use site indicates these are imported commands rather than a language operator, and the import statement is many files away from any given call site.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "package_loading",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 2175,
+    "lineEnd": 2241,
+    "snippet": "set arguments [argparse -inline -help {Creates 'RawFile' object} {\n    {path -help {...}}\n    {traces2read -optional -default * -help {...}}\n    {simulator -optional -default ngspice -help {...}}\n    {-shared= -help {Handle to shared simulator instance}}\n    {-legacy -forbid shared -help {Use legacy backend for file reading}}\n}]\nif {[dict exists $arguments shared]} {\n    package require ngspicetclbridge\n    set simHandle [dict get $arguments shared]\n    ...\n} elseif {![dict exists $arguments legacy]} {\n    package require tclsimrawreader\n    ...\n}",
+    "note": "`RawFile`'s constructor conditionally `package require`s either `ngspicetclbridge` or `tclsimrawreader` (or neither, if `-legacy` is given) depending purely on which `argparse` switches the caller passed at runtime. Whether the package is ever loaded -- and hence whether `::ngspicetclbridge::readVecsAsync` etc. resolve to real commands -- is a data-flow question through argparse's dict, not something visible from a top-of-file `package require` scan.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "source",
+    "file": "test/all_codeCoverage.tcl",
+    "lineStart": 17,
+    "lineEnd": 27,
+    "snippet": "package require tcltest\nnamespace import ::tcltest::*\nset testDir [file normalize [file dirname [info script]]]\nsource [file join $testDir .. SpiceGenTcl.tcl]\nset testFiles [glob *.test]\nlappend testFiles {*}[glob ${testDir}/ngspice/*.test]\nlappend testFiles {*}[glob ${testDir}/ltspice/*.test]\nlappend testFiles {*}[glob ${testDir}/xyce/*.test]\nforeach file $testFiles {\n    source $file\n}",
+    "note": "The set of files passed to `source` is the runtime result of four `glob` calls over the filesystem, not a fixed list in the source text -- a static resolver has to actually enumerate the `test/`, `test/ngspice/`, `test/ltspice/`, `test/xyce/` directories (which exist outside the corpus's .tcl files) to know what `source $file` will load on any given run.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "proc_args",
+    "file": "src/generalClasses.tcl",
+    "lineStart": 150,
+    "lineEnd": 202,
+    "snippet": "method ArgsPreprocess {switchesNames paramsNames suppHelpElems args} {\n    foreach switchName $switchesNames {\n        if {[llength $switchName]>1} {\n            if {[lindex $switchName 0] ni $suppHelpElems} {\n                lappend paramDefList -[join $switchName |]=\n            } else {\n                lappend paramDefList  \"\\{-[join $switchName |]= -hsuppress\\}\"\n            }\n        } else {\n            ...\n        }\n    }\n    ...\n    set paramDefStr [join $paramDefList \\n]\n    set arguments [argparse -helplevel 3 -inline -help {} -pfirst \"\n        $paramDefStr\n    \" $args]\n    ...\n    return [list {*}[dict values $argsOrdered] $switches]\n}",
+    "note": "`ArgsPreprocess` takes a variadic `args` plus `switchesNames`/`paramsNames` lists, and *builds the argparse specification string itself* (`$paramDefStr`) at runtime from those lists before calling `argparse $paramDefStr $args`. Every subclass constructor calls this as `next {*}[my ArgsPreprocess {defw narrow r rsh ...} {name type} type {*}[linsert $args 1 r]]` (see src/xyce/specModelsClassesXyce.tcl:32) -- so the actual set of valid `-flag` options accepted by a given device's constructor is only determined by evaluating this method with that device's specific `switchesNames` list, not by reading any single argparse call.",
+    "corpus": "georgtree_SpiceGenTcl"
+  },
+  {
+    "feature": "namespaces",
+    "file": "tclopt.tcl",
+    "lineStart": 1,
+    "lineEnd": 28,
+    "snippet": "package require argparse\npackage require control\npackage require extexpr\nnamespace import ::control::*\npackage provide tclopt 0.3\n\nnamespace eval tcl::mathfunc {\n    proc llength {list} {\n        # Wraps `llength` command into expr function\n        ::llength $list\n    }\n    proc lindex {list index args} {\n        # Wraps `lindex` command into expr function\n        ::lindex $list $index {*}$args\n    }\n    proc li {list index args} {\n        # Wraps `lindex` command into expr function\n        ::lindex $list $index {*}$args\n    }\n    proc lrange {list first last} {\n        # Wraps `lrange` command into expr function\n        ::lrange $list $first $last\n    }\n}\n\nnamespace eval ::tclopt {\n    namespace import ::tcl::mathop::*\n    namespace export Parameter ParameterMpfit Mpfit DE GSA LBFGS",
+    "note": "`namespace import ::control::*` (line 4) runs at *global* scope, before package provide and before any `namespace eval` block. Because of that single import, every `do {...} while {...}` post-condition loop deep inside method bodies of `oo::configurable create ::tclopt::DE {...}` (e.g. tclopt.tcl:2128-2213) is really a 3-argument call to the imported `::control::do` command, not a language keyword; a resolver that only tracks explicit `namespace eval` regions for scoping (rather than file-level imports that precede any namespace declaration) will misclassify `do`/`while` there. Separately, `::tclopt` exports only 6 of its ~8 public classes -- `Optimization` and `DuplChecker` are deliberately left off the export list -- so `namespace import ::tclopt::*` (used throughout examples/ and test/) makes `Parameter`/`Mpfit`/`DE`/etc. resolve unqualified while `::tclopt::Optimization` still needs full qualification even after the same import.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "tclopt.tcl",
+    "lineStart": 908,
+    "lineEnd": 933,
+    "snippet": "        for {set i 0} {$i<$npar} {incr i} {\n            lappend qllim 0\n            lappend qulim 0\n            lappend llim 0\n            lappend ulim 0\n        }\n        for {set i 0} {$i<$nfree} {incr i} {\n            set par [lindex $pars [lindex $ifree $i]]\n            if {[catch {$par configure -lowlim}]} {\n                lset qllim $i 0\n                lset llim $i 0\n            } else {\n                lset qllim $i 1\n                lset llim $i [$par configure -lowlim]\n            }\n            if {[catch {$par configure -uplim}]} {\n                lset qulim $i 0\n                lset ulim $i 0\n            } else {\n                lset qulim $i 1\n                lset ulim $i [$par configure -uplim]\n            }\n            if {li($qllim,$i) || li($qulim,$i)} {\n                set qanylim true\n            }\n        }",
+    "note": "`li($qllim,$i)` looks like an array-style index or an ordinary command, but `li` is a user-defined mathfunc: it's installed as `proc li {...}` inside `namespace eval tcl::mathfunc {...}` at the very top of this same file (tclopt.tcl:16-19) as an alias for `lindex`. `expr`'s own parser (invoked implicitly by the `if {...}` condition) is what dispatches `li(...)` to `::tcl::mathfunc::li` -- a plain lexical/command-table resolver that doesn't special-case expr-function syntax inside `if`/`while`/`expr` argument words will never connect this call site back to its definition, and this exact call form (`li($list,$idx)`) recurs hundreds of times across the file's numerical core (Mpfit/DE/GSA run methods).",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "tclopt.tcl",
+    "lineStart": 76,
+    "lineEnd": 99,
+    "snippet": "proc ::tclopt::List2array {list {type double}} {\n    # Create and initialize doubleArray object from the list\n    #  list - list of values\n    #  type - type of array, double or int\n    # Returns: array object\n    set length [llength $list]\n    if {$type ni {double int}} {\n        return -code error \"Type '$type' must be int or double\"\n    }\n    set a [::tclopt::new_${type}Array $length]\n    for {set i 0} {$i<$length} {incr i} {\n        set iElem [lindex $list $i]\n        try {\n            ::tclopt::${type}Array_setitem $a $i $iElem\n        } on error {errmsg erropts} {\n            if {[dict get $erropts -errorcode] eq {SWIG TypeError}} {\n                return -code error \"List must contains only $type elements, but get '$iElem'\"\n            } else {\n                return -code error \"Array creation failed with message '$errmsg' and opts '$erropts'\"\n            }\n        }\n    }\n    return $a\n}",
+    "note": "The commands actually invoked (`::tclopt::new_doubleArray`/`::tclopt::new_intArray`, `::tclopt::doubleArray_setitem`/`::tclopt::intArray_setitem`) are SWIG-generated C commands whose full name only exists after interpolating the runtime `$type` parameter; there is no literal `::tclopt::new_${type}Array` definition anywhere to find textually, so a resolver must enumerate the `double`/`int` instantiations to link the call. Bonus trap: this exact proc is defined a second time, verbatim, later in the same file at tclopt.tcl:154-177 -- a naive one-definition-per-name index would either flag a spurious duplicate-definition error or silently pick the wrong one as canonical (the second definition is the one that actually wins at runtime).",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "tclopt.tcl",
+    "lineStart": 944,
+    "lineEnd": 951,
+    "snippet": "        set ldfjac $m\n        # Evaluate user function with initial parameter values\n        set fvec [dict get [{*}$funct $xall $pdata] fvec]\n        if {[llength $fvec]!=$m} {\n            return -code error \"Length of list '[llength $fvec]' returned from the function is less than m '$m' value\"\n        }\n        incr nfev\n        set fnorm [my Enorm $fvec]",
+    "note": "`funct` is an ordinary TclOO object variable holding *the name of another command as a string*, set via the `-funct` configure option at construction time (e.g. `Mpfit new -funct gaussfunc ...` in test/arbitaryTest.tcl:110, or `DE new -funct fRosenbrock ...` in examples/diffEvolution_Rozenbrock.tcl:48). It is only ever invoked here as `{*}$funct $xall $pdata`, so no static text in this file ever spells out a call like `gaussfunc $xall $pdata`. Worse, the callee can be a proc defined transiently inside a tcltest `-setup` block (test/arbitaryTest.tcl:46-56, `proc gaussfunc {...}`) and then deleted with `rename gaussfunc \"\"` in the matching `-cleanup` block (test/arbitaryTest.tcl:113) -- so the same bareword `gaussfunc` is a valid command only for the lifetime of one test, and a whole-program symbol table built once would get it wrong before/after that window.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "test/arbitaryTest.tcl",
+    "lineStart": 117,
+    "lineEnd": 122,
+    "snippet": "test GSAClassTest-9 {test procedure of optimization with debug info} -constraints {isOptimization isGSA} -setup {\n    set pdata {}\n    for {set i 0} {$i<2} {incr i} {\n        lappend pars [Parameter new x$i 0.0 -lowlim -5.12 -uplim 5.12]\n    }\n    set optimizer [GSA new -funct fRastrigin -pdata $pdata -seed 1 -threshold 1e-6 -debug -refresh 5]",
+    "note": "`fRastrigin` is passed here as a bare string, but its `proc` definition lives in an entirely different file, test/benchmarkFuncs.tcl, which is pulled in only via `source [file join $dir benchmarkFuncs.tcl]` near the top of this test file (arbitaryTest.tcl:8). A resolver would need to (1) follow the computed `source` path to benchmarkFuncs.tcl, (2) find the unrelated top-level `proc fRastrigin {x pdata} {...}` there, and (3) know that `GSA`'s `-funct` option feeds the string into `{*}$funct` inside tclopt.tcl's `run` method (tclopt.tcl:2296 etc.) -- three files and two layers of indirection between definition and use, with nothing at the call site itself naming `tclopt.tcl`.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "tclOO",
+    "file": "tclopt.tcl",
+    "lineStart": 254,
+    "lineEnd": 272,
+    "snippet": "oo::configurable create ::tclopt::DuplChecker {\n    self mixin -append oo::abstract\n    method duplListCheck {list} {\n        # Checks if list contains duplicates.\n        #  list - list to check\n        # Returns: 0 if there are no duplicates and 1 if there are.\n        set itemDup {}\n        set new {}\n        foreach item $list {\n            if {[lsearch $new $item] < 0} {\n                lappend new $item\n            } else {\n                set itemDup $item\n                break\n            }\n        }\n        return $itemDup\n    }\n}",
+    "note": "`self mixin -append oo::abstract` operates on the class object itself (not instances), marking `DuplChecker` non-instantiable directly. `DuplChecker` is never subclassed -- it exists purely to be mixed into `::tclopt::Optimization` via `mixin ::tclopt::DuplChecker` (tclopt.tcl:504), so `duplListCheck` is only reachable on `Mpfit`/`DE`/`GSA`/`LBFGS` instances through a mixin-then-superclass chain (DuplChecker mixed into Optimization, which all four algorithm classes `superclass`), never through a `superclass` link to DuplChecker itself.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "tclOO",
+    "file": "tclopt.tcl",
+    "lineStart": 553,
+    "lineEnd": 577,
+    "snippet": "    method addPars {args} {\n        argparse -help {Attaches parameters to optimizer object} {\n            {params -catchall -help {References to objects of class '::tclopt::ParameterMpfit'}}\n        }\n        foreach arg $params {\n            set argClass [info object class $arg]\n            if {$argClass ni {::tclopt::ParameterMpfit ::tclopt::Parameter}} {\n                return -code error \"Only ::tclopt::ParameterMpfit or ::tclopt::Parameter could be added to optimizer,\\\n                        '$argClass' was provided\"\n            }\n            lappend parsNamesList [$arg configure -name]\n        }\n        if {[info exists Pars]} {\n            lappend parsNamesList {*}[my getAllParsNames]\n        }\n        set dup [my duplListCheck $parsNamesList]\n        if {$dup ne {}} {\n            return -code error \"Optimizer already contains parameter with name '$dup'\"\n        }\n        foreach arg $params {\n            set parName [$arg configure -name]\n            dict append Pars $parName $arg\n        }\n        return\n    }\n}",
+    "note": "`my duplListCheck` (line 568) is a method call on `self`, but `duplListCheck` is not defined anywhere in `::tclopt::Optimization` (this class) -- it only exists because `mixin ::tclopt::DuplChecker` was declared 65 lines earlier at the top of this same `oo::configurable create ::tclopt::Optimization {...}` body (tclopt.tcl:504). A resolver must walk the class's mixin list, not just its `superclass` chain, to find the method; `info object class $arg` (line 558) is itself a further layer of runtime type introspection used to validate that the argument passed via the argparse `-catchall` spec is one of two specific classes.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "tclOO",
+    "file": "tclopt.tcl",
+    "lineStart": 1644,
+    "lineEnd": 1652,
+    "snippet": "    property strategy -set {\n        classvariable availableStrategies\n        if {$value in $availableStrategies} {\n            set strategy $value\n            return\n        } else {\n            return -code error \"Strategy '$value' is not in the list of availible strategies '$availableStrategies'\"\n        }\n    }",
+    "note": "This `property ... -set` script body runs as an implicit setter method, and `classvariable availableStrategies` links it to a per-class (not per-object) variable that is neither a normal `variable` nor visible anywhere near this code -- it is created almost 300 lines later inside the class's special `initialize {}` block: `variable availableStrategies; const availableStrategies {best/1/exp ...}` (tclopt.tcl:1937-1939). A resolver has to know that `initialize` is a Tcl 9 `oo::define`/`oo::configurable` class-body keyword that runs once at class-creation time to populate class variables, and that `classvariable` inside a property setter reaches into that same class-scoped storage, not the enclosing object's instance variables.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "proc_args",
+    "file": "tclopt.tcl",
+    "lineStart": 477,
+    "lineEnd": 501,
+    "snippet": "        my configure -side [dict get $arguments side]\n        if {[dict exists $arguments step]} {\n            my configure -step [dict get $arguments step]\n        }\n        if {[dict exists $arguments relstep]} {\n            my configure -relstep [dict get $arguments relstep]\n        }\n        my configure -debugder [dict get $arguments debugder]\n        if {[dict get $arguments debugder]} {\n            my configure -derivreltol [dict get $arguments debugreltol]\n            my configure -derivabstol [dict get $arguments debugabstol]\n        }\n        set params {}\n        if {[dict get $arguments fixed]} {\n            set fixed 1\n        } else {\n            set fixed 0\n        }\n        dict for {paramName value} $arguments {\n            if {$paramName ni {name initval side step relstep debugder debugreltol debugabstol fixed}} {\n                lappend params -$paramName $value\n            }\n        }\n        next [dict get $arguments name] [dict get $arguments initval] {*}$params\n    }\n}",
+    "note": "This is the tail of `ParameterMpfit`'s `constructor {args}`, whose real parameter set (name, initval, -lowlim, -uplim, ...) is declared only inside a third-party `argparse` spec 30+ lines earlier (tclopt.tcl:444-476), not in the proc's own `{args}` header. The set of options ultimately forwarded to the superclass constructor via `next ... {*}$params` (line 500) is computed by filtering the argparse result dict against a hardcoded exclusion list (`ni {name initval side ...}`) -- so which named parameters `::tclopt::Parameter`'s constructor actually receives depends on runtime dict contents that can only be known by evaluating both the argparse spec and this filter, not by reading either constructor signature alone.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "uplevel",
+    "file": "tclopt.tcl",
+    "lineStart": 57,
+    "lineEnd": 74,
+    "snippet": "proc ::tclopt::NewArrays {varNames lengths {type double}} {\n    # Creates doubleArray objects, and set these objects to variables\n    #  varNames - list of variables names\n    #  lengths - list of doubleArray's lengths\n    #  type - type of array, double or int\n    # Returns: variables with doubleArray objects are set in caller's scope\n    if {$type ni {double int}} {\n        return -code error \"Type '$type' must be int or double\"\n    }\n    if {[llength $varNames]!=[llength $lengths]} {\n        error \"Length of varName list '[llength $varNames]' must be equal to length of lengths list\\\n                '[llength $lengths]'\"\n    }\n    foreach varName $varNames length $lengths {\n        uplevel 1 [list set $varName [::tclopt::new_${type}Array $length]]\n    }\n    return\n}",
+    "return": null,
+    "note": "`uplevel 1 [list set $varName ...]` writes into the *caller's* frame, but `$varName` is itself just an element of a list argument (`varNames`), so which caller-scope variables actually get created is invisible from the proc's own signature -- it depends entirely on the list a given call site passes. The same `uplevel 1 [list set $varName ...]` idiom, with the target name always taken from a caller-supplied list rather than a literal, is repeated four more times in this file for the sibling helpers `Lists2arrays` (line 114), `Array2list`/`Arrays2lists` (line 150), `NewPointers` (line 225) and `GetPointersValues` (line 211), each also layering in the `${type}` computed-command-name trick from the tricky_indirection examples above.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "rename",
+    "file": "test/arbitaryTest.tcl",
+    "lineStart": 44,
+    "lineEnd": 56,
+    "snippet": "test MpfitClassTest-4 {test procedure of optimization of gaussian function without constraints}\\\n        -constraints {isOptimization isMpfit} -setup {\n    proc gaussfunc {xall pdata args} {\n        set x [dget $pdata x]\n        set y [dget $pdata y]\n        set ey [dget $pdata ey]\n        set sig2 [= {[@ $xall 3]*[@ $xall 3]}]\n        foreach xVal $x yVal $y eyVal $ey {\n            set xc [= {$xVal-[@ $xall 2]}]\n            lappend fvec [= {($yVal-[@ $xall 1]*exp(-0.5*$xc*$xc/$sig2)-[@ $xall 0])/$eyVal}]\n        }\n        return [dcreate fvec $fvec]\n    }",
+    "note": "`gaussfunc` is defined dynamically inside a tcltest `-setup` script (only executed while this specific test body runs) and is torn down again with `rename gaussfunc \"\"` in the matching `-cleanup` block at test/arbitaryTest.tcl:113. Outside the window between -setup and -cleanup, `gaussfunc` does not exist as a command at all; a whole-file or whole-project symbol index that treats `proc gaussfunc {...}` as a permanent global definition (as it would for a top-level proc) will report it as always-defined, missing both that its scope is test-local and that it is explicitly deleted afterward via `rename ... \"\"`.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "namespaces",
+    "file": "docs/doc_gen.tcl",
+    "lineStart": 77,
+    "lineEnd": 91,
+    "snippet": "set specialPages [list tclopt-examples]\nforeach namespacePath $namespaces {\n    set tails [list]\n    while {$namespacePath ne {}} {\n        set tail [string tolower [namespace tail $namespacePath]]\n        regsub -all {\\s+} [string trim $tail] {-} tail\n        set namespacePath [namespace qualifiers $namespacePath]\n        lappend tails $tail\n    }\n    lappend tails [string tolower tclopt]\n    set manFileName [join [lreverse $tails] -]\n    if {$manFileName ni $specialPages} {\n        lappend manFilesLinks \"${manFileName}(n)\"\n    }\n}",
+    "note": "Here `namespace tail`/`namespace qualifiers` are used purely as string-splitting utilities to walk a namespace path component-by-component and build man-page file names -- there is no actual namespace lookup or command resolution happening, just repeated peeling of the rightmost/leftmost segment off `::tclopt` style strings via a `while {$namespacePath ne {}}` loop. A resolver that treats every `namespace ...` subcommand as command/variable-resolution machinery (rather than recognizing `tail`/`qualifiers`/`children`/`parent` as pure string ops on an arbitrary string argument, not necessarily a live namespace) would misinterpret this loop's purpose entirely.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "source",
+    "file": "test/all_codeCoverage.tcl",
+    "lineStart": 1,
+    "lineEnd": 7,
+    "snippet": "package require tcltest\nnamespace import ::tcltest::*\nset dir [file normalize [file dirname [info script]]]\n\nload [file join $dir .. libtcl9tclopt0.2.so]\nsource [file join $dir .. tclopt.tcl]\nsource [file join $dir test.test]",
+    "note": "Two chained, computed `source` targets: `tclopt.tcl` is sourced relative to `[file dirname [info script]]/..`, then `test.test` is sourced relative to the same directory -- and `test.test` itself immediately does `source [file join $dir benchmarkFuncs.tcl]` relative to *its own* `[info script]` directory (test/arbitaryTest.tcl:8 has the analogous line for that sibling test file). None of these paths are literal string constants anywhere; a path-based static resolver has to evaluate `file dirname`/`file join`/`info script` at each of the three source sites to discover that `benchmarkFuncs.tcl`'s top-level procs end up visible from code that never mentions that filename.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "package_loading",
+    "file": "pkgIndex.tcl.in",
+    "lineStart": 1,
+    "lineEnd": 11,
+    "snippet": "# -*- tcl -*-\n# Tcl package index file, version 1.1\n#\n\nif {[package vsatisfies [package provide Tcl] 9.0-]} {\n    package ifneeded @PACKAGE_NAME@ @PACKAGE_VERSION@ \"[list load [file join $dir @PKG_LIB_FILE9@]];\\\n        [list source [file join $dir tclopt.tcl]]\"\n} else {\n    package ifneeded @PACKAGE_NAME@ @PACKAGE_VERSION@ \"[list load [file join $dir @PKG_LIB_FILE8@]];\\\n        [list source [file join $dir tclopt.tcl]]\"\n}",
+    "note": "The `package ifneeded` script body is itself built at pkgIndex-eval time from nested `[list ...]` calls, and which shared library gets `load`ed (`@PKG_LIB_FILE9@` vs `@PKG_LIB_FILE8@`, substituted by the build's configure step) depends on a runtime `package vsatisfies [package provide Tcl] 9.0-` check -- so the same package name/version can resolve to two different `load`+`source` sequences depending on which Tcl the pkgIndex is being evaluated by, and the deferred script itself (the `ifneeded` body) is a *string*, not literal Tcl source, until `package require tclopt` actually triggers it.",
+    "corpus": "georgtree_tclopt (Tcl/TclOO wrapper for C optimisation routines: MPFIT/Levenberg-Marquardt, Differential Evolution, Generalized Simulated Annealing, L-BFGS)"
+  },
+  {
+    "feature": "namespaces",
+    "file": "etypes.tcl",
+    "lineStart": 4,
+    "lineEnd": 8,
+    "snippet": "namespace eval ticklecharts {\n    namespace ensemble create -command ::new -subcommands {\n        elist elist.n elist.s elist.o elist.d edict estr estruct\n    }\n}",
+    "note": "Builds the global ::new ensemble with no -map, so each subcommand implicitly resolves to a same-named command inside the *current* namespace (::ticklecharts) at dispatch time. None of ticklecharts::elist, elist.n, edict, estr, estruct exist yet at this point in the file -- they are generated ~45 lines later by a separate `foreach ptype {...} { proc ticklecharts::${ptype} ... }` loop (etypes.tcl:50-82) and by later `proc ticklecharts::edict`/`estr`/`estruct` definitions. A resolver that doesn't simulate ensemble auto-mapping plus the later dynamic proc-creation loop will see `new elist {...}` calls all over the codebase as calls to an unresolved/undefined command.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "namespaces",
+    "file": "dataset.tcl",
+    "lineStart": 16,
+    "lineEnd": 40,
+    "snippet": "oo::class create ticklecharts::dataset {\n    variable _dataset\n    variable _dimension\n\n    constructor {value} {\n        set _dimension \"nothing\"\n\n        # https://stackoverflow.com/questions/16131296/the-real-namespace-of-a-class\n        set ns [namespace qualifiers [self class]]\n\n        if {![ticklecharts::isListOfList $value]} {\n            set value [list $value]\n        }\n\n        foreach line [split [lindex [info class constructor [self class]] 1] \"\\n\"] {\n            if {[string match {*-minversion [0-9]*} $line]} {\n                ${ns}::setdef options -[lindex $line 2] -minversion {} -validvalue {} -type null -default \"nothing\"\n            }\n        }\n        ...",
+    "note": "The command actually invoked is `${ns}::setdef`, where `$ns` is computed at runtime via `namespace qualifiers [self class]` (yields ::ticklecharts). Nothing in this file spells out `ticklecharts::setdef` literally, so any resolver that only looks for lexical `ns::cmd` tokens will miss the call entirely; it must evaluate `[self class]` in a TclOO constructor context and then apply `namespace qualifiers` string semantics.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "rename",
+    "file": "ehuddle.tcl",
+    "lineStart": 394,
+    "lineEnd": 419,
+    "snippet": "            # JsonDump\n            rename ::huddle::jsondump \"\" ; # delete proc\n            rename critJsonDump ::huddle::jsondump\n            # RetrieveHuddle\n            rename ::huddle::retrieve_huddle \"\" ; # delete proc\n            rename critRetrieveHuddle ::huddle::retrieve_huddle\n            # IsHuddle\n            rename ::huddle::isHuddle \"\" ; # delete proc\n            rename critIsHuddle ::isHuddle\n            # huddle list\n            rename ::huddle::types::list::List \"\" ; # delete proc\n            rename critHList ::huddle::types::list::List\n\n            # ehuddle procedures :\n            rename ehuddleListMap \"\" ; # delete proc\n            rename critHuddleListMap ehuddleListMap\n            rename ehuddleListInsert \"\" ; # delete proc\n            rename critHuddleListInsert ehuddleListInsert\n\n            proc eHuddleCritcl {bool} {\n                # Procedure already activated.\n                puts stderr \"'ticklecharts::eHuddleCritcl' procedure\\\n                             is already activated.\"\n            }",
+    "note": "Deletes builtin/library procs (some, like ::huddle::jsondump, from the external `huddle` package which isn't even in this repo) via `rename X {}`, then splices in critcl-compiled replacements (critJsonDump etc., defined in a conditionally-sourced ehuddlecrit.tcl) into their old names. Note line 402 renames critIsHuddle to ::isHuddle (global), not ::huddle::isHuddle like the deleted original -- an asymmetric rename target a naive rename-pair heuristic would get wrong. The final unqualified `proc eHuddleCritcl {bool} {...}` (no ticklecharts:: prefix) actually redefines ::ticklecharts::eHuddleCritcl itself as a self-guard against re-entry, because proc bodies execute with 'current namespace' = the namespace the enclosing proc was defined in; a lexical resolver would misread it as declaring a new global proc.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "source",
+    "file": "ehuddle.tcl",
+    "lineStart": 380,
+    "lineEnd": 393,
+    "snippet": "proc ticklecharts::eHuddleCritcl {bool} {\n    variable edir\n\n    if {$bool} {\n        if {![catch {\n            uplevel 1 [list source [file join $edir ehuddlecrit.tcl]]\n        } infocrit]\n        } {",
+    "note": "The source path is computed from the package-level `edir` namespace variable (itself derived from [info script] in ticklecharts.tcl) and the source call is conditional on a caller-supplied boolean, so whether/when ehuddlecrit.tcl (which defines critJsonDump, critHList, etc.) gets sourced at all is only knowable by running the program. It is also wrapped in `uplevel 1`, so the sourced file's top-level commands execute in the stack frame of eHuddleCritcl's *caller*, not of eHuddleCritcl itself -- relevant if that caller is itself inside a namespace eval block.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tracing",
+    "file": "etrace.tcl",
+    "lineStart": 567,
+    "lineEnd": 589,
+    "snippet": "namespace eval ticklecharts {\n    proc EVMIN    {} {return \"5.0.0\"}\n    proc GLVMIN   {} {return \"2.0.0\"}\n    proc GMAPVMIN {} {return \"1.5.0\"}\n    proc WCVMIN   {} {return \"2.0.0\"}\n\n    trace add variable echarts_version read [list ticklecharts::readEchartsVersion [EVMIN]    $echarts_version]\n    trace add variable gl_version      read [list ticklecharts::readEchartsVersion [GLVMIN]   $gl_version]\n    ...\n    trace add variable echarts_version write [list ticklecharts::traceEchartsVersion   [EVMIN]    $echarts_version]\n    trace add variable gl_version      write [list ticklecharts::traceEchartsGLVersion [GLVMIN]   $gl_version]\n    ...\n    trace add variable keyGMAPI        write [list ticklecharts::traceKeyGMAPI]\n}",
+    "note": "Each trace command list is partially applied with a value computed at namespace-eval time ([EVMIN] etc.), and the handler procs (traceEchartsVersion, readEchartsVersion, ...) are defined earlier in the same file but only ever invoked through these trace callbacks -- there is no direct call site to find via ordinary call-graph search. readEchartsVersion additionally removes its own read-trace on first firing (etrace.tcl:186-188), so the set of active traces changes at runtime.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tracing",
+    "file": "etsb.tcl",
+    "lineStart": 103,
+    "lineEnd": 122,
+    "snippet": "                foreach cmd $tracecmds {\n                    set mapv [string map {_ \"\"} $e_version]\n                    if {[string match -nocase *$mapv $cmd]} {\n\n                        set vinfo [lindex [trace vinfo ticklecharts::$e_version] 0 1]\n                        trace remove variable ticklecharts::$e_version write [list {*}$vinfo]\n\n                        proc ${cmd}_tsb {args} [subst {\n                            set ::ticklecharts::$e_version [set ::ticklecharts::$e_version]\n                            puts stderr \"Variable '::ticklecharts::$e_version' can not be changed...\\\n                                        Not supported with 'Taygete Scrap Book'\"\n                        }]\n\n                        trace add variable ticklecharts::$e_version write [list ${cmd}_tsb]\n                        break\n                    }\n                }",
+    "note": "`$tracecmds` comes from `info commands ::ticklecharts::trace*` (reflection over already-loaded command names), the write trace installed in etrace.tcl is removed using its own introspected `trace vinfo` value, and a brand-new proc named by string concatenation `${cmd}_tsb` is generated via `proc ... [subst {...}]` and immediately wired up as the replacement write-trace handler. Every step -- which command gets replaced, the new proc's name, and its body -- is constructed at runtime; nothing named `*_tsb` exists anywhere as a literal identifier in the source.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "utils.tcl",
+    "lineStart": 1058,
+    "lineEnd": 1082,
+    "snippet": "proc ticklecharts::procDefaultValue {proc key} {\n    set myProc [split [info body ticklecharts::$proc] \\n]\n\n    if {[set lineProc [lsearch $myProc *$key*]] > -1} {\n        set opts [lindex $myProc $lineProc]\n        if {[set d [lsearch -exact $opts -default]] > -1} {\n            set value [lindex $opts $d+1]\n            # Special case when default value is an variable.\n            if {[string range $value 0 0] eq \"$\"} {\n                set var   [string range $value 1 end]\n                set value [uplevel 1 [list set $var]]\n            }\n            return $value\n        }\n    }\n\n    return {}\n}",
+    "note": "Resolves a proc name from an argument (`ticklecharts::$proc`), then textually greps that OTHER proc's source body (via `info body`) for a line mentioning `$key` and a `-default` token, extracts the following list element as a candidate variable name, and if it looks like `$foo` fetches `foo`'s value from the immediate caller's frame with `uplevel 1 [list set $var]`. The variable actually read is discovered by parsing Tcl source text as data at runtime -- completely opaque to any analysis that doesn't itself interpret the target proc's body the same way.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "huddle_patch.tcl",
+    "lineStart": 64,
+    "lineEnd": 69,
+    "snippet": "            default {\n                # patch...\n                lassign [huddle unwrap $huddle_object] tag _src\n                return [$types(callback:$tag) jsondump $huddle_object $offset $newline $nextoff]\n            }",
+    "note": "This is inside a redefinition of the external `::huddle::jsondump` proc (guarded by `package present huddle == 0.3`, huddle_patch.tcl:1-3). The command actually invoked, `$types(callback:$tag)`, is looked up from an array (`variable types`, part of huddle's own type registry, populated by `huddle::addType` calls such as the ones in ehuddle.tcl) keyed by a tag string extracted from the huddle value itself -- e.g. the 'jsf' tag registered by ticklecharts's own ::huddle::types::jsfunc namespace in ehuddle.tcl. The callable is neither a literal command name nor derivable without tracing huddle::addType registrations across files.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "esnap.tcl",
+    "lineStart": 200,
+    "lineEnd": 203,
+    "snippet": "            set f [open \"|$cmd 2>@1\" r]\n            fconfigure $f -blocking 0\n            fileevent $f readable [callback ReadBrowser $f]\n            vwait [my varname browser]",
+    "note": "`callback` is not a Tcl builtin here (only added natively in Tcl 8.7+); it is the custom `::oo::Helpers::callback` proc injected in utils.tcl (see the tclOO finding), which returns `[list [namespace which my] Method {*}args]`. The actual command stored as a fileevent handler is the fully-qualified object command (something like ::oo::Obj42) resolved from `my` at the moment `callback` runs inside this TclOO method -- a string a static resolver can only get by knowing `my`'s per-object binding, not by reading esnap.tcl in isolation.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "chart.tcl",
+    "lineStart": 1050,
+    "lineEnd": 1065,
+    "snippet": "            default              {\n                set lb [ticklecharts::classDef [self class] [self method]]\n                set series {}\n                foreach line [split $lb \"\\n\"] {\n                    set line [string trim $line]\n                    if {[regexp {\\\"([a-zA-Z]+)\\\"\\s+(\\{my|-)} $line -> case]} {\n                        lappend series $case\n                    }\n                }\n                set series [lsort -dictionary $series]\n                ...\n                error \"wrong # args: First argument for '[self method]' method should\\\n                       be (case sensitive): '$series' instead of '[lindex $args 0]'\"\n            }",
+    "note": "`ticklecharts::classDef` wraps `info class definition $name $method` (utils.tcl:276-284); this branch of the Add method reflects on its OWN method body's source text (`[self class] [self method]`, i.e. this very switch statement) to regex out the quoted case labels (barSeries, lineSeries, ...) and build the error message's list of valid series names. The set of valid strings therefore only exists as data extracted from live source text, not as a table anywhere in the code.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tclOO",
+    "file": "chart3D.tcl",
+    "lineStart": 6,
+    "lineEnd": 16,
+    "snippet": "oo::class create ticklecharts::chart3D {\n    variable _h            ; # huddle\n    variable _options      ; # list options chart3D\n    variable _opts_global  ; # list global options chart\n    variable _dataset      ; # dataset chart3D\n    variable _trace        ; # trace properties chart\n    variable _jschartvar   ; # js variable chart\n\n    # See 'chart' class for further details on arguments.\n    constructor {*}[info class constructor \"ticklecharts::chart\"]\n}",
+    "note": "chart3D's constructor is not written in this file at all: `[info class constructor \"ticklecharts::chart\"]` reflects on the (unrelated, non-inherited) ticklecharts::chart class defined in chart.tcl, returning a {params body} pair that is `{*}`-expanded as this class's own constructor. Any reference resolution inside that constructor body (e.g. calls to ticklecharts::setTheme, uses of _opts_global) must be traced back to chart.tcl even though chart3D does not subclass chart and the body is physically absent from chart3D.tcl.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tclOO",
+    "file": "dataset.tcl",
+    "lineStart": 34,
+    "lineEnd": 40,
+    "snippet": "        foreach line [split [lindex [info class constructor [self class]] 1] \"\\n\"] {\n            if {[string match {*-minversion [0-9]*} $line]} {\n                # Adds minus sign to key to control\n                ${ns}::setdef options -[lindex $line 2] -minversion {} -validvalue {} -type null -default \"nothing\"\n            }\n        }",
+    "note": "The dataset constructor introspects its OWN body (`info class constructor [self class]`, self-referential) at construction time, scans its own later lines for `-minversion N` patterns, and registers additional option definitions from what it finds -- a form of runtime self-modification/self-reading that makes 'what options does dataset accept' undecidable from a single top-to-bottom read of the constructor body.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tclOO",
+    "file": "etsb.tcl",
+    "lineStart": 129,
+    "lineEnd": 241,
+    "snippet": "    # Define a new method 'RenderTsb' for\n    # all ticklecharts classes.\n    foreach class {\n        ticklecharts::chart ticklecharts::chart3D\n        ticklecharts::Gridlayout ticklecharts::timeline\n        } {\n        oo::define $class {\n            method RenderTsb {args} {\n                ...\n            }\n\n            # export new method\n            export RenderTsb\n            # unexport method(s)\n            unexport toJSON Render toHTML\n        }\n    }",
+    "note": "Injects a new method into four independently-defined, non-inheritance-related classes via a foreach over a variable holding class names, and also unexports toJSON/Render/toHTML on each -- so the public method surface of ticklecharts::chart etc. differs between a build where etsb.tcl's guard (`[namespace exists ::tsb]`) is true and one where it's false. The same monkey-patch-4-classes-in-a-loop idiom recurs for RenderJupyter (ejupyter.tcl:23-94) and SnapShot (esnap.tcl:7-537), each independently and conditionally executed.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "tclOO",
+    "file": "utils.tcl",
+    "lineStart": 1285,
+    "lineEnd": 1307,
+    "snippet": "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    set vs [list $name $name]\n\n    tailcall namespace upvar $ns {*}$vs\n\n    return {}\n}\n\nif {[ticklecharts::vCompare [package present Tcl] 8.7] < 0} {\n    proc ::oo::Helpers::callback {method args} {\n        list [uplevel 1 {namespace which my}] $method {*}$args\n    }\n}",
+    "note": "Adds two new commands directly into the ::oo::Helpers namespace, which is on the namespace path inside every TclOO method body -- so `classvar foo` and `callback Bar $x` become available as bare, unqualified commands throughout chart.tcl/chart3D.tcl/esnap.tcl method bodies (used ~20+ times, e.g. chart.tcl:373 `classvar indexxAxis`) without any import statement visible at those call sites. classvar itself calls `my getONSClass` (a per-class TclOO method) via uplevel to get the target namespace, then tailcalls `namespace upvar` with a dynamically built variable-name pair.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "upvar",
+    "file": "etypes.tcl",
+    "lineStart": 347,
+    "lineEnd": 363,
+    "snippet": "proc ticklecharts::estruct {name value {type \"struct.d\"}} {\n    if {![ticklecharts::isDict $value]} {\n        error \"wrong # args: Should be a dict\\\n               representation.\"\n    }\n\n    upvar 1 $name obj\n    set obj [ticklecharts::eStruct new $name $value $type]\n\n    return {}\n}",
+    "note": "The proc's own first parameter `name` supplies the variable NAME to bind via `upvar 1 $name obj`, then writes the new eStruct object reference into it -- so a call like `estruct mystruct {...}` implicitly creates/overwrites a variable called `mystruct` in the caller's scope, with no `set` visible at the call site. A resolver treating `estruct` as an ordinary value-returning call would miss that it's actually an out-parameter mutator.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "upvar",
+    "file": "layout.tcl",
+    "lineStart": 514,
+    "lineEnd": 533,
+    "snippet": "proc ticklecharts::gridlayoutHasDataSetObj {dts} {\n    upvar 1 $dts dataset\n\n    foreach obj [concat [ticklecharts::listNs] \"::\"] {\n        if {[ticklecharts::isGridlayoutClass $obj]} {\n            if {[$obj dataset] ne \"\"} {\n                set dataset [$obj dataset]\n                return 1\n            }\n        }\n    }\n\n    return 0\n}",
+    "note": "Called from inside a TclOO constructor as `ticklecharts::gridlayoutHasDataSetObj dataset` (chart.tcl:28) where `dataset` is not yet declared -- the upvar-based side effect is how the constructor's local `dataset` variable gets populated, conditional on a runtime scan of ALL live namespaces (`listNs`, a recursive `namespace children` walk) looking for an existing Gridlayout object instance.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "upvar",
+    "file": "utils.tcl",
+    "lineStart": 415,
+    "lineEnd": 448,
+    "snippet": "proc ticklecharts::setdef {d key args} {\n    variable echarts_version\n    variable wc_version\n    variable gmap_version\n\n    upvar 1 $d _dict\n\n    set versionLib $echarts_version ; set trace no\n\n    foreach {k value} $args {\n        switch -exact -- $k {\n            -minWCversion {set minversion $value ; set versionLib $wc_version}\n            -minGMversion {set minversion $value ; set versionLib $gmap_version}\n            -minversion   {set minversion $value}\n            -validvalue   {set validvalue $value}\n            -type         {set type       $value}\n            -trace        {set trace      $value}\n            -default      {set default    $value}\n            default       {error \"Unknown key '$k' specified\"}\n        }\n    }\n\n    dict set _dict $key [list $default $type $validvalue $minversion $versionLib $trace]\n}",
+    "note": "The dict-name-as-first-argument-then-upvar pattern (`setdef options ...`, hundreds of call sites across options.tcl/global_options.tcl/dataset.tcl) means `options` is silently created/mutated in the caller by name, never `set` or `dict set` visibly at the call site. Some -keys (e.g. -trace) have local defaults set outside the foreach and are only overridden if present in `args`, so which of the six list slots actually vary per call site cannot be told without evaluating the full keyword set.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "uplevel",
+    "file": "options.tcl",
+    "lineStart": 508,
+    "lineEnd": 517,
+    "snippet": "proc ticklecharts::indicatorItem {value} {\n\n    # Both properties are supported.\n    set key [ticklecharts::itemKey {-indicatoritem -indicatorItem} $value]\n\n    if {$key eq \"\"} {\n        set levelP [uplevel 1 {ticklecharts::getLevelProperties [info level]}]\n        error \"Key property '-indicatoritem' or '-indicatorItem'\\\n               not defined for $levelP\"\n    }",
+    "note": "`uplevel 1 {ticklecharts::getLevelProperties [info level]}` runs `[info level]` in the CALLER's stack frame (not indicatorItem's own), so the level number and the resulting call-stack-derived property path (getTraceLevelProperties-style logic, walking `info level $i` for each enclosing frame) describe the caller's position in the option-builder call chain, not this proc's. Error messages built this way name a 'property' that depends entirely on dynamic call depth.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "uplevel",
+    "file": "utils.tcl",
+    "lineStart": 1184,
+    "lineEnd": 1211,
+    "snippet": "proc ticklecharts::errorEvenArgs {{k \"nothing\"}} {\n    set level  [uplevel 1 {info level}]\n    set levelP [ticklecharts::getLevelProperties $level]\n\n    set msg \"wrong # args: item list for\\\n            '$levelP' must have an even number of elements.\"\n\n    if {$k ne \"nothing\"} {\n        ...\n    }\n\n    return -level [info level] -code error $msg\n}",
+    "note": "Captures the caller's stack level via `uplevel 1 {info level}` to compute a human-readable 'which option builder failed' message, then re-raises using `-level [info level]` (this proc's OWN level, not the uplevel'd one) so the error appears to originate further up the stack. Combining these two different level readings correctly requires modelling two distinct stack-frame numberings simultaneously.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "proc_args",
+    "file": "etrace.tcl",
+    "lineStart": 4,
+    "lineEnd": 12,
+    "snippet": "proc ticklecharts::traceEchartsVersion {minversion baseversion args} {\n    # Changes the script Echarts version variable.\n    #\n    # minversion   - minimum version\n    # baseversion  - current version\n    # args         - not used.\n    #\n    # Returns nothing.\n    variable escript ; variable echarts_version\n    variable checkURL",
+    "note": "`args` here isn't for variadic user input -- it exists purely to absorb the (name1, name2, op) triplet that Tcl's trace machinery appends automatically when it invokes a `write`-trace command prefix (see etrace.tcl:584, `trace add variable echarts_version write [list ticklecharts::traceEchartsVersion [EVMIN] $echarts_version]`). The proc's real arity (2 meaningful params) is invisible without knowing the trace calling convention that supplies the rest.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "proc_args",
+    "file": "chart.tcl",
+    "lineStart": 1006,
+    "lineEnd": 1026,
+    "snippet": "    method Add {args} {\n        # The first argument takes the name of the series to be added\n        # By example to add a line series, you should write like this :\n        # > $chart Add \"lineSeries\" -data ...\n        #\n        # Returns nothing\n\n        if {[llength [lrange $args 1 end]] % 2} {\n            error \"wrong # args: [self] Add '[lindex $args 0]'\\\n                   method must have an even number of elements.\"\n        }\n\n        switch -exact -- [lindex $args 0] {\n            \"barSeries\"          {my AddBarSeries           {*}[lrange $args 1 end]}\n            \"lineSeries\"         {my AddLineSeries          {*}[lrange $args 1 end]}",
+    "note": "A single variadic `args` is manually split into a positional dispatch key (`[lindex $args 0]`) and an even-length keyword-value tail (`[lrange $args 1 end]`) whose arity is validated by hand rather than via the formal parameter list; the dispatch key then selects which of ~20 real methods (AddBarSeries, AddLineSeries, ...) actually receives the tail via `{*}`-expansion, so the effective signature of `Add` depends on its own first argument's value.",
+    "corpus": "nico-robert_ticklecharts"
+  },
+  {
+    "feature": "namespaces",
+    "file": "docs/pixdoc.tcl",
+    "lineStart": 136,
+    "lineEnd": 257,
+    "snippet": "foreach dirName {\n    src src src src src src {src core}\n    } name {\n    context paint image svg paths font pixutils\n    } {\n    ...\n    if {$name eq \"pixutils\"} {\n        set _file [file join [file dirname [info script]] utils.ruff]\n    } else {\n        set _file [file join [file dirname [info script]] $name.ruff]\n    }\n    ...\n    } elseif {$name eq \"paths\"} {\n        set ns \"path\"\n    ...\n    } else {\n        set ns $name\n    }\n    puts $fp \"# File generated by pixdoc.tcl\"\n    if {$name eq \"pixutils\"} {\n        puts $fp \"namespace eval ::pix {\n            variable _ruff_preamble $preamble\n        }\"\n    } else {\n        puts $fp \"namespace eval ::pix {\n            namespace eval $ns {\n                # Ruff documentation\n                variable _ruff_preamble $preamble\n            }\n        }\"\n    }",
+    "note": "The child-namespace name written into each generated .ruff file is a loop variable ($ns) that is either equal to $name or remapped (e.g. name 'paths' becomes namespace 'path', 'image'->'img' via ctx/ns table not shown here) or entirely suppressed (the 'pixutils' branch skips the inner namespace eval and writes straight into ::pix); a static resolver following only the literal 'namespace eval $ns' text cannot know which namespace is actually created without evaluating the preceding if/elseif chain that assigns $ns per iteration.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "namespaces",
+    "file": "docs/color.ruff",
+    "lineStart": 1,
+    "lineEnd": 4,
+    "snippet": "namespace eval pix::color {\n    # Ruff documentation\n    variable _ruff_preamble {\n* The following color formats can be used:",
+    "note": "This file declares the pix::color namespace with a *relative* (non ::-prefixed) qualifier, while the sibling generated file docs/utils.ruff independently populates the very same namespace purely by defining procs with qualified names (proc pix::color::rgba {...}, proc pix::color::hsl {...}, etc., also relative, see docs/utils.ruff:90-197) with no namespace eval wrapper at all. A resolver must merge two files that never reference each other, using two different relative-qualifier mechanisms (namespace eval vs. implicit-creation-via-qualified-proc-name), to conclude both define ::pix::color.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "namespaces",
+    "file": "docs/pixdoc.tcl",
+    "lineStart": 447,
+    "lineEnd": 481,
+    "snippet": "foreach name {examples color changes pix context paint image svg paths font utils} {\n    source [file join [file dirname [info script]] $name.ruff]\n}\n...\n# Generate docs\n::ruff::document \"::examples ::changes ::pix [namespace children ::pix]\" \\\n                 -title \"pix ${version}: Reference Manual\" \\",
+    "note": "The set of namespaces passed to ::ruff::document is not written literally anywhere; it is produced by [namespace children ::pix] evaluated only after all eleven .ruff files have been sourced (each of which may or may not have created a child of ::pix, per the previous finding). Static name resolution here requires simulating the entire preceding source sequence's side effects on the namespace tree, not just parsing this one line.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "proc_args",
+    "file": "docs/svg.ruff",
+    "lineStart": 8,
+    "lineEnd": 8,
+    "snippet": "proc pix::svg::parse {svg {size {SVGviewbox}} {opts {}}} {",
+    "note": "The proc is defined directly under a fully-qualified (relative) name pix::svg::parse with no enclosing 'namespace eval' block at this point in the file -- Tcl auto-creates ::pix and ::pix::svg on the fly from the qualified proc name -- and two of its three parameters are optional with bracketed default values ({size {SVGviewbox}}, {opts {}}); a resolver that expects namespace membership to come only from lexical nesting will misplace this proc, and one that naively splits the default-value token on braces can mis-parse the nested-brace default 'SVGviewbox'.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "proc_args",
+    "file": "test/data_b64.test",
+    "lineStart": 8,
+    "lineEnd": 20,
+    "snippet": "proc isEqual {obj b64} {\n    global env tolComp\n\n    if {![info exists tolComp]} {\n        set tolComp 0.01\n    }\n\n    if {[string match *ctx* $obj]} {\n        set ctxinfo [pix::ctx::get $obj]\n        set img [dict get $ctxinfo image addr]\n    } elseif {[string match *img* $obj]} {\n        set img $obj\n    } else {",
+    "note": "isEqual takes only two formal parameters (obj, b64) but effectively has a third, optional, caller-controlled input: the global 'tolComp' tolerance, pulled in via 'global' and given a fallback only if not already set by some earlier/outer scope. Any analysis that models proc inputs solely from the parameter list will miss that behavior (and thus dataflow) depends on whichever caller happened to 'set tolComp' at global scope before invoking this proc.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "docs/pixdoc.tcl",
+    "lineStart": 334,
+    "lineEnd": 348,
+    "snippet": "foreach {file_name var} {\n    blur.tcl image gradient.tcl image heart.tcl image image_tiled.tcl image\n    line.tcl ctx masking.tcl image rounded_rectangle.tcl ctx shadow.tcl image\n    square.tcl ctx text_spans.tcl image text.tcl image tiger.tcl image\n} {\n    set ex [parseExample [file join $dirpix examples $file_name]]\n    source [file join $dirpix examples $file_name]\n    set bin [pix::toBinary [set $var]]\n    set b64 [binary encode base64 $bin]\n    puts $fp \"#### $file_name\"\n    ...\n    destroy .l1\n}",
+    "note": "Each loop iteration sources a different, unrelated example script (e.g. examples/blur.tcl) purely for the global variable it leaves behind ('image' or 'ctx'), then reads that variable by name via double indirection '[set $var]' where $var itself alternates per-iteration from a flat pairs-list. Resolving the value read at 'set $var' requires tracking both which literal ('image' vs 'ctx') the current loop iteration bound to $var AND which sourced file most recently assigned that global -- no direct lexical reference to 'image' or 'ctx' exists at the read site.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "docs/pixdoc.tcl",
+    "lineStart": 136,
+    "lineEnd": 145,
+    "snippet": "foreach dirName {\n    src src src src src src {src core}\n    } name {\n    context paint image svg paths font pixutils\n    } {\n\n    # Reads source file\n    set fp [open [file join $dirpix {*}$dirName $name.nim]]",
+    "note": "dirName is a scalar (\"src\") on six iterations but a two-element list (\"{src core}\") on the last (paired with name=pixutils); {*}$dirName expands to a variable number of path segments inside [file join], so the effective path is src/$name.nim for six iterations and src/core/pixutils.nim for the seventh -- the argument count to 'file join' is only knowable by evaluating the parallel foreach lists together, not by looking at the {*}-expansion site in isolation.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "source",
+    "file": "test/test_context.test",
+    "lineStart": 9,
+    "lineEnd": 9,
+    "snippet": "source [file join [file dirname [info script]] data_b64.test]",
+    "note": "The same relative-path 'source data_b64.test' line is repeated verbatim across five sibling test files (test_context.test, test_fonts.test, test_images.test, test_paints.test, test_paths.test); the procs it injects (isEqual, getbase64, used pervasively afterward as bare unqualified calls) are never declared or imported by name at the call sites, so a resolver must special-case '[info script]'-relative sourcing to find where isEqual actually lives.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "package_loading",
+    "file": "pkgIndex.tcl",
+    "lineStart": 4,
+    "lineEnd": 29,
+    "snippet": "package ifneeded pix 0.8 [list apply {dir {\n    package require platform\n\n    # Check Tcl version.\n    set version [expr {\n        [package vsatisfies [package provide Tcl] 9.0-] ? 9 : 8\n    }]\n\n    set os  [platform::generic]\n    set ext [info sharedlibextension]\n    set pixv 0.8\n\n    switch -exact -- $os {\n        macosx-x86_64 - macos-x86_64 -\n        macosx-arm    - macos-arm -\n        linux-x86_64 {set lib [format {lib%spix%s%s} $version $pixv $ext]}\n        win32-x86_64 {set lib [format {pix%s-%s%s} $version $pixv $ext]}\n        default      {error \"'$os' not supported for 'pix' package.\"}\n    }\n    set os [string map {macos- macosx-} $os]\n    load [file join $dir $os $lib] Pix\n\n}} $dir]",
+    "note": "The command that actually satisfies 'package require pix' is an anonymous lambda built with [list apply {...} $dir] rather than a named proc, and inside it the shared-library filename is assembled at load time via [format] from the detected platform, Tcl major version (8 vs 9, itself derived from [package vsatisfies]), and hard-coded package version -- so the actual .so/.dll path passed to [load], and the fact that this apply body is where all of pix's C-level commands (pix::ctx::*, pix::img::*, ...) actually originate, cannot be recovered by static text search.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "autoindex",
+    "file": "examples/blur.tcl",
+    "lineStart": 8,
+    "lineEnd": 8,
+    "snippet": "lappend auto_path [file dirname [file dirname [file dirname [info script]]]]",
+    "note": "This exact 'lappend auto_path [file dirname [file dirname [file dirname [info script]]]]' line is repeated near-identically in every example and test file in the repo; the auto_path entry it adds (and hence where the subsequent 'package require pix' finds pkgIndex.tcl) is a location computed relative to each file's own path three directories up, so whether 'package require pix' resolves to the repo-local pkgIndex.tcl or a globally-installed one depends on where on disk the sourcing file sits, not on anything written in the require statement itself.",
+    "corpus": "pix (nico-robert/pix)"
+  },
+  {
+    "feature": "namespaces",
+    "file": "test/Vector3dTests.tcl",
+    "lineStart": 1,
+    "lineEnd": 19,
+    "snippet": "lappend auto_path [file dirname [file dirname [info script]]]\n\npackage require tomato\npackage require tcltest\n\nnamespace import ::tcltest::*\nnamespace path tomato\n\n\nset X {1 0 0}\nset Y {0 1 0}\nset Z {0 0 1}\n\nset NegativeX {-1 0 0}\nset NegativeY {0 -1 0}\nset NegativeZ {0 0 -1}\n\n\nset actual [mathvec3d::Vector3d new 1 2 3]",
+    "note": "`mathvec3d::Vector3d` is written unqualified (not ::mathvec3d::Vector3d) and is only reachable because `namespace path tomato` was set two lines earlier, making the global scope fall back to searching tomato::mathvec3d::* for any partially-qualified name. A resolver that treats any name containing '::' as already fully/absolutely qualified (or resolves it purely relative to the current namespace) will fail to find the real target `::tomato::mathvec3d::Vector3d`, which is actually defined in a completely different file (Vector3d.tcl); this same pattern (`namespace path tomato` + unqualified `mathXXXNS::Class new ...`) repeats identically across every test/*.tcl file.",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "namespaces",
+    "file": "docs/doctomato.tcl",
+    "lineStart": 4,
+    "lineEnd": 19,
+    "snippet": "lappend auto_path [file dirname [file dirname [file dirname [info script]]]]\n\npackage require ruff 2.7\npackage require tomato\n\n::ruff::document [namespace children ::tomato] \\\n                 -title \"tomato $::tomato::version Reference Manual\" \\\n                 -sortnamespaces false \\\n                 -compact false \\\n                 -excludeprocs {^_} \\\n                 -pagesplit namespace \\\n                 -navigation sticky \\\n                 -includesource true \\\n                 -preamble $::tomato::_Intro \\\n                 -outdir [file dirname [info script]]  \\\n                 -outfile \"tomato.html\"",
+    "note": "The list of namespaces passed to ::ruff::document is computed at runtime via `[namespace children ::tomato]`, not spelled out textually; a static resolver has to union every `namespace eval tomato::X { ... }` block across the ~10 separate source files loaded by pkgIndex.tcl (mathmatrix, mathvec3d, mathpt3d, mathray3d, mathline3d, mathplane, mathcsys, mathquat, mathtriangle, helper) to know what this call actually iterates over.",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "tclOO",
+    "file": "Plane.tcl",
+    "lineStart": 117,
+    "lineEnd": 149,
+    "snippet": "method IntersectionWith {obj {tolerance $::tomato::helper::TolGeom}} {\n    # ...\n    if {[llength [info level 0]] < 4} {\n        set tolerance $::tomato::helper::TolGeom\n    }\n\n    switch -glob [$obj GetType] {\n        *Plane {\n            return [tomato::mathplane::IntersectionWithPlane [self] $obj $tolerance]\n        }\n        *Ray3d {\n            return [tomato::mathplane::IntersectionWithRay [self] $obj $tolerance]\n        }\n        *Line3d {\n            return [tomato::mathplane::IntersectionWithLine [self] $obj $tolerance]\n        }\n        default {\n            error \"Obj must be Plane, Line3d or Ray3d...\"\n        }\n    }\n}",
+    "note": "This is a hand-rolled multiple-dispatch: which of the three fully-qualified helper procs (IntersectionWithPlane/Ray/Line, each defined much later in the same file) actually runs depends on the runtime class of the object passed in `$obj` via `[$obj GetType]` (itself a per-class TclOO method returning `[info object class $obj]`); a static caller-graph builder that only follows lexical call edges will either report all three as always-called or none, and cannot narrow the edge without simulating the glob match against the object's dynamic class.",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "tclOO",
+    "file": "Vector3d.tcl",
+    "lineStart": 296,
+    "lineEnd": 317,
+    "snippet": "method * {type} {\n    # Multiplies a vector by a scalar if $type is a scale\n    # or Compute the Dot product if $type is an object.\n    if {[tomato::helper::IsaObject $type]} {\n        return [my DotProduct $other]\n    } else {\n\n        set vx [expr {$_x * $type}]\n        set vy [expr {$_y * $type}]\n        set vz [expr {$_z * $type}]\n\n        return [tomato::mathvec3d::Vector3d new $vx $vy $vz]\n\n    }\n}",
+    "note": "Method dispatch is overloaded on operand type via `[tomato::helper::IsaObject $type]`, and inside the isa-object branch the code calls `[my DotProduct $other]` even though the method's only parameter is `type`, not `other` -- `$other` is an unbound variable in this method's local scope (a real latent bug in the corpus: it happens to work only if a global/enclosing `other` leaks in, which it does not in TclOO method scopes). A correct per-method-scope variable resolver should flag `other` as undefined here, distinguishing it from the `other` parameter that exists in the neighboring `==`/`!=`/`+`/`-` methods of the very same class body.",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "proc_args",
+    "file": "Vector3d.tcl",
+    "lineStart": 336,
+    "lineEnd": 349,
+    "snippet": "method == {other {tolerance $::tomato::helper::TolEquals}} {\n    # other     - The second vector [Vector3d] to compare.\n    # tolerance - A tolerance (epsilon) to adjust for floating point error.\n    if {[llength [info level 0]] < 4} {\n        set tolerance $::tomato::helper::TolEquals\n    }\n\n    return [expr {[tomato::mathvec3d::Equals [self] $other $tolerance]}]\n}",
+    "note": "The parameter default `{tolerance $::tomato::helper::TolEquals}` looks like a dynamically-evaluated default (as in many other languages) but Tcl proc/method defaults are literal, unsubstituted strings -- if omitted, `tolerance` would actually become the literal text \"$::tomato::helper::TolEquals\", not the variable's value. The author works around this real Tcl semantics gap by checking `[llength [info level 0]]` (the frame's own invocation, including `self`/method-name slot) to detect whether the caller actually supplied 3 args, then manually re-`set`s tolerance to the dereferenced global. A naive analyzer that 'helpfully' evaluates bracket/dollar defaults will silently get a different (correct-looking but coincidental) answer than what Tcl really does, and this same info-level-0 idiom is duplicated verbatim across ~9 files/18 operator methods (Vector3d, Point3d, Plane, Line3d, Matrix, Quaternion, Ray3d, Triangle3d, CoordinateSystem).",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "proc_args",
+    "file": "Vector3d.tcl",
+    "lineStart": 15,
+    "lineEnd": 62,
+    "snippet": "constructor {args} {\n    if {[llength $args] == 1} {\n        # args Class Vector3d\n        if {[tomato::helper::TypeOf $args Isa \"Vector3d\"]} {\n            set _x [$args X]\n            set _y [$args Y]\n            set _z [$args Z]\n        # args list > ex : Vector3d new {1 2 3}\n        } elseif {[llength {*}$args] == 3} {\n            lassign {*}$args x y z\n            set _x $x\n            set _y $y\n            set _z $z\n        } else {\n            error \"Must be a list of 3 values or 'Vector3d' class\"\n        }\n    # args values > ex : Vector3d new 1 2 3\n    } elseif {[llength $args] == 3} {\n        lassign $args x y z\n        set _x $x\n        set _y $y\n        set _z $z\n    } elseif {[llength $args] == 0} {\n        set _x 0.0\n        set _y 0.0\n        set _z 1.0\n    } else {\n        error \"...\"\n    }\n}",
+    "note": "A single variadic `args` parameter is manually re-interpreted as either an object (invoking `$args X`/`Y`/`Z` -- object-as-command dispatch on a variable that is normally a numeric list), a 3-element list needing `lassign {*}$args`, three bare positional values, or zero args for defaults; a static analyzer inferring the constructor's 'real' arity/type purely from the formal parameter list (`args`) has no way to know which of four incompatible call shapes is legal without executing the `llength`/`TypeOf` guards, and the `$args X` branch additionally requires knowing `$args` can itself be a live TclOO object handle rather than list data.",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "Helper.tcl",
+    "lineStart": 19,
+    "lineEnd": 27,
+    "snippet": "namespace eval tcl::mathfunc {\n    # Pi value\n    proc Pi {} {\n        return [expr {acos(-1)}]\n    }\n    # Opposite value\n    proc Inv x {\n        return [expr {$x * -1}]\n    }\n}",
+    "note": "New procs are injected directly into the built-in `tcl::mathfunc` namespace, which makes them callable from any `expr` in the whole process as bare function-call syntax `Pi()` / `Inv($x)` with no `tomato::` prefix and no import statement anywhere; a resolver that only tracks explicit `namespace import`/qualified calls will never connect an `expr {... Pi() ...}` call site (see DegreesToRadians below) back to this definition, since expr's function lookup implicitly consults ::tcl::mathfunc::<name> rather than the calling scope's normal command resolution.",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "Helper.tcl",
+    "lineStart": 49,
+    "lineEnd": 58,
+    "snippet": "proc tomato::helper::DegreesToRadians {degrees} {\n    # Convert degrees to radians.\n    #\n    # degrees - An angle in degrees.\n    #\n    # Returns The angle expressed in radians.\n\n    set degToRad [expr {Pi() / 180.0}]\n    return [expr {$degrees * $degToRad}]\n}",
+    "note": "`Pi()` inside `expr` resolves through the special mathfunc lookup path (::tcl::mathfunc::Pi) defined earlier in the same file rather than through ordinary command/namespace resolution -- there is no `tomato::helper::Pi` or `::Pi` command usable outside expr, so a resolver that tries to look up `Pi` as a normal proc call will fail to find any definition even though the corpus does define a `tomato::helper::Pi` proc (a decoy with the same name but unreachable from this call site).",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "Point3d.tcl",
+    "lineStart": 271,
+    "lineEnd": 279,
+    "snippet": "proc tomato::mathpt3d::Average {listaxisPt} {\n    # Gets the average value of list\n    #\n    # listaxisPt - list in the form of a Tcl list\n    #\n    # Returns The average value\n    return [expr {[tcl::mathop::+ {*}$listaxisPt 0.0] / max(1, [llength $listaxisPt])}]\n\n}",
+    "note": "`tcl::mathop::+` is invoked as a fully-qualified ordinary command (not via expr operator syntax) with its argument list built from `{*}$listaxisPt` expansion of a runtime list plus a literal trailing `0.0`; a resolver must both know `tcl::mathop::+` is a real command (not just an expr operator) and correctly model that `{*}` splices a dynamically-sized, statically-unknown-length list of arguments into the call.",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "source",
+    "file": "pkgIndex.tcl",
+    "lineStart": 3,
+    "lineEnd": 18,
+    "snippet": "package ifneeded tomato 1.3 [list apply {dir {\n\n    source [file join $dir tomato.tcl]\n    source [file join $dir Matrix.tcl]\n    source [file join $dir Matrix3d.tcl]\n    source [file join $dir Vector3d.tcl]\n    source [file join $dir Point3d.tcl]\n    source [file join $dir Ray3d.tcl]\n    source [file join $dir Line3d.tcl]\n    source [file join $dir Plane.tcl]\n    source [file join $dir CoordinateSystem.tcl]\n    source [file join $dir Quaternion.tcl]\n    source [file join $dir Triangle3d.tcl]\n    source [file join $dir Helper.tcl]\n\n}} $dir]",
+    "note": "The whole package body is a `[list apply {dir {...}} $dir]` closure that `package ifneeded` stores and defers; each `source` target path is built from a lambda-local `$dir` parameter (bound only when `package require tomato` actually triggers the ifneeded script), so a static analyzer that tries to eagerly resolve `source [file join $dir Foo.tcl]` without modeling `apply`'s parameter binding and the deferred-execution semantics of `package ifneeded` will not be able to statically pin down which files get loaded, in what order, or that class definitions in Vector3d.tcl etc. become visible only after this apply body runs.",
+    "corpus": "nico-robert_tomato"
+  },
+  {
+    "feature": "namespaces",
+    "file": "library/systray.tcl",
+    "lineStart": 480,
+    "lineEnd": 483,
+    "snippet": "#Add these commands to the tk command ensemble: tk systray, tk sysnotify\n#Thanks to Christian Gollwitzer for the guidance here\nnamespace ensemble configure tk -map \\\n    [dict merge [namespace ensemble configure tk -map] \\\n\t{systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]",
+    "note": "The built-in `tk` ensemble's dispatch map is mutated at runtime by reading its current -map, dict-merging in new entries, and writing it back; the same idiom recurs independently in print.tcl (adds `tk print`), fileicon.tcl (`tk fileicon`) and accessibility.tcl (`tk accessible`). A resolver that treats `tk` as a fixed built-in command with a static subcommand set will never learn that `tk systray`/`tk sysnotify` resolve to ::tk::systray / ::tk::sysnotify::sysnotify, since the mapping is only knowable by evaluating a dict-merge expression, not by lexical inspection.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "namespaces",
+    "file": "library/fontchooser.tcl",
+    "lineStart": 67,
+    "lineEnd": 71,
+    "snippet": "namespace ensemble create -map {\n\tshow ::tk::fontchooser::Show\n\thide ::tk::fontchooser::Hide\n\tconfigure ::tk::fontchooser::Configure\n}",
+    "note": "`namespace ensemble create` here builds the ::tk::fontchooser command itself with an explicit -map whose public subcommand names (show/hide/configure) differ in case and identity from the implementation procs they point to (Show/Hide/Configure); a caller invoking `tk fontchooser show` cannot be resolved to a definition site by name-matching alone, only by parsing the ensemble's -map literal.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "rename",
+    "file": "library/accessibility.tcl",
+    "lineStart": 71,
+    "lineEnd": 82,
+    "snippet": "foreach wtype {button entry text listbox scale spinbox scrollbar label radiobutton checkbutton} {\n    if {[llength [info commands ::tk::accessible::orig_$wtype]] == 0} {\n\trename ::$wtype ::tk::accessible::orig_$wtype\n\tproc ::$wtype {args} [string map [list %TYPE% $wtype] {\n\t    # Create the widget with the original command\n\t    set w [::tk::accessible::orig_%TYPE% {*}$args]\n\t    # Add focus bindings\n\t    ::tk::accessible::AddClassic $w\n\t    return $w\n\t}]\n    }\n}",
+    "note": "For every classic widget-creation command (button, entry, ...), the original builtin is renamed to a computed name ::tk::accessible::orig_$wtype and a new proc under the *original* global name is generated by [string map]-templating a body string, so `::button` now means a wrapper whose body only exists as a substituted string literal \u2014 a static analyser must simulate both the rename target computation and the string-map body expansion, per loop iteration, to know what `button` resolves to afterward.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "rename",
+    "file": "library/megawidget.tcl",
+    "lineStart": 33,
+    "lineEnd": 52,
+    "snippet": "constructor args {\n    # Extract the \"widget name\" from the object name\n    set w [namespace tail [self]]\n\n    # Configure things\n    tclParseConfigSpec [my varname options] [my GetSpecs] \"\" $args\n\n    # Move the object out of the way of the hull widget\n    rename [self] _tmp\n\n    # Make the hull widget(s)\n    my CreateHull\n    bind $hull <Destroy> [list [namespace which my] destroy]\n\n    # Rename things into their final places\n    rename ::$w theWidget\n    rename [self] ::$w\n\n    # Make the contents\n    my Create\n}",
+    "note": "Inside a TclOO constructor, the command identity bound to `::$w` is swapped three times: the object's own command is moved aside to `_tmp` so the real Tk hull widget can legitimately be created under the name `::$w`, the hull is then renamed to `theWidget`, and finally the TclOO object command is renamed back onto `::$w` \u2014 meaning after this runs, `$w` is the TclOO object dispatcher and `theWidget` is the raw Tk hull, but a naive resolver watching only the initial `rename` targets would get the final binding of `::$w` backwards.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "aliasing",
+    "file": "library/ttk/ttk.tcl",
+    "lineStart": 22,
+    "lineEnd": 35,
+    "snippet": "proc ttk::deprecated {old new} {\n    interp alias {} $old {} ttk::do'deprecate $old $new\n}\nproc ttk::do'deprecate {old new args} {\n    deprecated'warning $old $new\n    interp alias {} $old {} $new\n    uplevel 1 [linsert $args 0 $new]\n}",
+    "note": "`$old` is first aliased to the shim `ttk::do'deprecate`, but the very first invocation of that shim re-aliases `$old` directly onto `$new` before delegating via `uplevel 1`; so the command that `$old` resolves to is different on the first call versus every subsequent call, a self-mutating alias chain no static single-binding model can represent.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "aliasing",
+    "file": "library/accessibility.tcl",
+    "lineStart": 1176,
+    "lineEnd": 1198,
+    "snippet": "if {[tk windowingsystem] eq \"aqua\" || [tk windowingsystem] eq \"x11\"} {\n    set result [::tk::accessible::check_screenreader]\n    if {$result > 0} {\n\tinterp alias {} ::ttk::spinbox {} ::tk::spinbox\n    }\n}\nif {[tk windowingsystem] eq \"x11\"} {\n    set result [::tk::accessible::check_screenreader]\n    if {$result > 0} {\n\tinterp alias {} ::ttk::radiobutton {} ::tk::radiobutton\n\tinterp alias {} ::ttk::checkbutton {} ::tk::checkbutton\n\tinterp alias {} ::ttk::scale {} ::tk::scale\n    }\n}",
+    "if_win32_block_note": "there is also a win32 branch further down with the same pattern",
+    "note": "Whether `::ttk::spinbox` (or radiobutton/checkbutton/scale) resolves to the real themed ttk widget or is silently redirected to the classic tk:: widget of the same purpose depends on platform (`tk windowingsystem`) and a runtime screen-reader probe; every call site elsewhere in the tree that invokes `ttk::spinbox` is therefore ambiguous without evaluating this conditional aliasing at load time.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "safe_interp",
+    "file": "library/safetk.tcl",
+    "lineStart": 33,
+    "lineEnd": 63,
+    "snippet": "proc ::safe::tkInterpInit {child argv} {\n    global env tk_library\n    set tk_library [file normalize $tk_library]\n    allowTk $child $argv\n    ::interp eval $child [list set tk_library [::safe::interpAddToAccessPath $child $tk_library]]\n    foreach subdir [::safe::AddSubDirs [list $tk_library]] {\n\t::safe::interpAddToAccessPath $child $subdir\n    }\n    return $child\n}\n\n# empty definition for auto_mkIndex\nproc ::safe::loadTk {} {}\n\n::tcl::OptProc ::safe::loadTk {\n    {child -interp \"name of the child interpreter\"}\n    {-use  -windowId {} \"window Id to use (new toplevel otherwise)\"}\n    {-display -displayName {} \"display name to use (current one otherwise)\"}\n} {\n    ...\n    tkInterpInit $child [list \"-use\" $use \"-display\" $display]\n    load {} Tk $child\n    return $child\n}",
+    "note": "`::safe::loadTk` is first declared as an empty stub (purely so auto_mkIndex/tclIndex generation sees a definition), then completely replaced by `::tcl::OptProc`'s generated named-argument-parsing wrapper; the real command body is produced by a package-level metaprogramming proc, not a literal `proc` body, and it drives `::interp eval $child ...` plus `load {} Tk $child` to bootstrap Tk inside a separate safe child interpreter whose commands live in a wholly different command namespace.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "safe_interp",
+    "file": "demos/dialog1.tcl",
+    "lineStart": 5,
+    "lineEnd": 11,
+    "snippet": "interp create child\nload {} Tk child\nchild eval {\n    wm title . child\n    wm geometry . +700+30\n    pack [text .t -width 30 -height 10]\n}",
+    "note": "The literal widget paths `.` and `.t` inside the `child eval` script refer to windows in the freshly created `child` sub-interpreter, a completely separate command/variable universe from the main script's `.` and `.t`; a resolver that flattens all widget-path references into one global namespace will conflate this `.t` with any same-named widget in the parent interpreter.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "tracing",
+    "file": "library/fontchooser.tcl",
+    "lineStart": 293,
+    "lineEnd": 303,
+    "snippet": "trace add variable [namespace which -variable S](size) \\\n\t\twrite [namespace code [list Tracer]]\ntrace add variable [namespace which -variable S](style) \\\n\t\twrite [namespace code [list Tracer]]\ntrace add variable [namespace which -variable S](font) \\\n\t\twrite [namespace code [list Tracer]]\ntrace add variable [namespace which -variable S](strike) \\\n\t\twrite [namespace code [list Tracer]]\ntrace add variable [namespace which -variable S](under) \\\n\t\twrite [namespace code [list Tracer]]",
+    "note": "Both the traced target and the callback are computed indirection: the variable is `[namespace which -variable S](size)` (a fully-qualified array-element expansion of a namespace variable named S), and the handler is `[namespace code [list Tracer]]`, which prefixes the bare proc name `Tracer` with the enclosing namespace at trace-registration time so the callback's home namespace is baked into a generated string rather than being lexically visible at the call site (`trace remove` further down must reproduce the exact same generated string to unregister it).",
+    "corpus": "tk"
+  },
+  {
+    "feature": "tracing",
+    "file": "library/megawidget.tcl",
+    "lineStart": 163,
+    "lineEnd": 166,
+    "snippet": "method TraceOption {option method args} {\n    set callback [list my $method {*}$args]\n    trace add variable options($option) write [namespace code $callback]\n}",
+    "note": "The trace callback is built from `my $method` \u2014 `my` is the TclOO per-object command whose target resolves through the instance's private namespace and current class/mixin chain, and `$method` is itself a parameter, so the literal text passed to `trace add` names neither a global proc nor a fixed namespace command; `[namespace code ...]` additionally rewrites it to run in the *object's* namespace when the trace later fires, two layers of indirection over the eventual dispatch target.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "library/tearoff.tcl",
+    "lineStart": 108,
+    "lineEnd": 136,
+    "snippet": "set cmd [$w cget -tearoffcommand]\nif {$cmd ne \"\"} {\n    uplevel #0 $cmd [list $w $menu]\n}\n...\nproc ::tk::MenuDup {src dst type} {\n    set cmd [list menu $dst -type $type]\n    foreach option [$src configure] {\n\tif {[llength $option] == 2} { continue }\n\tif {[lindex $option 0] eq \"-type\"} { continue }\n\tlappend cmd [lindex $option 0] [lindex $option 4]\n    }\n    eval $cmd\n    ...",
+    "note": "Two layers of dynamic command construction: `-tearoffcommand` is a user-supplied command name stored as a widget option and invoked blind via `uplevel #0 $cmd ...`, and `MenuDup` builds an entire `menu $dst -type $type -opt1 val1 -opt2 val2 ...` invocation by iterating the *live configuration* of another widget (`$src configure`) at runtime before `eval`-ing it \u2014 the full argument list of the created command is unknowable without executing `$src configure` against a real widget.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "library/tk.tcl",
+    "lineStart": 594,
+    "lineEnd": 596,
+    "snippet": "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}",
+    "note": "The widget subcommand actually invoked is synthesized by string concatenation of the `dir` parameter with the literal suffix `view` (yielding `xview` or `yview`), so the subcommand name never appears as a token anywhere in the source \u2014 a static resolver must know Tk's `xview`/`yview` convention and simulate the interpolation to see that `$w xview scroll ...` or `$w yview scroll ...` is what actually runs.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "tclOO",
+    "file": "library/megawidget.tcl",
+    "lineStart": 15,
+    "lineEnd": 29,
+    "snippet": "::oo::class create ::tk::Megawidget {\n    superclass ::oo::class\n    method unknown {w args} {\n\tif {[string match .* $w]} {\n\t    [self] create $w {*}$args\n\t    return $w\n\t}\n\tnext $w {*}$args\n    }\n    unexport new unknown\n    self method create {name superclasses body} {\n\tnext $name [list \\\n\t\tsuperclass ::tk::MegawidgetClass {*}$superclasses]\\;$body\n    }\n}",
+    "note": "::tk::Megawidget is a *metaclass* (superclass ::oo::class): its instances are themselves classes, its per-instance `unknown` method intercepts calls like `SomeClass .foo ...` and reinterprets `.foo` as a request to instantiate `.foo` as an object, and its class method `self method create` rewrites the normal `oo::class create name {body}` protocol into `Megawidget create name superclasses body`, splicing an implicit `superclass ::tk::MegawidgetClass` plus caller-supplied superclasses into a dynamically assembled class-definition string before delegating to `next`. None of this is discoverable by pattern-matching on `oo::class create ... { superclass ... }`.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "tclOO",
+    "file": "library/megawidget.tcl",
+    "lineStart": 244,
+    "lineEnd": 286,
+    "snippet": "::tk::Megawidget create ::tk::SimpleWidget {} {\n    variable w hull options\n    method CreateHull {} {\n\tset hull [::ttk::frame $w -cursor $options(-cursor)]\n\tmy TraceOption -cursor UpdateCursorOption\n    }\n    ...\n}\n\n::tk::Megawidget create ::tk::FocusableWidget ::tk::SimpleWidget {\n    variable w hull options\n    method CreateHull {} {\n\tttk::frame $w\n\tset hull [ttk::entry $w.cHull -takefocus 0 -cursor $options(-cursor)]\n\tpack $hull -expand yes -fill both -ipadx 1.5p -ipady 1.5p\n\tmy TraceOption -cursor UpdateCursorOption\n    }\n}",
+    "note": "The inheritance chain ::tk::MegawidgetClass -> SimpleWidget -> FocusableWidget is declared entirely through the custom metaclass call `::tk::Megawidget create Name Superclasses Body` (see the metaclass definition above), and is extended again in a different file, library/iconlist.tcl:31 (`::tk::Megawidget create ::tk::IconList ::tk::FocusableWidget {...}`), so resolving which `CreateHull`/`GetSpecs` method wins for ::tk::IconList requires following a three-hop, cross-file superclass chain that never uses the literal keyword `superclass` at any call site.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "upvar",
+    "file": "library/tk.tcl",
+    "lineStart": 175,
+    "lineEnd": 178,
+    "snippet": "proc ::tk::SetFocusGrab {grab {focus {}}} {\n    set index \"$grab,$focus\"\n    upvar ::tk::FocusGrab($index) data\n\n    lappend data [focus]",
+    "note": "`upvar` links the local `data` to an element of the global array ::tk::FocusGrab, but both the array name (fully-qualified, so no #0 is needed) and the element key (`$grab,$focus`, built by string concatenation of two parameters) are computed at runtime; a static resolver must evaluate the concatenation to know which array element `data` actually aliases, and the matching consumer in ::tk::RestoreFocusGrab (same file) recomputes the identical key independently rather than sharing a variable.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "upvar",
+    "file": "library/safetk.tcl",
+    "lineStart": 84,
+    "lineEnd": 84,
+    "snippet": "namespace upvar ::safe S$child state",
+    "note": "The linked global variable's name is not `S` but the concatenation `S$child` (e.g. `::safe::Sinterp3` for a child interpreter path `interp3`), so `state` inside this OptProc-generated proc aliases a per-child-interpreter variable whose exact name only exists after substitution \u2014 grepping for a variable literally named `S` or `state` in ::safe will not find the storage this proc actually reads and writes.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "uplevel",
+    "file": "library/tk.tcl",
+    "lineStart": 289,
+    "lineEnd": 289,
+    "snippet": "uplevel #0 [list upvar #0 ::tk::Priv.$disp ::tk::Priv]",
+    "note": "This constructs and runs, at global scope, an `upvar #0` command whose source variable name embeds a per-display suffix (`::tk::Priv.$disp`, with `::` sanitized out of `$disp` two lines earlier) so that the well-known global `::tk::Priv` is re-pointed to a *different* backing array depending on which X display/screen triggered the event; every other file in the tree that reads `::tk::Priv(...)` is actually reading whichever per-display array this uplevel most recently rebound it to.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "eval",
+    "file": "library/palette.tcl",
+    "lineStart": 141,
+    "lineEnd": 141,
+    "snippet": "eval [tk::RecolorTree . new]",
+    "note": "This evaluates the *return value* of a proc call as a command: ::tk::RecolorTree walks the whole widget hierarchy and returns a dynamically assembled list of option-database-update commands as a string, which is then spliced apart and executed by the outer `eval` \u2014 the set of commands actually run is only knowable by executing RecolorTree first, not by reading this line in isolation.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "source",
+    "file": "library/tk.tcl",
+    "lineStart": 534,
+    "lineEnd": 563,
+    "snippet": "proc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\nnamespace eval ::tk {\n    if {![interp issafe] && ... && ![catch {tk::accessible::check_screenreader} r] && ...} {\n\tSourceLibFile accessibility\n    }\n    SourceLibFile fileicon\n    SourceLibFile icons\n    ...\n    if {![interp issafe]} {\n\tSourceLibFile systray\n    }\n    SourceLibFile text\n}",
+    "note": "Every subsequent library file is sourced through an indirection proc that re-enters the global namespace via `namespace eval :: [list source ...]` before sourcing (so definitions inside land in :: even though SourceLibFile itself runs inside ::tk), and two of the source calls (accessibility.tcl, systray.tcl) are conditional on runtime probes (`interp issafe`, a screen-reader C-level check) \u2014 a static crawler that always includes every *.tcl file will pull in accessibility.tcl even for builds/interps where it is never actually sourced.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "demos/ttkscale.tcl",
+    "lineStart": 34,
+    "lineEnd": 34,
+    "snippet": "set c [lindex $::colorList [tcl::mathfunc::int $idx]]",
+    "note": "`tcl::mathfunc::int` is called as an ordinary fully-qualified command outside of any `expr` context, which is legal but easy for a resolver tuned only to recognize mathfunc names inside expr strings to miss entirely as a plain command invocation.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "proc_args",
+    "file": "library/tk.tcl",
+    "lineStart": 202,
+    "lineEnd": 202,
+    "snippet": "proc ::tk::RestoreFocusGrab {grab focus {destroy destroy}} {",
+    "note": "The third parameter is named `destroy` with default value the string `destroy`, identical to the builtin `destroy` command; later in the body both `$destroy` (the parameter, compared against \"withdraw\") and a bare `destroy $grab` (the actual builtin command call) appear close together, so any resolver that indexes identifiers by bare name without tracking `$`-prefixing risks conflating the parameter with the command it happens to shadow.",
+    "corpus": "tk"
+  },
+  {
+    "feature": "namespaces",
+    "file": "dicttool/dicttool.tcl",
+    "lineStart": 34,
+    "lineEnd": 42,
+    "snippet": "if {[::info commands ::tcl::dict::getnull] eq {}} {\n  proc ::tcl::dict::getnull {dictionary args} {\n    if {[exists $dictionary {*}$args]} {\n      get $dictionary {*}$args\n    }\n  }\n  namespace ensemble configure dict -map [dict replace\\\n      [namespace ensemble configure dict -map] getnull ::tcl::dict::getnull]\n}",
+    "note": "This mutates the built-in `dict` ensemble at load time by reading its current -map, adding a new subcommand, and writing the map back; `dict getnull ...` calls later in the corpus resolve to a proc that is not textually 'dict' anything and is only reachable by reconstructing the runtime ensemble map (dicttool.tcl does this 5 times for getnull/print/is_dict/rmerge/isnull, each independently guarded by an info-commands check).",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "namespaces",
+    "file": "yaml/huddle.tcl",
+    "lineStart": 63,
+    "lineEnd": 82,
+    "snippet": "dict set ensemble_map_of_type settings ${typeNamespace}::settings\n\nforeach path_to_subcommand [info procs ${typeNamespace}::*] {\n    set subcommand [namespace tail $path_to_subcommand]\n\n    if {$subcommand ni $renamed_subcommands} {\n        dict set ensemble_map_of_type $subcommand ${typeNamespace}::$subcommand\n    }\n}\n\nnamespace eval $typeNamespace \"\n    namespace import ::huddle::wrap ::huddle::unwrap ::huddle::isHuddle ...\n\n    namespace ensemble create -unknown ::huddle::unknown_subcommand -command $typeCommand -prefixes false -map {$ensemble_map_of_type}\n\n    proc settings {} {\n        variable settings\n        return \\$settings\n    }\n\"",
+    "note": "The ensemble's subcommand map is built by introspecting `info procs` at call time (not from any static list), then frozen into a *double-quoted* namespace eval string so $ensemble_map_of_type/$typeCommand are substituted before the inner script runs; later, huddle::unknown_subcommand (line 132) patches -map in place at runtime to graft in a superclass's implementation, so the set of valid subcommands for a given huddle type grows dynamically after first use and is impossible to compute without simulating both addType and every unknown-subcommand call.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "namespaces",
+    "file": "uri/uri.tcl",
+    "lineStart": 195,
+    "lineEnd": 216,
+    "snippet": "proc ::uri::register {schemeList script} {\n    variable schemes\n    variable schemePattern\n    variable url\n    variable url2part\n\n    foreach scheme $schemeList {\n\tif {[lsearch -exact $schemes $scheme] >= 0} {\n\t    return -code error \\\n\t\t    \"trying to register scheme (\\\"$scheme\\\") which is already known\"\n\t}\n    }\n\n    set scheme  [lindex $schemeList 0]\n\n    if {[catch {namespace eval $scheme $script} msg]} {\n\tcatch {namespace delete $scheme}\n\treturn -code error \\\n\t    \"error while evaluating scheme script: $msg\"\n    }\n    ...\n}",
+    "note": "Called ~10 times at file scope with a bare scheme name like `uri::register ftp { variable schemepart ... }` (line 1286); because register itself is a proc of ::uri, `namespace eval $scheme $script` implicitly creates ::uri::ftp, ::uri::file, ::uri::http, etc., and scheme bodies cross-reference each other via `[namespace parent [namespace current]]::basic::escape` -- so the full set of namespaces/variables that exist only comes into being by executing all the register calls, not by reading any single one.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "rename",
+    "file": "json/json.tcl",
+    "lineStart": 61,
+    "lineEnd": 98,
+    "snippet": "proc ::json::SwitchTo {key} {\n    variable accel\n    variable loaded\n    variable apicmds\n    ...\n    if {![string equal $loaded \"\"]} {\n\tforeach c $apicmds {\n\t    rename ::json::${c} ::json::${c}_$loaded\n\t}\n    }\n\n    if {![string equal $key \"\"]} {\n\tforeach c $apicmds {\n\t    rename ::json::${c}_$key ::json::${c}\n\t}\n    }\n\n    set loaded $key\n    return\n}",
+    "note": "Multiple complete implementations of the same API (e.g. ::json::parse_c vs a pure-Tcl one) live under suffixed names, and `rename` swaps which body is bound to the canonical name ::json::parse at runtime; a static resolver that treats 'proc json::parse' as a single fixed definition will pick whichever textual definition happens to load last, when in fact the live binding flips based on runtime accel-availability checks not visible at any call site.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "rename",
+    "file": "rest/rest.tcl",
+    "lineStart": 704,
+    "lineEnd": 719,
+    "snippet": "proc ::rest::describe {name} {\n    # replace [set], then run all the procs to get the value of the config var\n    rename ::set ::_set\n    proc ::set {var val} {\n        if {[lindex [info level 0] 1] != \"config\"} { continue }\n        upvar 2 config c\n        ::_set c([info level -1]) $val\n        return -code return\n    }\n    foreach call [lsort -dictionary [info commands ::${name}::*]] {\n        if {[string match *::_* $call]} { continue }\n        catch {$call}\n    }\n    rename ::set {}\n    rename ::_set ::set\n    ...\n}",
+    "note": "Temporarily shadows the `set` builtin globally for the duration of this proc so that calling arbitrary generated API procs (which internally call `set` to declare config vars) is hijacked into recording data instead of assigning variables; any static resolver that hard-codes `set` semantics will misinterpret every `set` call anywhere in the process during this window, and the shim itself calls the renamed-away original via `::_set`.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "unknown",
+    "file": "namespacex/namespacex.tcl",
+    "lineStart": 153,
+    "lineEnd": 184,
+    "snippet": "proc ::namespacex::hook::Get {ns} {\n    return [namespace eval $ns { namespace unknown }]\n}\n\nproc ::namespacex::hook::Set {ns handler} {\n    namespace eval $ns [list namespace unknown $handler]\n    return\n}\n\nproc ::namespacex::hook::Handle {handler old args} {\n    set rc [catch {\n\tuplevel 1 $handler $args\n    } result]\n\n    if {$rc == 4} {\n        # continue - invoke next handler\n\tif {$old eq {}} {\n\t    return -code error \"invalid command name \\\"[lindex $args 0]\\\"\"\n\t}\n        if {![llength $result]} {\n            uplevel 1 $old $args\n        }\n...",
+    "note": "Implements a chainable per-namespace unknown-command hook (using the real `namespace unknown`, not global ::unknown) where each `hook add` call (line 91: `Set $namespace [namespace code [list Handle $cmdprefix [Get $namespace]]]`) wraps the previous handler into a nested closure captured via namespace code; a handler signals 'fall through' with a non-standard `return -code continue -level 2`, so the actual command that runs for an unresolved name in some namespace can only be found by unwinding an arbitrarily deep, dynamically built chain of anonymous namespace-code closures.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "unknown",
+    "file": "docstrip/docstrip_util.tcl",
+    "lineStart": 70,
+    "lineEnd": 76,
+    "snippet": "set c [interp create -safe]\n$c eval {\n   proc unknown args {}\n}\n$c alias pkgProvide [namespace which PkgProvide]\n$c alias pkgIndex [namespace which PkgIndex]\n$c alias fileoptions [namespace which fileoptions]",
+    "note": "Redefines ::unknown inside a throwaway safe child interpreter to a silent no-op so that evaluating an untrusted extracted 'catalogue' script never triggers Tcl's normal auto-load/'invalid command name' fallback; only three commands (pkgProvide/pkgIndex/fileoptions) are exposed back in via `interp alias`, resolved lazily at alias-creation time through `namespace which` in the caller's current namespace -- everything else silently vanishes instead of erroring, which a resolver assuming standard ::unknown behavior would misreport as undefined-command errors.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "aliasing",
+    "file": "nntp/nntp.tcl",
+    "lineStart": 84,
+    "lineEnd": 173,
+    "snippet": "if { ![string equal [info commands ::$name] \"\"] } {\n    error \"command \\\"$name\\\" already exists, unable to create nntp connection\"\n}\nupvar 0 ::nntp::${name}data data\n...\ninterp alias {} ::$name {} ::nntp::NntpProc $name\n::nntp::response $name\nreturn $name\n}\n\nproc ::nntp::NntpProc {name {cmd \"\"} args} {\n    if { [llength [info commands ::nntp::_$cmd]] == 0 } {\n        variable commands\n        set optlist [join $commands \", \"]\n        error \"bad option \\\"$cmd\\\": must be $optlist\"\n    }\n    return [eval [linsert $args 0 ::nntp::_$cmd $name]]\n}",
+    "note": "`nntp::nntp` creates an object-style command `::conn1` etc. via `interp alias`, but every subcommand it accepts (`_group`, `_connect`, ...) is dispatched by string-concatenating `::nntp::_$cmd` and checking `info commands` -- none of these are called by any lexically visible name anywhere in the file, only through this runtime-constructed prefix, so a caller of `conn1 group ...` requires resolving through both the alias and the computed dispatch to reach ::nntp::_group.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "aliasing",
+    "file": "ooutil/ooutil.tcl",
+    "lineStart": 172,
+    "lineEnd": 184,
+    "snippet": "proc ::oo::Helpers::link {args} {\n    set ns [uplevel 1 {namespace current}]\n    foreach link $args {\n\tif {[llength $link] == 2} {\n\t    lassign $link src dst\n\t} else {\n\t    lassign $link src\n\t    set dst $src\n\t}\n\tinterp alias {} ${ns}::$src {} ${ns}::my $dst\n    }\n    return\n}",
+    "note": "Available as a TclOO method-body helper (`link foo`), it creates an interp alias in the *object's own namespace* pointing bareword `foo` at `<objns>::my foo`; since `${ns}::my` is itself a TclOO-internal proc synthesized per-object at instantiation time (not a literal proc anywhere), and `ns` is resolved from the caller's frame at link-time, statically finding what `foo` invokes requires knowing which object instance is executing and its per-instance `my` dispatcher.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "safe_interp",
+    "file": "doctools/doctools.tcl",
+    "lineStart": 682,
+    "lineEnd": 722,
+    "snippet": "proc ::doctools::SetupFormatter {name format} {\n    variable here\n    set mpip [interp create -safe]\n    $mpip eval [list set auto_path $::auto_path]\n\n    $mpip invokehidden source [file join $here api.tcl]\n    interp alias $mpip dt_source   {} ::doctools::Source  $mpip [file dirname $format]\n    interp alias $mpip dt_read     {} ::doctools::Read    $mpip [file dirname $format]\n    interp alias $mpip dt_package  {} ::doctools::Package $mpip\n    interp alias $mpip file        {} ::doctools::FileOp  $mpip\n    interp alias $mpip puts_stderr {} ::puts stderr\n    interp alias $mpip puts_stdout {} ::puts stdout\n    $mpip invokehidden source $format\n\n    foreach api {\n\tfmt_numpasses fmt_initialize fmt_setup fmt_postprocess\n\tfmt_shutdown fmt_listvariables fmt_varset\n    } {\n\tif {[$mpip eval [list info commands $api]] == {}} { ... }\n    }\n    ...\n}",
+    "note": "A safe child interpreter loads a plugin-supplied renderer file ($format, an arbitrary path) via the hidden `source` command, and the master then calls plugin-defined commands like `fmt_numpasses` inside it that exist nowhere in this source tree; simultaneously the child gets aliases like `file` and `dt_source` that silently jump back across the interp boundary into ::doctools:: procs in the master, so command resolution genuinely differs depending on which interpreter (master vs $mpip) a given bareword is evaluated in.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tracing",
+    "file": "defer/defer.tcl",
+    "lineStart": 84,
+    "lineEnd": 118,
+    "snippet": "## Unset the \"args\" variable, which is just an artifact of the lambda\nset code \"# ${id}\\nunset args; ${code}\"\n\nuplevel 1 [list trace add variable $::defer::idVar unset [list apply [list args $code]]]\n\nreturn $id\n}\n...\nproc ::defer::cancel {args} {\n\tset idList $args\n\tset traces [uplevel 1 [list trace info variable $::defer::idVar]]\n\tforeach trace $traces {\n\t    set action [lindex $trace 0]\n\t    set code   [lindex $trace 1]\n\t    foreach id $idList {\n\t\tif {[string match \"*# $id*\" $code]} {\n\t\t    uplevel 1 [list trace remove variable $::defer::idVar $action $code]\n\t\t}\n\t    }\n\t}\n}",
+    "note": "The trace callback is an anonymous `apply` lambda whose entire body is a string built at runtime (interpolating caller-supplied variable snapshots and the deferred script), registered on the unset of a shared sentinel variable to fire when the caller's stack frame is torn down; to cancel a specific deferred block later, the code re-derives which trace entry to remove not by identity but by `string match`-ing a comment marker embedded in the generated lambda body text against `trace info variable` output.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tracing",
+    "file": "generator/generator.tcl",
+    "lineStart": 102,
+    "lineEnd": 105,
+    "snippet": "proc finally args {\n    set ns [uplevel 1 { namespace current }]\n    trace add command [info coroutine] delete [list ::apply [list args $args $ns]]\n}",
+    "note": "Registers a delete-trace on the currently running coroutine whose callback is an apply lambda capturing both the cleanup script and the caller's namespace (fetched dynamically via uplevel); the callback's home namespace is therefore neither the definition site of `finally` nor a namespace literal anywhere in the file, but whatever `namespace current` happened to be one stack frame up at the moment `finally` was called inside a `define`-generated generator body.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "tepam/tepam.tcl",
+    "lineStart": 1133,
+    "lineEnd": 1046,
+    "snippet": "proc Validate()         {v} {return 1}\nproc Validate(none)     {v} {return 1}\nproc Validate(string)   {v} {return 1}\nproc Validate(boolean)  {v} {string is boolean -strict $v}\nproc Validate(integer)  {v} {string is integer -strict $v}\n...\n# elsewhere, in argument evaluation:\nif {![Validate($ProcDef($ProcName,Arg,$Var,-type)) $Value]} {\n    ProcedureArgumentEvaluationReturn \"...\"\n}",
+    "note": "`Validate(integer)` etc. are ordinary global procs whose *names* happen to contain parentheses; `Validate($ProcDef(...))` in command position is not an array reference at all (no leading $) but string-built command-name construction -- Tcl substitutes the inner $ProcDef(...) value into the literal text 'Validate(' + value + ')' before parsing it as a command name -- so a resolver that pattern-matches `name(index)` as array syntax will completely miss that this is a dynamic call to one of ~20 procs defined 900 lines earlier.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "irc/irc.tcl",
+    "lineStart": 446,
+    "lineEnd": 470,
+    "snippet": "if { [info exists dispatch($linedata(action))] } {\n    eval $dispatch($linedata(action))\n} elseif { [string match {[0-9]??} $linedata(action)] } {\n    eval $dispatch(defaultnumeric)\n} elseif { $linedata(who) eq \"\" } {\n    eval $dispatch(defaultcmd)\n} else {\n    eval $dispatch(defaultevent)\n}\n...\nproc cmd-registerevent { evnt cmd } {\n    variable dispatch\n    set dispatch($evnt) $cmd\n    if { $cmd eq \"\" } {\n\tunset dispatch($evnt)\n    }\n}",
+    "note": "The dispatch-table key `$linedata(action)` is parsed straight out of the raw text of an incoming IRC protocol line (attacker/server-controlled), and the value evaluated by `eval` is whatever command string a user previously registered via `cmd-registerevent`; there is no fixed, enumerable set of call targets here at all -- the entire dispatch table is populated and consulted at runtime inside a per-connection namespace created dynamically as `irc$conn::$host`.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tricky_indirection",
+    "file": "clay/clay.tcl",
+    "lineStart": 1185,
+    "lineEnd": 1228,
+    "snippet": "::proc ::clay::define::Ensemble {rawmethod args} {\n  ...\n  set mlist [split $rawmethod \"::\"]\n  set ensemble [string trim [lindex $mlist 0] :/]\n  set method   [string trim [lindex $mlist 2] :/]\n  ...\n  set realmethod  [string totitle $ensemble]_${method}\n  set realbody {}\n  ...\n  if {$method eq \"default\"} {\n    $class clay set method_ensemble $ensemble $method: \"tailcall my $realmethod \\$method {*}\\$args\"\n    ...\n    oo::define $class method $realmethod [list method [list args $argspec]] $realbody\n  } else {\n    $class clay set method_ensemble $ensemble $method: \"tailcall my $realmethod {*}\\$args\"\n    ...\n    oo::define $class method $realmethod $argspec $realbody\n  }\n}",
+    "note": "A custom `oo::define` keyword (`Ensemble foo::bar {...} {...}`) never creates a method literally named `bar`; it splits the raw name, title-cases the ensemble part, and synthesizes `realmethod` = e.g. 'Foo_bar' via string concatenation, then defines *that* on the class while separately stashing a tailcall-dispatch stub string in a per-class clay dict (`method_ensemble`) that a runtime-generated switch body (built elsewhere in the file from that same dict) uses to route `foo bar ...` calls -- the actual method name backing any given Ensemble-declared subcommand exists nowhere as source text.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tclOO",
+    "file": "ooutil/ooutil.tcl",
+    "lineStart": 69,
+    "lineEnd": 117,
+    "snippet": "proc ::oo::define::classmethod {name {args \"\"} {body \"\"}} {\n  set cls [namespace which [lindex [info level -1] 1]]\n  set d $cls.Delegate\n  if {[info object isa object $d] && [info object isa class $d]} {\n    set cls $d\n  }\n  if {$argc == 4} {\n    oo::define $cls method $name $args $body\n  }\n  uplevel 1 [list forward $name [info object namespace $cls]::my $name]\n}\n\noo::class create oo::class.Delegate {\n  method create {name args} {\n    ...\n    set delegate [oo::class create $name.Delegate]\n    set cls [next $name {*}$args]\n    set superdelegates [list $delegate]\n    foreach c [info class superclass $cls] {\n      set d $c.Delegate\n      if {[info object isa object $d] && [info object isa class $d]} {\n        lappend superdelegates $d\n      }\n    }\n    oo::objdefine $cls mixin {*}$superdelegates\n    return $cls\n  }\n}\noo::define oo::class self mixin oo::class.Delegate",
+    "note": "Adds a `classmethod` keyword to oo::define by, for every class created anywhere, silently also creating a shadow `<ClassName>.Delegate` class and mixing it into the class object itself (`self mixin`) so class-level method calls forward through it; `classmethod` then installs the real method on the *Delegate* of the class two frames up (`[info level -1]`) and wires the public name via `forward`, meaning the method actually invoked when you call `Table find ...` lives on `::Table.Delegate`, an object created as a side effect of every single `oo::class create`, not on Table or its declared superclasses.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tclOO",
+    "file": "httpd/httpd.tcl",
+    "lineStart": 1970,
+    "lineEnd": 1994,
+    "snippet": "set reply [my dispatch $query]\n\nif {[llength $reply]==0} {\n  ...\n  dict set query mixin reply ::httpd::content.template\n}\n\nset class ::httpd::reply.memchan\nset pageobj [$class create ::httpd::object::$uuid [self]]\nif {[dict exists $reply mixin]} {\n  set mixinmap [dict get $reply mixin]\n} else {\n  set mixinmap {}\n}\nforeach item [dict keys $reply MIXIN_*] {\n  set slot [string range $reply 6 end]\n  dict set mixinmap [string tolower $slot] [dict get $reply $item]\n}\n$pageobj clay mixinmap {*}$mixinmap\nif {[dict exists $reply delegate]} {\n  $pageobj clay delegate {*}[dict get $reply delegate]\n}",
+    "note": "For every incoming HTTP request a fresh object `::httpd::object::$uuid` is created and then has its class mixins chosen at runtime from a dict returned by `my dispatch $query` (URL routing) merged with ad-hoc `MIXIN_*` keys, ultimately calling into clay's `mixin` method which does `::oo::objdefine [self] mixin {*}$args`; which content-handling methods actually run for a given request is therefore determined by a routing table evaluated per-request, not by any static class relationship visible near the object's creation.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "upvar",
+    "file": "cmdline/cmdline.tcl",
+    "lineStart": 198,
+    "lineEnd": 215,
+    "snippet": "proc ::cmdline::getoptions {argvVar optlist {usage options:}} {\n    upvar 1 $argvVar argv\n\n    set opts [GetOptionDefaults $optlist result]\n\n    set argc [llength $argv]\n    while {[set err [getopt argv $opts opt arg]]} {\n\tif {$err < 0} {\n            set result(?) \"\"\n            break\n\t}\n\tset result($opt) $arg\n    }\n    if {[info exist result(?)] || [info exists result(help)]} {\n\tError [usage $optlist $usage] USAGE\n    }\n    return [array get result]\n}",
+    "note": "`result` is never declared or assigned directly in getoptions; it is passed by the literal name \"result\" into `GetOptionDefaults $optlist result` (cmdline.tcl:308-309), which does `upvar 1 defaultArrayVar result` and populates `result(...)` entries in getoptions's own frame as a side effect -- a resolver analysing getoptions alone would see `result` read from and never definitively written, missing that its contents are established entirely inside a different proc one upvar-hop away.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "uplevel",
+    "file": "page/util_flow.tcl",
+    "lineStart": 23,
+    "lineEnd": 37,
+    "snippet": "snit::type ::page::util::flow::iter {\n    constructor {startset fvar nvar script} {\n\t$self visitl $startset\n\n\t# Export the object for use by the flow script\n\tupvar 3 $fvar flow ; set flow $self\n\tupvar 3 $nvar current\n\n\twhile {[array size visit]} {\n\t    set nodes [array names visit]\n\t    array unset visit *\n\n\t    foreach n $nodes {\n\t\tset current $n\n\t\tset code [catch {uplevel 3 $script} result]\n...",
+    "note": "Inside a snit::type constructor, `upvar 3` / `uplevel 3` reach past snit's own object-creation machinery (the constructor call itself, snit's internal creation wrapper, and the `::page::util::flow` convenience proc) to link/execute directly in the scope of the original external caller of `page::util::flow`; the '3' is correct only because of snit's specific call-stack shape, so a resolver has to know snit's internals to know which frame `flow`/`current`/`$script` actually bind to.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "uplevel",
+    "file": "tepam/tepam.tcl",
+    "lineStart": 1890,
+    "lineEnd": 1904,
+    "snippet": "#### Perform the custom argument validations ####\n\nforeach {VCommandO VCommandErrTxtO VLevel} {\n   -validatecommand -validatecommand_error_text 1\n   -validatecommand2 -validatecommand2_error_text 2\n} {\n   foreach ValidateCommand $ProcOption($VCommandO) ValidateCommandErrTxt $ProcOption($VCommandErrTxtO) {\n      if {![uplevel $VLevel $ValidateCommand]} {\n         if {$ValidateCommandErrTxt!=\"\"} {\n            append ErrorMessage \"$ValidateCommandErrTxt\\n\"\n         } else {\n            append ErrorMessage \"Validation constraint '$ArgValue' is not satisfied\\n\"\n         }\n      }\n   }\n}",
+    "note": "Which stack level a user-supplied validation expression executes at (1 vs 2) is chosen by which of two nearly-identical option families (-validatecommand vs -validatecommand2) the procedure's caller used to declare it, driven by a literal `1`/`2` embedded in an unrelated foreach's iteration list; ValidateCommand itself is arbitrary Tcl text supplied by whoever defined the TEPAM procedure, so both the code executed and the frame it runs against are two layers of indirection removed from the call site.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "eval",
+    "file": "htmlparse/htmlparse.tcl",
+    "lineStart": 866,
+    "lineEnd": 893,
+    "snippet": "regsub -all -- {<([^\\s>]+)\\s*([^>]*)/>} $html {<\\1 \\2></\\1>} html\n\nset sub \"\\}\\n\\0\\1@\\0 {\\\\2} {\\\\1} {\\\\3} \\{\"\nregsub -all -- {<(/?)([^\\s>]+)\\s*([^>]*)>} $html $sub html\n\n# Step 2, replace the command placeholder with the command\n# itself.\nset html [string map [list \\n\\0\\1@\\0 \\n$cmd] $html]\n\nif {$queue == {}} {\n    # And evaluate it. This is the main parsing step.\n    eval \"$cmd {$vroot} {} {} \\{$html\\}\"\n    eval \"$cmd {$vroot} /  {} {}\"\n} else {\n    ...\n}",
+    "note": "The parser turns raw HTML tag boundaries into an unbounded number of embedded invocations of a caller-supplied callback name ($cmd, default ::htmlparse::debugCallback) directly inside the document text via regsub/string map, then `eval`s the entire synthesized blob as one Tcl script; the actual call sites for $cmd are not enumerable statically at all -- their count and arguments depend on the shape of whatever HTML document is parsed at runtime.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "math/exact.tcl",
+    "lineStart": 30,
+    "lineEnd": 35,
+    "snippet": "namespace eval math::exact {\n\n    namespace eval function {\n\tnamespace path ::math::exact\n    }\n    namespace path ::tcl::mathop\n\n    ...",
+    "note": "Every unqualified operator-looking call inside ::math::exact (e.g. bare `+`, `-`, `*`, `/` used later in the grammar actions) resolves through `namespace path ::tcl::mathop` rather than to any proc defined in this file; simultaneously the nested `::math::exact::function` namespace paths back to its parent, so a bareword like `sin` inside a `function::` body must be resolved by walking two independent namespace-path chains, neither of which is `namespace import`.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "tcl_mathop",
+    "file": "generator/generator.tcl",
+    "lineStart": 289,
+    "lineEnd": 295,
+    "snippet": "proc product xs { foldl ::tcl::mathop::* 1 $xs }\n...\nproc sum xs { foldl ::tcl::mathop::+ 0 $xs }",
+    "note": "::tcl::mathop::* and ::tcl::mathop::+ are passed as first-class command-name values into the higher-order `foldl` (which later does `{*}$f $z $x`); a resolver must recognize the fully-qualified mathop command as a value flowing through a generic combinator rather than as an infix expr operator to know what actually executes inside foldl's loop.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "package_loading",
+    "file": "try/pkgIndex.tcl",
+    "lineStart": 1,
+    "lineEnd": 21,
+    "snippet": "if {![package vsatisfies [package provide Tcl] 8.5 9]} {\n    return\n}\npackage ifneeded try   1.1 [list source [file join $dir try.tcl]]\npackage ifneeded throw 1.1 [list source [file join $dir throw.tcl]]\n\nif {[package vsatisfies [package provide Tcl] 9-]} {\n    package provide file::home 1\n    return\n}\npackage ifneeded file::home 1 [list source [file join $dir fhome.tcl]]",
+    "note": "Whether `package require try` lazily sources try.tcl or is a no-op, and whether `file::home` is provided as a builtin stub versus lazily loaded from fhome.tcl, both depend on the running interpreter's Tcl version at package-index-scan time; a resolver that just indexes pkgIndex.tcl ifneeded targets without evaluating the vsatisfies guards will get the wrong provider for a given Tcl version.",
+    "corpus": "tcllib-2.0/modules"
+  },
+  {
+    "feature": "autoindex",
+    "file": "math/math.tcl",
+    "lineStart": 17,
+    "lineEnd": 44,
+    "snippet": "namespace eval ::math {\n    namespace export\tcov\t\tfibonacci\tintegrate\n    namespace export\tmax\t\tmean\t\tmin\n    ...\n    # Set up for auto-loading\n\n    if { ![interp issafe {}]} {\n\tvariable home [file join [pwd] [file dirname [info script]]]\n\tif {[lsearch -exact $::auto_path $home] == -1} {\n\t    lappend ::auto_path $home\n\t}\n    } else {\n\tsource [file join [file dirname [info script]] misc.tcl]\n\tsource [file join [file dirname [info script]] combinatorics.tcl]\n    }\n\n    package provide [namespace tail [namespace current]] 1.2.6\n}",
+    "note": "None of the exported commands (cov, fibonacci, max, mean, ...) are defined in this file; in a normal interpreter they only become resolvable by extending ::auto_path so Tcl's tclIndex-based auto_load machinery finds them in misc.tcl/combinatorics.tcl on first use, while in a *safe* interpreter (where autoloading is unreliable) the branch instead eagerly sources both files -- so the correct definition site for `math::mean` depends on a runtime `interp issafe` check, not on any import/require visible here.",
+    "corpus": "tcllib-2.0/modules"
+  }
+]

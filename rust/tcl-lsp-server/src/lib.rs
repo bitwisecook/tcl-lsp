@@ -4006,11 +4006,29 @@ impl Backend {
         };
         {
             let index = self.workspace_index.read().await;
+            let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
             if let Some(cand) = inv.resolution_candidates.iter().find(|cand| {
                 let cand = cand.as_str();
-                analysis.all_procs.contains_key(cand)
+                // A candidate naming a real registry builtin only counts a
+                // same-file or cross-file proc definition when that
+                // definition isn't itself nested inside another proc's or
+                // class's body — the "rename the builtin away, install a
+                // same-named shadow, restore it" idiom otherwise makes the
+                // shadow permanently outrank the builtin for every call site
+                // in the workspace, including ones that run strictly after
+                // the shadow has been renamed back off. Mirrors the same
+                // gate `resolve_called_proc` (tcl-lsp-core) already applies;
+                // `resolve_workspace_symbols` is a separate resolver (the
+                // declaration-vs-call-site / cross-file oracle), not a
+                // caller of it, so it needs its own copy of the same check.
+                let has_builtin = registry.get(cand.trim_start_matches("::")).is_some();
+                let same_file_hit = analysis.all_procs.get(cand).is_some_and(|p| {
+                    !has_builtin
+                        || !analysis.offset_is_inside_any_definition_body(p.name_span.start())
+                });
+                same_file_hit
                     || analysis.all_classes.contains_key(cand)
-                    || index.workspace_command_exists(cand)
+                    || index.workspace_command_exists_for_call(cand, has_builtin)
             }) {
                 // A candidate that resolves through an `interp alias` /
                 // `rename` / `namespace import` names the linked command

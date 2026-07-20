@@ -784,6 +784,39 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     ns_global_fallback: bool,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
     use tcl_compiler::analyser::ScopeKind;
+    // A `::`-qualified name first tries a direct, single-table lookup in
+    // exactly the namespace the qualifier names (tclsh 9.0.4/8.6.16-verified:
+    // `$other::v` referenced from inside namespace ::mine never tries
+    // ::mine::other::v — only the one namespace the qualifier actually
+    // resolves to). An absolute qualifier (leading `::`) resolves from the
+    // global namespace; a relative one resolves under the cursor's own
+    // command-resolution namespace — empirically the *same* namespace an
+    // unqualified command there would resolve against, including the
+    // `oo::class` method global-only special case and the `uplevel #0`
+    // reset, so [`innermost_namespace_at`] (already the single canonical
+    // implementation of that rule) doubles as the qualifier's base with no
+    // separate variable-specific namespace logic. This alone covers every
+    // `variable`-declared namespace cell from *anywhere* in the file — the
+    // case the qualified outward walk below can't reach, since it only
+    // ever sees scopes on the cursor's own lexical chain.
+    //
+    // A miss falls through to that walk rather than returning early: a
+    // literal-qualified write with no preceding `namespace eval` / `variable`
+    // (`set ns::var val`) records its `VarDef` verbatim under the writer's
+    // own active scope, with no namespace-tree node to find by path — that
+    // shape is only reachable when the cursor's own chain happens to include
+    // the scope that wrote it (`chain[0]`, the global scope, always does),
+    // exactly as before this lookup existed.
+    if name.contains("::") {
+        let here = innermost_namespace_at(scope, byte_offset);
+        let qualified = tcl_compiler::naming::qualify(&here, name);
+        let (target_ns, base_name) = tcl_compiler::naming::key_holder_and_tail(&qualified);
+        if let Some(v) =
+            tcl_compiler::analyser::lookup_var_in_namespace(scope, target_ns, base_name)
+        {
+            return Some(v);
+        }
+    }
     // First, find the innermost scope containing the cursor.
     let chain = scope_chain_at(scope, byte_offset);
     // A bare name at a **namespace frame** (cursor directly in a `namespace
@@ -792,12 +825,12 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     // `ns_global_fallback`, from
     // `AnalysisResult::ns_var_global_fallback`) — the global namespace.
     // Enclosing *intermediate* namespaces are never consulted in **any**
-    // version.  Qualified names and proc-like frames (proc / method /
-    // uplevel bodies) keep the lenient outward walk below.  (An
-    // `interp eval` child scope shares the `Namespace` kind, so under 8.x
-    // the global leg can still cross the interp boundary — a pre-existing
-    // leniency this rule already narrows from "every enclosing scope" to
-    // "the global table only".)
+    // version.  Qualified names (the direct namespace lookup above already
+    // missed) and proc-like frames (proc / method / uplevel bodies) keep the
+    // lenient outward walk below.  (An `interp eval` child scope shares the
+    // `Namespace` kind, so under 8.x the global leg can still cross the
+    // interp boundary — a pre-existing leniency this rule already narrows
+    // from "every enclosing scope" to "the global table only".)
     if !name.contains("::")
         && chain.len() > 1
         && chain
@@ -1123,8 +1156,23 @@ fn proc_visible_from_namespace<'a>(
 /// statically visible at the call, made deterministic by
 /// [`fallback_proc_by_simple_name`].
 ///
+/// A candidate whose own declaration is nested inside another proc's (or
+/// class's) body is never allowed to win this gate: nested code runs only
+/// conditionally, when and if the enclosing definition is actually invoked,
+/// so a `proc ::set {...}` written inside some unrelated proc must not
+/// permanently outrank the real `set` builtin for every call site in the
+/// workspace — the classic "rename the builtin away, install a shadow,
+/// restore it" idiom (e.g. `rest.tcl`'s `describe`) otherwise leaves hover /
+/// go-to-definition / references pointing at the shadow forever, even at a
+/// call site that runs strictly after the shadow has been renamed back off.
+/// [`AnalysisResult::offset_is_inside_any_definition_body`] is the same
+/// judgement the analyser's own W123 gate (`registry_name_deleted_before`)
+/// already applies to a *deletion* recorded inside a body — reused here
+/// rather than re-derived, so both agree on what "load-time" means.
+///
 /// `registry`, when `Some`, supplies the builtin gate; `None` skips the gate
-/// (callers without a registry keep the lenient behaviour).
+/// (callers without a registry keep the lenient behaviour, including the
+/// nested-shadow one — there is no builtin to protect).
 pub(crate) fn resolve_called_proc<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
@@ -1132,10 +1180,15 @@ pub(crate) fn resolve_called_proc<'a>(
     word: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    let has_builtin = registry.is_some_and(|r| r.get(word).is_some());
     if let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word) {
-        return Some(proc_def);
+        let nested_shadow = has_builtin
+            && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
+        if !nested_shadow {
+            return Some(proc_def);
+        }
     }
-    if registry.is_some_and(|r| r.get(word).is_some()) {
+    if has_builtin {
         return None;
     }
     fallback_proc_by_simple_name(analysis, source, word)
@@ -1407,6 +1460,61 @@ mod tests {
     }
 
     #[test]
+    fn nested_shadow_of_builtin_never_outranks_the_builtin() {
+        // TP — the "rename the builtin away, install a same-named shadow,
+        // restore it" idiom (`rest.tcl`'s `describe`, tcllib): a `proc ::set
+        // {...}` written *inside* another proc's body exists only
+        // conditionally (when and if the enclosing proc runs), and is
+        // renamed back off again before the enclosing proc returns. A call
+        // site that runs strictly after the enclosing proc returns is
+        // unambiguously the real builtin — the shadow definition existing
+        // *somewhere in the file* must not make it win.
+        let src = "proc outer {} {\n    rename ::set ::_set\n    proc ::set {var val} { ::_set $var $val }\n    rename ::set {}\n    rename ::_set ::set\n}\nouter\nset final restored\n";
+        let analysis = analyse(src);
+        // `set` on the last line, well after `outer` (and its nested shadow)
+        // has returned.
+        let after_restore = definition(src, 7, 0, &analysis);
+        assert!(
+            after_restore.is_empty(),
+            "a call after the shadow is restored must resolve to the \
+             builtin (no jump target), not the nested shadow: {after_restore:?}",
+        );
+    }
+
+    #[test]
+    fn ordinary_nested_proc_still_resolves_when_not_shadowing_a_builtin() {
+        // TN / regression guard — the nested-shadow gate is scoped to names
+        // that collide with a real registry builtin; an ordinary nested
+        // helper proc (no such collision) must keep resolving exactly as
+        // before.
+        let src = "proc outer {} {\n    proc helper {} { return 1 }\n    return [helper]\n}\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 2, 13, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must still resolve to the nested helper"
+        );
+    }
+
+    #[test]
+    fn top_level_builtin_override_still_resolves_to_itself() {
+        // FN guard — a proc that shadows a builtin at *file* (top-level)
+        // scope is not a conditional nested definition; it unconditionally
+        // replaces the builtin for the rest of the file, exactly as real
+        // Tcl's `proc puts {args} {...}` would, and must keep resolving to
+        // itself rather than being caught by the nested-shadow gate.
+        let src = "proc puts {args} { return }\nputs hello\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 1, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 0,
+            "must resolve to the top-level override"
+        );
+    }
+
+    #[test]
     fn qualified_relative_call_prefers_current_namespace_then_global() {
         // `sub::p` written inside ::ns resolves ::ns::sub::p before
         // ::sub::p; the absolute `::sub::p` resolves exactly (confirmed
@@ -1561,6 +1669,78 @@ mod tests {
         let locs = definition(src, 1, 8, &analysis);
         assert_eq!(locs.len(), 1);
         assert_eq!(locs[0].start_line, 0, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn jump_to_absolutely_qualified_var_definition() {
+        // TP — the exact shape both mined findings (defer.tcl's
+        // `$::defer::idVar`, uri.tcl's namespace-current pattern) reduce to:
+        // a `variable` declared at namespace-eval scope, referenced
+        // elsewhere via its fully `::`-qualified name. Previously empty
+        // (lookup_var_in_scope_chain only special-cased bare names).
+        let src = "namespace eval ::simple {\n    variable v \"hello\"\n}\nputs $::simple::v\n";
+        let analysis = analyse(src);
+        // Cursor on `v` inside `$::simple::v` (line 3, col 16).
+        let locs = definition(src, 3, 16, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1, "{:?}", locs[0]);
+        assert_eq!(locs[0].start_character, 13, "{:?}", locs[0]);
+        assert_eq!(locs[0].end_character, 14, "name-sized span: {:?}", locs[0]);
+    }
+
+    #[test]
+    fn jump_to_relatively_qualified_var_definition_from_sibling_namespace() {
+        // TP — a relative qualifier (`B::v`, no leading `::`) resolves under
+        // the *cursor's* command-resolution namespace (tclsh 9.0.4/8.6.16
+        // -verified: identical rule to what an unqualified command there
+        // would resolve against), not the file's top level. `show` is
+        // defined in `::A`, so `B::v` must reach `::A::B::v`, never a
+        // top-level `::B::v`.
+        let src = "namespace eval ::A {\n    namespace eval ::A::B {\n        variable v \"nested\"\n    }\n    proc show {} {\n        puts $B::v\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `v` inside `$B::v` (line 5, col 17).
+        let locs = definition(src, 5, 17, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 2, "{:?}", locs[0]);
+        assert_eq!(locs[0].start_character, 17, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn qualified_var_definition_for_var_declared_in_a_reopened_namespace() {
+        // TP — a namespace `namespace eval`-reopened in two unrelated
+        // places: the qualified reference must find the declaration
+        // regardless of which block declares it (no single lexical block
+        // may be assumed to hold every variable a qualified reference
+        // might mean).
+        let src = "namespace eval ::A {\n    proc noop {} {}\n}\nnamespace eval ::A {\n    variable v 1\n}\nputs $::A::v\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 6, 11, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 4, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn qualified_var_definition_abstains_for_unknown_namespace() {
+        // TN — a qualified reference into a namespace that's never declared
+        // anywhere in the file must abstain (empty), not guess at an
+        // unrelated variable.
+        let src = "namespace eval ::real {\n    variable v 1\n}\nputs $::nonexistent::v\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 3, 20, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn qualified_var_definition_does_not_match_a_same_named_proc_local() {
+        // FP guard — a proc's local variable must never satisfy a
+        // namespace-qualified lookup even though the proc's own
+        // command-resolution namespace coincides with the target: `f`'s
+        // local `v` is unrelated to `::A::v`, which is never declared here.
+        let src =
+            "namespace eval ::A {\n    proc f {} {\n        set v 1\n    }\n}\nputs $::A::v\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 5, 11, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     /// Issue #727: go-to-definition of a formal-parameter use must resolve to
