@@ -17,10 +17,11 @@ and only gained regression coverage.
 
 ## Bug Fixes
 
-- **`apply` lambda argument list is highlighted correctly.** A bare
-  (unbraced) argument list in `apply {dir {…}}` was painted as a plain
-  string instead of being recognised as a parameter declaration; braced
-  argument lists and `proc` were already correct and are unaffected.
+- **Bare single-name parameter lists are highlighted correctly.** An
+  unbraced argument list — for example `apply {dir {…}}`, `proc unknown
+  args {…}`, or a snit `method`/`typemethod` declaration — was painted as a
+  plain string instead of being recognised as a parameter declaration.
+  Braced argument lists (`{a b}`) were already correct and are unaffected.
 - **`pkgIndex.tcl`'s implicit `$dir` no longer flags as read-before-set.**
   The package loader sets `dir` before a `pkgIndex.tcl` script runs, so
   reading it there is always safe. The suppression is scoped to files
