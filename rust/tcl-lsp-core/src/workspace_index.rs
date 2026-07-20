@@ -258,6 +258,19 @@ pub struct WorkspaceCommandLink {
     /// rename rewrites it.  `None` when the source scan did not record a span
     /// for this link kind.
     pub target_span: Option<Span>,
+    /// Whether this link's own declaration (the `namespace import` /
+    /// `interp alias` / `rename` command) sits inside another proc's or
+    /// class's body — i.e. it takes effect only conditionally, when and if
+    /// that enclosing definition actually runs (the same "rename a builtin
+    /// away, install a same-named shadow, restore it" idiom
+    /// [`WorkspaceProc::nested`] guards against, extended to the alias /
+    /// rename / import forms of introducing a name). Mirrors
+    /// [`WorkspaceProc::nested`] exactly, including its consumer:
+    /// [`WorkspaceIndex::workspace_command_exists_for_call`] excludes only a
+    /// *nested* link when a same-named builtin is in play, so an
+    /// unconditional (top-level) alias/rename/import still counts as
+    /// existing.
+    pub nested: bool,
 }
 
 /// Cross-document aggregate of proc / class definitions,
@@ -388,6 +401,7 @@ impl WorkspaceIndex {
                 linked_qname: tcl_syntax::naming::qualify(&imp.ns, tail),
                 target_qname: normalise_qualified_name(&imp.pattern),
                 target_span: Some(imp.range),
+                nested: analysis.offset_is_inside_any_definition_body(imp.range.start()),
             });
         }
         // `interp alias {} a {} ::mod::helper` binds `a` to `::mod::helper`;
@@ -400,21 +414,31 @@ impl WorkspaceIndex {
             if alias.target.is_empty() {
                 continue;
             }
+            let nested = analysis
+                .alias_offsets
+                .get(&alias.qualified_name)
+                .is_some_and(|&off| analysis.offset_is_inside_any_definition_body(off));
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
                 linked_qname: normalise_qualified_name(&alias.qualified_name),
                 target_qname: normalise_qualified_name(&alias.target),
                 target_span: None,
+                nested,
             });
         }
         // `rename OLD NEW` makes `NEW` run what `OLD` denoted.  The recorded
         // map is `NEW → OLD`, both already `::`-normalised.
         for (new, old) in &analysis.renamed_commands {
+            let nested = analysis
+                .rename_target_spans
+                .get(new)
+                .is_some_and(|sp| analysis.offset_is_inside_any_definition_body(sp.start()));
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
                 linked_qname: normalise_qualified_name(new),
                 target_qname: normalise_qualified_name(old),
                 target_span: analysis.rename_target_spans.get(new).copied(),
+                nested,
             });
         }
     }
@@ -546,6 +570,12 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn classes(&self) -> &[WorkspaceClass] {
         &self.classes
+    }
+
+    /// Every indexed `namespace import` / `interp alias` / `rename` link.
+    #[must_use]
+    pub fn command_links(&self) -> &[WorkspaceCommandLink] {
+        &self.command_links
     }
 
     /// Workspace classes whose qualified name matches `name` exactly or via
@@ -1290,10 +1320,12 @@ impl WorkspaceIndex {
             .contains(qualified_name.trim_start_matches("::"))
     }
 
-    /// [`Self::workspace_command_exists`], but a proc whose own declaration
-    /// is nested inside another proc's or class's body (so it exists only
+    /// [`Self::workspace_command_exists`], but a proc, or an `interp alias` /
+    /// `rename` / `namespace import` link, whose own declaration is nested
+    /// inside another proc's or class's body (so it exists only
     /// conditionally, when and if that enclosing definition actually runs)
-    /// counts only when `has_builtin` is `false`.
+    /// counts only when `has_builtin` is `false`. An unconditional
+    /// (top-level) proc or link still counts regardless of `has_builtin`.
     ///
     /// A nested `proc ::set {...}` written to temporarily shadow the real
     /// `set` builtin — `rename` it away, install the shadow, `rename` it
@@ -1301,8 +1333,14 @@ impl WorkspaceIndex {
     /// every cross-file call-site resolution the way a real top-level
     /// definition would; that call always reaches the builtin unless a
     /// caller can prove the shadow's narrow active window actually contains
-    /// it, which this index does not attempt to prove. Mirrors the same
-    /// judgement `resolve_called_proc` already applies same-file
+    /// it, which this index does not attempt to prove. The same reasoning
+    /// applies to a `rename`/alias/import written inside a body — e.g.
+    /// `proc withRealSet {} { rename set ::real_set; ... }` locally
+    /// redirecting `set` — while a *top-level* `interp alias {} set {}
+    /// ::my_set` permanently overrides the builtin for the rest of the file,
+    /// exactly like a top-level `proc set`, and must keep counting as
+    /// existing. Mirrors the same judgement `resolve_called_proc` already
+    /// applies same-file
     /// (`AnalysisResult::offset_is_inside_any_definition_body`), extended to
     /// the cross-file existence oracle so hover / definition / references
     /// agree instead of one abstaining and the other still finding the
@@ -1324,6 +1362,10 @@ impl WorkspaceIndex {
                 .classes
                 .iter()
                 .any(|c| c.qualified_name.trim_start_matches("::") == target)
+            || self
+                .command_links
+                .iter()
+                .any(|l| !l.nested && l.linked_qname.trim_start_matches("::") == target)
     }
 
     /// The set of `::`-stripped qualified names of every indexed proc and
@@ -1932,6 +1974,60 @@ mod tests {
             .expect("top-level ::puts proc indexed");
         assert!(!puts_proc.nested, "a top-level proc is never nested");
         assert!(index.workspace_command_exists_for_call("::puts", true));
+    }
+
+    #[test]
+    fn top_level_alias_workspace_command_exists_for_call_regardless_of_builtin() {
+        // TP — regression for a bug found by Codex review of PR #963:
+        // `workspace_command_exists_for_call`'s `has_builtin` branch dropped
+        // *every* `command_links` entry (aliases / renames / imports), not
+        // just conditional ones, so a permanent top-level `interp alias {}
+        // set {} ::my_set` — exactly like a top-level `proc set` — wrongly
+        // stopped counting as "::set exists" the moment a same-named builtin
+        // was in play.
+        let a = analyse("proc my_set {args} {}\ninterp alias {} set {} ::my_set\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        let link = index
+            .command_links()
+            .iter()
+            .find(|l| l.linked_qname.trim_start_matches("::") == "set")
+            .expect("top-level alias link indexed");
+        assert!(!link.nested, "a top-level alias is never nested");
+        assert!(
+            index.workspace_command_exists_for_call("::set", true),
+            "an unconditional alias of a builtin name must still count as existing",
+        );
+    }
+
+    #[test]
+    fn nested_alias_workspace_command_exists_for_call_excludes_it_from_a_builtin() {
+        // TP — the link-kind twin of
+        // `nested_proc_flagged_and_workspace_command_exists_for_call_excludes_it_from_a_builtin`:
+        // an `interp alias` written inside a proc body only takes effect
+        // while that proc is running, so it must not permanently count as
+        // "::set exists" once a same-named builtin is in play.
+        let a = analyse(
+            "proc my_set {args} {}\nproc withShadow {} {\n    interp alias {} set {} ::my_set\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
+        let link = index
+            .command_links()
+            .iter()
+            .find(|l| l.linked_qname.trim_start_matches("::") == "set")
+            .expect("nested alias link indexed");
+        assert!(
+            link.nested,
+            "the alias inside withShadow must be recorded as nested"
+        );
+        assert!(
+            !index.workspace_command_exists_for_call("::set", true),
+            "a nested alias of a real builtin must not count as existing \
+             for call-target resolution",
+        );
+        assert!(
+            index.workspace_command_exists_for_call("::set", false),
+            "with no colliding builtin, the nested alias still counts",
+        );
     }
 
     #[test]

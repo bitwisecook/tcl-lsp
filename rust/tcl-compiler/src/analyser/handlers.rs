@@ -2326,6 +2326,7 @@ impl Analyser {
         self.command_aliases
             .insert(qualified.clone(), (target_cmd.clone(), prepended.clone()));
         self.alias_offsets.insert(qualified.clone(), offset);
+        self.result.alias_offsets.insert(qualified.clone(), offset);
         self.result.command_aliases.insert(
             qualified.clone(),
             SignatureCommandAlias {
@@ -2370,6 +2371,35 @@ impl Analyser {
         let new = crate::naming::normalise_qualified_name(&args[1]);
         if old.is_empty() {
             return false;
+        }
+        // A rename moves whatever real Tcl object `OLD` currently denotes —
+        // including a live interpreter's own handle command — to `NEW` (or,
+        // for a deleting `rename OLD {}`, off the command table entirely).
+        // Keep `self.interpreters` in step so a later, unrelated definition
+        // that reuses `OLD`'s freed name is never misidentified as still
+        // being that interpreter's handle (confirmed against tclsh 9.0.4:
+        // after `rename sandbox {}` the child interpreter is gone —
+        // `interp slaves` no longer lists it — and a later `proc sandbox
+        // {sub body} {...}` dispatches to the new proc, never to the
+        // interpreter; `rename sandbox t` instead keeps the same
+        // interpreter reachable, now only as `t`). Bumping the epoch on
+        // both the vacated key and any interpreter the rename overwrites at
+        // `NEW` mirrors `handle_interp_delete_command`, so a later
+        // `interp create` recreating either name never merges with the
+        // interpreter that used to be tracked there (issue #945 fault 8).
+        let old_interp_key = self.qualified_interp_key(&args[0]);
+        if let Some(state) = self.interpreters.remove(&old_interp_key) {
+            *self.interp_epochs.entry(old_interp_key).or_insert(0) += 1;
+            if !new.is_empty() {
+                let new_interp_key = self.qualified_interp_key(&args[1]);
+                if self.interpreters.remove(&new_interp_key).is_some() {
+                    *self
+                        .interp_epochs
+                        .entry(new_interp_key.clone())
+                        .or_insert(0) += 1;
+                }
+                self.interpreters.insert(new_interp_key, state);
+            }
         }
         if new.is_empty() {
             self.deleted_commands.insert(old, offset);
@@ -4157,6 +4187,70 @@ mod tests {
     }
 
     #[test]
+    fn renamed_away_interp_handle_reused_as_a_proc_is_not_treated_as_interp_eval() {
+        // TP — regression for a bug found by Codex review of PR #963:
+        // `self.interpreters` is only cleared by `interp delete`, so a plain
+        // `rename sandbox {}` (deleting the interpreter's own object
+        // command — confirmed against tclsh9.0: afterwards `info commands
+        // sandbox` is empty and the child interpreter is only reachable
+        // through whatever name, if any, it was renamed *to*) left a stale
+        // `sandbox` entry. A later, wholly unrelated `proc sandbox {sub
+        // body} {...}` reusing the freed name would then have any
+        // `sandbox eval …` call misidentified as isolated interpreter-eval
+        // (walking the literal second argument as a *script*) instead of an
+        // ordinary two-arg proc call — confirmed against tclsh9.0 that the
+        // real dispatch reaches the new proc, never the (now nameless,
+        // orphaned) interpreter.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandbox\n\
+             rename sandbox {}\n\
+             proc sandbox {sub body} {}\n\
+             sandbox eval { proc shouldNotBeIsolated {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            !r.all_procs
+                .contains_key("::@interp@sandbox::shouldNotBeIsolated"),
+            "the call must not be isolated into the (deleted) interpreter's \
+             domain once `sandbox` has been renamed away and reused: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn renamed_interp_handle_still_isolates_under_its_new_name() {
+        // TP — the other half of the same fix: a rename that *moves* the
+        // interpreter handle (`NEW` non-empty) rather than deleting it must
+        // keep the tracking, now keyed by `NEW` — confirmed against
+        // tclsh9.0 that `rename sandbox t; t eval {...}` still talks to the
+        // same child interpreter. A name-only invalidation (removing `OLD`
+        // without transferring state to `NEW`) would wrongly stop isolating
+        // `t eval { ... }` too (falling through to an ordinary, unisolated
+        // command call). The domain name itself is always derived from
+        // whichever key the call site actually writes — `@interp@t`, not
+        // the original `@interp@sandbox` — exactly like every other
+        // interpreter-domain lookup in this module (e.g. the literal
+        // `interp eval` form re-derives its domain from its own `PATH`
+        // argument text the same way); this test only asserts that the
+        // call is isolated *at all* under the new name, not which domain
+        // string it lands in.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandbox\n\
+             rename sandbox t\n\
+             t eval { proc shouldBeIsolated {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::@interp@t::shouldBeIsolated"),
+            "the renamed handle must still be tracked as an interpreter, \
+             isolating the eval body under its new name's domain: {keys:?}",
+        );
+    }
+
+    #[test]
     fn interp_handle_eval_and_literal_interp_eval_agree_on_the_same_domain() {
         // The two spellings of the same operation must home under the
         // *same* synthetic domain — the analyser can't tell them apart at
@@ -5492,6 +5586,11 @@ mod tests {
         assert_eq!(target, "set");
         assert!(prepended.is_empty());
         assert_eq!(a.alias_offsets.get("::myset"), Some(&42));
+        // The offset is also promoted onto the finalised `AnalysisResult`
+        // (not just the in-progress `Analyser`), so a cross-document
+        // consumer such as `tcl_lsp_core::WorkspaceIndex` can tell an
+        // unconditional alias apart from one nested in a proc/class body.
+        assert_eq!(a.result.alias_offsets.get("::myset"), Some(&42));
     }
 
     #[test]

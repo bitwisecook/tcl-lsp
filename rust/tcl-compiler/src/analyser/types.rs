@@ -793,6 +793,16 @@ pub struct AnalysisResult {
     pub source_targets: Vec<SignatureSource>,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
+    /// Byte offset of the `interp alias` command token that established each
+    /// [`Self::command_aliases`] entry, keyed the same way (by qualified
+    /// alias name) — the promoted, cross-document twin of
+    /// [`Self::rename_target_spans`] for aliases: lets a consumer such as
+    /// [`Self::offset_is_inside_any_definition_body`] tell an alias declared
+    /// inside a proc/class body (conditional — exists only while that
+    /// enclosing definition is running) apart from a top-level one
+    /// (unconditional), the same distinction [`Self::rename_target_spans`]
+    /// already lets it draw for a `rename`.
+    pub alias_offsets: HashMap<String, u32>,
     /// Static `rename OLD NEW` records: `new_qname → old_qname`. `NEW`
     /// resolves to whatever `OLD` denoted (unchanged) — see
     /// [`super::state::Analyser::renamed_commands`] for why a dynamic

@@ -762,6 +762,15 @@ fn leading_option_word_count(options: &[OptionSpec], args: &[&str]) -> usize {
             });
         let Some(opt) = resolved else { break };
         i += 1 + usize::from(opt.takes_value());
+        if opt.name == "--" {
+            // `--` ends option parsing (Tcl's own `Tcl_ParseArgsObjv`-style
+            // convention: every subsequent word — even one that looks like a
+            // declared option, e.g. `interp create -- -safe` — is positional).
+            // Without this, the loop above would keep matching option-shaped
+            // words past the terminator and swallow a literal name meant to
+            // land in a positional slot such as `defines_command_at`.
+            break;
+        }
     }
     i
 }

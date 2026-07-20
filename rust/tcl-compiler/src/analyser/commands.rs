@@ -2240,7 +2240,16 @@ impl Analyser {
         let Some(name) = args.get(idx) else {
             return;
         };
-        if name.starts_with('-') || !is_plain_created_name(name) {
+        // A word right after a consumed `--` terminator is positional no
+        // matter its shape (Tcl's own convention: `--` means "every later
+        // word is an argument, not an option"), so `interp create -- -safe`
+        // must record `-safe` as the created command rather than treating it
+        // like the undeclared/ambiguous flag it would be without that `--`.
+        let past_double_dash = idx
+            .checked_sub(1)
+            .and_then(|i| arg_strs.get(i))
+            .is_some_and(|&w| w == "--");
+        if (!past_double_dash && name.starts_with('-')) || !is_plain_created_name(name) {
             return;
         }
         self.result.created_instance_commands.insert(name.clone());
@@ -3005,6 +3014,24 @@ mod tests {
         let res = a.analyse("interp create -- sandbox\n", "tcl9.0");
         assert!(
             res.created_instance_commands.contains("sandbox"),
+            "created_instance_commands: {:?}",
+            res.created_instance_commands
+        );
+    }
+
+    #[test]
+    fn interp_create_double_dash_with_option_shaped_literal_name_registers_the_command() {
+        // TP — regression for a bug found by Codex review of PR #963:
+        // `leading_option_word_count` kept matching option-shaped words
+        // *after* a `--` terminator, so `interp create -- -safe` (which real
+        // `tclsh9.0` accepts and names the child interpreter literally
+        // `-safe` — verified empirically: `interp create -- -safe` then
+        // `info commands -safe` lists it) wrongly consumed `-safe` too,
+        // as if it were the `-safe` flag rather than the positional name.
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse("interp create -- -safe\n", "tcl9.0");
+        assert!(
+            res.created_instance_commands.contains("-safe"),
             "created_instance_commands: {:?}",
             res.created_instance_commands
         );
