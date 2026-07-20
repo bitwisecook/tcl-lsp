@@ -113,18 +113,21 @@ tasks {
         archiveBaseName.set("tcl-lsp-jetbrains")
     }
 
-    // Drop the bundled native LSP server binary under ``server/`` at the
-    // plugin root (next to ``lib/``) in the distribution so we can execute
-    // it directly from the install directory.  Putting it inside
-    // ``src/main/resources/`` would bundle it into the plugin jar, where it
-    // can't be spawned via a ``jar:file:...!/...`` URL and we'd be forced to
-    // extract to ``${tmpdir}`` at runtime (with a cache-invalidation dance on
-    // plugin upgrades — see ``TclLspServerDescriptor.findBundledServer``).
-    // Same pattern JetBrains' own Prisma ORM plugin uses to ship its native
+    // Drop one bundled native LSP server binary per platform under
+    // ``server/<platform>-<arch>/`` at the plugin root (next to ``lib/``)
+    // in the distribution — one universal plugin covering every platform
+    // except riscv64 Linux (``SERVER_TARGETS_JETBRAINS`` in the Makefile),
+    // the same ``<platform>-<arch>`` naming the VS Code extension uses.
+    // Putting it inside ``src/main/resources/`` would bundle it into the
+    // plugin jar, where it can't be spawned via a ``jar:file:...!/...`` URL
+    // and we'd be forced to extract to ``${tmpdir}`` at runtime (with a
+    // cache-invalidation dance on plugin upgrades — see
+    // ``TclLspServerDescriptor.findBundledServer``).  Same pattern
+    // JetBrains' own Prisma ORM plugin uses to ship its native
     // ``prisma-language-server`` binaries.  ``make build-editor-jetbrains``
-    // stages ``target/release/tcl-lsp-server`` here.
+    // stages the whole ``server/`` tree here.
     prepareSandbox {
-        from(layout.projectDirectory.file("server/tcl-lsp-server")) {
+        from(layout.projectDirectory.dir("server")) {
             into("$pluginName/server")
         }
     }

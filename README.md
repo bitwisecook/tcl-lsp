@@ -185,7 +185,10 @@ Document, Apply Safe Quick Fixes, Apply All Optimisations.
 A full IntelliJ Platform plugin (`.zip`) for IntelliJ IDEA 2024.1+ and other
 JetBrains IDEs.  Includes a dedicated settings panel (Settings > Tools > Tcl
 Language Server) with toggles for every feature, diagnostic code, and
-formatting option.
+formatting option.  One universal plugin bundles a native `tcl-lsp-server`
+binary for macOS, Linux, and Windows on x64 and arm64 (six platforms; no
+riscv64 — no official JetBrains IDE build targets it) and launches the one
+matching your machine.
 
 Features a **Compiler Explorer tool window** with JCEF browser for inspecting
 IR, CFG, SSA, and optimiser output directly inside the IDE.

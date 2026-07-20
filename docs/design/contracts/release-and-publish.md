@@ -185,7 +185,10 @@ the secret is reachable by no other job.
   binary (the Marketplace's fallback for riscv64 Linux, and the artefact
   for a manual side-load), plus six platform-targeted packages built with
   `vsce package --target <platform>`, each bundling only its own binary —
-  no `.pyz`.
+  no `.pyz`. The JetBrains artefact is one universal plugin bundling every
+  native `tcl-lsp-server` binary except riscv64 Linux (no official
+  JetBrains IDE build targets it), since JetBrains Marketplace has no
+  per-platform equivalent of vsce's `--target` yet.
 * Sign every artefact with sigstore (OIDC + `github.token` — no
   configured secrets).
 * Generate SBOMs (`anchore/sbom-action`).
