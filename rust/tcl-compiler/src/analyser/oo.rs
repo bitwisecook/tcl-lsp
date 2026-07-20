@@ -52,7 +52,7 @@
 
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::arg_role::ArgRole;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberSpec};
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind, MemberSpec};
 
 use super::scope::scope_at_mut;
 use super::state::Analyser;
@@ -178,13 +178,15 @@ fn collect_var_decl_spans(
     out
 }
 
-/// Strip a leading itcl access modifier (`public` / `protected` / `private`, a
-/// registry [`MemberKind::Wrapper`]) from a member call, returning the effective
-/// member keyword, its argument texts + tokens (the words *after* the keyword),
-/// and the declared visibility.  A non-wrapped member reports `"public"` (itcl's
-/// members are callable; the precise default is not modelled).  Returns `None`
-/// for an empty command or a bare modifier with no inner member.
-fn itcl_unwrap<'a>(
+/// Strip a leading member wrapper (a registry [`MemberKind::Wrapper`] — itcl's
+/// `public` / `protected` / `private` access modifiers, `TclOO`'s `self`) from a
+/// member call, returning the effective member keyword, its argument texts +
+/// tokens (the words *after* the keyword), and the declared visibility.  A
+/// non-wrapped member reports `"public"` (itcl's members are callable; the
+/// precise default is not modelled).  Returns `None` for an empty command or a
+/// bare wrapper with no inner member keyword (a wrapper's bare script-block
+/// form, `self { … }`, has no inner member).
+fn unwrap_wrapper_member<'a>(
     grammar: &DefinitionBodyGrammar,
     texts: &'a [String],
     argv: &'a [Token],
@@ -252,6 +254,65 @@ impl Analyser {
         match member.dialects {
             None => true,
             Some(allowed) => allowed.intersects(self.profile.availability_mask),
+        }
+    }
+
+    /// Record the command references a definition-body member names as
+    /// arguments, driven entirely by the member's registry grammar — never by a
+    /// member keyword the walker recognises.  Two grammar facts name a command:
+    ///
+    /// * `all_args_ref == Some(MemberRefKind::Class)` — every argument names a
+    ///   class (`superclass A B`, `mixin ?-append? M …`).  A class is a command
+    ///   in `TclOO`, so each is a command reference resolved in the class's
+    ///   namespace.
+    /// * an [`ArgRole::CommandName`] argument position — one argument names a
+    ///   command (`forward NAME TARGET …`: the delegated command's name).
+    ///
+    /// Both flow through the ordinary invocation machinery, so find-references,
+    /// go-to-definition, rename, and call-hierarchy reach the named class /
+    /// command across files exactly as a direct call does.  A
+    /// `MemberRefKind::Method` member names methods of *this* class rather than
+    /// commands, so the method-reference machinery handles it, not this path.  A
+    /// dynamic word (`superclass $base`) names no static command and is skipped.
+    fn record_member_command_references(
+        &mut self,
+        grammar: &DefinitionBodyGrammar,
+        texts: &[String],
+        argv: &[Token],
+        scope_path: &[usize],
+    ) {
+        // Unwrap a `self …` (or itcl access-modifier) prefix so a wrapped
+        // `self mixin -append …` still contributes its class references.  The
+        // returned texts/tokens are the words *after* the effective keyword, so
+        // grammar arg-role indices (0-based after the keyword) index them
+        // directly.
+        let Some((keyword, arg_texts, arg_toks, _vis)) =
+            unwrap_wrapper_member(grammar, texts, argv)
+        else {
+            return;
+        };
+        let Some(spec) = grammar.member(keyword) else {
+            return;
+        };
+        let record = |analyser: &mut Self, name: &str, tok: &Token| {
+            if name.is_empty() || name.starts_with('-') || crate::naming::is_dynamic_word(name) {
+                return;
+            }
+            // A named command reference carries no fixed call arity: a
+            // superclass/mixin is not invoked here, and a `forward` target is
+            // invoked with a variable number of appended arguments.
+            let resolved = analyser.resolve_command_qualified_name(name, scope_path);
+            analyser.push_command_reference(name.to_owned(), tok.span, resolved, None);
+        };
+        if spec.all_args_ref == Some(MemberRefKind::Class) {
+            for (name, tok) in arg_texts.iter().zip(arg_toks) {
+                record(self, name, tok);
+            }
+        }
+        for idx in spec.indices_for(ArgRole::CommandName) {
+            if let (Some(name), Some(tok)) = (arg_texts.get(idx), arg_toks.get(idx)) {
+                record(self, name, tok);
+            }
         }
     }
 
@@ -325,20 +386,14 @@ impl Analyser {
                 continue;
             }
             apply_oo_subcommand(grammar, &cmd.texts, &cmd.argv, class_def);
-            // A `forward NAME TARGET ?arg…?` member names the command `TARGET`
-            // it delegates to (`TclOO`'s `interp alias`).  Record `TARGET` as a
-            // command invocation so references / go-to-definition / rename see
-            // it the same as a direct call — it resolves in the class's
-            // namespace context, exactly as the forward dispatches at run time.
-            if cmd.texts.first().map(String::as_str) == Some("forward")
-                && let (Some(target), Some(tok)) = (cmd.texts.get(2), cmd.argv.get(2))
-                && !crate::naming::is_dynamic_word(target)
-            {
-                // A forwarded command is invoked with a variable number of args
-                // appended, so it carries no fixed call arity.
-                let resolved = self.resolve_command_qualified_name(target, scope_path);
-                self.push_command_reference(target.clone(), tok.span, resolved, None);
-            }
+            // A member argument that *names* a command — the class a
+            // `superclass`/`mixin` extends, the command a `forward` delegates to
+            // — is a first-class command reference.  Record it so references /
+            // go-to-definition / rename / call-hierarchy reach it the same as a
+            // direct call.  Which arguments name commands is registry data (the
+            // member grammar's `all_args_ref` / `ArgRole::CommandName`), never a
+            // member keyword the walker knows by name.
+            self.record_member_command_references(grammar, &cmd.texts, &cmd.argv, scope_path);
             if let Some(mb) = collect_method_body(grammar, &cmd.texts, &cmd.argv) {
                 method_bodies.push(mb);
             }
@@ -904,7 +959,7 @@ impl Analyser {
     /// → instance/class variables, `method` / `proc` / `constructor` /
     /// `destructor` → method scopes.  Two passes (so a method can reference any
     /// variable regardless of declaration order); access modifiers are unwrapped
-    /// via [`itcl_unwrap`].
+    /// via [`unwrap_wrapper_member`].
     fn parse_itcl_definition_body(
         &mut self,
         body: &str,
@@ -934,10 +989,15 @@ impl Analyser {
             if cmd.is_partial {
                 continue;
             }
-            let Some((kw, kw_args, _kw_toks, _vis)) = itcl_unwrap(grammar, &cmd.texts, &cmd.argv)
+            let Some((kw, kw_args, _kw_toks, _vis)) =
+                unwrap_wrapper_member(grammar, &cmd.texts, &cmd.argv)
             else {
                 continue;
             };
+            // A base class an `inherit` names is a command reference (the same
+            // registry-driven path TclOO's `superclass`/`mixin` use), so
+            // find-references / go-to-definition / rename reach it across files.
+            self.record_member_command_references(grammar, &cmd.texts, &cmd.argv, scope_path);
             match kw {
                 "variable" | "common" => {
                     if let Some(name) = kw_args.first() {
@@ -959,7 +1019,8 @@ impl Analyser {
             if cmd.is_partial {
                 continue;
             }
-            let Some((kw, kw_args, kw_toks, vis)) = itcl_unwrap(grammar, &cmd.texts, &cmd.argv)
+            let Some((kw, kw_args, kw_toks, vis)) =
+                unwrap_wrapper_member(grammar, &cmd.texts, &cmd.argv)
             else {
                 continue;
             };
@@ -1423,13 +1484,12 @@ fn apply_oo_subcommand(
     let member = grammar.member(subcmd);
 
     match subcmd {
+        // `superclasses` / `mixins` feed the class-hierarchy graph (inherited
+        // methods, MRO).  The navigable *references* to those base classes are
+        // recorded separately as `command_invocations` by
+        // `record_member_command_references`, so no per-name span is kept here.
         "superclass" => {
             class_def.superclasses = sub_args.to_vec();
-            for (i, name) in sub_args.iter().enumerate() {
-                if let Some(tok) = sub_tokens.get(i) {
-                    class_def.superclass_refs.push((name.clone(), tok.span));
-                }
-            }
         }
         "mixin" => {
             // Skip ``-append`` and similar flags.
@@ -1438,14 +1498,6 @@ fn apply_oo_subcommand(
                 .filter(|a| !a.starts_with('-'))
                 .cloned()
                 .collect();
-            for (i, name) in sub_args.iter().enumerate() {
-                if name.starts_with('-') {
-                    continue;
-                }
-                if let Some(tok) = sub_tokens.get(i) {
-                    class_def.mixin_refs.push((name.clone(), tok.span));
-                }
-            }
         }
         "method" => {
             if let Some(mut md) = member
@@ -1953,6 +2005,150 @@ mod tests {
         let known = r.class_hierarchy().known_methods("::C");
         assert!(known.contains(&"configure".to_owned()), "{known:?}");
         assert!(known.contains(&"cget".to_owned()), "{known:?}");
+    }
+
+    /// A command reference the analyser records for a class-body member
+    /// argument (`superclass`/`mixin`/`inherit`/`forward` target).  `written`
+    /// is the token text; `resolved` the qualified command it denotes.
+    fn has_cmd_ref(
+        r: &crate::analyser::types::AnalysisResult,
+        written: &str,
+        resolved: &str,
+    ) -> bool {
+        r.command_invocations.iter().any(|inv| {
+            inv.name == written && inv.resolved_qualified_name.as_deref() == Some(resolved)
+        })
+    }
+
+    // TP: a `superclass ::ns::Base` names the base class — recorded as a
+    // command reference so references / go-to-definition / rename reach it.
+    #[test]
+    fn superclass_records_a_command_reference_to_the_base_class() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "namespace eval ::ns {\n  oo::class create Base {}\n  \
+                 oo::class create Sub { superclass ::ns::Base }\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        assert!(
+            has_cmd_ref(&r, "::ns::Base", "::ns::Base"),
+            "superclass must record a command reference: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| &i.name)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    // TP: `mixin ::ns::Role` — the mixed-in class is a command reference.
+    #[test]
+    fn mixin_records_a_command_reference_to_the_class() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "namespace eval ::ns {\n  oo::class create Role {}\n  \
+                 oo::class create C { mixin ::ns::Role }\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        assert!(has_cmd_ref(&r, "::ns::Role", "::ns::Role"));
+    }
+
+    // Regression: generalising the `forward` target onto the member grammar's
+    // `ArgRole::CommandName` must keep recording the delegated command.
+    #[test]
+    fn forward_target_still_records_a_command_reference() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "namespace eval ::ns {\n  proc helper {} {}\n  \
+                 oo::class create C { forward f ::ns::helper }\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        assert!(has_cmd_ref(&r, "::ns::helper", "::ns::helper"));
+    }
+
+    // TP: a bare `superclass Base` (same namespace) resolves to the enclosing
+    // namespace's class — the one-hop call-site resolution, not an ancestor.
+    #[test]
+    fn bare_superclass_resolves_in_the_class_namespace() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "namespace eval ::ns {\n  oo::class create Base {}\n  \
+                 oo::class create Sub { superclass Base }\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        assert!(has_cmd_ref(&r, "Base", "::ns::Base"));
+    }
+
+    // TP (itcl): `inherit ::ns::Base` names a base class the same way.
+    #[test]
+    fn itcl_inherit_records_a_command_reference_to_the_base_class() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "itcl::class ::ns::Base {}\n\
+                 itcl::class ::ns::Sub { inherit ::ns::Base }\n",
+                "tcl8.6",
+            )
+            .clone();
+        assert!(
+            has_cmd_ref(&r, "::ns::Base", "::ns::Base"),
+            "itcl inherit must record a command reference: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| &i.name)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    // TN: a dynamic base name (`superclass $base`) names no static command —
+    // no reference is recorded (nothing to navigate or rename).
+    #[test]
+    fn dynamic_superclass_records_no_command_reference() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "namespace eval ::ns {\n  \
+                 oo::class create Sub { superclass $base }\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        assert!(
+            !r.command_invocations
+                .iter()
+                .any(|inv| inv.name.contains('$')),
+            "a dynamic superclass name must not be recorded as a reference"
+        );
+    }
+
+    // FP guard: `mixin -append ::ns::M` — the `-append` flag is not a class,
+    // only `::ns::M` is a reference.
+    #[test]
+    fn mixin_append_flag_is_not_a_command_reference() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "namespace eval ::ns {\n  oo::class create M {}\n  \
+                 oo::class create C { mixin -append ::ns::M }\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        assert!(
+            has_cmd_ref(&r, "::ns::M", "::ns::M"),
+            "the class is a reference"
+        );
+        assert!(
+            !r.command_invocations
+                .iter()
+                .any(|inv| inv.name == "-append"),
+            "the -append flag must not be recorded as a command reference"
+        );
     }
 
     #[test]

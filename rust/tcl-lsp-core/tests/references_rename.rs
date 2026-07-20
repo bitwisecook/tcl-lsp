@@ -795,6 +795,35 @@ fn rename_class_two_level_nested_namespace_scoped_correctly() {
     assert!(edits.iter().all(|e| e.new_text == "Panel"));
 }
 
+#[test]
+fn rename_class_rewrites_its_superclass_and_mixin_sites() {
+    // Regression for issue #923: renaming a class must rewrite every
+    // `superclass` / `mixin` word that names it.  References and rename now
+    // read the same `command_invocations`, so they can no longer disagree —
+    // before the fix, references found the superclass site but rename left it
+    // dangling, silently breaking the inheritance graph.
+    // tclsh-proof: `oo::class create Base {}; oo::class create Sub {superclass
+    // Base}; oo::class create C {mixin Base}; [Sub new]; [C new]` all run.
+    let src = concat!(
+        "oo::class create Base {}\n",
+        "oo::class create Sub {\n",
+        "    superclass Base\n",
+        "}\n",
+        "oo::class create C {\n",
+        "    mixin Base\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on `Base` in its declaration (line 0, col 18).
+    let edits = rename(src, "tcl", 0, 18, "Base2", &analysis, None);
+    assert_eq!(
+        edit_lines(&edits),
+        vec![0, 2, 5],
+        "decl + superclass + mixin sites rewritten: {edits:?}"
+    );
+    assert!(edits.iter().all(|e| e.new_text == "Base2"));
+}
+
 // ---------------------------------------------------------------------------
 // references — known limitation: a command name held in a variable
 // ---------------------------------------------------------------------------

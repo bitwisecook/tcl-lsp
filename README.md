@@ -385,6 +385,14 @@ dispatch, and `next` / `nextto` super-dispatch — including calls nested in a
 functions resolve to their backing proc, so a `proc ::tcl::mathfunc::foo` is
 found (and renamed) from every `foo(...)` used inside `expr`.
 
+A class is found through every use of its name, not only `<Class> new`. A
+`superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class
+is a reference to it — resolved by the referencing class's namespace, so a
+fully-qualified `superclass ::ns::Base` in one file is found (and renamed) from
+`::ns::Base`'s declaration in another, while a same-named class in an unrelated
+namespace is never cross-linked. Renaming a class therefore rewrites every
+`superclass` / `mixin` / `inherit` site, keeping the inheritance graph intact.
+
 ```tcl
 oo::class create Store {
     method get {key} { return [my lookup $key] }   ;# ← 'lookup' reference (my dispatch)

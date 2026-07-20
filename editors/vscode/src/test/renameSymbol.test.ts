@@ -208,4 +208,31 @@ suite("Rename Symbol", () => {
       "the line-0 call site is part of the edit",
     );
   });
+
+  // Issue #923: renaming a class must rewrite every `superclass` site that
+  // names it, or the inheritance graph is silently broken.  In `oo-shapes.tcl`
+  // both `Dog` and `Cat` declare `superclass Animal`.
+  test("rename of a class rewrites its superclass sites", async () => {
+    const uri = getDocUri("oo-shapes.tcl");
+    await activate(uri);
+
+    // "Animal" in its declaration `oo::class create Animal` (line 1, col 18).
+    const pos = new vscode.Position(1, 18);
+
+    const edit = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentRenameProvider",
+      uri,
+      pos,
+      "Creature",
+    )) as vscode.WorkspaceEdit | undefined;
+
+    assert.ok(edit, "Rename should return a workspace edit for a class name");
+    const docEntry = edit.entries().find(([u]) => u.toString() === uri.toString());
+    assert.ok(docEntry, "Should include edits for oo-shapes.tcl");
+    const lines = docEntry![1].map((te) => te.range.start.line);
+    assert.ok(
+      lines.includes(7) && lines.includes(12),
+      `Both superclass sites (lines 7 and 12) must be rewritten; got ${JSON.stringify(lines)}`,
+    );
+  });
 });

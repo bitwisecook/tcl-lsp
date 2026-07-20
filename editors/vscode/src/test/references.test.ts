@@ -110,4 +110,29 @@ suite("Find References", () => {
       `Expected the bare bind callback call site (line 9) among ${JSON.stringify(lines)}`,
     );
   });
+
+  // Issue #923: a class named as a `superclass` is a reference to that class.
+  // In `oo-shapes.tcl`, `Animal` is subclassed by both `Dog` and `Cat`, so its
+  // reference set must include both `superclass Animal` sites.
+  test("finds superclass usages as references to the base class", async () => {
+    const uri = getDocUri("oo-shapes.tcl");
+    await activate(uri);
+
+    // Position on "Animal" in its declaration `oo::class create Animal` (line 1).
+    const position = new vscode.Position(1, 18);
+
+    const locations = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeReferenceProvider", uri, position),
+      (r) => Array.isArray(r) && r.length >= 3,
+      { timeout: 10_000, label: "references for a subclassed class" },
+    )) as vscode.Location[];
+
+    assert.ok(locations, "References result should not be null");
+    const lines = locations.map((l) => l.range.start.line);
+    // Dog's `superclass Animal` (line 7) and Cat's `superclass Animal` (line 12).
+    assert.ok(
+      lines.includes(7) && lines.includes(12),
+      `Expected both superclass sites (lines 7 and 12) among ${JSON.stringify(lines)}`,
+    );
+  });
 });
