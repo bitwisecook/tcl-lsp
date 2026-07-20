@@ -86,6 +86,13 @@ surface.
   written-name colon-run rule vs the constructed-key discipline (issue #934):
   `proc :`, `proc {}`, `namespace eval :`, which definitions have no absolute
   spelling, and the W314 diagnostic that flags them.
+- [issue-923-differential-audit/STATUS.md](issue-923-differential-audit/STATUS.md)
+  — status and handoff for the issue #923 differential-audit campaign: mined
+  tricky patterns from tcllib/tk/georgtree/nico-robert corpora, verified
+  against real `tclsh` oracles, fixed and tested. Tracks what's fixed, what's
+  triaged-but-open, the shared resolution mechanisms added, and everything
+  needed to resume (raw findings data + the exact orchestration scripts, in
+  the same directory).
 
 ## F5 BIG-IP CLI
 
