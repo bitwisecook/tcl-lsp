@@ -26,6 +26,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
+import com.intellij.util.system.CpuArch
 import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.eclipse.lsp4j.ConfigurationItem
 import java.io.File
@@ -77,10 +78,11 @@ class TclLspServerDescriptor(project: Project) :
         val serverBinary = findBundledServer()
         if (serverBinary == null) {
             notifyError(
-                "Tcl LSP: bundled server (${bundledServerName()}) not found. " +
-                "Set the server path in Settings > Tools > Tcl Language Server."
+                "Tcl LSP: bundled server (${bundledServerName()}) not found for " +
+                "platform ${bundledPlatformDir()}. Set the server path in " +
+                "Settings > Tools > Tcl Language Server."
             )
-            throw IllegalStateException("Bundled ${bundledServerName()} not found")
+            throw IllegalStateException("Bundled ${bundledServerName()} not found for ${bundledPlatformDir()}")
         }
 
         // JetBrains extracts plugin files without preserving the +x bit, so
@@ -109,6 +111,22 @@ class TclLspServerDescriptor(project: Project) :
     private fun bundledServerName(): String =
         if (SystemInfo.isWindows) "tcl-lsp-server.exe" else "tcl-lsp-server"
 
+    // Plugin bundle directory for the current platform, e.g. `darwin-arm64`,
+    // `linux-x64`, `win32-arm64` — matches SERVER_TARGET_MAP's bundle-dir
+    // naming (and the VS Code extension's `bundlePlatformDir()`) so both
+    // editors describe platforms the same way. The plugin is universal
+    // across every platform except riscv64 Linux (no official JetBrains IDE
+    // build targets it), so CpuArch's x86/ARM distinction is sufficient.
+    private fun bundledPlatformDir(): String {
+        val os = when {
+            SystemInfo.isWindows -> "win32"
+            SystemInfo.isMac -> "darwin"
+            else -> "linux"
+        }
+        val arch = if (CpuArch.isArm64()) "arm64" else "x64"
+        return "$os-$arch"
+    }
+
     // Locate a dev-checkout native server binary from the configured
     // ``serverPath``.  The path may point directly at the binary, or at a
     // checkout root under which we probe ``target/{release,debug}/`` for a
@@ -133,24 +151,28 @@ class TclLspServerDescriptor(project: Project) :
     }
 
     private fun findBundledServer(): String? {
-        // ``build.gradle.kts``'s ``prepareSandbox`` task copies the bundled
-        // native LSP server binary to ``server/tcl-lsp-server`` under the
-        // plugin install root (next to ``lib/``), so we can execute it
-        // directly from the install directory.  We deliberately avoid
-        // putting it inside the plugin jar (``src/main/resources/``) because
-        // an executable can't be spawned from a ``jar:file:...!/...`` URL
-        // and we'd have to extract on first use, then re-extract on every
-        // plugin upgrade (the bug fixed in PR #448).  Pattern matches
-        // JetBrains' own Prisma ORM plugin which ships its native
-        // ``prisma-language-server`` binaries the same way.
+        // ``build.gradle.kts``'s ``prepareSandbox`` task copies one bundled
+        // native LSP server binary per platform to
+        // ``server/<platform>-<arch>/tcl-lsp-server`` under the plugin
+        // install root (next to ``lib/``), so we can execute the one
+        // matching this machine directly from the install directory.  We
+        // deliberately avoid putting it inside the plugin jar
+        // (``src/main/resources/``) because an executable can't be spawned
+        // from a ``jar:file:...!/...`` URL and we'd have to extract on first
+        // use, then re-extract on every plugin upgrade (the bug fixed in PR
+        // #448).  Pattern matches JetBrains' own Prisma ORM plugin which
+        // ships its native ``prisma-language-server`` binaries the same way.
         val pluginDir = findPluginInstallDir() ?: return null
         val name = bundledServerName()
-        val server = File(pluginDir, "server/$name")
-        if (server.exists()) return server.absolutePath
-        // Defensive: tolerate an install layout that drops the binary at the
+        val platformServer = File(pluginDir, "server/${bundledPlatformDir()}/$name")
+        if (platformServer.exists()) return platformServer.absolutePath
+        // Defensive fallbacks: tolerate a flat server/<name> (pre-universal
+        // single-platform layout) or an install that drops the binary at the
         // plugin root or inside ``lib/``.  Shouldn't happen with the current
         // build but keeps a user's working install working if anyone changes
         // ``prepareSandbox``.
+        val flatServer = File(pluginDir, "server/$name")
+        if (flatServer.exists()) return flatServer.absolutePath
         val rootServer = File(pluginDir, name)
         if (rootServer.exists()) return rootServer.absolutePath
         val libServer = File(pluginDir, "lib/$name")

@@ -17,8 +17,8 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# vsce_publish.sh — publish an already-built VSIX to the VS Code Marketplace
-# using the local (committed-lockfile) vsce binary.
+# vsce_publish.sh — publish every already-built VSIX to the VS Code
+# Marketplace using the local (committed-lockfile) vsce binary.
 #
 # Invoked by the `publish-vsix-marketplace` job in .github/workflows/ci.yml
 # with VSCE_PAT in the environment (an approval-gated marketplace-vscode
@@ -28,10 +28,16 @@
 # workflow stays thin and this credential-adjacent step is reviewable in one
 # place.
 #
-# Usage:  scripts/release/vsce_publish.sh [TAG] [VSIX]
-#         TAG  defaults to the tag in $GITHUB_REF (refs/tags/<TAG>).
-#         VSIX defaults to the single *.vsix under dist/ (downloaded and
-#              checksum-verified by the workflow before this runs).
+# Usage:  scripts/release/vsce_publish.sh [TAG] [VSIX...]
+#         TAG   defaults to the tag in $GITHUB_REF (refs/tags/<TAG>).
+#         VSIX  defaults to every *.vsix under dist/ (downloaded and
+#               checksum-verified by the workflow before this runs): the
+#               untargeted universal package plus six platform-targeted
+#               ones.  Each targeted package already carries its target
+#               platform in the vsix manifest (baked in by `vsce package
+#               --target` at build time), so publish never passes --target
+#               again — see "Platform-specific extensions" in the VS Code
+#               publishing docs.
 #
 # Authenticates via VSCE_PAT, which `vsce publish` reads from the environment
 # (the keyless Azure/OIDC path was rolled back after it proved unreliable).
@@ -45,7 +51,14 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 tag="${1:-${GITHUB_REF#refs/tags/}}"
-vsix="${2:-$(ls dist/*.vsix)}"
+if [ "$#" -gt 0 ]; then
+    shift
+fi
+if [ "$#" -gt 0 ]; then
+    vsixes=("$@")
+else
+    vsixes=(dist/*.vsix)
+fi
 
 prerelease_flag=""
 if [ "$(bash "$here/prerelease.sh" "$tag")" = "true" ]; then
@@ -54,5 +67,7 @@ if [ "$(bash "$here/prerelease.sh" "$tag")" = "true" ]; then
 fi
 
 : "${VSCE_PAT:?VSCE_PAT must be set (marketplace-vscode Environment secret)}"
-echo "Publishing $vsix via vsce (VSCE_PAT)"
-editors/vscode/node_modules/.bin/vsce publish $prerelease_flag --packagePath "$vsix"
+for vsix in "${vsixes[@]}"; do
+    echo "Publishing $vsix via vsce (VSCE_PAT)"
+    editors/vscode/node_modules/.bin/vsce publish $prerelease_flag --packagePath "$vsix"
+done

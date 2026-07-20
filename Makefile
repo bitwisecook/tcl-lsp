@@ -71,7 +71,12 @@ VSCE_PRERELEASE_FLAG := $(if $(filter true,$(IS_PRERELEASE)),--pre-release,)
 JETBRAINS_CHANNEL   := $(if $(filter true,$(IS_PRERELEASE)),eap,)
 
 # Derived paths
-VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION).vsix
+VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-universal.vsix
+# Set (via a recursive `$(MAKE) VSCE_TARGET=...`) to bake a `vsce package
+# --target <platform>` tag into the $(VSIX_FILE) recipe below.  Empty by
+# default, which packages the untargeted "universal" VSIX.
+# package-vsix-targets drives this for the six platform-targeted packages.
+VSCE_TARGET ?=
 # Self-contained BIG-IP report .pyz (native `_engine` + MiniJinja bundled by shiv).
 # Native + abi3, so the artefact is OS/arch-specific but runs on any CPython
 # >= 3.9 for that platform; the tag keeps CI matrix outputs from clobbering.
@@ -89,10 +94,20 @@ VSCE_PUBLISHER := bitwisecook
 # Cargo build profile for the native Rust LSP server (rust-server target).
 PROFILE ?= release
 
-# Native-server cross-compilation.  The universal VSIX bundles one
-# `tcl-lsp-server` binary per supported platform under
-# `server/<platform>-<arch>/`.  Each entry maps a Rust target triple to the
-# VSIX bundle directory (which equals Node's `process.platform-process.arch`).
+# Native-server cross-compilation.  Two VS Code packaging strategies share
+# this one 7-triple matrix:
+#   - $(VSIX_FILE), the untargeted "universal" VSIX: bundles one
+#     `tcl-lsp-server` binary per platform under `server/<platform>-<arch>/`.
+#     Published with no vsce --target, it is the Marketplace's fallback for
+#     any client with no dedicated targeted package below (namely riscv64
+#     Linux — vsce has no --target string for it), and the artefact for a
+#     manual "Install from VSIX" side-load.
+#   - package-vsix-targets: six small, single-binary VSIXes, one per vsce
+#     --target platform, so the Marketplace serves each client only its own
+#     binary instead of all seven.
+# Each SERVER_TARGET_MAP entry maps a Rust target triple to the VSIX bundle
+# directory, which equals Node's `process.platform-process.arch` AND (for
+# six of the seven) a valid vsce --target string.
 SERVER_TARGET_MAP := \
 	x86_64-apple-darwin:darwin-x64 \
 	aarch64-apple-darwin:darwin-arm64 \
@@ -102,6 +117,13 @@ SERVER_TARGET_MAP := \
 	x86_64-pc-windows-msvc:win32-x64 \
 	aarch64-pc-windows-msvc:win32-arm64
 SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$(p))))
+
+# vsce's supported --target platform strings (see "Platform-specific
+# extensions" at code.visualstudio.com/api/working-with-extensions/publishing-extension).
+# Six of the seven SERVER_TARGET_MAP bundle dirs are also valid vsce
+# targets; linux-riscv64 is not (vsce has no RISC-V target), so riscv64
+# Linux users get the untargeted $(VSIX_FILE) fallback instead.
+VSCE_TARGETS := win32-x64 win32-arm64 linux-x64 linux-arm64 darwin-x64 darwin-arm64
 
 # Targets the current host can build natively / with cross-linkers.  Linux
 # builds the three Linux triples (x86_64 native + aarch64/riscv64 cross);
@@ -115,10 +137,19 @@ else
   SERVER_TARGETS_HOST := x86_64-pc-windows-msvc aarch64-pc-windows-msvc
 endif
 
-# The set of triples staged into the universal VSIX.  Defaults to the
-# host-buildable subset (a partial-universal VSIX for local dev); CI overrides
-# with the full matrix: `make package-vsix BUNDLED_TARGETS="$(SERVER_TARGETS_ALL)"`.
+# The set of triples staged into $(VSIX_FILE) (the universal/fallback VSIX).
+# Defaults to the host-buildable subset (a partial-universal VSIX for local
+# dev); CI overrides with the full matrix: `make package-vsix
+# BUNDLED_TARGETS="$(SERVER_TARGETS_ALL)"`.
 BUNDLED_TARGETS ?= $(SERVER_TARGETS_HOST)
+
+# JetBrains ships one universal plugin bundling every platform except
+# riscv64 Linux — no official JetBrains IDE build targets it, and the IDE's
+# own CpuArch detection only distinguishes x86/ARM anyway. Derived from
+# SERVER_TARGETS_ALL (not hardcoded) so a future 8th non-riscv target picks
+# this up automatically.
+SERVER_TARGETS_JETBRAINS := $(filter-out riscv64gc-unknown-linux-gnu,$(SERVER_TARGETS_ALL))
+JB_BUNDLED_TARGETS ?= $(filter-out riscv64gc-unknown-linux-gnu,$(SERVER_TARGETS_HOST))
 
 # This host's own Rust target triple — the one binary cargo can always build
 # with no cross toolchain.  Used by the `smoke-vsix` gate for a dependency-light
@@ -159,7 +190,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: smoke-vsix
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
-.PHONY: build-editor-jetbrains verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
+.PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets
+.PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 # Rust runtime port
 .PHONY: runtime-rust-test runtime-rust-lint zed-query-check vm-test vm-lint
@@ -174,7 +206,7 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
-build-editors: build-editor-vsix build-editor-jetbrains build-editor-sublime build-editor-zed ## Build all editor extension artefacts (VS Code / JetBrains / Sublime / Zed)
+build-editors: build-editor-vsix build-editor-vsix-targets build-editor-jetbrains build-editor-sublime build-editor-zed ## Build all editor extension artefacts (VS Code / JetBrains / Sublime / Zed)
 
 build-editor-vsix: lint test compile verify-vsix ## Build the .vsix (tests must pass first)
 install: package-vsix ## Build and install the .vsix into VS Code
@@ -245,8 +277,8 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscode
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-256.png" $(STAGE_DIR)/docs/icon.png
-	@echo "==> Packaging .vsix (stripped, not obfuscated)$(if $(VSCE_PRERELEASE_FLAG), [pre-release],)"
-	cd $(STAGE_DIR) && $(VSCE) package $(VSCE_PRERELEASE_FLAG) --allow-missing-repository --no-update-package-json --no-git-tag-version -o $(VSIX_FILE)
+	@echo "==> Packaging .vsix (stripped, not obfuscated)$(if $(VSCE_PRERELEASE_FLAG), [pre-release],)$(if $(VSCE_TARGET), [target: $(VSCE_TARGET)],)"
+	cd $(STAGE_DIR) && $(VSCE) package $(VSCE_PRERELEASE_FLAG) $(if $(VSCE_TARGET),--target $(VSCE_TARGET),) --allow-missing-repository --no-update-package-json --no-git-tag-version -o $(VSIX_FILE)
 	@echo ""
 	@echo "Built: $(VSIX_FILE)"
 	@ls -lh $(VSIX_FILE)
@@ -296,6 +328,55 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			exit 1; \
 		fi; \
 		echo "==> VSIX bundles $$have/$$want native server binaries"
+
+# ---------------------------------------------------------------------------
+# Platform-targeted VSIX packaging — six small, single-binary VSIXes
+# published with `vsce package/publish --target <platform>` so the
+# Marketplace serves each client only its own binary instead of the
+# untargeted $(VSIX_FILE) above.  Reuses the $(VSIX_FILE) rule verbatim via
+# recursive `$(MAKE)` calls that override BUNDLED_TARGETS/VSCE_TARGET/
+# VSIX_FILE per target, so staging and verify-vsix's checks never drift
+# from the universal build's.
+# ---------------------------------------------------------------------------
+
+build-editor-vsix-targets: lint test compile package-vsix-targets ## Build the six platform-targeted .vsix files (tests must pass first)
+
+# Depends on package-vsix (not just compile) even though the two artefacts
+# are otherwise independent: both stage through the same $(STAGE_DIR), so
+# under `make -j` (e.g. `make -j release`) an unordered pair would race —
+# one recipe's `rm -rf $(STAGE_DIR)` can wipe the other's in-flight staging.
+# This edge forces the universal build to finish first every time.
+package-vsix-targets: package-vsix ## Package the six platform-targeted VSIXes (CI; skips lint/test)
+	@set -eu; \
+	for vt in $(VSCE_TARGETS); do \
+		triple=""; \
+		for pair in $(SERVER_TARGET_MAP); do \
+			t="$${pair%%:*}"; d="$${pair##*:}"; \
+			[ "$$d" = "$$vt" ] && triple="$$t"; \
+		done; \
+		if [ -z "$$triple" ]; then echo "ERROR: no SERVER_TARGET_MAP entry for vsce target $$vt"; exit 1; fi; \
+		out="$(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; \
+		echo "==> Packaging platform-targeted VSIX: $$vt ($$triple)"; \
+		$(MAKE) --no-print-directory package-vsix BUNDLED_TARGETS="$$triple" VSCE_TARGET="$$vt" VSIX_FILE="$$out"; \
+	done
+	@echo "==> Built $(words $(VSCE_TARGETS)) platform-targeted VSIXes"
+
+publish-vsix-targets: package-vsix-targets ## Publish the six platform-targeted .vsix files to the VS Code Marketplace (laptop fallback; CI is the primary path)
+	@set -eu; \
+	for vt in $(VSCE_TARGETS); do \
+		f="$(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; \
+		echo "==> Publishing $$f to VS Code Marketplace"; \
+		if [ -n "$${VSCE_PAT:-}" ]; then \
+			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --packagePath "$$f"); \
+		elif az account show >/dev/null 2>&1; then \
+			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --packagePath "$$f"); \
+		else \
+			echo "    No Azure CLI session for keyless publishing."; \
+			echo "    Run:  az login --allow-no-subscriptions"; \
+			echo "    (or set VSCE_PAT to use the legacy stored-PAT path instead.)"; \
+			exit 1; \
+		fi; \
+	done
 
 # Test targets
 
@@ -711,6 +792,9 @@ cli-cross-build-all: ## Cross-compile tcl + f5-query for all 7 targets (release-
 
 print-server-targets-all: ## Print the full set of native-server target triples (CI helper)
 	@echo $(SERVER_TARGETS_ALL)
+
+print-server-targets-jetbrains: ## Print the JetBrains-eligible target triples — SERVER_TARGETS_ALL minus riscv64 (CI helper)
+	@echo $(SERVER_TARGETS_JETBRAINS)
 
 server-cross-test: ## Smoke-test built tcl-lsp-server binaries (QEMU on Linux, native on macOS)
 	@bash $(ROOT)scripts/test-cross-server.sh
@@ -1197,23 +1281,52 @@ package-vsix: compile $(VSIX_FILE) verify-vsix ## Package VSIX (skip lint/test, 
 JB_DIR     := $(ROOT)editors/jetbrains
 JB_PLUGIN  := $(BUILD_DIR)/tcl-lsp-jetbrains-$(VERSION).zip
 
-build-editor-jetbrains: $(JB_PLUGIN) ## Build JetBrains plugin (.zip)
+build-editor-jetbrains: $(JB_PLUGIN) verify-jetbrains-server ## Build JetBrains plugin (.zip), universal across all platforms except riscv64
 
-$(JB_PLUGIN): rust-server
+# $(JB_PLUGIN)'s own prerequisites are staged binaries checked at recipe
+# time (below), not tracked by Make as file dependencies — so without a
+# forcing prerequisite, a stale zip from a previous run would silently
+# survive untouched after only the native binaries were rebuilt. The old
+# `rust-server` prerequisite happened to force this (it's phony); this
+# sentinel keeps that always-rebuild behaviour explicit now that staging
+# no longer depends on rust-server building just one binary.
+.PHONY: jb-plugin-force
+jb-plugin-force:
+
+$(JB_PLUGIN): jb-plugin-force
 	@echo "==> Building JetBrains plugin"
 	@# build.gradle.kts reads RELEASE_VERSION from the environment first, so
 	@# the gradle.properties source file is never mutated by the build.
 	@# Copy shared resources into plugin resources
 	mkdir -p $(JB_DIR)/src/main/resources/syntaxes
 	cp $(EXT_DIR)/syntaxes/tcl.tmLanguage.json $(JB_DIR)/src/main/resources/syntaxes/
-	@# Bundle the native LSP server binary into a staging dir outside
-	@# ``src/main/resources/``.  ``build.gradle.kts`` registers a
-	@# ``prepareSandbox`` copy that picks the binary up from here and drops it
-	@# at the plugin root in the distribution — same layout JetBrains' own
-	@# Prisma ORM plugin uses to ship its bundled language server.
-	mkdir -p $(JB_DIR)/server
-	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(JB_DIR)/server/tcl-lsp-server
-	chmod +x $(JB_DIR)/server/tcl-lsp-server
+	@# Bundle one native LSP server binary per platform into server/<dir>/,
+	@# the same layout and SERVER_TARGET_MAP the VS Code universal VSIX
+	@# uses (minus riscv64 — see SERVER_TARGETS_JETBRAINS).
+	@# ``build.gradle.kts`` registers a ``prepareSandbox`` copy that picks up
+	@# the whole tree from here and drops it at the plugin root in the
+	@# distribution — same layout JetBrains' own Prisma ORM plugin uses to
+	@# ship its bundled language server.
+	rm -rf $(JB_DIR)/server
+	@set -eu; \
+		missing=""; \
+		for pair in $(SERVER_TARGET_MAP); do \
+			triple="$${pair%%:*}"; dir="$${pair##*:}"; \
+			case " $(JB_BUNDLED_TARGETS) " in *" $$triple "*) ;; *) continue;; esac; \
+			case "$$triple" in *windows*) exe="tcl-lsp-server.exe";; *) exe="tcl-lsp-server";; esac; \
+			src="$(ROOT)target/$$triple/release/$$exe"; \
+			if [ ! -f "$$src" ]; then missing="$$missing $$triple"; continue; fi; \
+			mkdir -p "$(JB_DIR)/server/$$dir"; \
+			cp "$$src" "$(JB_DIR)/server/$$dir/$$exe"; \
+			chmod +x "$(JB_DIR)/server/$$dir/$$exe"; \
+			echo "    server/$$dir/$$exe"; \
+		done; \
+		if [ -n "$$missing" ]; then \
+			echo "ERROR: missing built server binaries for:$$missing"; \
+			echo "Build them first: make server-cross-build  (host targets)"; \
+			echo "             or:  make server-cross-build-all  (all 7 — needs cross deps)"; \
+			exit 1; \
+		fi
 	@# Extract compiler explorer HTML from VS Code extension
 	cd $(EXT_DIR) && node -e " \
 		const {getWebviewHtml} = require('./out/compilerExplorerHtml'); \
@@ -1226,6 +1339,28 @@ $(JB_PLUGIN): rust-server
 	@echo ""
 	@echo "Built: $(JB_PLUGIN)"
 	@ls -lh $(JB_PLUGIN)
+
+verify-jetbrains-server: $(JB_PLUGIN) ## Fail if the JetBrains plugin is missing an expected platform server binary
+	@echo "==> Verifying JetBrains plugin server binaries"
+	@set -euo pipefail; \
+		entries="$$(unzip -Z1 $(JB_PLUGIN))"; \
+		want=0; have=0; missing=""; \
+		for pair in $(SERVER_TARGET_MAP); do \
+			triple="$${pair%%:*}"; dir="$${pair##*:}"; \
+			case " $(JB_BUNDLED_TARGETS) " in *" $$triple "*) ;; *) continue;; esac; \
+			case "$$triple" in *windows*) exe="tcl-lsp-server.exe";; *) exe="tcl-lsp-server";; esac; \
+			want=$$((want+1)); \
+			if echo "$$entries" | grep -q "/server/$$dir/$$exe$$"; then \
+				have=$$((have+1)); \
+			else \
+				missing="$$missing server/$$dir/$$exe"; \
+			fi; \
+		done; \
+		if [ -n "$$missing" ]; then \
+			echo "JetBrains plugin missing expected native server binaries:$$missing"; \
+			exit 1; \
+		fi; \
+		echo "==> JetBrains plugin bundles $$have/$$want native server binaries"
 
 verify-editor-jetbrains: ## Run the IntelliJ Plugin Verifier over the JetBrains plugin (binary-compat gate)
 	@echo "==> Verifying JetBrains plugin against the configured IDE targets"
@@ -1317,7 +1452,7 @@ publish-zed: build-editor-zed ## Publish Zed extension (prep local PR branch for
 
 # Release
 
-release: package-vsix claude-skills build-editor-jetbrains build-editor-sublime build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
+release: package-vsix package-vsix-targets claude-skills build-editor-jetbrains build-editor-sublime build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 
@@ -1326,7 +1461,7 @@ release: package-vsix claude-skills build-editor-jetbrains build-editor-sublime 
 # SHA256SUMS itself and its signature bundle); this target mirrors that
 # selection so developers can compare locally-built SUMS against the
 # published file.
-release-sums: claude-skills package-vsix build-editor-jetbrains build-editor-sublime build-editor-zed
+release-sums: claude-skills package-vsix package-vsix-targets build-editor-jetbrains build-editor-sublime build-editor-zed
 	@cd $(BUILD_DIR) && \
 	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
 	    else h="shasum -a 256"; fi; \
@@ -1344,7 +1479,7 @@ release-sums: claude-skills package-vsix build-editor-jetbrains build-editor-sub
 release-tag: ## Create + push the annotated release tag (V=x.y.z)
 	@bash $(ROOT)scripts/release/tag.sh $(V)
 
-publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
+publish-all: publish-vsix publish-vsix-targets publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
 	@bash $(ROOT)scripts/release/publish_verify.sh

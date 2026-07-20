@@ -194,7 +194,8 @@ const RUST_SERVER_EXE = process.platform === "win32" ? "tcl-lsp-server.exe" : "t
 
 // VSIX bundle directory for the current platform, e.g. `darwin-arm64`,
 // `linux-x64`, `linux-riscv64`, `win32-arm64`.  Node's `process.platform` /
-// `process.arch` map 1:1 onto the directory names the universal VSIX ships
+// `process.arch` map 1:1 onto the directory names every VSIX (the
+// universal package and each of the six platform-targeted packages) ships
 // under `server/<platform>-<arch>/` (and onto VS Code's own target slugs).
 function bundlePlatformDir(): string {
   return `${process.platform}-${process.arch}`;
@@ -221,7 +222,9 @@ function resolveRustServer(
   // keep getting the packaged binary.  Only consult the bundled binary when no
   // serverPath is set.
   if (!configuredServerPath.trim()) {
-    // Packaged install: the universal VSIX bundles one binary per platform.
+    // Packaged install: whichever VSIX this is (the universal package, or
+    // one of the six platform-targeted packages), it ships this platform's
+    // binary at the same server/<platform>-<arch>/ path.
     const bundled = path.join(extensionPath, "server", bundlePlatformDir(), RUST_SERVER_EXE);
     if (existsSync(bundled)) {
       return bundled;
