@@ -3,8 +3,10 @@
 **Paused:** 2026-07-20. Written so a fresh Claude Code session (or any engineer)
 with zero prior context can pick this up from the repo alone.
 
-**Branch:** `claude/tcl-lsp-issue-923-qzkfqz` (already has 6 commits ahead of
-the `2c7693b` base it forked from — 5 fixes + 1 merge from `origin/rust`).
+**Branch:** `claude/tcl-lsp-issue-923-qzkfqz` — 4 campaign fixes + 1 merge from
+`origin/rust` + this handoff doc + 2 post-pause PR-maintenance commits (a CI
+fix and a PR-review-triage fix; see the commit table in §3 — **the campaign
+itself is still exactly where it was paused**, these two didn't resume it).
 
 **tl;dr:** A deep differential-audit campaign against real-world Tcl code
 found ~66 confirmed LSP correctness bugs so far (22 in tcllib, 39+ across 7
@@ -100,7 +102,10 @@ one.
 
 ## 3. What's already fixed and merged (this branch)
 
-Six commits ahead of the `2c7693b` fork point, all pushed:
+Commits ahead of the `2c7693b` fork point, all pushed (the first four are the
+campaign's own audit-finding fixes; the rest are the merge, this handoff doc,
+and — landed *after* the pause, so they don't change anything else in this
+document — routine PR maintenance):
 
 | Commit | Finding(s) | Summary |
 |---|---|---|
@@ -110,6 +115,9 @@ Six commits ahead of the `2c7693b` fork point, all pushed:
 | `26e5553` | tcllib idx 118, 119 | `namespace eval $name { … }` and `oo::define $class …` both keyed their scope/ClassDef by the dynamic argument's **raw written text**, so two unrelated call sites using the same variable name collided. Fixed with synthetic per-call-site keys (`@dynns@<offset>` / `@dynclass@<offset>`), mirroring the pre-existing `@interp@<path>` pattern. Also widened a stub `ClassDef`'s `body_span` (was name-token-sized, causing document-symbol range corruption independent of the merge bug). |
 | (pre-existing, found+fixed same session before the above, folded into `9448af9`'s predecessor commit — see full history) | — | Nested definitions of a registry builtin (the "rename builtin away, install same-named shadow, restore it" idiom) permanently outranked the real builtin everywhere in the workspace. Gated via new `AnalysisResult::offset_is_inside_any_definition_body`. |
 | `4fc2b84` | — | Merge of `origin/rust` (mainline) into this branch. **Not my work** — picked up commit `02386f6` "fix(lsp): resolve superclass/mixin/inherit as class references (issue #923) (#962)" which landed on mainline from a parallel effort on the same issue while this session was running. Merged cleanly, fully re-verified (all test suites, clippy, fmt, drift gate) after merge. |
+| `4a33bea` | — | This handoff document (`STATUS.md` + the `data/`/`scripts/` snapshot) — captured when the campaign was paused. |
+| `136d270` | — | CI fix: linked `STATUS.md` from `docs/design/README.md`'s index (`cargo xtask kcs-index-links` gate). |
+| `55f9cb7` | — | **Not campaign work** — response to `chatgpt-codex-connector[bot]`'s automated review of PR #963, triaged and fixed after the pause per the standing PR-subscription protocol (basic maintenance of an already-open PR, distinct from resuming the audit). Three bugs, all confirmed against tclsh9.0 first: (a) `leading_option_word_count` didn't stop at a `--` terminator, so `interp create -- -safe` mis-consumed `-safe` as a flag instead of the literal name; (b) `workspace_command_exists_for_call` dropped *every* `command_links` entry under a builtin shadow, not just nested/conditional ones — fixed with a new `WorkspaceCommandLink.nested` field mirroring `WorkspaceProc.nested`; (c) `self.interpreters` wasn't invalidated by a plain `rename` of an interpreter's own handle command, so a later unrelated command reusing the freed name could be misidentified as isolated interpreter-eval. None of these correspond to a tracked audit finding (§5/§6 below) — the finding/idx inventory and remaining-work counts are unchanged by this commit. |
 
 Run `git log --oneline 2c7693b..HEAD` for the exact list; each commit
 message has full rationale.
