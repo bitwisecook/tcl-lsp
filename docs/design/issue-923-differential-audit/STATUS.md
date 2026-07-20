@@ -3,10 +3,21 @@
 **Paused:** 2026-07-20. Written so a fresh Claude Code session (or any engineer)
 with zero prior context can pick this up from the repo alone.
 
-**Branch:** `claude/tcl-lsp-issue-923-qzkfqz` — 4 campaign fixes + 1 merge from
-`origin/rust` + this handoff doc + 2 post-pause PR-maintenance commits (a CI
-fix and a PR-review-triage fix; see the commit table in §3 — **the campaign
-itself is still exactly where it was paused**, these two didn't resume it).
+**PR #963 (this branch) merged into `origin/rust` as `9ec4cff` on 2026-07-20,
+same day as the pause.** Everything described below as "on this branch" is
+now also on `origin/rust`. **Start resumed work from a fresh branch off
+`origin/rust`** (`git fetch origin rust && git checkout -b <new-branch>
+origin/rust`) — do **not** keep committing onto `claude/tcl-lsp-issue-923-qzkfqz`
+or reopen/reuse PR #963; per this session's own standing instructions, a
+merged PR's branch is finished and follow-up work is a fresh change. The
+`data/`/`scripts/` snapshot and this document itself came along with the
+merge, so nothing needs copying — just start the next fix on the new branch.
+
+**Branch:** `claude/tcl-lsp-issue-923-qzkfqz` (now merged, see above) — 4
+campaign fixes + 1 merge from `origin/rust` + this handoff doc + 2 post-pause
+PR-maintenance commits (a CI fix and a PR-review-triage fix; see the commit
+table in §3 — **the campaign itself is still exactly where it was paused**,
+none of the post-pause commits resumed it).
 
 **tl;dr:** A deep differential-audit campaign against real-world Tcl code
 found ~66 confirmed LSP correctness bugs so far (22 in tcllib, 39+ across 7
@@ -119,18 +130,23 @@ document — routine PR maintenance):
 | `136d270` | — | CI fix: linked `STATUS.md` from `docs/design/README.md`'s index (`cargo xtask kcs-index-links` gate). |
 | `55f9cb7` | — | **Not campaign work** — response to `chatgpt-codex-connector[bot]`'s automated review of PR #963, triaged and fixed after the pause per the standing PR-subscription protocol (basic maintenance of an already-open PR, distinct from resuming the audit). Three bugs, all confirmed against tclsh9.0 first: (a) `leading_option_word_count` didn't stop at a `--` terminator, so `interp create -- -safe` mis-consumed `-safe` as a flag instead of the literal name; (b) `workspace_command_exists_for_call` dropped *every* `command_links` entry under a builtin shadow, not just nested/conditional ones — fixed with a new `WorkspaceCommandLink.nested` field mirroring `WorkspaceProc.nested`; (c) `self.interpreters` wasn't invalidated by a plain `rename` of an interpreter's own handle command, so a later unrelated command reusing the freed name could be misidentified as isolated interpreter-eval. None of these correspond to a tracked audit finding (§5/§6 below) — the finding/idx inventory and remaining-work counts are unchanged by this commit. |
 
-Run `git log --oneline 2c7693b..HEAD` for the exact list; each commit
-message has full rationale.
+Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
+own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
+each commit message has full rationale.
 
-**Important:** other sessions/PRs are actively landing #923 fixes on
-`origin/rust` in parallel (see the `02386f6` merge above). **Before resuming,
-`git fetch origin rust` and check `git log origin/rust -20` for anything new,
-then `git merge origin/rust` into this branch** (merge, not rebase — this
-branch is already pushed) and re-run the full validation gates, exactly as
-was done for `4fc2b84`. Expect file overlap in `handlers.rs`, `oo.rs`,
-`types.rs`, `definition.rs`, `lib.rs` — a clean auto-merge is **not** proof
-of correctness; rebuild and run every touched crate's full test suite before
-trusting it.
+**Superseded — kept for history only:** this note used to say to merge
+`origin/rust` into this branch before resuming, because other sessions/PRs
+were landing #923 fixes on `origin/rust` in parallel (see the `02386f6`
+merge above) while this branch was still an open PR. That's now moot: PR
+#963 (this branch) itself **merged into `origin/rust` as `9ec4cff` on
+2026-07-20** — this branch's content and `origin/rust` are no longer
+diverging, they're the same up to that commit. **Resume on a fresh branch
+cut from `origin/rust`**, not by pushing more commits onto
+`claude/tcl-lsp-issue-923-qzkfqz` (whose PR is closed/merged and won't take
+more commits meaningfully). The general caution still applies going
+forward, just against the new branch instead: `git fetch origin rust`
+before starting each session and check for anything landed since, since
+other #923 work may still be arriving in parallel.
 
 ---
 
@@ -374,20 +390,29 @@ manual differential checks — see its own docstring for usage
 
 ## 8. Immediate next steps for whoever picks this up
 
-1. `git fetch origin rust && git log origin/rust -10` — check for new #923
-   work landed on mainline since `4fc2b84`; merge it in and re-validate if
-   so (see §3's note).
-2. Recreate the tclsh9.0/8.6 oracle environment (§7).
-3. Pick the next tcllib finding from §6a (start with idx 105 or 106 — both
+1. **Branch first:** PR #963 (the branch this document lived on) merged into
+   `origin/rust` as `9ec4cff` on 2026-07-20 (see §3). Don't push onto
+   `claude/tcl-lsp-issue-923-qzkfqz` — cut a **new** branch from current
+   `origin/rust`: `git fetch origin rust && git checkout -b
+   claude/tcl-lsp-issue-923-<new-suffix> origin/rust`. This document and the
+   `data/`/`scripts/` snapshot are already there (they merged too), so
+   nothing needs copying forward.
+2. `git log origin/rust -10` — check for any *other* new #923 work landed on
+   mainline since `9ec4cff` (other sessions/PRs land these in parallel, see
+   §3) before starting.
+3. Recreate the tclsh9.0/8.6 oracle environment (§7).
+4. Pick the next tcllib finding from §6a (start with idx 105 or 106 — both
    have refined plans and are medium severity, well-specified).
-4. Follow the playbook in §2/§4. Commit after each finding (or tightly
-   related cluster of findings), same granularity as the 5 fixes already on
-   this branch — don't batch unrelated fixes into one commit.
-5. Periodically re-run `cargo test --workspace` (full, not scoped) and
+5. Follow the playbook in §2/§4. Commit after each finding (or tightly
+   related cluster of findings), same granularity as the 4 campaign fixes
+   already landed — don't batch unrelated fixes into one commit.
+6. Periodically re-run `cargo test --workspace` (full, not scoped) and
    `cargo clippy --workspace --all-targets -- -D warnings` as a sweep, not
    just the scoped per-crate checks used while iterating — the mandate's
    validation bar is workspace-wide.
-6. Once the 14 tcllib findings are exhausted, resume/re-run the main 105-item
+7. Once the 14 tcllib findings are exhausted, resume/re-run the main 105-item
    audit wave (§6b), triage its output, and repeat.
-7. Keep the Stop-hook's implicit contract: uncommitted work is a liability —
+8. Keep the Stop-hook's implicit contract: uncommitted work is a liability —
    commit and push after every completed fix, don't let it accumulate.
+9. When ready to submit, open a **new** PR from the new branch — don't try
+   to reopen or reuse #963, it's merged and closed for good.
