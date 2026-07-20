@@ -519,6 +519,127 @@ async fn nested_shadow_of_builtin_does_not_leak_across_files_e2e() {
     server.abort();
 }
 
+/// LSP position `(line, character)` compared lexicographically, matching
+/// how a `Range` orders `start`/`end`.
+fn pos_le(a: &serde_json::Value, b: &serde_json::Value) -> bool {
+    let al = a["line"].as_u64().unwrap_or(0);
+    let bl = b["line"].as_u64().unwrap_or(0);
+    let ac = a["character"].as_u64().unwrap_or(0);
+    let bc = b["character"].as_u64().unwrap_or(0);
+    (al, ac) <= (bl, bc)
+}
+
+/// Recursively assert every `DocumentSymbol`'s `range` contains each of its
+/// own `children`'s `range` — the exact structural invariant a merged
+/// `ClassDef` from two unrelated `oo::define $class …` call sites violates
+/// (a child method's range lying textually outside its claimed parent's).
+fn assert_symbol_ranges_well_nested(symbols: &[serde_json::Value], path: &str) {
+    for sym in symbols {
+        let name = sym["name"].as_str().unwrap_or("<unnamed>");
+        let here = format!("{path}/{name}");
+        if let Some(range) = sym.get("range") {
+            for child in sym["children"].as_array().into_iter().flatten() {
+                let Some(crange) = child.get("range") else {
+                    continue;
+                };
+                assert!(
+                    pos_le(&range["start"], &crange["start"])
+                        && pos_le(&crange["end"], &range["end"]),
+                    "{here}: child {:?} range {crange} escapes parent range {range}",
+                    child["name"],
+                );
+            }
+        }
+        assert_symbol_ranges_well_nested(
+            sym["children"].as_array().map_or(&[][..], Vec::as_slice),
+            &here,
+        );
+    }
+}
+
+#[tokio::test]
+async fn dynamic_oo_define_targets_never_corrupt_the_document_symbol_tree_e2e() {
+    // Regression for a bug found by differential audit against clay.tcl's
+    // `current_class`-based Ensemble DSL: two lexically unrelated procs each
+    // write `oo::define $class method ...` with a same-named local `class`,
+    // each adding their own method. Before the fix, both calls computed the
+    // identical raw-text key `$class`, so the second `oo::define` merged its
+    // method into the first's `ClassDef` (and vice versa via the
+    // dual-registration into the scope tree) — producing a document symbol
+    // whose child method range sat outside its own parent's, a
+    // self-contradictory structure checkable from the response alone.
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///dynclass.tcl",
+        "proc addFoo {} {\n    set class ::A\n    oo::define $class method foo {} { return foo }\n}\n\
+         proc addBar {} {\n    set class ::B\n    oo::define $class method bar {} { return bar }\n}\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+
+    let sym_req = r#"{"jsonrpc":"2.0","id":12,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"file:///dynclass.tcl"}}}"#;
+    writer.write_all(frame(sym_req).as_bytes()).await.unwrap();
+    let sym_resp = read_until_id(&mut reader, "\"id\":12", 8)
+        .await
+        .expect("documentSymbol response");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&sym_resp).expect("valid JSON documentSymbol response");
+    let symbols = parsed["result"].as_array().cloned().unwrap_or_default();
+    assert_symbol_ranges_well_nested(&symbols, "");
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+#[tokio::test]
+async fn dynamic_namespace_eval_targets_never_cross_resolve_e2e() {
+    // Regression for a bug found by differential audit against irc.tcl's
+    // per-connection `namespace eval $name { … }` idiom: two lexically
+    // unrelated procs each open a dynamic namespace with a same-named local
+    // `name`, each defining their own `helper`. Before the fix both blocks'
+    // scope shared the literal text `$name`, so a call inside one script
+    // could resolve to the *other* proc's unrelated `helper`.
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///dynns.tcl",
+        "proc setupA {} {\n    set name connA\n    namespace eval $name {\n        proc helper {} { return A }\n    }\n}\n\
+         proc setupB {} {\n    set name connB\n    namespace eval $name {\n        proc helper {} { return B }\n        helper\n    }\n}\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+
+    // The `helper` call on line 10 (`        helper`), inside setupB's own
+    // dynamic namespace body.
+    let def_req = r#"{"jsonrpc":"2.0","id":13,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///dynns.tcl"},"position":{"line":10,"character":10}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":13", 8)
+        .await
+        .expect("definition response");
+    // setupB's own `helper` is declared on line 9, not setupA's on line 3.
+    assert!(
+        def_resp.contains(r#""line":9"#),
+        "the call inside setupB's dynamic namespace must resolve to its \
+         own helper on line 9, not setupA's on line 3: {def_resp}",
+    );
+    assert!(
+        !def_resp.contains(r#""line":3"#),
+        "must never cross-resolve into the other dynamic namespace's helper: {def_resp}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
 #[tokio::test]
 async fn interp_handle_eval_isolates_from_a_sibling_interpreter_e2e() {
     // Regression for a bug found by differential audit against

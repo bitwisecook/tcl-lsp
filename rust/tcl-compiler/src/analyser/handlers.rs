@@ -1033,9 +1033,31 @@ impl Analyser {
         let body_text = args.get(2).cloned();
         let body_tok = arg_tokens.get(2).copied();
 
+        // A dynamic target (`namespace eval $name { … }`, the irc.tcl
+        // per-connection idiom) can't be resolved to a real namespace path —
+        // and, unlike a literal one, two lexically unrelated occurrences
+        // that happen to write the *same* variable name (an unremarkable
+        // choice for this exact idiom) must never collapse into one scope:
+        // each occurrence gets its own synthetic, per-call-site domain,
+        // keyed by this argument token's own source offset (unique per
+        // occurrence, deterministic, and — like `@interp@` — unrepresentable
+        // in real Tcl, so it can never collide with a literal namespace of
+        // the same written text). Mirrors `interp eval`'s dynamic-path
+        // handling a few hooks below, which is conservatively isolated the
+        // same way rather than merged by raw text.
+        let scope_name = if crate::naming::is_dynamic_word(&ns_name) {
+            arg_tokens.get(1).map_or_else(
+                || ns_name.clone(),
+                |tok| format!("@dynns@{}", tok.span.start()),
+            )
+        } else {
+            ns_name
+        };
+
         let path = scope_path.to_vec();
         let child_scope_idx = {
-            let mut child = super::types::Scope::new(super::types::ScopeKind::Namespace, ns_name);
+            let mut child =
+                super::types::Scope::new(super::types::ScopeKind::Namespace, scope_name);
             child.body_span = body_span;
             let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
             else {
@@ -2759,7 +2781,25 @@ impl Analyser {
         let raw_class_name = &args[0];
         let ns_prefix = self.namespace_from_scope_path(scope_path);
         let ns_for_qualify = ns_prefix.trim_start_matches(':');
-        let qualified = qualify(ns_for_qualify, raw_class_name);
+        // A dynamic target (`oo::define $class method ...`, the clay.tcl
+        // `current_class`-based Ensemble DSL idiom) can't be resolved to the
+        // real class it extends — and, unlike a literal target, two
+        // lexically unrelated occurrences that happen to write the *same*
+        // variable name (an unremarkable choice for this exact idiom) must
+        // never merge their `ClassDef` state into one via a shared raw-text
+        // key: each occurrence gets its own synthetic, per-call-site key,
+        // keyed by this argument token's own source offset (unique per
+        // occurrence, deterministic, and unrepresentable as a real Tcl class
+        // name, so it can never collide with a literal class of the same
+        // written text). Mirrors `namespace eval`'s identical dynamic-target
+        // handling a few hundred lines above.
+        let dyn_key = crate::naming::is_dynamic_word(raw_class_name).then(|| {
+            arg_tokens.first().map_or_else(
+                || raw_class_name.clone(),
+                |tok| format!("@dynclass@{}", tok.span.start()),
+            )
+        });
+        let qualified = qualify(ns_for_qualify, dyn_key.as_deref().unwrap_or(raw_class_name));
 
         // Distinguish body-form from inline-form by inspecting
         // ``args[1]``.  Body-form: ``oo::define Class { ... }``
@@ -2795,11 +2835,22 @@ impl Analyser {
                         .unwrap_or_else(|| tcl_lexer::Span::new(0, 0)),
                     |t| t.span,
                 );
+                // The stub's body span must cover the *whole* `oo::define`
+                // invocation, not just the class-name token, so any member
+                // this call adds (inline `method`/`property`/… words, or a
+                // `{ … }` body) stays nested inside it for document-symbol
+                // rendering — a name-token-sized span left every
+                // subsequently-added member "escaping" its own parent's
+                // range, a self-contradictory, checkable-from-source-alone
+                // structural error.
+                let body_span = arg_tokens.last().map_or(name_span, |last| {
+                    tcl_lexer::Span::new(name_span.start(), last.span.end())
+                });
                 super::types::ClassDef {
                     name: simple,
                     qualified_name: qualified.clone(),
                     name_span,
-                    body_span: name_span,
+                    body_span,
                     // An `oo::define` on a class not created in this file — a
                     // cross-file extension stub, not the class's definition.
                     via_define: true,
@@ -4528,6 +4579,85 @@ mod tests {
         );
     }
 
+    #[test]
+    fn handle_namespace_eval_dynamic_target_gets_a_synthetic_span_keyed_name() {
+        // TP — regression for a bug found by differential audit against
+        // irc.tcl's per-connection `namespace eval $name { … }` idiom: a
+        // dynamic target must never become the scope's `.name` verbatim (two
+        // unrelated occurrences sharing the same variable name would then
+        // collapse into one scope), so it's replaced with a synthetic name
+        // keyed on this occurrence's own token offset.
+        let mut a = Analyser::new();
+        a.handle_namespace_eval_command(
+            &[
+                "eval".to_string(),
+                "$name".to_string(),
+                "proc inner {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(10, 14)),
+                esc_tok(span(15, 20)),
+                str_tok(span(21, 37)),
+            ],
+            &[],
+        );
+        assert_eq!(a.result.global_scope.children[0].name, "@dynns@15");
+    }
+
+    #[test]
+    fn handle_namespace_eval_literal_target_keeps_its_written_name() {
+        // FN guard — a literal (non-dynamic) target must still use its own
+        // written text verbatim, exactly as before the fix.
+        let mut a = Analyser::new();
+        a.handle_namespace_eval_command(
+            &["eval".to_string(), "ns1".to_string(), String::new()],
+            &[
+                esc_tok(span(10, 14)),
+                esc_tok(span(15, 18)),
+                str_tok(span(19, 35)),
+            ],
+            &[],
+        );
+        assert_eq!(a.result.global_scope.children[0].name, "ns1");
+    }
+
+    #[test]
+    fn two_dynamic_namespace_eval_blocks_sharing_a_variable_name_never_collide() {
+        // TP — the full-pipeline shape of the irc.tcl bug: two lexically
+        // unrelated procs each open `namespace eval $name { … }` with a
+        // same-named local `name` (an unremarkable choice for this exact
+        // idiom) and each define their own `helper`. Before the fix both
+        // blocks' scope shared the literal text "$name", so the second
+        // `helper` silently overwrote the first in the flat `all_procs` map.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc setupA {} {\n    set name connA\n    namespace eval $name {\n        proc helper {} { return A }\n    }\n}\n\
+             proc setupB {} {\n    set name connB\n    namespace eval $name {\n        proc helper {} { return B }\n    }\n}\n",
+            "tcl8.6",
+        );
+        // drift-ok: test assertion counting distinct entries by simple name
+        // to prove no cross-occurrence merge, not a resolution decision.
+        let helpers: Vec<_> = r
+            .all_procs
+            .iter()
+            .filter(|(_, p)| p.name == "helper")
+            .collect();
+        assert_eq!(
+            helpers.len(),
+            2,
+            "both blocks' helper must survive as distinct entries: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+        assert_ne!(
+            helpers[0].0, helpers[1].0,
+            "distinct call sites must get distinct qualified keys: {helpers:?}",
+        );
+        assert_ne!(
+            helpers[0].1.body_span, helpers[1].1.body_span,
+            "each is genuinely its own definition, not the same one twice: {helpers:?}",
+        );
+    }
+
     // handle_namespace_ensemble
 
     #[test]
@@ -5655,6 +5785,71 @@ mod tests {
         assert!(r.all_classes.contains_key("::MyClass"));
         let cls = &r.all_classes["::MyClass"];
         assert!(cls.methods.contains_key("greet"));
+    }
+
+    #[test]
+    fn two_dynamic_oo_define_targets_sharing_a_variable_name_never_merge() {
+        // TP — regression for a bug found by differential audit against
+        // clay.tcl's `current_class`-based Ensemble DSL: two lexically
+        // unrelated procs each write `oo::define $class method ... ` with a
+        // same-named local `class` (an unremarkable choice for this exact
+        // idiom) and each add their own method. Before the fix both calls
+        // computed the identical raw-text key `$class`, so the second
+        // `remove`+`insert` round-trip silently merged the first proc's
+        // method into the second's ClassDef (and vice versa via the
+        // dual-registration into `scope.classes`), producing a document
+        // symbol whose child method range sits outside its own parent's.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc addFoo {} {\n    set class ::A\n    oo::define $class method foo {} { return foo }\n}\n\
+             proc addBar {} {\n    set class ::B\n    oo::define $class method bar {} { return bar }\n}\n",
+            "tcl8.6",
+        );
+        let synthetic: Vec<_> = r
+            .all_classes
+            .iter()
+            .filter(|(k, _)| k.contains("@dynclass@"))
+            .collect();
+        assert_eq!(
+            synthetic.len(),
+            2,
+            "each dynamic oo::define call site gets its own ClassDef: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>(),
+        );
+        let has_foo_only = synthetic
+            .iter()
+            .any(|(_, c)| c.methods.contains_key("foo") && !c.methods.contains_key("bar"));
+        let has_bar_only = synthetic
+            .iter()
+            .any(|(_, c)| c.methods.contains_key("bar") && !c.methods.contains_key("foo"));
+        assert!(
+            has_foo_only && has_bar_only,
+            "neither call site's method may leak into the other's ClassDef: {:?}",
+            synthetic
+                .iter()
+                .map(|(k, c)| (k, c.methods.keys().collect::<Vec<_>>()))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn dynamic_oo_define_target_does_not_touch_a_same_named_literal_class() {
+        // FP guard — a literal class that happens to share source text with
+        // an unrelated dynamic target (`$Widget` vs a real class literally
+        // named `Widget`) must never be found/extended by the dynamic call:
+        // the synthetic key can never collide with a real qualified name.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Widget {\n    method real {} {}\n}\n\
+             proc addDynamic {} {\n    set class Widget\n    oo::define $class method dynamic {} {}\n}\n",
+            "tcl8.6",
+        );
+        let widget = &r.all_classes["::Widget"];
+        assert!(widget.methods.contains_key("real"), "{widget:?}");
+        assert!(
+            !widget.methods.contains_key("dynamic"),
+            "the dynamic call must not extend the literal same-named class: {widget:?}",
+        );
     }
 
     // handle_oo_define_command
