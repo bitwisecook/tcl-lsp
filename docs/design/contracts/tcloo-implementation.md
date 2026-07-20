@@ -19,6 +19,29 @@ body / param / var layout (`MemberKind::Flat`), nested-member wrappers
 forms (`property` — `MemberKind::FlagKeyed`).  TclOO, snit, and [incr Tcl]
 are pure registry data; the shared walkers hold no member-keyword lists.
 
+### Member arguments that name commands (`record_member_command_references`)
+
+A member argument that *names a command* is a first-class command reference,
+recorded during the class-body walk so navigation reaches it exactly as a
+direct call does.  Which arguments name commands is registry data, never a
+member keyword the walker knows by name:
+
+- `MemberSpec::all_args_ref == Some(MemberRefKind::Class)` — every argument is
+  a class (`superclass A B`, `mixin ?-append? M …`, `[incr Tcl]`'s
+  `inherit Base`).  A class is a command in `TclOO`, so each resolves in the
+  referencing class's namespace (the one-hop call-site rule) and is recorded as
+  a `command_invocation`.
+- an `ArgRole::CommandName` position — one argument names a command
+  (`forward NAME TARGET …`: the delegated command).
+
+The recorder (`analyser/oo.rs::record_member_command_references`) unwraps a
+`MemberKind::Wrapper` prefix (`self mixin …`) and skips flags (`-append`) and
+dynamic names (`superclass $base`).  Because these references land in the same
+`command_invocations` collection as ordinary calls, find-references, rename,
+go-to-definition, and call-hierarchy resolve them across files through the
+workspace index — and rename and references can never disagree about a
+`superclass` / `mixin` / `inherit` site (issue #923).
+
 ### LSP analysis layer (`rust/tcl-compiler/src/analyser/`)
 
 The analyser (`oo.rs`, `class_hierarchy.rs`) recognises `oo::class create` /

@@ -512,7 +512,8 @@ jobs:
   # supported platform.  Each runner builds its host's target triples (with
   # cross-linkers for the foreign Linux arches), smoke-tests the native one,
   # and uploads the binaries preserving `target/<triple>/release/`.  build-vsix
-  # downloads them all and bundles a single universal VSIX.
+  # downloads them all and packages both the untargeted universal VSIX and
+  # six platform-targeted VSIXes (one per vsce --target platform).
   #
   # Per the no-marketplace-tokens invariant this uses only GitHub's built-in
   # token — nothing is published to a marketplace here.
@@ -652,7 +653,9 @@ jobs:
           fi
           gh release upload "$tag" out/* --clobber
 
-  # Build: universal VSIX package (bundles every native server binary)
+  # Build: the untargeted universal VSIX (bundles every native server
+  # binary) plus six platform-targeted VSIXes, one per vsce --target
+  # platform, so the Marketplace serves each client only its own binary.
   build-vsix:
     if: startsWith(github.ref, 'refs/tags/v')
     # test-ext runs as a no-op-success for pre-release tags (its test step is
@@ -733,14 +736,55 @@ jobs:
       - name: Install npm dependencies
         run: cd editors/vscode && npm ci
 
-      # Bundle all seven native binaries into one universal VSIX.
-      - name: Build and verify VSIX
+      # Bundle all seven native binaries into one untargeted "universal"
+      # VSIX — the Marketplace's fallback for any client with no dedicated
+      # targeted package below (namely riscv64 Linux — vsce has no --target
+      # string for it), and the artefact for a manual "Install from VSIX"
+      # side-load.
+      - name: Build and verify universal VSIX
         run: make package-vsix BUNDLED_TARGETS="$(make -s print-server-targets-all)"
 
       - uses: ./.github/actions/sign-and-upload
         with:
-          artefact-glob: "build/*.vsix"
-          artefact-name: vsix
+          artefact-glob: "build/tcl-lsp-vscode-*-universal.vsix"
+          artefact-name: vsix-universal
+
+      # Six small, single-binary VSIXes, one per vsce --target platform
+      # (win32/linux/darwin x x64/arm64), so the Marketplace serves each
+      # client only its own binary instead of the universal VSIX above. See
+      # package-vsix-targets in the Makefile.
+      - name: Build and verify platform-targeted VSIXes
+        run: make package-vsix-targets
+
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-vscode-*-win32-x64.vsix"
+          artefact-name: vsix-win32-x64
+
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-vscode-*-win32-arm64.vsix"
+          artefact-name: vsix-win32-arm64
+
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-vscode-*-linux-x64.vsix"
+          artefact-name: vsix-linux-x64
+
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-vscode-*-linux-arm64.vsix"
+          artefact-name: vsix-linux-arm64
+
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-vscode-*-darwin-x64.vsix"
+          artefact-name: vsix-darwin-x64
+
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-vscode-*-darwin-arm64.vsix"
+          artefact-name: vsix-darwin-arm64
 
   # ---------------------------------------------------------------------
   # build-claude-skills builds the AI zipapp first (since `make
@@ -786,9 +830,13 @@ jobs:
           artefact-name: claude-skills
 
   # Build: JetBrains plugin
+  # Universal plugin: bundles every SERVER_TARGETS_JETBRAINS platform (all
+  # seven SERVER_TARGET_MAP triples except riscv64 Linux, which no official
+  # JetBrains IDE build targets). Reuses build-server-matrix's cross-compiled
+  # binaries rather than cross-compiling again — same source build-vsix uses.
   build-jetbrains:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
+    needs: [create-release, build-server-matrix]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -803,12 +851,12 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      # `make build-editor-jetbrains` bundles the native tcl-lsp-server binary,
-      # so the Rust toolchain is required (no Python).
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+      - name: Download native server binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          toolchain: stable
+          pattern: server-bins-*
+          path: target
+          merge-multiple: true
 
       - name: Set up Java 17
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
@@ -820,10 +868,10 @@ jobs:
             editors/jetbrains/*.gradle*
             editors/jetbrains/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Build JetBrains plugin
+      - name: Build JetBrains plugin (universal — every platform except riscv64)
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false
-        run: make build-editor-jetbrains
+        run: make build-editor-jetbrains JB_BUNDLED_TARGETS="$(make -s print-server-targets-jetbrains)"
 
       - uses: ./.github/actions/sign-and-upload
         with:

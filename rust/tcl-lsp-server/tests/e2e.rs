@@ -55,6 +55,8 @@ mod hover;
 mod invariants;
 #[path = "e2e/irules.rs"]
 mod irules;
+#[path = "e2e/issue923_class_refs.rs"]
+mod issue923_class_refs;
 #[path = "e2e/issue945.rs"]
 mod issue945;
 #[path = "e2e/name_resolution.rs"]

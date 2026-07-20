@@ -794,22 +794,42 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
 
     let uri = unique_uri("tcl");
     lsp.open_document_lang(&uri, &big, "tcl", 1);
-    let since = lsp.server_request_cursor();
+    let req_since = lsp.server_request_cursor();
+    let log_since = lsp.notification_cursor();
     let first = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
     assert!(
         !first.is_empty(),
         "the cold range must still serve the coarse tier immediately"
     );
 
-    // Give the detached continuation ample time to land its reads and run the
-    // comparison. Whether the race is won (`pending` is `None`, no continuation)
-    // or lost (continuation runs, finds coarse == enriched), the correct outcome
-    // is the same: zero refreshes.
-    std::thread::sleep(std::time::Duration::from_millis(750));
+    // Deterministic readiness via message passing — not a fixed sleep.  A cold
+    // 600-proc file cannot compile+analyse inside the 40ms fast-path budget, so
+    // the range is served the coarse tier and a convergence continuation is
+    // detached (#844 Gap 4).  That continuation logs
+    // `[timing] semantic_tokens.range_convergence.settled (uri=…, refresh=…)`
+    // the instant it has made its coarse-vs-enriched decision — whether or not it
+    // asked for a refresh.  Wait for exactly that line: the decision is then
+    // provably complete, so a converged viewport that (correctly) fired no refresh
+    // is distinguishable from one whose continuation simply had not run yet.  The
+    // timeout is only a backstop against a total hang, never the synchronisation.
+    let settled = lsp.await_log(
+        &["semantic_tokens.range_convergence.settled", uri.as_str()],
+        std::time::Duration::from_secs(20),
+        log_since,
+    );
+    // The continuation records its decision in the marker itself: `refresh=false`
+    // means it did *not* call `request_refresh_coalesced`, so no debounced
+    // `workspace/semanticTokens/refresh` can ever fire for this request.  This is
+    // the primary, race-free guard against the spurious-refresh regression.
+    assert!(
+        settled.contains("refresh=false"),
+        "the converged viewport must settle without asking for a refresh: {settled:?}"
+    );
+    // Belt-and-suspenders: confirm no refresh request actually reached the client.
     let refreshes = lsp
         .server_requests()
         .into_iter()
-        .skip(since)
+        .skip(req_since)
         .filter(|r| {
             r.get("method").and_then(|m| m.as_str()) == Some("workspace/semanticTokens/refresh")
         })

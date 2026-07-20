@@ -523,11 +523,6 @@ pub struct ClassDef {
     /// Class-level mixins in declaration order.  Same naming
     /// convention as `superclasses`.
     pub mixins: Vec<String>,
-    /// `(name, span)` for each superclass usage in a `superclass …`
-    /// declaration — drives find-references on the referenced class.
-    pub superclass_refs: Vec<(String, Span)>,
-    /// `(name, span)` for each mixin usage in a `mixin …` declaration.
-    pub mixin_refs: Vec<(String, Span)>,
     /// Instance methods keyed by simple name.
     pub methods: HashMap<String, MethodDef>,
     /// Class methods keyed by simple name.
@@ -579,8 +574,6 @@ impl Default for ClassDef {
             metaclass: "oo::class".to_string(),
             superclasses: Vec::new(),
             mixins: Vec::new(),
-            superclass_refs: Vec::new(),
-            mixin_refs: Vec::new(),
             methods: HashMap::new(),
             class_methods: HashMap::new(),
             constructors: Vec::new(),

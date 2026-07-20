@@ -771,9 +771,6 @@ fn rebase_class(c: &mut super::types::ClassDef, d: u32) {
     if let Some(m) = &mut c.destructor {
         rebase_method(m, d);
     }
-    for (_, sp) in c.superclass_refs.iter_mut().chain(c.mixin_refs.iter_mut()) {
-        *sp = shift(*sp, d);
-    }
     for p in c.properties.values_mut() {
         p.name_span = shift(p.name_span, d);
     }

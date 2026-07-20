@@ -15,8 +15,8 @@ the standalone editors (Neovim/Emacs/Helix) point at
 
 | Editor | Artefact | Install |
 |--------|----------|---------|
-| [VS Code](#vs-code) | `tcl-lsp-vscode-<v>.vsix` | `code --install-extension`, or VS Code Marketplace |
-| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | same `.vsix` | Sideload the `.vsix` (`code --install-extension` style) |
+| [VS Code](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` (manual) or an auto-selected platform package | `code --install-extension`, or VS Code Marketplace |
+| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` | Sideload the `.vsix` (`code --install-extension` style) |
 | [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Package Control: install **Tcl-LSP**, or copy into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
 | [Neovim](#neovim) | `tcl-lsp-server-<v>.pyz` | Lua config |
@@ -54,10 +54,12 @@ are installed — see the per-editor sections below.
 
 Install from the VS Code Marketplace
 (<https://marketplace.visualstudio.com/items?itemName=bitwisecook.tcl-lsp>),
-or sideload the bundled `.vsix`:
+which serves a small package containing only your platform's binary
+automatically, or download and sideload the `-universal` package (bundles
+every platform in one file, so it works regardless of your OS/architecture):
 
 ```sh
-code --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
+code --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
 ```
 
 Configure under **Settings > Extensions > Tcl**. No Python interpreter
@@ -68,16 +70,17 @@ to run against a local build, point `tclLsp.rustServerPath` at a
 
 ### VS Code-compatible editors
 
-The same `.vsix` works in editors that cannot use the Microsoft
+The `-universal` package works in editors that cannot use the Microsoft
 Marketplace (Cursor, Windsurf, VSCodium, Eclipse Theia, code-server /
-Coder, Gitpod, GitHub Codespaces Theia builds). Download from the
-GitHub release and sideload through the editor's Extensions UI, or
-via the CLI:
+Coder, Gitpod, GitHub Codespaces Theia builds) — it bundles every
+platform's binary in one file, so there's no need to pick the right one
+by hand. Download it from the GitHub release and sideload through the
+editor's Extensions UI, or via the CLI:
 
 ```sh
-cursor   --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
-codium   --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
-code-server --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
+cursor   --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
+codium   --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
+code-server --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
 ```
 
 (Windsurf, Theia, and Gitpod all surface the same drag-and-drop or
@@ -185,15 +188,17 @@ extension auto-downloads the LSP server on first use.
 
 ## VS Code-compatible editors
 
-These editors load the VS Code `.vsix` unchanged. Download
-`tcl-lsp-vscode-<v>.vsix` from [Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest)
+These editors load the VS Code `.vsix` unchanged. Download the
+`-universal` package, `tcl-lsp-vscode-<v>-universal.vsix` (it bundles
+every platform's binary in one file) from
+[Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest)
 and install with the editor's own CLI.
 
 | Editor | Install command |
 |--------|-----------------|
-| **Cursor** | `cursor --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix` |
-| **Windsurf** | `windsurf --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix` |
-| **VSCodium** | `codium --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix` |
+| **Cursor** | `cursor --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix` |
+| **Windsurf** | `windsurf --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix` |
+| **VSCodium** | `codium --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix` |
 | **code-server** (Coder) | Drag-drop into the Extensions side panel, or `code-server --install-extension <path>` |
 | **GitHub Codespaces** | Extensions side panel > `...` > **Install from VSIX…** |
 | **Gitpod** | Same as Codespaces — open the workspace and install from VSIX |

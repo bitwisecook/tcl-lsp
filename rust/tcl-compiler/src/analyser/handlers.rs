@@ -2469,6 +2469,15 @@ impl Analyser {
                     &inline_tokens,
                     &mut object_class,
                 );
+                // The inline form names commands too (`oo::objdefine $o mixin
+                // M`); record them the same way the body walk does so
+                // references / rename reach the class.
+                self.record_member_command_references(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    scope_path,
+                );
             }
         } else if let Some(body_tok) = arg_tokens.get(1).copied() {
             let grammar = self.definition_grammar(cmd_name);
@@ -2870,6 +2879,15 @@ impl Analyser {
                     &inline_args,
                     &inline_tokens,
                     &mut class_def,
+                );
+                // Inline `oo::define Class superclass Base` (or `mixin`, or a
+                // `forward` target) names commands too; record them like the
+                // body walk so references / rename reach the referenced class.
+                self.record_member_command_references(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    scope_path,
                 );
             }
         } else if let Some(body_tok) = arg_tokens.get(1).copied() {
