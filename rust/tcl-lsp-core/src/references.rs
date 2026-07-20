@@ -358,25 +358,18 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // surface an unrelated same-named class's reference set).
     let (qname, class_def) =
         crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
-    let simple = class_def.name.clone();
-    let qualified = class_def.qualified_name.clone();
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, class_def.name_span));
     }
+    // `superclass <C>` / `mixin <C>` (and `forward … TARGET`) usages are
+    // ordinary command references now — the analyser records each as a
+    // `command_invocation` resolved in the referencing class's namespace — so
+    // `class_reference_spans` (over `command_invocations`) already covers them,
+    // in this document and, via the workspace index, across files.  Rename and
+    // the code-lens count read the same collection, so the three never diverge.
     for span in class_reference_spans(analysis, qname, class_def) {
         out.push(span_to_range(source, line_index, span));
-    }
-    // `superclass <C>` / `mixin <C>` usages across every class body
-    // are references to the class too.
-    let matches_name =
-        |n: &str| n == simple || n == qualified || format!("::{n}") == qualified || n == word;
-    for other in analysis.all_classes.values() {
-        for (name, span) in other.superclass_refs.iter().chain(other.mixin_refs.iter()) {
-            if matches_name(name) {
-                out.push(span_to_range(source, line_index, *span));
-            }
-        }
     }
     dedup_ranges(&mut out);
     Some(out)

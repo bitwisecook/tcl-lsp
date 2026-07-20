@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, getServerLogSize, waitForServerLog } from "./helper";
 
 suite("Rename Symbol", () => {
   const docUri = getDocUri("procs.tcl");
@@ -160,39 +160,42 @@ suite("Rename Symbol", () => {
   // the whole request.)
   test("rename from a consumer document rewrites the auto-loaded library definition (M8)", async () => {
     const uri = getDocUri("autoloadLibrary.tcl");
+    // Snapshot the log cursor BEFORE opening so the wait below only matches
+    // this document's settle, not a stale line from an earlier test.
+    const since = getServerLogSize();
     await activate(uri);
 
-    // `Rbc_ActiveLegend .g` — line 0; the definition lives in
-    // rbclib/graph.tcl (line 2, after two comment lines).
-    const pos = new vscode.Position(0, 3);
+    // Deterministic readiness via message passing — no polling.  The consumer's
+    // own call site (`Rbc_ActiveLegend .g`) only becomes a cross-document
+    // reference once its *focused* analysis is committed to the workspace index
+    // (that walk is what gives the invocation its resolution candidates, which
+    // the cross-document rename matches against).  The server logs
+    // `[timing] workspace_state.update (uri=…autoloadLibrary.tcl …)` at the end
+    // of that commit, so wait for exactly that message.  The timeout is only a
+    // backstop against a total hang, never the synchronisation mechanism.
+    const settled = await waitForServerLog(
+      (line) => line.includes("workspace_state.update") && line.includes("autoloadLibrary.tcl"),
+      { since, timeout: 20_000 },
+    );
+    assert.ok(
+      settled,
+      "server must report the consumer document's workspace_state.update before the deadline",
+    );
 
-    // The workspace scan / package database loads asynchronously at startup;
-    // retry until the rename resolves cross-document (or the deadline).
-    // While the scan is still warming up the server answers `null`, which
-    // VS Code surfaces by THROWING "The element can't be renamed." from the
-    // command — treat that as "not yet" and keep polling rather than dying
-    // on the first early attempt.
-    const deadline = Date.now() + 15000;
-    let libEntry: [vscode.Uri, vscode.TextEdit[]] | undefined;
-    let edit: vscode.WorkspaceEdit | undefined;
-    while (Date.now() < deadline && !libEntry) {
-      try {
-        edit = (await vscode.commands.executeCommand(
-          "vscode.executeDocumentRenameProvider",
-          uri,
-          pos,
-          "Rbc_ShinyLegend",
-        )) as vscode.WorkspaceEdit | undefined;
-      } catch {
-        edit = undefined; // rejected while the autoload index is still filling
-      }
-      libEntry = edit?.entries().find(([u]) => u.path.endsWith("rbclib/graph.tcl"));
-      if (!libEntry) {
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    }
+    // `Rbc_ActiveLegend .g` — line 0; the definition lives in
+    // rbclib/graph.tcl (line 2, after two comment lines).  A single rename now
+    // resolves the whole edit set (the library file is merged synchronously by
+    // the autoload tier within this request).
+    const pos = new vscode.Position(0, 3);
+    const edit = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentRenameProvider",
+      uri,
+      pos,
+      "Rbc_ShinyLegend",
+    )) as vscode.WorkspaceEdit | undefined;
 
     assert.ok(edit, "Rename should return a workspace edit");
+    const libEntry = edit!.entries().find(([u]) => u.path.endsWith("rbclib/graph.tcl"));
     assert.ok(libEntry, "the library declaration in rbclib/graph.tcl must be rewritten");
     const [, libEdits] = libEntry!;
     assert.ok(
@@ -206,6 +209,33 @@ suite("Rename Symbol", () => {
     assert.ok(
       docEntry![1].some((te) => te.range.start.line === 0),
       "the line-0 call site is part of the edit",
+    );
+  });
+
+  // Issue #923: renaming a class must rewrite every `superclass` site that
+  // names it, or the inheritance graph is silently broken.  In `oo-shapes.tcl`
+  // both `Dog` and `Cat` declare `superclass Animal`.
+  test("rename of a class rewrites its superclass sites", async () => {
+    const uri = getDocUri("oo-shapes.tcl");
+    await activate(uri);
+
+    // "Animal" in its declaration `oo::class create Animal` (line 1, col 18).
+    const pos = new vscode.Position(1, 18);
+
+    const edit = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentRenameProvider",
+      uri,
+      pos,
+      "Creature",
+    )) as vscode.WorkspaceEdit | undefined;
+
+    assert.ok(edit, "Rename should return a workspace edit for a class name");
+    const docEntry = edit.entries().find(([u]) => u.toString() === uri.toString());
+    assert.ok(docEntry, "Should include edits for oo-shapes.tcl");
+    const lines = docEntry![1].map((te) => te.range.start.line);
+    assert.ok(
+      lines.includes(7) && lines.includes(12),
+      `Both superclass sites (lines 7 and 12) must be rewritten; got ${JSON.stringify(lines)}`,
     );
   });
 });

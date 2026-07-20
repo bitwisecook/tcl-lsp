@@ -5,7 +5,8 @@
 
 ## Summary
 
-Rename a proc or a variable consistently across the file.
+Rename a proc, variable, or class consistently across the file and the
+workspace.
 
 ## Applies to
 
@@ -35,6 +36,13 @@ Rename uses the same shared proc-reference matching as **Find
 References**, so the definition and every call site are always updated
 together. For the full contract, see
 [LSP feature providers](../../design/contracts/lsp-feature-providers.md).
+
+Renaming a class rewrites every use of its name, including the
+`superclass`, `mixin`, and `[incr Tcl]` `inherit` arguments that name it
+in other class bodies — across files. Because rename and **Find
+References** read the same recorded references, they can never disagree,
+so a class rename keeps the inheritance graph intact rather than leaving
+a base-class name dangling.
 
 A command name stored in a variable and dispatched as `$cmd` is kept
 alive too: the rename rewrites the **defining constant's literal**

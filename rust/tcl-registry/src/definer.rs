@@ -320,8 +320,9 @@ const METHOD_ROLES: &[(u8, ArgRole)] = &[
 const CTOR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::ParamList), (1, ArgRole::Body)];
 /// A single trailing body (`destructor BODY`, `typeconstructor BODY`, …).
 const BODY0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Body)];
-/// A single declared name and nothing else (`forward NAME cmd …`).
-const NAME0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name)];
+/// `forward NAME TARGET ?arg…?` — the method name at 0, then the delegated
+/// command name at 1 (a command reference the walker follows for navigation).
+const FORWARD_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name), (1, ArgRole::CommandName)];
 /// A single declared variable name (`typevariable v`, `component c`).
 const VAR0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
 /// A member keyword that carries no recursable body / parameter list /
@@ -350,9 +351,12 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::all_refs("export", MemberRefKind::Method),
     MemberSpec::all_refs("unexport", MemberRefKind::Method),
     MemberSpec::all_refs("deletemethod", MemberRefKind::Method),
-    // `forward NAME cmd ?arg…?` declares NAME as a method; the forwarded
-    // command prefix that follows is ordinary code.
-    MemberSpec::flat("forward", NAME0_ROLES),
+    // `forward NAME cmd ?arg…?` declares NAME as a method; the word after it
+    // (`cmd`) is the delegated command's name — a first-class command
+    // reference the walker records so navigation reaches it, exactly like the
+    // command a `superclass`/`mixin` names.  Any baked arguments after it are
+    // ordinary values.
+    MemberSpec::flat("forward", FORWARD_ROLES),
     // `renamemethod FROM TO` — both name methods.
     MemberSpec::all_refs("renamemethod", MemberRefKind::Method),
     MemberSpec::keyword_only("definitionnamespace"),
@@ -441,8 +445,10 @@ const ITCL_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("destructor", BODY0_ROLES),
     MemberSpec::flat("variable", ITCL_VAR_ROLES),
     MemberSpec::flat("common", ITCL_COMMON_ROLES),
-    // Base-class list (multiple inheritance) — name references only.
-    MemberSpec::keyword_only("inherit"),
+    // Base-class list (multiple inheritance) — each argument names a base
+    // class, a first-class command reference exactly like TclOO's `superclass`,
+    // so navigation reaches the base class across files.
+    MemberSpec::all_refs("inherit", MemberRefKind::Class),
     // Access modifiers: prefix wrappers around an inner member keyword.
     MemberSpec::wrapper("public"),
     MemberSpec::wrapper("protected"),

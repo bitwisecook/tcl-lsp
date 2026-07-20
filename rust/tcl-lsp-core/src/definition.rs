@@ -195,16 +195,23 @@ pub fn definition(
     ) {
         return vec![span_to_range(source, &line_index, proc_def.name_span)];
     }
-    let class_match = analysis
+    // Cursor sitting on a class's own declaration name → that class.
+    if let Some((_, class_def)) = analysis
         .all_classes
         .iter()
         .find(|(_, c)| c.name_span.start() <= cursor_offset && cursor_offset < c.name_span.end())
-        .or_else(|| {
-            analysis.all_classes.iter().find(|(qname, c)| {
-                c.name == word || *qname == &word || *qname == &format!("::{word}")
-            })
-        });
-    if let Some((_, class_def)) = class_match {
+    {
+        return vec![span_to_range(source, &line_index, class_def.name_span)];
+    }
+    // A call / reference that names a class (`superclass X`, `X new`, …).  Skip
+    // a document-local `oo::define` extension stub (`via_define`): the real
+    // `oo::class create` site lives in another file, and the cross-document
+    // resolver prefers it — pinning navigation to the local extension would
+    // shadow the true definition.  When the class *is* created here,
+    // `via_define` is false and this is that creation site.
+    if let Some((_, class_def)) = analysis.all_classes.iter().find(|(qname, c)| {
+        !c.via_define && (c.name == word || *qname == &word || *qname == &format!("::{word}"))
+    }) {
         return vec![span_to_range(source, &line_index, class_def.name_span)];
     }
     // Class-member lookup — when the cursor sits inside a

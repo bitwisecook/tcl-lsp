@@ -184,6 +184,40 @@ fn references_class_includes_mixin_usage_in_other_class() {
 }
 
 #[test]
+fn references_class_superclass_does_not_cross_a_namespace_collision() {
+    // FP guard (issue #923): two classes named `Base` in different namespaces.
+    // References for `::a::Base` include the `superclass ::a::Base` site but
+    // never `::b::Base`'s declaration — mirroring C's call-site resolution.
+    // tclsh-proof: `namespace eval ::a {oo::class create Base {};
+    //   oo::class create Sub {superclass ::a::Base}}; namespace eval ::b
+    //   {oo::class create Base {}}` — ::a::Sub inherits ::a::Base only.
+    let src = concat!(
+        "namespace eval ::a {\n",
+        "    oo::class create Base {}\n",
+        "    oo::class create Sub {\n",
+        "        superclass ::a::Base\n",
+        "    }\n",
+        "}\n",
+        "namespace eval ::b {\n",
+        "    oo::class create Base {}\n",
+        "}\n",
+    );
+    let analysis = analyse(src);
+    // Cursor on `Base` in ::a's declaration (line 1, col 21).
+    let refs = references(src, "tcl", 1, 21, &analysis, true);
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "::a::Base decl missing: {refs:?}");
+    assert!(
+        lines.contains(&3),
+        "`superclass ::a::Base` usage (line 3) missing: {refs:?}",
+    );
+    assert!(
+        !lines.contains(&7),
+        "::b::Base's decl (line 7) must not be cross-linked: {refs:?}",
+    );
+}
+
+#[test]
 fn references_class_from_qualified_name_at_decl_resolves() {
     // The class block accepts a `::`-qualified spelling of the cursor word.
     // tclsh-proof (same as above): `Dog new` is a real instantiation.
