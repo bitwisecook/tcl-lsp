@@ -128,7 +128,7 @@ tasks {
     // stages the whole ``server/`` tree here.
     prepareSandbox {
         from(layout.projectDirectory.dir("server")) {
-            into("$pluginName/server")
+            into(pluginName.map { "$it/server" })
         }
     }
 }
