@@ -171,11 +171,15 @@ suite("Rename Symbol", () => {
     // While the scan is still warming up the server answers `null`, which
     // VS Code surfaces by THROWING "The element can't be renamed." from the
     // command — treat that as "not yet" and keep polling rather than dying
-    // on the first early attempt.
+    // on the first early attempt.  The autoloaded library declaration and the
+    // consumer's own cross-document call-site edit both settle asynchronously;
+    // on a slow runner the library edit can appear an instant before the
+    // consumer edit, so wait for BOTH before asserting (not just the library).
     const deadline = Date.now() + 15000;
     let libEntry: [vscode.Uri, vscode.TextEdit[]] | undefined;
+    let docEntry: [vscode.Uri, vscode.TextEdit[]] | undefined;
     let edit: vscode.WorkspaceEdit | undefined;
-    while (Date.now() < deadline && !libEntry) {
+    while (Date.now() < deadline && !(libEntry && docEntry)) {
       try {
         edit = (await vscode.commands.executeCommand(
           "vscode.executeDocumentRenameProvider",
@@ -187,7 +191,8 @@ suite("Rename Symbol", () => {
         edit = undefined; // rejected while the autoload index is still filling
       }
       libEntry = edit?.entries().find(([u]) => u.path.endsWith("rbclib/graph.tcl"));
-      if (!libEntry) {
+      docEntry = edit?.entries().find(([u]) => u.toString() === uri.toString());
+      if (!(libEntry && docEntry)) {
         await new Promise((r) => setTimeout(r, 250));
       }
     }
@@ -201,7 +206,6 @@ suite("Rename Symbol", () => {
         libEdits.map((te) => te.range.start.line),
       )}`,
     );
-    const docEntry = edit!.entries().find(([u]) => u.toString() === uri.toString());
     assert.ok(docEntry, "the consumer's own call site must be rewritten too");
     assert.ok(
       docEntry![1].some((te) => te.range.start.line === 0),
