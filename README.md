@@ -2251,7 +2251,7 @@ make test
 make build-editor-vsix
 
 # Install in VS Code
-code --install-extension tcl-lsp-vscode-0.1.0.vsix
+code --install-extension tcl-lsp-vscode-0.1.0-universal.vsix
 ```
 
 ## Build targets
@@ -2260,9 +2260,11 @@ Run `make help` to see all targets:
 
 | Target | Description |
 |--------|-------------|
-| `make build-editor-vsix` | Build the .vsix (tests must pass first) |
-| `make install` | Build and install the .vsix into VS Code |
-| `make package-vsix` | Package VSIX (skip lint/test, for CI) |
+| `make build-editor-vsix` | Build the universal .vsix, bundling every platform (tests must pass first) |
+| `make build-editor-vsix-targets` | Build the six platform-targeted .vsix files (tests must pass first) |
+| `make install` | Build and install the universal .vsix into VS Code |
+| `make package-vsix` | Package the universal VSIX (skip lint/test, for CI) |
+| `make package-vsix-targets` | Package the six platform-targeted VSIXes (skip lint/test, for CI) |
 | `make test` | Run all tests (Rust workspace + VS Code extension) |
 | `make test-rust` | Run the Rust workspace tests (incl. the native LSP e2e suite) |
 | `make test-ext` | Run VS Code extension integration tests |
@@ -2294,7 +2296,11 @@ manifest fields use `0.0.0-dev`).
 `make build-editor-vsix` is the main entry point.  It runs the test suite first and will
 not package a .vsix if any test fails.  Packaging uses an isolated staging
 directory under `build/vsix-stage/`, and the output file lands under
-`build/` as `tcl-lsp-<version>.vsix`.
+`build/` as `tcl-lsp-vscode-<version>-universal.vsix`.  `make
+build-editor-vsix-targets` packages six more platform-targeted `.vsix`
+files the same way, each named `tcl-lsp-vscode-<version>-<platform>.vsix`
+and bundling only that platform's native binary — see
+[the multi-platform VSIX how-to](docs/kcs/kcs-howto-build-multiplatform-vsix.md).
 
 On macOS, `make screenshots` prefers a small Swift window-probe helper when
 `swiftc` is available, so captures use deterministic

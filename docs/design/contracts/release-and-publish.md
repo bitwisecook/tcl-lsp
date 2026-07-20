@@ -179,8 +179,13 @@ the secret is reachable by no other job.
 * Build every release artefact: the native binaries (`tcl`, `f5-query`,
   `tcl-lsp-server`, `tcl-mcp`) via `cargo build` / the cross-build targets,
   plus `make build-editor-jetbrains` / `make build-editor-sublime` /
-  `make build-editor-zed` / `make package-vsix` and the Claude-skills zip.
-  The VSIX bundles the native `tcl-lsp-server` binaries — no `.pyz`.
+  `make build-editor-zed` / `make package-vsix package-vsix-targets` and
+  the Claude-skills zip. The VS Code artefact is seven VSIX packages: one
+  untargeted universal package bundling every native `tcl-lsp-server`
+  binary (the Marketplace's fallback for riscv64 Linux, and the artefact
+  for a manual side-load), plus six platform-targeted packages built with
+  `vsce package --target <platform>`, each bundling only its own binary —
+  no `.pyz`.
 * Sign every artefact with sigstore (OIDC + `github.token` — no
   configured secrets).
 * Generate SBOMs (`anchore/sbom-action`).
@@ -208,9 +213,9 @@ stored, is a design conversation: it requires updating this contract and
 
 ## File-path anchors
 
-- [`Makefile`](../../../Makefile) — `publish-vsix`, `publish-jetbrains`,
-  `publish-sublime`, `publish-zed`, `publish-all`, `publish-verify`,
-  `publish-flow`, `release-tag`.
+- [`Makefile`](../../../Makefile) — `publish-vsix`, `publish-vsix-targets`,
+  `publish-jetbrains`, `publish-sublime`, `publish-zed`, `publish-all`,
+  `publish-verify`, `publish-flow`, `release-tag`.
 - [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml) —
   builds artefacts, attests them, attaches them to the Release, and runs
   the two marketplace publish jobs.  Every `secrets.*` reference sits in a
