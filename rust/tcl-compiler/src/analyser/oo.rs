@@ -274,7 +274,7 @@ impl Analyser {
     /// `MemberRefKind::Method` member names methods of *this* class rather than
     /// commands, so the method-reference machinery handles it, not this path.  A
     /// dynamic word (`superclass $base`) names no static command and is skipped.
-    fn record_member_command_references(
+    pub(super) fn record_member_command_references(
         &mut self,
         grammar: &DefinitionBodyGrammar,
         texts: &[String],
@@ -294,8 +294,16 @@ impl Analyser {
         let Some(spec) = grammar.member(keyword) else {
             return;
         };
-        let record = |analyser: &mut Self, name: &str, tok: &Token| {
-            if name.is_empty() || name.starts_with('-') || crate::naming::is_dynamic_word(name) {
+        // `skip_flags` drops `-`-prefixed option words — correct only for the
+        // class-list members (`mixin -append …`), where the flags aren't class
+        // names.  A `forward` TARGET is a plain command name that may legally
+        // begin with `-` (`forward f -foo` delegates to a command named
+        // `-foo`), so its `ArgRole::CommandName` recording keeps such words.
+        let record = |analyser: &mut Self, name: &str, tok: &Token, skip_flags: bool| {
+            if name.is_empty() || crate::naming::is_dynamic_word(name) {
+                return;
+            }
+            if skip_flags && name.starts_with('-') {
                 return;
             }
             // A named command reference carries no fixed call arity: a
@@ -306,12 +314,12 @@ impl Analyser {
         };
         if spec.all_args_ref == Some(MemberRefKind::Class) {
             for (name, tok) in arg_texts.iter().zip(arg_toks) {
-                record(self, name, tok);
+                record(self, name, tok, true);
             }
         }
         for idx in spec.indices_for(ArgRole::CommandName) {
             if let (Some(name), Some(tok)) = (arg_texts.get(idx), arg_toks.get(idx)) {
-                record(self, name, tok);
+                record(self, name, tok, false);
             }
         }
     }
@@ -2148,6 +2156,51 @@ mod tests {
                 .iter()
                 .any(|inv| inv.name == "-append"),
             "the -append flag must not be recorded as a command reference"
+        );
+    }
+
+    // TP: the inline `oo::define Sub superclass Base` form (no `{body}` block)
+    // records the base-class reference too — the same as the braced body form.
+    // (Regression guard: the inline path is separate from the body walk.)
+    #[test]
+    fn inline_oo_define_superclass_records_a_command_reference() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "namespace eval ::ns {\n  oo::class create Base {}\n  \
+                 oo::class create Sub {}\n  oo::define Sub superclass ::ns::Base\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        assert!(
+            has_cmd_ref(&r, "::ns::Base", "::ns::Base"),
+            "inline `oo::define … superclass` must record a command reference: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| &i.name)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    // TP: a `forward` target may legally begin with `-` (a command named
+    // `-foo`).  The `-`-flag filter applies only to class-list members
+    // (`mixin -append`), never to the forward command name.
+    #[test]
+    fn forward_target_beginning_with_dash_is_recorded() {
+        let mut a = Analyser::new();
+        let r = a
+            .analyse(
+                "namespace eval ::ns {\n  oo::class create C { forward f -foo }\n}\n",
+                "tcl9.0",
+            )
+            .clone();
+        assert!(
+            r.command_invocations.iter().any(|inv| inv.name == "-foo"),
+            "a hyphen-prefixed forward target must be recorded: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| &i.name)
+                .collect::<Vec<_>>()
         );
     }
 

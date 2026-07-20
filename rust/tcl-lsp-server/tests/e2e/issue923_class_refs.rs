@@ -137,6 +137,38 @@ fn fp_same_named_class_in_another_namespace_not_cross_linked() {
     );
 }
 
+// TP: the inline `oo::define ::app::Sub superclass ::ns::Base` form (no
+// `{body}` block) is a reference and renames cross-file — the shared recorder
+// must cover the inline path too, not only the braced body walk.
+#[test]
+fn tp_inline_oo_define_superclass_cross_file_reference_and_rename() {
+    let mut lsp = Lsp::tcl();
+    let base = unique_uri("tcl");
+    lsp.open_ready(
+        &base,
+        "namespace eval ::ns {\n    oo::class create Base {}\n}\n",
+    );
+    let sub = unique_uri("tcl");
+    lsp.open_ready(
+        &sub,
+        "namespace eval ::app {\n    oo::class create Sub {}\n}\noo::define ::app::Sub superclass ::ns::Base\n",
+    );
+
+    // The inline `superclass ::ns::Base` is on line 3 of `sub`.
+    let refs = lsp.references(&base, 1, 21, true);
+    assert!(
+        lines_in(&refs, &sub).contains(&3),
+        "inline oo::define superclass must be a reference: {:?}",
+        locations(&refs)
+    );
+
+    let edits = rename_edits(&lsp.rename(&base, 1, 21, "Base2"));
+    assert!(
+        edits.get(&sub).is_some_and(|e| !e.is_empty()),
+        "rename must rewrite the inline oo::define superclass site: {edits:?}"
+    );
+}
+
 // TP: `mixin ::ns::Role` in a sibling file is a reference to the class.
 #[test]
 fn tp_mixin_cross_file_reference() {
