@@ -6298,7 +6298,7 @@
     },
     {
       "name": "open",
-      "summary": "Open a file-based or command pipeline channel."
+      "summary": "Open a file, device, or command pipeline as a channel."
     },
     {
       "name": "option",

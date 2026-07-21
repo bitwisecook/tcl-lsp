@@ -5427,6 +5427,33 @@ mod tests {
         );
     }
 
+    /// TP: `open $tainted` raises T100. A `fileName` argument whose first
+    /// character is `|` runs the rest of the word as a command pipeline —
+    /// the same command-injection hazard `exec` carries — so tainted data
+    /// reaching `open`'s first argument is a code-execution sink exactly
+    /// like `exec`, not merely a file-I/O one.
+    #[test]
+    fn t100_fires_for_open_tainted_filename() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        assert!(
+            registry
+                .get("open")
+                .expect("open in registry")
+                .traits
+                .contains(tcl_registry::Traits::TAINT_SINK),
+            "open must carry TAINT_SINK in the registry",
+        );
+        let source = "set x [gets stdin]\nopen $x r\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 for tainted open fileName, got {warnings:?}",
+        );
+    }
+
     /// FP fix / TN: `subst -nocommands $tainted` — the exact mitigation
     /// `subst`'s own hover snippet recommends — must not raise T100, since
     /// `-nocommands` disables the only hazard (command substitution) the

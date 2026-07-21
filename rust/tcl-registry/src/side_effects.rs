@@ -25,7 +25,7 @@ use crate::dialects::DialectSet;
 /// Variant names match the consumer's
 /// `tcl_compiler::side_effects::SideEffectTarget`. `Process` /
 /// `ChannelIo` are registry-only — kept for the existing `exec` /
-/// `chan` core specs.
+/// `open` (pipeline form) / `chan` core specs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SideEffectTarget {
     /// Tcl variable read or write.
@@ -104,7 +104,8 @@ pub enum SideEffectTarget {
     NamespaceState,
     /// Interpreter-level state (`interp`, `package`, `load`).
     InterpState,
-    /// Process management (registry-only; `exec`).
+    /// Process management (registry-only; `exec`, and `open`'s command-
+    /// pipeline form).
     Process,
     /// Channel I/O (registry-only; `chan`).
     ChannelIo,

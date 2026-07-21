@@ -16,44 +16,157 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `open` — open a file-based or command pipeline channel.
+//! `open` — open a file, device, or command-pipeline channel.
 
 use crate::prelude::*;
 
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "open fileName ?access? ?permissions?",
-    dialects: None,
-}];
+const FORMS: &[FormSpec] = &[
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "open fileName ?access? ?permissions?",
+        dialects: None,
+    },
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "open |command ?access?",
+        dialects: None,
+    },
+];
+
+/// `access` (position 1) takes one of the six mode strings below, each
+/// optionally followed by a `b` (e.g. `rb`, `r+b`) to configure the
+/// channel for binary translation up front, or a Tcl list combining one
+/// of RDONLY/WRONLY/RDWR with any of the other POSIX flags (e.g. `{RDWR
+/// CREAT}`). A list value can't be checked against a flat per-word enum,
+/// so this is completion/hover data only — `open` has no
+/// `closed_value_args` entry for this position, since a legitimate
+/// multi-flag list would otherwise be misreported as an invalid value.
+const ACCESS_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "r",
+        detail: "Read only; the file must already exist. The default when access is omitted.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "r+",
+        detail: "Read and write; the file must already exist.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "w",
+        detail: "Write only; truncates an existing file, creates a new one if absent.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "w+",
+        detail: "Read and write; truncates an existing file, creates a new one if absent.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "a",
+        detail: "Write only; creates the file if absent, and seeks to the end before every write.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "a+",
+        detail: "Read and write; creates the file if absent, with the initial position at the end.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "RDONLY",
+        detail: "List form: open read-only. Combine with other flags in a list, e.g. {RDONLY NOCTTY}.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "WRONLY",
+        detail: "List form: open write-only.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "RDWR",
+        detail: "List form: open for both reading and writing.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "APPEND",
+        detail: "List form: seek to the end of the file before each write.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "BINARY",
+        detail: "List form: configure the channel as if by `fconfigure -translation binary`.",
+        min_tcl: Some(TclVersion::V8_5),
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "CREAT",
+        detail: "List form: create the file if it does not already exist.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "EXCL",
+        detail: "List form: used with CREAT, fail if the file already exists.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "NOCTTY",
+        detail: "List form: if fileName refers to a terminal device, prevent it becoming the process's controlling terminal.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "NONBLOCK",
+        detail: "List form: open in non-blocking mode (matters mainly when fileName is a FIFO); use `fconfigure -blocking` to control blocking afterwards.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "TRUNC",
+        detail: "List form: truncate the file to zero length if it already exists.",
+        ..ArgValue::DEFAULT
+    },
+];
 
 /// Command spec for `open`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open",
         dialects: None,
-        traits: Traits::BYTE_COMPILED | Traits::OPENS_CHANNEL | Traits::SAFE_INTERP_HIDDEN,
+        traits: Traits::BYTE_COMPILED
+            | Traits::OPENS_CHANNEL
+            | Traits::SAFE_INTERP_HIDDEN
+            | Traits::TAINT_SINK,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::Channel),
-        side_effects: &[SideEffect {
-            target: SideEffectTarget::FileIo,
-            reads: false,
-            writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
-        }],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FileIo,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::None,
+                dialects: None,
+            },
+            SideEffect {
+                target: SideEffectTarget::Process,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::None,
+                dialects: None,
+            },
+        ],
         hover: Some(HoverSnippet {
-            summary: "Open a file-based or command pipeline channel.",
+            summary: "Open a file, device, or command pipeline as a channel.",
             synopsis: &[
                 "open fileName",
                 "open fileName access",
                 "open fileName access permissions",
+                "open |command ?access?",
             ],
-            snippet: "Returns a channel identifier for use with `read`, `puts`, `close`, etc.",
-            source: "Tcl man page open.n",
-            examples: "",
-            return_value: "",
+            snippet: "Returns a channel identifier for use with read, puts, gets, close, and friends. access defaults to \"r\" (read-only) when omitted. permissions (an integer, default 0666, combined with the process umask) only matters when access creates a new file. A fileName whose first character is | instead treats the rest of the word as a command pipeline, in the same style as exec's arguments: the channel then reads the pipeline's stdout or writes its stdin depending on access, and the child process's id is available via `pid channelId`.",
+            source: "Tcl open(n)",
+            examples: "open $path r\nopen $path {RDWR CREAT} 0644\nopen |[list grep -c foo] r",
+            return_value: "A channel identifier.",
         }),
         forms: FORMS,
+        arg_values: &[(1, ACCESS_VALUES)],
         ..CommandSpec::DEFAULT
     }
 }
