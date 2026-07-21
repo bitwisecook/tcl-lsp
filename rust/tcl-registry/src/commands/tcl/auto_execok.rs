@@ -16,22 +16,61 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `auto_execok` command.
+//! `auto_execok` — probe whether an external program or shell builtin is
+//! runnable, and return the `exec` argument list for it.
+
 use crate::prelude::*;
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "auto_execok cmd",
+    dialects: None,
+}];
+
+/// Command spec for `auto_execok`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_execok",
+        // Universal Tcl data (`dialects: None`) is deliberate, not an
+        // oversight: F5 iRules bans this proc, but the ban is modelled on
+        // the *profile's* subtractive `IRULES_DISABLED_COMMANDS` list
+        // (tcl-dialect/src/profile.rs), which explicitly names
+        // `"auto_execok"` alongside the rest of the K36322151
+        // filesystem/process bans — never as a `dialects:` restriction
+        // here (folding it into a `TCL84|IRULES`-style union on the spec
+        // would re-admit exactly the command that list exists to ban; see
+        // the comment on `IRULES_DISABLED_COMMANDS`). No other dialect
+        // profile (Expect, the EDA vendor shells, tmsh, iApps, BPF) lists
+        // `auto_execok` in its `disabled_commands`, so it stays reachable
+        // there.
         dialects: None,
+        // A Tcl-level library proc (`library/init.tcl`), not a
+        // `Tcl_CreateObjCommand`-registered builtin, so it carries no
+        // `CmdInfo` row and is absent from the exact C Tcl
+        // safe-interpreter hidden-command table documented on
+        // `Traits::SAFE_INTERP_HIDDEN` — that trait does not apply here.
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
+        // `auto_execok cmd` — exactly one argument; the synopsis is
+        // unchanged across every documented release, Tcl library.n
+        // 8.4 through 9.1.
         arity: Arity::exact(1),
+        return_type: Some(TclType::List),
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::None,
+            dialects: None,
+        }],
         hover: Some(HoverSnippet {
-            summary: "Return path of executable, or empty string",
-            synopsis: &[],
-            snippet: "",
-            source: "Tcl man page library.n",
-            examples: "",
-            return_value: "",
+            summary: "Resolve a command name to its exec argument list, or return an empty string.",
+            synopsis: &["auto_execok cmd"],
+            snippet: "Searches the directories on PATH (and, on Windows, several additional locations) for an executable file or shell builtin named cmd, and returns the argument list to pass to exec to run it. Returns an empty string when nothing matching is found. Used internally by the unknown command handler to auto-exec external programs invoked as bare Tcl commands. Through Tcl 9.0, results are cached in the global array auto_execs, cleared by auto_reset. Tcl 9.1 removed that cache and reworked the Windows search to match exec's own algorithm: the directory of the process executable, the current working directory (conditionally), the Windows system32 and Windows directories, then PATH, each checked against the cmd.exe builtins, PATHEXT extensions, Windows file-association templates, and finally the App Paths registry key. From 9.1 onward, callers must not assume a returned path is normalized, absolute, native, or canonical.",
+            source: "Tcl library(n)",
+            examples: "set found [auto_execok grep]\nif {[llength $found]} {\n    exec {*}$found -c foo bar.txt\n}",
+            return_value: "A list of arguments for exec naming the resolved executable or shell builtin, or an empty string if cmd cannot be found.",
         }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

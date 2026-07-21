@@ -22,7 +22,7 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
-    synopsis: "after ms",
+    synopsis: "after ms ?script script script ...?",
     dialects: None,
 }];
 
@@ -72,9 +72,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "cancel",
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(1),
-        detail: "Cancel a previously scheduled delayed command.",
-        synopsis: "after cancel id",
+        detail: "Cancel a previously scheduled after ms or after idle handler, matched either by the id returned when it was scheduled or by the exact concatenated script text used to schedule it. A no-op if the handler has already run or does not exist.",
+        synopsis: "after cancel id|script ?script script ...?",
         return_type: Some(TclType::String),
+        mutator: true,
         // `Tcl_AfterObjCmd` (tclTimer.c, `AFTER_CANCEL` arm) removes the
         // scheduled timer/idle handler — the destroyed handler cannot be
         // re-cancelled, which is why `catch {after cancel $id}` is the
@@ -90,17 +91,33 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // the only one present, abstaining rather than mis-recursing a
         // truncated fragment when several words concatenate together.
         arg_role_resolver: Some(after_idle_arg_roles),
-        detail: "Arrange for a script to be evaluated later as an idle callback.",
+        // The idle script runs later, at global level outside the context
+        // of any Tcl procedure (Tcl man page after.n) — confirmed
+        // empirically: a local variable set before `after idle {…; set x
+        // 1}` is invisible inside the deferred script, and `info level`
+        // there reads 0. SSA must not treat it as sharing the caller's
+        // frame.
+        body_kind: BodyKind::Structural,
+        detail: "Concatenate the script arguments (as concat would) and arrange for the result to run exactly once, the next time the event loop is entered with no other events pending. Runs at global level, outside the context of any Tcl procedure.",
         synopsis: "after idle script ?script script ...?",
         return_type: Some(TclType::String),
+        mutator: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "info",
         arity: Arity::new(0, 1),
-        detail: "Returns information about existing event handlers.",
+        detail: "Without an id, return a list of the ids of every pending after/idle handler. With an id, return a two-element list of the handler's script and its type, idle or timer.",
         synopsis: "after info ?id?",
-        return_type: Some(TclType::String),
+        return_type: Some(TclType::List),
+        pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::InterpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::None,
+            dialects: None,
+        }],
         ..SubCommand::DEFAULT
     },
 ];
@@ -115,6 +132,13 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         arg_role_resolver: Some(after_arg_roles),
+        // The default form's deferred script runs later, at global level
+        // outside the context of any Tcl procedure (Tcl man page after.n:
+        // "The command will be executed at global level (outside the
+        // context of any Tcl procedure)") — confirmed empirically the same
+        // way as `idle`'s (see the `idle` SubCommand's `body_kind` comment).
+        // SSA must not treat it as sharing the caller's frame.
+        body_kind: BodyKind::Structural,
         subcommands: SUBCOMMANDS,
         // `after 200 …` — an integer first word selects the default
         // delayed-execution form rather than dispatching on a subcommand.
@@ -128,17 +152,19 @@ pub fn spec() -> CommandSpec {
             dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "Execute a command after a time delay",
+            summary: "Delay execution, or schedule a script to run later.",
             synopsis: &[
                 "after ms",
                 "after ms ?script script script ...?",
                 "after cancel id",
                 "after cancel script script script ...",
+                "after idle ?script script script ...?",
+                "after info ?id?",
             ],
-            snippet: "This command is used to delay execution of the program or to execute a command in background sometime in the future.",
-            source: "Tcl man page after.n",
-            examples: "",
-            return_value: "",
+            snippet: "With ms alone, blocks the caller for ms milliseconds; the application does not respond to events meanwhile. With one or more script arguments, returns immediately and concatenates them (as concat would) into a command scheduled to run exactly once, ms milliseconds later, as a global-level event handler outside the context of any Tcl procedure — variables referenced inside it resolve against the global namespace, not the caller's local scope. A ms of zero or negative queues the event immediately, ahead of other pending events, unless after itself runs from within an event handler, in which case it waits for the next pass through the event loop. after idle schedules the same way but runs at the next idle point — the next time the event loop is entered with no other events pending — instead of after a delay. Both forms return an identifier usable with after cancel. after cancel removes a still-pending timer or idle handler, matched either by that identifier or by the exact concatenated script text; canceling a handler that has already fired or does not exist is a silent no-op. after info lists the ids of every handler currently pending, or, given an id, returns a two-element list of that handler's script and its type (idle or timer). An error raised while a deferred script runs is reported through interp bgerror rather than propagating to the caller. Delayed commands only fire once the event loop is entered — vwait or update is needed to process them in a non-event-driven application such as tclsh.",
+            source: "Tcl after(n)",
+            examples: "set id [after 5000 {puts \"5 seconds elapsed\"}]\nafter cancel $id\n\nafter idle {puts \"runs once the event loop goes idle\"}\n\nafter info",
+            return_value: "An empty string for the blocking after ms and after cancel forms; an identifier for after ms script and after idle; a list of ids, or a two-element {script type} list, for after info.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT

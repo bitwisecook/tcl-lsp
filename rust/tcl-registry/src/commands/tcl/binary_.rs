@@ -19,10 +19,17 @@
 //! `binary` — manipulate binary data.
 use crate::prelude::*;
 
+// Only `binary scan` ever reaches this: `format`/`encode`/`decode` are
+// `pure: true` on their `SubCommand` entries, so the compiler's side-effect
+// classifier (`classify_side_effects`) short-circuits on subcommand purity
+// before it ever consults this command-level fallback — see
+// `tcl-compiler/src/side_effects.rs`'s `sub.pure && !sub.mutator` branch.
+// `scan` writes fresh values into its `varName` targets (it does not read
+// their prior contents), matching `scan_.rs`'s identical declaration.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
-    reads: true,
-    writes: false,
+    target: SideEffectTarget::Variable,
+    reads: false,
+    writes: true,
     connection_side: ConnectionSide::None,
     dialects: None,
 }];
@@ -38,15 +45,41 @@ const FORMS: &[FormSpec] = &[
         synopsis: "binary scan string formatString ?varName varName ...?",
         dialects: None,
     },
+    // `binary encode`/`binary decode` were added in Tcl 8.6 (TIP 317) — see
+    // the matching gate on the `encode`/`decode` `SubCommand` entries below.
     FormSpec {
         kind: FormKind::Default,
         synopsis: "binary encode format ?-option value ...? data",
-        dialects: None,
+        dialects: Some(DialectSet::TCL86_PLUS),
     },
     FormSpec {
         kind: FormKind::Default,
         synopsis: "binary decode format ?-option value ...? data",
-        dialects: None,
+        dialects: Some(DialectSet::TCL86_PLUS),
+    },
+];
+
+/// The three `format` names `binary encode`/`binary decode` accept as their
+/// first (sub-index 0) argument — always a single atomic word, never a
+/// list, so unlike `open`'s `access` argument this is safe to mark in
+/// `closed_value_args`. Exhaustive per the Tcl 8.6–9.1 manpages (TIP 317
+/// introduced exactly these three formats; none were added or removed
+/// through 9.1).
+const ENCODE_DECODE_FORMAT_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "base64",
+        detail: "MIME/base64 text encoding. Uses mostly upper- and lower-case letters and digits, and can be rewrapped arbitrarily without losing information.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "hex",
+        detail: "Each byte as a pair of hexadecimal digits. Encoding always produces lowercase; decoding accepts both cases.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "uuencode",
+        detail: "Legacy Unix uuencode body encoding. Neither binary encode nor binary decode handles the surrounding begin/end header and footer lines.",
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -54,8 +87,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "decode",
         arity: Arity::at_least(2),
-        detail: "Decode binary data.",
-        synopsis: "binary decode format data",
+        detail: "Decode base64/hex/uuencode-encoded text back into a binary string.",
+        synopsis: "binary decode format ?-option value ...? data",
         pure: true,
         // S110 binary source: the return type marks the result a byte array —
         // tclsh 8.6.14-verified (`tcl::unsupported::representation
@@ -78,6 +111,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        // `format` (sub-index 0) is always one of these three literal words —
+        // see `ENCODE_DECODE_FORMAT_VALUES`'s doc comment for why this is
+        // safe to close, unlike `open`'s `access` argument.
+        arg_values: &[(0, ENCODE_DECODE_FORMAT_VALUES)],
+        closed_value_args: &[0],
+        // `-strict` is documented only under decoding for every format
+        // (base64/hex/uuencode); encoding takes no `-strict` option.
+        options: const {
+            &[OptionSpec {
+                name: "-strict",
+                value: OptionValue::flag(),
+                detail: "Raise an error on input that deviates from the encoding instead of silently tolerating it: a non-base64 character for base64, whitespace for hex, or a non-standard line for uuencode.",
+                ..OptionSpec::DEFAULT
+            }]
+        },
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
         dialects: Some(DialectSet::TCL86_PLUS),
         ..SubCommand::DEFAULT
@@ -85,8 +133,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "encode",
         arity: Arity::at_least(2),
-        detail: "Encode binary data.",
-        synopsis: "binary encode format data",
+        detail: "Encode binary data as base64, hex, or uuencode text.",
+        synopsis: "binary encode format ?-option value ...? data",
         pure: true,
         return_type: Some(TclType::String),
         // S110: reads `data` *as bytes*, installing the byte-array rep on it
@@ -110,6 +158,34 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        // `format` (sub-index 0) is always one of these three literal words —
+        // see `ENCODE_DECODE_FORMAT_VALUES`'s doc comment.
+        arg_values: &[(0, ENCODE_DECODE_FORMAT_VALUES)],
+        closed_value_args: &[0],
+        // `-maxlen`/`-wrapchar` are documented only for base64 and uuencode
+        // (`hex` takes no encoding options at all — noted in each option's
+        // `detail`, since the registry does not model per-`format` option
+        // sets). Neither option is present under decoding.
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-maxlen",
+                    value: OptionValue::Takes(OptionArg {
+                        integer: Some(IntegerDomain::Any),
+                        hint: "length",
+                        ..OptionArg::DEFAULT
+                    }),
+                    detail: "Split the output into lines of at most length characters. Ignored for hex. base64: unlimited by default (no splitting). uuencode: 5-85, default 61.",
+                    ..OptionSpec::DEFAULT
+                },
+                OptionSpec {
+                    name: "-wrapchar",
+                    value: OptionValue::value("character"),
+                    detail: "Line separator used when -maxlen splits the output. Ignored for hex. base64: any character, default \"\\n\". uuencode: zero or more of tab/VT/FF/CR followed by an optional newline, default a single newline.",
+                    ..OptionSpec::DEFAULT
+                },
+            ]
+        },
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
         dialects: Some(DialectSet::TCL86_PLUS),
         ..SubCommand::DEFAULT
@@ -117,7 +193,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "format",
         arity: Arity::at_least(1),
-        detail: "Format values into a binary string.",
+        detail: "Build a binary string from Tcl values, laid out by a cursor-driven format specification.",
         synopsis: "binary format formatString ?arg ...?",
         pure: true,
         // S110 binary source: the return type marks the result a byte array —
@@ -146,7 +222,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "scan",
         arity: Arity::at_least(2),
-        detail: "Parse a binary string.",
+        detail: "Parse fields out of a binary string into variables, using a cursor-driven format specification. Returns the number of variables successfully set.",
         synopsis: "binary scan string formatString ?varName ...?",
         return_type: Some(TclType::Int),
         // S110: reads `string` *as bytes*, installing the byte-array rep on
@@ -193,8 +269,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
 /// variable-name args from index 2 onward (the resolver receives the args
 /// *after* the `scan` subcommand word: `string`, `format`, then the vars).
 /// Resolve `VarWrite` dynamically so calls with arbitrarily many vars don't
-/// false-fire W210 on the unmodelled tail.  Mirrors the `binary scan`
-/// resolver.
+/// false-fire W210 on the unmodelled tail.  Mirrors the plain `scan`
+/// command's own resolver (`scan_arg_roles` in `scan_.rs`).
 fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     (2..args.len())
         .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
@@ -216,10 +292,10 @@ pub fn spec() -> CommandSpec {
                 "binary decode format ?-option value ...? data",
                 "binary subcommand ?arg ...?",
             ],
-            snippet: "This command provides facilities for manipulating binary data. The principal operations are inserting values into a binary string and extracting values from a binary string.",
+            snippet: "This command provides facilities for manipulating binary data. format builds a binary string from Tcl values and scan parses one back out into variables; both walk an imaginary cursor through the data driven by a shared formatString mini-language of type-count field specifiers (a/A/b/B/h/H/c/s/S/i/I/w/W/f/d/x/X/@, plus t/n/m native-byte-order and r/R/q/Q little/big-endian float forms since 8.5). encode and decode instead convert to and from a text encoding (base64, hex, or uuencode) and were added in Tcl 8.6. A Tcl \"binary string\" is simply one whose characters are all in the range \\u0000-\\u00FF.",
             source: "Tcl man page binary.n",
-            examples: "",
-            return_value: "",
+            examples: "set packed [binary format c3 {72 105 33}]\nbinary scan $packed c3 codes\n# codes is now \"72 105 33\"\n\nset hex [binary encode hex $packed]\nset back [binary decode hex $hex]\n# back is again the 3-byte binary string",
+            return_value: "format, encode, and decode return the newly built value (format/decode a byte array, encode a text string); scan returns the number of variables it successfully set.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
