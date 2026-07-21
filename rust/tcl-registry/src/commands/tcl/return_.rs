@@ -167,7 +167,7 @@ pub fn spec() -> CommandSpec {
                         hint: "code",
                         ..OptionArg::DEFAULT
                     }),
-                    detail: "Exceptional return code: ok/error/return/break/continue, or an integer (5–0x3fffffff reserved for application use by convention, not enforced — tclsh 8.6.14 accepts any integer here).",
+                    detail: "Exceptional return code: ok/error/return/break/continue, or an integer (5–0x3fffffff reserved for application use by convention, not enforced).",
                     ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
@@ -177,7 +177,8 @@ pub fn spec() -> CommandSpec {
                         hint: "level",
                         ..OptionArg::DEFAULT
                     }),
-                    detail: "Stack levels up the code applies to (default 1). 0 means this `return` itself returns -code. Verified against tclsh 8.6.14: must be 0..=2147483647, a negative or larger value is a hard error (unlike -code's integer, which never errors in this range).",
+                    detail: "Stack levels up the code applies to (default 1). 0 means this `return` itself returns -code. Must be 0..=2147483647; a negative or larger value is a hard error (unlike -code's integer, which never errors in this range).",
+                    dialects: Some(DialectSet::TCL85_PLUS),
                     ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
@@ -199,7 +200,7 @@ pub fn spec() -> CommandSpec {
                         hint: "list",
                         ..OptionArg::DEFAULT
                     }),
-                    detail: "Initial error stack (must be an even-sized list — verified against tclsh 8.6.14). Only meaningful with -code error.",
+                    detail: "Initial error stack (must be an even-sized list). Only meaningful with -code error.",
                     dialects: Some(DialectSet::TCL86_PLUS),
                     ..OptionSpec::DEFAULT
                 },
@@ -207,7 +208,7 @@ pub fn spec() -> CommandSpec {
                     name: "-options",
                     value: OptionValue::value("dict"),
                     detail: "Dictionary of additional option/value pairs, merged in as if each had been given directly.",
-                    dialects: Some(DialectSet::TCL86_PLUS),
+                    dialects: Some(DialectSet::TCL85_PLUS),
                     ..OptionSpec::DEFAULT
                 },
             ]
