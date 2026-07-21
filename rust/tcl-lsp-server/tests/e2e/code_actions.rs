@@ -1130,6 +1130,39 @@ fn test_w001_offers_subcommand_did_you_mean_replacement() {
     );
 }
 
+/// W123 FP guard, issue #923 idx 105: `exists`/`get` called bare from inside
+/// a proc lexically defined under `::tcl::dict` are the real, separately
+/// -callable `::tcl::dict::exists` / `::tcl::dict::get` builtins, not unknown
+/// commands — no diagnostic, and critically no "Replace with 'exit'"
+/// quickfix either. Before the fix this quickfix was offered and, if
+/// applied, would have silently turned `if {[exists $d $k]} {...}` into
+/// `if {[exit $d $k]} {...}` — terminating the process instead of testing
+/// dict membership.
+#[test]
+fn test_w123_no_harmful_exit_replacement_for_dict_ensemble_bare_exists() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::tcl::dict::myhelper {d k} {\n    if {[exists $d $k]} { return [get $d $k] }\n    return MISSING\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        with_code(&diags, "W123").is_empty(),
+        "bare exists/get inside ::tcl::dict must not fire W123: {diags:?}"
+    );
+    let actions = code_actions_only(
+        &mut lsp,
+        &uri,
+        range((1, 9), (1, 15)),
+        json!([]),
+        &["quickfix"],
+    );
+    assert!(
+        !titles(&actions)
+            .iter()
+            .any(|t| t.starts_with("Replace with")),
+        "must never offer to replace 'exists' with 'exit': {actions:?}"
+    );
+}
+
 /// W001 FP guard: a unique-prefix abbreviation is valid ensemble dispatch —
 /// no diagnostic, and no replacement action either.
 #[test]

@@ -192,6 +192,9 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
     specs.extend(mathop_generated::specs());
     // The `tcl::mathfunc` math-function ensemble (both qualified spellings).
     specs.extend(mathfunc_generated::specs());
+    // Standalone specs for `dict` subcommands that are also genuine,
+    // separately-callable `::tcl::dict::<name>` commands (issue #923 idx 105).
+    specs.extend(dict::qualified_specs());
     // Simple named commands not yet implemented. (`vec!` — the spec
     // table is past clippy's stack-array size threshold.)
     specs.extend(vec![

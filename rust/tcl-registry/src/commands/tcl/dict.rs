@@ -545,6 +545,295 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(crate::hooks::LoweringHookId::Dict),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        implementation_namespace: Some("::tcl::dict"),
         ..CommandSpec::DEFAULT
+    }
+}
+
+/// `(bare subcommand name, fully-qualified spelling)` for every `dict`
+/// subcommand that `tclsh` also exposes as a standalone, separately
+/// -invocable command under `::tcl::dict::<name>` — verified live against
+/// tclsh9.0.4 and tclsh8.6.14 via `info commands ::tcl::dict::*`.  `getd` is
+/// deliberately absent: it is an ensemble-map-only unambiguous-prefix alias
+/// of `getdef`, confirmed absent from `info commands ::tcl::dict::*` under
+/// both versions — never itself a registered command.
+const QUALIFIED_NAMES: &[(&str, &str)] = &[
+    ("append", "::tcl::dict::append"),
+    ("create", "::tcl::dict::create"),
+    ("exists", "::tcl::dict::exists"),
+    ("filter", "::tcl::dict::filter"),
+    ("for", "::tcl::dict::for"),
+    ("get", "::tcl::dict::get"),
+    ("incr", "::tcl::dict::incr"),
+    ("keys", "::tcl::dict::keys"),
+    ("lappend", "::tcl::dict::lappend"),
+    ("map", "::tcl::dict::map"),
+    ("merge", "::tcl::dict::merge"),
+    ("remove", "::tcl::dict::remove"),
+    ("replace", "::tcl::dict::replace"),
+    ("set", "::tcl::dict::set"),
+    ("size", "::tcl::dict::size"),
+    ("unset", "::tcl::dict::unset"),
+    ("update", "::tcl::dict::update"),
+    ("values", "::tcl::dict::values"),
+    ("with", "::tcl::dict::with"),
+    ("info", "::tcl::dict::info"),
+    ("getdef", "::tcl::dict::getdef"),
+    ("getwithdefault", "::tcl::dict::getwithdefault"),
+];
+
+/// `(bare subcommand name, hover summary, hover synopsis)` for every name in
+/// [`QUALIFIED_NAMES`] — kept as a small, separate literal table (rather
+/// than derived from [`SubCommand::detail`]/[`SubCommand::synopsis`] at
+/// runtime) because the synopsis must already be a `&'static [&'static str]`
+/// *at this const table's own definition site* for it to stay `'static` —
+/// one built up from a runtime [`SubCommand`] lookup (`&[sub.synopsis]`)
+/// would only live as long as that lookup's local, not `'static`.
+/// `qualified_specs_hover_matches_subcommands` guards against this table
+/// drifting from the live `SUBCOMMANDS` text.
+const QUALIFIED_HOVER: &[(&str, &str, &[&str])] = &[
+    (
+        "append",
+        "Append to a value in a dictionary.",
+        &["::tcl::dict::append dictionaryVariable key ?string ...?"],
+    ),
+    (
+        "create",
+        "Create a new dictionary from key/value pairs.",
+        &["::tcl::dict::create ?key value ...?"],
+    ),
+    (
+        "exists",
+        "Test whether a key exists in a dictionary.",
+        &["::tcl::dict::exists dictionaryValue key ?key ...?"],
+    ),
+    (
+        "filter",
+        "Filter a dictionary.",
+        &["::tcl::dict::filter dictionaryValue filterType ..."],
+    ),
+    (
+        "for",
+        "Iterate over dictionary key/value pairs.",
+        &["::tcl::dict::for {keyVar valueVar} dictionaryValue body"],
+    ),
+    (
+        "get",
+        "Get a value from a dictionary.",
+        &["::tcl::dict::get dictionaryValue ?key ...?"],
+    ),
+    (
+        "incr",
+        "Increment a value in a dictionary.",
+        &["::tcl::dict::incr dictionaryVariable key ?increment?"],
+    ),
+    (
+        "keys",
+        "Return the keys of a dictionary.",
+        &["::tcl::dict::keys dictionaryValue ?globPattern?"],
+    ),
+    (
+        "lappend",
+        "Append list elements to a dictionary value.",
+        &["::tcl::dict::lappend dictionaryVariable key ?value ...?"],
+    ),
+    (
+        "map",
+        "Apply a transformation to each dictionary entry.",
+        &["::tcl::dict::map {keyVar valueVar} dictionaryValue body"],
+    ),
+    (
+        "merge",
+        "Merge one or more dictionaries.",
+        &["::tcl::dict::merge ?dictionaryValue ...?"],
+    ),
+    (
+        "remove",
+        "Remove keys from a dictionary value.",
+        &["::tcl::dict::remove dictionaryValue ?key ...?"],
+    ),
+    (
+        "replace",
+        "Replace keys in a dictionary value.",
+        &["::tcl::dict::replace dictionaryValue ?key value ...?"],
+    ),
+    (
+        "set",
+        "Set a value in a dictionary.",
+        &["::tcl::dict::set dictionaryVariable key ?key ...? value"],
+    ),
+    (
+        "size",
+        "Return the number of key/value pairs.",
+        &["::tcl::dict::size dictionaryValue"],
+    ),
+    (
+        "unset",
+        "Remove keys from a dictionary variable.",
+        &["::tcl::dict::unset dictionaryVariable key ?key ...?"],
+    ),
+    (
+        "update",
+        "Map dictionary keys to variables, execute body, write back.",
+        &["::tcl::dict::update dictionaryVariable key varName ?...? body"],
+    ),
+    (
+        "values",
+        "Return the values of a dictionary.",
+        &["::tcl::dict::values dictionaryValue ?globPattern?"],
+    ),
+    (
+        "with",
+        "Map all dictionary keys to variables, execute body, write back.",
+        &["::tcl::dict::with dictionaryVariable ?key ...? body"],
+    ),
+    (
+        "info",
+        "Return information (for display to people) about a dictionary.",
+        &["::tcl::dict::info dictionaryValue"],
+    ),
+    (
+        "getdef",
+        "Return the value a key path maps to, or a default if absent.",
+        &["::tcl::dict::getdef dictionaryValue ?key ...? key default"],
+    ),
+    (
+        "getwithdefault",
+        "Return the value a key path maps to, or a default if absent.",
+        &["::tcl::dict::getwithdefault dictionaryValue ?key ...? key default"],
+    ),
+];
+
+/// Standalone [`CommandSpec`]s for every `dict` subcommand [`QUALIFIED_NAMES`]
+/// names — real, separately-callable commands, not merely ensemble-dispatch
+/// subcommand specs.  A proc lexically defined *inside* `::tcl::dict` (the
+/// real tcllib `dicttool.tcl` idiom: `proc ::tcl::dict::getnull {d args} {
+/// if {[exists $d {*}$args]} {...} }`) resolves a bare `exists`/`get` call to
+/// these through ordinary current-namespace-then-global lookup, so the W123
+/// unknown-command pass needs a registry entry to recognise it — see
+/// `Analyser::w123_invocation_resolves`'s resolution-candidate check.
+///
+/// Each spec inherits the subcommand's own dialect gate, falling back to
+/// `dict`'s own ([`DialectSet::TCL85_PLUS`]) — never left `None`, which
+/// `CommandSpec::dialects`'s own doc defines as "available in all dialects"
+/// and would wrongly make these appear under dialects (`f5-irules`, …) that
+/// never load `dict` this way.
+pub fn qualified_specs() -> Vec<CommandSpec> {
+    let parent_dialects = spec().dialects;
+    QUALIFIED_NAMES
+        .iter()
+        .filter_map(|&(bare, qualified)| {
+            let sub = SUBCOMMANDS.iter().find(|s| s.name == bare)?;
+            let &(_, summary, synopsis) = QUALIFIED_HOVER.iter().find(|&&(n, _, _)| n == bare)?;
+            Some(CommandSpec {
+                name: qualified,
+                traits: if sub.pure {
+                    Traits::PURE
+                } else {
+                    Traits::empty()
+                },
+                dialects: sub.dialects.or(parent_dialects),
+                arity: sub.arity,
+                return_type: sub.return_type,
+                arg_types: sub.arg_types,
+                const_fold: sub.const_fold,
+                hover: Some(HoverSnippet::brief(
+                    summary,
+                    synopsis,
+                    "Tcl man page dict.n",
+                )),
+                implementation_namespace: Some("::tcl::dict"),
+                ..CommandSpec::DEFAULT
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qualified_specs_excludes_getd() {
+        // FN guard — `getd` is an ensemble-map-only unambiguous-prefix alias
+        // of `getdef` (verified live: `info commands ::tcl::dict::*` never
+        // lists it under tclsh9.0.4 or tclsh8.6.14); a naive loop over every
+        // `SUBCOMMANDS` entry would wrongly register a command that doesn't
+        // exist.
+        assert!(
+            !qualified_specs().iter().any(|s| s.name.ends_with("::getd")),
+            "qualified_specs must never register ::tcl::dict::getd",
+        );
+    }
+
+    #[test]
+    fn qualified_specs_covers_every_real_subcommand() {
+        // Drift guard — every `SUBCOMMANDS` entry except `getd` (see above)
+        // must produce exactly one qualified spec, so a future edit to
+        // `SUBCOMMANDS` (added/removed/renamed subcommand) is caught here
+        // instead of silently under- or over-registering.
+        let real_subcommand_count = SUBCOMMANDS.iter().filter(|s| s.name != "getd").count();
+        assert_eq!(
+            qualified_specs().len(),
+            real_subcommand_count,
+            "qualified_specs length must track SUBCOMMANDS (minus getd) exactly",
+        );
+        for sub in SUBCOMMANDS.iter().filter(|s| s.name != "getd") {
+            assert!(
+                qualified_specs()
+                    .iter()
+                    .any(|s| s.name == format!("::tcl::dict::{}", sub.name)),
+                "missing qualified spec for dict subcommand {:?}",
+                sub.name,
+            );
+        }
+    }
+
+    #[test]
+    fn qualified_specs_hover_matches_subcommands() {
+        // Drift guard for `QUALIFIED_HOVER`, the hand-maintained table kept
+        // separate from `SUBCOMMANDS` purely for `'static` lifetime reasons
+        // (see its own doc comment) — every entry must name a real
+        // `SUBCOMMANDS` entry, and every non-`getd` `SUBCOMMANDS` entry must
+        // have a hover hand-written for it.
+        for &(bare, _, _) in QUALIFIED_HOVER {
+            assert!(
+                SUBCOMMANDS.iter().any(|s| s.name == bare),
+                "QUALIFIED_HOVER names a subcommand SUBCOMMANDS doesn't have: {bare:?}",
+            );
+        }
+        for sub in SUBCOMMANDS.iter().filter(|s| s.name != "getd") {
+            assert!(
+                QUALIFIED_HOVER.iter().any(|&(bare, _, _)| bare == sub.name),
+                "SUBCOMMANDS entry {:?} has no QUALIFIED_HOVER entry",
+                sub.name,
+            );
+        }
+    }
+
+    #[test]
+    fn qualified_specs_inherit_dict_dialect_gate() {
+        // Regression guard (secondary_issues_found #4 in the idx=105
+        // research plan): a qualified spec must never default to
+        // `dialects: None` (= "available in all dialects" per
+        // `CommandSpec::dialects`'s own doc), which would wrongly make
+        // e.g. `::tcl::dict::exists` appear under a dialect that never
+        // loads `dict` this way (f5-irules, …). Each qualified spec's own
+        // gate must match its `SubCommand`'s gate when it declares one
+        // (`map`/`getdef`/`getwithdefault` are narrower than plain `dict`'s
+        // own `TCL85_PLUS`), falling back to `dict`'s own gate otherwise —
+        // never `None`.
+        let dict_dialects = spec().dialects;
+        for s in qualified_specs() {
+            let bare = s.name.rsplit("::").next().unwrap();
+            let sub = SUBCOMMANDS.iter().find(|sc| sc.name == bare).unwrap();
+            assert_eq!(
+                s.dialects,
+                Some(sub.dialects.or(dict_dialects).unwrap()),
+                "{:?} must inherit its own subcommand's dialect gate, \
+                 falling back to dict's own",
+                s.name,
+            );
+        }
     }
 }

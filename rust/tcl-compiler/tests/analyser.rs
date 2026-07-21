@@ -484,6 +484,92 @@ mod diagnostics {
     }
 
     #[test]
+    fn dynamically_mapped_dict_ensemble_subcommand_suppresses_w001() {
+        // FP — regression for issue #923 idx 105 Part B: the real tcllib
+        // `dicttool.tcl` idiom patches the `dict` ensemble's `-map` at
+        // runtime to add `getnull` (`namespace ensemble configure dict -map
+        // [dict replace [namespace ensemble configure dict -map] getnull
+        // ::tcl::dict::getnull]`), which a static `SUBCOMMANDS` table can't
+        // reflect. Must not fire "Unknown subcommand 'getnull' for 'dict'"
+        // once the backing proc exists at `::tcl::dict::getnull` — this was
+        // previously inconsistent with hover/definition, which already
+        // resolved the same call site correctly.
+        let src = "proc ::tcl::dict::getnull {dictionary args} {\n\
+             if {[exists $dictionary {*}$args]} { get $dictionary {*}$args }\n\
+             }\n\
+             namespace ensemble configure dict -map \
+             [dict replace [namespace ensemble configure dict -map] \
+             getnull ::tcl::dict::getnull]\n\
+             proc demo {} {\n\
+             set clay [dict create a 1 b 2]\n\
+             return [dict getnull $clay a]\n\
+             }\n";
+        assert!(!fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn dynamically_mapped_dict_ensemble_fix_is_not_overfit_to_getnull() {
+        // FP — a second, differently-named sibling from the same real
+        // tcllib idiom (`is_dict`), proving the fix isn't hardcoded to one
+        // subcommand name. This block never calls bare `exists`/`get`, so it
+        // exercises Part B in isolation from Part A.
+        let src = "proc ::tcl::dict::is_dict {d} {\n\
+             if {[catch {dict size $d} err]} { return 0 }\n\
+             return 1\n\
+             }\n\
+             namespace ensemble configure dict -map \
+             [dict replace [namespace ensemble configure dict -map] \
+             is_dict ::tcl::dict::is_dict]\n\
+             dict is_dict [dict create a 1]\n";
+        assert!(!fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn genuinely_unknown_dict_subcommand_still_fires_w001() {
+        // TP — regression guard: a real, non-existent `dict` subcommand
+        // (no proc named `zzzznotreal` anywhere, no ensemble patch) must
+        // still fire — proves `dynamic_ensemble_subcommand_known` doesn't
+        // over-suppress.
+        let src = "proc demo {} {\n\
+             set d [dict create a 1 b 2]\n\
+             return [dict zzzznotreal $d a]\n\
+             }\n";
+        assert!(fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn dict_proc_at_conventional_location_without_ensemble_patch_is_an_accepted_false_negative() {
+        // FN — deliberately ACCEPTED gap (idx 105 Part B's primary/simple
+        // design, chosen over the more precise "observed an actual
+        // `namespace ensemble configure -map` call" variant): a proc
+        // defined at `::tcl::dict::<name>` is treated as "this ensemble
+        // subcommand is known" even when the ensemble's `-map` was never
+        // actually reconfigured to include it. Real tclsh would still error
+        // `unknown or ambiguous subcommand "stray"` here. If this gap is
+        // ever closed (tracking whether `-map` was truly reconfigured, see
+        // idx 105's research plan for the harder variant), this test's
+        // assertion flips and documents the improvement.
+        let src = "proc ::tcl::dict::stray {d} { return $d }\n\
+             dict stray [dict create a 1]\n";
+        assert!(
+            !fires(src, D, "W001"),
+            "documents the accepted FN gap; got {:?}",
+            analyser_diags(src, D),
+        );
+    }
+
+    #[test]
+    fn ensemble_without_implementation_namespace_is_unaffected_by_dynamic_map_check() {
+        // TN — regression guard: `dynamic_ensemble_subcommand_known` is
+        // inert for every ensemble whose `CommandSpec` doesn't set
+        // `implementation_namespace` (only `dict`, currently) — a
+        // same-named proc existing elsewhere must not suppress an unrelated
+        // ensemble's genuinely unknown subcommand.
+        let src = "proc bogus {} {}\nstring bogus hello\n";
+        assert!(fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
     fn error_diagnostics_have_a_span() {
         // The error anchors at the start of the script. The diagnostic carries
         // a byte `span`; assert it starts at offset 0 (the `set` token).
@@ -1505,6 +1591,66 @@ mod unresolved_command {
         let d = w123(src);
         assert_eq!(d.len(), 1, "only the un-imported name fires; got {d:?}");
         assert!(d[0].contains("render_circle"));
+    }
+
+    #[test]
+    fn bare_dict_ensemble_builtin_resolves_from_inside_tcl_dict_namespace() {
+        // FP — regression for issue #923 idx 105: `exists`/`get` are real,
+        // separately-callable commands (`::tcl::dict::exists`,
+        // `::tcl::dict::get`), backing the `dict` ensemble's own
+        // subcommands (confirmed against tclsh9.0.4/8.6.14: `info commands
+        // ::tcl::dict::*` lists them). A proc lexically defined *inside*
+        // `::tcl::dict` (the real tcllib `dicttool.tcl` idiom) resolves a
+        // bare call to them via ordinary current-namespace-then-global
+        // lookup, so it must not fire W123 — isolated from any
+        // `namespace ensemble configure` patching (idx 105 Part B, tested
+        // separately) to prove this half is a pure namespace-resolution fact.
+        let src = "proc ::tcl::dict::myhelper {d k} {\n\
+             if {[exists $d $k]} { return [get $d $k] }\n\
+             return MISSING\n\
+             }\n\
+             ::tcl::dict::myhelper [dict create a 1 b 2] a\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn bare_dict_ensemble_builtin_outside_tcl_dict_namespace_still_fires_w123() {
+        // TP — regression guard: `exists`/`get` called bare *outside*
+        // `::tcl::dict` must still fire (tclsh-confirmed real error:
+        // "invalid command name \"exists\"") — proves the fix is properly
+        // namespace-scoped, not a blanket allow-list for these two names.
+        let d = w123("proc foo {} { return [exists bar] }\n");
+        assert_eq!(d.len(), 1, "got {d:?}");
+        assert!(d[0].contains("exists"));
+    }
+
+    #[test]
+    fn fully_qualified_tcl_dict_builtin_calls_are_unaffected() {
+        // TN — regression guard: the qualified spelling already worked via
+        // the pre-existing `name.contains("::")` conservative skip; the new
+        // resolution-candidate check must not change that.
+        let src = "proc demo {} {\n\
+             set d [dict create a 1 b 2]\n\
+             if {[::tcl::dict::exists $d a]} { return [::tcl::dict::get $d a] }\n\
+             }\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn ordinary_namespace_bare_name_resolution_is_unaffected_by_dict_fix() {
+        // TN — regression guard: the common case (a bare call resolving to
+        // an ordinary user proc via its own namespace) must be unaffected by
+        // the new resolution-candidate check, which is a no-op there (the
+        // bare-name check above it already resolves it).
+        assert!(
+            w123(
+                "namespace eval ::foo {\n\
+                 proc helper {} { return 42 }\n\
+                 proc bar {} { return [helper] }\n\
+                 }\n"
+            )
+            .is_empty()
+        );
     }
 
     #[test]

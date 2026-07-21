@@ -561,6 +561,7 @@ impl Analyser {
         range: tcl_lexer::Span,
         resolved_qualified_name: Option<&str>,
         is_mathfunc_call: bool,
+        resolution_candidates: &[String],
     ) -> bool {
         // A built-in renamed away / deleted at an earlier offset no longer
         // resolves here — fall through to the user-defined paths below,
@@ -612,6 +613,24 @@ impl Analyser {
             {
                 return true;
             }
+        }
+        // A bare name resolved relative to the call's *enclosing lexical
+        // namespace* (not the global bare name checked above) may name a
+        // registry command whose only registered spelling is qualified —
+        // e.g. `exists`/`get` called bare from inside `proc
+        // ::tcl::dict::getnull {...}` resolve to the real, separately
+        // -callable `::tcl::dict::exists` / `::tcl::dict::get` (issue #923
+        // idx 105), not the ensemble-subcommand-only `dict exists` spec.
+        // `resolution_candidates` already carries the correctly-qualified,
+        // Tcl-priority-ordered candidate list for this exact call
+        // (`finalise_invocation_resolutions` / `command_resolution_candidates`);
+        // this reuses the same `registry_names` set already built above
+        // rather than a second, namespace-blind lookup.
+        if resolution_candidates
+            .iter()
+            .any(|cand| known.registry_names.contains(cand))
+        {
+            return true;
         }
         // Qualified names defer to per-namespace logic (conservative skip);
         // `$`-interpolated / `[…]`-substituted heads are W307 / W308's
@@ -731,6 +750,7 @@ impl Analyser {
                 inv.range,
                 inv.resolved_qualified_name.as_deref(),
                 inv.is_mathfunc_call,
+                &inv.resolution_candidates,
             ) {
                 continue;
             }
