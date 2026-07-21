@@ -52,6 +52,7 @@
 | W139 | warning | Command/option removed at the resolved package version (present only in earlier releases). | ✓ |
 | W140 | warning | `interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time. | ✓ |
 | W141 | warning | Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set. | ✓ |
+| W142 | warning | Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body). | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |

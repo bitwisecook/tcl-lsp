@@ -278,6 +278,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W142",
+    section: "warning",
+    description:
+      "Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",
