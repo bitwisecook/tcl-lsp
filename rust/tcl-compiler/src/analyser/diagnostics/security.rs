@@ -1123,11 +1123,20 @@ matching time on crafted input."
         }
     }
 
-    /// **W127 (option-value sibling).** A literal value word of a value-taking
-    /// option whose value set is *closed* (`OptionValue::enumerated(.., true,
-    /// ..)`) is not in that set.  Options are matched by name or alias, arity
-    /// and the `--` terminator are honoured via `value_indices`, and dynamic
-    /// values (`$var` / `[cmd]`) are skipped — mirroring the positional path
+    /// **W127 (option-value sibling)** and **W141**. A literal value word of
+    /// a value-taking option whose value set is *closed*
+    /// (`OptionValue::enumerated(.., true, ..)`) is not in that set (W127) —
+    /// unless the option also declares an [`tcl_registry::hover::IntegerDomain`]
+    /// (`return -code ok|error|...|<int>`) and the value parses as a Tcl
+    /// integer within it, which is accepted alongside the closed set rather
+    /// than instead of it. Separately, an option whose arity is
+    /// [`tcl_registry::hover::OptionArity::Hook`] runs its resolver as a
+    /// content check: a `Some(msg)` `invalid` result is flagged as W141 (a
+    /// value that's structurally malformed — `-errorstack`'s value must be
+    /// an even-sized list — rather than merely outside a closed set).
+    /// Options are matched by name or alias, arity and the `--` terminator
+    /// are honoured via `value_indices`, and dynamic values (`$var` /
+    /// `[cmd]`) are skipped for both checks — mirroring the positional path
     /// without overloading it.
     pub(in crate::analyser) fn emit_w127_closed_option_values(
         &mut self,
@@ -1137,6 +1146,7 @@ matching time on crafted input."
         cmd_tok: tcl_lexer::Token,
     ) {
         let mut hits: Vec<W127Hit> = Vec::new();
+        let mut hook_hits: Vec<W127Hit> = Vec::new();
         if let Some(registry) = self.registry {
             let Some(spec) = registry.get(cmd_name) else {
                 return;
@@ -1158,36 +1168,25 @@ matching time on crafted input."
                     continue;
                 };
                 let vals = opt.value_indices(args, i);
-                let allowed = opt.value_values();
-                if opt.value_is_closed() && !allowed.is_empty() {
-                    for &vi in &vals {
-                        let Some(value) = args.get(vi) else { continue };
-                        if value.contains('$')
-                            || value.contains('[')
-                            || allowed.iter().any(|av| av.value == value.as_str())
-                        {
-                            continue;
-                        }
-                        let allowed_names: Vec<&str> = allowed.iter().map(|av| av.value).collect();
-                        let allowed_list = allowed_names.join(", ");
-                        let span = arg_tokens.get(vi).map_or(cmd_tok.span, |t| t.span);
-                        let mut message = format!(
-                            "Invalid value '{value}' for option '{arg}' on '{cmd_name}'; expected one of: {allowed_list}"
-                        );
-                        let fixes = w127_suggestion_fix(value, &allowed_names, span, &mut message);
-                        hits.push(W127Hit {
-                            message,
-                            span,
-                            fixes,
-                        });
-                    }
-                }
+                hits.extend(w127_domain_hits(cmd_name, arg, opt, &vals, args, arg_tokens, cmd_tok));
+                hook_hits.extend(w141_hook_hit(
+                    cmd_name, arg, opt, &vals, args, arg_tokens, i, cmd_tok,
+                ));
                 i += 1 + vals.len();
             }
         }
         for hit in hits {
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: DiagCode::W127,
+                span: hit.span,
+                message: hit.message,
+                severity: Severity::Warning,
+                fixes: hit.fixes,
+            });
+        }
+        for hit in hook_hits {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: DiagCode::W141,
                 span: hit.span,
                 message: hit.message,
                 severity: Severity::Warning,
@@ -1428,6 +1427,133 @@ struct W127Hit {
 /// replace fix when one allowed value sits within the length-scaled edit
 /// budget of `value`.  The allowed set is already in the message, so a
 /// missing suggestion loses nothing.
+/// Per-occurrence closed-set / integer-domain check for
+/// [`Analyser::emit_w127_closed_option_values`] — one option's value
+/// word(s) against its declared `values`/`integer`. Returns one hit per
+/// invalid word; empty when the option declares neither (an open value).
+#[allow(clippy::too_many_arguments, reason = "threads the same context every W127/W141 call site already carries")]
+fn w127_domain_hits(
+    cmd_name: &str,
+    arg: &str,
+    opt: &tcl_registry::hover::OptionSpec,
+    vals: &[usize],
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    cmd_tok: tcl_lexer::Token,
+) -> Vec<W127Hit> {
+    let allowed = opt.value_values();
+    let integer_domain = opt.value_integer_domain();
+    let has_closed_set = opt.value_is_closed() && !allowed.is_empty();
+    if !has_closed_set && integer_domain.is_none() {
+        return Vec::new();
+    }
+    let mut hits = Vec::new();
+    for &vi in vals {
+        let Some(value) = args.get(vi) else { continue };
+        if value.contains('$') || value.contains('[') {
+            continue;
+        }
+        let matches_literal = allowed.iter().any(|av| av.value == value.as_str());
+        let matches_integer = integer_domain.is_some_and(|dom| {
+            match tcl_syntax::number::parse_whole(value) {
+                Some(tcl_syntax::number::Number::Int(n)) => dom.accepts(n),
+                // A bignum literal (too large for i64) is always outside a
+                // bounded Range/Port, but still a legal Tcl integer for `Any`.
+                Some(tcl_syntax::number::Number::Big { .. }) => {
+                    matches!(dom, tcl_registry::hover::IntegerDomain::Any)
+                }
+                // A float/NaN literal is never a Tcl integer.
+                Some(
+                    tcl_syntax::number::Number::Double(_) | tcl_syntax::number::Number::Nan { .. },
+                )
+                | None => false,
+            }
+        });
+        if matches_literal || matches_integer {
+            continue;
+        }
+        let span = arg_tokens.get(vi).map_or(cmd_tok.span, |t| t.span);
+        let (message, fixes) = if has_closed_set {
+            let allowed_names: Vec<&str> = allowed.iter().map(|av| av.value).collect();
+            let mut allowed_list = allowed_names.join(", ");
+            if let Some(dom) = integer_domain {
+                allowed_list.push_str(", or ");
+                allowed_list.push_str(&describe_integer_domain(dom));
+            }
+            let mut message = format!(
+                "Invalid value '{value}' for option '{arg}' on '{cmd_name}'; expected one of: {allowed_list}"
+            );
+            let fixes = w127_suggestion_fix(value, &allowed_names, span, &mut message);
+            (message, fixes)
+        } else {
+            // Pure numeric domain (`-level`): nothing in a literal set to
+            // suggest against.
+            let domain = integer_domain.expect("guarded by the outer `if`");
+            (
+                format!(
+                    "Invalid value '{value}' for option '{arg}' on '{cmd_name}'; expected {}",
+                    describe_integer_domain(domain)
+                ),
+                Vec::new(),
+            )
+        };
+        hits.push(W127Hit {
+            message,
+            span,
+            fixes,
+        });
+    }
+    hits
+}
+
+/// Per-occurrence [`tcl_registry::hover::OptionArity::Hook`] content check
+/// for [`Analyser::emit_w127_closed_option_values`] — `None` when the
+/// option's arity isn't `Hook`, the value is dynamic (`$var`/`[cmd]`), or
+/// the hook reports the value valid.
+#[allow(clippy::too_many_arguments, reason = "threads the same context every W127/W141 call site already carries")]
+fn w141_hook_hit(
+    cmd_name: &str,
+    arg: &str,
+    opt: &tcl_registry::hover::OptionSpec,
+    vals: &[usize],
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    flag_idx: usize,
+    cmd_tok: tcl_lexer::Token,
+) -> Option<W127Hit> {
+    let hook = opt.value_arity_hook()?;
+    let dynamic = vals
+        .iter()
+        .filter_map(|&vi| args.get(vi))
+        .any(|v| v.contains('$') || v.contains('['));
+    if dynamic {
+        return None;
+    }
+    let full: Vec<&str> = args.iter().map(String::as_str).collect();
+    let msg = hook(&full, flag_idx + 1).invalid?;
+    let span = vals
+        .first()
+        .and_then(|&vi| arg_tokens.get(vi))
+        .map_or(cmd_tok.span, |t| t.span);
+    Some(W127Hit {
+        message: format!("{msg} (option '{arg}' on '{cmd_name}')"),
+        span,
+        fixes: Vec::new(),
+    })
+}
+
+/// Human-readable description of an [`tcl_registry::hover::IntegerDomain`]
+/// for a W127 message — `describe_integer_domain(Range(0, 2147483647))` →
+/// `"an integer between 0 and 2147483647"`.
+fn describe_integer_domain(domain: tcl_registry::hover::IntegerDomain) -> String {
+    use tcl_registry::hover::IntegerDomain;
+    match domain {
+        IntegerDomain::Any => "an integer".to_string(),
+        IntegerDomain::Range(lo, hi) => format!("an integer between {lo} and {hi}"),
+        IntegerDomain::Port => "a port number (0-65535)".to_string(),
+    }
+}
+
 fn w127_suggestion_fix(
     value: &str,
     allowed: &[&str],

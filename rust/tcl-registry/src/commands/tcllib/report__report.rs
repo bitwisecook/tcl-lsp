@@ -50,16 +50,19 @@ const PAD_WHERE_VALUES: &[ArgValue] = &[
         value: "left",
         detail: "pad on the left of the cell",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "right",
         detail: "pad on the right of the cell",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "both",
         detail: "pad on both sides of the cell",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -69,16 +72,19 @@ const JUSTIFY_VALUES: &[ArgValue] = &[
         value: "left",
         detail: "left-justify the column",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "right",
         detail: "right-justify the column",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "center",
         detail: "centre the column",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -87,6 +93,7 @@ const SIZE_VALUES: &[ArgValue] = &[ArgValue {
     value: "dyn",
     detail: "size the column dynamically to its widest cell",
     min_tcl: None,
+    code: None,
 }];
 
 /// Operations of a separator line code (`enable` / `disable` / `enabled`

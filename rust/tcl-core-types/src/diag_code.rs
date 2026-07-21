@@ -424,6 +424,8 @@ diagnostic_codes! {
     W138 => "W138", diag(Warning, true, "Format/scan conversion requires a newer Tcl version than the dialect provides.");
     W139 => "W139", diag(Warning, true, "Command/option removed at the resolved package version (present only in earlier releases).");
     W140 => "W140", diag(Warning, true, "`interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.");
+    W141 => "W141", diag(Warning, true, "Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.");
+    W142 => "W142", diag(Warning, true, "Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");

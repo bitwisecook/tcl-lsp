@@ -2106,6 +2106,32 @@ impl Analyser {
         });
     }
 
+    /// **W142.** Runs a resolved command's [`tcl_registry::CommandSpec::context_gate`]
+    /// — a restriction keyed on lexical/dispatch context rather than
+    /// argument shape (iRules `return`: bare-only directly inside a `when
+    /// EVENT { … }` body, full syntax inside any `proc`). `self.current_event`
+    /// is `None` once inside a `proc` body (procs live outside an event
+    /// structurally, so the flag needs no special-casing here), so passing
+    /// it straight through is enough to distinguish the two contexts.
+    pub(in crate::analyser) fn emit_w142_context_gate(
+        &mut self,
+        gate: tcl_registry::ContextGate,
+        args: &[String],
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some(message) = gate(&arg_strs, self.current_event.is_some()) else {
+            return;
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::W142,
+            span: cmd_tok.span,
+            message: message.to_string(),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
     /// Code fixes for [`Self::emit_e004_clause_shape_diagnostic`]. See
     /// that method's doc comment for which cases get a fix and why.
     fn e004_fixes(

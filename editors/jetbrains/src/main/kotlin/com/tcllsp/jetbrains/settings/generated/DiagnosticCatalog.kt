@@ -73,6 +73,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W138", "warning", "W138: Format/scan conversion requires a newer Tcl version ...", true),
         DiagnosticDef("W139", "warning", "W139: Command/option removed at the resolved package versi...", true),
         DiagnosticDef("W140", "warning", "W140: interp eval / interp subcommand targets an interpret...", true),
+        DiagnosticDef("W141", "warning", "W141: Option value fails a declared shape/content check (e...", true),
         DiagnosticDef("W200", "warning", "W200: exec result not captured or binary format modifier r...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),

@@ -56,6 +56,22 @@ pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 /// [`CommandSpec::command_prefixes`] table — either may be set.
 pub type CommandPrefixResolver = fn(args: &[&str]) -> Vec<(u8, crate::arg_role::AppendedArity)>;
 
+/// A call-site restriction that depends on *where* the call sits — a
+/// lexical/dispatch context arity and dialect gating can't see — rather
+/// than on its own argument shape (iRules `return`: bare-only directly
+/// inside a `when EVENT { … }` body, full syntax inside any `proc`).
+/// `Some(f)`: the analyser calls `f(args, in_event_body)`; a `Some(msg)`
+/// result flags `msg` at the call site. `None` = no context-sensitive
+/// restriction.
+///
+/// Deliberately takes only the one fact `return` needs today
+/// (`in_event_body`) rather than a general context bag — extend the
+/// signature if a second context-sensitive command needs a different
+/// fact. Takes plain data rather than any analyser-internal type since
+/// this crate has no dependency on `tcl-compiler` and can't reference
+/// `Analyser`/`scope_path` directly.
+pub type ContextGate = fn(args: &[&str], in_event_body: bool) -> Option<&'static str>;
+
 /// The value shape a *non-subcommand* first word may take for a command
 /// whose first word usually dispatches to a subcommand.
 ///
@@ -716,6 +732,11 @@ pub struct CommandSpec {
     /// the analyser so later calls to the name don't draw W123
     /// (unknown command).  `None` = no argument names a new command.
     pub defines_command_at: Option<u8>,
+
+    /// Additional validity gate keyed on lexical/dispatch context rather
+    /// than argument shape — see [`ContextGate`]. `None` = no
+    /// context-sensitive restriction (the common case).
+    pub context_gate: Option<ContextGate>,
 }
 
 /// Count the leading words of `args` that are declared options in
@@ -853,6 +874,7 @@ impl CommandSpec {
         body_scope: None,
         creates_instance_at: None,
         defines_command_at: None,
+        context_gate: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's

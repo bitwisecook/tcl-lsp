@@ -67,15 +67,74 @@ pub struct ArgumentValueSpec {
     pub detail: &'static str,
 }
 
+/// Outcome of a dynamically-computed option value — both how many argv
+/// words it spans and whether what's there is actually valid.
+///
+/// `words` is reported even when `invalid` is `Some`: a scanning consumer
+/// (arity counting, semantic tokens, completion) still needs to skip past
+/// the value, whether or not it turns out to be well-formed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptionValueOutcome {
+    /// Words consumed, valid or not.
+    pub words: usize,
+    /// `Some(msg)` when the value is invalid — the message to report.
+    pub invalid: Option<&'static str>,
+}
+
+/// Computes how many words an option's value spans, and whether it's
+/// valid, from the args starting at the value's position. `start` is the
+/// 0-based index into `args` of the first value word.
+pub type OptionValueHook = fn(args: &[&str], start: usize) -> OptionValueOutcome;
+
 /// How many following words a value-taking option consumes.
+// `Hook`'s fn-pointer payload makes the derived `PartialEq`/`Hash` compare
+// by address, which rustc flags — accepted here as nothing compares two
+// `OptionArity` values for equality across distinct `Hook` resolvers; the
+// derive exists for the same reason the rest of this module has one
+// (uniform `#[derive]` set across the `OptionValue`/`OptionArg` family).
+#[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OptionArity {
     /// Exactly one value (`-index 2`).
     One,
     /// A fixed number of values (`-rect x1 y1 x2 y2` → `Fixed(4)`).
     Fixed(u8),
-    /// All following words up to the next `--` / end of the argument list.
-    Rest,
+    /// Word count (and validity) computed from the remaining args — an
+    /// arity or a value-content constraint the static shapes above can't
+    /// express: "consume everything to `--`/end" (a resolver returning
+    /// `args.len() - start`), an option whose span depends on a preceding
+    /// flag's value, or a fixed-arity value whose *content* needs
+    /// validating (`-errorstack`'s value must be an even-sized list).
+    Hook(OptionValueHook),
+}
+
+/// A numeric domain an option value may satisfy alongside (or instead of)
+/// its literal `values` set — lets a closed enum still accept an
+/// arbitrary or ranged integer (`return -code ok|error|...|<int>`)
+/// without opening up the whole set to any string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegerDomain {
+    /// Any Tcl integer literal.
+    Any,
+    /// Any Tcl integer literal within this inclusive range.
+    Range(i64, i64),
+    /// A TCP/UDP port (0..=65535). Kept distinct from a plain `Range` so a
+    /// hover/inlay-hint pass can try resolving it to a well-known service
+    /// name — the lookup table lives downstream of this crate, in
+    /// `tcl-bigip`.
+    Port,
+}
+
+impl IntegerDomain {
+    /// Whether `n` satisfies this domain.
+    #[must_use]
+    pub const fn accepts(self, n: i64) -> bool {
+        match self {
+            Self::Any => true,
+            Self::Range(lo, hi) => lo <= n && n <= hi,
+            Self::Port => 0 <= n && n <= 65535,
+        }
+    }
 }
 
 /// What a value-taking option consumes and how to analyse it.
@@ -104,6 +163,11 @@ pub struct OptionArg {
     /// Whether `values` is exhaustive — a value outside it is an error
     /// (drives the option-aware closed-value check).
     pub closed: bool,
+    /// A numeric domain also accepted alongside `values` — lets a closed
+    /// enum stay closed while still admitting an integer `values` alone
+    /// can't express (`return -code ok|error|...|<int>`). `None` = the
+    /// literal set (if any) is the whole story.
+    pub integer: Option<IntegerDomain>,
     /// Hint text for the value (e.g. `"channel"`), migrated from the old
     /// `value_hint` field.
     pub hint: &'static str,
@@ -123,6 +187,7 @@ impl OptionArg {
         body_kind: BodyKind::Plain,
         values: &[],
         closed: false,
+        integer: None,
         hint: "",
         appended_arity: AppendedArity::Unknown,
     };
@@ -363,6 +428,30 @@ impl OptionSpec {
         matches!(self.value, OptionValue::Takes(arg) if arg.closed)
     }
 
+    /// The option value's integer domain, if it has one (`None` for a
+    /// flag, an open string, or an enumerated value with no numeric
+    /// alternative).
+    #[must_use]
+    pub const fn value_integer_domain(&self) -> Option<IntegerDomain> {
+        match self.value {
+            OptionValue::Flag => None,
+            OptionValue::Takes(arg) => arg.integer,
+        }
+    }
+
+    /// The option value's dynamic arity/content-validation hook, if its
+    /// arity is [`OptionArity::Hook`] rather than a static shape.
+    #[must_use]
+    pub const fn value_arity_hook(&self) -> Option<OptionValueHook> {
+        match self.value {
+            OptionValue::Flag => None,
+            OptionValue::Takes(arg) => match arg.arity {
+                OptionArity::Hook(f) => Some(f),
+                OptionArity::One | OptionArity::Fixed(_) => None,
+            },
+        }
+    }
+
     /// The half-open `args` range this option consumes as its value(s) when the
     /// option word sits at `flag_idx`.
     ///
@@ -387,7 +476,10 @@ impl OptionSpec {
         let want = match arg.arity {
             OptionArity::One => 1,
             OptionArity::Fixed(n) => usize::from(n),
-            OptionArity::Rest => hard_end - start,
+            OptionArity::Hook(resolve) => {
+                let owned: Vec<&str> = args.iter().map(S::as_ref).collect();
+                resolve(&owned, start).words
+            }
         };
         let window_end = (start + want).min(hard_end);
         // Only a `--` inside the consumed window matters; bound the scan to it.
@@ -478,6 +570,21 @@ pub struct ArgValue {
     /// even though the `is` subcommand itself is universal). Checked
     /// against the profile's `effective_tcl_version`.
     pub min_tcl: Option<tcl_dialect::TclVersion>,
+    /// Canonical integer equivalent, when this value has one (`"ok"` →
+    /// `Some(0)`). `None` for a plain enum member with no numeric
+    /// pairing — every pre-existing `ArgValue` literal, unchanged in
+    /// meaning.
+    pub code: Option<i64>,
+}
+
+impl ArgValue {
+    /// Default value for all fields — used with `..ArgValue::DEFAULT`.
+    pub const DEFAULT: Self = Self {
+        value: "",
+        detail: "",
+        min_tcl: None,
+        code: None,
+    };
 }
 
 /// Classification of a command invocation form.

@@ -106,6 +106,14 @@ pub enum SideEffectTarget {
     Process,
     /// Channel I/O (registry-only; `chan`).
     ChannelIo,
+    /// Event-handler flow control: abandons the remaining script in the
+    /// *current* event invocation without affecting the connection, other
+    /// events, or other rules (iRules `return` inside a `when` body;
+    /// shares the category with `event NAME disable`, a stronger version
+    /// of the same idea). Distinct from [`Self::ConnectionControl`], which
+    /// is a connection-terminating action (drop/reject/discard) — this
+    /// isn't one.
+    EventControl,
     /// Unknown or unclassified effect.
     Unknown,
 }

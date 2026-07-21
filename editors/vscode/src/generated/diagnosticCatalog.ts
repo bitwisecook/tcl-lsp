@@ -271,6 +271,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W141",
+    section: "warning",
+    description:
+      "Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

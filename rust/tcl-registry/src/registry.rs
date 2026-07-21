@@ -2103,12 +2103,21 @@ mod tests {
         assert_eq!(indices(&options, &args, ArgRole::Value), vec![1, 2, 3, 4]);
     }
 
+    /// `OptionArity::Hook` equivalent of the old bare `Rest` variant —
+    /// consumes every remaining word, always valid.
+    fn rest_value(args: &[&str], start: usize) -> crate::hover::OptionValueOutcome {
+        crate::hover::OptionValueOutcome {
+            words: args.len() - start,
+            invalid: None,
+        }
+    }
+
     #[test]
     fn option_value_rest_arity_stops_at_terminator() {
         let rest = crate::hover::OptionSpec {
             name: "-rest",
             value: crate::hover::OptionValue::Takes(crate::hover::OptionArg {
-                arity: crate::hover::OptionArity::Rest,
+                arity: crate::hover::OptionArity::Hook(rest_value),
                 ..crate::hover::OptionArg::DEFAULT
             }),
             ..crate::hover::OptionSpec::DEFAULT

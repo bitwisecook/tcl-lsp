@@ -37,11 +37,13 @@ const OPTION_VALUES: &[ArgValue] = &[
         value: "while",
         detail: "Repeat while test is true.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "until",
         detail: "Repeat until test becomes true.",
         min_tcl: None,
+        code: None,
     },
 ];
 

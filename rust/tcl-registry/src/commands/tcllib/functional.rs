@@ -32,16 +32,19 @@ const TIE_INFO_METHODS: &[ArgValue] = &[
         value: "ties",
         detail: "List the tokens tied to an array variable.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "types",
         detail: "List the registered data-source types.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "type",
         detail: "Return the class command for a data-source type.",
         min_tcl: None,
+        code: None,
     },
 ];
 
