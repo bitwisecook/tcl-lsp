@@ -1168,10 +1168,18 @@ matching time on crafted input."
                     continue;
                 };
                 let vals = opt.value_indices(args, i);
-                hits.extend(w127_domain_hits(cmd_name, arg, opt, &vals, args, arg_tokens, cmd_tok));
-                hook_hits.extend(w141_hook_hit(
-                    cmd_name, arg, opt, &vals, args, arg_tokens, i, cmd_tok,
-                ));
+                let occ = OptionOccurrence {
+                    cmd_name,
+                    arg,
+                    opt,
+                    vals: &vals,
+                    args,
+                    arg_tokens,
+                    flag_idx: i,
+                    cmd_tok,
+                };
+                hits.extend(w127_domain_hits(&occ));
+                hook_hits.extend(w141_hook_hit(&occ));
                 i += 1 + vals.len();
             }
         }
@@ -1427,29 +1435,37 @@ struct W127Hit {
 /// replace fix when one allowed value sits within the length-scaled edit
 /// budget of `value`.  The allowed set is already in the message, so a
 /// missing suggestion loses nothing.
+/// One resolved option flag's context within the current command's args —
+/// threaded through [`w127_domain_hits`]/[`w141_hook_hit`] instead of as
+/// loose parameters, mirroring `commands::DispatchSite`'s bundled-context
+/// shape.
+struct OptionOccurrence<'a> {
+    cmd_name: &'a str,
+    arg: &'a str,
+    opt: &'a tcl_registry::hover::OptionSpec,
+    vals: &'a [usize],
+    args: &'a [String],
+    arg_tokens: &'a [tcl_lexer::Token],
+    flag_idx: usize,
+    cmd_tok: tcl_lexer::Token,
+}
+
 /// Per-occurrence closed-set / integer-domain check for
 /// [`Analyser::emit_w127_closed_option_values`] — one option's value
 /// word(s) against its declared `values`/`integer`. Returns one hit per
 /// invalid word; empty when the option declares neither (an open value).
-#[allow(clippy::too_many_arguments, reason = "threads the same context every W127/W141 call site already carries")]
-fn w127_domain_hits(
-    cmd_name: &str,
-    arg: &str,
-    opt: &tcl_registry::hover::OptionSpec,
-    vals: &[usize],
-    args: &[String],
-    arg_tokens: &[tcl_lexer::Token],
-    cmd_tok: tcl_lexer::Token,
-) -> Vec<W127Hit> {
-    let allowed = opt.value_values();
-    let integer_domain = opt.value_integer_domain();
-    let has_closed_set = opt.value_is_closed() && !allowed.is_empty();
+fn w127_domain_hits(occ: &OptionOccurrence<'_>) -> Vec<W127Hit> {
+    let allowed = occ.opt.value_values();
+    let integer_domain = occ.opt.value_integer_domain();
+    let has_closed_set = occ.opt.value_is_closed() && !allowed.is_empty();
     if !has_closed_set && integer_domain.is_none() {
         return Vec::new();
     }
     let mut hits = Vec::new();
-    for &vi in vals {
-        let Some(value) = args.get(vi) else { continue };
+    for &vi in occ.vals {
+        let Some(value) = occ.args.get(vi) else {
+            continue;
+        };
         if value.contains('$') || value.contains('[') {
             continue;
         }
@@ -1472,7 +1488,7 @@ fn w127_domain_hits(
         if matches_literal || matches_integer {
             continue;
         }
-        let span = arg_tokens.get(vi).map_or(cmd_tok.span, |t| t.span);
+        let span = occ.arg_tokens.get(vi).map_or(occ.cmd_tok.span, |t| t.span);
         let (message, fixes) = if has_closed_set {
             let allowed_names: Vec<&str> = allowed.iter().map(|av| av.value).collect();
             let mut allowed_list = allowed_names.join(", ");
@@ -1481,7 +1497,8 @@ fn w127_domain_hits(
                 allowed_list.push_str(&describe_integer_domain(dom));
             }
             let mut message = format!(
-                "Invalid value '{value}' for option '{arg}' on '{cmd_name}'; expected one of: {allowed_list}"
+                "Invalid value '{value}' for option '{}' on '{}'; expected one of: {allowed_list}",
+                occ.arg, occ.cmd_name
             );
             let fixes = w127_suggestion_fix(value, &allowed_names, span, &mut message);
             (message, fixes)
@@ -1491,7 +1508,9 @@ fn w127_domain_hits(
             let domain = integer_domain.expect("guarded by the outer `if`");
             (
                 format!(
-                    "Invalid value '{value}' for option '{arg}' on '{cmd_name}'; expected {}",
+                    "Invalid value '{value}' for option '{}' on '{}'; expected {}",
+                    occ.arg,
+                    occ.cmd_name,
                     describe_integer_domain(domain)
                 ),
                 Vec::new(),
@@ -1510,33 +1529,25 @@ fn w127_domain_hits(
 /// for [`Analyser::emit_w127_closed_option_values`] — `None` when the
 /// option's arity isn't `Hook`, the value is dynamic (`$var`/`[cmd]`), or
 /// the hook reports the value valid.
-#[allow(clippy::too_many_arguments, reason = "threads the same context every W127/W141 call site already carries")]
-fn w141_hook_hit(
-    cmd_name: &str,
-    arg: &str,
-    opt: &tcl_registry::hover::OptionSpec,
-    vals: &[usize],
-    args: &[String],
-    arg_tokens: &[tcl_lexer::Token],
-    flag_idx: usize,
-    cmd_tok: tcl_lexer::Token,
-) -> Option<W127Hit> {
-    let hook = opt.value_arity_hook()?;
-    let dynamic = vals
+fn w141_hook_hit(occ: &OptionOccurrence<'_>) -> Option<W127Hit> {
+    let hook = occ.opt.value_arity_hook()?;
+    let dynamic = occ
+        .vals
         .iter()
-        .filter_map(|&vi| args.get(vi))
+        .filter_map(|&vi| occ.args.get(vi))
         .any(|v| v.contains('$') || v.contains('['));
     if dynamic {
         return None;
     }
-    let full: Vec<&str> = args.iter().map(String::as_str).collect();
-    let msg = hook(&full, flag_idx + 1).invalid?;
-    let span = vals
+    let full: Vec<&str> = occ.args.iter().map(String::as_str).collect();
+    let msg = hook(&full, occ.flag_idx + 1).invalid?;
+    let span = occ
+        .vals
         .first()
-        .and_then(|&vi| arg_tokens.get(vi))
-        .map_or(cmd_tok.span, |t| t.span);
+        .and_then(|&vi| occ.arg_tokens.get(vi))
+        .map_or(occ.cmd_tok.span, |t| t.span);
     Some(W127Hit {
-        message: format!("{msg} (option '{arg}' on '{cmd_name}')"),
+        message: format!("{msg} (option '{}' on '{}')", occ.arg, occ.cmd_name),
         span,
         fixes: Vec::new(),
     })

@@ -36,7 +36,11 @@ use tcl_registry::scoped::ScopedCommand;
 use tcl_registry::{ArgRole, Arity, CommandRegistry, Traits};
 
 /// Signature for a simple Tcl command.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// No `PartialEq`/`Eq` — carries `leading_option_specs: Vec<&'static
+/// OptionSpec>`, and `OptionSpec` has none (a `Hook` option's resolver has
+/// no meaningful equality); nothing compares two `CommandSig`s anyway.
+#[derive(Debug, Clone)]
 pub struct CommandSig {
     /// Argument-count bounds.
     pub arity: Arity,
@@ -75,7 +79,9 @@ pub struct CommandSig {
 }
 
 /// Signature for a command that dispatches on a subcommand word.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// No `PartialEq`/`Eq` — carries `CommandSig`s, which have none.
+#[derive(Debug, Clone)]
 pub struct SubcommandSig {
     /// Subcommand name → [`CommandSig`] mapping. Empty for
     /// commands that haven't yet had their subcommand table
@@ -146,7 +152,9 @@ impl SubcommandSig {
 }
 
 /// What ``signature_for_command`` returned.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// No `PartialEq`/`Eq` — both variants carry a type with none.
+#[derive(Debug, Clone)]
 pub enum CommandSignature {
     /// A simple command.
     Simple(CommandSig),

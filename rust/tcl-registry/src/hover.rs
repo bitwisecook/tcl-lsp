@@ -87,13 +87,14 @@ pub struct OptionValueOutcome {
 pub type OptionValueHook = fn(args: &[&str], start: usize) -> OptionValueOutcome;
 
 /// How many following words a value-taking option consumes.
-// `Hook`'s fn-pointer payload makes the derived `PartialEq`/`Hash` compare
-// by address, which rustc flags — accepted here as nothing compares two
-// `OptionArity` values for equality across distinct `Hook` resolvers; the
-// derive exists for the same reason the rest of this module has one
-// (uniform `#[derive]` set across the `OptionValue`/`OptionArg` family).
-#[allow(unpredictable_function_pointer_comparisons)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+///
+/// No `PartialEq`/`Eq`/`Hash` — `Hook`'s fn-pointer payload has no
+/// meaningful equality (two resolvers being pointer-equal isn't "the same
+/// option shape," and nothing in this codebase actually compares or
+/// hashes an `OptionArity`); see
+/// [`CommandSpec`](crate::spec::CommandSpec), which carries several
+/// resolver-fn fields and derives neither for the same reason.
+#[derive(Debug, Clone, Copy)]
 pub enum OptionArity {
     /// Exactly one value (`-index 2`).
     One,
@@ -143,7 +144,10 @@ impl IntegerDomain {
 /// through the *same* analysis passes as a positional argument of that role —
 /// body recursion, expr checks, variable flow, channel checks, symbolic-name
 /// resolution — instead of being an opaque string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// No `PartialEq`/`Eq` — carries `arity: OptionArity`, which has none for
+/// the same reason.
+#[derive(Debug, Clone, Copy)]
 pub struct OptionArg {
     /// How many words the option consumes.
     pub arity: OptionArity,
@@ -197,7 +201,10 @@ impl OptionArg {
 ///
 /// Replaces the old `takes_value: bool` + `value_hint` pair with a single
 /// source of truth carrying arity and value role.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// No `PartialEq`/`Eq` — `Takes(OptionArg)` carries one, for the same
+/// reason `OptionArg`/`OptionArity` do.
+#[derive(Debug, Clone, Copy)]
 pub enum OptionValue {
     /// A boolean switch — consumes no following word.
     Flag,
@@ -328,7 +335,11 @@ impl OptionValue {
 }
 
 /// Metadata for a switch-like option (`-nonewline`, `-nocase`, etc.).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// No `PartialEq`/`Eq` — carries `value: OptionValue`, which has none, for
+/// the same reason `CommandSpec` (also fn-pointer-hook-bearing) derives
+/// neither.
+#[derive(Debug, Clone)]
 pub struct OptionSpec {
     /// Option name (e.g. `"-nonewline"`).
     pub name: &'static str,
