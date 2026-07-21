@@ -32,6 +32,7 @@ const IO: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Direction values, shared by every block cipher.

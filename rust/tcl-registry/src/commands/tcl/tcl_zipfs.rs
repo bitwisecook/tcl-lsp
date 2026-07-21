@@ -46,6 +46,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet::brief(
             "Mount and manipulate ZIP archives on the virtual filesystem.",

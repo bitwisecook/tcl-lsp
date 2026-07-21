@@ -56,6 +56,7 @@ pub const fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
         command_table_effect: Some(crate::command_table::CommandTableEffect::DefinesProcedure),

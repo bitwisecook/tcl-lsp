@@ -39,6 +39,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Return current access position for an open channel",

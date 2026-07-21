@@ -40,6 +40,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
 hover: Some(HoverSnippet {
             summary: "Copy data from one channel to another",

@@ -40,6 +40,7 @@ pub fn spec() -> CommandSpec {
                 reads: true,
                 writes: true,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
             // INTERP_STATE.
             SideEffect {
@@ -47,6 +48,7 @@ pub fn spec() -> CommandSpec {
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
         ],
         // ``--`` is the option terminator that drives W304's

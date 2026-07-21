@@ -40,6 +40,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         arg_roles: &[(0, ArgRole::VarWrite)],
         ..CommandSpec::DEFAULT

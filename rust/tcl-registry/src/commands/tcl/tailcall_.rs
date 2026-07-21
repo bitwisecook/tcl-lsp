@@ -44,6 +44,7 @@ pub fn spec() -> CommandSpec {
             reads: false,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Replace the current procedure with another command",

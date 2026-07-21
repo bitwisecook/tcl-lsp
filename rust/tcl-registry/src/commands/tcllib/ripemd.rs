@@ -33,6 +33,7 @@ const READS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: false,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// The one-shot digest / HMAC command (`ripemd128`, `hmac128`, …).

@@ -24,12 +24,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[
         reads: true,
         writes: false,
         connection_side: ConnectionSide::None,
+        dialects: None,
     },
     SideEffect {
         target: SideEffectTarget::NetworkIo,
         reads: true,
         writes: false,
         connection_side: ConnectionSide::None,
+        dialects: None,
     },
 ];
 

@@ -40,6 +40,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         traits: Traits::IS_UNESCAPE,
         ..CommandSpec::DEFAULT

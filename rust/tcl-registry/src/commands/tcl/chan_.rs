@@ -24,6 +24,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -124,6 +125,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -145,6 +147,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -160,6 +163,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -174,6 +178,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -192,6 +197,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -208,6 +214,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -224,6 +231,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -240,6 +248,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -258,12 +267,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 reads: true,
                 writes: false,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
             SideEffect {
                 target: SideEffectTarget::Variable,
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -280,6 +291,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -295,6 +307,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -309,6 +322,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -324,6 +338,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -343,6 +358,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -358,6 +374,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -373,6 +390,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -389,6 +407,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -405,6 +424,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -419,6 +439,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -436,6 +457,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -450,6 +472,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },

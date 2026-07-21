@@ -163,6 +163,7 @@ static SIDE_EFFECTS: [SideEffect; 1] = [SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Command spec for `timer` (Tcl 9.1).

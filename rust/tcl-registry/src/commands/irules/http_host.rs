@@ -40,6 +40,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         deprecated_replacement: Some("HTTP::host"),
         deprecated_replacement_drop_in: true,

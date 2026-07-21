@@ -29,6 +29,7 @@ const STATEFUL: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// One command in a flat tcllib package.  `stateful` marks a state-mutating

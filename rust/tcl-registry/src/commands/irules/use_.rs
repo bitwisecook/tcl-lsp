@@ -45,6 +45,7 @@ pub const fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         deprecated_replacement: Some("virtual"),
         ..CommandSpec::DEFAULT

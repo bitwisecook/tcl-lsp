@@ -38,6 +38,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Test whether the last input operation exhausted all available input",

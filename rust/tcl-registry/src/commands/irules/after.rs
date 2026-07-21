@@ -92,6 +92,7 @@ pub const fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         xc_translatable: Some(false),
         ..CommandSpec::DEFAULT

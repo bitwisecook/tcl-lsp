@@ -527,6 +527,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Information about the state of the Tcl interpreter",

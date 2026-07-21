@@ -59,6 +59,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Measure the rate of execution of a script.",

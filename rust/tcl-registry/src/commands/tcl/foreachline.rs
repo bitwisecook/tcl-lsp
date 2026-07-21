@@ -44,6 +44,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Iterate over the lines of a text file, one line at a time.",

@@ -43,6 +43,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

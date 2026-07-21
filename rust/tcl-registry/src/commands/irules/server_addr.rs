@@ -40,6 +40,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         deprecated_replacement: Some("IP::server_addr"),
         deprecated_replacement_drop_in: true,

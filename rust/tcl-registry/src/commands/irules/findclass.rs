@@ -40,6 +40,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         deprecated_replacement: Some("class match / class search"),
         ..CommandSpec::DEFAULT

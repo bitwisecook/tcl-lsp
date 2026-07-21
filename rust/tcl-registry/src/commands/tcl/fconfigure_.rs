@@ -115,6 +115,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         options: OPTIONS,
         hover: Some(HoverSnippet {

@@ -118,12 +118,14 @@ pub fn spec() -> CommandSpec {
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
             SideEffect {
                 target: SideEffectTarget::EventControl,
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::None,
+                dialects: Some(DialectSet::IRULES),
             },
         ],
         hover: Some(HoverSnippet {

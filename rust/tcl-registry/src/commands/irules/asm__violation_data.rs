@@ -50,6 +50,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         deprecated_replacement: Some("ASM::violation"),
         taint_source: Some(TaintColour::TAINTED),

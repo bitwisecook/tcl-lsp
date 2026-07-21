@@ -46,12 +46,14 @@ pub fn spec() -> CommandSpec {
                 reads: true,
                 writes: false,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
             SideEffect {
                 target: SideEffectTarget::Variable,
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
         ],
         hover: Some(HoverSnippet {

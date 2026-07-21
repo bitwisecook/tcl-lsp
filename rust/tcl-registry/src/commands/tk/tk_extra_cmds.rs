@@ -33,6 +33,7 @@ const WRITES: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// One additional Tk command: name, arity, synopsis, summary, and the argument

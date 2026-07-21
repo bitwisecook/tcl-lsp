@@ -37,6 +37,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -88,6 +89,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -128,6 +130,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         destructive: true,
         ..SubCommand::DEFAULT
@@ -248,12 +251,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 reads: true,
                 writes: false,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
             SideEffect {
                 target: SideEffectTarget::Variable,
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -272,6 +277,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         destructive: true,
         ..SubCommand::DEFAULT
@@ -287,6 +293,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -379,6 +386,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         destructive: true,
         ..SubCommand::DEFAULT
@@ -432,12 +440,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 reads: true,
                 writes: false,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
             SideEffect {
                 target: SideEffectTarget::Variable,
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::None,
+                dialects: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -473,6 +483,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         returns_path: true,
         ..SubCommand::DEFAULT
@@ -491,6 +502,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         returns_path: true,
         ..SubCommand::DEFAULT
@@ -547,6 +559,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Manipulate file names and attributes",

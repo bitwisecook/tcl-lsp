@@ -50,6 +50,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         deprecated_replacement: Some("ANTIFRAUD::alert_details"),
         ..CommandSpec::DEFAULT

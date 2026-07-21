@@ -40,6 +40,7 @@ pub const fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         deprecated_replacement: Some("HTTP::redirect"),
         ..CommandSpec::DEFAULT

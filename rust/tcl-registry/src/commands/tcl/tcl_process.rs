@@ -44,6 +44,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet::brief(
             "Manage subprocesses started by exec / open |cmd.",

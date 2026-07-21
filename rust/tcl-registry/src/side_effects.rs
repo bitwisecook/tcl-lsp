@@ -18,6 +18,8 @@
 
 //! Side-effect metadata for structured effect analysis.
 
+use crate::dialects::DialectSet;
+
 /// What kind of external state a command affects.
 ///
 /// Variant names match the consumer's
@@ -147,6 +149,26 @@ pub struct SideEffect {
     pub writes: bool,
     /// Connection side (iRules).
     pub connection_side: ConnectionSide,
+    /// Dialects *this effect* applies in, when narrower than the
+    /// command's own availability — e.g. `return`'s `EventControl` effect
+    /// only exists in iRules, even though `return` itself is universal
+    /// Tcl (`CommandSpec::dialects: None`). `None` = inherits the
+    /// command's own dialect gating, so every effect declared before this
+    /// field existed keeps its meaning unchanged.
+    pub dialects: Option<DialectSet>,
+}
+
+impl SideEffect {
+    /// Baseline: [`SideEffectTarget::Unknown`], no reads/writes, no
+    /// connection side, no extra dialect restriction — used with
+    /// `..SideEffect::DEFAULT`.
+    pub const DEFAULT: Self = Self {
+        target: SideEffectTarget::Unknown,
+        reads: false,
+        writes: false,
+        connection_side: ConnectionSide::None,
+        dialects: None,
+    };
 }
 
 /// Inferred storage type for a command's target variable.
