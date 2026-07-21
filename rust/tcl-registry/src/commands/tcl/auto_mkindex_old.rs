@@ -69,10 +69,21 @@ pub fn spec() -> CommandSpec {
         traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::TAINT_SINK,
         // `auto_mkindex_old dir ?pattern pattern ...?` — `dir` required,
         // `pattern` variadic (0 or more, defaulting to `*.tcl` when none are
-        // given): Tcl's own `library/auto.tcl` defines
+        // given): every real `library/auto.tcl` defines
         // `proc auto_mkindex_old {dir args} …`, the same `{dir args}` shape
-        // as `auto_mkindex`. Unchanged across every documented release, Tcl
-        // library.n 8.4 through 9.1.
+        // as `auto_mkindex` — confirmed unchanged in the actual shipped
+        // source across Tcl 8.4 (upstream branch core-8-4-branch), 8.5
+        // (core-8-5-branch), 8.6 (locally installed
+        // /usr/share/tcltk/tcl8.6/auto.tcl), 9.0 (upstream tag
+        // core-9-0-0), and 9.1 (upstream pre-release tag core-9-1-b0).
+        // This is *not* the same as "documented identically" across those
+        // releases, though: `library.n` gives `auto_mkindex_old` its own
+        // NAME-list entry and SYNOPSIS line only in the 8.4 and 8.5
+        // manuals; from 8.6 onward (8.6, 9.0, 9.1 manuals all checked) the
+        // manual drops both and folds the description into `auto_mkindex`'s
+        // own entry as a trailing paragraph ("Auto_mkindex_old (which has
+        // the same syntax as auto_mkindex) parses …") instead — the proc
+        // itself is unaffected, only the manual's presentation changed.
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
@@ -82,10 +93,31 @@ pub fn spec() -> CommandSpec {
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        // The `error $msg $info $code` bug described in the hover text
+        // below is narrower than "the shipped Tcl 8.6 implementation": it
+        // affects only the tclIndex-write failure branch, and only from
+        // Tcl 8.5 onward. Confirmed by diffing the real `auto_mkindex_old`
+        // proc body across upstream `library/auto.tcl`: Tcl 8.4
+        // (core-8-4-branch) sets local `code`/`info` from the
+        // `errorCode`/`errorInfo` globals immediately before this same
+        // `error` call, so it correctly re-raises the original failure
+        // there — no bug in 8.4. Tcl 8.5 (core-8-5-branch), 8.6 (locally
+        // installed /usr/share/tcltk/tcl8.6/auto.tcl), 9.0 (core-9-0-0),
+        // and 9.1 (core-9-1-b0) all switched the enclosing `catch` to the
+        // newer `msg opts` form and added a `return -options $opts $msg`
+        // line below to use it, but left the old `error $msg $info $code`
+        // line in place above it unchanged — dead code that fires first
+        // (since `error` throws immediately) and masks the real failure
+        // with an unrelated "no such variable" error instead. The
+        // corresponding read-failure branch (inside the per-file `foreach`
+        // loop, earlier in the same proc) has no such bug in any of these
+        // versions: 8.4 correctly uses `errorCode`/`errorInfo` there too,
+        // and 8.5 onward correctly uses `return -options $opts $msg`
+        // directly with no dead code above it.
         hover: Some(HoverSnippet {
             summary: "Generate a tclIndex file from Tcl source files using a simple line-based proc scan.",
             synopsis: &["auto_mkindex_old dir ?pattern pattern ...?"],
-            snippet: "The original tclIndex generator, superseded by auto_mkindex but kept for source files auto_mkindex can't safely handle. Searches dir for files matching pattern (glob syntax; *.tcl is assumed when no pattern is given) and reads each one line by line without evaluating any of it: a line is treated as a procedure definition only when the literal text \"proc\" begins the line with no leading whitespace, and the following word is taken as the procedure name, normalised via auto_qualify into a fully global-qualified name when it already contains a namespace separator (::), or left as a bare name otherwise. Because nothing is ever executed, this is the recommended generator for source files with global initialization side effects, or with procedure names containing $, *, [, or ] that would confuse auto_mkindex's real interpreter-based parser — but the same lack of evaluation means an indented proc (inside a namespace eval or class body), a proc split across multiple lines, or one built by string substitution is silently skipped. The result is written to tclIndex in dir, in the same version-2.0 index format auto_mkindex produces. auto_mkindex_old changes the process's current working directory to dir for the duration of the call and restores it before returning; on a failure opening or writing tclIndex it still restores the directory, but the shipped Tcl 8.6 implementation then reports an unrelated \"no such variable\" error instead of the real one at that point (it references undefined info/code locals), so the underlying I/O failure's message and options are lost rather than propagated. Not available inside a safe interpreter at all — interp issafe is checked at source time and the proc is never defined there.",
+            snippet: "The original tclIndex generator, superseded by auto_mkindex but kept for source files auto_mkindex can't safely handle. Searches dir for files matching pattern (glob syntax; *.tcl is assumed when no pattern is given) and reads each one line by line without evaluating any of it: a line is treated as a procedure definition only when the literal text \"proc\" begins the line with no leading whitespace, and the following word is taken as the procedure name, normalised via auto_qualify into a fully global-qualified name when it already contains a namespace separator (::), or left as a bare name otherwise. Because nothing is ever executed, this is the recommended generator for source files with global initialization side effects, or with procedure names containing $, *, [, or ] that would confuse auto_mkindex's real interpreter-based parser — but the same lack of evaluation means an indented proc (inside a namespace eval or class body), a proc split across multiple lines, or one built by string substitution is silently skipped. The result is written to tclIndex in dir, in the same version-2.0 index format auto_mkindex produces. auto_mkindex_old changes the process's current working directory to dir for the duration of the call and restores it before returning; on a failure opening or writing tclIndex it still restores the directory, but in Tcl 8.5, 8.6, 9.0, and 9.1 that handler then reports an unrelated \"no such variable\" error instead of the real one (it calls error $msg $info $code, referencing undefined info/code locals left over from before the enclosing catch was changed to the msg opts form) — so the underlying I/O failure's message and options are lost rather than propagated on those versions. Tcl 8.4 does not have this bug: its equivalent handler sets info/code from the errorCode/errorInfo globals immediately before using them. Not available inside a safe interpreter at all — interp issafe is checked at source time and the proc is never defined there.",
             source: "Tcl library(n)",
             examples: "auto_mkindex_old $dir\nauto_mkindex_old $dir *.tcl *.itcl",
             return_value: "An empty string.",

@@ -21,6 +21,12 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "auto_load_index",
+    dialects: None,
+}];
+
 /// Command spec for `auto_load_index`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -79,6 +85,7 @@ pub fn spec() -> CommandSpec {
             examples: "lappend auto_path /opt/mylib/tcl\nauto_load_index\nsomeCommandFromMylib arg1",
             return_value: "1 if auto_path had changed since the last scan and the tclIndex files were re-read; 0 if auto_path is unchanged and the existing auto_index cache was left as-is.",
         }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }
