@@ -22,6 +22,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lseq ?start? ?op? end ?by step? ?count n?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

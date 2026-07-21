@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "global ?varname ...?",
+    dialects: None,
 }];
 
 /// Command spec for `global`.

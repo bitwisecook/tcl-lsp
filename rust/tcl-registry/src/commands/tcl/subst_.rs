@@ -84,6 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "subst ?options? string",
+    dialects: None,
 }];
 
 /// Fold a literal `subst string`.

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_congestion ?-nosplit?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

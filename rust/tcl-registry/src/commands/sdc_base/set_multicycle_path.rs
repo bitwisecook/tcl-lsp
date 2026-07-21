@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_multicycle_path ?-setup | -hold? ?-start | -end? ?-from from_list? ?-through through_list? ?-to to_list? path_multiplier",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

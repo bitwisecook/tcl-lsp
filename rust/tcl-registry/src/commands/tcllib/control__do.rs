@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "control::do body ?option test?",
+    dialects: None,
 }];
 
 /// `while` / `until` — the loop-sense keyword between `body` and `test`.

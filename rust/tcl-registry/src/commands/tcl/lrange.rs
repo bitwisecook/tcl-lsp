@@ -22,6 +22,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lrange list first last",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

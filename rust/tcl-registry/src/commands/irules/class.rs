@@ -377,6 +377,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "class <subcommand> ?options? ?--? args...",
+            dialects: None,
         }],
         options: const {
             &[

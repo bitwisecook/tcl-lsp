@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "iapp::apm_config ?arg ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

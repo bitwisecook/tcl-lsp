@@ -25,6 +25,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "registry subcommand keyName ?args ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

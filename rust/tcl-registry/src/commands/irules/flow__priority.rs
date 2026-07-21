@@ -48,6 +48,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "FLOW::priority FLOW_PRIORITY",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FlowState,

@@ -22,6 +22,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "format formatString ?arg arg ...?",
+    dialects: None,
 }];
 
 /// Constant-fold the

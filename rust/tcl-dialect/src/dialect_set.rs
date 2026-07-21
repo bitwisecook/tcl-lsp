@@ -153,7 +153,46 @@ pub fn available_dialects() -> &'static [&'static str] {
     KNOWN_DIALECTS
 }
 
+// Compile-time proof that `is_valid_nested_dialects` is genuinely usable in
+// a `const` context (not just callable from one) — a command spec can copy
+// this `const _: () = assert!(...)` shape with its own fields to get a hard
+// build failure on an unreachable dialect combination, rather than relying
+// solely on the registry-wide sweep test to catch it at `cargo test` time.
+const _: () = assert!(DialectSet::is_valid_nested_dialects(None, None));
+const _: () = assert!(DialectSet::is_valid_nested_dialects(
+    None,
+    Some(DialectSet::IRULES)
+));
+const _: () = assert!(DialectSet::is_valid_nested_dialects(
+    Some(DialectSet::TCL86),
+    Some(DialectSet::TCL86_PLUS)
+));
+
 impl DialectSet {
+    /// Whether a nested dialect-gating declaration (`child`) is compatible
+    /// with its governing declaration (`parent`) — i.e. every dialect bit
+    /// `child` claims is also one `parent` claims, so `child` can actually
+    /// be reached under some dialect the parent itself supports.
+    ///
+    /// Follows the `Option<DialectSet>` convention used throughout the
+    /// registry crates: `None` means "all dialects" on either side, so a
+    /// `None` on either side is always compatible; only a `Some(child)`
+    /// claiming a bit `Some(parent)` lacks is invalid — e.g. an option
+    /// declared `IRULES`-only under a command gated to `TCL86_PLUS` could
+    /// never be reached, since the command itself is never selected
+    /// outside `TCL86_PLUS`.
+    ///
+    /// A `const fn`, so a specific spec can self-check at compile time
+    /// with a `const { assert!(...) }` block; a registry-wide sweep test
+    /// covers every spec without requiring that per-file opt-in.
+    #[must_use]
+    pub const fn is_valid_nested_dialects(child: Option<Self>, parent: Option<Self>) -> bool {
+        match (child, parent) {
+            (Some(child), Some(parent)) => parent.contains(child),
+            _ => true,
+        }
+    }
+
     /// Whether `name` denotes the F5 iRules dialect — resolved through the
     /// profile catalog, so the canonical `f5-irules` and every registered
     /// alias (`irules`, `tcl-irule`) agree with the profile predicates by
@@ -384,6 +423,39 @@ mod tests {
         assert!(d.contains(&"f5-tmsh"));
         assert!(d.contains(&"tcl9.1"));
         assert!(!d.contains(&"tk"));
+    }
+
+    #[test]
+    fn is_valid_nested_dialects_requires_child_subset_of_parent() {
+        // Either side `None` ("all dialects") is always compatible.
+        assert!(DialectSet::is_valid_nested_dialects(None, None));
+        assert!(DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::IRULES),
+            None
+        ));
+        assert!(DialectSet::is_valid_nested_dialects(
+            None,
+            Some(DialectSet::IRULES)
+        ));
+        // A child narrowing within the parent's set is compatible …
+        assert!(DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::TCL86),
+            Some(DialectSet::TCL86_PLUS)
+        ));
+        assert!(DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::TCL86_PLUS),
+            Some(DialectSet::TCL86_PLUS)
+        ));
+        // … but a child claiming a dialect the parent lacks is not,
+        // whether disjoint or only partially overlapping.
+        assert!(!DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::IRULES),
+            Some(DialectSet::TCL86_PLUS)
+        ));
+        assert!(!DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::TCL86 | DialectSet::IRULES),
+            Some(DialectSet::TCL86_PLUS)
+        ));
     }
 
     #[test]

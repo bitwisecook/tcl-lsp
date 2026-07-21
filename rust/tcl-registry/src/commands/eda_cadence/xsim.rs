@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "xsim ?-R? ?-input cmd_file? snapshot_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

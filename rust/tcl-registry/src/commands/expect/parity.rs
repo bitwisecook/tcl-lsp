@@ -40,6 +40,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "parity ?-d | -i spawn_id? ?value?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -51,6 +51,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "FLOW::idle_timeout (ANY_CHARS) (NONNEGATIVE_INTEGER)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FlowState,

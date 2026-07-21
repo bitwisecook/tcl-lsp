@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_scan_configuration ?-chain_count n? ?-clock_mixing mix_type? ?-style style?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

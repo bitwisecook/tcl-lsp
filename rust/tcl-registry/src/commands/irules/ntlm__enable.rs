@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "NTLM::enable",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,

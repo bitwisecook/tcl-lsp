@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "upvar ?level? otherVar myVar ?otherVar myVar ...?",
+    dialects: None,
 }];
 
 /// Command spec for `upvar`.

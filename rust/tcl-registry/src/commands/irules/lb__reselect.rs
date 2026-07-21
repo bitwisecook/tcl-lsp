@@ -49,6 +49,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LB::reselect (clone pool POOL_OBJ (member IP_ADDR)?)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,

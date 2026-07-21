@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTML::disable",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::StreamProfile,

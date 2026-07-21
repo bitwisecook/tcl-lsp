@@ -48,6 +48,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::extensions ?options?",
+            dialects: None,
         }],
         options: const {
             &[

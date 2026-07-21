@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "ledit listVar first last ?element element ...?",
+    dialects: None,
 }];
 
 /// Command spec for `ledit`.

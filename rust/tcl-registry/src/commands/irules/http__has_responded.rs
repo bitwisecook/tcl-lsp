@@ -45,6 +45,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Getter,
             synopsis: "HTTP::has_responded",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ResponseCommit,

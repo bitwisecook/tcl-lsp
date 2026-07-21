@@ -169,6 +169,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "pack option arg ?arg ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

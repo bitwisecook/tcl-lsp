@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_io_assignment -name name -to pin_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

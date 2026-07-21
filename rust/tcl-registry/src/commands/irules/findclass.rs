@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "findclass STRING DATA_GROUP (SEPARATOR)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DataGroup,

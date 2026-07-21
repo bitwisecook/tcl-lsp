@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "regexp ?switches? exp string ?matchVar? ?subMatchVar ...?",
+    dialects: None,
 }];
 
 /// `regexp ?switches? exp string ?matchVar ...?` — after skipping leading

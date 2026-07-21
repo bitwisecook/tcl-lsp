@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "compile ?-map_effort effort? ?-area_effort effort? ?-incremental_mapping? ?-exact_map? ?-no_design_rule? ?-scan?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

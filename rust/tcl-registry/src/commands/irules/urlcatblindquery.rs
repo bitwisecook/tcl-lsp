@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "urlcatblindquery ENCRYPTED_URL_STRING",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DataGroup,

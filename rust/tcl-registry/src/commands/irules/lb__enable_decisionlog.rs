@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LB::enable_decisionlog",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LogIo,

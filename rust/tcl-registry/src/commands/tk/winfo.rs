@@ -378,6 +378,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "winfo option ?arg ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

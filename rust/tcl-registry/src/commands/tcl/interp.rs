@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "interp subcommand ?arg arg ...?",
+    dialects: None,
 }];
 
 /// `interp alias srcPath srcCmd targetPath targetCmd ?arg ...?` (create form) —

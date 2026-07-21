@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ADAPT::preview_size (ADAPT_CTX)? (ADAPT_SIDE)? (SIZE)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::IcapState,

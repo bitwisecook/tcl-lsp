@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "xrun ?-sv? ?-access access_type? ?-define define? ?-top top_module? ?-input cmd_file? file_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

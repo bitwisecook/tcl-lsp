@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "MR::retry",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,

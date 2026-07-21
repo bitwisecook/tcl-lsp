@@ -230,6 +230,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "argparse ?switch ...? ?--? definition ?arguments?",
+    dialects: None,
 }];
 
 /// The `argparse` command spec.

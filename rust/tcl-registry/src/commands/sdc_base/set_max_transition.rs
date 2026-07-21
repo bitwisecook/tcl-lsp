@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_max_transition transition_value ?-clock_path? ?-data_path? object_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "CATEGORY::filetype HTTP_PAYLOAD ?options?",
+            dialects: None,
         }],
         options: const {
             &[

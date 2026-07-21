@@ -138,6 +138,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTTP::respond <status> ?option value ...?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ResponseCommit,

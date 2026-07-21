@@ -34,6 +34,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lset varName ?index ...? newValue",
+    dialects: None,
 }];
 
 /// `lset varName newValue` — replace the entire list (no index).

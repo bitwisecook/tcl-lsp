@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "close_project ?-quiet?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

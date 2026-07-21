@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "group_path ?-name group_name? ?-from from_list? ?-through through_list? ?-to to_list? ?-weight weight? ?-default?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

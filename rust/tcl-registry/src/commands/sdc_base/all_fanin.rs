@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "all_fanin ?-to objects? ?-flat? ?-startpoints_only? ?-only_cells?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

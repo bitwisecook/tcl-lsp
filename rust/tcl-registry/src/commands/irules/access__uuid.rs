@@ -37,6 +37,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::uuid getsid SESSION_ID",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,

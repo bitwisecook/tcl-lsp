@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "IPFIX::destination ((open (-publisher LOG_PUBLISHER)) |",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

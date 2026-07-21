@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS2::access2_proc",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,

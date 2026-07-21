@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_constraint ?-all_violators? ?-max_delay? ?-min_delay?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

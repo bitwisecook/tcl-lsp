@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_global_assignment -name name value ?-section_id id?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

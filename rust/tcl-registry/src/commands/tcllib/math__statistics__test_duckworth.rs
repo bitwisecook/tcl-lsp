@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "math::statistics::test-Duckworth list1 list2 significance",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

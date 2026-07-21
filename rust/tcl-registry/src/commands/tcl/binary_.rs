@@ -31,18 +31,22 @@ const FORMS: &[FormSpec] = &[
     FormSpec {
         kind: FormKind::Default,
         synopsis: "binary format formatString ?arg arg ...?",
+        dialects: None,
     },
     FormSpec {
         kind: FormKind::Default,
         synopsis: "binary scan string formatString ?varName varName ...?",
+        dialects: None,
     },
     FormSpec {
         kind: FormKind::Default,
         synopsis: "binary encode format ?-option value ...? data",
+        dialects: None,
     },
     FormSpec {
         kind: FormKind::Default,
         synopsis: "binary decode format ?-option value ...? data",
+        dialects: None,
     },
 ];
 

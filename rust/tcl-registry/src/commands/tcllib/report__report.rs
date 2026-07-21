@@ -38,6 +38,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report::report reportName columns ?style \"style arg...\"?",
+    dialects: None,
 }];
 
 // ---------------------------------------------------------------------------

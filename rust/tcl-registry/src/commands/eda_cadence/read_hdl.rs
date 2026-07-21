@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "read_hdl ?-language language? ?-define define_list? file_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "qvhdl ?-2008? ?-R? ?-c? file_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

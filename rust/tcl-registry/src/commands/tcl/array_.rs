@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "array option arrayName ?arg arg ...?",
+    dialects: None,
 }];
 
 static SUBCOMMANDS: &[SubCommand] = &[

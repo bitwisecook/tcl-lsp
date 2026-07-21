@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "size_cell cell_name lib_cell",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

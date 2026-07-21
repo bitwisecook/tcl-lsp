@@ -58,10 +58,12 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::query ?-normalized?",
+                dialects: None,
             },
             FormSpec {
                 kind: FormKind::Setter,
                 synopsis: "HTTP::query <QUERY_STRING>",
+                dialects: None,
             },
         ],
         side_effects: &[SideEffect {

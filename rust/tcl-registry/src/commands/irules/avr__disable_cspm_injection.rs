@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "AVR::disable_cspm_injection",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LogIo,

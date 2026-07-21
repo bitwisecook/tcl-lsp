@@ -198,6 +198,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "GTP::header <field> ?set|remove? ?-message msg? ?value?",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

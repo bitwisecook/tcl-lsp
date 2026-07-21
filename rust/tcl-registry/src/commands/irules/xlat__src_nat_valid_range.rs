@@ -49,6 +49,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "XLAT::src_nat_valid_range",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,

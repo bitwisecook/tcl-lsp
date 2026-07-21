@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "bp ?file_name? ?line_number? ?-cond condition?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

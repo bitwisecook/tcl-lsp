@@ -63,6 +63,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LSN::port TRANSLATION_PORT",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,

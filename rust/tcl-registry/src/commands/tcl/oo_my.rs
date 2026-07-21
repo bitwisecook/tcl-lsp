@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "my method ?arg ...?",
+    dialects: None,
 }];
 
 /// Every argument after the `variable` subcommand word is a variable name to

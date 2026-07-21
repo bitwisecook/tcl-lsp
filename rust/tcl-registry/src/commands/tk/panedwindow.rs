@@ -253,6 +253,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "panedwindow pathName ?option value ...?",
+    dialects: None,
 }];
 
 /// `panedwindow`'s instance command dispatches through the same subcommand

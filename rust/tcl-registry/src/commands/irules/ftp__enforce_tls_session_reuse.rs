@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "FTP::enforce_tls_session_reuse (enable | disable)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FtpState,

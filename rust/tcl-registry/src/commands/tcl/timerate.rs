@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "timerate ?-direct? ?-calibrate? ?-overhead double? command ?time ?max-count??",
+    dialects: None,
 }];
 
 /// Command spec for `timerate`.

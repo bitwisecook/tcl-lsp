@@ -38,6 +38,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "URI::escape URI_STRING",
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

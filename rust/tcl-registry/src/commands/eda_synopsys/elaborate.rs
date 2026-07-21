@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "elaborate design_name ?-library lib? ?-architecture arch? ?-parameters params? ?-update?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

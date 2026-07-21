@@ -36,6 +36,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "DNSMSG::section DNS_MESSAGE ('question' | 'answer' | 'authority' | 'additional' )",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,

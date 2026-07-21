@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_route_rule -name name ?-widths list? ?-spacings list?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

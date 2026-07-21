@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "add_well_tap ?-cell cell? ?-cell_interval interval?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

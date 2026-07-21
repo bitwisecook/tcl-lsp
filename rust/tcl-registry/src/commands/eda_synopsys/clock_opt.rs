@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "clock_opt ?-effort high|medium|low?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

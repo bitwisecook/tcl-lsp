@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_delay_corner -name name ?-library_set lib_set? ?-rc_corner rc_corner?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

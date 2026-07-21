@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "error message ?info? ?code?",
+    dialects: None,
 }];
 
 /// Command spec for `error`.

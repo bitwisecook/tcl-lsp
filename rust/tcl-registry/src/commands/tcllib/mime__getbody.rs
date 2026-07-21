@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "mime::getbody token ?options?",
+    dialects: None,
 }];
 
 const OPTIONS: &[OptionSpec] = &[

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "read_def ?-add_def_only_objects all? file_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

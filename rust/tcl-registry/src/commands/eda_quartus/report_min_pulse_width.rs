@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_min_pulse_width ?-nworst n? ?-file file?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

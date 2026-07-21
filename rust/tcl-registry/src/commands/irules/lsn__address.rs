@@ -63,6 +63,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LSN::address TRANSLATION_ADDR",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,

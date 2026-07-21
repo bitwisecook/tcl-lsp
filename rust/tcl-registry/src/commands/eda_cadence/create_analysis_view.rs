@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_analysis_view -name name -constraint_mode mode -delay_corner corner",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

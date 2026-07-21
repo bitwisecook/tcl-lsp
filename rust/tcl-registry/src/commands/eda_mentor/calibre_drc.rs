@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "calibre_drc ?-hier? ?-turbo? rule_file",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

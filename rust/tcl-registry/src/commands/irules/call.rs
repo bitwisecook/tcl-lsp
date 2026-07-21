@@ -35,6 +35,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "call ?-debug? <proc_name> ?arg ...?",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

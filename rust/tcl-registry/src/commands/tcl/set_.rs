@@ -34,6 +34,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set varName ?newValue?",
+    dialects: None,
 }];
 
 /// Dynamic arg role resolver: getter (1 arg) vs setter (2 args).

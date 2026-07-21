@@ -22,6 +22,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lsearch ?options? list pattern",
+    dialects: None,
 }];
 
 /// Option table for `lsearch`.  Most flags exist since Tcl 8.4;

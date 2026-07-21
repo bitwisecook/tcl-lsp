@@ -37,6 +37,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LSN::inbound-entry (get | delete) IP_TUPLE IP_PROTOCOL",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

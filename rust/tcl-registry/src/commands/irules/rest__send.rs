@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "REST::send -method METHOD URI ?BODY?",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "ungroup ?-all? ?-flatten? ?-start_level n? ?-simple_names? ?cells?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

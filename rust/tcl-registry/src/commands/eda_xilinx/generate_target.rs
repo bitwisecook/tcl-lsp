@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "generate_target target_type ?-force? objects",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

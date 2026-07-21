@@ -89,6 +89,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LB::connlimit <target> ?args?",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[

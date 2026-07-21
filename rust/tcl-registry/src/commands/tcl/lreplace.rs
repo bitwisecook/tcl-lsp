@@ -22,6 +22,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lreplace list first last ?element element ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

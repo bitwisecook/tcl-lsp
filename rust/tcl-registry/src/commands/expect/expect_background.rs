@@ -64,6 +64,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "expect_background ?-opts? pattern body ?pattern body ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

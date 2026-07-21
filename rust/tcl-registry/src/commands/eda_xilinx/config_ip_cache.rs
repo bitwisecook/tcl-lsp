@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "config_ip_cache ?-import_from_project? ?-clear_output_repo? ?-cache_location dir?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

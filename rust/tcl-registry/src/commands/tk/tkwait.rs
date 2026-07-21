@@ -55,6 +55,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "tkwait variable|visibility|window name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

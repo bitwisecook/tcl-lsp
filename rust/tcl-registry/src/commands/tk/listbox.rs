@@ -340,6 +340,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "listbox pathName ?option value ...?",
+    dialects: None,
 }];
 
 /// `listbox`'s instance command dispatches through the same subcommand

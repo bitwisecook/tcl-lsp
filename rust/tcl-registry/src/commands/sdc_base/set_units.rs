@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_units ?-time unit? ?-capacitance unit? ?-resistance unit? ?-voltage unit? ?-current unit? ?-power unit?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

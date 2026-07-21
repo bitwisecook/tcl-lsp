@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_constraint_mode -name name -sdc_files file_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

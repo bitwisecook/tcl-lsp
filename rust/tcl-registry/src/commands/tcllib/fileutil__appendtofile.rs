@@ -29,6 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "fileutil::appendToFile ?options? file data",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

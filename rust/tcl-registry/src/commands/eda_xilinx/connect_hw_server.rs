@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "connect_hw_server ?-url url? ?-allow_non_jtag?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

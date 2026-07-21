@@ -577,6 +577,136 @@ fn sweep_dialect_resolution_is_consistent() {
     }
 }
 
+/// Assert `child`'s dialect declaration is reachable under `parent` — see
+/// `DialectSet::is_valid_nested_dialects`. Extracted so every call site
+/// below stays a one-liner.
+fn assert_dialects_nest(parent: Option<DialectSet>, child: Option<DialectSet>, context: &str) {
+    assert!(
+        DialectSet::is_valid_nested_dialects(child, parent),
+        "{context}: declares dialects {child:?}, not a subset of its parent's {parent:?} — \
+         it could never be reached under any dialect the parent itself doesn't support"
+    );
+}
+
+/// Dialect-nesting checks for one `CommandForm`/`SubCommandForm` and its
+/// own options, relative to its `effective_parent` (already resolved by
+/// the caller). Shared between the command-level and subcommand-level
+/// callers since the two form kinds are the same type.
+fn check_form_dialect_nesting(
+    ctx: &str,
+    effective_parent: Option<DialectSet>,
+    form: &tcl_registry::forms::CommandForm,
+) {
+    assert_dialects_nest(
+        effective_parent,
+        form.dialects,
+        &format!("{ctx} form {}", form.name),
+    );
+    let effective = form.dialects.or(effective_parent);
+    for o in form.options {
+        assert_dialects_nest(
+            effective,
+            o.dialects,
+            &format!("{ctx} form {} option {}", form.name, o.name),
+        );
+    }
+}
+
+/// Dialect-nesting checks for one `SubCommand`: itself against the parent
+/// `CommandSpec`'s dialects, then its options / side effects / forms /
+/// sub-subcommands against *its own* effective dialects.
+fn check_subcommand_dialect_nesting(
+    cmd_ctx: &str,
+    parent: Option<DialectSet>,
+    sub: &tcl_registry::SubCommand,
+) {
+    let ctx = format!("{cmd_ctx} {}", sub.name);
+    assert_dialects_nest(parent, sub.dialects, &ctx);
+    let effective = sub.dialects.or(parent);
+    for o in sub.options {
+        assert_dialects_nest(effective, o.dialects, &format!("{ctx} option {}", o.name));
+    }
+    for se in sub.side_effects {
+        assert_dialects_nest(
+            effective,
+            se.dialects,
+            &format!("{ctx} side_effect {:?}", se.target),
+        );
+    }
+    for scf in sub.subcommand_forms {
+        check_form_dialect_nesting(&ctx, effective, scf);
+    }
+    for ssc in sub.sub_subcommands {
+        assert_dialects_nest(effective, ssc.dialects, &format!("{ctx} {}", ssc.name));
+    }
+}
+
+/// Dialect-nesting checks for everything hung directly off one
+/// `CommandSpec`: its flat options, side effects, forms, structured
+/// command forms, and subcommands (recursing into the latter).
+fn check_command_dialect_nesting(dname: &str, name: &str, spec: &tcl_registry::CommandSpec) {
+    let ctx = format!("{dname}/{name}");
+    for opt in spec.options {
+        assert_dialects_nest(
+            spec.dialects,
+            opt.dialects,
+            &format!("{ctx} option {}", opt.name),
+        );
+    }
+    for se in spec.side_effects {
+        assert_dialects_nest(
+            spec.dialects,
+            se.dialects,
+            &format!("{ctx} side_effect {:?}", se.target),
+        );
+    }
+    for f in spec.forms {
+        assert_dialects_nest(
+            spec.dialects,
+            f.dialects,
+            &format!("{ctx} form {}", f.synopsis),
+        );
+    }
+    for cf in spec.command_forms {
+        check_form_dialect_nesting(&ctx, spec.dialects, cf);
+    }
+    for sub in spec.subcommands {
+        check_subcommand_dialect_nesting(&ctx, spec.dialects, sub);
+    }
+}
+
+/// Every nested `dialects` declaration (`OptionSpec`, `SideEffect`,
+/// `FormSpec`, `CommandForm`/`SubCommandForm`, `SubCommand`,
+/// `SubSubCommand`) must be a subset of its governing parent's *effective*
+/// dialects — a child claiming a dialect its parent lacks can never
+/// actually be reached, since the parent itself is never selected outside
+/// its own dialects, so the child would silently dead-code instead of
+/// failing loudly. This is the whole-registry backstop for the
+/// `DialectSet::is_valid_nested_dialects` invariant: a single command file
+/// *can* self-check at compile time with a `const { assert!(...) }` (see
+/// `tcl-dialect`'s `dialect_set` module for the pattern), but nothing
+/// forces every command file to opt in — this sweep covers all of them,
+/// present and future, uniformly.
+///
+/// registry-metadata: dialect membership is registry data; this is a
+/// self-consistency invariant, not a C-Tcl fact.
+#[test]
+fn sweep_nested_dialects_are_subsets_of_parent() {
+    let mut checked = 0usize;
+    for &dname in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dname);
+        let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else {
+                continue;
+            };
+            checked += 1;
+            check_command_dialect_nesting(dname, name, spec);
+        }
+    }
+    assert!(checked > 1000, "sweep unexpectedly small: {checked} specs");
+}
+
 // ===========================================================================
 // SWEEP 2 — BIG-IP object specs and property specs.
 // ===========================================================================

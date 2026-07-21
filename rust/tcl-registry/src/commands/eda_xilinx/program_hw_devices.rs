@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "program_hw_devices ?device_list?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

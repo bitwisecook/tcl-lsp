@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "PROFILE::clientssl ATTR",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,

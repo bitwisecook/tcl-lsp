@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_case_analysis value port_pin_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

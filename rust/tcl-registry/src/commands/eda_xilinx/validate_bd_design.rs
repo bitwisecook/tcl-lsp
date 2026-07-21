@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "validate_bd_design ?-force?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -176,6 +176,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "ttk::entry pathName ?options?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

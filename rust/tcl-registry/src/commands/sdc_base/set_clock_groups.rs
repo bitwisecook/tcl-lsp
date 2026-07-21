@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_clock_groups ?-physically_exclusive | -logically_exclusive | -asynchronous? -group clock_list ...",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

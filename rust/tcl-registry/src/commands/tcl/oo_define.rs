@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "oo::define class defScript",
+    dialects: None,
 }];
 
 /// Subcommands recognised by ``oo::define`` / ``oo::objdefine``.

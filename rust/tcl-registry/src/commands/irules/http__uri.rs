@@ -72,10 +72,12 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::uri ?-normalized?",
+                dialects: None,
             },
             FormSpec {
                 kind: FormKind::Setter,
                 synopsis: "HTTP::uri <URI>",
+                dialects: None,
             },
         ],
         side_effects: &[SideEffect {

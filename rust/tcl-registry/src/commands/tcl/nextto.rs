@@ -34,6 +34,7 @@ pub fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "nextto class ?arg ...?",
+            dialects: None,
         }],
         // The leading `class` word is a symbolic name, structurally marking
         // this form as carrying an explicit MRO-search-start class — how

@@ -45,6 +45,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTTP::retry ('-reset')? HTTP_REQUEST",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

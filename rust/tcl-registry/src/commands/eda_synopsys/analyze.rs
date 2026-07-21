@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "analyze -format format ?-library lib? ?-define define_list? ?-work work? file_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

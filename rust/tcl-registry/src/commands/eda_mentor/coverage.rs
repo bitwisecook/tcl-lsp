@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

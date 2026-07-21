@@ -128,6 +128,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "ttk::treeview pathName ?options?",
+    dialects: None,
 }];
 
 /// The command's subcommands.

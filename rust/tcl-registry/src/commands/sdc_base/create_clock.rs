@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_clock ?-period period? ?-name name? ?-waveform edge_list? ?-add? ?source_objects?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

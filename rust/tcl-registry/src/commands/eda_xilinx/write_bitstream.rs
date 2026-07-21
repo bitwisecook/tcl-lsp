@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "write_bitstream ?-force? ?-bin_file? ?-no_partial_bitfile? ?-cell cell? file_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

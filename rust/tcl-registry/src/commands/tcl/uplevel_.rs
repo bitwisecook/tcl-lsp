@@ -31,6 +31,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "uplevel ?level? arg ?arg ...?",
+    dialects: None,
 }];
 
 /// Whether `word` is *literally* an `uplevel` frame level.

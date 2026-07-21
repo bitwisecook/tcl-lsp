@@ -31,6 +31,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "catch script ?resultVarName? ?optionsVarName?",
+    dialects: None,
 }];
 
 /// Command spec for `catch`.

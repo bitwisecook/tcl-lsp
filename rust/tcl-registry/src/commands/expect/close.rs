@@ -40,6 +40,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "close ?-slave? ?-i spawn_id?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

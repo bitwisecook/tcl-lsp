@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "GTP::length ('-message' MESSAGE)?",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

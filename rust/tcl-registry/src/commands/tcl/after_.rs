@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "after ms",
+    dialects: None,
 }];
 
 /// Mark the sole script word of `after ms script` as [`ArgRole::Body`], so

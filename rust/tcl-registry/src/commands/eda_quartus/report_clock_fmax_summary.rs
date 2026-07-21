@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_clock_fmax_summary ?-file file? ?-panel_name name?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_run -flow flow ?-strategy strategy? ?-constrset constrset? ?-parent_run parent? run_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

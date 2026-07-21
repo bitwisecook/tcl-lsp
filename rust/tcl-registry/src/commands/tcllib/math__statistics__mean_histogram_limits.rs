@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "math::statistics::mean-histogram-limits mean stdev ?number?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

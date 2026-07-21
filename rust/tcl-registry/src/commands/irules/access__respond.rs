@@ -47,6 +47,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::respond STATUS_CODE (ifile | -ifile) IFILE_OBJ",
+            dialects: None,
         }],
         options: const {
             &[

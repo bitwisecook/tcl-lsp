@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "syn_generic ?-effort effort?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

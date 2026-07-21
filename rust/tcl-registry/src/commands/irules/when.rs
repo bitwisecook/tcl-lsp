@@ -95,10 +95,12 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Default,
                 synopsis: "when EVENT { body }",
+                dialects: None,
             },
             FormSpec {
                 kind: FormKind::Default,
                 synopsis: "when EVENT priority N { body }",
+                dialects: None,
             },
         ],
         // Command-level arg-value completion for the keyword tail:

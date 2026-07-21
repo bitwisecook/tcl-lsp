@@ -29,6 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "html::html_entities string",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

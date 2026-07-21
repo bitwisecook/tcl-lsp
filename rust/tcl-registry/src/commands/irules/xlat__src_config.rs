@@ -35,6 +35,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "XLAT::src_config",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,

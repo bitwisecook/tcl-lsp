@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lassign list ?varName ...?",
+    dialects: None,
 }];
 
 /// D4-F2: `lassign list ?varName ...?` accepts variable-name args from index 1

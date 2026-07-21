@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_constraint ?-all_violators? ?-drv_violation_type type?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

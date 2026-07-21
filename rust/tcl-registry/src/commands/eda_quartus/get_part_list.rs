@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_part_list ?-family family? ?-speed_grade speed_grade?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

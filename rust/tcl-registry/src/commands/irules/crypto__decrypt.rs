@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "CRYPTO::decrypt (('-padding' (pkcs | oaep | none) )",
+            dialects: None,
         }],
         options: const {
             &[

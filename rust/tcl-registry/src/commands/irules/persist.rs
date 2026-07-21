@@ -50,6 +50,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "persist <mode> ?args?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::PersistenceTable,

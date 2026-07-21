@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "matchclass CLASS_OR_VALUE KEYWORDS VALUE_OR_CLASS",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DataGroup,

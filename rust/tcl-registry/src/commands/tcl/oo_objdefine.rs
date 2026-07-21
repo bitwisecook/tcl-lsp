@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "oo::objdefine object defScript",
+    dialects: None,
 }];
 
 use super::oo_define::oo_define_arg_roles;

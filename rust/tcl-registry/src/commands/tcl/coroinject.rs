@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "coroinject coroName command ?arg ...?",
+    dialects: None,
 }];
 
 // `coroinject coroName command ?arg...?` schedules an arbitrary command to run

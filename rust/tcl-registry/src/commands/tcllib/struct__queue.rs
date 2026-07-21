@@ -29,6 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "struct::queue ?queueName? ?=|:=|as|deserialize source?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

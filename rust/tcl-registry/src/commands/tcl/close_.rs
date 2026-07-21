@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "close channelId ?r(ead)|w(rite)?",
+    dialects: None,
 }];
 
 /// Command spec for `close`.

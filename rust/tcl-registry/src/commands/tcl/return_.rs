@@ -21,10 +21,26 @@
 use crate::hooks::{InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "return ?-code code? ?-level level? ?result?",
-}];
+const FORMS: &[FormSpec] = &[
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "return ?-code code? ?-level level? ?result?",
+        dialects: None,
+    },
+    // F5 `return(1)`: directly inside a `when EVENT { … }` body, `return`
+    // takes no arguments — `return_context_gate` below enforces this
+    // structurally; this entry makes the restricted synopsis queryable
+    // (completion/hover) rather than only documented in prose. Full
+    // syntax remains valid in iRules outside an event body (e.g. inside
+    // a `proc`), which is why this narrows the *dialect*, not the
+    // command's Tcl-version gating — the first entry above still applies
+    // in iRules too.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "return",
+        dialects: Some(DialectSet::IRULES),
+    },
+];
 
 /// `-code`'s five symbolic completion codes, each paired with its
 /// canonical integer equivalent (`return -code error …` ≡

@@ -29,6 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "yaml::yaml2dict ?-file? yamlText",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

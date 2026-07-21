@@ -35,6 +35,7 @@ pub fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "tcl::build-info ?key?",
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

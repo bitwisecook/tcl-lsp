@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "add list ?-radix radix? signal_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "trace option ?arg arg ...?",
+    dialects: None,
 }];
 
 /// Resolve a `trace add|remove` type word (`variable`/`command`/

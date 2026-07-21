@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "read_sdc ?-echo? file_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

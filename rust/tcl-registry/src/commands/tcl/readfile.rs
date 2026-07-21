@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "readFile filename ?text|binary?",
+    dialects: None,
 }];
 
 /// Command spec for `readFile`.

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_load ?-pin_load | -wire_load? ?-min | -max? ?-subtract_pin_load? value objects",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

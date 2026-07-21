@@ -88,6 +88,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "expect ?-opts? pattern body ?pattern body ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

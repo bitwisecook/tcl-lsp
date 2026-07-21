@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "CLASSIFY::application ('set' | 'add') CLASSIFY_APP_NAME",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,

@@ -471,6 +471,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "spinbox pathName ?option value ...?",
+    dialects: None,
 }];
 
 /// `spinbox`'s instance command dispatches through the same subcommand

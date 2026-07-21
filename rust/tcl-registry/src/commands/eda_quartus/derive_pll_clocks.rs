@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "derive_pll_clocks ?-create_base_clocks? ?-use_net_name?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

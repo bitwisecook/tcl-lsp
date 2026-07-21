@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "chan subcommand ?arg ...?",
+    dialects: None,
 }];
 
 /// Shared option table for `chan configure` — same shape as

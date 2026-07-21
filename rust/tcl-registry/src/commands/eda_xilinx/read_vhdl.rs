@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "read_vhdl ?-library lib? ?-vhdl2008? file_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

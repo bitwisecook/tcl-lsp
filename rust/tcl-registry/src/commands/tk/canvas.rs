@@ -494,6 +494,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "canvas pathName ?option value ...?",
+    dialects: None,
 }];
 
 /// `canvas`'s instance command dispatches through the same subcommand

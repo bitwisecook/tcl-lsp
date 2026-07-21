@@ -31,6 +31,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "for start test next body",
+    dialects: None,
 }];
 
 /// Command spec for `for`.

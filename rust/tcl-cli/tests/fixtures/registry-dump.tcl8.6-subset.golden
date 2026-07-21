@@ -2474,11 +2474,26 @@
         "options": [],
         "pure": false,
         "synopsis": "return ?-code code? ?-level level? ?result?"
+      },
+      {
+        "arity": null,
+        "kind": "default",
+        "mutator": false,
+        "options": [],
+        "pure": false,
+        "synopsis": "return"
       }
     ],
     "info": {
       "summary": "Return from the current procedure/script with optional control-code metadata.",
-      "switches": [],
+      "switches": [
+        "-code",
+        "-errorcode",
+        "-errorinfo",
+        "-errorstack",
+        "-level",
+        "-options"
+      ],
       "synopsis": [
         "return ?-code code? ?-level level? ?result?"
       ],
@@ -2500,7 +2515,14 @@
       "tcllib_package": null
     },
     "subcommands": [],
-    "switches": [],
+    "switches": [
+      "-code",
+      "-level",
+      "-errorcode",
+      "-errorinfo",
+      "-errorstack",
+      "-options"
+    ],
     "traits": {
       "allow_unknown_subcommands": false,
       "byte_compiled": true,

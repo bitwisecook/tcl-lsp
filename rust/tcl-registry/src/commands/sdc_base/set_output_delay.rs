@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_output_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

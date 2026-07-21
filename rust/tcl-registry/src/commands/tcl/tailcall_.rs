@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "tailcall command ?arg ...?",
+    dialects: None,
 }];
 
 /// Command spec for `tailcall`.

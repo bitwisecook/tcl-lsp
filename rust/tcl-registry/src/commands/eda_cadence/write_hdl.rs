@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "write_hdl ?-lec? ?design_name? > file",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

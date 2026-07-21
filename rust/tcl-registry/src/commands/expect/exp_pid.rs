@@ -30,6 +30,7 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "exp_pid ?-i spawn_id?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

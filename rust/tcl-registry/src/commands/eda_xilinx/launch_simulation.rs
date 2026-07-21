@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "launch_simulation ?-mode mode? ?-scripts_only? ?-simset simset?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

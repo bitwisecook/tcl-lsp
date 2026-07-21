@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_ideal_latency ?-rise | -fall? ?-min | -max? delay object_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

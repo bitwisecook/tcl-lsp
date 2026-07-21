@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "flush ?channelId?",
+    dialects: None,
 }];
 
 /// Command spec for `flush`.

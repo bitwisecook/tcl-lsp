@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "coroprobe coroName command ?arg ...?",
+    dialects: None,
 }];
 
 // `coroprobe coroName command ?arg...?` evaluates an arbitrary command *now* in

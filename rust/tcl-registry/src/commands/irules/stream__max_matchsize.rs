@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "STREAM::max_matchsize SIZE",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::StreamProfile,

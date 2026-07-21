@@ -49,6 +49,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SIP::persist",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::PersistenceTable,

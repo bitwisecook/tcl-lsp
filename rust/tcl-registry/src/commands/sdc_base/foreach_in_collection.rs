@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "foreach_in_collection var collection body",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

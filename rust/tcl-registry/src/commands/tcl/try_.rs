@@ -31,6 +31,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "try body ?handler...? ?finally script?",
+    dialects: None,
 }];
 
 /// Whether a handler-body word is the literal `-` fallthrough marker

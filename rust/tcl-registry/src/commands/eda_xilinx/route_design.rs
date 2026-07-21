@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "route_design ?-directive directive? ?-nets net_list? ?-unroute? ?-preserve?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

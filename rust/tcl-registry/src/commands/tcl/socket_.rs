@@ -74,10 +74,12 @@ const FORMS: &[FormSpec] = &[
     FormSpec {
         kind: FormKind::Default,
         synopsis: "socket ?options? host port",
+        dialects: None,
     },
     FormSpec {
         kind: FormKind::Default,
         synopsis: "socket -server command ?options? port",
+        dialects: None,
     },
 ];
 

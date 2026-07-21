@@ -27,6 +27,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "unicode subcommand ?-profile PROFILE? STRING",
+    dialects: None,
 }];
 
 static PROFILE_OPTIONS: [OptionSpec; 1] = [OptionSpec {

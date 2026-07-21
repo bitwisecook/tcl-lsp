@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_dont_use lib_cell_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

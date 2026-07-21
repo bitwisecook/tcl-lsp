@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "FTP::port FIRST (LAST)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FtpState,

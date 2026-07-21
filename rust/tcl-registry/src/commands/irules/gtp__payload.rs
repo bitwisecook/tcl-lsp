@@ -39,6 +39,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "GTP::payload",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

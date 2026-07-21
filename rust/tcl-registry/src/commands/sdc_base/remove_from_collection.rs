@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "remove_from_collection collection objects",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

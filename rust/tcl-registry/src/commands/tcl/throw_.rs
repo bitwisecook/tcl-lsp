@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "throw type message",
+    dialects: None,
 }];
 
 /// Command spec for `throw`.

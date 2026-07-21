@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "unset ?-nocomplain? ?--? ?name name name ...?",
+    dialects: None,
 }];
 
 /// `unset ?-nocomplain? ?--? ?name name name ...?` — every trailing word is a

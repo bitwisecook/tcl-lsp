@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_location_assignment -to pin_name location",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

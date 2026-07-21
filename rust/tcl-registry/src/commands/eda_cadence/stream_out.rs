@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "stream_out file_name ?-mapFile map?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

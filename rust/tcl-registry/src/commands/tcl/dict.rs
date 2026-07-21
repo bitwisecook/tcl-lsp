@@ -32,6 +32,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "dict option arg ?arg ...?",
+    dialects: None,
 }];
 
 /// Dynamic resolver: last arg is body for `dict update`/`dict with`.

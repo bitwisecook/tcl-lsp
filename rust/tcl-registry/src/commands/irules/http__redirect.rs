@@ -47,6 +47,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTTP::redirect REDIRECT_URL",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ResponseCommit,

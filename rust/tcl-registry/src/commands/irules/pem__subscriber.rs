@@ -37,6 +37,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "PEM::subscriber config policy ( (get SUBS_ID (PEM_SUBS_TYPE2))",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_timing ?-from from? ?-to to? ?-through through? ?-max_paths n? ?-nworst n?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "puts ?-nonewline? ?channelId? string",
+    dialects: None,
 }];
 
 /// Dynamic arg-role resolver: `puts` takes one positional arg (`string`,

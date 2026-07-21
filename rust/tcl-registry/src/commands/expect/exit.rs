@@ -40,6 +40,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "exit ?-onexit command | -noexit? ?status?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

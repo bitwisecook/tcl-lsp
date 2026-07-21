@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "init_signal_spy src_signal dst_signal ?-node? ?-verbose?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

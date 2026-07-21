@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_names ?-filter filter? ?-node_type type? ?-observable_type type?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

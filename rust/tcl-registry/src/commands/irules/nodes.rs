@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "nodes (-list)? POOL_OBJ",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

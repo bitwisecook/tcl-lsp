@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_bd_design ?-dir dir? design_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

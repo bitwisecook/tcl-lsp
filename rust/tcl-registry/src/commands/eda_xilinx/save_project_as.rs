@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "save_project_as ?-force? project_name ?project_dir?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

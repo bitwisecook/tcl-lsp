@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "oo::class method ?arg ...?",
+    dialects: None,
 }];
 
 /// Resolve the body argument index for the metaclass shapes:

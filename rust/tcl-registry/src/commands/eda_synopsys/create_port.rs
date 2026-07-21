@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_port port_name ?-direction direction?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

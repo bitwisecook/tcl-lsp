@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "active_members ('-list')? POOL_OBJ",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

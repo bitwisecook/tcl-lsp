@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "verify_connectivity ?-type type? ?-error n?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

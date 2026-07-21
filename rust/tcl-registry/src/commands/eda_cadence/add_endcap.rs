@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "add_endcap ?-pre_endcap cell? ?-post_endcap cell?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

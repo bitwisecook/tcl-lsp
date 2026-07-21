@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "FTP::enable",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FtpState,

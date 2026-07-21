@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "link_design ?-keep_sub_designs?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -35,6 +35,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "incr varName ?increment?",
+    dialects: None,
 }];
 
 /// `incr varName` — implicit increment of 1.

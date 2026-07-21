@@ -524,6 +524,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "table <subcommand> ?options? ?--? key ?value? ?lifetime? ?timeout?",
+            dialects: None,
         }],
         options: OPTIONS_1,
         subcommands: SUBCOMMANDS,

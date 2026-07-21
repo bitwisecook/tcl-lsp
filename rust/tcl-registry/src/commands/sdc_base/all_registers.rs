@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "all_registers ?-clock clock_name? ?-rise_clock clock_name? ?-fall_clock clock_name? ?-cells? ?-data_pins? ?-clock_pins? ?-slave_clock_pins? ?-async_pins? ?-output_pins? ?-level_sensitive?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

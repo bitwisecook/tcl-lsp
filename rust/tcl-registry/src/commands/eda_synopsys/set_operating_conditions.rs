@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

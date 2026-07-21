@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_ports ?-regexp? ?-nocase? ?-filter expr? ?patterns?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

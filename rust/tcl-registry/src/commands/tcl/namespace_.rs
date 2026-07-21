@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "namespace subcommand ?arg ...?",
+    dialects: None,
 }];
 
 /// `namespace ensemble create`'s options — verified against this project's

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_parameter -name name -to instance value",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

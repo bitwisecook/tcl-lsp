@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_bd_cell -type ip -vlnv vlnv cell_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

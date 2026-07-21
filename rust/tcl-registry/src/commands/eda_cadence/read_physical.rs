@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "read_physical ?-lef file_list? ?-def file?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

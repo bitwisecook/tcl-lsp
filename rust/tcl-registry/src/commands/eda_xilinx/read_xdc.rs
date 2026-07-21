@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "read_xdc ?-unmanaged? ?-ref ref_name? ?-cells cell? file_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

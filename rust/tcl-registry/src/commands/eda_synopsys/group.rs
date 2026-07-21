@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "group ?-design_name name? ?-cell_name name? cell_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "make_connection -from source -to destination",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

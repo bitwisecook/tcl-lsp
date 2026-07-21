@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_net ?-nosplit? ?-connections? ?-verbose? ?net_list?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

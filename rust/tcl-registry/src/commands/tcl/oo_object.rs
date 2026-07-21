@@ -29,6 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "oo::object method ?arg ...?",
+    dialects: None,
 }];
 
 /// The universal object-method surface every `TclOO` object (class or

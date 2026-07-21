@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "tmsh::add_help <help_data>",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

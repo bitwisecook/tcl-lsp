@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACL::eval ('-l7')?",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

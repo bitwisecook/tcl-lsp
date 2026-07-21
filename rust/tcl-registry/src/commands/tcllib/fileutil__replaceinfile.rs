@@ -29,6 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "fileutil::replaceInFile ?options? file at n data",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

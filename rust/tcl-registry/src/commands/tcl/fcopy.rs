@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "fcopy inputChan outputChan ?-size size? ?-command callback?",
+    dialects: None,
 }];
 
 /// Command spec for `fcopy`.

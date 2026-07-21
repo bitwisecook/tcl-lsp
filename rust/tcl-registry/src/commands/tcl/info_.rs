@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "info option ?arg arg ...?",
+    dialects: None,
 }];
 
 /// A concise `SubSubCommand` — most `info object`/`info class` operations are

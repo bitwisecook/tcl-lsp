@@ -445,6 +445,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "menu pathName ?option value ...?",
+    dialects: None,
 }];
 
 /// `menu`'s instance command dispatches through the same subcommand

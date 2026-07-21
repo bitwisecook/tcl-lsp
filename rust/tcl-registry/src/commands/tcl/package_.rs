@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "package files package",
+    dialects: None,
 }];
 
 static SUBCOMMANDS: &[SubCommand] = &[

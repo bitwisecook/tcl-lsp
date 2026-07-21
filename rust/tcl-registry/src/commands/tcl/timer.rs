@@ -27,6 +27,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "timer subcommand ?arg ...?",
+    dialects: None,
 }];
 
 /// Unit spellings accepted by the `timer` subcommands.

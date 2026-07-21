@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "signal_force signal_name value ?time? ?-freeze | -drive | -deposit?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

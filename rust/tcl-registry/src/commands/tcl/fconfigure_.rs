@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "fconfigure channelId ?optionName? ?value ...?",
+    dialects: None,
 }];
 
 /// Command spec for `fconfigure`.

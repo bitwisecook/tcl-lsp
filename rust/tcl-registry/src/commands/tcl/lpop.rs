@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lpop varName ?index ...?",
+    dialects: None,
 }];
 
 /// Command spec for `lpop`.

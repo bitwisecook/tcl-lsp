@@ -48,6 +48,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "uuid::uuid subcommand ?args?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

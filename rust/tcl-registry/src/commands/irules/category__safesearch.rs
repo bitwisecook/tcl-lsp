@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "CATEGORY::safesearch URL ('-ip' IP)?",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

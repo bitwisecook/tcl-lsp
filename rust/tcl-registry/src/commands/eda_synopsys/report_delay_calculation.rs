@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_delay_calculation ?-from from_pin? ?-to to_pin?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

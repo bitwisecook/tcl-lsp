@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

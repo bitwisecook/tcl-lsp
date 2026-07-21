@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "fileevent channel readable ?script?",
+    dialects: None,
 }];
 
 /// Command spec for `fileevent`.

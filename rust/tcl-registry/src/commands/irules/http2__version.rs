@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTTP2::version",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Http2State,

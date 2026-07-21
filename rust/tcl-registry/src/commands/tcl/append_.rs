@@ -24,6 +24,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "append varName ?value value value ...?",
+    dialects: None,
 }];
 
 /// Command spec for `append`.

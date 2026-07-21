@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "delete_timing_netlist",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

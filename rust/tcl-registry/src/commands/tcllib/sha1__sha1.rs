@@ -29,6 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "sha1::sha1 ?options? ?--? string",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

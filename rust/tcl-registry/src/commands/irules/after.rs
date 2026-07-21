@@ -66,6 +66,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "after MILLI_SECONDS (-periodic)? (NESTING_SCRIPT)?",
+            dialects: None,
         }],
         options: const {
             &[

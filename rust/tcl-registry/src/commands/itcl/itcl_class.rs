@@ -30,6 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "itcl::class name { definition }",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

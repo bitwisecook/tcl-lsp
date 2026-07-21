@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_size_only object_list ?-all_instances?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

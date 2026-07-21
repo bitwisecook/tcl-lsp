@@ -37,6 +37,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::ephemeral-auth create ('-user' USER) ('-auth_cfg' AUTH_CONFIG)? ('-sid' SESSION_ID)?",
+            dialects: None,
         }],
         options: const {
             &[

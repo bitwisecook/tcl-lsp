@@ -24,6 +24,7 @@ use tcl_syntax::number::{Number, parse_whole};
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "string option arg ?arg ...?",
+    dialects: None,
 }];
 
 /// Compile-time folds for pure `string`

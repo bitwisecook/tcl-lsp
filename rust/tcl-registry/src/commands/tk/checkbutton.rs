@@ -328,6 +328,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "checkbutton pathName ?option value ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

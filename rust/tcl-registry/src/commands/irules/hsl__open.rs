@@ -38,6 +38,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HSL::open ('-publisher' | '-pub') PUBLISHER",
+            dialects: None,
         }],
         options: const {
             &[

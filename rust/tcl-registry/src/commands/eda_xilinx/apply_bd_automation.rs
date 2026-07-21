@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "apply_bd_automation -rule rule_name ?-config config?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

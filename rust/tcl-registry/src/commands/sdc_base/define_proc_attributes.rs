@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "define_proc_attributes proc_name ?-info string?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

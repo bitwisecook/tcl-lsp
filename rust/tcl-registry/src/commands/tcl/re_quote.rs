@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "re_quote STRING",
+    dialects: None,
 }];
 
 /// Command spec for Tcl `re_quote` (regex quoting helper).

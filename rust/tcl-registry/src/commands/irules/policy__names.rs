@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "POLICY::names (active | matched | unmatched)",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,

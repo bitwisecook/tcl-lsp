@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "gets channel ?varName?",
+    dialects: None,
 }];
 
 /// Command spec for `gets`.

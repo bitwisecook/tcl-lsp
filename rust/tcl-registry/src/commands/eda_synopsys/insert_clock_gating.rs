@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "insert_clock_gating ?-global?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

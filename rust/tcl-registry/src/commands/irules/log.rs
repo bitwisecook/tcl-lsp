@@ -38,6 +38,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "log ?-noname? ?facility.level? message",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

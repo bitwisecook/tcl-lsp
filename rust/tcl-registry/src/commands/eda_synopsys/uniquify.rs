@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "uniquify ?-force? ?-dont_skip_empty_designs?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "IPFIX::msg <subcommand> ?options? args...",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {

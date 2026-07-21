@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "run ?time_value? ?-all? ?-continue?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

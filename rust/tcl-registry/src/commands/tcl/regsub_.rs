@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "regsub ?switches? exp string subSpec ?varName?",
+    dialects: None,
 }];
 
 /// `regsub ?switches? exp string subSpec ?varName?` — after skipping leading

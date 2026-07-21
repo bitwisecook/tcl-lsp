@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "vdel ?-lib library? ?-all? ?design_unit?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

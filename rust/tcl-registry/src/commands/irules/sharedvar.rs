@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "sharedvar VARIABLE",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,

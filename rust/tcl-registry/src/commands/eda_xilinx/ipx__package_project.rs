@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "ipx::package_project ?-root_dir dir? ?-import_files? ?-force?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

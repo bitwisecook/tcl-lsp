@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "send ?options? ?--? connection data",
+            dialects: None,
         }],
         options: const {
             &[

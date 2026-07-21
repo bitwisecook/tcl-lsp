@@ -36,6 +36,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "DNSMSG::header DNS_MESSAGE ('rcode' | 'opcode' | 'id' | 'ra' | 'rd' | 'tc' | 'qr' | 'aa' | 'ad' | 'cd')",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,

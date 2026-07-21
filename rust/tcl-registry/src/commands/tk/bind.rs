@@ -46,6 +46,7 @@ fn bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "bind tag ?sequence? ?+??command?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

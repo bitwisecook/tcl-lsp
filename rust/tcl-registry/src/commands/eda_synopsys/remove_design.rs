@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "remove_design ?-all? ?-designs? ?design_list?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "place_design ?-directive directive? ?-no_timing_driven? ?-unplace?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

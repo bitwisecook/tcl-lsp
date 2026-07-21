@@ -88,6 +88,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "ttk::notebook pathName ?options?",
+    dialects: None,
 }];
 
 /// The command's subcommands.

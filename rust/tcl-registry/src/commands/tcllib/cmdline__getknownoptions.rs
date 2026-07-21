@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "cmdline::getKnownOptions argvVar optlist ?usage?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

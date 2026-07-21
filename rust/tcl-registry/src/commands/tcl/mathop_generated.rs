@@ -56,6 +56,9 @@ pub fn specs() -> Vec<CommandSpec> {
     out.extend(specs_14());
     out.extend(specs_15());
     out.extend(specs_16());
+    out.extend(specs_17());
+    out.extend(specs_18());
+    out.extend(specs_19());
     out
 }
 
@@ -77,6 +80,7 @@ fn specs_0() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "! ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -96,6 +100,7 @@ fn specs_0() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "!= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -115,6 +120,7 @@ fn specs_0() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "% ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -134,9 +140,15 @@ fn specs_0() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "& ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_1() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "&&",
             dialects: None,
@@ -153,14 +165,10 @@ fn specs_0() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "&& ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_1() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "*",
             dialects: None,
@@ -177,6 +185,7 @@ fn specs_1() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "* ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -196,6 +205,7 @@ fn specs_1() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "** ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -215,9 +225,15 @@ fn specs_1() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "+ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_2() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "-",
             dialects: None,
@@ -234,6 +250,7 @@ fn specs_1() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "- ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -253,14 +270,10 @@ fn specs_1() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "/ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_2() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "::tcl::build-info",
             dialects: None,
@@ -277,6 +290,7 @@ fn specs_2() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::build-info ?key?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -296,9 +310,15 @@ fn specs_2() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::! ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_3() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::!=",
             dialects: None,
@@ -315,6 +335,7 @@ fn specs_2() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::!= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -334,6 +355,7 @@ fn specs_2() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::% ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -353,14 +375,10 @@ fn specs_2() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::& ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_3() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "::tcl::mathop::&&",
             dialects: None,
@@ -377,9 +395,15 @@ fn specs_3() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::&& ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_4() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::*",
             dialects: None,
@@ -396,6 +420,7 @@ fn specs_3() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::* ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -415,6 +440,7 @@ fn specs_3() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::** ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -434,6 +460,7 @@ fn specs_3() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::+ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -453,13 +480,14 @@ fn specs_3() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::- ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
     ]
 }
 
-fn specs_4() -> Vec<CommandSpec> {
+fn specs_5() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "::tcl::mathop::/",
@@ -477,6 +505,7 @@ fn specs_4() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::/ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -496,6 +525,7 @@ fn specs_4() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::< ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -515,6 +545,7 @@ fn specs_4() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::<< ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -534,9 +565,15 @@ fn specs_4() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::<= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_6() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::==",
             dialects: None,
@@ -553,14 +590,10 @@ fn specs_4() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::== ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_5() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "::tcl::mathop::>",
             dialects: None,
@@ -577,6 +610,7 @@ fn specs_5() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::> ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -596,6 +630,7 @@ fn specs_5() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::>= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -615,9 +650,15 @@ fn specs_5() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::>> ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_7() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::@",
             dialects: None,
@@ -634,6 +675,7 @@ fn specs_5() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::@ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -653,14 +695,10 @@ fn specs_5() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::^ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_6() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "::tcl::mathop::eq",
             dialects: None,
@@ -677,6 +715,7 @@ fn specs_6() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::eq ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -696,9 +735,15 @@ fn specs_6() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::in ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_8() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::ne",
             dialects: None,
@@ -715,14 +760,10 @@ fn specs_6() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::ne ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_7() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "::tcl::mathop::ni",
             dialects: None,
@@ -739,6 +780,7 @@ fn specs_7() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::ni ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -758,6 +800,7 @@ fn specs_7() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::| ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -777,9 +820,15 @@ fn specs_7() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::|| ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_9() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "::tcl::mathop::~",
             dialects: None,
@@ -796,6 +845,7 @@ fn specs_7() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "::tcl::mathop::~ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -815,14 +865,10 @@ fn specs_7() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "< ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_8() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "<<",
             dialects: None,
@@ -839,6 +885,7 @@ fn specs_8() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "<< ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -858,9 +905,15 @@ fn specs_8() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "<= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_10() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "==",
             dialects: None,
@@ -877,6 +930,7 @@ fn specs_8() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "== ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -896,6 +950,7 @@ fn specs_8() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "> ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -915,14 +970,10 @@ fn specs_8() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: ">= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_9() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: ">>",
             dialects: None,
@@ -939,9 +990,15 @@ fn specs_9() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: ">> ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_11() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "@",
             dialects: None,
@@ -958,6 +1015,7 @@ fn specs_9() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "@ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -977,6 +1035,7 @@ fn specs_9() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "^ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -996,6 +1055,7 @@ fn specs_9() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "eq ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1015,13 +1075,14 @@ fn specs_9() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "in ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
     ]
 }
 
-fn specs_10() -> Vec<CommandSpec> {
+fn specs_12() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "ne",
@@ -1039,6 +1100,7 @@ fn specs_10() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "ne ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1058,6 +1120,7 @@ fn specs_10() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "ni ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1077,14 +1140,10 @@ fn specs_10() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::! ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_11() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "tcl::mathop::!=",
             dialects: None,
@@ -1101,9 +1160,15 @@ fn specs_11() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::!= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_13() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::%",
             dialects: None,
@@ -1120,6 +1185,7 @@ fn specs_11() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::% ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1139,6 +1205,7 @@ fn specs_11() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::& ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1158,6 +1225,7 @@ fn specs_11() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::&& ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1177,13 +1245,14 @@ fn specs_11() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::* ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
     ]
 }
 
-fn specs_12() -> Vec<CommandSpec> {
+fn specs_14() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "tcl::mathop::**",
@@ -1201,6 +1270,7 @@ fn specs_12() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::** ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1220,6 +1290,7 @@ fn specs_12() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::+ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1239,6 +1310,7 @@ fn specs_12() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::- ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1258,9 +1330,15 @@ fn specs_12() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::/ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_15() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::<",
             dialects: None,
@@ -1277,14 +1355,10 @@ fn specs_12() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::< ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_13() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "tcl::mathop::<<",
             dialects: None,
@@ -1301,6 +1375,7 @@ fn specs_13() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::<< ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1320,6 +1395,7 @@ fn specs_13() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::<= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1339,9 +1415,15 @@ fn specs_13() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::== ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_16() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::>",
             dialects: None,
@@ -1358,6 +1440,7 @@ fn specs_13() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::> ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1377,14 +1460,10 @@ fn specs_13() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::>= ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_14() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "tcl::mathop::>>",
             dialects: None,
@@ -1401,6 +1480,7 @@ fn specs_14() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::>> ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1420,9 +1500,15 @@ fn specs_14() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::@ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_17() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::^",
             dialects: None,
@@ -1439,6 +1525,7 @@ fn specs_14() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::^ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1458,6 +1545,7 @@ fn specs_14() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::eq ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1477,14 +1565,10 @@ fn specs_14() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::in ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_15() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "tcl::mathop::ne",
             dialects: None,
@@ -1501,9 +1585,15 @@ fn specs_15() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::ne ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_18() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "tcl::mathop::ni",
             dialects: None,
@@ -1520,6 +1610,7 @@ fn specs_15() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::ni ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1539,14 +1630,10 @@ fn specs_15() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::| ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
-    ]
-}
-
-fn specs_16() -> Vec<CommandSpec> {
-    vec![
         CommandSpec {
             name: "tcl::mathop::||",
             dialects: None,
@@ -1563,6 +1650,7 @@ fn specs_16() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::|| ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1582,9 +1670,15 @@ fn specs_16() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "tcl::mathop::~ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
+    ]
+}
+
+fn specs_19() -> Vec<CommandSpec> {
+    vec![
         CommandSpec {
             name: "|",
             dialects: None,
@@ -1601,6 +1695,7 @@ fn specs_16() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "| ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1620,6 +1715,7 @@ fn specs_16() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "|| ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },
@@ -1639,6 +1735,7 @@ fn specs_16() -> Vec<CommandSpec> {
             forms: &[FormSpec {
                 kind: FormKind::Default,
                 synopsis: "~ ?arg ...?",
+                dialects: None,
             }],
             ..CommandSpec::DEFAULT
         },

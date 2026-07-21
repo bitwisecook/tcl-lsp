@@ -72,10 +72,12 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::path ?-normalized?",
+                dialects: None,
             },
             FormSpec {
                 kind: FormKind::Setter,
                 synopsis: "HTTP::path <PATH_VALUE>",
+                dialects: None,
             },
         ],
         side_effects: &[SideEffect {

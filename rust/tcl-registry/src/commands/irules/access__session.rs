@@ -419,6 +419,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::session <subcommand> ?options? ?args?",
+            dialects: None,
         }],
         options: OPTIONS_5,
         subcommands: SUBCOMMANDS,

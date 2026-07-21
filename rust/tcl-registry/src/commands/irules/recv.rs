@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "recv ?options? ?numChars? connection ?varname?",
+            dialects: None,
         }],
         options: const {
             &[

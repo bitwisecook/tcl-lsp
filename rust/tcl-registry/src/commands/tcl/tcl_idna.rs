@@ -28,6 +28,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "tcl::idna subcommand ?arg ...?",
+    dialects: None,
 }];
 
 fn make_spec(name: &'static str) -> CommandSpec {

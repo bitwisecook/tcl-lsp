@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "file option name ?arg arg ...?",
+    dialects: None,
 }];
 
 static SUBCOMMANDS: &[SubCommand] = &[

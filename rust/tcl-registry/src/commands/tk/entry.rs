@@ -362,6 +362,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "entry pathName ?option value ...?",
+    dialects: None,
 }];
 
 /// `entry`'s instance command dispatches through the same subcommand

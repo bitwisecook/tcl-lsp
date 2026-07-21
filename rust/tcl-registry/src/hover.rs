@@ -616,6 +616,24 @@ pub struct FormSpec {
     pub kind: FormKind,
     /// Human-readable invocation signature.
     pub synopsis: &'static str,
+    /// Dialects in which this form applies, when narrower than the
+    /// command's own availability — e.g. `return`'s bare `"return"`
+    /// synopsis only documents an iRules event-body form, even though
+    /// `return` itself is universal Tcl (`CommandSpec::dialects: None`).
+    /// `None` = inherits the command's own dialect gating, so every form
+    /// declared before this field existed keeps its meaning unchanged.
+    /// Mirrors [`crate::forms::CommandForm::dialects`].
+    pub dialects: Option<DialectSet>,
+}
+
+impl FormSpec {
+    /// Baseline: [`FormKind::Default`], empty synopsis, no dialect
+    /// restriction — used with `..FormSpec::DEFAULT`.
+    pub const DEFAULT: Self = Self {
+        kind: FormKind::Default,
+        synopsis: "",
+        dialects: None,
+    };
 }
 
 #[cfg(test)]

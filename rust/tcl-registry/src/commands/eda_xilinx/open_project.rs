@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "open_project ?-read_only? ?-quiet? project_file",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

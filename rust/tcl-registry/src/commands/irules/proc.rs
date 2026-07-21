@@ -50,6 +50,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ProcDefinition,

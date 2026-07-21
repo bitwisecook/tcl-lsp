@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "source ?-encoding name? fileName",
+    dialects: None,
 }];
 
 /// Command spec for `source`.

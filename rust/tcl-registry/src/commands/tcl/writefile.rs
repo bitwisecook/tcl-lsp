@@ -23,6 +23,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "writeFile filename ?text|binary? contents",
+    dialects: None,
 }];
 
 /// Command spec for `writeFile`.

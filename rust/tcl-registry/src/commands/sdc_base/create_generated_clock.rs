@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_generated_clock ?-name name? -source master_pin ?-edges edge_list? ?-divide_by factor? ?-multiply_by factor? ?-duty_cycle percent? ?-invert? ?-add? source_objects",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

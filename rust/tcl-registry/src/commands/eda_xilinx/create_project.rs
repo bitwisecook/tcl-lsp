@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_project ?-force? ?-part part? ?-in_memory? project_name ?project_dir?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -38,6 +38,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lfilter varname list expression",
+    dialects: None,
 }];
 
 /// Dynamic arg role resolver: the last argument is the predicate body, like

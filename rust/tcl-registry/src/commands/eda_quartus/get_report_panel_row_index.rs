@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_report_panel_row_index -name panel_name row_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_timing_netlist ?-model model? ?-post_map | -post_fit?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

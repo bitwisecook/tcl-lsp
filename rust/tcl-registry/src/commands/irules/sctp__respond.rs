@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SCTP::respond (PAYLOAD_DATA (PAYLOAD_OFFSET)? (PAYLOAD_LENGTH)?)",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,

@@ -156,6 +156,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else? ?bodyN?",
+    dialects: None,
 }];
 
 /// Dynamic arg role resolver for `if`/`elseif`/`else` chains.

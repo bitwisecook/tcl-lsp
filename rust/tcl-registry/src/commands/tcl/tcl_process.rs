@@ -29,6 +29,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "tcl::process subcommand ?arg ...?",
+    dialects: None,
 }];
 
 fn make_spec(name: &'static str) -> CommandSpec {

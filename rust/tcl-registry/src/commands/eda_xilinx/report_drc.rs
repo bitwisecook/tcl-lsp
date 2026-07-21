@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_drc ?-ruledecks ruledeck_list? ?-file file? ?-name name?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

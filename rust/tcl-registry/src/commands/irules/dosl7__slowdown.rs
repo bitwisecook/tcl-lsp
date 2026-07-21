@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "DOSL7::slowdown RATE TIMEOUT",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Dosl7State,

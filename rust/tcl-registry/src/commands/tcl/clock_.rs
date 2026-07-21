@@ -22,6 +22,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "clock subcommand ?arg ...?",
+    dialects: None,
 }];
 
 /// Options for `clock scan` / `clock format` / `clock add`.

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "vcover ?merge | report | attr? ?-input file_list? ?-output file? ?-detail? ?-verbose?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

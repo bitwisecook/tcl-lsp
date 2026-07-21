@@ -31,6 +31,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lmap varname list body",
+    dialects: None,
 }];
 
 /// Dynamic arg role resolver: last argument is the body script.

@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "create_ip -name name -vendor vendor -library library -version version ?-module_name mod_name? ?-dir dir?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

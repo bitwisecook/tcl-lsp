@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "when {condition} {action} ?-label label?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
