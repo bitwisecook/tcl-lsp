@@ -351,6 +351,36 @@ fn references_object_variable_unify_across_methods() {
     );
 }
 
+/// idx 32 (differential-audit main audit wave, high severity): a `TclOO`
+/// class body with TWO separate `variable` statements (the real corpus
+/// shape — `georgtree_tclopt`'s `::tclopt::Mpfit` declares `variable funct
+/// m ftol ...` then, separately, `variable Pars`). The analyser's
+/// per-statement handler assigned `class_def.variables = sub_args.to_vec()`
+/// instead of accumulating, so the second statement silently discarded
+/// every name the first one declared — only the names in the LAST
+/// `variable` statement stayed resolvable, even though tclsh9.0 proves
+/// both statements' names are simultaneously live instance variables.
+#[test]
+fn references_reach_instance_variable_declared_in_a_non_last_variable_statement() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 1: variable funct (the FIRST, previously-discarded statement);
+    // line 2: variable Pars (the LAST, previously-surviving statement);
+    // line 3: `$funct`/`$Pars` both used in `run`.
+    let src = "oo::class create Mpfit {\n    variable funct\n    variable Pars\n    method run {} { return [list $Pars $funct] }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(3).unwrap().find("$funct").unwrap() as u32 + 1;
+    let lines = start_lines(&lsp.references(&uri, 3, col, true));
+    assert!(
+        lines.contains(&1),
+        "funct's own declaration (line 1) must resolve: {lines:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "the `$funct` use itself must unify: {lines:?}"
+    );
+}
+
 /// End-to-end (real server): a namespace variable's `variable` aliases across
 /// procs and its namespace-level declaration unify into one reference set.
 #[test]

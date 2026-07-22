@@ -1677,7 +1677,15 @@ fn apply_oo_subcommand(
             }
         }
         "variable" => {
-            class_def.variables = sub_args.to_vec();
+            // Additive, not a reset (tclsh9.0-verified: `oo::define Cls
+            // variable a b; oo::define Cls variable c` leaves all of `a`,
+            // `b`, `c` live simultaneously — the same "always present in
+            // every method" declaration `variable` inside a method body
+            // itself would make, just issued once for the whole class
+            // rather than per-call). A second `variable` statement in the
+            // same class body must not silently discard the names the
+            // first one declared (issue #923 idx 32, main audit wave).
+            class_def.variables.extend(sub_args.iter().cloned());
         }
         "filter" => {
             class_def.filters = sub_args.to_vec();
@@ -2112,6 +2120,34 @@ mod tests {
         let argv = [tok((0, 8)), tok((9, 10)), tok((11, 12))];
         apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.variables, vec!["x", "y"]);
+    }
+
+    #[test]
+    fn a_second_variable_subcommand_accumulates_rather_than_replacing() {
+        // TP — issue #923 idx 32 (main audit wave): the real corpus shape
+        // (georgtree_tclopt's ::tclopt::Mpfit) has TWO separate `variable`
+        // statements in the same class body (`variable funct m ftol ...`
+        // then, separately, `variable Pars`). tclsh9.0-verified: both
+        // statements' names are live, simultaneous instance variables —
+        // `variable` inside a class body is additive, never a reset (the
+        // same "always present in every method" declaration a `variable`
+        // command inside a method body itself would make, just issued
+        // once for the whole class). A second statement must not silently
+        // discard the first's names.
+        let mut cd = class();
+        apply_oo_subcommand(
+            tcloo(),
+            &["variable".to_string(), "funct".to_string(), "m".to_string()],
+            &[tok((0, 8)), tok((9, 14)), tok((15, 16))],
+            &mut cd,
+        );
+        apply_oo_subcommand(
+            tcloo(),
+            &["variable".to_string(), "Pars".to_string()],
+            &[tok((20, 28)), tok((29, 33))],
+            &mut cd,
+        );
+        assert_eq!(cd.variables, vec!["funct", "m", "Pars"]);
     }
 
     #[test]
