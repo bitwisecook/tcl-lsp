@@ -220,6 +220,26 @@ the same frame as its surroundings:
    `scan.visible` to reflect this with, so the fix checks the cursor's raw
    byte offset against the lambda's own body span directly before recursing.
 
+A subsequent self-review for the same bug class, prompted by the codex
+findings above, found a fifth instance the review itself hadn't flagged
+(likely out of its sampled scope, not a different root cause):
+
+5. **The iRules object-reference walker inherited the caller's `set`-bound
+   constants into the lambda frame.** `tcl-irules/src/walker.rs` tracks
+   `set var literal` bindings in a `BindingScope`, propagated into nested
+   bodies via `scope.child()` (a full clone) — correct for `if`/`foreach`/
+   `switch`, which share the enclosing frame, but the `apply` lambda
+   recursion used the identical `scope.child()`, so `set poolName /Common/x;
+   apply {{} { pool $poolName }}` resolved `$poolName` inside a *zero-param*
+   lambda from the enclosing binding, even though that variable is genuinely
+   undefined inside the lambda's fresh frame at runtime. A false positive
+   here means `bigip-cleanup` treats an actually-dead pool as still
+   referenced. Fixed with `lambda_frame_scope`: an empty `BindingScope`, with
+   only the lambda's own params bound from their actual arguments (resolved
+   against the *enclosing* scope via the same `resolve_arg_value` ordinary
+   references use) — mirrors the `param_traits.rs` fix in (4) exactly, one
+   layer down (constant propagation instead of trait inference).
+
 ## Failure modes
 
 - Tagging a lambda-literal-shaped argument `ArgRole::Body` instead of
@@ -297,7 +317,9 @@ the same frame as its surroundings:
   `eval_param_forwarded_into_apply_lambda_records_eval_trait`
 - `rust/tcl-irules/tests/script_bearing_args.rs` —
   `a_pool_used_only_inside_an_apply_lambda_body_is_referenced`,
-  `the_walker_descends_into_every_script_bearing_role`
+  `the_walker_descends_into_every_script_bearing_role`,
+  `apply_lambda_does_not_inherit_enclosing_set_bindings`,
+  `apply_lambda_param_resolves_via_forwarded_actual_argument`
 - `rust/tcl-lsp-server/tests/e2e/issue954_followup.rs` — full end-to-end
   coverage against the packaged native server
 - `editors/vscode/src/test/issue954Followup.test.ts` — VS Code semantic
