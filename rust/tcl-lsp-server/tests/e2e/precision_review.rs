@@ -58,7 +58,11 @@ fn message_of(d: &Value) -> String {
 // -- W123 / rename resolution ---------------------------------------------
 
 /// FP guard: `rename OLD NEW` binds NEW — calling the renamed name is not an
-/// unknown command.  TP control: the vacated OLD name still draws W128.
+/// unknown command. TP control: the vacated OLD name draws both W128 (the
+/// specific "renamed or deleted" hint) and W123 (the generic "unknown
+/// command" — issue #973: confirmed against tclsh 8.6.14 that `rename
+/// user_args ua2` really does make a later `user_args` call fail "invalid
+/// command name", the same as any other unresolved command).
 #[test]
 fn rename_target_is_known_and_old_name_flags_w128() {
     let mut lsp = Lsp::tcl();
@@ -67,13 +71,23 @@ fn rename_target_is_known_and_old_name_flags_w128() {
         &uri,
         "proc user_args {args} { puts [llength $args] }\nrename user_args ua2\nua2 1 2\nuser_args 9\n",
     );
+    // `ua2 1 2` is line 2 — the rename target must not draw W123 there.
     assert!(
-        !codes(&diags).iter().any(|c| c == "W123"),
+        !diags
+            .iter()
+            .any(|d| code_str(d) == "W123" && range_of(d).0 == 2),
         "the rename target must be a known command: {diags:?}"
     );
+    // `user_args 9` is line 3 — the vacated source name.
     assert!(
         codes(&diags).iter().any(|c| c == "W128"),
         "the vacated source name still draws W128: {diags:?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| code_str(d) == "W123" && range_of(d).0 == 3),
+        "the vacated source name now also draws W123 (issue #973): {diags:?}"
     );
 }
 
