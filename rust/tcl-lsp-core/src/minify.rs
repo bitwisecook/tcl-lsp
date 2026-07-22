@@ -92,6 +92,7 @@ use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::ir::Statement;
+use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr};
@@ -2425,6 +2426,7 @@ fn render_command(
     let post_refs: Vec<&str> = post.iter().map(String::as_str).collect();
 
     let body_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Body);
+    let lambda_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::LambdaLiteral);
     let expr_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Expr);
     let is_case_list = cmd_name == "switch" && is_switch_case_list_form(&post_refs);
 
@@ -2439,6 +2441,8 @@ fn render_command(
                 minify_body(inner, dialect, registry)
             };
             out.push(format!("{{{minified}}}"));
+        } else if lambda_indices.contains(&i) && single_braced {
+            out.push(minify_lambda_literal(sm, arg.tokens[0], dialect, registry));
         } else if expr_indices.contains(&i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
             out.push(format!("{{{}}}", compress_expr(inner, dialect, registry)));
@@ -2447,6 +2451,49 @@ fn render_command(
         }
     }
     out
+}
+
+/// Minify an `ArgRole::LambdaLiteral` argument (`apply`'s `{argList body
+/// ?ns?}` shape): only the body element is recursively minified as a
+/// script; the parameter list and optional namespace elements are copied
+/// through untouched (`ArgRole::ParamList` isn't itself minified anywhere in
+/// this file — issue #954 only needs the body reached correctly, not new
+/// parameter-list compaction). Re-segmenting the whole literal as a script
+/// (the pre-`LambdaLiteral`-role behaviour) misread the parameter word as a
+/// command name and never reached the real body at all.
+///
+/// Each element is decoded (backslash escapes collapsed for a bare/quoted
+/// element — [`split_lambda_literal_decoded`]) before use and re-quoted with
+/// [`tcl_syntax::list::list_element`] on reassembly, rather than pasted back
+/// as raw source spelling wrapped in a bare `{}`: a non-literal body's
+/// backslash escapes would otherwise survive into the "minified" text and
+/// change what it runs (codex review of #954's follow-up — `apply {{}
+/// puts\ hi}`'s real body is `puts hi`, not `puts\ hi`), and a multi-word
+/// parameter list (`apply {{x y} …}`) would otherwise lose the braces that
+/// group it into one list element.
+fn minify_lambda_literal(
+    sm: &SourceMap,
+    tok: Token,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> String {
+    let source = sm.source();
+    let fallback = || format!("{{{}}}", sm.token_text(tok));
+    let Some(elems) = split_lambda_literal_decoded(source, tok) else {
+        return fallback();
+    };
+    let Some(body) = elems.body.as_deref() else {
+        return fallback();
+    };
+    let minified_body = minify_body(body, dialect, registry);
+    let mut parts = vec![
+        tcl_syntax::list::list_element(&elems.params),
+        tcl_syntax::list::list_element(&minified_body),
+    ];
+    if let Some(ns) = elems.namespace.as_deref() {
+        parts.push(tcl_syntax::list::list_element(ns));
+    }
+    format!("{{{}}}", parts.join(" "))
 }
 
 /// Registry role indices, offset by 1 for the command-name slot.
@@ -3570,5 +3617,41 @@ mod tests {
     #[test]
     fn empty_source_minifies_to_empty() {
         check("\n\n# only a comment\n", "");
+    }
+
+    /// Issue #954: `apply`'s lambda-literal argument (`ArgRole::LambdaLiteral`,
+    /// not `Body`) must have its real body element minified — not the whole
+    /// `{argList} {body}` blob re-segmented as one script (which misreads
+    /// the parameter word as a command name and never reaches the real
+    /// body, leaving comments / extra whitespace inside it untouched). The
+    /// parameter-list element itself stays verbatim, matching how a plain
+    /// `proc` parameter list is never specially minified either.
+    #[test]
+    fn apply_lambda_body_minifies() {
+        check(
+            "apply {dir {\n    # a comment\n    puts    $dir\n}} /tmp\n",
+            "apply {dir {puts $dir}} /tmp",
+        );
+    }
+
+    /// Codex review of #954's follow-up: a bare body element's backslash
+    /// escape must be decoded before minification, not pasted through raw —
+    /// `puts\ hi`'s real runtime body is the two-word command `puts hi`, and
+    /// the minified output must preserve that (not keep the backslash, which
+    /// would change what `apply` actually runs).
+    #[test]
+    fn apply_lambda_body_with_backslash_escape_decodes() {
+        check(r"apply {{} puts\ hi}", "apply {{} {puts hi}}");
+    }
+
+    /// A multi-word parameter list is itself a *nested* list element
+    /// (`{x y}`) — reassembling it without its own braces would collapse it
+    /// into separate top-level elements and corrupt the lambda's arity.
+    #[test]
+    fn apply_lambda_multi_word_param_list_keeps_its_braces() {
+        check(
+            "apply {{x y} {\n    return [expr {$x + $y}]\n}} 1 2",
+            "apply {{x y} {return [expr {$x+$y}]}} 1 2",
+        );
     }
 }

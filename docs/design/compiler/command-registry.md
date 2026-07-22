@@ -325,6 +325,18 @@ invocation falls outside bounds.  Each `SubCommand` has its own arity.
 | `OPTION_TERMINATOR` | The `--` terminator |
 | `CHANNEL` | Channel identifier |
 | `INDEX` | List/string index expression |
+| `COMMAND_PREFIX` | A callback command reference (`lsort -command cb`) whose first word is invoked at runtime with further arguments appended; recognises a literal bareword, a braced `{cmd extra}` multi-word prefix, and a `[list cmd extra]`-quoted prefix (gated on the `BUILDS_COMMAND_PREFIX` trait, below) -- distinct from `BODY` since the word is a reference, not code |
+| `LAMBDA_LITERAL` | A `{argList body ?namespace?}` anonymous-lambda literal (`apply`'s argument shape) -- a *list*, not a script directly; element 0 is a parameter list, element 1 is the body to recurse into |
+
+`Traits.BUILDS_COMMAND_PREFIX` (set on `list` only, not `concat`) marks a
+command whose result, when its own first argument is a literal command name,
+is a valid command reference the remaining arguments append to -- the
+`[list cmd extra]` idiom for building a callback or deferred command around a
+dynamic value (`-command [list doSomething $x]`,
+`package ifneeded name ver [list apply {argList body} $dir]`). Consulted
+generically wherever a `COMMAND_PREFIX`/`BODY`/`LAMBDA_LITERAL` argument
+position needs to see through the quoting -- never by comparing a command
+head to the literal string `"list"`.
 
 ### Resolution priority
 

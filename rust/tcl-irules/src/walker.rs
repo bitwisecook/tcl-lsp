@@ -25,6 +25,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_compiler::lambda_literal::{LambdaLiteralElements, split_lambda_literal};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::LexerConfig;
 use tcl_lexer::{Span, Token, TokenType};
@@ -180,6 +181,44 @@ fn walk(
             }
         }
 
+        // `apply {argList body ?ns?} …` (and any future command sharing the
+        // shape) — recurse into the real body *element*, not the whole
+        // lambda literal (issue #954): re-segmenting the whole `{argList}
+        // {body}` blob as a script previously misread the parameter word as
+        // a command name, so an object referenced only inside an apply
+        // lambda body embedded in an iRule event handler was invisible to
+        // this walker — and thus, per `bigip-cleanup`, looked unreferenced.
+        //
+        // Unlike an `if`/`foreach`/`switch` body (which shares the enclosing
+        // frame — `scope.child()` is correct there), an `apply` body runs in
+        // a *fresh* call frame: it does not inherit the caller's `set`-bound
+        // constants, only whatever its own actual arguments bind to its own
+        // params (`lambda_frame_scope` builds exactly that).
+        for lambda_idx in registry.arg_indices_for_role(cmd.name(), &args, ArgRole::LambdaLiteral) {
+            let word_index = lambda_idx + 1;
+            if let Some(tok) = cmd.argv.get(word_index)
+                && matches!(tok.kind, TokenType::Str)
+                && let Some(elems) = split_lambda_literal(full, *tok)
+                && let Some(body_span) = elems.body
+            {
+                let (bstart, bend) = (body_span.start() as usize, body_span.end() as usize);
+                if let Some(inner) = full.get(bstart..bend)
+                    && !inner.trim().is_empty()
+                {
+                    let mut child = lambda_frame_scope(full, &cmd, lambda_idx, elems, scope);
+                    walk(
+                        full,
+                        inner,
+                        body_span.start(),
+                        rule_module,
+                        registry,
+                        &mut child,
+                        out,
+                    );
+                }
+            }
+        }
+
         // A clause-list word (`switch … {pat body …}`) is **not** an
         // `ArgRole::Body`, so the recursion above never reached inside it: an
         // object referenced only from a `switch` arm — `switch [HTTP::uri] {
@@ -213,6 +252,41 @@ fn walk(
             recurse_token(full, tok, rule_module, registry, &mut child, out);
         }
     }
+}
+
+/// Build the fresh binding scope an `apply` lambda body runs in: empty
+/// (unlike `scope.child()`'s full clone, this inherits none of the
+/// enclosing frame's `set`-bound constants), with the lambda's own params
+/// bound to whatever their corresponding actual argument resolves to.
+///
+/// Inheriting the full scope would let an unrelated enclosing binding that
+/// happens to share a lambda-local variable's name (or, in the case of a
+/// zero-param lambda, *any* enclosing binding at all) misattribute an
+/// object reference to the wrong constant — a lambda body does not close
+/// over the caller's locals. `lambda_idx` is the lambda-literal argument's
+/// own 0-based (head-excluded) index in `cmd`, so its actual arguments run
+/// from `lambda_idx + 1`; each is resolved via the same literal /
+/// `$var`-propagation [`resolve_arg_value`] already uses for ordinary
+/// references, against the *enclosing* `scope`.
+fn lambda_frame_scope(
+    full: &str,
+    cmd: &SegmentedCommand,
+    lambda_idx: usize,
+    elems: LambdaLiteralElements,
+    scope: &BindingScope,
+) -> BindingScope {
+    let mut child = BindingScope::default();
+    let Some(params_text) = full.get(elems.params.start() as usize..elems.params.end() as usize)
+    else {
+        return child;
+    };
+    let lambda_params = tcl_compiler::signature_scan::params::parse_param_list(params_text);
+    for (k, param) in lambda_params.iter().enumerate() {
+        if let Some((value, _span)) = resolve_arg_value(full, cmd, lambda_idx + 1 + k, scope) {
+            child.set_const(&param.name, value);
+        }
+    }
+    child
 }
 
 /// The clause-list word of `cmd` (`switch … {pat body …}`), per the registry's

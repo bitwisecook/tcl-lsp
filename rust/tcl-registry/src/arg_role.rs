@@ -110,6 +110,27 @@ pub enum ArgRole {
     /// (issue #945 fault 9: reference identity and existence assertion are
     /// orthogonal, and a probe asserts nothing).
     CommandNameProbe,
+    /// An anonymous-lambda **literal** — Tcl's `apply` argument shape, a
+    /// `{argList body ?namespace?}` list rather than a plain script.
+    ///
+    /// Distinct from [`Self::Body`]: a `Body`-role argument *is* the script
+    /// directly, walked by re-segmenting its own text. A `LambdaLiteral`
+    /// argument is one level removed — it is a 2- or 3-element Tcl **list**
+    /// whose element 0 is a parameter list ([`Self::ParamList`] shape, not
+    /// code) and element 1 is the actual body script; an optional element 2
+    /// names the namespace the body runs in. A consumer that recurses
+    /// [`Self::Body`] arguments directly would mis-segment the whole
+    /// `{argList} {body}` pair as if it were script source. Every command
+    /// declaring this role is dispatched identically by
+    /// [`Self::carries_script`] callers: split the list, walk element 0 as a
+    /// parameter list and element 1 as a body, leave the rest verbatim.
+    ///
+    /// `apply` is the only built-in with this shape today, but the role is
+    /// named for the *shape*, not the command — a future command sharing it
+    /// (or `apply` reached indirectly, e.g. quoted through `[list apply
+    /// {…} $x]`) is recognised the same way, with no command-name check in
+    /// the consumer.
+    LambdaLiteral,
 }
 
 impl ArgRole {
@@ -134,6 +155,7 @@ impl ArgRole {
         Self::CommandPrefix,
         Self::CommandName,
         Self::CommandNameProbe,
+        Self::LambdaLiteral,
     ];
 
     /// Whether an argument in this role carries **executable Tcl** that a
@@ -163,7 +185,7 @@ impl ArgRole {
     #[must_use]
     pub const fn carries_script(self) -> bool {
         match self {
-            Self::Body | Self::Expr => true,
+            Self::Body | Self::Expr | Self::LambdaLiteral => true,
             Self::CommandPrefix
             | Self::CommandName
             | Self::CommandNameProbe

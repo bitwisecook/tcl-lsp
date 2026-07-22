@@ -40,7 +40,14 @@ pub fn spec() -> CommandSpec {
         // Added in Tcl 8.5 (TIP 194).
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
-        arg_roles: &[(0, ArgRole::Body)],
+        // The lambda literal is a `{argList body ?ns?}` list, not a plain
+        // script — `ArgRole::LambdaLiteral` (not `Body`) says so, so generic
+        // Body-role walkers (SSA's caller-scope scan, the semantic-token
+        // highlighter's default body recursion) never try to re-segment the
+        // list itself as script source. The real body (element 1) is walked
+        // by the dedicated `LoweringHookId::Apply` / `AnalyserHookId::Apply`
+        // hooks below, which already split the list correctly.
+        arg_roles: &[(0, ArgRole::LambdaLiteral)],
         lowering_hook: Some(crate::hooks::LoweringHookId::Apply),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

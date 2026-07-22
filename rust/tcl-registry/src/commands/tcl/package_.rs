@@ -50,6 +50,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set up or query the package ifneeded script.",
         synopsis: "package ifneeded package version ?script?",
         return_type: Some(TclType::String),
+        // The optional script (index 2 after `ifneeded`) is stored and run
+        // later — `uplevel #0 $script` inside `package require`, in the
+        // *global* namespace, never the definer's frame — so it is a
+        // structural body like `bind`'s/`after`'s deferred scripts, not a
+        // caller-frame one: `body_kind: Structural` keeps SSA from scanning
+        // it as part of the enclosing `package ifneeded` call's own scope.
+        arg_roles: &[(2, ArgRole::Body)],
+        body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },
     SubCommand {
