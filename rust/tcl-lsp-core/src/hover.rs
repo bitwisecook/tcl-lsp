@@ -208,30 +208,30 @@ fn proc_hover_at(
     Some(Hover::markdown(proc_hover_text(proc_def)))
 }
 
-/// [`hover`] resolving prefix-abbreviated subcommands and option / special-
-/// variable availability against a specific dialect profile, so e.g.
-/// `info class def` hovers `definition` under 8.6 but nothing (ambiguous
-/// with `definitionnamespace`) under 9.0.
-pub fn hover_with_profile(
+/// Variable hover at the cursor: a `$`-prefixed read first (surfacing the
+/// [`VarDef`] — or, absent a user definition, a dialect-aware
+/// interpreter-provided special variable's documentation), then a
+/// bareword *declaration* / same-cell write site (a `set x`/`variable x`
+/// target, a proc/method parameter, a `catch` result-var) via
+/// [`crate::definition::var_def_at_declaration_offset`] — see that
+/// function's own doc for why it can't reuse the ordinary scope-chain walk
+/// (issue #923 differential-audit finding idx 9, main audit wave).
+/// Extracted from [`hover_with_profile`] to keep it within the line budget.
+fn variable_hover(
     source: &str,
     line: u32,
     character: u32,
+    line_index: &tcl_lexer::LineIndex,
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
+    dialect: tcl_dialect::DialectSet,
 ) -> Option<Hover> {
-    let dialect = profile.availability_mask;
-    // One index shared by the position conversions below.
-    let line_index = tcl_lexer::LineIndex::new(source);
-
-    // Variable hover takes precedence — `$var` resolution sits
-    // at a position where `find_word_span_at_position` would
-    // also match the unqualified name, but a `$`-led ref should
-    // surface the [`VarDef`] not the (typically absent) proc of
-    // the same name.
+    // `$var` resolution sits at a position where `find_word_span_at_position`
+    // would also match the unqualified name, but a `$`-led ref should
+    // surface the `VarDef` not the (typically absent) proc of the same name.
     if let Some(var_name) = find_var_at_position(source, line, character) {
         let var_byte_offset =
-            crate::definition::byte_offset_at(&line_index, source, line, character);
+            crate::definition::byte_offset_at(line_index, source, line, character);
         // Use the byte-offset scope-chain lookup (the local line-based helper
         // mis-resolves namespace/proc-scoped vars).
         if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
@@ -262,6 +262,47 @@ pub fn hover_with_profile(
         {
             return Some(Hover::markdown(special_var_hover_text(spec, dialect)));
         }
+        return None;
+    }
+
+    let decl_byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let var_def =
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
+    let (type_info, taint_info) =
+        var_type_annotations(source, line, character, &var_def.name, registry);
+    Some(Hover::markdown(var_hover_text(
+        var_def,
+        type_info.as_deref(),
+        taint_info.as_deref(),
+    )))
+}
+
+/// [`hover`] resolving prefix-abbreviated subcommands and option / special-
+/// variable availability against a specific dialect profile, so e.g.
+/// `info class def` hovers `definition` under 8.6 but nothing (ambiguous
+/// with `definitionnamespace`) under 9.0.
+pub fn hover_with_profile(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Hover> {
+    let dialect = profile.availability_mask;
+    // One index shared by the position conversions below.
+    let line_index = tcl_lexer::LineIndex::new(source);
+
+    if let Some(hover) = variable_hover(
+        source,
+        line,
+        character,
+        &line_index,
+        analysis,
+        registry,
+        dialect,
+    ) {
+        return Some(hover);
     }
 
     // Format-string hover: when the cursor
@@ -3169,6 +3210,31 @@ mod tests {
             assert!(h.value.contains("Variable"), "{}", h.value);
             assert!(h.value.contains("`x`"), "{}", h.value);
         }
+    }
+
+    #[test]
+    fn hover_on_proc_param_bareword_declaration_resolves() {
+        // TP — differential-audit finding idx 9 (main audit wave): a cursor
+        // on a proc parameter's own bareword name (not a `$`-prefixed
+        // read) previously returned no hover at all, even though the same
+        // variable's `$name` reads hovered fine.
+        let src = "proc greet {name} { return $name }\n";
+        let analysis = analyse(src);
+        // Cursor on `name` inside the parameter list (col 12-16).
+        let h = hover(src, 0, 13, &analysis, None).expect("hover");
+        assert!(h.value.contains("**Variable** `name`"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_on_catch_resultvar_bareword_resolves() {
+        // TP — the finding's other confirmed shape: a `catch script name`
+        // result-var reuses an existing variable; its own bareword token
+        // must still hover, surfacing the same variable.
+        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        let h = hover(src, 1, 17, &analysis, None).expect("hover");
+        assert!(h.value.contains("**Variable** `name`"), "{}", h.value);
     }
 
     #[test]

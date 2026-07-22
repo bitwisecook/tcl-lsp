@@ -125,6 +125,7 @@ mod parray;
 mod pid;
 mod pkg__create;
 mod pkg_mkindex;
+mod prefix_;
 mod proc_;
 mod puts_;
 mod pwd;
@@ -324,6 +325,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         package_::spec(),
         parray::spec(),
         pid::spec(),
+        prefix_::spec(),
         proc_::spec(),
         puts_::spec(),
         re_quote::spec(),

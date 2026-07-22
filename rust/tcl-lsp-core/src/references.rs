@@ -422,14 +422,24 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
-    let var_name = find_var_at_position(source, line, character)?;
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    let var_def = crate::definition::lookup_var_in_scope_chain(
-        &analysis.global_scope,
-        byte_offset,
-        &var_name,
-        analysis.ns_var_global_fallback(),
-    )?;
+    let var_def = if let Some(var_name) = find_var_at_position(source, line, character) {
+        crate::definition::lookup_var_in_scope_chain(
+            &analysis.global_scope,
+            byte_offset,
+            &var_name,
+            analysis.ns_var_global_fallback(),
+        )?
+    } else {
+        // Bareword declaration / same-cell write site (a `set x`/
+        // `variable x` target, a proc/method parameter, a `catch`
+        // result-var), not a `$`-prefixed read. See
+        // `var_def_at_declaration_offset`'s own doc for why this needs a
+        // dedicated byte-offset span search rather than the ordinary
+        // scope-chain walk (issue #923 differential-audit finding idx 9,
+        // main audit wave).
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, byte_offset)?
+    };
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, var_def.definition_span));
@@ -2507,6 +2517,42 @@ mod tests {
         // declaration should land in the result list.
         assert!(!refs.is_empty(), "{refs:?}");
         assert!(refs.iter().any(|r| r.start_line == 0));
+    }
+
+    #[test]
+    fn references_from_proc_param_bareword_declaration_include_every_use() {
+        // TP — differential-audit finding idx 9 (main audit wave): a cursor
+        // on a proc parameter's own bareword name (not a `$`-prefixed
+        // read) previously returned zero references, even though the same
+        // query from any `$name` read resolved the full set.
+        let src = "proc greet {name} { return $name }\ngreet hi\n";
+        let analysis = analyse(src);
+        // Cursor on `name` inside the parameter list (col 12-16).
+        let refs = references(src, "tcl", 0, 13, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&0) && refs.len() >= 2,
+            "read missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_from_catch_resultvar_bareword_include_the_original_declaration() {
+        // TP — the finding's other confirmed shape: a `catch script name`
+        // result-var reuses an existing variable; a cursor placed on its
+        // own bareword token must still surface the full reference set,
+        // including the original declaration.
+        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        let refs = references(src, "tcl", 1, 17, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "original decl missing: {refs:?}");
+        assert!(
+            lines.contains(&2),
+            "the later `$name` read missing: {refs:?}"
+        );
     }
 
     // read/write distinction

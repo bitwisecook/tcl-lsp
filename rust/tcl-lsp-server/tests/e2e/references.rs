@@ -61,6 +61,37 @@ fn find_indented_proc_call() {
     assert!(start_lines(&lsp.references(&uri, 0, 6, true)).contains(&1));
 }
 
+/// idx=9 (differential-audit main wave, high severity): a cursor placed
+/// directly on a variable's own bareword declaration/write token (a proc
+/// parameter, or a `catch script name` result-var reusing an existing
+/// variable) previously returned zero references, even though the same
+/// query from any `$name` read of the same variable resolved the full set.
+#[test]
+fn find_references_from_proc_param_bareword_declaration() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc greet {name} { return $name }\ngreet hi\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on `name` inside the parameter list, col 12-16.
+    let lines = start_lines(&lsp.references(&uri, 0, 13, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+}
+
+#[test]
+fn find_references_from_catch_resultvar_bareword_include_the_original_declaration() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the catch result-var `name`, line 1 col 16-20.
+    let lines = start_lines(&lsp.references(&uri, 1, 17, true));
+    assert!(lines.contains(&0), "original decl missing: {lines:?}");
+    assert!(
+        lines.contains(&2),
+        "the later $name read missing: {lines:?}"
+    );
+}
+
 #[test]
 fn find_qualified_proc_call_sites() {
     let mut lsp = Lsp::tcl();

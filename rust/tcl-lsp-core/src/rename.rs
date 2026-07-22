@@ -203,17 +203,14 @@ pub fn prepare_rename(
             });
         }
     }
-    // Variable definition site (`set x` / `variable x`) — no `$`, so resolve
-    // by the declaration span covering the cursor.
+    // Variable definition / same-cell write site (`set x` / `variable x` /
+    // a proc-param / a `catch` result-var) — no `$`, so resolve directly
+    // via `var_def_at_declaration_offset`'s byte-offset span search (see
+    // its own doc for why the ordinary scope-chain walk can't reach a
+    // parameter's own declaring token).
     let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(var_name) =
-        crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
-        && let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
-            &analysis.global_scope,
-            def_byte,
-            &var_name,
-            analysis.ns_var_global_fallback(),
-        )
+    if let Some(var_def) =
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)
     {
         return Some(PrepareRename {
             range: span_to_range(source, &line_index, var_def.definition_span),
@@ -320,12 +317,15 @@ pub fn rename(
         );
     }
 
-    // Definition-site rename: the cursor sits on a `set x` / `variable x`
-    // declaration name (no `$`), so the `$ref` scan above missed it.  Resolve
-    // the variable by the declaration span that covers the cursor.
+    // Definition / same-cell write site: the cursor sits on a `set x` /
+    // `variable x` declaration, a proc/method parameter, or a `catch`
+    // result-var (no `$`), so the `$ref` scan above missed it. Resolve via
+    // `var_def_at_declaration_offset`'s byte-offset span search (see its
+    // own doc for why the ordinary scope-chain walk can't reach a
+    // parameter's own declaring token).
     let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(var_name) =
-        crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
+    if let Some(var_def) =
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)
     {
         return rename_var(
             source,
@@ -334,7 +334,7 @@ pub fn rename(
             new_name,
             analysis,
             &line_index,
-            &var_name,
+            &var_def.name,
         );
     }
 
@@ -692,12 +692,22 @@ fn rename_var(
     var_name: &str,
 ) -> Vec<TextEdit> {
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    // The ordinary scope-chain lookup resolves a `$ref` cursor (and a
+    // definition-site cursor that happens to sit inside its own scope's
+    // body span); a proc/method parameter's own declaring token sits
+    // *before* its scope's body span even starts, so fall back to the
+    // byte-offset span search there (see `var_def_at_declaration_offset`'s
+    // own doc).
     let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
         &analysis.global_scope,
         byte_offset,
         var_name,
         analysis.ns_var_global_fallback(),
-    ) else {
+    )
+    .or_else(|| {
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, byte_offset)
+            .filter(|v| v.name == var_name)
+    }) else {
         return Vec::new();
     };
     // Collision gate: refuse when `new_name` already resolves to a *different*
@@ -1372,6 +1382,58 @@ mod tests {
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(texts.contains(&"y"), "{texts:?}");
         assert!(texts.contains(&"$y"), "{texts:?}");
+    }
+
+    #[test]
+    fn rename_from_proc_param_bareword_declaration_rewrites_every_use() {
+        // TP — differential-audit finding idx 9 (main audit wave): renaming
+        // from a cursor placed directly on a proc parameter's own bareword
+        // name (not a `$`-prefixed read) previously produced *zero* edits
+        // — an LSP that silently no-ops a rename request is worse than one
+        // that fails loudly, since the user has no signal anything went
+        // wrong. Both the parameter's own declaration and its `$name` read
+        // must be rewritten.
+        let src = "proc greet {name} { return $name }\n";
+        let analysis = analyse(src);
+        // Cursor on `name` inside the parameter list (col 12-16).
+        let edits = rename(src, "tcl", 0, 13, "label", &analysis, None);
+        assert_eq!(edits.len(), 2, "{edits:?}");
+        // The declaration rewrites bare `name` -> `label`; the `$name` read
+        // preserves its `$` prefix -> `$label` (mirrors
+        // `rename_var_includes_decl_span`'s established convention).
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(texts.contains(&"label"), "{texts:?}");
+        assert!(texts.contains(&"$label"), "{texts:?}");
+        assert!(edits.iter().any(|e| e.range.start_line == 0), "{edits:?}");
+    }
+
+    #[test]
+    fn rename_from_catch_resultvar_bareword_rewrites_the_original_declaration_too() {
+        // TP — the finding's other confirmed shape: a `catch script name`
+        // result-var reuses an existing variable; renaming from a cursor
+        // on its own bareword token must rewrite every occurrence,
+        // including the original declaration elsewhere in the proc.
+        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        let edits = rename(src, "tcl", 1, 17, "resolved", &analysis, None);
+        assert!(
+            edits.iter().any(|e| e.range.start_line == 0),
+            "original param declaration must be rewritten too: {edits:?}"
+        );
+        assert!(
+            edits.iter().any(|e| e.range.start_line == 1),
+            "the catch result-var site itself must be rewritten: {edits:?}"
+        );
+        assert!(
+            edits.iter().any(|e| e.range.start_line == 2),
+            "the later $name read must be rewritten: {edits:?}"
+        );
+        // The bareword sites (decl + catch result-var) rewrite to plain
+        // `resolved`; the `$name` read preserves its `$` prefix.
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(texts.contains(&"resolved"), "{texts:?}");
+        assert!(texts.contains(&"$resolved"), "{texts:?}");
     }
 
     // brace-ref escaping

@@ -163,6 +163,17 @@ pub fn definition(
         return Vec::new();
     }
 
+    // 1b. Variable *declaration* / same-cell write site — the cursor sits
+    //     on a plain name token (a `set x`/`variable x` target, a
+    //     proc/method parameter, a `catch` result-var), not a
+    //     `$`-prefixed read. See `var_def_at_declaration_offset`'s own doc
+    //     for why this can't reuse the ordinary scope-chain walk (issue
+    //     #923 differential-audit finding idx 9, main audit wave).
+    let decl_byte_offset = byte_offset_at(&line_index, source, line, character);
+    if let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset) {
+        return vec![span_to_range(source, &line_index, var_def.definition_span)];
+    }
+
     // 2. Bare word — proc, class, class-member, or alias.
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
@@ -1165,26 +1176,41 @@ fn collect_shared_span_refs(
     }
 }
 
-/// Resolve the *name* of a variable whose declaration occupies
-/// `byte_offset` — i.e. the cursor sits on the name token of a
-/// `set` / `variable` / `global` / param declaration rather than
-/// a `$ref`.  Walks the scope chain innermost-first and returns
-/// the first variable whose `definition_span` covers the offset.
-/// Lets the variable-rename / reference paths work from the
-/// definition site, not just `$var` use sites.
-pub(crate) fn var_name_at_definition_offset(
+/// Resolve the [`VarDef`](tcl_compiler::analyser::VarDef) whose declaration
+/// or a later same-cell bareword occupies `byte_offset` — i.e. the cursor
+/// sits on a plain name token (a `set` / `variable` / `global` / proc- or
+/// method-parameter declaration, or a later bareword write to that same
+/// variable such as a `catch script name` result-var) rather than a `$ref`.
+///
+/// Deliberately does **not** route through [`scope_chain_at`]'s lexical
+/// containment walk: a proc/method parameter's own name token sits in the
+/// parameter list, textually *before* that scope's `body_span` even
+/// starts, so a scope-chain lookup keyed on `byte_offset` never reaches
+/// the scope that owns it (issue #923 differential-audit finding idx 9,
+/// main audit wave — go-to-definition/hover/find-references all returned
+/// nothing for a cursor placed directly on a parameter's or a `catch`
+/// result-var's own declaring token, even though every `$name` read of the
+/// same variable resolved correctly). Instead this walks every scope in
+/// the whole tree unconditionally, checking each `VarDef`'s own
+/// `definition_span` and every span in `references` for byte-offset
+/// containment. This is safe without any scope-visibility filtering: a
+/// byte-offset span match is unambiguous by construction (no two distinct
+/// declaration/write occurrences in a file share a byte range), unlike a
+/// *name*-based lookup which would need scope-aware disambiguation.
+pub(crate) fn var_def_at_declaration_offset(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
-) -> Option<String> {
-    for sc in scope_chain_at(scope, byte_offset).iter().rev() {
-        for v in sc.variables.values() {
-            let span = v.definition_span;
-            if span.start() <= byte_offset && byte_offset < span.end() {
-                return Some(v.name.clone());
-            }
+) -> Option<&tcl_compiler::analyser::VarDef> {
+    let contains = |span: tcl_lexer::Span| span.start() <= byte_offset && byte_offset < span.end();
+    for v in scope.variables.values() {
+        if contains(v.definition_span) || v.references.iter().any(|&r| contains(r)) {
+            return Some(v);
         }
     }
-    None
+    scope
+        .children
+        .iter()
+        .find_map(|child| var_def_at_declaration_offset(child, byte_offset))
 }
 
 /// Collect every variable name visible at `byte_offset` — the union
@@ -2107,6 +2133,60 @@ mod tests {
         let locs = definition(src, 1, 8, &analysis);
         assert_eq!(locs.len(), 1);
         assert_eq!(locs[0].start_line, 0, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn jump_to_proc_param_bareword_declaration_resolves_to_itself() {
+        // TP — differential-audit finding idx 9 (main audit wave): a cursor
+        // placed directly on a proc parameter's own bareword name (not a
+        // `$`-prefixed read) previously resolved to nothing at all, even
+        // though every `$name` read of the same parameter resolved fine —
+        // `scope_chain_at` never reaches the proc's own scope for a byte
+        // offset inside the parameter list, which sits textually *before*
+        // that scope's `body_span` even starts.
+        let src = "proc greet {name} { return $name }\n";
+        let analysis = analyse(src);
+        // Cursor on `name` inside the parameter list (col 12-16).
+        let locs = definition(src, 0, 13, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{:?}", locs[0]);
+        assert_eq!(locs[0].start_character, 12, "{:?}", locs[0]);
+        assert_eq!(locs[0].end_character, 16, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn jump_to_catch_resultvar_bareword_resolves_to_the_reused_variable() {
+        // TP — the finding's other confirmed shape: `catch script name`
+        // reuses (writes back into) an *existing* variable — its own
+        // bareword token is recorded in `VarDef.references`, not
+        // `definition_span` (that stays pinned to the variable's original
+        // declaration) — so a cursor placed directly on it must still
+        // resolve, to the *original* declaration site.
+        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        let locs = definition(src, 1, 17, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 0,
+            "must resolve to the original param declaration: {:?}",
+            locs[0]
+        );
+        assert_eq!(locs[0].start_character, 20, "{:?}", locs[0]);
+        assert_eq!(locs[0].end_character, 24, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn bareword_that_is_not_any_variable_occurrence_does_not_resolve_as_a_variable() {
+        // FP guard — an ordinary bareword that never appears as any
+        // variable's declaration or reference span (an unrelated command's
+        // plain argument) must not be mistaken for a variable declaration
+        // site, even in a file containing unrelated variables.
+        let src = "proc greet {name} { return $name }\nputs literal\n";
+        let analysis = analyse(src);
+        // Cursor on `literal` (line 1, col 5-12) — not a variable anywhere.
+        let locs = definition(src, 1, 7, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]

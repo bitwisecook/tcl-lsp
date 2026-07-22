@@ -123,6 +123,31 @@ fn rename_definition_and_calls() {
     assert!(for_uri.iter().all(|e| e["newText"] == "welcome"));
 }
 
+/// idx=9 (differential-audit main wave, high severity): a cursor placed
+/// directly on a proc parameter's own bareword declaration (not a
+/// `$`-prefixed read) previously produced zero rename edits — an LSP
+/// silently no-oping a rename request is worse than an explicit failure,
+/// since the user has no signal anything went wrong. Both the parameter's
+/// declaration and its `$name` read must be rewritten.
+#[test]
+fn rename_from_proc_param_bareword_declaration_rewrites_every_use_e2e() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc greet {name} { puts \"Hello $name\" }\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on `name` inside the parameter list, col 12-16.
+    let result = lsp.rename(&uri, 0, 13, "label");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    assert_eq!(for_uri.len(), 2, "{for_uri:?}");
+    let texts: std::collections::BTreeSet<&str> = for_uri
+        .iter()
+        .map(|e| e["newText"].as_str().unwrap_or(""))
+        .collect();
+    assert!(texts.contains("label"), "{texts:?}");
+    assert!(texts.contains("$label"), "{texts:?}");
+}
+
 #[test]
 fn rename_namespaced_proc_preserves_qualifier() {
     let mut lsp = Lsp::tcl();
