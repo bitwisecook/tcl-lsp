@@ -1903,6 +1903,16 @@ pub struct Backend {
     /// `package require myTkPackage` (transitively) pulls in Tk (#723).
     /// Rebuilt by `scan_workspace_folders`.
     package_resolver: Arc<RwLock<PackageResolver>>,
+    /// Held for the duration of every `scan_workspace_folders` call (the
+    /// blocking tree walk + analysis that rebuilds `package_resolver`).
+    /// `ensure_autoload_indexed` acquires (and immediately releases) this
+    /// before consulting `package_resolver`, so a request that lands while a
+    /// scan is in flight waits for that scan rather than reading a
+    /// possibly-still-empty resolver — otherwise a rename / go-to-definition
+    /// fired shortly after startup (or a workspace-folder / config change)
+    /// could race the scan and silently find nothing, even though the same
+    /// request moments later would have resolved correctly (issue #1003).
+    workspace_scan_gate: tokio::sync::Mutex<()>,
     /// Library files the autoload tier (M8) has merged into the workspace
     /// index on demand, so references / rename keep reaching them.  Cleared
     /// (and their index entries dropped) whenever the package database is
@@ -2402,6 +2412,7 @@ impl Backend {
             severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            workspace_scan_gate: tokio::sync::Mutex::new(()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
@@ -3776,7 +3787,15 @@ impl Backend {
     /// repeated queries stay cheap.  The merged URIs are remembered so a
     /// package-database rebuild can drop them (see
     /// [`Self::scan_workspace_folders`]).
+    ///
+    /// Waits out an in-flight [`Self::scan_workspace_folders`] first (see
+    /// `workspace_scan_gate`'s field doc) — otherwise a request landing
+    /// shortly after startup, a workspace-folder change, or a config change
+    /// could read `package_resolver` before that scan has (re)built it and
+    /// wrongly conclude the command isn't auto-loadable at all (issue
+    /// #1003).
     async fn ensure_autoload_indexed(&self, word: &str, namespace: &str) -> Option<String> {
+        drop(self.workspace_scan_gate.lock().await);
         let (files, candidates) = {
             let resolver = self.package_resolver.read().await;
             (
@@ -6978,11 +6997,17 @@ impl Backend {
     }
 
     async fn scan_workspace_folders(&self) {
+        // Held for the whole scan so `ensure_autoload_indexed` can wait out
+        // an in-flight scan instead of racing it — see the field doc on
+        // `workspace_scan_gate` (issue #1003).
+        let _scan_guard = self.workspace_scan_gate.lock().await;
+        let scan_started = std::time::Instant::now();
         let folders = self.workspace_folder_urls().await;
         let roots: Vec<PathBuf> = folders
             .iter()
             .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
+        let roots_count = roots.len();
         // Note: we deliberately do NOT early-return when `roots.is_empty()`.
         // The package resolver must still be (re)built from the editor library
         // paths + `TCLLIBPATH` + discovered installations so single-file /
@@ -7077,6 +7102,7 @@ impl Backend {
                 index.remove_document(uri);
             }
         }
+        let files_count = analysed.len();
         self.merge_workspace_scan_results(&analysed).await;
         // Re-home sourced documents under their source-site namespaces (M9).
         self.refresh_source_rehoming().await;
@@ -7084,6 +7110,21 @@ impl Backend {
         // per-file analysis in parallel (#844 Gap 3) so the first cross-file /
         // enriched-token query finds cache hits instead of a serial cold walk.
         self.spawn_workspace_warm();
+        // Readiness signal for `package_resolver` / `workspace_index` having
+        // just been (re)built from disk — a client (or a test) that needs to
+        // know the autoload / cross-file workspace state is current rather
+        // than racing this scan should wait on this line instead of an
+        // unrelated per-document signal (issue #1003).
+        let elapsed_ms = scan_started.elapsed().as_secs_f64() * 1000.0;
+        self.client
+            .log_message(
+                MessageType::LOG,
+                format!(
+                    "[timing] workspace_folders_scan {elapsed_ms:.0}ms \
+                     (roots={roots_count}, files={files_count})"
+                ),
+            )
+            .await;
     }
 
     /// Merge disk-backed workspace scan results into the shared index **and** the
@@ -15375,6 +15416,7 @@ mod tests {
             severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            workspace_scan_gate: tokio::sync::Mutex::new(()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
@@ -18212,6 +18254,40 @@ mod tests {
             lib_edits.len(),
             2,
             "library declaration + internal call: {lib_edits:?}"
+        );
+    }
+
+    /// Regression (issue #1003): `ensure_autoload_indexed` must wait out an
+    /// in-flight `scan_workspace_folders` rather than reading
+    /// `package_resolver` while it is still being rebuilt — otherwise a
+    /// rename / go-to-definition request landing during a scan (startup, a
+    /// workspace-folder change, a config change) could race it and wrongly
+    /// conclude the command isn't auto-loadable, even though the very same
+    /// request moments later would have resolved correctly. Simulates the
+    /// race directly by holding `workspace_scan_gate` (as a real scan would
+    /// for its whole duration) and asserting a concurrent query blocks until
+    /// it is released, rather than trusting incidental timing.
+    #[tokio::test]
+    async fn autoload_indexed_query_waits_out_an_in_flight_workspace_scan() {
+        let backend = Arc::new(test_backend());
+        seed_autoload_library(&backend, "autoload-race").await;
+        let guard = backend.workspace_scan_gate.lock().await;
+        let query_backend = Arc::clone(&backend);
+        let query = tokio::spawn(async move {
+            query_backend
+                .ensure_autoload_indexed("Rbc_ActiveLegend", "::")
+                .await
+        });
+        tokio::task::yield_now().await;
+        assert!(
+            !query.is_finished(),
+            "must wait for the in-flight scan rather than racing it"
+        );
+        drop(guard);
+        let resolved = query.await.expect("query task panicked");
+        assert!(
+            resolved.is_some(),
+            "resolves once the in-flight scan's gate is released"
         );
     }
 
