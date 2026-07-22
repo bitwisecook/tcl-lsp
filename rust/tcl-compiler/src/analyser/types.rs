@@ -461,6 +461,24 @@ pub struct MethodDef {
     pub forward_target: Option<(String, Vec<String>)>,
 }
 
+/// Stable composite key naming a class's instance method or class method:
+/// `{class}::method::{name}` / `{class}::classmethod::{name}`.  The single
+/// canonical form for re-identifying the *same* member across a round-trip —
+/// the incremental item-tree diff ([`crate::analyser::item_tree`]) and any
+/// LSP-facing consumer that hands a member identity to the client and gets
+/// it back later (the code-lens `codeLens/resolve` handshake) — so the two
+/// never drift onto different naming schemes for the same member.  A class
+/// or proc's own qualified name (`::Bar`, `::helper`) never contains
+/// `::method::`/`::classmethod::`, so this key cannot collide with theirs.
+#[must_use]
+pub fn class_member_key(class_qualified: &str, name: &str, is_classmethod: bool) -> String {
+    if is_classmethod {
+        format!("{class_qualified}::classmethod::{name}")
+    } else {
+        format!("{class_qualified}::method::{name}")
+    }
+}
+
 /// One per-object method added by an `oo::objdefine` (issue #945
 /// fault 5): the method declaration plus the **objdefine site's**
 /// receiver offset, the anchor a consumer resolves to a variable
@@ -1124,6 +1142,23 @@ impl Default for Scope {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn class_member_key_disambiguates_method_and_classmethod() {
+        assert_eq!(
+            class_member_key("::Bar", "get", false),
+            "::Bar::method::get"
+        );
+        assert_eq!(
+            class_member_key("::Bar", "get", true),
+            "::Bar::classmethod::get"
+        );
+        // Same class, same member name, different map — must not collide.
+        assert_ne!(
+            class_member_key("::Bar", "get", false),
+            class_member_key("::Bar", "get", true)
+        );
+    }
 
     #[test]
     fn scope_default_is_global() {

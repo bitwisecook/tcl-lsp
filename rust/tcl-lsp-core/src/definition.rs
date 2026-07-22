@@ -714,6 +714,46 @@ pub(crate) fn receiver_instance_class<'a>(
     }
 }
 
+/// Resolve a bare `ClassName method` call-site receiver directly to the
+/// class whose `classmethod` provides `method` — the reverse of
+/// [`crate::references::find_obj_method_call_sites`]'s forward "given the
+/// class, which bare names dispatch it" fold, needed to resolve
+/// Find-References / Rename / go-to-definition triggered *from* the call
+/// site itself rather than from the declaration or a code lens.
+///
+/// `receiver` must name a class (simple or fully-qualified) that declares
+/// or *inherits* (does not override) `method` as a `classmethod` — `None`
+/// for an instance-command receiver (that's [`receiver_instance_class`]'s
+/// job) or a class with no such classmethod.  Doesn't itself exclude
+/// [incr Tcl] classes (whose class-scoped `proc` dispatches as
+/// `Factory::method`, not this bare two-word shape): every downstream
+/// consumer of the `(class, method, is_classmethod)` triple this feeds —
+/// `find_obj_method_call_sites` and friends — already re-checks the
+/// definer's family before treating any site as a dispatch, so a
+/// same-named itcl class-proc resolves here but then correctly yields no
+/// call sites rather than a false one.
+#[must_use]
+pub(crate) fn classmethod_dispatch_class(
+    analysis: &AnalysisResult,
+    receiver: &str,
+    method: &str,
+) -> Option<String> {
+    let named = analysis
+        .all_classes
+        .values()
+        .find(|cd| cd.name == receiver || cd.qualified_name == receiver)?;
+    if named.class_methods.contains_key(method) {
+        return Some(named.qualified_name.clone());
+    }
+    let hierarchy = analysis.class_hierarchy();
+    let provider_q = hierarchy.method_target(&named.qualified_name, method)?;
+    analysis
+        .all_classes
+        .get(provider_q)
+        .filter(|cd| cd.class_methods.contains_key(method))
+        .map(|_| provider_q.to_string())
+}
+
 /// Look up an alias by name.  Accepts the alias's simple or
 /// qualified form (`mycmd` and `::mycmd` both match an alias
 /// stored with `qualified_name == "::mycmd"`).
