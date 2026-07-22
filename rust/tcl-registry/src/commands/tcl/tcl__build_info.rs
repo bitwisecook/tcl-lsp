@@ -16,12 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl::build-info` command.
+//! `tcl::build-info` command (Tcl 9.0+).
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::build-info",
-        dialects: None,
+        dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

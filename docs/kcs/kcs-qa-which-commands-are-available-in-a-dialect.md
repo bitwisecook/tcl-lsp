@@ -27,7 +27,13 @@ profile combines two things:
    dialect embeds Tcl 9.0. Commands introduced *after* the embedded base
    (`lmap` in an iApp or tmsh script, `zipfs` anywhere below Tcl 9.0) are
    reported as unavailable
-   ([W123](../design/dialect-profile-model.md)).
+   ([W123](../design/dialect-profile-model.md)). The `::tcl::` namespace
+   itself is one of these later additions: it does not exist at all in
+   Tcl 8.4 or in F5 iRules (a real embedded Tcl 8.4.6), so `tcl::mathop::+`,
+   `tcl::build-info`, `tcl::unsupported::corotype`, and `tcl::tm::path` are
+   all reported disabled ([W002](codes/kcs-diagnostic-w002-command-disabled-in-dialect.md))
+   there — each at its own real introduction release (8.5, 8.6, or 9.0)
+   once the dialect's embedded base reaches it.
 2. **A disable list, for subtractive dialects.** F5 iRules embed a genuine
    Tcl 8.4.6, but the data-plane sandbox *removes* commands (`exec`,
    `file`, `socket`, `open`, `glob`, and the rest of F5's K36322151 list).

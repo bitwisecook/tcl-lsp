@@ -263,7 +263,7 @@ fn specs_2() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "::tcl::build-info",
-            dialects: None,
+            dialects: Some(DialectSet::TCL90_PLUS),
             arity: Arity::new(0, 1),
             return_type: Some(TclType::String),
             hover: Some(HoverSnippet {

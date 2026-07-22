@@ -645,6 +645,17 @@ try {
 try { ... }              ;# W002: command disabled in active dialect (try requires 8.6)
 ```
 
+The `::tcl::` namespace itself is a Tcl 8.5+ addition — plain `tcl8.4` and F5
+iRules (a real embedded Tcl 8.4.6) have no such namespace at all, so its
+contents are gated to their real introduction release:
+
+```tcl
+# With dialect = tcl8.4 (or f5-irules):
+::tcl::mathop::+ 1 2               ;# W002: disabled in active dialect (::tcl:: is 8.5+)
+tcl::build-info version             ;# W002: disabled in active dialect (available in: tcl9.0, tcl9.1)
+tcl::tm::path add /some/dir         ;# W002: disabled in active dialect (available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1)
+```
+
 ### TclOO support
 
 Full TclOO class hierarchy analysis with method resolution order (MRO),
