@@ -290,6 +290,61 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   (`fp_ds_06_traced_array_same_element_overwrite_silent`), joining the
   existing `fp_ds_06_*` pair, `state.rs::w220_must_alias_kill_same_array_element`
   and `elimination.rs::o109_array_element_*`.
+- [x] **FP-IPCP-01** I230 on a genuinely alternating recursive parameter —
+  CLOSED (issue #969). `compilation_unit.rs`'s interprocedural
+  `param_constants` SCCP seed (`collect_call_site_constants` /
+  `params_constants_from_call_sites`) trusted a proc parameter as a
+  compile-time literal whenever every call site *the scan could resolve*
+  passed the same value. Two ways a real, varying call site could go
+  unresolved (and so silently vanish from the "every caller agrees"
+  evidence) both reproduced the exact reported shape (`if {$count & 1}`
+  folding to a fixed boolean on a recursive, alternating counter):
+  1. **Namespace-blind resolution** — a proc declared inside `namespace
+     eval` recursed into itself by its bare name; the old resolver only
+     tried global-qualified spellings of the command word, so it never
+     matched the proc's namespaced qualified name and the recursive
+     self-call (necessarily non-literal) was dropped, leaving only the one
+     external caller's literal. Fixed by routing resolution through
+     `crate::interprocedural::resolve_internal_call` (the same
+     namespace-relative, existence-checked resolver the analyser and
+     optimiser already use), evaluated in the *calling* function's own
+     namespace.
+  2. **Body-argument blindness** — a call embedded inside a `catch { … }`
+     / literal `uplevel { … }` body is a real caller, but the body is an
+     `ArgRole::Body` argument of a *builtin* (never a user proc), so a
+     flat, one-level `Statement::Call`/`Barrier` walk resolved the builtin,
+     found no matching proc, and never noticed the nested call. Fixed by
+     recursing into `ArgRole::Body` arguments (registry-driven via
+     `CommandRegistry::arg_indices_for_role`, re-segmented with
+     `crate::segmenter`, capped at `MAX_CALL_SITE_BODY_DEPTH`), the same
+     primitives `interprocedural::scan_source_for_calls` already uses for
+     its own call-graph walk.
+  Also added, since both gaps are instances of "the scan's completeness is
+  unproven": a `!command_mutations.trusts_proc_binding(qname)` gate (reusing
+  the optimiser's own O103 rename/`interp alias` trust lattice —
+  `command_binding::scan_module_command_mutations` — instead of a second,
+  divergent one) and a `package provide`-in-file gate (a package file's
+  procs may be public API another file calls with a different literal,
+  invisible to this single-file compilation unit). A speculative
+  module-wide "any dynamic `$cmd` dispatch anywhere disqualifies every
+  seed" wildcard was tried and **reverted** — it broke a genuine,
+  already-covered TP (`fp_var_as_cmd_param_flow_non_command_fires`, a
+  dispatch-table proc whose own body legitimately uses `$cmd`) for a
+  residual soundness gap (a dynamic dispatch site's target can't be
+  statically enumerated at all, recursively or otherwise) that pre-dates
+  this fix and is orthogonal to what #969 actually reported — documented as
+  a known limitation rather than papered over with disproportionate
+  collateral damage. Traced end-to-end: the same `SccpResult` feeds I230,
+  the optimiser's O101 fold and O107 dead-code suggestions (all
+  suggestion-only text rewrites, never applied to the compiled CFG/IR —
+  confirmed codegen/`tcl-vm`/WASM never consume SCCP at all and are
+  structurally immune), so fixing the seed corrects every consumer at
+  once. Tests: `compilation_unit.rs`'s `call_site_param_constants` module
+  (16 cases spanning TP/FP/TN/FN across namespaces, recursion, rename/
+  `interp alias`, dynamic dispatch, `package provide`, and nested `catch`/
+  `uplevel` bodies), native e2e (`diagnostics::namespaced_recursive_proc_
+  parity_check_does_not_fire_i230` and siblings), and a VS Code integration
+  suite (`issue969.test.ts`).
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
