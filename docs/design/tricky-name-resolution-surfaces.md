@@ -258,8 +258,9 @@ the ensemble configuration string. Same fix location, same milestone.
   `tcl_syntax::expr::mathfunc` name/version table). **Still open:** the
   settled qualified name is always the *global* `::tcl::mathfunc::f`, never
   accounting for a namespace-local override (`::ns::tcl::mathfunc::f`
-  shadowing inside `::ns` — real per TIP 232 / verified by the WASM
-  runtime's `namespace_local_mathfunc_shadows_in_expr` test) — a narrower,
+  shadowing inside `::ns` — real per TIP 232 / verified by the VM's
+  `namespace_local_mathfunc_shadows_global_in_expr` test in
+  `tcl-vm/tests/tricky_resolution_e2e.rs`) — a narrower,
   separate follow-up.
 
 ### 1.7 Literal command names in dispatch tables — **CONFIRMED** (medium)
