@@ -81,12 +81,13 @@
 //!   not into string interpolation.
 
 use rustc_hash::FxHashSet;
-use tcl_compiler::analyser::{AnalysisResult, ClassDef};
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
 use crate::definition::LspRange;
 use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::references::{MemberSel, resolve_member_span};
 
 /// One text edit in a rename — span plus replacement text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -975,55 +976,6 @@ fn rename_method(
         return Some(edits);
     }
     None
-}
-
-/// Which of a class's independent member tables a rename target belongs to
-/// — methods, classmethods, and properties never share one table, so a name
-/// collision between them (rare, but real) needs an explicit tag alongside
-/// its span; see [`resolve_member_span`].
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MemberSel {
-    Method,
-    ClassMethod,
-    Property,
-}
-
-/// Resolve which member of `class_def` named `word` a cursor at
-/// `cursor_offset` refers to.
-///
-/// Methods, classmethods, and properties are independent tables, so a name
-/// shared by more than one (rare, but real — `TclOO` never merges them)
-/// disambiguates by which declaration's own span the cursor sits on;
-/// otherwise falls back to the methods → classmethods → properties priority
-/// order (the cursor sits on a call site, not any declaration, or there is
-/// no collision at all).  `None` when `word` matches nothing in `class_def`.
-fn resolve_member_span(
-    class_def: &ClassDef,
-    word: &str,
-    cursor_offset: u32,
-) -> Option<(MemberSel, tcl_lexer::Span)> {
-    let candidates: Vec<(MemberSel, tcl_lexer::Span)> = [
-        class_def
-            .methods
-            .get(word)
-            .map(|m| (MemberSel::Method, m.name_span)),
-        class_def
-            .class_methods
-            .get(word)
-            .map(|m| (MemberSel::ClassMethod, m.name_span)),
-        class_def
-            .properties
-            .get(word)
-            .map(|p| (MemberSel::Property, p.name_span)),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    candidates
-        .iter()
-        .find(|(_, span)| span.start() <= cursor_offset && cursor_offset <= span.end())
-        .or_else(|| candidates.first())
-        .copied()
 }
 
 /// Compute the qualified rewrite (`prefix::new`) and the

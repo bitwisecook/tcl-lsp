@@ -22,7 +22,13 @@ all-editors, MCP, analyser
 
 Locates all usages of the symbol under the cursor, including definitions, calls, and variable reads/writes. Uses shared proc-reference matching.
 
-TclOO dispatch is followed as well. A method is found through every `$obj method` call on a tracked instance, every intra-class `my method` dispatch, and `next` / `nextto` super-dispatch, whether the call sits at the top level of a body, inside a `[…]` command substitution, embedded in a quoted or compound word such as `"value: [my get]"`, or nested inside `if` / `while` / `foreach` / `switch` (either the inline or single-braced-clause-list form) / `try` / `catch` / `eval` / `dict for` — any combination of these, arbitrarily deep. An expr math function resolves to its backing proc, so a `proc ::tcl::mathfunc::foo` is found from every `foo(...)` written inside an `expr`.
+TclOO dispatch is followed as well. A method is found through every `$obj method` call on a tracked instance, every intra-class `my method` dispatch, and `next` / `nextto` super-dispatch, whether the call sits at the top level of a body, inside a `[…]` command substitution, embedded in a quoted or compound word such as `"value: [my get]"`, or nested inside `if` / `while` / `foreach` / `switch` (either the inline or single-braced-clause-list form) / `try` / `catch` / `eval` / `dict for` — any combination of these, arbitrarily deep. A property is found the same way through every `my <property>` read (a property has no `$obj` dispatch or inheritance model). An expr math function resolves to its backing proc, so a `proc ::tcl::mathfunc::foo` is found from every `foo(...)` written inside an `expr`.
+
+A method, a classmethod, and a property can share one name within the same
+class (rare, but each lives in its own independent table, so it's legal);
+Find References resolves to whichever declaration the cursor actually sits
+on rather than a fixed priority, so the reference count for one member is
+never silently attributed to a different, same-named one.
 
 A class is found through every use of its name, not only `<Class> new` instantiations: a `superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class is a reference to it, and a `forward` member's delegated command is a reference to that command. These references are resolved by the class's namespace exactly as a call would be, so a fully-qualified `superclass ::ns::Base` in one file is found from `::ns::Base`'s declaration in another, and a same-named class in an unrelated namespace is never cross-linked. Because the same references drive rename, renaming a class rewrites every `superclass` / `mixin` / `inherit` site that names it, keeping the inheritance graph intact.
 
@@ -68,6 +74,11 @@ double-quoted string.
 - `rust/tcl-lsp-core/tests/name_resolution.rs` (`my_method_dispatch`,
   `obj_method_dispatch`, `next_dispatch` — control-flow-nested dispatch
   TP/FP/TN matrix, issue #957)
+- `rust/tcl-lsp-core/src/references.rs` (`mod tests`, including
+  `references_for_property_includes_decl_and_my_dispatch_call_sites`,
+  `references_disambiguates_property_and_method_sharing_a_name_by_cursor`,
+  `dispatch_scan_depth_guard_stops_runaway_nesting`,
+  `tn_expect_clause_flags_not_decomposed`)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs` (cross-file)
 - `rust/tcl-lsp-server/tests/e2e/name_resolution.rs`
   (`my_method_dispatch::tp_my_dispatch_nested_in_control_flow_reference_and_lens`)

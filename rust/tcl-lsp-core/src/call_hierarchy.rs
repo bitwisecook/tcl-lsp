@@ -1180,6 +1180,22 @@ mod tests {
         assert_eq!(names, vec!["::C::greet"], "{outgoing:?}");
     }
 
+    /// FN→TP (issue #957's general form): a `my method` dispatch nested
+    /// inside control flow is an *incoming* call edge too, mirroring
+    /// `outgoing_calls_from_method_nested_in_control_flow` — previously
+    /// verified only via a VS Code integration test, never at the Rust
+    /// unit level.
+    #[test]
+    fn incoming_calls_for_method_nested_in_control_flow() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} {\n        if {1} {\n            switch -- 1 {\n                default {\n                    my greet\n                }\n            }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 11, &analysis);
+        assert_eq!(items[0].name, "::C::greet");
+        let incoming = incoming_calls(src, "tcl", &items[0], &analysis);
+        assert_eq!(incoming.len(), 1, "{incoming:?}");
+        assert_eq!(incoming[0].from.name, "::C::twice", "{incoming:?}");
+    }
+
     #[test]
     fn outgoing_calls_from_method_to_top_level_proc() {
         let src = "proc helper {} {}\noo::class create C {\n    method use {} { helper }\n}\n";

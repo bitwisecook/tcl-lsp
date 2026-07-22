@@ -538,6 +538,56 @@ pub(crate) fn collect_member_bodies(
     bodies
 }
 
+/// Which of a class's independent member tables a name resolves to —
+/// methods, classmethods, and properties never share one table, so a name
+/// collision between them (rare, but real) needs an explicit tag alongside
+/// its span; see [`resolve_member_span`].  `pub(crate)` so `rename` shares
+/// this one resolver instead of its own priority-order guess.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MemberSel {
+    Method,
+    ClassMethod,
+    Property,
+}
+
+/// Resolve which member of `class_def` named `word` a cursor at
+/// `cursor_offset` refers to.
+///
+/// Methods, classmethods, and properties are independent tables, so a name
+/// shared by more than one (rare, but real — `TclOO` never merges them)
+/// disambiguates by which declaration's own span the cursor sits on;
+/// otherwise falls back to the methods → classmethods → properties priority
+/// order (the cursor sits on a call site, not any declaration, or there is
+/// no collision at all).  `None` when `word` matches nothing in `class_def`.
+pub(crate) fn resolve_member_span(
+    class_def: &tcl_compiler::analyser::types::ClassDef,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<(MemberSel, tcl_lexer::Span)> {
+    let candidates: Vec<(MemberSel, tcl_lexer::Span)> = [
+        class_def
+            .methods
+            .get(word)
+            .map(|m| (MemberSel::Method, m.name_span)),
+        class_def
+            .class_methods
+            .get(word)
+            .map(|m| (MemberSel::ClassMethod, m.name_span)),
+        class_def
+            .properties
+            .get(word)
+            .map(|p| (MemberSel::Property, p.name_span)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    candidates
+        .iter()
+        .find(|(_, span)| span.start() <= cursor_offset && cursor_offset <= span.end())
+        .or_else(|| candidates.first())
+        .copied()
+}
+
 /// Resolve a method's declaration span plus every call site —
 /// intra-class (re-segment the class's own method bodies plus any
 /// inheriting subclass's bodies) and external (`$obj method` across the
@@ -904,13 +954,18 @@ fn find_class_member_references(
         if !(body.start() < cursor_offset && cursor_offset < body.end()) {
             continue;
         }
+        // Methods, classmethods, and properties are independent tables; a
+        // name shared by more than one (rare, but real) disambiguates by
+        // which declaration's own span the cursor sits on rather than a
+        // fixed priority — see `resolve_member_span`.
+        let (selected_kind, member_span) = resolve_member_span(class_def, word, cursor_offset)?;
         // Methods / classmethods: defer to the shared resolver — the *same*
         // one the code lens counts with — so the peek and the lens can never
         // drift.  It covers intra-class `my method` dispatch, external
         // `$obj method` / bare `objcmd method` sites, and the call sites of
         // any subclass that inherits (does not override) this definition
         // (which the class-local scan below would miss).
-        if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
+        if matches!(selected_kind, MemberSel::Method | MemberSel::ClassMethod) {
             let (decl, mut calls) = method_references_for_class(
                 source,
                 dialect,
@@ -937,7 +992,6 @@ fn find_class_member_references(
         // control-flow / `eval` bodies), just with no declaration span to
         // skip: a property's declaration is `property <name>` in the
         // definer body, never itself a `my <name>` call site.
-        let decl_span = class_def.properties.get(word).map(|p| p.name_span)?;
         let call_spans = scan_my_method_sites(
             source,
             dialect,
@@ -945,7 +999,7 @@ fn find_class_member_references(
             word,
             None,
         );
-        return Some((decl_span, call_spans));
+        return Some((member_span, call_spans));
     }
     None
 }
@@ -1861,6 +1915,119 @@ mod tests {
         // Only the two call sites — the declaration is
         // excluded when include_declaration=false.
         assert_eq!(refs.len(), 2, "{refs:?}");
+    }
+
+    /// Positive-path coverage for `find_class_member_references`'s property
+    /// branch — previously exercised only indirectly (via `rename`'s
+    /// property tests), never through `references()` itself.
+    #[test]
+    fn references_for_property_includes_decl_and_my_dispatch_call_sites() {
+        let src = "oo::class create C {\n    property color\n    method describe {} {\n        return [my color]\n    }\n}\n";
+        // `property` is Tcl 9.0+ — the shared `analyse()` helper fixes the
+        // dialect at 8.6, so this test analyses at 9.0 directly.
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        // Cursor on the `color` property declaration (line 1, col 13).
+        let refs = references(src, "tcl9.0", 1, 13, &analysis, true);
+        assert_eq!(refs.len(), 2, "decl + `my color` call site: {refs:?}");
+        assert!(refs.iter().any(|r| r.start_line == 1), "{refs:?}");
+        assert!(refs.iter().any(|r| r.start_line == 3), "{refs:?}");
+    }
+
+    /// FN→TP (issue #957's general form): a `my <property>` read nested
+    /// inside `if` control flow is a reference too.
+    #[test]
+    fn references_for_property_includes_control_flow_nested_call_site() {
+        let src = "oo::class create C {\n    property color\n    method describe {} {\n        if {1} {\n            return [my color]\n        }\n    }\n}\n";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        let refs = references(src, "tcl9.0", 1, 13, &analysis, true);
+        assert_eq!(refs.len(), 2, "{refs:?}");
+        assert!(refs.iter().any(|r| r.start_line == 4), "{refs:?}");
+    }
+
+    /// Regression: a method, a classmethod, and a property can share one
+    /// name within a class (rare, but each lives in its own independent
+    /// table, so it's legal) — `find_class_member_references` must resolve
+    /// to whichever declaration the cursor actually sits on, not always the
+    /// method by a fixed methods-first priority (which would silently
+    /// attribute the property's own references to the unrelated method).
+    #[test]
+    fn references_disambiguates_property_and_method_sharing_a_name_by_cursor() {
+        let src = "oo::class create C {\n    property color\n    method color {} { return c }\n}\n";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        // Cursor on the *property* declaration (line 1, col 13).
+        let property_refs = references(src, "tcl9.0", 1, 13, &analysis, true);
+        assert_eq!(
+            property_refs.len(),
+            1,
+            "expected only the property decl (no call sites): {property_refs:?}"
+        );
+        assert_eq!(property_refs[0].start_line, 1, "{property_refs:?}");
+        // Cursor on the *method* declaration (line 2) picks the method
+        // instead.
+        let method_refs = references(src, "tcl9.0", 2, 11, &analysis, true);
+        assert_eq!(method_refs.len(), 1, "{method_refs:?}");
+        assert_eq!(method_refs[0].start_line, 2, "{method_refs:?}");
+    }
+
+    /// The [`MAX_DISPATCH_SCAN_DEPTH`] recursion guard actually stops
+    /// runaway nesting rather than hanging or overflowing the stack —
+    /// previously unverified by any test.  Exercises `scan_my_method_sites`
+    /// directly against a hand-built body span, bypassing
+    /// `Analyser::analyse()` entirely: its own separate recursive-descent
+    /// parse overflows the stack on control-flow nesting well under this
+    /// scanner's 256-deep cap (confirmed separately — a pre-existing,
+    /// unrelated robustness gap in the analyser/parser layer, out of scope
+    /// here), so driving the segmenter-based scan directly is the only safe
+    /// way to reach the cap this scanner actually enforces.  A dispatch
+    /// nested comfortably under the cap is still found; one nested far past
+    /// it is conservatively not.
+    #[test]
+    fn dispatch_scan_depth_guard_stops_runaway_nesting() {
+        let nest = |levels: u32| {
+            let mut body = "my greet".to_string();
+            for _ in 0..levels {
+                body = format!("if {{1}} {{ {body} }}");
+            }
+            format!("{{{body}}}")
+        };
+
+        let shallow = nest(10);
+        let shallow_span = tcl_lexer::Span::new(0, u32::try_from(shallow.len()).unwrap());
+        let shallow_spans = scan_my_method_sites(&shallow, "tcl", &[shallow_span], "greet", None);
+        assert_eq!(
+            shallow_spans.len(),
+            1,
+            "10 levels is well under the cap: {shallow_spans:?}"
+        );
+
+        let deep = nest(300);
+        let deep_span = tcl_lexer::Span::new(0, u32::try_from(deep.len()).unwrap());
+        let deep_spans = scan_my_method_sites(&deep, "tcl", &[deep_span], "greet", None);
+        assert!(
+            deep_spans.is_empty(),
+            "300 levels exceeds the cap — must abstain, not hang/crash: {deep_spans:?}"
+        );
+    }
+
+    /// TN / documented limitation: Expect's `expect { -re pat body … }`
+    /// clause-list shape carries per-clause flags the registry's
+    /// `case_list_clause_body_regions` deliberately does not decompose (see
+    /// the module doc's Limitations) — a nested `my` dispatch inside such a
+    /// clause body is conservatively not found, matching this codebase's
+    /// "fall through rather than guess wrong" rule (the naive
+    /// `plain_body_arg_indices` fallback can't tell a flag word from a
+    /// pattern word without the clause-list vocabulary this path abstains
+    /// from using).
+    #[test]
+    fn tn_expect_clause_flags_not_decomposed() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method get {} {\n        expect {\n            -re {foo} {\n                my greet\n            }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, "expect", 1, 11, &analysis, true);
+        assert_eq!(
+            refs.len(),
+            1,
+            "decl only — Expect clauses abstain: {refs:?}"
+        );
     }
 
     #[test]
