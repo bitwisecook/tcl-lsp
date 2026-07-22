@@ -1010,6 +1010,22 @@ pub(crate) fn find_obj_method_call_sites(
     find_obj_method_call_sites_with_extra_cmd_names(source, dialect, analysis, class_q, method, &[])
 }
 
+/// Whether `cd`'s definer command dispatches its class-scoped members as a
+/// single `::`-qualified identifier (`Factory::make`) rather than the
+/// two-word `Factory make` shape — true for [incr Tcl] only.  Registry data
+/// (`DefinerFamily`), not a hardcoded command-name check: `cd.metaclass` is
+/// looked up in `dialect`'s registry and its attached
+/// [`tcl_registry::definer::DefinitionBodyGrammar::family`] compared.  A
+/// metaclass the registry doesn't recognise as a definer (shouldn't happen
+/// for a real `ClassDef`) is conservatively treated as *not* itcl, matching
+/// prior behaviour.
+fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialect: &str) -> bool {
+    tcl_registry::registry_for_dialect(dialect)
+        .get(&cd.metaclass)
+        .and_then(|spec| spec.definition_body)
+        .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+}
+
 /// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
 /// names to treat as valid classmethod-dispatch heads for `method`
 /// regardless of what this document's own `analysis.all_classes` knows.
@@ -1059,18 +1075,29 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     // make`) — never on an instance: TclOO's `classmethod` sugar puts the
     // method on the class object's own class, which no instance's MRO
     // reaches.  When `method` is one of `class_q`'s classmethods (known
-    // locally), fold in the defining class's own name (simple + qualified)
-    // plus the own name of any subclass that inherits (does not override) it
-    // — the same inheritance test as the instance `var_set` above, so a `Sub
-    // make` dispatch on an inheriting subclass counts too.
+    // locally) *and* `class_q`'s definer family actually uses this two-word
+    // dispatch shape, fold in the defining class's own name (simple +
+    // qualified) plus the own name of any subclass that inherits (does not
+    // override) it — the same inheritance test as the instance `var_set`
+    // above, so a `Sub make` dispatch on an inheriting subclass counts too.
+    //
+    // The definer-family check matters because [incr Tcl]'s class-scoped
+    // `proc` lands in this same `class_methods` bucket (so the declaration
+    // side finds it) but dispatches as a single `::`-qualified identifier
+    // (`Factory::make`) — a bare two-word `Factory make` in itcl source is
+    // unrelated instance-creation syntax (`ClassName instanceName`), not a
+    // call to this proc.  The dispatch shape is registry data
+    // (`DefinerFamily`), not something to infer from the shared storage
+    // bucket.
     if analysis
         .all_classes
         .get(class_q)
-        .is_some_and(|cd| cd.class_methods.contains_key(method))
+        .is_some_and(|cd| cd.class_methods.contains_key(method) && !is_itcl_class(cd, dialect))
     {
         for (other_q, other_cd) in &analysis.all_classes {
-            if other_q.as_str() == class_q
-                || hierarchy.method_target(other_q, method) == Some(class_q)
+            if (other_q.as_str() == class_q
+                || hierarchy.method_target(other_q, method) == Some(class_q))
+                && !is_itcl_class(other_cd, dialect)
             {
                 cmd_set.insert(other_cd.name.as_str());
                 cmd_set.insert(other_cd.qualified_name.as_str());

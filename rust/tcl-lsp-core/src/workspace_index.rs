@@ -114,9 +114,29 @@ pub struct WorkspaceClass {
     /// [`tcl_compiler::analyser::ClassDef::via_define`]).  Go-to-definition
     /// prefers a real creation site over a stub.
     pub via_define: bool,
+    /// The definer command as written (`"oo::class"`, `"snit::type"`,
+    /// `"itcl::class"`, …) — see
+    /// [`tcl_compiler::analyser::ClassDef::metaclass`].  Lets a cross-file
+    /// consumer tell [incr Tcl]'s class-scoped `proc` (dispatched as a
+    /// single `::`-qualified identifier) apart from a `TclOO`
+    /// `classmethod` / snit `typemethod` (dispatched as two bare words)
+    /// without a local `ClassDef` to ask.
+    pub metaclass: String,
 }
 
 impl WorkspaceClass {
+    /// Whether this record's definer dispatches its class-scoped members as
+    /// a single `::`-qualified identifier (`Factory::make`) rather than the
+    /// two-word `Factory make` shape — true for [incr Tcl] only.  Registry
+    /// data (`DefinerFamily`), not a hardcoded command-name check.
+    #[must_use]
+    pub fn is_itcl(&self, dialect: &str) -> bool {
+        tcl_registry::registry_for_dialect(dialect)
+            .get(&self.metaclass)
+            .and_then(|spec| spec.definition_body)
+            .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+    }
+
     /// Whether this record directly defines `name` (any receiver kind).
     #[must_use]
     pub fn defines_method(&self, name: &str) -> bool {
@@ -350,6 +370,7 @@ impl WorkspaceIndex {
                 exports: class_def.exports.iter().cloned().collect(),
                 unexports: class_def.unexports.iter().cloned().collect(),
                 via_define: class_def.via_define,
+                metaclass: class_def.metaclass.clone(),
             });
         }
         for inv in &analysis.command_invocations {

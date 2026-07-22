@@ -4224,11 +4224,14 @@ impl Backend {
         definers: &[&core_workspace_index::WorkspaceClass],
         inheritors: &[&core_workspace_index::WorkspaceClass],
         method: &str,
+        dialect: &str,
     ) -> Vec<String> {
         let is_classmethod = definers.iter().any(|wc| {
-            wc.methods
-                .iter()
-                .any(|m| m.name == method && m.kind == "classmethod")
+            !wc.is_itcl(dialect)
+                && wc
+                    .methods
+                    .iter()
+                    .any(|m| m.name == method && m.kind == "classmethod")
         });
         if !is_classmethod {
             return Vec::new();
@@ -4236,6 +4239,7 @@ impl Backend {
         definers
             .iter()
             .chain(inheritors.iter())
+            .filter(|wc| !wc.is_itcl(dialect))
             .flat_map(|wc| [wc.name.clone(), wc.qualified_name.clone()])
             .collect()
     }
@@ -4278,7 +4282,7 @@ impl Backend {
             let definers = index.method_override_family(seed_class, method);
             let inheritors = index.method_inheritor_classes(seed_class, method);
             let classmethod_cmd_names =
-                Self::classmethod_dispatch_names(&definers, &inheritors, method);
+                Self::classmethod_dispatch_names(&definers, &inheritors, method, current_dialect);
             let mut family: Vec<String> = definers
                 .iter()
                 .map(|wc| wc.qualified_name.clone())
@@ -4391,6 +4395,7 @@ impl Backend {
         seed_class: &str,
         method: &str,
         new_name: &str,
+        dialect: &str,
     ) -> std::collections::HashMap<Uri, Vec<TextEdit>> {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
@@ -4408,7 +4413,7 @@ impl Backend {
             let definers = index.method_override_family(seed_class, method);
             let inheritors = index.method_inheritor_classes(seed_class, method);
             let classmethod_cmd_names =
-                Self::classmethod_dispatch_names(&definers, &inheritors, method);
+                Self::classmethod_dispatch_names(&definers, &inheritors, method, dialect);
             let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
             for wc in definers {
@@ -4511,13 +4516,14 @@ impl Backend {
         seed_class: &str,
         method: &str,
         include_declaration: bool,
+        dialect: &str,
     ) -> Vec<Location> {
         let (by_uri, classmethod_cmd_names) = {
             let index = self.workspace_index.read().await;
             let definers = index.method_override_family(seed_class, method);
             let inheritors = index.method_inheritor_classes(seed_class, method);
             let classmethod_cmd_names =
-                Self::classmethod_dispatch_names(&definers, &inheritors, method);
+                Self::classmethod_dispatch_names(&definers, &inheritors, method, dialect);
             let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
             for wc in definers {
@@ -4598,6 +4604,52 @@ impl Backend {
             }
         }
         out
+    }
+
+    /// The method-dispatch half of [`Self::references`]: resolves the
+    /// cursor to a `(class, method)` target (oracle-aware, so a
+    /// pure-consumer cursor whose `$obj`'s class lives in another file still
+    /// identifies it), then gathers its sites across the override family in
+    /// sibling documents plus pure-consumer documents the family pass can't
+    /// see.  Empty when the cursor names no method.
+    async fn cross_file_method_and_consumer_references(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_decl: bool,
+    ) -> Vec<Location> {
+        let mut locations = Vec::new();
+        if let Some((seed_class, method, _access)) = self
+            .resolve_method_target(&doc.text, &doc.dialect, analysis, pos)
+            .await
+        {
+            locations.extend(
+                self.cross_file_method_references(
+                    uri,
+                    &seed_class,
+                    &method,
+                    include_decl,
+                    &doc.dialect,
+                )
+                .await,
+            );
+            // Pure-consumer documents (including this one) whose `$obj method`
+            // sites neither the single-document provider nor the family pass
+            // sees without the workspace class oracle.
+            locations.extend(
+                self.cross_file_consumer_method_references(
+                    uri,
+                    &doc.text,
+                    &doc.dialect,
+                    &seed_class,
+                    &method,
+                )
+                .await,
+            );
+        }
+        locations
     }
 
     /// Cross-file go-to-definition for a `TclOO` method: the declaration
@@ -8367,31 +8419,18 @@ impl LanguageServer for Backend {
         // Cross-document TclOO method sites: when the cursor names a method
         // (its declaration inside a class body, or an `$obj method` / `my
         // method` call), gather the method's sites across its override family in
-        // sibling documents — the single-document provider above only sees this
-        // file.  The target is resolved oracle-aware so a pure-consumer cursor
-        // (`$obj`'s class defined in another file) still identifies the method.
-        if let Some((seed_class, method, _access)) = self
-            .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
-            .await
-        {
-            let method_cross = self
-                .cross_file_method_references(&uri, &seed_class, &method, include_decl)
-                .await;
-            locations.extend(method_cross);
-            // Pure-consumer documents (including this one) whose `$obj method`
-            // sites neither the single-document provider nor the family pass
-            // sees without the workspace class oracle.
-            let consumer = self
-                .cross_file_consumer_method_references(
-                    &uri,
-                    &doc.text,
-                    &doc.dialect,
-                    &seed_class,
-                    &method,
-                )
-                .await;
-            locations.extend(consumer);
-        }
+        // sibling documents, plus pure-consumer documents the family pass can't
+        // see — the single-document provider above only sees this file.
+        locations.extend(
+            self.cross_file_method_and_consumer_references(
+                &uri,
+                &doc,
+                &analysis,
+                pos,
+                include_decl,
+            )
+            .await,
+        );
         dedup_locations(&mut locations);
         if locations.is_empty() {
             return Ok(None);
@@ -9861,7 +9900,7 @@ impl LanguageServer for Backend {
                 core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
         {
             let changes = self
-                .cross_file_method_rename(&seed_class, &method, &new_name)
+                .cross_file_method_rename(&seed_class, &method, &new_name, &doc.dialect)
                 .await;
             if !changes.is_empty() {
                 return Ok(Some(WorkspaceEdit {
@@ -19154,7 +19193,7 @@ mod tests {
         // had no cross-file reference support at all.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", true)
+            .cross_file_method_references(&animal, "::Animal", "speak", true, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -19180,7 +19219,7 @@ mod tests {
         // (l2) is dropped but the `$d speak` call site (l5) stays.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", false)
+            .cross_file_method_references(&animal, "::Animal", "speak", false, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -19212,7 +19251,7 @@ mod tests {
         )
         .await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", false)
+            .cross_file_method_references(&animal, "::Animal", "speak", false, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -19248,7 +19287,7 @@ mod tests {
         )
         .await;
         let refs = backend
-            .cross_file_method_references(&factory, "::Factory", "make", false)
+            .cross_file_method_references(&factory, "::Factory", "make", false, "tcl8.6")
             .await;
         let sub_lines: Vec<u32> = refs
             .iter()
@@ -19267,7 +19306,7 @@ mod tests {
         // cross-file sites.
         let (backend, animal, _dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "nonexistent", true)
+            .cross_file_method_references(&animal, "::Animal", "nonexistent", true, "tcl8.6")
             .await;
         assert!(refs.is_empty(), "{refs:?}");
     }
@@ -19358,6 +19397,38 @@ mod tests {
         assert!(
             !refs.iter().any(|l| l.uri == consumer),
             "a plain method must not gain phantom class-command dispatch: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cross_file_consumer_does_not_bare_dispatch_an_itcl_class_proc() {
+        // FP guard, cross-file: [incr Tcl]'s class-scoped `proc` lands in the
+        // same `class_methods` bucket as a `classmethod`/`typemethod` (so the
+        // workspace index also sees it as `WorkspaceMethod::kind ==
+        // "classmethod"`), but itcl dispatches it as a single
+        // `::`-qualified identifier (`Factory::make`), never the two-word
+        // `Factory make` shape — which is itcl's own instance-creation
+        // syntax (`ClassName instanceName`) for an unrelated object named
+        // "make".  `classmethod_dispatch_names` must exclude itcl definers
+        // the same way the same-document scanner does.
+        let backend = test_backend();
+        let factory = Uri::from_str("file:///factory5.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer5.tcl").unwrap();
+        let factory_src = "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\n";
+        register(&backend, &factory, factory_src).await;
+        register(&backend, &consumer, "Factory make\n").await;
+        let refs = backend
+            .cross_file_consumer_method_references(
+                &factory,
+                factory_src,
+                "tcl8.6",
+                "::Factory",
+                "make",
+            )
+            .await;
+        assert!(
+            !refs.iter().any(|l| l.uri == consumer),
+            "itcl class-proc must not gain phantom two-word dispatch: {refs:?}"
         );
     }
 

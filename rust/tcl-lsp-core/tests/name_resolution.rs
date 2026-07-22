@@ -282,6 +282,24 @@ mod classmethod_dispatch {
         // and no bare `Factory make` exists here to spuriously match either.
         assert_eq!(refs_at(src, 1, 9), vec![1], "declaration only");
     }
+
+    /// FP guard: a bare two-word `Factory make` must not be treated as a
+    /// class-proc dispatch either — itcl's real syntax for creating (and
+    /// naming) a new instance is `ClassName instanceName`, so `Factory make`
+    /// in real itcl code names a *new object* called `make`, never a call to
+    /// the class-scoped `proc make`.  Folding every `class_methods` entry
+    /// into the bare two-word `cmd_set` regardless of definer family would
+    /// wrongly count (and rewrite, under rename) this unrelated construct.
+    #[test]
+    fn fp_itcl_bare_two_word_text_is_not_confused_with_class_proc_dispatch() {
+        let src =
+            "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\nFactory make\n";
+        assert_eq!(
+            refs_at(src, 1, 9),
+            vec![1],
+            "declaration only — `Factory make` is itcl instance creation, not a class-proc dispatch"
+        );
+    }
 }
 
 // ───────────────────────── #957 — `my method` references ──────────────────
