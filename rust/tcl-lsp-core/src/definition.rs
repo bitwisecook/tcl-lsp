@@ -2099,6 +2099,32 @@ mod tests {
     }
 
     #[test]
+    fn wildcard_namespace_import_wins_over_an_unrelated_decoy_with_the_same_simple_name() {
+        // TP — differential-audit finding idx 29 (main audit wave), its
+        // "cleanest repro": before this fix, a bareword call reached via a
+        // wildcard import never consulted `namespace_imports` at all, so
+        // it fell straight to `fallback_proc_by_simple_name`'s lenient
+        // "any proc with this simple name, prefer lexicographically
+        // smallest qualified name" tie-break — silently resolving (and
+        // hovering) to an entirely unrelated, never-imported decoy
+        // (`::decoyns::helper`, "d" < "r") instead of the real,
+        // oracle-proven target (`::realns::helper`, tclsh9.0/8.6-verified:
+        // prints `REAL`). The wildcard-import resolution added by idx 18
+        // is tried *before* that fallback, so it must win here.
+        let src = "namespace eval realns {\n    namespace export helper\n    proc helper {} { return REAL }\n}\nnamespace eval decoyns {\n    proc helper {} { return DECOY }\n}\nnamespace eval userns {\n    namespace import ::realns::*\n    proc run {} {\n        return [helper]\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the bareword `helper` call inside `userns::run` (line
+        // 10, col 16 — `        return [helper]`).
+        let locs = definition(src, 10, 16, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 2,
+            "must resolve to realns::helper (the exported, imported target), \
+             not the decoy: {locs:?}"
+        );
+    }
+
+    #[test]
     fn exact_namespace_import_resolves_source_proc_in_document() {
         // FP guard / bonus TP — a plain (non-glob) `namespace import
         // ::Foo::bar` must keep working through the same in-document path

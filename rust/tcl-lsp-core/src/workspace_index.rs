@@ -2161,6 +2161,28 @@ mod tests {
     }
 
     #[test]
+    fn resolve_wildcard_import_resolves_exported_class_cross_document() {
+        // TP — differential-audit finding idx 29 (main audit wave):
+        // the finding's own repro shape (analogous to the real
+        // georgtree_tclopt corpus's `tclopt.tcl` exporting a TclOO class,
+        // `examples/*.tcl` wildcard-importing and instantiating it bare).
+        // Already fixed by idx 18's shared cross-document mechanism
+        // (`workspace_command_exists`/`defined_command_names` cover
+        // classes exactly like procs); pinned here as dedicated coverage
+        // since the idx 18 diff itself only unit-tested the proc case.
+        let mypkg = analyse(
+            "namespace eval ::mypkg {\n    namespace export Widget\n    oo::class create Widget {\n        method run {} { return 42 }\n    }\n}\n",
+        );
+        let consumer = analyse("namespace import ::mypkg::*\nset w [Widget new]\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mypkg.tcl", &mypkg),
+            ("file:///consumer.tcl", &consumer),
+        ]);
+        let resolved = index.resolve_wildcard_import("Widget", &["::Widget".to_string()]);
+        assert_eq!(resolved.as_deref(), Some("::mypkg::Widget"));
+    }
+
+    #[test]
     fn resolve_wildcard_import_is_not_restricted_to_the_calling_document() {
         // TP, regression guard — `namespace import` binds to the
         // *namespace*, not the file that wrote it: real Tcl reopening
