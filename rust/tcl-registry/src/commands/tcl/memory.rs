@@ -39,11 +39,39 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     dialects: None,
 }];
 
-/// Legal values for the `on`/`off` toggle subcommands (`init`, `trace`,
-/// `validate`). All five fetched manpages (8.4-9.1) document the value as
-/// the closed pair `[on|off]`, not the fuller boolean vocabulary
-/// (`true`/`false`/`yes`/`no`/`1`/`0`) `Tcl_GetBoolean` accepts elsewhere
-/// in Tcl, so the set is modelled as closed to exactly these two words.
+/// Values for the `on`/`off` toggle subcommands (`init`, `trace`,
+/// `validate`) — completion/hover metadata only, **not** an exhaustive
+/// legal set (deliberately no `closed_value_args` on these three
+/// `SubCommand`s; see below for why).
+///
+/// All five fetched manpages (8.4-9.1) document the value as `[on|off]`,
+/// but `generic/tclCkalloc.c`'s real argument handling is neither a
+/// hard-enforced closed set nor parsed identically in every version
+/// (checked directly against the C source, tag-for-tag, not inferred from
+/// the manpage prose):
+///
+/// - 8.4/8.5/8.6/9.0 (`core-8-4-20` through `core-9-0-4`):
+///   `init_malloced_bodies = (strcmp(argv[2], "on") == 0)` — identically
+///   for `alloc_tracing` (`trace`) and `validate_memory` (`validate`) — a
+///   bare literal comparison against `"on"`. Any other word, including
+///   `"off"` itself, a typo, or `1`/`true`, is silently treated as *off*;
+///   the value is **never** rejected (only a missing/extra word triggers
+///   `wrong # args`).
+/// - 9.1 (`core-9-1-b0`): rewritten to e.g.
+///   `Tcl_GetBooleanFromObj(interp, objv[2], &init_malloced_bodies)` — now
+///   the *general* Tcl boolean parser, accepting the full
+///   true/false/yes/no/on/off/0/1/t/f/y/n vocabulary, and now a genuine
+///   `TCL_ERROR` ("expected boolean value but got ...") for anything else.
+///   The manpage prose itself is unchanged and does not announce this.
+///
+/// No single Tcl version treats `{on, off}` as *the* closed set (8.4-9.0
+/// reject nothing there; 9.1 accepts a strictly larger vocabulary), so
+/// `closed_value_args` must not be set on `init`/`trace`/`validate` —
+/// doing so would falsely flag working code such as `memory trace 1` (on
+/// 8.4-9.0: silently means "off"; on 9.1: a real recognised boolean) as an
+/// invalid value in *every* version. `on`/`off` are kept below only
+/// because they are the two spellings the manpages themselves document,
+/// for completion.
 const ON_OFF_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "on",
@@ -94,7 +122,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Turn preinitialization of newly allocated memory with bogus bytes on or off, to help catch use of uninitialized values.",
         synopsis: "memory init on|off",
         arg_values: &[(0, ON_OFF_VALUES)],
-        closed_value_args: &[0],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -144,7 +171,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Turn tracing of every allocation and free to stderr on or off.",
         synopsis: "memory trace on|off",
         arg_values: &[(0, ON_OFF_VALUES)],
-        closed_value_args: &[0],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -160,7 +186,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Turn guard-zone validation of every allocated block on or off on every allocation and free; detects an overwrite immediately, at a significant performance cost.",
         synopsis: "memory validate on|off",
         arg_values: &[(0, ON_OFF_VALUES)],
-        closed_value_args: &[0],
         ..SubCommand::DEFAULT
     },
 ];
@@ -199,7 +224,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Control Tcl's memory-debugging capabilities (debug builds only).",
             synopsis: &["memory option ?arg arg ...?"],
-            snippet: "Available only when Tcl was compiled with memory debugging enabled (TCL_MEM_DEBUG defined at compile time) and after Tcl_InitMemory has run; the command does not exist at all in an ordinary release build. Backs the allocator's built-in leak- and overwrite-detection tooling (ckalloc/ckfree through Tcl 8.6, renamed Tcl_Alloc/Tcl_Free from Tcl 9.0 -- a documentation rename only, not a Tcl-level behaviour change), used mainly during Tcl's own core development. The objs subcommand was added in Tcl 8.5; every other subcommand is unchanged across 8.4-9.1.",
+            snippet: "Available only when Tcl was compiled with memory debugging enabled (TCL_MEM_DEBUG defined at compile time) and after Tcl_InitMemory has run; the command does not exist at all in an ordinary release build. Backs the allocator's built-in leak- and overwrite-detection tooling (ckalloc/ckfree through Tcl 8.6, renamed Tcl_Alloc/Tcl_Free from Tcl 9.0 -- a documentation rename only, not a Tcl-level behaviour change), used mainly during Tcl's own core development. The objs subcommand was added in Tcl 8.5. The init/trace/validate on|off argument is matched literally against \"on\" only through Tcl 9.0 -- any other word, including \"off\" itself, silently means off and is never an error; Tcl 9.1 switches that argument to the general boolean parser, accepting the full true/false/yes/no/0/1 vocabulary and raising an error for anything else. Every other subcommand is unchanged across 8.4-9.1.",
             source: "Tcl man page memory.n",
             examples: "memory tag start\nmemory trace on\nset data [someProc]\nmemory trace off\nputs [memory info]",
             return_value: "The empty string, except memory info, which returns a multi-line allocation-statistics report.",

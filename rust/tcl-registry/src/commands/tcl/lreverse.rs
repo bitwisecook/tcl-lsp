@@ -35,13 +35,42 @@
 // version-qualified prose in the hover snippet below rather than a
 // dialects gate (the command itself is unchanged since 8.5): an
 // empty-list argument is returned unchanged rather than rebuilt (stable
-// 8.5 through 9.1), and from 9.0 a value that is an "abstract list"
-// providing its own reverse operation (e.g. the lazy sequence `lseq`
-// returns) is reversed directly through that operation instead of first
-// being shimmered into an ordinary list. Tcl 9.1 further refactors the
-// command to delegate to a new public `Tcl_ListObjReverse()` API
-// (`tcl.decls`), with no observable script-level behaviour change from
-// 9.0. `generic/tclBasic.c`'s `builtInCmds[]` table (fetched at each of the
+// 8.5 through 9.1 at the value level — 9.1's `Tcl_ListObjReverse`
+// actually `Tcl_DuplicateObj`s rather than returning the identical
+// `Tcl_Obj` for a 0- or 1-element input, but the *value* is still
+// `{}`/unchanged, which is all a script can ever observe), and from 9.0
+// a value that is an "abstract list" providing its own reverse
+// operation (e.g. the lazy sequence `lseq` returns — confirmed via
+// `TclArithSeriesObjReverse` in `generic/tclArithSeries.c` at both
+// `core-9-0-4` and `core-9-1-b0`; `lseq` itself is absent from
+// `tclBasic.c`'s `builtInCmds[]` before 9.0) is reversed directly
+// through that operation instead of first being shimmered into an
+// ordinary list.
+//
+// Tcl 9.1 moves the command's body behind a new public
+// `Tcl_ListObjReverse()` API (declared in `tcl.decls`, stub slot 693) —
+// and this is more than the refactor it looks like, a fact the previous
+// pass's "no observable script-level behaviour change from 9.0" framing
+// missed: the new `generic/tclListTypes.c` (confirmed absent — HTTP 404
+// — from both the `core-9-0-4` and `core-8-6-16` trees; first appears at
+// `core-9-1-b0`) gives that function a second, independent abstract-list
+// fast path alongside the 9.0 reverseProc-delegation one above. Past the
+// reverseProc check, `Tcl_ListObjReverse` takes a lazy path — a
+// `"reversedList"` view mapping index `i` to `len-1-i` on the original
+// object, instead of eagerly copying — whenever the value has 100 or
+// more elements (`LREVERSE_LENGTH_THRESHOLD`) *or* its type simply isn't
+// the canonical list type, even for a short list: this second condition
+// concretely fires for 9.1's own `lrepeat`/`lrange` lazy results
+// (`lrepeatType`/`lrangeType`, same file, both with a NULL reverseProc),
+// so e.g. `lreverse [lrepeat 5 x]` takes the lazy path in 9.1 regardless
+// of length. The view's length/index/stringify/`in` hooks
+// (`LreverseTypeLength`/`LreverseTypeIndex`/`TclAbstractListUpdateString`/
+// `LreverseTypeInOper`) reproduce the eager result's value exactly, so
+// this is a genuine, version-precise 9.1-only *performance* behaviour
+// with no *value* difference from 9.0 — captured as its own sentence in
+// the hover snippet below rather than folded into the 9.0 one.
+//
+// `generic/tclBasic.c`'s `builtInCmds[]` table (fetched at each of the
 // `core-8-5-19` / `core-8-6-16` / `core-9-0-4` / `core-9-1-b0` release
 // tags) shows `lreverse` has a NULL `compileProc` in every release that
 // has the command at all — unlike its `lindex` / `lrange` / `llength` /
@@ -84,7 +113,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Reverse the order of a list",
             synopsis: &["lreverse list"],
-            snippet: "Treats list as a Tcl list and returns a new list with the same elements in reverse order; list must be syntactically valid as a Tcl list, and a malformed value (such as one with an unmatched open brace) raises an error rather than being treated as a single-element list. Only the element order changes — each element's own value and internal representation is left untouched, so a nested sublist such as {c d} still travels as a single element. An empty list argument is returned unchanged. From Tcl 9.0, when list is an abstract list such as the result of lseq, lreverse reverses it directly through the type's own reverse operation instead of first expanding it into an ordinary list.",
+            snippet: "Treats list as a Tcl list and returns a new list with the same elements in reverse order; list must be syntactically valid as a Tcl list, and a malformed value (such as one with an unmatched open brace) raises an error rather than being treated as a single-element list. Only the element order changes — each element's own value and internal representation is left untouched, so a nested sublist such as {c d} still travels as a single element. An empty list argument is returned unchanged. From Tcl 9.0, when list is an abstract list such as the result of lseq, lreverse reverses it directly through the type's own reverse operation instead of first expanding it into an ordinary list. From Tcl 9.1, reversing a list of 100 or more elements -- or any value already backed by another lazy list view, such as a large lrepeat or lrange result -- similarly skips the up-front copy: the result is a lightweight view over the original value that indexes, measures, and prints exactly like a fully-reversed list.",
             source: "Tcl lreverse(n)",
             examples: "lreverse {a a b c}          ;# c b a a\nlreverse {a b {c d} e f}    ;# f e {c d} b a -- the nested {c d} sublist stays intact as one element\nlreverse {}                  ;# {} -- an empty list is returned unchanged",
             return_value: "A new list containing the same elements as list, in reverse order; an empty list argument is returned unchanged.",

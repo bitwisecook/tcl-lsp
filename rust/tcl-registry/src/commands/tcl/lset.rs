@@ -19,11 +19,30 @@
 //! `lset` — change an element in a list variable.
 //
 // Cross-checked against the tcl-lang.org lset(n) manpages for Tcl 8.4,
-// 8.5, 8.6, 9.0, and 9.1. Forms, arity, and error conditions are
-// identical across that range except for the index-equals-length case:
-// Tcl 8.4/8.5 treat an index equal to the target sublist's length as out
-// of range, Tcl 8.6+ appends there instead (see `hover.snippet` below for
-// the exact wording surfaced to users).
+// 8.5, 8.6, 9.0, and 9.1 (independently re-fetched and re-verified,
+// verifier pass, against raw manpage HTML rather than a prior summary).
+// Forms and arity are identical across that range; two facts are
+// version-gated:
+//
+// - index-equals-length: 8.4/8.5 raise "list index out of range" for an
+//   index equal to the target sublist's length ("negative or greater
+//   than or equal to" -> error, "strictly less than" required); 8.6+
+//   appends `newValue` there instead ("negative or greater than" ->
+//   error, "equal to" -> append, "less than or equal to" required).
+//   Note: the tcl8.6 manpage's own EXAMPLES section still prints the
+//   pre-8.6 error for `lset x {2 3} j` even though its DESCRIPTION
+//   paragraph on the very same page states the new append rule — an
+//   upstream doc staleness fixed in the 9.0/9.1 manpage's EXAMPLES
+//   (which show `{2 3}` appending and add a new `{2 4}` example for the
+//   real boundary). This file follows the DESCRIPTION prose plus the
+//   corrected 9.0/9.1 example, not the stale 8.6 one — confirmed against
+//   the raw HTML of all five pages, not just an AI summary of them.
+// - index arithmetic: 8.4 accepts only a bare integer, `end`, or
+//   `end-integer`; 8.5+ adds the fuller `string index` arithmetic (e.g.
+//   `end-1+1`), per the manpage's own cross-reference to `string index`
+//   (itself new to lset's SEE ALSO list starting in 8.5).
+//
+// See `hover.snippet` below for the exact wording surfaced to users.
 use crate::forms::CommandForm;
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;

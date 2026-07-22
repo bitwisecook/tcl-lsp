@@ -70,9 +70,25 @@ fn interp_bgerror_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
 /// keywords — always a single bare word, never a list, so the index is
 /// safe to close (contrast `open`'s access argument, which can be a
 /// multi-flag list and so stays completion-only via `arg_values` alone).
+///
+/// The canonical spelling is `commands` (plural), not the manpage prose's
+/// `command` (singular, "Command limits (of type command)" in the
+/// RESOURCE LIMITS section of every one of tcl8.5/8.6/9.0/9.1's
+/// TclCmd/interp.html — the doc text was never corrected). The real,
+/// version-independent keyword is `commands`: `tclInterp.c`'s
+/// `static const char *const limitTypes[] = { "commands", "time", NULL };`
+/// is identical across the core-8-5-19, core-8-6-14, core-9-0-4, and
+/// current `main` (9.1) source trees, and a live tclsh 8.6.14's own
+/// error text confirms it (`bad limit type "xyz": must be commands or
+/// time`). `command` (singular) still resolves — but only because it
+/// happens to be a unique *prefix* of `commands`, the same
+/// `arg_values_accept_prefix` path that also accepts `comm`/`c` below —
+/// so listing the singular spelling as the canonical closed value was
+/// backwards: it accepted the abbreviation while rejecting the literal
+/// canonical word itself (`commands` is not a prefix of `command`).
 const LIMIT_TYPE_VALUES: &[ArgValue] = &[
     ArgValue {
-        value: "command",
+        value: "commands",
         detail: "Restrict the total number of Tcl commands the interpreter may execute.",
         ..ArgValue::DEFAULT
     },
@@ -412,7 +428,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(1, LIMIT_TYPE_VALUES)],
         closed_value_args: &[1],
         // Confirmed against tclsh 8.6.14: `interp limit $i comm` and even
-        // `interp limit $i c` both resolve as `command` (same unique-prefix
+        // `interp limit $i c` both resolve as `commands` (same unique-prefix
         // ensemble dispatch as `chan close`'s direction argument).
         arg_values_accept_prefix: true,
         ..SubCommand::DEFAULT

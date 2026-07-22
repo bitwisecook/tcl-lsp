@@ -23,13 +23,18 @@
 //! list.  Verified against C Tcl 9.1b0 `generic/tclBasic.c` (the built-in
 //! command table: `DivModObjCmd` / `FracExpObjCmd` / `ModFObjCmd` /
 //! `RemQuoObjCmd`, all `CMD_IS_SAFE`) and `doc/{divmod,frexp,modf,remquo}.n`.
-//! Confirmed absent (404) from the Tcl 8.4, 8.5, 8.6, and 9.0 manual trees —
-//! all four are new in 9.1 (TIP 745's multi-value C99 math functions land as
-//! these standalone commands rather than as `tcl::mathfunc` entries, so none
-//! of them can be called from inside `expr`).  None of the vendor dialects
-//! (F5 iRules/iApps/tmsh, Expect, the EDA consoles, Tk, incr Tcl) declare an
-//! override for any of these four names, so the plain `TCL91` command-level
-//! gate is the whole story.
+//! Independently re-fetched for all 5 core versions × all 4 names (20
+//! fetches) in a later version-precision verification pass: absent from the
+//! Tcl 8.4, 8.5, 8.6 (`.htm`), and 9.0 manual trees, present only in 9.1.
+//! "Absent" there means tcl-lang.org's soft-404 (HTTP 200, an "URL Not
+//! Found" placeholder page — not a genuine 404 status), confirmed via raw
+//! `curl` rather than a summarised fetch, so this isn't a proxy/redirect
+//! artifact.  All four are new in 9.1 (TIP 745's multi-value C99 math
+//! functions land as these standalone commands rather than as
+//! `tcl::mathfunc` entries, so none of them can be called from inside
+//! `expr`).  None of the vendor dialects (F5 iRules/iApps/tmsh, Expect, the
+//! EDA consoles, Tk, incr Tcl) declare an override for any of these four
+//! names, so the plain `TCL91` command-level gate is the whole story.
 
 use crate::prelude::*;
 
@@ -46,10 +51,29 @@ fn make(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        // Deterministic and side-effect-free ⇒ constant-foldable / CSE-able,
-        // like `lseq`.  Not `BYTE_COMPILED`: that trait marks the curated
-        // former minifier `_BUILTIN_SKIP` list (`set`/`if`/`string`/…), and
-        // these four commands were never part of it — same as `lseq`.
+        // Every argument here is an ordinary, already-substituted numeric
+        // value (`divmod x y` / `frexp value` / `modf value` / `remquo x
+        // y` — no brace-protected inner expression anywhere in any of the
+        // four manpages). That's unlike `lseq`, which evaluates one of its
+        // own arguments as a Tcl expression at runtime (`lseq
+        // {[llength $l]-1} 0`) and therefore must carry `PURE_EVALUATION`
+        // while deliberately *omitting* `CSE_CANDIDATE` — see lseq.rs's own
+        // comment: a `[...]` inside that brace can be side-effecting, so
+        // eliding a "duplicate" call there would be an unsound false
+        // guarantee (this was a real, previously-shipped bug in `lseq`'s
+        // classification, since fixed). No such expression-argument
+        // mechanism exists for these four — confirmed via their manpages
+        // and via `tcl-vm`, which has no dedicated implementation for any
+        // of them at all (falls through to generic invoke, so there's no
+        // hidden eval-fallback to worry about either) — so plain `PURE` +
+        // `CSE_CANDIDATE` is sound here. Not `BYTE_COMPILED` either: that
+        // trait marks the curated former minifier `_BUILTIN_SKIP` list
+        // (`set`/`if`/`string`/…, see `registry.rs`'s
+        // `byte_compiled_covers_the_core_builtins`) — none of these four
+        // names appear in it, and as brand-new TIP-745 commands they have
+        // no demonstrated claim to dedicated Tcl bytecode-compiler inlining
+        // the way `lseq` (which *does* carry `BYTE_COMPILED`, as an
+        // established core builtin with its own manpage) does.
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
         dialects: Some(DialectSet::TCL91),
         arity: Arity::exact(args),
@@ -127,6 +151,18 @@ pub fn modf() -> CommandSpec {
 }
 
 /// `remquo x y` — floating-point remainder and quadrant determinant as a list.
+///
+/// The live Tcl 9.1b0 manpage text is internally inconsistent: its NAME
+/// line says "quadrant determinant" but its DESCRIPTION says the second
+/// list element identifies "which octant the gradient was located within"
+/// (confirmed verbatim via raw `curl`, independently re-checked — not a
+/// fetch-summary artifact). "Gradient" doesn't parse for a two-argument
+/// remainder command; standard C99 `remquo()` semantics — and the
+/// DESCRIPTION's own "octant" wording — describe which of eight octants
+/// the true quotient x/y falls into. The hover text below follows that
+/// established semantics rather than propagating the apparent upstream doc
+/// slip; worth reporting upstream, or restoring the literal wording
+/// instead, if the project owner prefers.
 pub fn remquo() -> CommandSpec {
     const FORMS: &[FormSpec] = &[FormSpec {
         kind: FormKind::Default,

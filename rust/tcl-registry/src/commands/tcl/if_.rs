@@ -188,11 +188,17 @@ fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
 ///
 /// Synopsis, grammar, and semantics are identical across Tcl 8.4, 8.5, 8.6,
 /// 9.0, and 9.1: the if(n) manpage's SYNOPSIS, DESCRIPTION, and EXAMPLES
-/// sections are word-for-word identical on all five version trees (the only
-/// differences across the five pages are typographic — an ASCII vs. Unicode
-/// quote glyph around "noise words", and a hyphen vs. em dash in the NAME
-/// line). `if` has never taken an option, never gained or lost a form, and
-/// has no version-gated behaviour to model here.
+/// sections are word-for-word identical on all five version trees (fetched
+/// and line-diffed directly, not paraphrased) — no wording, grammar,
+/// option, or semantics change anywhere in the range. The five pages
+/// differ only in cosmetic typesetting, split at the same 8.5/8.6
+/// boundary: 8.4/8.5 use an ASCII troff-quoted "noise words" phrase and a
+/// hyphen in the NAME line, where 8.6+ use a Unicode-quoted "noise words"
+/// phrase and an em dash; and 8.4/8.5 render the EXAMPLES code blocks at 3-space indent
+/// with the final multi-line-expression example kept on one line, where
+/// 8.6+ use 4-space indent and wrap that same expression's `||` operators
+/// one per line. `if` has never taken an option, never gained or lost a
+/// form, and has no version-gated behaviour to model here.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",

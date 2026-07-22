@@ -51,7 +51,14 @@ const FORMS: &[FormSpec] = &[
 /// no `closed_value_args`/closed `OptionArg` entry for this option, since a
 /// legitimate multi-word list (e.g. `{d r}`) would otherwise be
 /// misreported as an invalid value. Stable across 8.4–9.1 — every fetched
-/// manpage documents the identical letter/word set.
+/// manpage documents the identical letter/word set. (The legacy macOS
+/// type/creator-code third form is deliberately not itemized here — an
+/// obsolete 4-char-or-`{macintosh ...}` shape that doesn't fit this flat
+/// enum — and is version-gated separately, in prose, on the option's own
+/// `detail`: two independent isolated fetches of the 8.4 manpage omit that
+/// paragraph entirely, while 8.5, 8.6, 9.0, and 9.1 all carry it verbatim,
+/// so it is documented there as a "from Tcl 8.5" fact, not a universal
+/// one.)
 const TYPES_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "b",
@@ -199,7 +206,7 @@ pub fn spec() -> CommandSpec {
                         hint: "typeList",
                         ..OptionArg::DEFAULT
                     }),
-                    detail: "Filter matches against typeList, a Tcl list combining two vocabularies: Unix find-style kind letters (b/c/d/f/l/p/s), of which a match need satisfy only one, and permission words (r/w/x/readonly/hidden), of which a match must satisfy all. Legacy macOS type/creator codes are also accepted.",
+                    detail: "Filter matches against typeList, a Tcl list combining two vocabularies: Unix find-style kind letters (b/c/d/f/l/p/s), of which a match need satisfy only one, and permission words (r/w/x/readonly/hidden), of which a match must satisfy all. From Tcl 8.5, legacy macOS type/creator codes are also accepted.",
                     dialects: None,
                     aliases: &[],
                     min_version: None,

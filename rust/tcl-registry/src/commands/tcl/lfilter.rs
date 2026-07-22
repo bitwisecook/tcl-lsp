@@ -35,13 +35,30 @@ use crate::prelude::*;
 // (`generic/tclCmdAH.c`) never enters the loop body at all, so nothing is
 // assigned — `writes: true` is the sound over-approximation for a fact a
 // static spec can't see per call site. No named target is known statically,
-// hence `Unknown`. There is no read-modify-write of the loop variable
-// itself (each iteration's assignment is fresh, not combined with the old
-// value), so `reads` stays `false`. The predicate/body's own effects are
+// hence `Unknown`.
+//
+// `reads: true` too, matching every other Eachloop-family/opaque-body
+// control construct in this registry that declares an `Unknown` target:
+// `foreach`/`lmap` (`generic/tclCmdAH.c`'s `TclNRForeachCmd`/
+// `TclNRLmapCmd`/`TclNRLfilterCmd` all delegate to the very same
+// `EachloopCmd`, differing only in the `TCL_EACH_*` mode constant they
+// pass — `TCL_EACH_FILTER` here), plus `for`/`while`/`if`/`switch`/`try`/
+// `catch`/`subst` all declare `(reads: true, writes: true)` for this exact
+// situation; none in this codebase pairs `Unknown` with `writes: true,
+// reads: false` for a control construct (the two counterexamples,
+// `json::create`/`json::set`, are pure value constructors with no loop
+// body, not the same shape). `lfilter` also, on every iteration, reads an
+// element out of each value list — state of unknown static identity, the
+// same reason `foreach`/`lmap` read. Dropping `reads` to `false` would
+// mean `to_effect_regions()` (`tcl_compiler::side_effects::
+// target_to_region`, whose wildcard arm maps `Unknown` to
+// `EffectRegion::UNKNOWN_STATE`, not `NONE`) omits `UNKNOWN_STATE` from
+// this call's read set entirely — an unsound under-approximation for the
+// same reason `writes: false` was. The predicate/body's own effects are
 // tracked separately by recursing into its `Body` arg role.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Unknown,
-    reads: false,
+    reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
     dialects: None,

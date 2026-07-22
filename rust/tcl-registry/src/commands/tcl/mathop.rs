@@ -43,21 +43,29 @@ pub fn spec() -> CommandSpec {
         // `lt`/`le`/`gt`/`ge` string-ordering operators (TIP 461), but
         // that is a fact about the individual operator commands in
         // `mathop_generated.rs`, not about the namespace's own
-        // availability. `TCL85_PLUS` also correctly excludes iRules:
-        // `DialectProfile::operators_as_commands` is `false` for
-        // `f5-irules` (math operators live only inside `expr` there,
-        // never as command heads), while every other modelled dialect
-        // that has `operators_as_commands: true` (iApps, tmsh, the five
-        // EDA vendor shells, Expect, bpf) mixes a Tcl-core version bit
-        // >= 8.5 into its `availability_mask` alongside its vendor bit,
-        // so this gate still resolves available there without needing to
-        // name any of them explicitly.
+        // availability.
+        //
+        // `TCL85_PLUS` also correctly excludes iRules — but not via
+        // `DialectProfile::operators_as_commands`: this spec carries no
+        // `Traits::OPERATOR_COMMAND` (only the individual operator-command
+        // spellings in `mathop_generated.rs` do), so `is_available` /
+        // `spec_visible`'s `operators_as_commands` clause is vacuously
+        // satisfied for it regardless of a profile's setting — it never
+        // actually gates this entry either way. The real reason iRules is
+        // excluded is the plain dialect-intersection rule: `f5-irules`'s
+        // `availability_mask` is the bare `IRULES` bit with no Tcl-core
+        // version bit unioned in, so it never intersects `TCL85_PLUS`.
+        // Every other modelled dialect (iApps, tmsh, the five EDA vendor
+        // shells, Expect, bpf) mixes a Tcl-core version bit >= 8.5 into its
+        // `availability_mask` alongside its vendor bit, so that same plain
+        // intersection resolves them available without needing to name
+        // any of them explicitly.
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(0),
         // No single `TclType` describes the family: the arithmetic and
-        // bit-wise operators return a number, but the comparison,
-        // equality, and list-membership operators return a boolean
-        // (`1`/`0`) — see `return_value` below.
+        // bit-wise operators return a number, but boolean negation (`!`)
+        // and the comparison, equality, and list-membership operators
+        // return a boolean (`1`/`0`) — see `return_value` below.
         return_type: None,
         forms: FORMS,
         hover: Some(HoverSnippet {
@@ -66,7 +74,7 @@ pub fn spec() -> CommandSpec {
             snippet: "`tcl::mathop` is a namespace, not a command in its own right — there is no bare `tcl::mathop` command to call. Each operator (`+`, `-`, `==`, `eq`, `in`, …) is a separate command inside the namespace, invoked as `tcl::mathop::<op>` or `::tcl::mathop::<op>`. Every operator implements the same computation `expr` uses internally, but as an ordinary, eagerly-evaluated command: redefining, renaming, or deleting one has no effect on `expr`'s own behaviour, and neither does adding a new command to the namespace. Because a command call evaluates all of its arguments up front, the short-circuiting `&&`, `||`, and `?:` operators have no command form here. `namespace import ::tcl::mathop::*` or `namespace path {::tcl::mathop}` brings the bare operator names into scope. Tcl 8.5 and 8.6 provide `==`/`!=`, `eq`/`ne`, and `<`/`<=`/`>`/`>=`; Tcl 9.0 adds `lt`/`le`/`gt`/`ge` for pure UNICODE string ordering.",
             source: "Tcl mathop(n)",
             examples: "namespace path {::tcl::mathop ::tcl::mathfunc}\nset total [+ 1 2 3]\nset inRange [<= 1 $x 10]\nset found [in $needle $haystack]",
-            return_value: "A number for the arithmetic and bit-wise operators (+ - * / % ** & | ^ ~ << >>); 1 or 0 (true or false) for the comparison, equality, and list-membership operators (== != eq ne < <= > >= in ni, plus lt/le/gt/ge from Tcl 9.0).",
+            return_value: "A number for the arithmetic and bit-wise operators (+ - * / % ** & | ^ ~ << >>); 1 or 0 (true or false) for boolean negation and the comparison, equality, and list-membership operators (! == != eq ne < <= > >= in ni, plus lt/le/gt/ge from Tcl 9.0).",
         }),
         ..CommandSpec::DEFAULT
     }

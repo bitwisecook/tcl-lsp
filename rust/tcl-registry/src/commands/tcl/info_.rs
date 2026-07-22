@@ -373,7 +373,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "frame",
         arity: Arity::new(0, 1),
-        detail: "Returns the depth of the call to info frame itself when depth is omitted; otherwise returns a dictionary describing the active command at that depth (keys: type, source/file/line, cmd, proc, lambda, level). Reports every stack frame, including eval/uplevel/source frames that info level does not see.",
+        detail: "Returns the depth of the call to info frame itself when depth is omitted; otherwise returns a dictionary describing the active command at that depth (keys: type — one of source/proc/eval/precompiled — plus line, file, cmd, proc, lambda, level as applicable). Reports every stack frame, including eval/uplevel/source frames that info level does not see.",
         synopsis: "info frame ?depth?",
         pure: true,
         return_type: Some(TclType::Dict),
@@ -497,11 +497,20 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the pathname of the innermost script currently being evaluated, or the empty string if none. With filename, overrides the return value of this command for the remainder of the active invocation — useful in virtual filesystem applications.",
         synopsis: "info script ?filename?",
         pure: true,
+        mutator: true,
         return_type: Some(TclType::String),
         returns_path: true,
         // Read-only in its common bare form; the optional `filename`
         // argument writes interpreter-level state (the active script-path
-        // override), unchanged across 8.4-9.1.
+        // override), unchanged across 8.4-9.1. `mutator: true` is required
+        // alongside `pure: true` here (mirrors the getter/setter pattern
+        // used e.g. by `DNS::header cd ?value?`) — without it,
+        // `tcl_compiler::side_effects::classify_side_effects`'s
+        // `sub.pure && !sub.mutator` short-circuit returns an empty,
+        // effect-free classification for *every* call before the
+        // `side_effects` below is ever consulted, silently making
+        // `info script $path` look pure/dead-code-eliminable even though
+        // it exists only for its side effect.
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
