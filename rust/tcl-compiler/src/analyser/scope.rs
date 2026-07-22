@@ -453,27 +453,38 @@ impl Analyser {
             };
             // A math-function invocation's resolved name carries the fixed
             // `tcl::mathfunc` dispatch segment, never the calling namespace —
-            // the generic one-hop `{ns}::{name}` strip just below would
-            // misparse `::tcl::mathfunc::sin` (minus `::sin`) as the nonsense
-            // namespace `::tcl::mathfunc`, silently mis-resolving to an
-            // unrelated global command that happens to share the bare tail
-            // name (a same-file `proc sin {…}` would hijack `expr {sin(x)}`).
-            // Settle these against the real two-candidate rule instead: the
-            // caller's own `tcl::mathfunc` (a TIP 232 namespace-local
-            // override), else the global one — `known` plus, for the global
-            // candidate only, genuine built-in membership (a local slot is
-            // never a built-in; only the true global one ever is).
-            let mathfunc_suffix = format!("::tcl::mathfunc::{}", inv.name);
-            if let Some(stripped) = resolved.strip_suffix(mathfunc_suffix.as_str()) {
-                let ns: String = if stripped.is_empty() {
-                    "::".to_owned()
-                } else {
-                    stripped.to_owned()
+            // the generic one-hop `{ns}::{name}` strip just below assumes
+            // `resolved` is exactly `{callingNamespace}::{name}`, which is
+            // false here (it would misparse `::tcl::mathfunc::sin` as if
+            // `::tcl::mathfunc` were the calling namespace, silently
+            // mis-resolving to an unrelated global command that happens to
+            // share the bare tail name — a same-file `proc sin {…}` would
+            // hijack `expr {sin(x)}`). `is_mathfunc_call` — set once, at
+            // record time, never re-derived by guessing at the resolved
+            // string's shape — routes these through the real two-candidate
+            // rule instead: the caller's own `tcl::mathfunc` (honouring its
+            // `namespace path`, exactly like the VM's own
+            // `resolve_command_fqn` does for every command lookup, math
+            // functions included), else the global one — `known` plus, for
+            // the global candidate only, genuine built-in membership (a
+            // local slot is never a built-in; only the true global one
+            // ever is).
+            if inv.is_mathfunc_call {
+                let mathfunc_suffix = format!("::tcl::mathfunc::{}", inv.name);
+                let ns: String = match resolved.strip_suffix(mathfunc_suffix.as_str()) {
+                    Some("") => "::".to_owned(),
+                    Some(prefix) => prefix.to_owned(),
+                    // The walk always produces this shape for a mathfunc
+                    // invocation; treat an unrecognised one conservatively,
+                    // matching the generic path's own fallback below.
+                    None => {
+                        inv.resolution_candidates = vec![resolved];
+                        continue;
+                    }
                 };
-                let candidates = crate::naming::bareword_resolution_candidates(
-                    &ns,
-                    &format!("tcl::mathfunc::{}", inv.name),
-                );
+                let path: &[String] = paths.get(&ns).map_or(&[], Vec::as_slice);
+                let rel = format!("tcl::mathfunc::{}", inv.name);
+                let candidates = crate::naming::command_resolution_candidates(&ns, path, &rel);
                 inv.resolution_candidates.clone_from(&candidates);
                 let global = format!("::tcl::mathfunc::{}", inv.name);
                 let winner = candidates.into_iter().find(|c| {

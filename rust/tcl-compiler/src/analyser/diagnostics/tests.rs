@@ -7203,6 +7203,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             indirect: false,
             rename_safe: true,
             existence_probe: false,
+            is_mathfunc_call: false,
         });
     let registry = tcl_registry::CommandRegistry::build_default();
     a.emit_unresolved_command_diagnostics(&registry);

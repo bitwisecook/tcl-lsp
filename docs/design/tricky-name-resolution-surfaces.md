@@ -277,19 +277,46 @@ the ensemble configuration string. Same fix location, same milestone.
   `proc_tail_names` fallback happened to still suppress it either way), but
   go-to-definition, references, rename, call-hierarchy, minify, and
   completion all read `resolved_qualified_name` directly and would have
-  inherited the wrong target. Fixed by giving mathfunc invocations their own
-  two-candidate settlement rule (caller's `tcl::mathfunc`, else the global
-  one — `bareword_resolution_candidates` against the relative name
-  `tcl::mathfunc::f`, not the generic suffix-strip) in
-  `finalise_invocation_resolutions` (`scope.rs`), keyed off the shared
-  `tcl_expr_eval::is_known_mathfunc_in_dialect` free function so the
-  existence check and W123's own agree by construction. Covered by
-  `commands.rs`'s `expr_function_call_ignores_unrelated_same_named_global_proc`
-  / `expr_function_call_resolves_namespace_local_mathfunc_override` /
-  `expr_function_call_falls_back_to_global_user_override_from_a_namespace`
-  / `expr_function_call_resolves_builtin_from_inside_a_namespace`, and
-  `definition.rs`'s `no_definition_for_mathfunc_call_despite_unrelated_same_named_proc`
-  / `mathfunc_call_jumps_to_namespace_local_override`.
+  inherited the wrong target.
+
+  First pass fixed this with a *structural* branch in
+  `finalise_invocation_resolutions`: detect the mathfunc shape by checking
+  whether `resolved` ends with `::tcl::mathfunc::{name}`, then settle via a
+  dedicated two-candidate rule. Re-reviewing that fix surfaced two more
+  things worth doing properly rather than declaring done: (1) shape-sniffing
+  a string is exactly the kind of guess this whole bug started from — a
+  contrived namespace literally named `…::tcl::mathfunc` holding unrelated
+  ordinary commands could still fool it — and every *other*
+  `push_command_reference` caller in the analyser (`oo.rs`, both ensemble
+  paths in `handlers.rs`, the existence-probe path in `commands.rs`) was
+  audited to confirm mathfunc really is the only "fixed dispatch prefix,
+  not the calling namespace" case among them, so a one-off flag beats a
+  speculative general mechanism; and (2) the branch used
+  `bareword_resolution_candidates` (no `namespace path`), while math
+  functions are ordinary commands under TIP 232 and the VM's own
+  `resolve_command_fqn` routes every lookup — mathfunc calls included —
+  through the same `namespace path`-aware resolver
+  (`tcl-vm/src/interp.rs`), so the analyser was silently narrower than the
+  runtime it describes.
+
+  Landed properly instead:
+  [`SignatureCommandInvocation::is_mathfunc_call`](../../rust/tcl-compiler/src/signature_scan/types.rs)
+  is set once, at record time, by the one caller that needs it
+  (`push_mathfunc_command_reference`) — no shape-guessing at settlement
+  time. `finalise_invocation_resolutions` (`scope.rs`) branches on the flag
+  and settles via `command_resolution_candidates(&ns, path, "tcl::mathfunc::f")`
+  (the same `path`-aware builder the generic case already uses, not the
+  `path`-free specialisation), `known()` plus — for the global candidate
+  only — the shared `tcl_expr_eval::is_known_mathfunc_in_dialect` free
+  function, so the existence check and W123's own agree by construction.
+  Covered by `commands.rs`'s
+  `expr_function_call_ignores_unrelated_same_named_global_proc` /
+  `expr_function_call_resolves_namespace_local_mathfunc_override` /
+  `expr_function_call_falls_back_to_global_user_override_from_a_namespace` /
+  `expr_function_call_resolves_builtin_from_inside_a_namespace` /
+  `expr_function_call_honours_namespace_path`, and `definition.rs`'s
+  `no_definition_for_mathfunc_call_despite_unrelated_same_named_proc` /
+  `mathfunc_call_jumps_to_namespace_local_override`.
 
 ### 1.7 Literal command names in dispatch tables — **CONFIRMED** (medium)
 

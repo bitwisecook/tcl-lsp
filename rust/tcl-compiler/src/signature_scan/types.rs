@@ -206,6 +206,7 @@ pub struct SignatureAutoPathEntry {
 /// sites against a proc's qualified name even when the call
 /// site uses a relative form.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // independent per-call-site flags, not a state machine
 pub struct SignatureCommandInvocation {
     /// Command head as written at the call site (no namespace
     /// resolution performed).
@@ -275,6 +276,20 @@ pub struct SignatureCommandInvocation {
     /// are orthogonal (issue #945 fault 9).  Navigation and rename treat
     /// the record exactly like any other direct reference.
     pub existence_probe: bool,
+    /// `true` for an `expr` math-function call (`sin($x)`, `max($a, $b)`,
+    /// recorded by `record_expr_function_invocations`). `name` is the bare
+    /// function word and `resolved_qualified_name` is the *local-first*
+    /// `{ns}::tcl::mathfunc::name` candidate for the call's own namespace —
+    /// unlike every other invocation, whose resolved name has the ordinary
+    /// `{ns}::{name}` shape (`ns` a single hop from `name`), a mathfunc
+    /// invocation always carries the fixed two-segment `tcl::mathfunc`
+    /// dispatch prefix between them. This flag — not a shape guess re-derived
+    /// from the resolved string — is what tells
+    /// [`crate::analyser::Analyser::finalise_invocation_resolutions`] to
+    /// settle it against the dedicated two-candidate mathfunc rule instead of
+    /// the generic one-hop suffix-strip, which would otherwise misparse
+    /// `tcl::mathfunc` as if it were the calling namespace.
+    pub is_mathfunc_call: bool,
 }
 
 /// The full result returned by `extract_signatures`.

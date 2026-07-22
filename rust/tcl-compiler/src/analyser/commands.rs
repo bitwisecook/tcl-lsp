@@ -364,6 +364,7 @@ impl Analyser {
                     indirect: false,
                     rename_safe: true,
                     existence_probe: false,
+                    is_mathfunc_call: false,
                 },
             );
 
@@ -391,6 +392,7 @@ impl Analyser {
                         indirect: false,
                         rename_safe: true,
                         existence_probe: false,
+                        is_mathfunc_call: false,
                     },
                 );
             }
@@ -1286,6 +1288,7 @@ impl Analyser {
                     indirect: false,
                     rename_safe: true,
                     existence_probe: false,
+                    is_mathfunc_call: false,
                 },
             );
         }
@@ -1334,6 +1337,38 @@ impl Analyser {
                 indirect: false,
                 rename_safe: true,
                 existence_probe,
+                is_mathfunc_call: false,
+            },
+        );
+    }
+
+    /// [`Self::push_command_reference`] for an `expr` math-function call —
+    /// see
+    /// [`crate::signature_scan::types::SignatureCommandInvocation::is_mathfunc_call`].
+    /// A dedicated method rather than another positional bool on
+    /// [`Self::push_command_reference_with_policy`]: it has exactly one
+    /// caller, and a same-typed `existence_probe, is_mathfunc_call` pair
+    /// invites a silently-transposed call.
+    pub(in crate::analyser) fn push_mathfunc_command_reference(
+        &mut self,
+        written: String,
+        span: Span,
+        resolved: String,
+        argc: Option<usize>,
+    ) {
+        self.result.command_invocations.push(
+            crate::signature_scan::types::SignatureCommandInvocation {
+                name: written,
+                range: span,
+                resolved_qualified_name: Some(resolved),
+                resolution_candidates: Vec::new(),
+                argc,
+                callback_arity: None,
+                callback_baked_args: 0,
+                indirect: false,
+                rename_safe: true,
+                existence_probe: false,
+                is_mathfunc_call: true,
             },
         );
     }
@@ -1912,7 +1947,7 @@ impl Analyser {
         for (name, span, argc) in self.expr_function_calls(expr_tok) {
             let resolved =
                 self.resolve_command_qualified_name(&format!("tcl::mathfunc::{name}"), scope_path);
-            self.push_command_reference(name, span, resolved, Some(argc));
+            self.push_mathfunc_command_reference(name, span, resolved, Some(argc));
         }
     }
 
@@ -1936,6 +1971,7 @@ impl Analyser {
                     indirect: false,
                     rename_safe: true,
                     existence_probe: false,
+                    is_mathfunc_call: false,
                 },
             );
         }
@@ -1986,6 +2022,7 @@ impl Analyser {
                     indirect: false,
                     rename_safe: true,
                     existence_probe: false,
+                    is_mathfunc_call: false,
                 },
             );
         }
@@ -3619,6 +3656,48 @@ mod tests {
         assert!(
             !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
             "must still draw no W123: {:?}",
+            r.diagnostics,
+        );
+    }
+
+    /// TIP 232 math functions are ordinary commands, so `namespace path`
+    /// applies to their resolution exactly as it does to any other command —
+    /// confirmed against the VM's own `resolve_command_fqn`, which routes
+    /// every lookup (mathfunc calls included) through the same `ns_paths`-
+    /// aware resolver. Neither the caller's own namespace nor the global
+    /// slot defines `triple`; only the `namespace path` entry does.
+    #[test]
+    fn expr_function_call_honours_namespace_path() {
+        let src = "namespace eval ::libns::tcl::mathfunc {}\n\
+                    proc ::libns::tcl::mathfunc::triple {x} { return [expr {$x * 3}] }\n\
+                    namespace eval ::consumer {\n    \
+                        namespace path ::libns\n    \
+                        proc caller {} { return [expr {triple(2)}] }\n\
+                    }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "triple")
+            .expect("mathfunc invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::libns::tcl::mathfunc::triple"),
+            "must settle via the namespace path entry: {inv:?}",
+        );
+        assert_eq!(
+            inv.resolution_candidates,
+            vec![
+                "::consumer::tcl::mathfunc::triple",
+                "::libns::tcl::mathfunc::triple",
+                "::tcl::mathfunc::triple",
+            ],
+            "current namespace, then the path entry, then global",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+            "must draw no W123: {:?}",
             r.diagnostics,
         );
     }
