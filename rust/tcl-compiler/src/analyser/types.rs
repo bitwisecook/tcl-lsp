@@ -834,6 +834,17 @@ pub struct AnalysisResult {
     pub global_scope: Scope,
     /// Procs keyed by qualified name.
     pub all_procs: HashMap<String, ProcDef>,
+    /// Every `proc` declaration's own name-token span, in source order —
+    /// unlike `all_procs` (a map that, for a qualified name declared more
+    /// than once in the same document, retains only the *last* processed
+    /// declaration — plain Tcl's own "last redefinition wins" semantics),
+    /// this keeps one entry per declaration, including an earlier, shadowed
+    /// one. Exists purely so a query landing on a shadowed declaration's own
+    /// name token can still be recognised as declaring that qualified name
+    /// and re-resolved to whichever `ProcDef` currently wins in `all_procs`
+    /// (issue #923 idx 31, main audit wave) — `all_procs`' own span alone
+    /// can never satisfy that lookup, since it only ever holds the winner's.
+    pub proc_declaration_sites: Vec<(String, Span)>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
     /// Free variables (vars defined outside any proc scope) keyed

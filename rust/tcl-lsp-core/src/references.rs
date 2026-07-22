@@ -2372,6 +2372,25 @@ mod tests {
     }
 
     #[test]
+    fn references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document() {
+        // TN-shaped regression guard — issue #923 idx 31 (main audit wave):
+        // this same-document path was already correct before that fix
+        // (`resolve_proc_target_at`'s own fallback resolves the word text
+        // via ordinary namespace lookup when the direct declaration-span
+        // match misses, landing on the current winner regardless of which
+        // occurrence's span the cursor sits on); pinned here so the
+        // cross-document fix landing alongside it never regresses this
+        // already-working case.
+        let src = "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\nList2array x\n";
+        let analysis = analyse(src);
+        // Cursor on the SHADOWED (first) declaration (line 0, col 6).
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "winning decl missing: {refs:?}");
+        assert!(lines.contains(&2), "call site missing: {refs:?}");
+    }
+
+    #[test]
     fn references_include_unbraced_if_body_bareword_call() {
         // TP — differential-audit finding idx 61 (main audit wave,
         // nico-robert_ticklecharts): `if {$cond} mymod::foo` (an unbraced

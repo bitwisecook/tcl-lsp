@@ -458,6 +458,9 @@ impl Analyser {
         self.result.source_targets.extend(r.source_targets);
         self.result.namespace_imports.extend(r.namespace_imports);
         self.result.namespace_exports.extend(r.namespace_exports);
+        self.result
+            .proc_declaration_sites
+            .extend(r.proc_declaration_sites);
         self.result.auto_path_entries.extend(r.auto_path_entries);
         self.result.regex_patterns.extend(r.regex_patterns);
         self.result
@@ -885,6 +888,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for x in &mut r.namespace_exports {
         x.range = shift(x.range, d);
+    }
+    for (_, span) in &mut r.proc_declaration_sites {
+        *span = shift(*span, d);
     }
     for sp in r.rename_target_spans.values_mut() {
         *sp = shift(*sp, d);

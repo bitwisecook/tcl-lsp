@@ -492,3 +492,43 @@ fn rename_mathfunc_override_updates_call_site_and_skips_unrelated_proc() {
         "decl rewrites the qualified name, the call site rewrites only the tail: {for_uri:?}"
     );
 }
+
+/// idx 31 (differential-audit main audit wave, high severity): a proc
+/// declared twice, verbatim, in the same document (plain Tcl's own "last
+/// redefinition wins" semantics, tclsh9.0/8.6-verified — the real corpus
+/// shape is `georgtree_tclopt`'s `tclopt.tcl` declaring
+/// `::tclopt::List2array` at two separate line ranges). Before this fix,
+/// `resolve_workspace_symbols` identified "the symbol at cursor" only via
+/// a scan of `all_procs` (keyed by qualified name, so a duplicate insert
+/// retains only the *winning* declaration's span) — a rename issued from
+/// the *shadowed* (non-winning) declaration's own name token silently
+/// dropped every cross-file caller from the edit set. Applying that
+/// incomplete edit is worse than a no-op: the shadowed declaration being
+/// renamed is a real, dead definition still lying around under the old
+/// name, so the un-rewritten caller silently starts running it instead —
+/// proven end-to-end in the finding's own repro (a program's real output
+/// changed with no error surfaced anywhere).
+#[test]
+fn rename_from_shadowed_duplicate_proc_decl_reaches_cross_document_caller() {
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n",
+    );
+    let consumer_uri = unique_uri("tcl");
+    lsp.open_ready(&consumer_uri, "List2array x\n");
+    // Cursor on the SHADOWED (first, non-winning) declaration's own name
+    // token (line 0, col 6 — `proc List2array`).
+    let result = lsp.rename(&lib_uri, 0, 6, "ListToArray");
+    let edits = rename_edits(&result);
+    let consumer_edits = edits.get(&consumer_uri).cloned().unwrap_or_default();
+    assert_eq!(
+        consumer_edits.len(),
+        1,
+        "the cross-file caller must be rewritten, or it stays bound to \
+         the old name while the dead shadowed definition (also renamed \
+         away) silently resurrects for it: {edits:?}"
+    );
+    assert_eq!(consumer_edits[0]["newText"], "ListToArray");
+}

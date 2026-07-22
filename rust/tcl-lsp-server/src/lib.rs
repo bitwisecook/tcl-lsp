@@ -4015,6 +4015,29 @@ impl Backend {
                 .seed_mapped_symbols(uri, class_def.qualified_name.clone())
                 .await;
         }
+        // A proc declared twice, verbatim, in the same document (plain
+        // Tcl's own "last redefinition wins" semantics) — the cursor may
+        // sit on the *shadowed* (non-winning) declaration's own name
+        // token, which `all_procs` above can never match: it is a map
+        // keyed by qualified name, so only the winner's span survives a
+        // duplicate insert. `proc_declaration_sites` is the flat,
+        // never-deduplicated companion recording every declaration site;
+        // finding the cursor there still means "this token declares
+        // qualified name X", so resolve through `all_procs` to whichever
+        // definition currently wins for X — never the shadowed span
+        // itself (issue #923 idx 31, main audit wave: a rename or
+        // find-references issued from the shadowed declaration must reach
+        // the same cross-file callers as one issued from the winning
+        // declaration or a call site, or a rename silently corrupts the
+        // program by leaving callers bound to the dead definition).
+        if let Some((qualified, _)) = analysis
+            .proc_declaration_sites
+            .iter()
+            .find(|(_, span)| covers(*span))
+            && analysis.all_procs.contains_key(qualified)
+        {
+            return self.seed_mapped_symbols(uri, qualified.clone()).await;
+        }
 
         let Some(inv) = analysis
             .command_invocations
@@ -18316,6 +18339,96 @@ mod tests {
             .await;
         assert_eq!(cross.len(), 2, "{cross:?}");
         assert!(cross.iter().all(|l| l.uri == consumer));
+    }
+
+    /// idx 31 (differential-audit main audit wave, high severity): a proc
+    /// declared twice, verbatim, in the same document (plain Tcl's own
+    /// "last redefinition wins" semantics, tclsh9.0/8.6-verified) — the
+    /// real corpus shape is `georgtree_tclopt`'s `tclopt.tcl` declaring
+    /// `::tclopt::List2array` at two separate line ranges.
+    /// `resolve_workspace_symbols` identified "the symbol at cursor" only
+    /// via `all_procs.values().find(|p| covers(p.name_span))`, and
+    /// `all_procs` (keyed by qualified name) retains only the *winning*
+    /// declaration's span on a duplicate insert — so a cursor on the
+    /// *shadowed* (non-winning) declaration's own name token could never
+    /// match, silently dropping every cross-file caller from
+    /// find-references, and — far worse — from rename: applying that
+    /// incomplete `WorkspaceEdit` leaves a cross-file caller still bound
+    /// to the old name, which a second, dead definition (the very shadowed
+    /// declaration the rename was issued from) is still lying around to
+    /// silently satisfy, changing the program's behaviour with no error
+    /// surfaced anywhere.
+    #[tokio::test]
+    async fn cross_document_references_reach_caller_from_shadowed_duplicate_decl() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib31_refs.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer31_refs.tcl").unwrap();
+        let lib_src =
+            "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n";
+        register(&backend, &lib, lib_src).await;
+        register(&backend, &consumer, "List2array x\n").await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        // Cursor on the SHADOWED (first, non-winning) declaration's own
+        // name token (line 0, col 6 — `proc List2array`).
+        let cross = backend
+            .cross_document_references(&lib, lib_src, &analysis, Position::new(0, 6), false)
+            .await;
+        assert_eq!(
+            cross.len(),
+            1,
+            "cross-file call site in consumer.tcl must not be silently \
+             dropped when querying from the shadowed declaration: {cross:?}"
+        );
+        assert!(cross.iter().all(|l| l.uri == consumer));
+    }
+
+    /// Same root cause as
+    /// `cross_document_references_reach_caller_from_shadowed_duplicate_decl`,
+    /// but for rename — the more severe half of the finding: an
+    /// LSP-presented "complete" rename issued from the shadowed
+    /// declaration must still rewrite the cross-file caller, or accepting
+    /// the edit silently resurrects the dead first definition for that
+    /// caller (proven end-to-end in the finding's own repro: applying the
+    /// pre-fix `WorkspaceEdit` verbatim changed real program output with
+    /// no error).
+    #[tokio::test]
+    async fn cross_document_rename_reaches_caller_from_shadowed_duplicate_decl() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib31_rename.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer31_rename.tcl").unwrap();
+        let lib_src =
+            "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n";
+        register(&backend, &lib, lib_src).await;
+        register(&backend, &consumer, "List2array x\n").await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        // Cursor on the SHADOWED (first, non-winning) declaration.
+        backend
+            .add_cross_document_rename_edits(
+                &lib,
+                lib_src,
+                &analysis,
+                Position::new(0, 6),
+                "ListToArray",
+                &mut changes,
+            )
+            .await;
+        let consumer_edits = changes.get(&consumer).cloned().unwrap_or_default();
+        assert_eq!(
+            consumer_edits.len(),
+            1,
+            "the cross-file caller must be rewritten, or it stays bound \
+             to the old name while the dead shadowed definition (also \
+             renamed away) silently resurrects for it: {changes:?}"
+        );
+        assert_eq!(consumer_edits[0].new_text, "ListToArray");
     }
 
     /// Build an on-disk autoload library (`tclIndex` + defining file, like a

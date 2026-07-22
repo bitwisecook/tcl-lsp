@@ -797,6 +797,9 @@ impl Analyser {
         self.result
             .all_procs
             .insert(qualified.clone(), proc.clone());
+        self.result
+            .proc_declaration_sites
+            .push((qualified.clone(), name_span));
         let simple_key = proc.name.clone();
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
@@ -4095,6 +4098,46 @@ mod tests {
     }
 
     // handle_proc_command
+
+    #[test]
+    fn handle_proc_command_records_every_declaration_site_even_when_shadowed() {
+        // TP — issue #923 idx 31 (main audit wave): a proc declared twice
+        // verbatim at different spans (plain Tcl's own "last redefinition
+        // wins" semantics) must still leave BOTH declarations' own name
+        // spans in `proc_declaration_sites`, even though `all_procs`
+        // (keyed by qualified name) only ever retains the winner's.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            &["foo".to_string(), String::new(), "return ONE".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 9)),
+                str_tok(span(10, 20)),
+            ],
+            &[],
+        );
+        a.handle_proc_command(
+            &["foo".to_string(), String::new(), "return TWO".to_string()],
+            &[
+                esc_tok(span(30, 33)),
+                esc_tok(span(34, 34)),
+                str_tok(span(35, 45)),
+            ],
+            &[],
+        );
+        assert_eq!(a.result.all_procs["::foo"].body_span, span(35, 45));
+        let sites: Vec<(&str, tcl_lexer::Span)> = a
+            .result
+            .proc_declaration_sites
+            .iter()
+            .map(|(q, s)| (q.as_str(), *s))
+            .collect();
+        assert_eq!(
+            sites,
+            vec![("::foo", span(5, 8)), ("::foo", span(30, 33))],
+            "both declaration sites must be recorded, in source order"
+        );
+    }
 
     #[test]
     fn handle_proc_records_proc_at_global() {
