@@ -446,6 +446,20 @@ pub struct MethodDef {
     /// Method kind: ``"method"`` / ``"classmethod"`` /
     /// ``"forward"`` / ``"constructor"`` / ``"destructor"``.
     pub kind: String,
+    /// `true` only for a `classmethod`-kind entry declared via `TclOO`'s
+    /// `self` wrapper (`self method NAME …`) directly on this class
+    /// (issue #923 idx 120). Unlike `ooutil`'s `classmethod` keyword —
+    /// confirmed against tclsh 9.0.4/8.6 to propagate to a subclass's own
+    /// bound command via its `Delegate`-mixin machinery, which walks
+    /// `info class superclass` — a plain `self method` is visible ONLY on
+    /// the exact class that declared it: `oo::class create Gadget {
+    /// superclass Widget }` does NOT gain `Widget`'s `self method make`
+    /// (real tclsh: `unknown method "make"`). The class-command MRO walk
+    /// in `tcl-lsp-core`'s `method_dispatch_definition` accepts a
+    /// `class_methods` entry from an ancestor provider only when this is
+    /// `false`; a provider matching the receiver class itself is always
+    /// accepted regardless.
+    pub is_self_method: bool,
     /// Visibility: ``"public"`` / ``"private"`` /
     /// ``"unexported"``.
     pub visibility: String,

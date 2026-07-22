@@ -995,3 +995,113 @@ async fn dynamic_interp_handle_alias_definition_follows_the_tracked_binding_e2e(
     drop(writer);
     server.abort();
 }
+
+/// TP — issue #923 idx 120: a class's own bound command name
+/// (`ActiveRecord find ...` calling its own `classmethod`, and the same
+/// call inherited by a non-overriding subclass's own command,
+/// `Table find ...`) never resolved — `receiver_instance_class` only ever
+/// recognised a `$var`/created-instance-command receiver, never a bare
+/// word naming a class directly. tclsh9.0-verified: both calls print
+/// `::ActiveRecord called with arguments: foo bar`.
+#[tokio::test]
+async fn classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///activerecord.tcl",
+        "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n",
+    )
+    .await;
+
+    let diags = published_codes(&mut reader, "file:///activerecord.tcl").await;
+    assert!(
+        !diags.contains("W123"),
+        "unexpected unknown-command: {diags}"
+    );
+
+    // `find` in `Table find foo bar` (line 6, character 6) — inherited via
+    // ooutil-style classmethod propagation through the superclass MRO.
+    let def_req = r#"{"jsonrpc":"2.0","id":8,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///activerecord.tcl"},"position":{"line":6,"character":6}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":8", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        def_resp.contains(r#""line":1"#),
+        "Table find must resolve to ActiveRecord's classmethod find on line 1: {def_resp}",
+    );
+
+    // `find` in `ActiveRecord find foo bar` (line 7, character 13) — the
+    // declaring class's own call.
+    let def_req2 = r#"{"jsonrpc":"2.0","id":9,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///activerecord.tcl"},"position":{"line":7,"character":13}}}"#;
+    writer.write_all(frame(def_req2).as_bytes()).await.unwrap();
+    let def_resp2 = read_until_id(&mut reader, "\"id\":9", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        def_resp2.contains(r#""line":1"#),
+        "ActiveRecord find must resolve to its own classmethod find on line 1: {def_resp2}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+/// TP — issue #923 idx 120, the `self method` half of the finding: stock
+/// `TclOO`'s own spelling of a class-level method (`self method NAME ARGS
+/// BODY`) had no `apply_oo_subcommand` arm at all, so it was invisible to
+/// `class_methods`, its body was never walked, and — even once
+/// recognised — is NOT inherited by a subclass with no override the way
+/// `ooutil`'s `classmethod` is (tclsh9.0-verified: `Gadget make` raises
+/// `unknown method "make"`).
+#[tokio::test]
+async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///widget.tcl",
+        "oo::class create Widget {\n    self method make {n} {\n        string length a b c d\n        return \"made $n\"\n    }\n}\noo::class create Gadget {\n    superclass Widget\n}\nWidget make gadget\nGadget make gadget\n",
+    )
+    .await;
+
+    let diags = published_codes(&mut reader, "file:///widget.tcl").await;
+    assert!(
+        diags.contains("E003"),
+        "the wrong-arity call inside the self-method body must now be walked: {diags}",
+    );
+
+    // `make` in `Widget make gadget` (line 9, character 7) resolves to the
+    // declaration.
+    let def_req = r#"{"jsonrpc":"2.0","id":10,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///widget.tcl"},"position":{"line":9,"character":7}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":10", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        def_resp.contains(r#""line":1"#),
+        "Widget make must resolve to its own self-method declaration on line 1: {def_resp}",
+    );
+
+    // `make` in `Gadget make gadget` (line 10, character 7) must NOT
+    // resolve — a plain `self method` is not inherited.
+    let def_req2 = r#"{"jsonrpc":"2.0","id":11,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///widget.tcl"},"position":{"line":10,"character":7}}}"#;
+    writer.write_all(frame(def_req2).as_bytes()).await.unwrap();
+    let def_resp2 = read_until_id(&mut reader, "\"id\":11", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        def_resp2.contains(r#""result":[]"#) || def_resp2.contains(r#""result":null"#),
+        "Gadget make must NOT resolve — self method is not inherited: {def_resp2}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}

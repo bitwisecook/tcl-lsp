@@ -294,20 +294,28 @@ fn instance_method_definition(
         let cursor = byte_offset_at(line_index, source, line, character);
         if let Some(class_q) = enclosing_class_at(analysis, cursor) {
             return Some(method_dispatch_definition(
-                analysis, source, line_index, &class_q, &method, false,
+                analysis,
+                source,
+                line_index,
+                &class_q,
+                &method,
+                false,
+                MethodBucket::Instance,
             ));
         }
     }
     let class_q = receiver_instance_class(analysis, &inst, is_dollar)?;
-    // External `$obj m`: the C-faithful dispatch entry — the first
-    // exported implementation on the receiver's linearisation (mixins
-    // before the class, subclasses before bases; issue #945 faults 4 +
-    // 6).  A resolved receiver is a definitive answer either way: an
-    // unexported/undefined method yields *nothing* rather than falling
-    // through to a same-named proc.
+    let bucket = receiver_method_bucket(analysis, &inst, is_dollar);
+    // External `$obj m` / `CLASS m`: the C-faithful dispatch entry — the
+    // first exported implementation on the receiver's linearisation
+    // (mixins before the class, subclasses before bases; issue #945
+    // faults 4 + 6).  A resolved receiver is a definitive answer either
+    // way: an unexported/undefined method yields *nothing* rather than
+    // falling through to a same-named proc.
     let class_q = class_q.clone();
-    let dispatch =
-        method_dispatch_definition(analysis, source, line_index, &class_q, &method, true);
+    let dispatch = method_dispatch_definition(
+        analysis, source, line_index, &class_q, &method, true, bucket,
+    );
     if !dispatch.is_empty() {
         return Some(dispatch);
     }
@@ -479,6 +487,36 @@ fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Option<String> 
         .map(|c| c.qualified_name.clone())
 }
 
+/// Which of a class's two method buckets a dispatch receiver reaches
+/// (issue #923 idx 120), consulted by [`method_dispatch_definition`] and,
+/// via [`receiver_method_bucket`], by every other consumer of
+/// [`receiver_instance_class`] that also needs its own method lookup
+/// restricted to the matching bucket (`completion.rs`'s `method_items`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MethodBucket {
+    /// `$obj method` / `my method` — dispatch on an *instance*:
+    /// `methods` only, never `class_methods` (a class-side method is
+    /// never itself instance-callable — real tclsh raises `unknown
+    /// method` for it; this closes a pre-existing false-positive
+    /// go-to-definition on e.g. `ActiveRecord create rec1; rec1 find`,
+    /// bundled alongside idx 120 since this function's signature was
+    /// already changing here).
+    Instance,
+    /// `CLASS method` — dispatch on the class's own bound command (issue
+    /// #923 idx 120): `class_methods` only (a class-side method is never
+    /// itself instance-callable — `completion.rs`'s `method_items` already
+    /// documents and implements this same exclusion for its instance-side
+    /// suggestions). An ancestor-provided entry is accepted only when it
+    /// is NOT `is_self_method` — a plain `TclOO` `self method` is visible
+    /// only on the exact class that declared it (confirmed against
+    /// tclsh: a subclass with no override does not gain it), unlike
+    /// `ooutil`'s `classmethod` keyword, which does propagate to a
+    /// subclass's own bound command via its `Delegate`-mixin machinery. A
+    /// provider matching the receiver class itself is always accepted
+    /// regardless (it's not "inherited" there, it's the direct owner).
+    Class,
+}
+
 /// Go-to-definition for a method call dispatched on an instance of
 /// `class_q`: the **first applicable implementation** on the class's
 /// `TclOO` linearisation (the entry `$obj m` / `my m` actually runs —
@@ -494,6 +532,7 @@ fn method_dispatch_definition(
     class_q: &str,
     method: &str,
     external: bool,
+    bucket: MethodBucket,
 ) -> Vec<LspRange> {
     let hierarchy = tcl_compiler::analyser::class_hierarchy::build_class_hierarchy(
         analysis.all_classes.clone(),
@@ -505,11 +544,19 @@ fn method_dispatch_definition(
         let Some(cd) = analysis.all_classes.get(provider_q) else {
             continue;
         };
-        let Some(md) = cd
-            .methods
-            .get(method)
-            .or_else(|| cd.class_methods.get(method))
-        else {
+        let md = match bucket {
+            // A class-side method is never itself instance-callable (real
+            // tclsh: `unknown method` when an instance calls a
+            // classmethod) — no `class_methods` fallback here, matching
+            // `completion.rs`'s `method_items`, which already excludes it
+            // for the identical reason.
+            MethodBucket::Instance => cd.methods.get(method),
+            MethodBucket::Class => cd
+                .class_methods
+                .get(method)
+                .filter(|md| provider_q == class_q || !md.is_self_method),
+        };
+        let Some(md) = md else {
             continue;
         };
         let visible = if external {
@@ -728,10 +775,19 @@ pub(crate) fn instance_method_at_cursor(
 /// [`instance_method_at_cursor`]) to its class's qualified name.
 ///
 /// A `$var` receiver (`is_dollar`) is any object-holding variable, looked
-/// up in `instance_classes`.  A bare receiver is a valid dispatch only when
-/// it names an object *command* (`CLASS create NAME`) — a plain variable's
-/// bare name (`set v [CLASS new]` then `v method`) is not a command and must
-/// not resolve — so it is additionally gated on `created_instance_commands`.
+/// up in `instance_classes`.  A bare receiver is a valid *instance*
+/// dispatch only when it names an object *command* (`CLASS create NAME`) —
+/// a plain variable's bare name (`set v [CLASS new]` then `v method`) is
+/// not a command and must not resolve — so it is additionally gated on
+/// `created_instance_commands`.
+///
+/// A bare receiver that instead names a class *directly* (`ActiveRecord
+/// find`, `TclOO`'s and `ooutil`'s class-command dispatch — issue #923 idx
+/// 120) resolves too: `oo::class create NAME` always binds `NAME` as the
+/// class's own command, so any class name written in the source is
+/// unconditionally dispatchable this way. A `$var` can't textually denote
+/// a class — it holds an object handle read from a variable, never the
+/// class's own written name — so this path is bare-word only.
 ///
 /// Shared by the definition / references / rename / hover cursor paths so
 /// they agree on which receivers dispatch (and, via
@@ -741,11 +797,46 @@ pub(crate) fn receiver_instance_class<'a>(
     receiver: &str,
     is_dollar: bool,
 ) -> Option<&'a String> {
-    let class = analysis.instance_classes.get(receiver)?;
-    if is_dollar || analysis.created_instance_commands.contains(receiver) {
-        Some(class)
+    if let Some(class) = analysis.instance_classes.get(receiver)
+        && (is_dollar || analysis.created_instance_commands.contains(receiver))
+    {
+        return Some(class);
+    }
+    if is_dollar {
+        return None;
+    }
+    let qualified = tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(
+        receiver,
+        &analysis.all_classes,
+    )?;
+    analysis
+        .all_classes
+        .get(&qualified)
+        .map(|cd| &cd.qualified_name)
+}
+
+/// Which [`MethodBucket`] `receiver` reaches, given how
+/// [`receiver_instance_class`] resolved it (issue #923 idx 120):
+/// recomputes that function's own first condition (the *instance* path —
+/// an object handle, `$var`, or a bound `CLASS create NAME` command)
+/// rather than inferring it from the outside (e.g. merely checking
+/// `instance_classes.contains_key`), so a same-named instance-command /
+/// class collision can't misclassify it. `false` on that check, with
+/// `receiver_instance_class` having still resolved a `class_q`, can only
+/// mean the bare-word-names-a-class-directly path fired instead.
+pub(crate) fn receiver_method_bucket(
+    analysis: &AnalysisResult,
+    receiver: &str,
+    is_dollar: bool,
+) -> MethodBucket {
+    let is_instance_path = analysis
+        .instance_classes
+        .get(receiver)
+        .is_some_and(|_| is_dollar || analysis.created_instance_commands.contains(receiver));
+    if is_instance_path {
+        MethodBucket::Instance
     } else {
-        None
+        MethodBucket::Class
     }
 }
 
@@ -2350,5 +2441,91 @@ mod tests {
         assert!(receiver_instance_class(&analysis, "rex", false).is_some());
         assert!(receiver_instance_class(&analysis, "b", false).is_none());
         assert!(receiver_instance_class(&analysis, "b", true).is_some());
+    }
+
+    // Class-command dispatch (issue #923 idx 120): `CLASS method` for a
+    // classmethod / `self method`, distinct from `$obj method` / `NAME
+    // method` instance dispatch above.
+
+    #[test]
+    fn classmethod_call_on_its_own_class_resolves() {
+        // TP — the finding's own `ActiveRecord find` shape: a classmethod
+        // called directly on the class that declares it (Part 2 alone;
+        // ooutil's `classmethod` keyword was already correctly extracted
+        // into `class_methods` by the existing class-body walker).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 3, 14, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+        assert_eq!(locs[0].start_character, 16);
+    }
+
+    #[test]
+    fn classmethod_call_on_an_inheriting_subclass_resolves() {
+        // TP — the finding's second repro shape: `Table find`, where
+        // `Table` inherits `find` from `ActiveRecord` via the ordinary
+        // superclass MRO walk (ooutil's `classmethod` propagates to a
+        // subclass's own bound command — confirmed against tclsh).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 6, 7, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+        assert_eq!(locs[0].start_character, 16);
+    }
+
+    #[test]
+    fn self_method_call_on_its_own_class_resolves() {
+        // TP — requires BOTH Part 1 (self recognised at all) and Part 2
+        // (the class-command receiver path).
+        let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\nWidget make gadget\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 3, 8, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+        assert_eq!(locs[0].start_character, 16);
+    }
+
+    #[test]
+    fn self_method_not_inherited_by_a_non_overriding_subclass() {
+        // TN — the critical precision test for `is_self_method`: unlike
+        // `ooutil`'s `classmethod`, a plain `self method` is NOT inherited
+        // by a subclass's own bound command (confirmed against tclsh:
+        // `Gadget make` raises `unknown method "make"`). A naive reuse of
+        // the ordinary MRO walk (which DOES include Widget in Gadget's
+        // MRO) would incorrectly resolve this.
+        let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\noo::class create Gadget {\n    superclass Widget\n}\nGadget make foo\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 6, 8, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn instance_calling_a_classmethod_does_not_resolve() {
+        // TN — a real instance can never dispatch a classmethod (real
+        // tclsh: `unknown method "find": must be <cloned>, create, ...`).
+        // This is the companion tightening bundled with Part 2 (the two
+        // pre-existing instance-dispatch call sites now pass
+        // `MethodBucket::Instance`, which excludes `class_methods`
+        // entirely) — `completion.rs`'s `method_items` already documented
+        // and implemented this same exclusion for its own suggestions.
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord create rec1\nrec1 find foo bar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 5, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn bare_var_receiver_without_a_bound_command_does_not_resolve_class_dispatch() {
+        // TN — regression guard mirroring
+        // `receiver_instance_class_gates_bare_on_created_commands`: `d` is
+        // a plain variable (never bound as a command by `create`), so
+        // neither the existing instance-command branch nor the new
+        // class-command branch may fire for it.
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} {}\n}\nset d [ActiveRecord new]\nd find foo bar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 2, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 }

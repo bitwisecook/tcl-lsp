@@ -2000,6 +2000,32 @@ mod tests {
     }
 
     #[test]
+    fn rename_classmethod_from_call_site_rewrites_decl_and_inheriting_subclass_call() {
+        // TP — issue #923 idx 120: renaming `find` with the cursor on the
+        // `ActiveRecord find foo bar` call site must rewrite the
+        // declaration, that same call, AND the inherited `Table find`
+        // call — three edits, none missed (rename.rs has no separate
+        // scan of its own; it delegates fully to
+        // `references::method_references_for_class`, so this exercises
+        // Part 2 + Part 3 together end-to-end).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        // Cursor on `find` in `ActiveRecord find foo bar` (line 7, col 13).
+        let edits = rename(src, "tcl", 7, 13, "lookup", &analysis, None);
+        assert_eq!(edits.len(), 3, "{edits:?}");
+        for e in &edits {
+            assert_eq!(e.new_text, "lookup");
+        }
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "decl not renamed: {edits:?}");
+        assert!(lines.contains(&6), "Table find call not renamed: {edits:?}");
+        assert!(
+            lines.contains(&7),
+            "ActiveRecord find call not renamed: {edits:?}"
+        );
+    }
+
+    #[test]
     fn rename_method_from_cursor_on_bare_obj_command_call_site() {
         // Codex #881 (symmetry): triggering rename with the cursor ON the
         // `bark` token of a bare `rex bark` dispatch rewrites the declaration

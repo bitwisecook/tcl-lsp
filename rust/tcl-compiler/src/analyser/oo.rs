@@ -926,6 +926,7 @@ impl Analyser {
             name_span,
             body_span,
             kind: kind.to_string(),
+            is_self_method: false,
             visibility: visibility.to_string(),
             doc: String::new(),
             forward_target: None,
@@ -1389,7 +1390,16 @@ fn collect_method_body(
     texts: &[String],
     argv: &[Token],
 ) -> Option<CollectedMethodBody> {
-    let keyword = texts.first().map(String::as_str)?;
+    // Unwrap a leading `self`/`private` modifier first (issue #923 idx
+    // 120): its body would otherwise never be walked at all (no internal
+    // diagnostics inside a `self method`/`private method` body — confirmed
+    // empirically, a deliberately-wrong-arity call inside one drew
+    // nothing, while the identical call in a plain `method` body correctly
+    // fired). `unwrap_wrapper_member` is a no-op for an already-bare
+    // `method`/`classmethod`/`constructor`/`destructor` keyword — its
+    // returned slices start right after the *effective* keyword either
+    // way, wrapper word included, so no `+ 1` shift is needed below.
+    let (keyword, texts, argv, _modifier) = unwrap_wrapper_member(grammar, texts, argv)?;
     if !matches!(
         keyword,
         "method" | "classmethod" | "constructor" | "destructor"
@@ -1397,11 +1407,9 @@ fn collect_method_body(
         return None;
     }
     let member = grammar.member(keyword)?;
-    // Arg-role indices are 0-based *after* the keyword → `+ 1` into the full
-    // `texts` / `argv` (index 0 is the keyword itself).
-    let body_idx = member.indices_for(ArgRole::Body).next()? + 1;
-    let params_idx = member.indices_for(ArgRole::ParamList).next().map(|i| i + 1);
-    let name_idx = member.indices_for(ArgRole::Name).next().map(|i| i + 1);
+    let body_idx = member.indices_for(ArgRole::Body).next()?;
+    let params_idx = member.indices_for(ArgRole::ParamList).next();
+    let name_idx = member.indices_for(ArgRole::Name).next();
 
     let body_text = texts.get(body_idx)?.clone();
     let body_tok = *argv.get(body_idx)?;
@@ -1466,6 +1474,54 @@ fn apply_oo_private(
     }
 }
 
+/// `self method NAME ARGS BODY` / `self classmethod NAME ARGS BODY`
+/// (issue #923 idx 120) — `TclOO`'s own spelling for a class-level method,
+/// the stock-library counterpart to `ooutil`'s `classmethod` keyword (both
+/// end up dispatched through the class's own bound command). Either inner
+/// spelling records into `class_methods`, tagged `is_self_method: true` so
+/// the class-command MRO walk in `tcl-lsp-core` knows NOT to treat it as
+/// inherited the way an `ooutil`-style `classmethod` is (real tclsh: a
+/// subclass with no override does not gain a `self method` at all).
+///
+/// Scoped to the prefix form only; `self { method NAME ARGS BODY; … }`'s
+/// block form is a documented, symmetric (`private { … }` shares the same
+/// gap) follow-up, not fixed here.
+fn apply_oo_self(
+    grammar: &DefinitionBodyGrammar,
+    sub_args: &[String],
+    sub_tokens: &[Token],
+    class_def: &mut ClassDef,
+) {
+    if sub_args.is_empty() {
+        return;
+    }
+    let inner_subcmd = sub_args[0].as_str();
+    let inner_args: &[String] = &sub_args[1..];
+    let inner_tokens: &[Token] = if sub_tokens.len() > 1 {
+        &sub_tokens[1..]
+    } else {
+        &[]
+    };
+    let Some(member) = grammar.member(inner_subcmd) else {
+        return;
+    };
+    if !matches!(inner_subcmd, "method" | "classmethod") {
+        return;
+    }
+    if let Some(mut md) = extract_method_def(
+        member,
+        inner_args,
+        inner_tokens,
+        "classmethod",
+        "public",
+        "",
+    ) {
+        md.visibility = default_visibility(grammar, &md.name);
+        md.is_self_method = true;
+        class_def.class_methods.insert(md.name.clone(), md);
+    }
+}
+
 /// The effective default visibility string for a freshly-(re)defined
 /// member under `grammar`'s family rule (`"public"` / `"unexported"`).
 fn default_visibility(grammar: &DefinitionBodyGrammar, name: &str) -> String {
@@ -1517,6 +1573,7 @@ fn apply_oo_forward(
             name_span: span,
             body_span: span,
             kind: "forward".to_string(),
+            is_self_method: false,
             // A forward is dispatched by the same name rule as a method
             // (C computes `isPublic` identically for both).
             visibility: default_visibility(grammar, name),
@@ -1641,6 +1698,7 @@ fn apply_oo_subcommand(
         }
         "forward" => apply_oo_forward(grammar, sub_args, sub_tokens, class_def),
         "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def),
+        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def),
         // No `ClassDef` mutation here for the remaining subcommands.
         // ``initialise`` / ``initialize`` are class-level initialisation
         // scripts whose bodies are collected and walked separately in
@@ -1787,6 +1845,10 @@ fn extract_method_def(
         name_span,
         body_span,
         kind: kind.to_string(),
+        // Flipped by the one caller that needs it (`apply_oo_self`) —
+        // every other caller means it literally, so `false` is the
+        // correct default here, not just a placeholder.
+        is_self_method: false,
         visibility: visibility.to_string(),
         doc: String::new(),
         forward_target: None,
@@ -1951,6 +2013,81 @@ mod tests {
         apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert!(cd.methods.contains_key("internal"));
         assert_eq!(cd.methods["internal"].visibility, "private");
+    }
+
+    #[test]
+    fn self_method_subcommand_records_class_method_tagged_is_self_method() {
+        // TP — issue #923 idx 120 Part 1: `self method NAME ARGS BODY`
+        // (TclOO's own spelling of a class-level method, the stock
+        // counterpart to ooutil's `classmethod` keyword) previously had no
+        // `apply_oo_subcommand` arm at all — `class_methods` never gained
+        // an entry for it. Recorded with `kind: "classmethod"` (both
+        // spellings mean "dispatched via the class's own bound command")
+        // but tagged `is_self_method` so the class-command MRO walk knows
+        // NOT to treat it as inherited the way ooutil's `classmethod` is.
+        let mut cd = class();
+        let texts: Vec<String> = ["self", "method", "make", "n", "return made"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let argv = [
+            tok((0, 4)),
+            tok((5, 11)),
+            tok((12, 16)),
+            tok((17, 18)),
+            str_tok((19, 30)),
+        ];
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
+        assert!(!cd.methods.contains_key("make"));
+        let md = cd
+            .class_methods
+            .get("make")
+            .expect("recorded as a classmethod");
+        assert_eq!(md.kind, "classmethod");
+        assert!(md.is_self_method);
+        assert_eq!(md.visibility, "public");
+    }
+
+    #[test]
+    fn self_classmethod_subcommand_also_records_into_class_methods() {
+        // TP — the `self classmethod` inner spelling (rarer, but valid:
+        // `self` always retargets to the class object regardless of which
+        // inner member follows) must resolve identically to `self method`.
+        let mut cd = class();
+        let texts: Vec<String> = ["self", "classmethod", "build", "args", "return $args"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let argv = [
+            tok((0, 4)),
+            tok((5, 16)),
+            tok((17, 22)),
+            tok((23, 27)),
+            str_tok((28, 43)),
+        ];
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
+        let md = cd
+            .class_methods
+            .get("build")
+            .expect("recorded as a classmethod");
+        assert!(md.is_self_method);
+    }
+
+    #[test]
+    fn self_block_form_is_a_silent_noop_not_a_crash() {
+        // FN guard — the `self { method NAME ARGS BODY }` *block* form is a
+        // documented, symmetric (private shares the same gap) follow-up,
+        // not fixed here. Must decline cleanly, never panic on the whole
+        // braced blob standing in for an inner keyword.
+        let mut cd = class();
+        let texts: Vec<String> = ["self", "{ method make {n} { return made } }"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let argv = [tok((0, 4)), str_tok((5, 42))];
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
+        assert!(cd.class_methods.is_empty());
+        assert!(cd.methods.is_empty());
     }
 
     #[test]

@@ -1158,6 +1158,7 @@ mod tests {
                     name_span: Span::new(0, 0),
                     body_span: Span::new(0, 0),
                     kind: "method".into(),
+                    is_self_method: false,
                     visibility: "public".into(),
                     doc: String::new(),
                     forward_target: None,

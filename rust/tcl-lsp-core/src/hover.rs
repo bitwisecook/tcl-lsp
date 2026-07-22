@@ -3040,6 +3040,20 @@ mod tests {
     }
 
     #[test]
+    fn hover_on_self_method_call_site_resolves() {
+        // TP — issue #923 idx 120: `self method make {n} {...}` records
+        // into `class_methods` (Part 1); `Widget make gadget`'s bare
+        // class-command receiver now resolves too (Part 2), so hover on
+        // the call site works end-to-end.
+        let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\nWidget make gadget\n";
+        let analysis = analyse(src);
+        // Cursor on `make` in `Widget make gadget` (line 3, col 8).
+        let h = hover(src, 3, 8, &analysis, None).expect("expected hover for self-method call");
+        assert!(h.value.contains("classmethod"), "{}", h.value);
+        assert!(h.value.contains("Widget::make"), "{}", h.value);
+    }
+
+    #[test]
     fn hover_on_proc_qualified_name() {
         let src = "namespace eval ::ns { proc helper {} { return } }\n";
         let analysis = analyse(src);

@@ -1591,19 +1591,33 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     // call to this proc.  The dispatch shape is registry data
     // (`DefinerFamily`), not something to infer from the shared storage
     // bucket.
+    //
+    // Unlike `ooutil`'s `classmethod` keyword (which propagates to a
+    // subclass's own bound command via its `Delegate`-mixin machinery —
+    // confirmed against tclsh 9.0.4/8.6), a plain stock-`TclOO` `self
+    // method` is visible ONLY on the exact class that declared it, so the
+    // inheriting-subclass half of this loop is skipped for those
+    // (`MethodDef::is_self_method`, issue #923 idx 120).
     if is_classmethod
-        && analysis
+        && let Some(cq_method) = analysis
             .all_classes
             .get(class_q)
-            .is_some_and(|cd| cd.class_methods.contains_key(method) && !is_itcl_class(cd, dialect))
+            .filter(|cd| !is_itcl_class(cd, dialect))
+            .and_then(|cd| cd.class_methods.get(method))
     {
-        for (other_q, other_cd) in &analysis.all_classes {
-            if (other_q.as_str() == class_q
-                || hierarchy.method_target(other_q, method) == Some(class_q))
-                && !is_itcl_class(other_cd, dialect)
-            {
-                cmd_set.insert(other_cd.name.as_str());
-                cmd_set.insert(other_cd.qualified_name.as_str());
+        if let Some(cd) = analysis.all_classes.get(class_q) {
+            cmd_set.insert(cd.name.as_str());
+            cmd_set.insert(cd.qualified_name.as_str());
+        }
+        if !cq_method.is_self_method {
+            for (other_q, other_cd) in &analysis.all_classes {
+                if other_q.as_str() != class_q
+                    && hierarchy.method_target(other_q, method) == Some(class_q)
+                    && !is_itcl_class(other_cd, dialect)
+                {
+                    cmd_set.insert(other_cd.name.as_str());
+                    cmd_set.insert(other_cd.qualified_name.as_str());
+                }
             }
         }
     }
@@ -2700,6 +2714,82 @@ mod tests {
             "bark",
             "{sites:?}"
         );
+    }
+
+    // class-command dispatch (issue #923 idx 120): `CLASS method` for a
+    // classmethod / `self method`, a receiver set entirely separate from
+    // `$obj method` / `NAME method` instance dispatch above.
+
+    #[test]
+    fn find_obj_method_call_sites_matches_class_command_and_inheriting_subclass() {
+        // TP — both the finding's own repro (`ActiveRecord find`) and its
+        // inherited-via-superclass sibling (`Table find`, ooutil's
+        // `classmethod` propagates to a subclass's own bound command).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        let sites =
+            find_obj_method_call_sites(src, "tcl", &analysis, "::ActiveRecord", "find", true);
+        assert_eq!(sites.len(), 2, "{sites:?}");
+        for s in &sites {
+            assert_eq!(
+                &src[s.start() as usize..s.end() as usize],
+                "find",
+                "{sites:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn find_obj_method_call_sites_excludes_non_inheriting_self_method_subclass() {
+        // TN — the references-level precision guard mirroring
+        // `self_method_not_inherited_by_a_non_overriding_subclass` in
+        // definition.rs: unlike `ooutil`'s `classmethod`, a plain `self
+        // method` is not inherited, so `Gadget make` must not be counted
+        // as a call site of `Widget`'s `make`.
+        let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\noo::class create Gadget {\n    superclass Widget\n}\nWidget make foo\nGadget make foo\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Widget", "make", true);
+        assert_eq!(sites.len(), 1, "{sites:?}");
+        assert_eq!(
+            &src[sites[0].start() as usize..sites[0].end() as usize],
+            "make",
+            "{sites:?}"
+        );
+    }
+
+    #[test]
+    fn references_enumerates_class_command_declaration_and_both_call_sites() {
+        // TP — the full end-to-end peek from the finding's own repro:
+        // declaration, the inherited-subclass call, and the
+        // declaring-class's own call — three references, no duplicates,
+        // none missed (requires Part 3 in addition to Part 2: Part 2 alone
+        // only fixes single-cursor lookups, not this whole-document scan).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        // Cursor on the declaration (line 1, `find` at col 16).
+        let refs = references(src, "tcl", 1, 16, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(refs.len(), 3, "{refs:?}");
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(lines.contains(&6), "Table find call missing: {refs:?}");
+        assert!(
+            lines.contains(&7),
+            "ActiveRecord find call missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_from_cursor_on_class_command_call_site() {
+        // Symmetry with `references_from_cursor_on_bare_obj_command_call_site`:
+        // invoking Find All References with the cursor ON the class-command
+        // call site (not the declaration) must resolve identically.
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        // Cursor on `find` in `ActiveRecord find foo bar` (line 3, col 13).
+        let refs = references(src, "tcl", 3, 13, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(lines.contains(&3), "call site missing: {refs:?}");
     }
 
     #[test]

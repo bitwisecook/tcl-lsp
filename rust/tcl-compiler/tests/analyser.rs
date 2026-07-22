@@ -2514,6 +2514,56 @@ mod tcloo_classes {
         let r2 = Analyser::new().analyse("oo::class create Dog {\n    method bark {} {}\n}\n", D);
         assert!(r2.global_scope.classes.contains_key("Dog"));
     }
+
+    #[test]
+    fn self_method_body_is_walked_for_internal_diagnostics() {
+        // TP — issue #923 idx 120 Part 1 bonus: before the fix, a
+        // wrong-arity call inside a `self method`/`private method` body
+        // drew no diagnostic at all (the body was never walked, only the
+        // literal keywords "method"/"classmethod"/"constructor"/
+        // "destructor" were recognised, "self"/"private" fell through
+        // untouched). `string length` takes exactly one argument.
+        let src = "oo::class create Widget {\n    self method make {n} {\n        string length a b c d\n        return \"made $n\"\n    }\n}\n";
+        assert_eq!(
+            count(src, D, "E003"),
+            1,
+            "the wrong-arity call inside a self-method body must now be walked: {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn private_method_body_is_also_walked_for_internal_diagnostics() {
+        // TP — the sibling gap `private method` shared with `self method`
+        // (both go through the same `unwrap_wrapper_member`-based
+        // `collect_method_body`), confirming the fix isn't scoped to
+        // `self` alone.
+        let src = "oo::class create Widget {\n    private method helper {} {\n        string length a b c d\n    }\n}\n";
+        assert_eq!(
+            count(src, D, "E003"),
+            1,
+            "the wrong-arity call inside a private-method body must now be walked: {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn self_method_declaration_site_recorded_as_a_classmethod() {
+        // TP — proves Part 1 alone (record shape + span), independent of
+        // the definition.rs-side call-site receiver-resolution bug Part 2
+        // fixes.
+        let cd = class(
+            "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\n",
+            "::Widget",
+        );
+        assert!(!cd.methods.contains_key("make"));
+        let md = cd
+            .class_methods
+            .get("make")
+            .expect("recorded as a classmethod");
+        assert_eq!(md.kind, "classmethod");
+        assert!(md.is_self_method);
+    }
 }
 
 // ===========================================================================
