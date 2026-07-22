@@ -196,6 +196,20 @@ mod classmethod_dispatch {
         assert_eq!(refs_at(src, 1, 16), vec![1, 5], "decl + `Factory make`");
     }
 
+    /// FN→TP: the reverse direction of the previous test — cursor on the
+    /// *call site* itself (`Factory make`, line 5), not the declaration.
+    /// Previously resolved to nothing at all (Codex review on #971, P2):
+    /// `$obj`/`my` resolution doesn't match a bare two-word receiver, and
+    /// the declaration-side resolver requires the cursor inside the class
+    /// body, so Find References / Rename triggered from the actual dispatch
+    /// site silently did nothing.
+    #[test]
+    fn tp_bare_class_command_dispatch_resolves_from_the_call_site_itself() {
+        let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n";
+        // cursor on `make` in `Factory make` (line 5, col 8).
+        assert_eq!(refs_at(src, 5, 8), vec![1, 5], "decl + `Factory make`");
+    }
+
     /// TP: a subclass that inherits (does not override) the classmethod
     /// dispatches on its *own* command and still counts as a reference to
     /// the ancestor's declaration — mirrors the existing instance-method

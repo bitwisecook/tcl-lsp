@@ -523,6 +523,15 @@ pub fn method_target_with_access(
         {
             return Some((class_q.clone(), method, false, MethodAccess::External));
         }
+        // Bare `ClassName method` — a classmethod dispatches on the class's
+        // own command, never an instance, so it's tried only when the
+        // receiver isn't `$`-prefixed (a `$var` can never name a class).
+        if !is_dollar
+            && let Some(class_q) =
+                crate::definition::classmethod_dispatch_class(analysis, &inst, &method)
+        {
+            return Some((class_q, method, true, MethodAccess::External));
+        }
     }
     // Inside a class body on one of its method / classmethod names — the
     // declaration side, an internal context.

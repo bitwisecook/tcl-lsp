@@ -270,6 +270,12 @@ pub fn references(
         return out;
     }
 
+    // Bare `ClassName method` external call site — a classmethod's own
+    // dispatch shape, tried only once the instance path above has failed.
+    if let Some(out) = classmethod_call_site_references(&ctx) {
+        return out;
+    }
+
     // Class-member references (cursor inside a class body on a member name).
     if let Some(out) = class_member_references(&ctx, &word) {
         return out;
@@ -440,6 +446,42 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     // `next` / `nextto` super-dispatch is a reference (but never a rename site).
     call_spans.extend(method_next_dispatch_spans(
         analysis, source, dialect, class_q, &method, false,
+    ));
+    Some(build_member_ranges(
+        source,
+        line_index,
+        decl_span,
+        call_spans,
+        include_declaration,
+    ))
+}
+
+/// Build references for a bare `ClassName method` call site: the reverse of
+/// [`instance_method_references`], for a `classmethod` — which dispatches on
+/// the class's own command, never an instance, so it is never found by
+/// `$obj`/`my` resolution.  Without this, Find References / Rename
+/// triggered from the actual dispatch site (as opposed to the declaration
+/// or a code lens) silently found nothing (Codex review on #971, P2).
+fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    } = *ctx;
+    let (inst, method, is_dollar) =
+        crate::definition::instance_method_at_cursor(source, line, character)?;
+    if is_dollar {
+        return None;
+    }
+    let class_q = crate::definition::classmethod_dispatch_class(analysis, &inst, &method)?;
+    let (decl_span, mut call_spans) =
+        method_references_for_class(source, dialect, analysis, &class_q, &method, true)?;
+    call_spans.extend(method_next_dispatch_spans(
+        analysis, source, dialect, &class_q, &method, true,
     ));
     Some(build_member_ranges(
         source,
