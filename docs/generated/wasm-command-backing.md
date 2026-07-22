@@ -12,13 +12,13 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 104 |
+| handler | 105 |
 | handler (native) | 6 |
 | stdlib | 11 |
-| not-required | 105 |
+| not-required | 108 |
 | known-gap (`RUST_ISSUE_007`) | 0 |
-| **UNCLASSIFIED** | 0 |
-| **total** | 226 |
+| **UNCLASSIFIED** | 2 |
+| **total** | 232 |
 
 | command | backing | note |
 | --- | --- | --- |
@@ -26,7 +26,6 @@ or an explicit *not required* classification.
 | `!=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `%` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `&&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `*` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `**` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -37,7 +36,6 @@ or an explicit *not required* classification.
 | `::tcl::mathop::!=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::%` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::&&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::*` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::**` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -50,17 +48,20 @@ or an explicit *not required* classification.
 | `::tcl::mathop::>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::>=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::>>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::@` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::gt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::le` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::lt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::||` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::process` | not-required | OS subprocess management; needs host processes |
 | `::tcl::unsupported::corotype` | handler |  |
+| `::tcl::zipfs` | UNCLASSIFIED |  |
 | `<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -68,7 +69,6 @@ or an explicit *not required* classification.
 | `>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `>=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `>>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `@` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `after` | handler |  |
 | `append` | handler |  |
@@ -118,9 +118,11 @@ or an explicit *not required* classification.
 | `foreach` | handler |  |
 | `foreachLine` | not-required | non-core EDA/dialect file helper, absent from bare tclsh 9 |
 | `format` | handler |  |
+| `ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `gets` | handler |  |
 | `glob` | handler |  |
 | `global` | handler |  |
+| `gt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `http` | not-required | the `http` package (`package require http`), not a core command |
 | `if` | handler |  |
 | `in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -130,6 +132,7 @@ or an explicit *not required* classification.
 | `join` | handler |  |
 | `lappend` | handler |  |
 | `lassign` | handler |  |
+| `le` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `ledit` | handler |  |
 | `lindex` | handler |  |
 | `linsert` | handler |  |
@@ -147,6 +150,7 @@ or an explicit *not required* classification.
 | `lseq` | handler |  |
 | `lset` | handler |  |
 | `lsort` | handler |  |
+| `lt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `memory` | not-required | TCL_MEM_DEBUG-only heap-debug command |
 | `my` | handler (native) | per-object command created by TclOO method dispatch (oo_register_my) |
 | `namespace` | handler |  |
@@ -199,7 +203,6 @@ or an explicit *not required* classification.
 | `tcl::mathop::!=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::%` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::&&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::*` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::**` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -212,16 +215,19 @@ or an explicit *not required* classification.
 | `tcl::mathop::>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::>=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::>>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::@` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::gt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::le` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::lt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::||` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::process` | not-required | OS subprocess management; needs host processes |
+| `tcl::unsupported::corotype` | handler |  |
 | `tclLog` | stdlib | init.tcl |
 | `tclPkgSetup` | stdlib | package.tcl |
 | `tclPkgUnknown` | stdlib | package.tcl |
@@ -244,7 +250,7 @@ or an explicit *not required* classification.
 | `writeFile` | not-required | non-core EDA/dialect file helper, absent from bare tclsh 9 |
 | `yield` | handler |  |
 | `yieldto` | handler |  |
+| `zipfs` | UNCLASSIFIED |  |
 | `zlib` | handler |  |
 | `|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `||` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |

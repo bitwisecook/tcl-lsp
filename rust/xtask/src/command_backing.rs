@@ -229,8 +229,8 @@ fn canon(name: &str) -> &str {
 /// out ~90 entries. `c` must already be [`canon`]ical.
 fn is_expr_operator(c: &str) -> bool {
     const BARE: &[&str] = &[
-        "!", "!=", "%", "&", "&&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=",
-        ">>", "@", "^", "eq", "in", "max", "min", "ne", "ni", "|", "||", "~",
+        "!", "!=", "%", "&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>", "^",
+        "eq", "ge", "gt", "in", "le", "lt", "max", "min", "ne", "ni", "|", "~",
     ];
     c == "tcl::mathop" || c.starts_with("tcl::mathop::") || BARE.contains(&c)
 }

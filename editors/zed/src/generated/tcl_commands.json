@@ -18,10 +18,6 @@
       "summary": "bitwise AND"
     },
     {
-      "name": "&&",
-      "summary": "logical AND"
-    },
-    {
       "name": "*",
       "summary": "multiplication"
     },
@@ -72,10 +68,6 @@
       "summary": "bitwise AND"
     },
     {
-      "name": "::tcl::mathop::&&",
-      "summary": "logical AND"
-    },
-    {
       "name": "::tcl::mathop::*",
       "summary": "multiplication"
     },
@@ -124,10 +116,6 @@
       "summary": "right shift"
     },
     {
-      "name": "::tcl::mathop::@",
-      "summary": "list index operator"
-    },
-    {
       "name": "::tcl::mathop::^",
       "summary": "bitwise XOR"
     },
@@ -136,8 +124,24 @@
       "summary": "string equality"
     },
     {
+      "name": "::tcl::mathop::ge",
+      "summary": "string greater-or-equal"
+    },
+    {
+      "name": "::tcl::mathop::gt",
+      "summary": "string greater-than"
+    },
+    {
       "name": "::tcl::mathop::in",
       "summary": "list membership"
+    },
+    {
+      "name": "::tcl::mathop::le",
+      "summary": "string less-or-equal"
+    },
+    {
+      "name": "::tcl::mathop::lt",
+      "summary": "string less-than"
     },
     {
       "name": "::tcl::mathop::ne",
@@ -150,10 +154,6 @@
     {
       "name": "::tcl::mathop::|",
       "summary": "bitwise OR"
-    },
-    {
-      "name": "::tcl::mathop::||",
-      "summary": "logical OR"
     },
     {
       "name": "::tcl::mathop::~",
@@ -220,10 +220,6 @@
     {
       "name": ">>",
       "summary": "right shift"
-    },
-    {
-      "name": "@",
-      "summary": "list index operator"
     },
     {
       "name": "DES::Decrypt",
@@ -1960,6 +1956,10 @@
       "summary": "This command can be used by the generic command ::uri::geturl (See package uri) to retrieve the contents of ftp u"
     },
     {
+      "name": "ge",
+      "summary": "string greater-or-equal"
+    },
+    {
       "name": "generator",
       "summary": "Create and drive lazy generator procedures (streams).",
       "subcommands": [
@@ -2274,6 +2274,10 @@
         "size",
         "slaves"
       ]
+    },
+    {
+      "name": "gt",
+      "summary": "string greater-than"
     },
     {
       "name": "history",
@@ -3364,6 +3368,10 @@
       "summary": "This command asks the ldap server to release the last bind done for the connection refered to by the token in."
     },
     {
+      "name": "le",
+      "summary": "string less-or-equal"
+    },
+    {
       "name": "ledit",
       "summary": "Replace elements in a list variable, in place."
     },
@@ -3617,6 +3625,10 @@
     {
       "name": "lstring",
       "summary": "String-backed list command for testing (9.0+)."
+    },
+    {
+      "name": "lt",
+      "summary": "string less-than"
     },
     {
       "name": "map",
@@ -7753,10 +7765,6 @@
       "summary": "bitwise AND"
     },
     {
-      "name": "tcl::mathop::&&",
-      "summary": "logical AND"
-    },
-    {
       "name": "tcl::mathop::*",
       "summary": "multiplication"
     },
@@ -7805,10 +7813,6 @@
       "summary": "right shift"
     },
     {
-      "name": "tcl::mathop::@",
-      "summary": "list index operator"
-    },
-    {
       "name": "tcl::mathop::^",
       "summary": "bitwise XOR"
     },
@@ -7817,8 +7821,24 @@
       "summary": "string equality"
     },
     {
+      "name": "tcl::mathop::ge",
+      "summary": "string greater-or-equal"
+    },
+    {
+      "name": "tcl::mathop::gt",
+      "summary": "string greater-than"
+    },
+    {
       "name": "tcl::mathop::in",
       "summary": "list membership"
+    },
+    {
+      "name": "tcl::mathop::le",
+      "summary": "string less-or-equal"
+    },
+    {
+      "name": "tcl::mathop::lt",
+      "summary": "string less-than"
     },
     {
       "name": "tcl::mathop::ne",
@@ -7831,10 +7851,6 @@
     {
       "name": "tcl::mathop::|",
       "summary": "bitwise OR"
-    },
-    {
-      "name": "tcl::mathop::||",
-      "summary": "logical OR"
     },
     {
       "name": "tcl::mathop::~",
@@ -9922,10 +9938,6 @@
     {
       "name": "|",
       "summary": "bitwise OR"
-    },
-    {
-      "name": "||",
-      "summary": "logical OR"
     },
     {
       "name": "~",
