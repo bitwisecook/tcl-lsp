@@ -43,6 +43,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -287,6 +288,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -376,6 +378,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -465,6 +468,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -554,6 +558,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -643,6 +648,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -732,6 +738,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": true,
@@ -822,6 +829,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -911,6 +919,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -1000,6 +1009,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": true,
@@ -1089,6 +1099,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -1543,6 +1554,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -1632,6 +1644,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": false,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -1721,6 +1734,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -1815,6 +1829,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": false,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -1904,6 +1919,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -1993,6 +2009,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2082,6 +2099,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2171,6 +2189,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2296,6 +2315,7 @@
     ],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2414,6 +2434,7 @@
     ],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2503,6 +2524,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2592,6 +2614,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2681,6 +2704,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": false,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2795,6 +2819,7 @@
     ],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2888,6 +2913,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -2981,6 +3007,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -3079,6 +3106,7 @@
     ],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,
@@ -3168,6 +3196,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": true,
@@ -3258,6 +3287,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": true,
@@ -3349,6 +3379,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": true,
@@ -3438,6 +3469,7 @@
     "switches": [],
     "traits": {
       "allow_unknown_subcommands": false,
+      "builds_command_prefix": false,
       "byte_compiled": true,
       "configures_channel": false,
       "creates_dynamic_barrier": false,

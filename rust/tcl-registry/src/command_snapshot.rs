@@ -89,6 +89,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("password_option_command", Traits::PASSWORD_OPTION),
     ("performs_substitution", Traits::PERFORMS_SUBSTITUTION),
     ("produces_canonical_list", Traits::PRODUCES_CANONICAL_LIST),
+    ("builds_command_prefix", Traits::BUILDS_COMMAND_PREFIX),
     ("pure", Traits::PURE),
     ("pure_evaluation", Traits::PURE_EVALUATION),
     ("reads_variable_before_write", Traits::READS_BEFORE_WRITE),

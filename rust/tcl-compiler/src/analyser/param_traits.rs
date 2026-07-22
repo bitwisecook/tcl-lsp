@@ -428,6 +428,38 @@ fn scan_deep<'p>(
             }
             scan_deep(body_text, ctx, traits, aliases, depth + 1);
         }
+
+        // `apply {argList body ?ns?} …` — the lambda-literal argument is a
+        // 2-element list, not a script, so scanning the whole word as a
+        // `Body` (like the loop above) would misread the parameter word as
+        // a command and never reach the real body's own calls. Split it and
+        // recurse only into the body element (issue #954's param-trait
+        // sibling gap).
+        for idx in ctx
+            .registry
+            .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::LambdaLiteral)
+        {
+            let Some(&tok) = seg.argv.get(idx + 1) else {
+                continue;
+            };
+            if tok.kind != tcl_lexer::TokenType::Str {
+                continue;
+            }
+            let Some(elems) = crate::lambda_literal::split_lambda_literal(source, tok) else {
+                continue;
+            };
+            let Some(body_span) = elems.body else {
+                continue;
+            };
+            let Some(body_text) = source.get(body_span.start() as usize..body_span.end() as usize)
+            else {
+                continue;
+            };
+            if body_text.trim().is_empty() {
+                continue;
+            }
+            scan_deep(body_text, ctx, traits, aliases, depth + 1);
+        }
     }
 }
 
@@ -1061,6 +1093,22 @@ mod tests {
     #[test]
     fn eval_param_records_eval_trait() {
         let traits = infer(&["body"], "eval $body");
+        assert_trait(&traits, "body", ProcArgTrait::Eval);
+    }
+
+    /// Issue #954's param-trait sibling gap: the *deep* pass
+    /// (`infer_param_traits_deep`, which alone recurses into braced body
+    /// arguments) must reach real commands *inside* an `apply` lambda body,
+    /// not misread the whole `{argList} {body}` blob as one script (which
+    /// would treat the parameter word as a command name and never find the
+    /// `eval` at all) — mirrors `overlay_deep_recurses_through_stub_body_args`,
+    /// swapping the registry-known `apply`/`LambdaLiteral` shape in for a
+    /// stub-declared `Body` shape.
+    #[test]
+    fn eval_param_inside_apply_lambda_body_records_eval_trait() {
+        let registry = CommandRegistry::build_default();
+        let traits =
+            infer_param_traits_deep(&["body"], "apply {x {eval $body}} 1", &registry, None);
         assert_trait(&traits, "body", ProcArgTrait::Eval);
     }
 

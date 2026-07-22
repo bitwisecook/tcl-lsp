@@ -25,6 +25,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::LexerConfig;
 use tcl_lexer::{Span, Token, TokenType};
@@ -177,6 +178,38 @@ fn walk(
             {
                 let mut child = scope.child();
                 recurse_token(full, tok, rule_module, registry, &mut child, out);
+            }
+        }
+
+        // `apply {argList body ?ns?} …` (and any future command sharing the
+        // shape) — recurse into the real body *element*, not the whole
+        // lambda literal (issue #954): re-segmenting the whole `{argList}
+        // {body}` blob as a script previously misread the parameter word as
+        // a command name, so an object referenced only inside an apply
+        // lambda body embedded in an iRule event handler was invisible to
+        // this walker — and thus, per `bigip-cleanup`, looked unreferenced.
+        for lambda_idx in registry.arg_indices_for_role(cmd.name(), &args, ArgRole::LambdaLiteral) {
+            let word_index = lambda_idx + 1;
+            if let Some(tok) = cmd.argv.get(word_index)
+                && matches!(tok.kind, TokenType::Str)
+                && let Some(elems) = split_lambda_literal(full, *tok)
+                && let Some(body_span) = elems.body
+            {
+                let (bstart, bend) = (body_span.start() as usize, body_span.end() as usize);
+                if let Some(inner) = full.get(bstart..bend)
+                    && !inner.trim().is_empty()
+                {
+                    let mut child = scope.child();
+                    walk(
+                        full,
+                        inner,
+                        body_span.start(),
+                        rule_module,
+                        registry,
+                        &mut child,
+                        out,
+                    );
+                }
             }
         }
 

@@ -123,6 +123,7 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::RETURNS_PATH,
     Traits::IS_UNESCAPE,
     Traits::PRODUCES_CANONICAL_LIST,
+    Traits::BUILDS_COMMAND_PREFIX,
     Traits::UNSAFE,
     Traits::PASSWORD_OPTION,
     Traits::IS_SIDE_SWITCH,

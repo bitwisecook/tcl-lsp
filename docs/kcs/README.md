@@ -49,6 +49,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-subcommand-script-body-not-highlighted.md](kcs-issue-subcommand-script-body-not-highlighted.md)
   — a subcommand's script argument (`console eval { ... }`) stays one opaque
   string instead of recursing into keyword/variable/comment highlighting.
+- [kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md](kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
+  — commands inside an `apply {argList body}` lambda stay one opaque string
+  when `apply` is reached indirectly through `[list apply {...} $x]`
+  (the pkgIndex.tcl `package ifneeded ... [list apply {dir {...}} $dir]`
+  idiom), even though a direct `apply {...}` call highlights fine.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)

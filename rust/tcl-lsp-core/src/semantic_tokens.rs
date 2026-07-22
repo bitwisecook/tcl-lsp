@@ -1098,9 +1098,13 @@ enum ArgOverride {
     /// parameter the analyser inferred to be a `Command`) → `Function`: the
     /// literal names a command the callee invokes.
     CommandRef,
-    /// The `{params body ?ns?}` lambda literal argument of `apply` — its
-    /// second list element (the body) is re-segmented as a script.
-    ApplyLambda,
+    /// The `{params body ?ns?}` lambda literal argument of a command
+    /// carrying `ArgRole::LambdaLiteral` (`apply` today) — its second list
+    /// element (the body) is re-segmented as a script.  Reached either as
+    /// the call's own argument or, indirectly, through the `[list apply
+    /// {…} $x]` deferred-command idiom — see
+    /// [`insert_lambda_literal_overrides`].
+    LambdaLiteral,
     /// A known subcommand word (arg index 1) → `Keyword` + `defaultLibrary`.
     SubcommandKeyword,
     /// The name argument of a `proc` definition → `Function` + `definition`.
@@ -1358,7 +1362,7 @@ fn special_arg_kinds(
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
     insert_definer_class_name_override(seg, registry, &mut overrides);
-    insert_apply_lambda_override(seg, &mut overrides);
+    insert_lambda_literal_overrides(seg, registry, head, &mut overrides);
     insert_case_list_override(seg, registry, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, oo_grammar, arg_texts, &mut overrides);
@@ -2783,25 +2787,99 @@ fn insert_oo_define_keyword_overrides(
     insert_oo_member_overrides(seg, grammar, &first, &member_args, 2, overrides);
 }
 
-/// `apply {params body ?ns?} …` — mark the braced lambda literal so its body
-/// (the second list element) is re-segmented as a script.  Only a braced
-/// literal first argument qualifies; `apply $lambda …` (a variable) is left
-/// alone.  Matches C Tcl, where `apply`'s first argument is a 2- or 3-element
-/// list `{argList body ?namespace?}`.
-fn insert_apply_lambda_override(
+/// `apply {params body ?ns?} …` — mark the braced lambda-literal argument
+/// (`ArgRole::LambdaLiteral`) so its body (the second list element) is
+/// re-segmented as a script.  Only a braced literal argument qualifies;
+/// `apply $lambda …` (a variable) is left alone.  Matches C Tcl, where
+/// `apply`'s first argument is a 2- or 3-element list `{argList body
+/// ?namespace?}`.
+///
+/// Two shapes are recognised, both registry-driven — no command name is
+/// compared anywhere in this function:
+///
+/// - **Direct**: `head` (this segmented command's own, already-resolved
+///   head) carries `ArgRole::LambdaLiteral` at some argument index `K` — the
+///   token at `argv[K + 1]` is the lambda literal.
+/// - **List-quoted**: `head` instead carries `Traits::BUILDS_COMMAND_PREFIX`
+///   (`list`) — the idiomatic way to build a deferred command around a
+///   dynamic value, e.g. a pkgIndex.tcl entry capturing the install
+///   directory: `package ifneeded name ver [list apply {dir {…}} $dir]`
+///   (issue #954). `list`'s own first *argument*, if a literal bareword, is
+///   resolved the same way any other command head is (registry `get`, which
+///   strips a leading `::`); if that resolves to a `LambdaLiteral`-bearing
+///   spec, the token at `argv[K + 2]` (shifted by one for `list` itself) is
+///   the lambda literal. A dynamic `list` argument (`$var`, `[cmd]`) can't be
+///   resolved statically and is left alone.
+fn insert_lambda_literal_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if seg.texts[0] != "apply" {
+    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    let mark = |idx: usize, overrides: &mut FxHashMap<u32, ArgOverride>| {
+        if let Some(tok) = seg.argv.get(idx + 1)
+            && matches!(tok.kind, TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::LambdaLiteral);
+        }
+    };
+
+    let direct =
+        registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::LambdaLiteral);
+    if !direct.is_empty() {
+        for idx in direct {
+            mark(idx, overrides);
+        }
         return;
     }
-    if let Some(tok) = seg.argv.get(1)
-        && matches!(tok.kind, TokenType::Str)
-    {
-        overrides
-            .entry(tok.span.start())
-            .or_insert(ArgOverride::ApplyLambda);
+
+    if !registry.get(head).is_some_and(|s| {
+        s.traits
+            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+    }) {
+        return;
     }
+    // `list`'s own arg 0 must be a literal, unquoted, single-token bareword
+    // to resolve statically — mirrors the bareword guard
+    // `command_prefix::extract_prefix_head` uses for the same reason.
+    let Some(inner_head_tok) = seg.argv.get(1) else {
+        return;
+    };
+    if !matches!(inner_head_tok.kind, TokenType::Esc)
+        || inner_head_tok.in_quote
+        || seg.single_token_word.get(1) != Some(&true)
+    {
+        return;
+    }
+    let inner_head = seg.texts[1].as_str();
+    let inner_arg_texts: Vec<&str> = seg.texts[2..].iter().map(String::as_str).collect();
+    let inner_roles = registry.arg_indices_for_role(
+        inner_head,
+        &inner_arg_texts,
+        tcl_registry::ArgRole::LambdaLiteral,
+    );
+    if inner_roles.is_empty() {
+        return;
+    }
+    for idx in inner_roles {
+        if let Some(tok) = seg.argv.get(idx + 2)
+            && matches!(tok.kind, TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::LambdaLiteral);
+        }
+    }
+    // The resolved command-name word itself (`apply` / `::apply`) is a real
+    // call-site reference, same as a `CommandPrefix` bareword head — paint it
+    // `Function` rather than leaving it to fall through to a plain string /
+    // namespace-word guess.
+    overrides
+        .entry(inner_head_tok.span.start())
+        .or_insert(ArgOverride::CommandRef);
 }
 
 /// Variable names a command declares / writes (`ArgRole::VarWrite`) →
@@ -4022,14 +4100,16 @@ fn collect_case_list(
     }
 }
 
-/// Recurse the body of an `apply {params body ?ns?}` lambda literal.
+/// Recurse the body of an `ArgRole::LambdaLiteral` `{params body ?ns?}`
+/// lambda literal (`apply`'s shape, reached directly or list-quoted — see
+/// [`insert_lambda_literal_overrides`]).
 ///
 /// The braced lambda is a Tcl list; its second element is the body script
 /// and is re-segmented so its commands / vars / strings tokenise like any
 /// other body.  The first element (the argument list) and an optional third
 /// (the namespace) are emitted with their default classification, so no part
 /// of the lambda is dropped.  Mirrors C Tcl's `apply` lambda shape.
-fn collect_apply_lambda(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
+fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
     if depth > MAX_TOKEN_RECURSION {
         return;
     }
@@ -4597,8 +4677,8 @@ fn emit_arg_token(
             let emitted = push_regsub_subtokens(line_index, full_source, *tok, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
-        Some(ArgOverride::ApplyLambda) => {
-            collect_apply_lambda(ctx, *tok, entries, depth + 1);
+        Some(ArgOverride::LambdaLiteral) => {
+            collect_lambda_literal(ctx, *tok, entries, depth + 1);
         }
         Some(ArgOverride::LoopVarList) => {
             collect_loop_var_list(ctx, *tok, entries);
@@ -7918,6 +7998,135 @@ mod tests {
                 TokenKind::Parameter
             ),
             "a computed arg list must not be a parameter declaration"
+        );
+    }
+
+    /// Issue #954, the reopened follow-up: `apply`'s lambda body is
+    /// reachable indirectly through `[list apply {…} $x]`, the idiomatic way
+    /// to build a deferred command around a dynamic value — most commonly a
+    /// pkgIndex.tcl `package ifneeded name ver [list apply {dir {…}} $dir]`
+    /// entry. TP cases: the reported repro, a namespace-qualified `::apply`,
+    /// and the same idiom under a *different* enclosing Body-role command
+    /// (`after idle`) to prove the fix is registry-driven (any Body-role
+    /// position), not special-cased to `package ifneeded`.
+    #[test]
+    fn list_quoted_apply_lambda_body_recurses() {
+        let registry = reg();
+
+        // The exact reported repro: a pkgIndex.tcl-style entry.
+        let pkgindex = "package ifneeded myPackage 1.0.0 [list apply {dir {\n    source [file join $dir x.tcl]\n}} $dir]\n";
+        assert!(
+            has_token_kind(pkgindex, "tcl", &registry, "source", TokenKind::Keyword),
+            "pkgIndex-style list-quoted apply body: `source` must tokenise; got {:?}",
+            decode_full(pkgindex, "tcl", &registry)
+        );
+        assert!(
+            has_token_kind(pkgindex, "tcl", &registry, "dir", TokenKind::Parameter),
+            "pkgIndex-style list-quoted apply: `dir` param must be a Parameter; got {:?}",
+            decode_full(pkgindex, "tcl", &registry)
+        );
+        // The reconstructed command-name word itself reads as a call-site
+        // reference, same as a literal head — not a plain string.
+        assert!(
+            has_token_kind(pkgindex, "tcl", &registry, "apply", TokenKind::Function),
+            "the list-quoted `apply` word must read as a Function reference; got {:?}",
+            decode_full(pkgindex, "tcl", &registry)
+        );
+
+        // A `::`-qualified spelling resolves the same way (registry `get`
+        // strips a leading `::`, exactly like a direct `::apply {…}` call).
+        let qualified = "package ifneeded p 1.0 [list ::apply {dir {puts $dir}} $dir]\n";
+        assert!(
+            has_token_kind(qualified, "tcl", &registry, "puts", TokenKind::Function),
+            "qualified `::apply` list-quoted body: `puts` must tokenise; got {:?}",
+            decode_full(qualified, "tcl", &registry)
+        );
+
+        // A *different* Body-role enclosing command (`after idle`) proves
+        // the fix isn't specific to `package ifneeded`.
+        let after_idle = "after idle [list apply {{x} {puts $x}} 5]\n";
+        assert!(
+            has_token_kind(after_idle, "tcl", &registry, "puts", TokenKind::Function),
+            "after-idle list-quoted apply body: `puts` must tokenise; got {:?}",
+            decode_full(after_idle, "tcl", &registry)
+        );
+        assert!(
+            has_token_kind(after_idle, "tcl", &registry, "x", TokenKind::Parameter),
+            "after-idle list-quoted apply: `x` param must be a Parameter; got {:?}",
+            decode_full(after_idle, "tcl", &registry)
+        );
+    }
+
+    /// FP guards for the `[list …]`-quoted lambda recognition: a plain data
+    /// list, a list naming an unregistered head, and a dynamic `list` head
+    /// must never be split as if they were an apply lambda.
+    #[test]
+    fn list_quoted_apply_lambda_false_positive_guards() {
+        let registry = reg();
+
+        // Ordinary data list: `list`'s own args stay whatever the default
+        // classifier gives them — none of them becomes a `Parameter`
+        // declaration (which only a recognised lambda-literal split emits).
+        let data_list = "set data [list puts hello world]\n";
+        assert!(
+            !has_token_kind(data_list, "tcl", &registry, "hello", TokenKind::Parameter),
+            "a plain data list must not be split as a lambda literal"
+        );
+
+        // `list`'s first argument names a command that does not carry
+        // `ArgRole::LambdaLiteral` (`puts` is an ordinary command) — its
+        // second argument must not be treated as a lambda body either.
+        assert!(
+            !has_token_kind(
+                "set cb [list puts hello]\n",
+                "tcl",
+                &registry,
+                "hello",
+                TokenKind::Parameter
+            ),
+            "list-quoting a non-lambda-literal command must not split its trailing arg"
+        );
+
+        // An unregistered head: no crash, no spurious split.
+        let unknown = "set cb [list notARealCommand {dir {source x.tcl}} $dir]\n";
+        assert!(
+            !has_token_kind(unknown, "tcl", &registry, "dir", TokenKind::Parameter),
+            "an unresolvable list-quoted head must not be split as a lambda literal"
+        );
+
+        // A dynamic `list` head (`$cmd`) can't be resolved statically.
+        let dynamic_head = "set cb [list $cmd {dir {source x.tcl}} $dir]\n";
+        assert!(
+            !has_token_kind(dynamic_head, "tcl", &registry, "dir", TokenKind::Parameter),
+            "a dynamic list head must not be split as a lambda literal"
+        );
+
+        // `[llength $x]` — a `Cmd` substitution whose head is `llength`, not
+        // `list` (no `BUILDS_COMMAND_PREFIX` trait) — must not be misread.
+        assert!(
+            !has_token_kind(
+                "set n [llength $items]\n",
+                "tcl",
+                &registry,
+                "items",
+                TokenKind::Parameter
+            ),
+            "llength must never be treated as a command-quoting construct"
+        );
+    }
+
+    /// TN regression: `package ifneeded`'s script argument, when a literal
+    /// braced script (no `[list …]` wrapper), is now itself recognised
+    /// generically as `ArgRole::Body` — the sibling half of issue #954 (the
+    /// package.ifneeded script argument carried no role at all before).
+    #[test]
+    fn package_ifneeded_literal_script_recurses_as_body() {
+        let registry = reg();
+        let src = "package ifneeded myPackage 1.0.0 {\n    source [file join $dir x.tcl]\n}\n";
+        assert!(
+            has_token_kind(src, "tcl", &registry, "source", TokenKind::Keyword),
+            "package ifneeded literal script: `source` must tokenise; got {:?}",
+            decode_full(src, "tcl", &registry)
         );
     }
 

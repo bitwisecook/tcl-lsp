@@ -34,9 +34,10 @@
 //! empty set means the whole file is visible (cursor at global scope).
 
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_compiler::var_scoping::scope_alias_declaration_indices;
-use tcl_lexer::{LexerConfig, LineIndex, Span};
+use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 
@@ -200,6 +201,31 @@ fn collect_declarations_in_region(
                 collect_declarations_in_region(scan, body_tok.span, depth + 1, found);
             }
         }
+
+        // `apply {argList body ?ns?} …` (and any future command sharing the
+        // shape) — recurse into the real body *element*, not the whole
+        // lambda literal (issue #954): re-segmenting the whole `{argList}
+        // {body}` blob as a script misread the parameter word as a command
+        // name, so a `global` / `variable` / `upvar` genuinely inside the
+        // body was never reached (and, worse, a parameter that happened to
+        // be *named* `global`/`variable`/`upvar` could misfire as a bogus
+        // declaration). `split_lambda_literal`'s span is already
+        // delimiter-stripped, so it can be handed to
+        // `collect_declarations_in_region` directly — its own peel step is a
+        // no-op on a region that has nothing left to peel.
+        for lambda_idx in registry.arg_indices_for_role(head, &arg_refs, ArgRole::LambdaLiteral) {
+            let Some(&lambda_tok) = arg_tokens.get(lambda_idx) else {
+                continue;
+            };
+            if lambda_tok.kind != TokenType::Str {
+                continue;
+            }
+            if let Some(elems) = split_lambda_literal(source, lambda_tok)
+                && let Some(body_span) = elems.body
+            {
+                collect_declarations_in_region(scan, body_span, depth + 1, found);
+            }
+        }
     }
 }
 
@@ -353,6 +379,25 @@ mod tests {
         let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &reg());
         assert_eq!(locs.len(), 1, "{locs:?}");
         // `global x` is on line 1 (the `if` line).
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn global_declared_inside_apply_lambda_body_is_found() {
+        // Issue #954: `apply`'s lambda-literal argument is
+        // `ArgRole::LambdaLiteral`, not `Body` — recursing the whole
+        // `{argList} {body}` blob as a script (the old generic-`Body` path)
+        // misread the parameter word as a command name, so a `global`
+        // declared *inside* the real body was never reached at all.
+        let src = "apply {dir {\n\
+                   global x\n\
+                   puts $x\n\
+                   }} /tmp\n";
+        let analysis = analyse(src);
+        let (l, c) = pos_of(src, "$x", 1);
+        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &reg());
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // `global x` is on line 1 (inside the lambda body).
         assert_eq!(locs[0].start_line, 1);
     }
 

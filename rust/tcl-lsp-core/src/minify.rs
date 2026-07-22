@@ -92,6 +92,7 @@ use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::ir::Statement;
+use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr};
@@ -2425,6 +2426,7 @@ fn render_command(
     let post_refs: Vec<&str> = post.iter().map(String::as_str).collect();
 
     let body_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Body);
+    let lambda_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::LambdaLiteral);
     let expr_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Expr);
     let is_case_list = cmd_name == "switch" && is_switch_case_list_form(&post_refs);
 
@@ -2439,6 +2441,8 @@ fn render_command(
                 minify_body(inner, dialect, registry)
             };
             out.push(format!("{{{minified}}}"));
+        } else if lambda_indices.contains(&i) && single_braced {
+            out.push(minify_lambda_literal(sm, arg.tokens[0], dialect, registry));
         } else if expr_indices.contains(&i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
             out.push(format!("{{{}}}", compress_expr(inner, dialect, registry)));
@@ -2447,6 +2451,46 @@ fn render_command(
         }
     }
     out
+}
+
+/// Minify an `ArgRole::LambdaLiteral` argument (`apply`'s `{argList body
+/// ?ns?}` shape): only the body element is recursively minified as a
+/// script; the parameter list and optional namespace elements are copied
+/// verbatim, exactly as `render_command` already leaves a plain `proc`
+/// parameter list untouched (`ArgRole::ParamList` isn't itself minified
+/// anywhere in this file — issue #954 only needs the body reached
+/// correctly, not new parameter-list compaction). Re-segmenting the whole
+/// literal as a script (the pre-`LambdaLiteral`-role behaviour) misread the
+/// parameter word as a command name and never reached the real body at all.
+fn minify_lambda_literal(
+    sm: &SourceMap,
+    tok: Token,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> String {
+    let source = sm.source();
+    let fallback = || format!("{{{}}}", sm.token_text(tok));
+    let Some(elems) = split_lambda_literal(source, tok) else {
+        return fallback();
+    };
+    let Some(params_text) = source.get(elems.params.start() as usize..elems.params.end() as usize)
+    else {
+        return fallback();
+    };
+    let Some(body_span) = elems.body else {
+        return fallback();
+    };
+    let Some(body_text) = source.get(body_span.start() as usize..body_span.end() as usize) else {
+        return fallback();
+    };
+    let minified_body = minify_body(body_text, dialect, registry);
+    match elems
+        .namespace
+        .and_then(|ns| source.get(ns.start() as usize..ns.end() as usize))
+    {
+        Some(ns) => format!("{{{params_text} {{{minified_body}}} {ns}}}"),
+        None => format!("{{{params_text} {{{minified_body}}}}}"),
+    }
 }
 
 /// Registry role indices, offset by 1 for the command-name slot.
@@ -3570,5 +3614,20 @@ mod tests {
     #[test]
     fn empty_source_minifies_to_empty() {
         check("\n\n# only a comment\n", "");
+    }
+
+    /// Issue #954: `apply`'s lambda-literal argument (`ArgRole::LambdaLiteral`,
+    /// not `Body`) must have its real body element minified — not the whole
+    /// `{argList} {body}` blob re-segmented as one script (which misreads
+    /// the parameter word as a command name and never reaches the real
+    /// body, leaving comments / extra whitespace inside it untouched). The
+    /// parameter-list element itself stays verbatim, matching how a plain
+    /// `proc` parameter list is never specially minified either.
+    #[test]
+    fn apply_lambda_body_minifies() {
+        check(
+            "apply {dir {\n    # a comment\n    puts    $dir\n}} /tmp\n",
+            "apply {dir {puts $dir}} /tmp",
+        );
     }
 }

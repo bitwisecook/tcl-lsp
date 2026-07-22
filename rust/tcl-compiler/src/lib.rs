@@ -118,6 +118,7 @@ pub mod intervals;
 pub mod ir;
 pub mod ir_helpers;
 pub mod irules_checks;
+pub mod lambda_literal;
 mod lattice_rebase;
 pub use lattice_rebase::rebase_script;
 pub mod loops;

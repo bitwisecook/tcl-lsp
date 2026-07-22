@@ -32,7 +32,8 @@ pub fn spec() -> CommandSpec {
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::PURE
-            | Traits::PRODUCES_CANONICAL_LIST,
+            | Traits::PRODUCES_CANONICAL_LIST
+            | Traits::BUILDS_COMMAND_PREFIX,
         arity: Arity::any(),
         return_type: Some(TclType::List),
         return_elements: Some(ReturnElements::ListOfArgs { from: 0 }),

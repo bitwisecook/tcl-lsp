@@ -159,6 +159,68 @@ fn braced_multi_word_prefix_dynamic_head_is_not_recorded() {
     );
 }
 
+/// A `[list cmd extra]` command-prefix — the idiomatic way to build a
+/// callback around a dynamic value (`-command [list doSomething $x]`) rather
+/// than a fixed literal prefix — is recorded exactly like the braced-list
+/// shape: head span covers just the head word, and every further `list`
+/// argument (whatever its own runtime value) is a baked argument.
+#[test]
+fn list_quoted_prefix_records_head_span_and_baked_count() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let src = "proc myCompare {a b extra} { expr {$a - $b} }\nset extra 99\nlsort -command [list myCompare $extra] $items\n";
+    let r = a.analyse(src, "tcl9.0");
+    let inv = r
+        .command_invocations
+        .iter()
+        .find(|i| i.name == "myCompare" && i.callback_arity.is_some())
+        .expect("a list-quoted prefix must record its head as an invocation");
+    assert_eq!(
+        inv.callback_baked_args, 1,
+        "the `$extra` word after the head must be counted as one baked argument"
+    );
+    let head_text = &src[inv.range.start() as usize..inv.range.end() as usize];
+    assert_eq!(
+        head_text, "myCompare",
+        "the recorded span must cover exactly the head word, got {head_text:?}"
+    );
+}
+
+/// FP guard: `[list $cb 99]` — a dynamic head as `list`'s own first argument
+/// — is not a literal command reference and must not be recorded, mirroring
+/// the braced-shape guard.
+#[test]
+fn list_quoted_prefix_dynamic_head_is_not_recorded() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let r = a.analyse(
+        "proc f {cb l} { return [lsort -command [list $cb 99] $l] }\n",
+        "tcl9.0",
+    );
+    assert!(
+        !r.command_invocations
+            .iter()
+            .any(|i| i.callback_arity.is_some()),
+        "a dynamic list-quoted-prefix head must not be recorded as a command-prefix invocation"
+    );
+}
+
+/// FP guard: `[llength $x]` — a `Cmd` substitution whose head is *not*
+/// `list` (doesn't carry `Traits::BUILDS_COMMAND_PREFIX`) — must not be
+/// misread as constructing a deferred command, however similarly shaped.
+#[test]
+fn cmd_substitution_with_non_list_head_is_not_recorded_as_prefix() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let r = a.analyse(
+        "proc f {items} { return [lsort -command [llength $items] $items] }\n",
+        "tcl9.0",
+    );
+    assert!(
+        !r.command_invocations
+            .iter()
+            .any(|i| i.callback_arity.is_some()),
+        "an [llength ...] substitution must not be recorded as a command-prefix invocation"
+    );
+}
+
 /// The deferred core-Tcl callback surfaces are wired through the same generic
 /// substrate — no per-command code — so a registry-declared prefix on
 /// `namespace unknown` / `package unknown` / `regsub -command` /

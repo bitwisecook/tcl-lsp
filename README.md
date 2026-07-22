@@ -292,7 +292,14 @@ Script-body arguments are highlighted as scripts, not opaque strings. The body
 of an `apply {argList body}` lambda literal has its commands, variables, and
 strings tokenised like any other body, and the argument list names — a braced
 `{a b}` list or a bare single name (`apply {dir { … }}`) — are painted as
-parameter declarations.
+parameter declarations. This reaches `apply` reached indirectly through
+`[list apply {argList body} $val]` too — the idiomatic way to build a
+deferred command around a dynamic value, most commonly a pkgIndex.tcl entry:
+`package ifneeded myPackage 1.0 [list apply {dir { source [file join $dir
+init.tcl] }} $dir]` highlights `source`/`file`/`join` inside the lambda body
+correctly, not as one opaque string. `package ifneeded`'s deferred script
+argument is recognised as a script body in its own right too, whether
+literal or list-quoted.
 
 ### Diagnostics
 

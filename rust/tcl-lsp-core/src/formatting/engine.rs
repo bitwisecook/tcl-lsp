@@ -27,6 +27,7 @@
 //! The entry point is [`format_tcl`]; everything else is the
 //! private machinery [`format_tcl`] drives.
 
+use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -44,6 +45,12 @@ enum ArgKind {
     Keyword,
     /// Parameter list — normalise internal whitespace.
     ParamList,
+    /// `ArgRole::LambdaLiteral` argument (`apply`'s `{argList body ?ns?}`
+    /// shape) — the parameter-list element is normalised and the body
+    /// element recursively formatted, then reassembled; never fed to
+    /// `format_body` as a whole (that would misread the parameter word as a
+    /// command name — issue #954).
+    LambdaLiteral,
 }
 
 /// A single argument to a command.
@@ -56,6 +63,10 @@ struct CommandArg {
     is_braced: bool,
     /// The argument was `"`-quoted.
     is_quoted: bool,
+    /// The recursively reformatted script content of a `Body` argument, or
+    /// (for `LambdaLiteral`) of just its body *element* — the parameter-list
+    /// element is never fed here, only normalised at reconstruction time
+    /// (`render_lambda_literal_arg`).
     formatted_body: Option<String>,
 }
 
@@ -347,10 +358,17 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     let refs: Vec<&str> = arg_texts.iter().map(String::as_str).collect();
     let body_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::Body);
     let param_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::ParamList);
+    let lambda_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::LambdaLiteral);
     for idx in body_indices {
         let actual = idx + 1; // +1 for the command-name slot.
         if actual < cmd.args.len() && cmd.args[actual].is_braced {
             cmd.args[actual].kind = ArgKind::Body;
+        }
+    }
+    for idx in lambda_indices {
+        let actual = idx + 1; // +1 for the command-name slot.
+        if actual < cmd.args.len() && cmd.args[actual].is_braced {
+            cmd.args[actual].kind = ArgKind::LambdaLiteral;
         }
     }
 
@@ -997,6 +1015,56 @@ fn append_body_no_space(
     }
 }
 
+/// Reassemble an `ArgKind::LambdaLiteral` argument: its parameter-list
+/// element (normalised, not code) and its body element (`arg.formatted_body`
+/// — already recursively formatted by the caller from just the body span,
+/// never the whole lambda literal, so the parameter word is never misread as
+/// a command name), plus an optional namespace element, wrapped back in the
+/// outer `{}`. Falls back to the original literal verbatim if the source
+/// can no longer be split (should not happen once `identify_body_args` and
+/// this function agree, but a stale token must not panic).
+fn render_lambda_literal_arg(
+    sm: &SourceMap,
+    arg: &CommandArg,
+    config: &FormatterConfig,
+    indent: &str,
+    current_line_len: usize,
+    never_inline: bool,
+) -> String {
+    let source = sm.source();
+    let fallback = || format!("{{{}}}", arg.text);
+    let Some(&tok) = arg.tokens.first() else {
+        return fallback();
+    };
+    let Some(elems) = split_lambda_literal(source, tok) else {
+        return fallback();
+    };
+    let Some(formatted_body) = arg.formatted_body.as_deref() else {
+        return fallback();
+    };
+    let params_text = source
+        .get(elems.params.start() as usize..elems.params.end() as usize)
+        .unwrap_or_default();
+    let mut body_parts: Vec<String> = Vec::new();
+    append_body_no_space(
+        &mut body_parts,
+        formatted_body,
+        config,
+        indent,
+        current_line_len,
+        never_inline,
+    );
+    let params_rendered = normalise_param_list(params_text);
+    let body_rendered = body_parts.concat();
+    match elems
+        .namespace
+        .and_then(|ns| source.get(ns.start() as usize..ns.end() as usize))
+    {
+        Some(ns) => format!("{{{params_rendered} {body_rendered} {ns}}}"),
+        None => format!("{{{params_rendered} {body_rendered}}}"),
+    }
+}
+
 /// Append a plain word argument (with optional expression
 /// wrapping).  Returns `false` when nothing was emitted (an
 /// all-continuation artifact), so the caller leaves the brace
@@ -1110,6 +1178,19 @@ fn reconstruct_command(
                     current_line_len,
                     never_inline,
                 );
+                in_brace_chain = true;
+            }
+            ArgKind::LambdaLiteral if arg.formatted_body.is_some() => {
+                let current_line_len = indent.len() + parts.concat().len();
+                maybe_space(&mut parts, in_brace_chain, config.space_between_braces);
+                parts.push(render_lambda_literal_arg(
+                    sm,
+                    arg,
+                    config,
+                    indent,
+                    current_line_len,
+                    never_inline,
+                ));
                 in_brace_chain = true;
             }
             ArgKind::ParamList => {
@@ -1296,6 +1377,21 @@ pub(crate) fn format_body(
                 } else {
                     format_body(&body_text, config, registry, inner_level)
                 };
+                commands[i].args[a].formatted_body = Some(formatted);
+            } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
+                && commands[i].args[a].is_braced
+                && let Some(&tok) = commands[i].args[a].tokens.first()
+                && let Some(elems) = split_lambda_literal(source, tok)
+                && let Some(body_span) = elems.body
+            {
+                // Format only the real body element — `render_lambda_literal_arg`
+                // re-derives the parameter list / namespace elements from the
+                // original source at reconstruction time and reassembles them.
+                let body_text = source
+                    .get(body_span.start() as usize..body_span.end() as usize)
+                    .unwrap_or_default()
+                    .to_owned();
+                let formatted = format_body(&body_text, config, registry, inner_level);
                 commands[i].args[a].formatted_body = Some(formatted);
             }
         }
@@ -1781,6 +1877,32 @@ mod tests {
     #[test]
     fn quoted_string_preserved() {
         check("puts \"hello $name\"\n", "puts \"hello $name\"\n");
+    }
+
+    /// Issue #954: `apply`'s lambda-literal argument (`ArgRole::LambdaLiteral`,
+    /// not `Body`) must have its real body element reformatted — not the
+    /// whole `{argList} {body}` blob re-segmented as one script (which
+    /// misreads the parameter word as a command name and never reaches the
+    /// real body). The parameter list is normalised the same way a `proc`'s
+    /// is (bare `dir` → braced `{dir}`), matching `param_list_normalised`.
+    #[test]
+    fn apply_lambda_body_indents_and_params_normalise() {
+        check(
+            "apply {dir {\nputs    $dir\nset x 1\n}} /tmp\n",
+            "apply {{dir} {\n    puts $dir\n    set x 1\n}} /tmp\n",
+        );
+    }
+
+    /// The optional namespace element (lambda literal position 2) survives
+    /// reassembly untouched. A short single-command body inlines (matching
+    /// ordinary body formatting), so this also confirms the inline path
+    /// reassembles the namespace element correctly.
+    #[test]
+    fn apply_lambda_namespace_element_preserved() {
+        check(
+            "apply {dir {\nputs    $dir\n} ::foo} /tmp\n",
+            "apply {{dir} { puts $dir } ::foo} /tmp\n",
+        );
     }
 
     #[test]

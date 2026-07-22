@@ -1683,6 +1683,28 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts)
                 scan_source_for_calls(body_text, ctx, facts);
             }
         }
+        // Recurse into an `ArgRole::LambdaLiteral` argument's real body
+        // element (`apply {argList body ?ns?} …`) — the whole lambda literal
+        // is a 2-element list, not a script, so scanning it as one (like a
+        // plain `Body` arg) would misread the parameter word as a call-graph
+        // edge to a non-existent proc and never reach the real body's own
+        // calls at all (issue #954's call-graph sibling gap).
+        let lambda_indices = registry.arg_indices_for_role(
+            name,
+            &arg_strs,
+            tcl_registry::arg_role::ArgRole::LambdaLiteral,
+        );
+        for idx in lambda_indices {
+            if let Some(&tok) = cmd.argv.get(idx + 1)
+                && tok.kind == tcl_lexer::TokenType::Str
+                && let Some(elems) = crate::lambda_literal::split_lambda_literal(source, tok)
+                && let Some(body_span) = elems.body
+                && let Some(body_text) =
+                    source.get(body_span.start() as usize..body_span.end() as usize)
+            {
+                scan_source_for_calls(body_text, ctx, facts);
+            }
+        }
         // Recurse into EXPR-role args. `expr {…}` (and the registry's other
         // expression operands) re-parse and evaluate their argument, so a
         // `[cmd]` substitution inside it is a real call edge even when the
@@ -2250,6 +2272,29 @@ mod tests {
     fn empty_module_has_no_summaries() {
         let ia = build("");
         assert!(ia.procedures.is_empty());
+    }
+
+    /// Issue #954's call-graph sibling gap: a proc called *inside* an
+    /// `apply` lambda body reached through a `[…]` command substitution
+    /// (`set y [apply {p {…}} $x]`) must still register as a call-graph
+    /// edge. `apply`'s lambda-literal argument is `ArgRole::LambdaLiteral`,
+    /// not `Body` — scanning the whole `{argList} {body}` blob as one script
+    /// (the old generic-`Body` path) misread the parameter word as a
+    /// command name and never reached the real body's own calls, which
+    /// would have made `helper` look like dead code (O124) despite being
+    /// reachable only from inside the lambda.
+    #[test]
+    fn call_inside_apply_lambda_body_is_a_direct_call() {
+        let ia = build(
+            "proc ::helper {x} { return $x }\n\
+             proc ::f {} { set y [apply {p {helper $p}} 1]; return $y }\n",
+        );
+        let s = ia.procedures.get("::f").expect("::f summary");
+        assert!(
+            s.direct_calls.iter().any(|c| c == "::helper"),
+            "expected a direct_calls edge to ::helper via the apply lambda body; got {:?}",
+            s.direct_calls
+        );
     }
 
     #[test]

@@ -62,7 +62,7 @@ fn finds_probe(source: &str, registry: &CommandRegistry) -> bool {
 ///
 /// Kept beside the walker's behaviour rather than inferred from it, so that a
 /// role which *starts* carrying a script has to be added here consciously.
-const WALKED_ROLES: &[ArgRole] = &[ArgRole::Body, ArgRole::Expr];
+const WALKED_ROLES: &[ArgRole] = &[ArgRole::Body, ArgRole::Expr, ArgRole::LambdaLiteral];
 
 /// The walker must descend into every role the registry says holds code.
 ///
@@ -178,6 +178,31 @@ fn every_clause_list_body_is_walked() {
         gaps.is_empty(),
         "these commands carry a clause list whose bodies are not walked: {}",
         gaps.join(", ")
+    );
+}
+
+/// A pool used only inside an `apply` lambda body — issue #954's sibling gap.
+///
+/// `apply`'s lambda-literal argument is `ArgRole::LambdaLiteral`, not
+/// `ArgRole::Body` — the whole `{argList} {body}` word is a 2-element list,
+/// not a script, so recursing it as one misreads the parameter word as a
+/// command name and never reaches the real body at all. A pool referenced
+/// only inside such a body was invisible to the reference graph until the
+/// walker learned to split the lambda literal and descend into its body
+/// element specifically.
+#[test]
+fn a_pool_used_only_inside_an_apply_lambda_body_is_referenced() {
+    let registry = irules_registry();
+    let source =
+        format!("when HTTP_REQUEST {{\n    apply {{dir {{ pool {PROBE} }}}} /Common\n}}\n");
+    let names: Vec<String> = extract_irules_object_references(&source, None, &registry)
+        .into_iter()
+        .map(|r| r.name)
+        .collect();
+    assert!(
+        names.iter().any(|n| n == PROBE),
+        "a pool referenced only inside an apply lambda body is invisible to the \
+         reference graph; got {names:?}"
     );
 }
 
