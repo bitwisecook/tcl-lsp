@@ -153,6 +153,35 @@ pub fn hover(
     )
 }
 
+/// `<ensemble> <subcommand>` hover — a static `namespace ensemble create
+/// -map`/`-subcommands` mapping (issue #923 idx 106), the hover twin of
+/// `definition()`'s identical check. Extracted from
+/// [`hover_with_profile`] to stay within the line budget.
+fn ensemble_subcommand_hover(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+) -> Option<Hover> {
+    let (head, sub, is_dollar) =
+        crate::definition::instance_method_at_cursor(source, line, character)?;
+    if is_dollar {
+        return None;
+    }
+    let line_index = tcl_lexer::LineIndex::new(source);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let namespace = crate::definition::namespace_context_at(&analysis.global_scope, cursor_offset);
+    let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
+    let proc_def =
+        crate::definition::resolve_called_proc(analysis, source, "::", target, registry)?;
+    let text = format!(
+        "**Ensemble subcommand** of `{head}`\n\n{}",
+        proc_hover_text(proc_def)
+    );
+    Some(Hover::markdown(text))
+}
+
 /// [`hover`] resolving prefix-abbreviated subcommands and option / special-
 /// variable availability against a specific dialect profile, so e.g.
 /// `info class def` hovers `definition` under 8.6 but nothing (ambiguous
@@ -247,6 +276,15 @@ pub fn hover_with_profile(
         && let Some(text) = obj_method_hover_text(analysis, class_q, &method, registry)
     {
         return Some(Hover::markdown(text));
+    }
+
+    // `<ensemble> <subcommand>` hover (issue #923 idx 106) — see
+    // `ensemble_subcommand_hover`'s doc for the full rationale; must run
+    // before the generic proc lookup below for the same reason as the
+    // `$obj method` check above: `make` is never independently a command,
+    // only the pair `widget make` dispatches.
+    if let Some(hover) = ensemble_subcommand_hover(source, line, character, analysis, registry) {
+        return Some(hover);
     }
 
     // Command alias (`interp alias {} = {} expr`) — show the resolved target.
@@ -2973,6 +3011,19 @@ mod tests {
         assert_eq!(h.kind, HoverKind::Markdown);
         assert!(h.value.contains("proc ::greet"), "{}", h.value);
         assert!(h.value.contains("name"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_on_ensemble_subcommand_resolves_target_proc() {
+        // TP — issue #923 idx 106: hover on an ensemble subcommand call
+        // site surfaces the resolved target proc's own signature.
+        let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\n";
+        let analysis = analyse(src);
+        // Cursor on "foo" in `puts [e foo bar]` (0-based line 7, col 8).
+        let h = hover(src, 7, 8, &analysis, None).expect("expected hover for ensemble subcommand");
+        assert_eq!(h.kind, HoverKind::Markdown);
+        assert!(h.value.contains("Ensemble subcommand"), "{}", h.value);
+        assert!(h.value.contains("proc ::e::Foo"), "{}", h.value);
     }
 
     #[test]

@@ -426,6 +426,16 @@ impl Analyser {
         self.result
             .rename_target_spans
             .extend(r.rename_target_spans);
+        // Per-ensemble union, not a flat `.extend()` — the outer key is the
+        // ensemble's own name, and a flat extend would replace one grafted
+        // body's whole inner subcommand map instead of merging into it.
+        for (ensemble, subs) in r.ensemble_subcommand_targets {
+            self.result
+                .ensemble_subcommand_targets
+                .entry(ensemble)
+                .or_default()
+                .extend(subs);
+        }
         // Per-object methods accumulate per receiver name across bodies —
         // the binding-identity consumer scopes them by objdefine site
         // (issue #945 fault 5), so records from different procs coexist.

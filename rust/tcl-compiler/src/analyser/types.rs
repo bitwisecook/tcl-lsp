@@ -860,6 +860,23 @@ pub struct AnalysisResult {
     /// rewrites; kept beside the name map rather than in it so the existing
     /// consumers of `renamed_commands` are untouched.
     pub rename_target_spans: HashMap<String, Span>,
+    /// Static `namespace ensemble create -map {sub target …}` /
+    /// `-subcommands {a b …}` records: outer key is the ensemble's own
+    /// resolved, qualified invocable name (`::widget`) — the same identity
+    /// `ensemble_namespaces`/ `Analyser::ensemble_namespaces` already uses;
+    /// inner key is the subcommand exactly as written (`make`); inner value
+    /// is the target's resolved qualified command name (`::widget::Make`).
+    /// A nested table, not a flat `command_aliases`-shaped one, because an
+    /// ensemble subcommand is never independently callable the way an alias
+    /// name is (only the pair `widget make` dispatches), and two different
+    /// ensembles may share a subcommand spelling. Lets `definition`/`hover`/
+    /// `references` in `tcl-lsp-core` resolve `widget make` to `::widget::Make`
+    /// (issue #923 idx 106) the same way they already resolve an alias name
+    /// to its target. Only ever populated from a *literal* `-map`/
+    /// `-subcommands` list — a dynamic value (`-map $var`) leaves the
+    /// ensemble's entry absent entirely, so a lookup against it correctly
+    /// abstains rather than guessing.
+    pub ensemble_subcommand_targets: HashMap<String, HashMap<String, String>>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
     /// Recorded `namespace path {…}` declarations, keyed by the declaring

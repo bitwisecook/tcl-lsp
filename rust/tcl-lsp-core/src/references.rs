@@ -293,6 +293,17 @@ pub fn references(
         return out;
     }
 
+    // `<ensemble> <subcommand>` — a static `namespace ensemble create
+    // -map`/`-subcommands` mapping (issue #923 idx 106). Checked before
+    // `proc_references`: real Tcl never independently looks up `make` as a
+    // command (only the pair `widget make` dispatches), so a coincidental
+    // same-named proc elsewhere in the workspace — which `proc_references`'s
+    // namespace-aware call-site resolution could otherwise match — must
+    // never win.
+    if let Some(out) = ensemble_subcommand_references(&ctx) {
+        return out;
+    }
+
     // Proc references.
     if let Some(out) = proc_references(&ctx, &word) {
         return out;
@@ -510,6 +521,47 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // call site could surface an unrelated same-named proc's reference set).
     let (qname, proc_def) =
         crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, None)?;
+    let mut out = Vec::new();
+    if include_declaration {
+        out.push(span_to_range(source, line_index, proc_def.name_span));
+    }
+    for span in proc_reference_spans(analysis, qname, proc_def) {
+        out.push(span_to_range(source, line_index, span));
+    }
+    dedup_ranges(&mut out);
+    Some(out)
+}
+
+/// Build references for an ensemble-subcommand call site: when the cursor
+/// sits on the subcommand word of a `<ensemble> <subcommand>` call and it
+/// resolves through a static `namespace ensemble create -map`/
+/// `-subcommands` mapping, surface the target proc's declaration plus every
+/// call site — the reference twin of `definition()`'s identical check
+/// (issue #923 idx 106). The actual per-call-site matching needs no new
+/// code: `proc_reference_spans` already matches on `resolved_qualified_name`
+/// (not `inv.name == def_name`), and `record_ensemble_subcommand_invocation`
+/// (analyser side) already carries the target's resolved name on every
+/// subcommand call site — so rename / call-hierarchy / code-lens reference
+/// counts pick this up automatically too, no separate changes needed there.
+fn ensemble_subcommand_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+        ..
+    } = *ctx;
+    let (head, sub, is_dollar) =
+        crate::definition::instance_method_at_cursor(source, line, character)?;
+    if is_dollar {
+        return None;
+    }
+    let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
+    let namespace = crate::definition::namespace_context_at(&analysis.global_scope, cursor_off);
+    let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
+    let (qname, proc_def) = analysis.all_procs.get_key_value(target)?;
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
@@ -2198,6 +2250,37 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(references(src, "tcl", 0, 6, &analysis, true).is_empty());
+    }
+
+    #[test]
+    fn ensemble_subcommand_references_include_decl_and_both_call_sites() {
+        // TP — issue #923 idx 106: references on an ensemble subcommand call
+        // site must return the target proc's declaration plus every call
+        // site — proves the automatic pickup via
+        // `proc_reference_spans`/`invocation_references_named`'s
+        // `resolved_qualified_name` matching, not just a single hardcoded
+        // case.
+        let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\nputs [e foo baz]\n";
+        let analysis = analyse(src);
+        // Cursor on "foo" in the first call site (0-based line 7, col 8).
+        let refs = references(src, "tcl", 7, 8, &analysis, true);
+        // decl + the `-map`'s own target-text reference (line 2, pre-existing
+        // — needed so renaming the proc also updates the map entry) + both
+        // nested-`[...]` call sites.
+        assert_eq!(
+            refs.len(),
+            4,
+            "expected decl + map entry + 2 call sites: {refs:?}"
+        );
+        assert_eq!(refs[0].start_line, 5, "declaration: {refs:?}");
+        assert!(
+            refs.iter().any(|r| r.start_line == 2),
+            "expected the -map target-text reference: {refs:?}",
+        );
+        assert!(
+            refs.iter().any(|r| r.start_line == 7) && refs.iter().any(|r| r.start_line == 8),
+            "expected both call sites: {refs:?}",
+        );
     }
 
     #[test]

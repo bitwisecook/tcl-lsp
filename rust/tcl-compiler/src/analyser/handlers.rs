@@ -1645,6 +1645,7 @@ impl Analyser {
             })
             .unwrap_or_default();
 
+
         let mut i = 0usize;
         while i < opts.len() {
             let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
@@ -1686,7 +1687,12 @@ impl Analyser {
                 // the command `<ns>::a` in the ensemble's namespace.
                 "-subcommands" => {
                     if let (Some(value), Some(tok)) = (value, value_tok) {
-                        self.record_ensemble_subcommands(value, tok, &ns_prefix);
+                        self.record_ensemble_subcommands(
+                            value,
+                            tok,
+                            &ns_prefix,
+                            ensemble_key.as_deref(),
+                        );
                     }
                 }
                 _ => {}
@@ -1759,7 +1765,12 @@ impl Analyser {
     /// resolve a call reaching a hidden command only through this ensemble's
     /// redirect (issue #1001 follow-up; `None` when the ensemble's own name
     /// couldn't be resolved statically, matching every other guard in this
-    /// handler).
+    /// handler), *and* — when the paired subcommand word is also static —
+    /// file the same `sub -> target` fact under `ensemble_key` in
+    /// [`AnalysisResult::ensemble_subcommand_targets`] so `definition`/
+    /// `hover`/`references` can resolve a `<ensemble> <subcommand>` call site
+    /// (issue #923 idx 106) — a distinct field from `ensemble_command_maps`
+    /// above, serving navigation rather than the safe-interpreter gate.
     ///
     /// A `-map` target is a command name **or a command prefix** in real
     /// Tcl (tclsh 8.6.14-verified: `-map {go {string length}}` dispatches
@@ -1771,8 +1782,8 @@ impl Analyser {
     /// on whitespace before pairing it with its subcommand at all, means
     /// a target like `{source b.tcl}` never matches the registry's bare
     /// `source` and W129 stays silently missed for this valid indirection
-    /// shape) — both the reference recorded below and the map entry use
-    /// only the head.
+    /// shape) — the reference, the map entry, and the navigation entry all
+    /// use only the head.
     ///
     /// Every `-map` value **replaces** the ensemble's entire subcommand
     /// table in real Tcl, whether given at `create` or a later
@@ -1840,18 +1851,44 @@ impl Analyser {
                     .insert(sub.clone(), head.clone());
             }
             let resolved = self.resolve_command_qualified_name(&head, scope_path);
+            if let Some(key) = ensemble_key
+                && !crate::naming::is_dynamic_word(sub)
+            {
+                self.result
+                    .ensemble_subcommand_targets
+                    .entry(key.to_owned())
+                    .or_default()
+                    .insert(sub.clone(), resolved.clone());
+            }
             self.push_command_reference(head, head_span, resolved, None);
         }
     }
 
     /// Record each `-subcommands` name as a reference to the command
-    /// `<ns>::<name>` the ensemble maps it to.
-    fn record_ensemble_subcommands(&mut self, list_text: &str, tok: Token, ns_prefix: &str) {
+    /// `<ns>::<name>` the ensemble maps it to, and file the same
+    /// `subcommand → resolved target` fact under `ensemble_key` in
+    /// [`AnalysisResult::ensemble_subcommand_targets`] — the `-subcommands`
+    /// sibling of [`Self::record_ensemble_map_targets`]'s issue #923 idx 106
+    /// fix (same one-directional-only gap, same fix shape).
+    fn record_ensemble_subcommands(
+        &mut self,
+        list_text: &str,
+        tok: Token,
+        ns_prefix: &str,
+        ensemble_key: Option<&str>,
+    ) {
         for (elem, span) in Self::list_word_elements(list_text, tok) {
             if crate::naming::is_dynamic_word(&elem) {
                 continue;
             }
             let resolved = qualify(ns_prefix, &elem);
+            if let Some(key) = ensemble_key {
+                self.result
+                    .ensemble_subcommand_targets
+                    .entry(key.to_owned())
+                    .or_default()
+                    .insert(elem.clone(), resolved.clone());
+            }
             self.push_command_reference(elem, span, resolved, None);
         }
     }

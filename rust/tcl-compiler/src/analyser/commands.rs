@@ -41,11 +41,25 @@ use super::types::{CodeFix, Diagnostic, Severity};
 
 /// A command head collected from a `[...]` substitution / expression scan,
 /// ready to push as a `command_invocations` entry:
-/// `(name, head-span, argc, callback_arity)`.  `argc` is the nested call's
-/// statically-known argument count (`None` when `{*}`-expanded); `callback_arity`
-/// is `Some` only for an `ArgRole::CommandPrefix` callback head (so the callback
-/// arity check runs) and `None` for an ordinary call head.
-type CollectedHead = (String, Span, Option<usize>, Option<AppendedArity>);
+/// `(name, head-span, argc, callback_arity, ensemble_subcommand_candidate)`.
+/// `argc` is the nested call's statically-known argument count (`None` when
+/// `{*}`-expanded); `callback_arity` is `Some` only for an
+/// `ArgRole::CommandPrefix` callback head (so the callback arity check runs)
+/// and `None` for an ordinary call head. `ensemble_subcommand_candidate` is
+/// `Some((word, span))` when the head's first actual argument is a static,
+/// non-`{*}`-expanded word — a *candidate* subcommand
+/// [`Analyser::push_collected_heads`] checks against
+/// `ensemble_subcommand_targets` once the head's own resolved name is known
+/// (issue #923 idx 106: a `[widget make hello]` nested call needs the same
+/// subcommand-reference recording a top-level `widget make hello` call
+/// already gets from [`Analyser::record_ensemble_subcommand_invocation`]).
+type CollectedHead = (
+    String,
+    Span,
+    Option<usize>,
+    Option<AppendedArity>,
+    Option<(String, Span)>,
+);
 
 /// Maximum nested-body recursion depth for [`Analyser::analyse_body`].
 /// `analyse_body` ↔ `process_command` ↔ `dispatch_body_arguments`
@@ -598,6 +612,7 @@ impl Analyser {
             } else {
                 Some(args.len())
             };
+            let resolved_cmd = resolved.clone();
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name: cmd_name.to_string(),
@@ -614,34 +629,24 @@ impl Analyser {
                 },
             );
 
+            // `<ensemble> <subcommand> …` — record an additional, existence
+            // -probed `CommandInvocation` for the subcommand word so
+            // references, rename, call-hierarchy, and go-to-definition see
+            // through a static `namespace ensemble create -map`/
+            // `-subcommands` mapping the same way they already see through
+            // an `interp alias` (issue #923 idx 106).
+            self.record_ensemble_subcommand_invocation(
+                &resolved_cmd,
+                args,
+                arg_tokens_in,
+                arg_expand_in,
+            );
+
             // iRules ``call PROC ARG...`` — record an additional
             // ``CommandInvocation`` for the target proc so that
             // references, rename, and call-hierarchy see through the
             // indirection.
-            if cmd_name == "call"
-                && self.dialect() == "f5-irules"
-                && let (Some(target_name), Some(target_tok)) =
-                    (args.first(), arg_tokens_in.get(1).copied())
-            {
-                let resolved = self.resolve_command_qualified_name(target_name, scope_path);
-                self.result.command_invocations.push(
-                    crate::signature_scan::types::SignatureCommandInvocation {
-                        name: target_name.clone(),
-                        range: target_tok.span,
-                        resolved_qualified_name: Some(resolved),
-                        resolution_candidates: Vec::new(),
-                        // iRules `call PROC ...` indirection — arity not
-                        // cross-file-checked here; skip conservatively.
-                        argc: None,
-                        callback_arity: None,
-                        callback_baked_args: 0,
-                        indirect: false,
-                        rename_safe: true,
-                        existence_probe: false,
-                        is_mathfunc_call: false,
-                    },
-                );
-            }
+            self.record_irules_call_invocation(cmd_name, args, arg_tokens_in, scope_path);
 
             // Walk every argument's source slice for ``[cmd ...]``
             // substitutions and record each nested head as its own
@@ -738,6 +743,44 @@ impl Analyser {
         } // end `if !self.structure_only`
 
         self.dispatch_command_handlers(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
+    }
+
+    /// Record an iRules `call PROC ARG...`'s target as its own
+    /// `CommandInvocation` so references / rename / call-hierarchy see
+    /// through the indirection. Extracted from [`Self::process_command`]
+    /// so it stays within the line budget.
+    fn record_irules_call_invocation(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens_in: &[Token],
+        scope_path: &[usize],
+    ) {
+        if cmd_name != "call" || self.dialect() != "f5-irules" {
+            return;
+        }
+        let (Some(target_name), Some(target_tok)) = (args.first(), arg_tokens_in.get(1).copied())
+        else {
+            return;
+        };
+        let resolved = self.resolve_command_qualified_name(target_name, scope_path);
+        self.result.command_invocations.push(
+            crate::signature_scan::types::SignatureCommandInvocation {
+                name: target_name.clone(),
+                range: target_tok.span,
+                resolved_qualified_name: Some(resolved),
+                resolution_candidates: Vec::new(),
+                // iRules `call PROC ...` indirection — arity not
+                // cross-file-checked here; skip conservatively.
+                argc: None,
+                callback_arity: None,
+                callback_baked_args: 0,
+                indirect: false,
+                rename_safe: true,
+                existence_probe: false,
+                is_mathfunc_call: false,
+            },
+        );
     }
 
     /// Typed per-command dispatch for [`Self::process_command`].
@@ -1666,6 +1709,66 @@ impl Analyser {
         }
     }
 
+    /// `<ensemble> <subcommand> …` — when `resolved_cmd` names a known
+    /// ensemble (a key in [`AnalysisResult::ensemble_subcommand_targets`])
+    /// and the first actual argument is a static, non-`{*}`-expanded
+    /// subcommand word present in that ensemble's map, record a second,
+    /// existence-probed [`SignatureCommandInvocation`] for the subcommand
+    /// word pointing at its resolved target — the same "referenceable but
+    /// never independently callable" shape [`Self::record_command_name_invocations`]
+    /// already uses for `CommandNameProbe` (issue #945 fault 9): `make` is
+    /// never itself a valid command name (only the pair `widget make`
+    /// dispatches), so it must never feed W123. Lets `definition`/`hover`/
+    /// `references`/rename/call-hierarchy resolve `widget make` to
+    /// `::widget::Make` (issue #923 idx 106) through the same
+    /// `resolved_qualified_name`-matching path every other indirection
+    /// (alias, rename, iRules `call`) already uses — no separate per
+    /// -provider ensemble-aware code needed there.
+    ///
+    /// [`AnalysisResult::ensemble_subcommand_targets`]: super::types::AnalysisResult::ensemble_subcommand_targets
+    /// [`SignatureCommandInvocation`]: crate::signature_scan::types::SignatureCommandInvocation
+    fn record_ensemble_subcommand_invocation(
+        &mut self,
+        resolved_cmd: &str,
+        args: &[String],
+        arg_tokens_in: &[Token],
+        arg_expand_in: &[bool],
+    ) {
+        // `arg_expand_in[0]` is the command name's own (always-`false`)
+        // flag; `arg_expand_in[1]` is the subcommand word's — a `{*}`
+        // -expanded subcommand names no static word at all.
+        if arg_expand_in.get(1).copied().unwrap_or(false) {
+            return;
+        }
+        let Some(sub_map) = self.result.ensemble_subcommand_targets.get(resolved_cmd) else {
+            return;
+        };
+        let Some(sub) = args.first() else { return };
+        if crate::naming::is_dynamic_word(sub) {
+            return;
+        }
+        let Some(target) = sub_map.get(sub).cloned() else {
+            return;
+        };
+        let Some(tok) = arg_tokens_in.get(1) else {
+            return;
+        };
+        // Args *after* the consumed subcommand word — not `args.len()`,
+        // which would double-count the subcommand word itself against the
+        // target proc's real arity.  `{*}` anywhere in the target's own
+        // arguments makes the runtime count unknown, same convention as the
+        // head invocation just above.
+        let sub_argc = if arg_expand_in
+            .get(2..)
+            .is_some_and(|rest| rest.iter().any(|&e| e))
+        {
+            None
+        } else {
+            Some(args.len() - 1)
+        };
+        self.push_command_reference_with_policy(sub.clone(), tok.span, target, sub_argc, true);
+    }
+
     /// Walk every argument's source slice for ``[cmd ...]``
     /// substitutions and record each nested head as its own
     /// ``CommandInvocation``.  Extracted from
@@ -2239,8 +2342,26 @@ impl Analyser {
     /// call to a cross-file proc *inside a substitution* (`set x [helper a b c]`)
     /// still draws the cross-file arity error.
     fn push_collected_heads(&mut self, heads: Vec<CollectedHead>, scope_path: &[usize]) {
-        for (name, range, argc, callback_arity) in heads {
+        for (name, range, argc, callback_arity, sub_candidate) in heads {
             let resolved = self.resolve_command_qualified_name(&name, scope_path);
+            // `[<ensemble> <subcommand> …]` nested inside a substitution —
+            // the same existence-probed subcommand reference a top-level
+            // `<ensemble> <subcommand> …` call already gets from
+            // `record_ensemble_subcommand_invocation` (issue #923 idx 106).
+            // `argc` here is "args after the head" (the subcommand word
+            // included), so it shifts by one to become "args after the
+            // subcommand word" — the same convention that function uses.
+            if let Some((sub, sub_span)) = sub_candidate
+                && let Some(target) = self
+                    .result
+                    .ensemble_subcommand_targets
+                    .get(&resolved)
+                    .and_then(|subs| subs.get(&sub))
+                    .cloned()
+            {
+                let sub_argc = argc.map(|a| a.saturating_sub(1));
+                self.push_command_reference_with_policy(sub, sub_span, target, sub_argc, true);
+            }
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name,
@@ -2766,6 +2887,29 @@ fn segment_argc(seg: &SegmentedCommand) -> Option<usize> {
     Some(seg.argv.len().saturating_sub(1))
 }
 
+/// The segment's first argument word, as an ensemble-subcommand candidate
+/// `(text, span)` — `None` when there is no such word, it's `{*}`-expanded
+/// (so the runtime subcommand isn't known statically), or it's otherwise a
+/// dynamic word (issue #923 idx 106: nested-`[...]` counterpart of the
+/// top-level check in `record_ensemble_subcommand_invocation`).
+fn ensemble_subcommand_candidate(seg: &SegmentedCommand) -> Option<(String, Span)> {
+    let expanded = seg
+        .expand_word
+        .as_ref()
+        .and_then(|e| e.get(1))
+        .copied()
+        .unwrap_or(false);
+    if expanded {
+        return None;
+    }
+    let sub = seg.texts.get(1)?;
+    if crate::naming::is_dynamic_word(sub) {
+        return None;
+    }
+    let span = seg.argv.get(1)?.span;
+    Some((sub.clone(), span))
+}
+
 fn collect_substitution_heads(
     sm: &SourceMap<'_>,
     registry: Option<&CommandRegistry>,
@@ -2813,7 +2957,13 @@ fn record_command_invocations(
     if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first())
         && !name.is_empty()
     {
-        out.push((name.clone(), head.span, segment_argc(seg), None));
+        out.push((
+            name.clone(),
+            head.span,
+            segment_argc(seg),
+            None,
+            ensemble_subcommand_candidate(seg),
+        ));
     }
     // Command-prefix callback heads of this nested command (`return [lsort
     // -command myCompare $l]`): recorded with their appended arity so a
@@ -2830,7 +2980,7 @@ fn record_command_invocations(
             &arg_tokens,
             &arg_single,
         ) {
-            out.push((inv.head, inv.span, None, Some(inv.appended)));
+            out.push((inv.head, inv.span, None, Some(inv.appended), None));
         }
     }
     // Nested ``[...]`` substitutions in any position (args, or embedded

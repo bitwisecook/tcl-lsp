@@ -156,6 +156,27 @@ pub fn definition(
     {
         return result;
     }
+    // `<ensemble> <subcommand>` — a static `namespace ensemble create
+    // -map`/`-subcommands` mapping (issue #923 idx 106).  Checked before the
+    // generic "otherwise it is a CALL" resolution below: real Tcl never
+    // independently looks up `make` as a command (only the pair `widget
+    // make` dispatches), so a coincidental same-named proc elsewhere in the
+    // workspace must never win.
+    if let Some((head, sub, false)) = instance_method_at_cursor(source, line, character) {
+        let cursor_offset = byte_offset_at(&line_index, source, line, character);
+        let namespace = namespace_context_at(&analysis.global_scope, cursor_offset);
+        if let Some(target) = ensemble_subcommand_target(analysis, &namespace, &head, &sub)
+            && let Some(proc_def) = resolve_called_proc(
+                analysis,
+                source,
+                "::",
+                target,
+                Some(tcl_registry::registry_for_dialect("")),
+            )
+        {
+            return vec![span_to_range(source, &line_index, proc_def.name_span)];
+        }
+    }
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
@@ -774,6 +795,27 @@ fn lookup_alias<'a>(
         .command_aliases
         .get(&qualified)
         .or_else(|| analysis.command_aliases.get(name))
+}
+
+/// Resolve `head sub` (as returned by [`instance_method_at_cursor`], with
+/// `is_dollar == false`) to the target command it dispatches to, when
+/// `head` names a known `namespace ensemble create -map`/`-subcommands`
+/// ensemble and `sub` exactly matches one of its literal, statically
+/// -recorded subcommands (issue #923 idx 106) — `namespace` is the call
+/// site's own command-resolution namespace, so a relative `head` (the
+/// overwhelmingly common case: an ensemble dispatches through its own short
+/// name) resolves the same way an ordinary bare command call would.
+pub(crate) fn ensemble_subcommand_target<'a>(
+    analysis: &'a AnalysisResult,
+    namespace: &str,
+    head: &str,
+    sub: &str,
+) -> Option<&'a str> {
+    tcl_syntax::naming::bareword_resolution_candidates(namespace, head)
+        .into_iter()
+        .find_map(|cand| analysis.ensemble_subcommand_targets.get(&cand))
+        .and_then(|subs| subs.get(sub))
+        .map(String::as_str)
 }
 
 /// Compute the byte offset of a 0-based LSP `(line, character)`
@@ -1934,6 +1976,104 @@ mod tests {
         if !locs.is_empty() {
             assert_eq!(locs[0].start_line, 0);
         }
+    }
+
+    #[test]
+    fn ensemble_map_subcommand_jumps_to_target_proc() {
+        // TP — issue #923 idx 106, the confirmed finding's own minimal repro:
+        // `namespace ensemble create -map {foo ::e::Foo}` inside `::e`, then
+        // `e foo bar` at the call site. Cursor on the call-site "foo" must
+        // resolve to ::e::Foo's declaration.
+        let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\n";
+        let analysis = analyse(src);
+        // Cursor on "foo" in `puts [e foo bar]` (0-based line 7, col 8).
+        let locs = definition(src, 7, 8, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 5);
+    }
+
+    #[test]
+    fn ensemble_map_subcommand_resolves_forward_declared_differently_cased_target() {
+        // TP — the subcommand's spelling ("make") differs from the target's
+        // simple name ("Make") in case, and the target is declared AFTER
+        // the ensemble and the call site. A fix matching on literal name
+        // equality (rather than the resolved qualified name) would fail
+        // this the same way it would fail the real widget.tcl repro.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nputs [widget make hello]\nproc ::widget::Make {args} { return \"make: $args\" }\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 5, 15, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 6);
+    }
+
+    #[test]
+    fn ensemble_subcommands_form_jumps_to_target_proc() {
+        // TP — the `-subcommands` sibling form (not `-map`), the folded-in
+        // secondary fix from the same research plan.
+        let src = "namespace eval ::box {\n    proc show {} { return \"shown\" }\n    namespace ensemble create -subcommands {show}\n}\nbox show\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 5, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn ensemble_dynamic_map_mutation_still_abstains() {
+        // TN — must not regress the audit's own explicitly-correct
+        // abstention: a subcommand added only via a runtime
+        // `namespace ensemble configure -map $var` dict-set mutation (never
+        // a literal `-map {...}` list) is not statically resolvable —
+        // `ensemble_subcommand_targets` never gets an entry for it.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc ::widget::addType {t} {\n    set m [namespace ensemble configure ::widget -map]\n    dict set m dyn ::widget::Dyn\n    namespace ensemble configure ::widget -map $m\n}\nproc ::widget::Dyn {args} { return dyn }\nwidget addType foo\nputs [widget dyn hello]\n";
+        let analysis = analyse(src);
+        // Cursor on "dyn" in `puts [widget dyn hello]` (0-based line 12).
+        let locs = definition(src, 12, 13, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn two_ensembles_with_shared_subcommand_name_do_not_cross_contaminate() {
+        // TN — validates the outer table is keyed per-ensemble, not a
+        // single flat map (the reason `command_aliases` can't be reused
+        // directly for this fix).
+        let src = "namespace eval ::a {\n    namespace ensemble create -map {go ::a::Go}\n}\nnamespace eval ::b {\n    namespace ensemble create -map {go ::b::Go}\n}\nproc ::a::Go {} { return a }\nproc ::b::Go {} { return b }\nputs [a go]\nputs [b go]\n";
+        let analysis = analyse(src);
+        // `puts [a go]` is 0-based line 8; `puts [b go]` is line 9.
+        let locs_a = definition(src, 8, 8, &analysis);
+        assert_eq!(locs_a.len(), 1, "{locs_a:?}");
+        assert_eq!(locs_a[0].start_line, 6);
+        let locs_b = definition(src, 9, 8, &analysis);
+        assert_eq!(locs_b.len(), 1, "{locs_b:?}");
+        assert_eq!(locs_b[0].start_line, 7);
+    }
+
+    #[test]
+    fn ensemble_unmapped_subcommand_abstains_rather_than_guessing() {
+        // FN (accepted, documented) — a typo'd/genuinely-unmapped
+        // subcommand silently abstains rather than crashing or guessing.
+        // Also documents that this fix deliberately does not implement
+        // Tcl's unique-prefix ensemble-subcommand matching (a real tclsh
+        // would dispatch "mak" to "make" here since it's an unambiguous
+        // prefix and `-prefixes` defaults to true) — a reusable, named
+        // follow-up (`CommandSpec::resolve_subcommand_for_dialect`-style
+        // logic), not attempted here.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc ::widget::Make {args} {}\nputs [widget mak hello]\n";
+        let analysis = analyse(src);
+        // Cursor on "mak" in `puts [widget mak hello]` (0-based line 6).
+        let locs = definition(src, 6, 13, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn ensemble_wholly_dynamic_map_value_abstains() {
+        // FN (accepted, zero regression) — the whole `-map` value itself is
+        // a variable, not a literal list; `ensemble_subcommand_targets`
+        // never gets an entry for `::widget` at all.
+        let src = "namespace eval ::widget {\n    variable dynamicMap {make ::widget::Make}\n    namespace ensemble create -map $dynamicMap\n}\nproc ::widget::Make {args} {}\nputs [widget make hello]\n";
+        let analysis = analyse(src);
+        // Cursor on "make" in `puts [widget make hello]` (0-based line 5).
+        let locs = definition(src, 5, 13, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     // scope-chain $var descent
