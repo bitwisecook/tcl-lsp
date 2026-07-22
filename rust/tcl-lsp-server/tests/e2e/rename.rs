@@ -163,6 +163,29 @@ fn rename_from_call_site() {
     assert!(for_uri.len() >= 2);
 }
 
+/// idx=61 (differential-audit main wave, critical severity): before this
+/// fix, an unbraced `if`-body call site (`if {1} foo`) was invisible to
+/// `command_invocations`, so a rename built on that list silently skipped
+/// it — the LSP presented the rename as complete while leaving this call
+/// site referring to the old (now nonexistent) name, breaking the program
+/// at runtime. Both the declaration and the unbraced call site must be
+/// rewritten together.
+#[test]
+fn rename_rewrites_unbraced_if_body_bareword_call_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc foo {} { return 1 }\nif {1} foo\n");
+    let result = lsp.rename(&uri, 0, 6, "bar");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    assert_eq!(
+        for_uri.len(),
+        2,
+        "decl + unbraced if-body call site must both be rewritten: {for_uri:?}"
+    );
+    assert!(for_uri.iter().all(|e| e["newText"] == "bar"));
+}
+
 // -- TestRenameVariable --------------------------------------------------
 
 #[test]

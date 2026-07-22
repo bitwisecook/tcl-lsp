@@ -2096,14 +2096,27 @@ fn after_multi_word_script_concatenation_abstains() {
 }
 
 #[test]
-fn after_default_form_bareword_callback_is_not_yet_checked() {
-    // A *bareword* callback (no braces) is valid Tcl and equally broken at
-    // runtime, but stays unchecked today — the same pre-existing, documented
-    // limitation as every other `ArgRole::Body` consumer (`analyse_body`
-    // recurses only a `Str`-kind token). Pinned as a TN-shaped regression
-    // guard so a future body-recursion change to this convention is a
-    // deliberate decision, not a silent behaviour change.
+fn after_default_form_bareword_callback_is_now_arity_checked() {
+    // TP — differential-audit finding idx 61 (main audit wave): a
+    // *bareword* callback (no braces) is valid Tcl — equally callable, and
+    // equally arity-checkable, as a braced one — but was invisible to
+    // `command_invocations` entirely (a deliberate, but stale, decision
+    // this test used to pin as `after_default_form_bareword_callback_
+    // is_not_yet_checked`; its own comment called out that a future
+    // change here must be deliberate, not silent — this is that
+    // deliberate change): `dispatch_body_arguments` now dispatches a
+    // genuinely-static bareword body (`Esc`-kind, single word, no `$`/`[`)
+    // through the ordinary `process_command` path, so it gets full call
+    // treatment, arity checking included, exactly like a braced one.
     let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter 1000 cb\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E002".to_string()]);
+}
+
+#[test]
+fn after_default_form_bareword_callback_correct_arity_is_silent() {
+    // TN sibling — a bareword callback with the RIGHT arity (no extra
+    // args needed) must not falsely fire E002.
+    let src = "proc cb {} { return 1 }\nafter 1000 cb\n";
     assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
 }
 

@@ -82,6 +82,46 @@ fn find_proc_call_in_nested_braced_body() {
     assert!(start_lines(&lsp.references(&uri, 0, 6, true)).contains(&2));
 }
 
+/// idx=61 (differential-audit main wave, critical severity): `if {$cond}
+/// mymod::foo` — an unbraced (bareword) if-body — is a legitimate,
+/// statically-known zero-arg call, exactly like a braced `{ mymod::foo }`
+/// body. `dispatch_body_arguments` previously only ever recursed a *braced*
+/// body into `command_invocations`, so this call site was invisible to
+/// `references` while `definition`/`hover` still resolved it fine (they
+/// walk independently off the cursor token).
+#[test]
+fn find_unbraced_if_body_bareword_call_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc foo {} { return 1 }\nif {1} foo\n");
+    let lines = start_lines(&lsp.references(&uri, 0, 6, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&1),
+        "unbraced if-body call site missing: {lines:?}"
+    );
+}
+
+/// Same root cause, the finding's other confirmed shape: `uplevel 1
+/// mymod::qux` (unbraced). `handle_uplevel_command` only special-cases a
+/// braced body and otherwise falls through to the same generic
+/// `ArgRole::Body` dispatch this fix covers.
+#[test]
+fn find_unbraced_uplevel_body_bareword_call_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc qux {} { return 1 }\nproc caller {} { uplevel 1 qux }\n",
+    );
+    let lines = start_lines(&lsp.references(&uri, 0, 6, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&1),
+        "unbraced uplevel-body call site missing: {lines:?}"
+    );
+}
+
 #[test]
 fn qualified_calls_do_not_cross_namespace() {
     let mut lsp = Lsp::tcl();

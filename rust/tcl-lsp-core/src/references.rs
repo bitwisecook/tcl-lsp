@@ -2258,6 +2258,64 @@ mod tests {
     }
 
     #[test]
+    fn references_include_unbraced_if_body_bareword_call() {
+        // TP — differential-audit finding idx 61 (main audit wave,
+        // nico-robert_ticklecharts): `if {$cond} mymod::foo` (an unbraced
+        // if-then body — a single, statically-known bareword, valid Tcl
+        // and used ~50 times in the real corpus this way) was invisible
+        // to `command_invocations` entirely, since `analyse_body` only
+        // ever recurses a braced (`Str`-kind) body. `references` from the
+        // declaration silently missed it — go-to-definition and hover
+        // still found it (they resolve independently off the cursor
+        // token), producing a dangerous asymmetry: a `rename` built on
+        // this same list would silently miss rewriting the call site.
+        let src = "proc foo {} { return 1 }\nif {1} foo\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&1),
+            "unbraced if-body call site missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_include_unbraced_uplevel_body_bareword_call() {
+        // TP — same root cause, the finding's other confirmed shape:
+        // `uplevel 1 mymod::qux` (unbraced). `handle_uplevel_command`
+        // itself only handles a braced body and otherwise falls through
+        // to the same generic `ArgRole::Body` dispatch this fix covers.
+        let src = "proc qux {} { return 1 }\nproc caller {} { uplevel 1 qux }\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&1),
+            "unbraced uplevel-body call site missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_do_not_treat_a_dynamic_bareword_body_as_a_static_call() {
+        // FP guard — a single-token `$var`/`[cmd]` body (already exempted
+        // from W105 for a different, documented reason: it's a
+        // script-valued reference, not an inline literal) must NOT be
+        // treated as a static bareword call to a command literally named
+        // `$cb` — it stays exactly as unresolved/dynamic as before.
+        let src = "proc foo {} { return 1 }\nset cb foo\nif {1} $cb\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            !lines.contains(&2),
+            "a dynamic $var body must not be recorded as a call to a literal '$cb': {refs:?}"
+        );
+    }
+
+    #[test]
     fn references_exclude_decl_when_flag_false() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);

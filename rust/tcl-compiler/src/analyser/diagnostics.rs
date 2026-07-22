@@ -106,7 +106,7 @@ pub(in crate::analyser) use usage::W110Anchor;
 
 mod const_dispatch;
 mod dataflow;
-mod helpers;
+pub(in crate::analyser) mod helpers;
 mod security;
 mod unresolved;
 mod usage;

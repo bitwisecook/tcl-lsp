@@ -1485,25 +1485,14 @@ impl Analyser {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
                 let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
-                self.emit_w105_unbraced_body(cmd_name, body_text, body_tok, is_single_token);
-                // When the body runs in a scoped command environment, record its
-                // region (so the post-walk W123 pass and the LSP providers can
-                // resolve the scoped heads by position) and push the environment
-                // so the in-walk arity / subcommand checks resolve them too.
-                if let Some(env) = body_scope {
-                    let start = body_tok.span.start() + u32::from(body_tok.content_offset);
-                    self.result
-                        .scoped_command_regions
-                        .push(super::types::ScopedBodyRegion {
-                            span: tcl_lexer::Span::new(start, body_tok.span.end()),
-                            env,
-                        });
-                    self.body_scope_stack.push(env);
-                    self.analyse_body(body_text, body_tok, scope_path);
-                    self.body_scope_stack.pop();
-                } else {
-                    self.analyse_body(body_text, body_tok, scope_path);
-                }
+                self.dispatch_one_body_argument(
+                    cmd_name,
+                    body_text,
+                    body_tok,
+                    is_single_token,
+                    scope_path,
+                    body_scope,
+                );
             }
         }
         if is_conditional {
@@ -1511,6 +1500,70 @@ impl Analyser {
         }
         if cmd_name == "when" {
             self.current_event = prev_event;
+        }
+    }
+
+    /// Analyse a single body-role argument: fires `W105`, walks the script
+    /// (through a scoped command environment when `body_scope` names one),
+    /// and — for a bareword (unbraced) body — also dispatches it as a
+    /// zero-arg command call. Split out of [`Self::dispatch_body_arguments`]
+    /// purely to keep that function under the line-count lint; the two
+    /// always run together, once per body-role index.
+    fn dispatch_one_body_argument(
+        &mut self,
+        cmd_name: &str,
+        body_text: &str,
+        body_tok: Token,
+        is_single_token: bool,
+        scope_path: &[usize],
+        body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
+    ) {
+        self.emit_w105_unbraced_body(cmd_name, body_text, body_tok, is_single_token);
+        // A bareword body (`if {$cond} mymod::foo`, `uplevel 1
+        // mymod::qux`) is a single, statically-known zero-arg command
+        // call — a legitimate alternative form real Tcl accepts
+        // identically to a braced block (the exact shape
+        // `emit_w105_unbraced_body` above already exempts from its
+        // own warning). `analyse_body` below only ever recurses into
+        // a `Str` (braced) body, so such a call was previously
+        // invisible to `command_invocations` entirely: found by
+        // hover/definition (which resolve independently off the
+        // cursor token) but missed by references/rename — silently
+        // producing an incomplete rename that breaks the program at
+        // the missed call site (differential-audit finding idx 61).
+        // Dispatched through the ordinary `process_command` path
+        // (not a hand-rolled invocation record) so it gets full
+        // treatment: arity checking, W123, nested diagnostics —
+        // everything a real call site deserves.
+        if body_tok.kind == TokenType::Esc
+            && !body_text.trim().contains(char::is_whitespace)
+            && !super::diagnostics::helpers::has_substitution(body_text.trim(), &body_tok)
+        {
+            self.process_command(
+                &[body_text.trim().to_string()],
+                &[body_tok],
+                &[true],
+                &[false],
+                scope_path,
+            );
+        }
+        // When the body runs in a scoped command environment, record its
+        // region (so the post-walk W123 pass and the LSP providers can
+        // resolve the scoped heads by position) and push the environment
+        // so the in-walk arity / subcommand checks resolve them too.
+        if let Some(env) = body_scope {
+            let start = body_tok.span.start() + u32::from(body_tok.content_offset);
+            self.result
+                .scoped_command_regions
+                .push(super::types::ScopedBodyRegion {
+                    span: tcl_lexer::Span::new(start, body_tok.span.end()),
+                    env,
+                });
+            self.body_scope_stack.push(env);
+            self.analyse_body(body_text, body_tok, scope_path);
+            self.body_scope_stack.pop();
+        } else {
+            self.analyse_body(body_text, body_tok, scope_path);
         }
     }
 

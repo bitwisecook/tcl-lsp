@@ -127,7 +127,7 @@ pub(super) fn is_braced_word(tok: &tcl_lexer::Token) -> bool {
 
 /// True when `text` carries a substitution (`$` / `[`) or `tok` is a
 /// `Var` / `Cmd` token.
-pub(super) fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
+pub(in crate::analyser) fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
     text.contains('$')
         || text.contains('[')
         || matches!(
