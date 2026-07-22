@@ -276,3 +276,54 @@ fn namespace_var_definition() {
     assert!(!locs.is_empty());
     assert_eq!(start_line(&locs[0]), 1);
 }
+
+// -- wildcard namespace import bareword resolution (issue #923 idx 18) --
+//
+// `namespace import NS::*` makes every command `NS` has `namespace
+// export`ed callable bare wherever the import is in scope, including
+// across files — but real Tcl only imports *exported* names, so an
+// unexported sibling in `NS` stays unreachable through the import.
+
+#[test]
+fn wildcard_namespace_import_resolves_cross_document_proc() {
+    // TP (headline case, cross-document): `lib.tcl` defines and exports
+    // `bar`; `main.tcl` wildcard-imports `::Lib::*` and calls `bar` bare.
+    // Both files are opened in the same session, exercising the real
+    // `textDocument/didOpen` → workspace-index → cross-document
+    // go-to-definition path a user's editor would hit.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, "namespace import ::Lib::*\nbar\n");
+    let result = lsp.definition(&main_uri, 1, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, lib_uri, "must jump into lib.tcl");
+    assert_eq!(start_line(&locs[0]), 1, "proc bar is declared on line 1");
+}
+
+#[test]
+fn wildcard_namespace_import_does_not_resolve_unexported_sibling_cross_document() {
+    // FP guard (CRITICAL, cross-document): `lib.tcl`'s `other` is never
+    // exported, so `main.tcl`'s wildcard import must not resolve a bare
+    // `other` call to it — matches real tclsh's own `invalid command name`
+    // error there (tclsh9.0/8.6-verified; Tcl manual, `namespace` —
+    // `namespace import` only imports exported names).
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, "namespace import ::Lib::*\nother\n");
+    let result = lsp.definition(&main_uri, 1, 0);
+    assert!(
+        locations(&result).is_empty(),
+        "an unexported sibling must stay unresolved through the wildcard import: {result:?}"
+    );
+}

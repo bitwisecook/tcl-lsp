@@ -4056,6 +4056,23 @@ impl Backend {
                 // that command's.
                 return vec![index.resolve_command_target(cand)];
             }
+            // The exact-candidate loop above only ever matches a *real*
+            // command (or an exact `namespace import`'s `WorkspaceCommandLink`)
+            // — a wildcard `namespace import NS::*` introduces no fixed
+            // linked name, so it never appears there. Try it once more,
+            // separately: does an in-scope glob import (`namespace import`
+            // binds to the namespace, not the file it was written in, so
+            // this is not restricted to imports recorded in this document)
+            // whose source namespace actually exported the name cover this
+            // call? (issue #923 idx 18; the same gate
+            // `definition::resolve_called_proc` / `resolve_class_target_at`
+            // already apply in-document, extended here to a source
+            // namespace defined in another file.)
+            if let Some(target) =
+                index.resolve_wildcard_import(&inv.name, &inv.resolution_candidates)
+            {
+                return vec![target];
+            }
         }
         // Autoload tier (M8): the command resolves nowhere in the open
         // workspace.  Ask the auto-load / package database, merging the
@@ -18011,6 +18028,94 @@ mod tests {
         // `proc shared_helper` — name token starts at column 5.
         assert_eq!(locs[0].range.start.line, 0);
         assert_eq!(locs[0].range.start.character, 5);
+    }
+
+    #[tokio::test]
+    async fn cross_document_definition_resolves_wildcard_imported_proc() {
+        // issue #923 idx 18 (TP, cross-document): `lib.tcl` defines and
+        // exports `bar`; `main.tcl` wildcard-imports `::Lib::*` and calls
+        // `bar` bare. `main.tcl`'s own in-document resolver can't see
+        // `::Lib::bar` (a different file's proc), so this exercises the
+        // NEW cross-document fallback in `resolve_workspace_symbols`
+        // (`WorkspaceIndex::resolve_wildcard_import`). Both documents must
+        // be indexed: the `namespace import` itself is recorded in
+        // `main.tcl`'s own analysis.
+        let backend = test_backend();
+        let lib_uri = Uri::from_str("file:///wc_lib.tcl").unwrap();
+        let main_uri = Uri::from_str("file:///wc_main.tcl").unwrap();
+        let lib_src = "namespace eval ::Lib {\n    proc bar {} {}\n    namespace export bar\n}\n";
+        let main_src = "namespace import ::Lib::*\nbar\n";
+        {
+            let mut docs = backend.documents.lock().await;
+            docs.insert(
+                lib_uri.clone(),
+                DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
+            );
+            docs.insert(
+                main_uri.clone(),
+                DocumentState::new(main_src.to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        {
+            let mut index = backend.workspace_index.write().await;
+            let mut a = Analyser::new();
+            let lib_analysis = a.analyse(lib_src, "tcl8.6").clone();
+            index.add_document(lib_uri.as_str(), &lib_analysis);
+            let mut a2 = Analyser::new();
+            let main_analysis = a2.analyse(main_src, "tcl8.6").clone();
+            index.add_document(main_uri.as_str(), &main_analysis);
+        }
+        // Cursor on the bareword `bar` call (line 1, col 0).
+        let locs = backend
+            .compute_definition(&main_uri, Position::new(1, 0))
+            .await
+            .expect("definition ok");
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].uri, lib_uri);
+        // `proc bar` — name token starts at column 9 on line 1 of lib.tcl.
+        assert_eq!(locs[0].range.start.line, 1);
+        assert_eq!(locs[0].range.start.character, 9);
+    }
+
+    #[tokio::test]
+    async fn cross_document_wildcard_import_does_not_resolve_unexported_sibling() {
+        // FP guard (CRITICAL, cross-document, server layer): `lib.tcl`'s
+        // `other` is never exported, so `main.tcl`'s wildcard import must
+        // not resolve a bare `other` call to it — matches real tclsh's own
+        // `invalid command name` error there (tclsh9.0/8.6-verified).
+        let backend = test_backend();
+        let lib_uri = Uri::from_str("file:///wc_lib2.tcl").unwrap();
+        let main_uri = Uri::from_str("file:///wc_main2.tcl").unwrap();
+        let lib_src = "namespace eval ::Lib {\n    proc bar {} {}\n    proc other {} {}\n    namespace export bar\n}\n";
+        let main_src = "namespace import ::Lib::*\nother\n";
+        {
+            let mut docs = backend.documents.lock().await;
+            docs.insert(
+                lib_uri.clone(),
+                DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
+            );
+            docs.insert(
+                main_uri.clone(),
+                DocumentState::new(main_src.to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        {
+            let mut index = backend.workspace_index.write().await;
+            let mut a = Analyser::new();
+            let lib_analysis = a.analyse(lib_src, "tcl8.6").clone();
+            index.add_document(lib_uri.as_str(), &lib_analysis);
+            let mut a2 = Analyser::new();
+            let main_analysis = a2.analyse(main_src, "tcl8.6").clone();
+            index.add_document(main_uri.as_str(), &main_analysis);
+        }
+        let locs = backend
+            .compute_definition(&main_uri, Position::new(1, 0))
+            .await
+            .expect("definition ok");
+        assert!(
+            locs.is_empty(),
+            "an unexported sibling must stay unresolved through the wildcard import: {locs:?}"
+        );
     }
 
     #[tokio::test]

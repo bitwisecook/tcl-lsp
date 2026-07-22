@@ -1020,6 +1020,10 @@ impl Analyser {
                 self.handle_namespace_import_command(args, arg_tokens, scope_path);
                 false
             }
+            Hook::NamespaceExport => {
+                self.handle_namespace_export_command(args, arg_tokens, scope_path);
+                false
+            }
             Hook::NamespacePath => {
                 self.handle_namespace_path_command(args, scope_path);
                 false

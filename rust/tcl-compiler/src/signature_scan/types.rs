@@ -178,6 +178,25 @@ pub struct SignatureNamespaceImport {
     pub conjectured: bool,
 }
 
+/// A `namespace export` declaration recorded by the signature scanner.
+///
+/// Gates which commands a wildcard `namespace import NS::*` elsewhere may
+/// actually reach: real Tcl only imports names `NS` has exported
+/// (`Tcl_Export`, `tclNamesp.c`) — an unexported sibling command living in
+/// `NS` is not reachable through the import at all (tclsh9.0/8.6-verified:
+/// `invalid command name` calling it bare). Issue #923 idx 18.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureNamespaceExport {
+    /// Exporting namespace, with leading `::`.
+    pub ns: String,
+    /// Exported pattern text, exactly as written. Always relative to `ns`
+    /// (Tcl's `namespace export` patterns are simple, unqualified glob
+    /// patterns matched against a command's tail name — never `::`-qualified).
+    pub pattern: String,
+    /// Source span of the pattern argument.
+    pub range: Span,
+}
+
 /// An `auto_path` mutation recorded by the signature scanner.
 ///
 /// Covers both `lappend auto_path …` and `set auto_path …` forms.

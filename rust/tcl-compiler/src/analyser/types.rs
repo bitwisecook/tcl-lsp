@@ -27,8 +27,8 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::Span;
 
 use crate::signature_scan::types::{
-    ParamDef, SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceImport,
-    SignaturePackageRequire, SignatureSource,
+    ParamDef, SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceExport,
+    SignatureNamespaceImport, SignaturePackageRequire, SignatureSource,
 };
 
 pub use tcl_core_types::DiagCode;
@@ -903,6 +903,10 @@ pub struct AnalysisResult {
     pub ensemble_subcommand_targets: HashMap<String, HashMap<String, String>>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// Namespace `export` records — see [`SignatureNamespaceExport`] for why
+    /// they exist (gating wildcard-import bareword resolution, issue #923
+    /// idx 18).
+    pub namespace_exports: Vec<SignatureNamespaceExport>,
     /// Recorded `namespace path {…}` declarations, keyed by the declaring
     /// namespace's fully-qualified name (`::` for global).  Each entry is the
     /// path list *as written*; a relative entry roots against the declaring

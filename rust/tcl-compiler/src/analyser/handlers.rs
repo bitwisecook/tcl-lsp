@@ -3523,6 +3523,64 @@ impl Analyser {
         }
     }
 
+    /// Record `namespace export ?-clear? PATTERN ...` declarations.
+    ///
+    /// Real Tcl's `namespace import NS::*` only ever imports names `NS` has
+    /// actually exported (`Tcl_Export`, `tclNamesp.c`) — an unexported
+    /// sibling command living in `NS` is not reachable through the import at
+    /// all (tclsh9.0/8.6-verified: `invalid command name` calling it bare).
+    /// Recorded in
+    /// `result.namespace_exports` so the wildcard-import bareword resolvers
+    /// in `tcl-lsp-core` (same-document) and the workspace index
+    /// (cross-document) can gate a would-be import target on whether its
+    /// source namespace actually exports it (issue #923 idx 18).
+    ///
+    /// `-clear` resets the namespace's previously recorded patterns (in this
+    /// same forward pass) before any new patterns on the same call are
+    /// added, mirroring `Tcl_Export`'s own `-clear` semantics. A dynamic
+    /// pattern (`$`/`[` substitution) can't be statically resolved to a
+    /// glob text, so it is silently skipped — the wildcard-import resolver
+    /// then correctly abstains for names it might have covered, rather than
+    /// guessing.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceExport`] (stamped on
+    /// `namespace`'s `export` subcommand); `args[0]` is still the subcommand
+    /// word.
+    pub fn handle_namespace_export_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.is_empty() {
+            return;
+        }
+        let mut idx = 1;
+        let exporting_ns = self.namespace_from_scope_path(scope_path);
+        if idx < args.len() && args[idx] == "-clear" {
+            self.result
+                .namespace_exports
+                .retain(|e| e.ns != exporting_ns);
+            idx += 1;
+        }
+        while idx < args.len() && idx < arg_tokens.len() {
+            let pattern = args[idx].clone();
+            if pattern.contains('$') || pattern.contains('[') {
+                idx += 1;
+                continue;
+            }
+            self.result.namespace_exports.push(
+                crate::signature_scan::types::SignatureNamespaceExport {
+                    ns: exporting_ns.clone(),
+                    pattern,
+                    range: arg_tokens[idx].span,
+                },
+            );
+            idx += 1;
+        }
+    }
+
     /// Handle `namespace unknown HANDLER` — installing a per-namespace
     /// unknown handler (TIP 181, `NamespaceUnknownCmd` in `tclNamesp.c`)
     /// makes command resolution unknowable, exactly like a dynamic user
@@ -4538,6 +4596,90 @@ mod tests {
     }
 
     // handle_namespace_eval_command
+
+    // handle_namespace_export_command
+
+    #[test]
+    fn handle_namespace_export_records_pattern() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
+            &[],
+        );
+        assert_eq!(a.result.namespace_exports.len(), 1);
+        assert_eq!(a.result.namespace_exports[0].ns, "::");
+        assert_eq!(a.result.namespace_exports[0].pattern, "bar");
+    }
+
+    #[test]
+    fn handle_namespace_export_records_multiple_patterns() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string(), "b*".to_string()],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 10)),
+                esc_tok(span(11, 13)),
+            ],
+            &[],
+        );
+        let patterns: Vec<&str> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| e.pattern.as_str())
+            .collect();
+        assert_eq!(patterns, vec!["bar", "b*"]);
+    }
+
+    #[test]
+    fn handle_namespace_export_clear_resets_previous_patterns_for_the_namespace() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
+            &[],
+        );
+        a.handle_namespace_export_command(
+            &[
+                "export".to_string(),
+                "-clear".to_string(),
+                "baz".to_string(),
+            ],
+            &[
+                esc_tok(span(11, 17)),
+                esc_tok(span(18, 24)),
+                esc_tok(span(25, 28)),
+            ],
+            &[],
+        );
+        let patterns: Vec<&str> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| e.pattern.as_str())
+            .collect();
+        assert_eq!(
+            patterns,
+            vec!["baz"],
+            "-clear must drop the earlier `bar` entry"
+        );
+    }
+
+    #[test]
+    fn handle_namespace_export_skips_dynamic_pattern() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "$dyn".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 11))],
+            &[],
+        );
+        assert!(
+            a.result.namespace_exports.is_empty(),
+            "a dynamic pattern can't be statically recorded"
+        );
+    }
 
     // handle_namespace_path_command
 

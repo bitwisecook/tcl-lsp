@@ -286,6 +286,15 @@ pub enum AnalyserHookId {
     /// import patterns; a dynamic pattern flips the dynamic-providers
     /// flag.
     NamespaceImport,
+    /// `namespace export ?-clear? pattern ...` — records which command
+    /// names the declaring namespace exposes; `-clear` resets the
+    /// namespace's previously recorded patterns first. Gates whether a
+    /// bareword call reached only through a wildcard `namespace import
+    /// NS::*` may resolve to a command in `NS` (issue #923 idx 18): Tcl
+    /// only imports names a source namespace actually exported
+    /// (`Tcl_Export`, `tclNamesp.c`), so an unexported sibling command
+    /// must stay unresolved through the import.
+    NamespaceExport,
     /// `namespace path {ns ...}` — records the namespace's
     /// command-resolution search path.
     NamespacePath,

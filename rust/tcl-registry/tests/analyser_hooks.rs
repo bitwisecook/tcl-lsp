@@ -90,6 +90,7 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("namespace", "eval", H::NamespaceEval),
         ("namespace", "ensemble", H::NamespaceEnsemble),
         ("namespace", "import", H::NamespaceImport),
+        ("namespace", "export", H::NamespaceExport),
         // `inscope` shares the namespace-eval handler: same `[subcmd, ns,
         // body]` shape, body analysed in the named namespace's scope.
         ("namespace", "inscope", H::NamespaceEval),

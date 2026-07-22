@@ -293,6 +293,52 @@ pub struct WorkspaceCommandLink {
     pub nested: bool,
 }
 
+/// One wildcard `namespace import NS::*` recorded in the index.
+///
+/// Unlike [`WorkspaceCommandLink`], a glob pattern names no single command —
+/// [`WorkspaceIndex::index_command_links`] deliberately skips it — so it
+/// cannot resolve a bare call to a fixed `target_qname` on its own. Instead
+/// each recorded entry is consulted per-call, against whichever bare `word`
+/// the invocation actually writes:
+/// [`WorkspaceIndex::resolve_wildcard_import`] glob-matches `word` against
+/// [`Self::tail_pattern`] and requires [`Self::source_ns`] to have exported
+/// a covering pattern (`WildcardImportIndex::exports_name`) before
+/// resolving — see [`WorkspaceIndex::index_command_links`]'s doc comment for
+/// why an exact pattern still takes the `WorkspaceCommandLink` path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceGlobImport {
+    /// Document the `namespace import` is in.
+    pub uri: String,
+    /// Importing namespace, with leading `::` — the namespace a bare call
+    /// must resolve *from* for this import to be in scope (the same
+    /// candidate-namespace order ordinary command resolution already uses).
+    pub ns: String,
+    /// The pattern's source namespace, with leading `::` (`::Foo` for a
+    /// `::Foo::*` / `::Foo::b*` pattern).
+    pub source_ns: String,
+    /// The pattern's final `::`-segment, exactly as written (`*`, `b*`,
+    /// or a literal tail) — matched against a call's bare name with Tcl
+    /// glob semantics ([`tcl_syntax::glob::string_match`]).
+    pub tail_pattern: String,
+}
+
+/// One `namespace export` declaration recorded in the index.
+///
+/// Aggregated workspace-wide (unlike
+/// [`tcl_compiler::analyser::AnalysisResult::namespace_exports`], which is
+/// per-document) so a wildcard import in one file can be checked against an
+/// export declared in *another* file — the cross-document half of issue
+/// #923 idx 18.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceNamespaceExport {
+    /// Document the `namespace export` is in.
+    pub uri: String,
+    /// Exporting namespace, with leading `::`.
+    pub ns: String,
+    /// Exported pattern text, exactly as written (relative to `ns`).
+    pub pattern: String,
+}
+
 /// Cross-document aggregate of proc / class definitions,
 /// command-invocation sites, `source` references, command
 /// name-links, and `package require` declarations.
@@ -304,6 +350,8 @@ pub struct WorkspaceIndex {
     sources: Vec<WorkspaceSource>,
     package_requires: Vec<WorkspacePackageRequire>,
     command_links: Vec<WorkspaceCommandLink>,
+    glob_imports: Vec<WorkspaceGlobImport>,
+    namespace_exports: Vec<WorkspaceNamespaceExport>,
 }
 
 impl WorkspaceIndex {
@@ -398,6 +446,13 @@ impl WorkspaceIndex {
                 name: pr.name.clone(),
             });
         }
+        for exp in &analysis.namespace_exports {
+            self.namespace_exports.push(WorkspaceNamespaceExport {
+                uri: uri.to_owned(),
+                ns: exp.ns.clone(),
+                pattern: exp.pattern.clone(),
+            });
+        }
         self.index_command_links(uri, analysis);
     }
 
@@ -409,9 +464,22 @@ impl WorkspaceIndex {
         use tcl_syntax::naming::normalise_qualified_name;
         // `namespace import ::mod::helper` inside `::app` binds `::app::helper`
         // to the exporting `::mod::helper`.  A glob pattern names no single
-        // command, so it introduces no link.
+        // command, so it introduces no fixed `WorkspaceCommandLink` — instead
+        // it is indexed as a [`WorkspaceGlobImport`], consulted per-call by
+        // [`Self::resolve_wildcard_import`] against whichever bare name the
+        // invocation actually writes (issue #923 idx 18).
         for imp in &analysis.namespace_imports {
             if imp.pattern.contains(['*', '?', '[']) {
+                if let Some((source_ns, tail_pattern)) = imp.pattern.rsplit_once("::")
+                    && !source_ns.is_empty()
+                {
+                    self.glob_imports.push(WorkspaceGlobImport {
+                        uri: uri.to_owned(),
+                        ns: imp.ns.clone(),
+                        source_ns: source_ns.to_owned(),
+                        tail_pattern: tail_pattern.to_owned(),
+                    });
+                }
                 continue;
             }
             let Some(tail) = imp.pattern.rsplit("::").find(|s| !s.is_empty()) else {
@@ -473,6 +541,8 @@ impl WorkspaceIndex {
         self.sources.retain(|s| s.uri != uri);
         self.package_requires.retain(|pr| pr.uri != uri);
         self.command_links.retain(|l| l.uri != uri);
+        self.glob_imports.retain(|g| g.uri != uri);
+        self.namespace_exports.retain(|e| e.uri != uri);
     }
 
     /// Every indexed `source FILE` reference.
@@ -1198,13 +1268,15 @@ impl WorkspaceIndex {
         let target = qualified_name.trim_start_matches("::");
         // Build the workspace command set once (normalised qualified names of
         // every proc and class, plus linked names when following), so each
-        // candidate existence check is O(1).
+        // candidate existence check is O(1). Same reasoning for the
+        // wildcard-import index — see `WildcardImportIndex`'s own doc.
         let defined = self.defined_command_names(follow_links);
         let links = follow_links.then(|| self.command_link_map());
+        let wci = WildcardImportIndex::build(self);
         self.invocations
             .iter()
             .filter(|i| i.uri != exclude_uri)
-            .filter(|i| Self::invocation_resolves_to(i, &defined, links.as_ref(), target))
+            .filter(|i| self.invocation_resolves_to(i, &defined, links.as_ref(), &wci, target))
             .collect()
     }
 
@@ -1213,19 +1285,34 @@ impl WorkspaceIndex {
     /// in the workspace is the call's true target, chased along `links` (when
     /// supplied) to the command it ultimately names.
     fn invocation_resolves_to(
+        &self,
         inv: &WorkspaceInvocation,
         defined: &std::collections::HashSet<&str>,
         links: Option<&std::collections::HashMap<&str, &str>>,
+        wci: &WildcardImportIndex<'_>,
         target: &str,
     ) -> bool {
-        inv.resolution_candidates
+        if let Some(winner) = inv
+            .resolution_candidates
             .iter()
             .find(|c| defined.contains(c.trim_start_matches("::")))
-            .is_some_and(|winner| {
-                let winner = winner.trim_start_matches("::");
-                let settled = links.map_or(winner, |m| Self::follow_links(m, winner));
-                settled == target
-            })
+        {
+            let winner = winner.trim_start_matches("::");
+            let settled = links.map_or(winner, |m| Self::follow_links(m, winner));
+            return settled == target;
+        }
+        // No real command or name-link settled this call — try a wildcard
+        // `namespace import NS::*` in scope for the call's own namespace
+        // (issue #923 idx 18). Only when following links: this mirrors an
+        // exact import's `WorkspaceCommandLink`, which likewise only
+        // participates in the *linked* view (`linked_invocations_of`, used
+        // by find-references) and never the direct-only view rename relies
+        // on — a call spelling the local imported name is not text-rewritten
+        // just because its ultimate source is renamed.
+        links.is_some()
+            && self
+                .resolve_wildcard_import_indexed(&inv.name, &inv.resolution_candidates, wci)
+                .is_some_and(|resolved| resolved.trim_start_matches("::") == target)
     }
 
     /// The command name-link map (`::`-stripped `linked → immediate target`)
@@ -1413,6 +1500,135 @@ impl WorkspaceIndex {
             );
         }
         names
+    }
+
+    /// Resolve a bare call through a wildcard `namespace import NS::*` —
+    /// the cross-document analogue of `tcl-lsp-core`'s in-document
+    /// `definition::resolve_called_proc` / `resolve_class_target_at`
+    /// wildcard-import fallback, for when `NS` is defined in a **different**
+    /// file. `namespace import` binds to the *namespace*, not the file that
+    /// wrote it (real Tcl: `namespace eval ::app { namespace import
+    /// ::mymod::* }` in a shared "imports.tcl" makes `::mymod`'s exports
+    /// visible to every `::app`-namespace proc regardless of which file its
+    /// body lives in) — so every recorded [`WorkspaceGlobImport`] whose
+    /// `ns` matches is in scope, not only ones recorded in the calling
+    /// document.
+    ///
+    /// `resolution_candidates` is the call's own ordered candidate list
+    /// (`word`'s caller namespace, then each `namespace path` entry, then
+    /// global — [`tcl_syntax::naming::command_resolution_candidates`]); for
+    /// each candidate, this checks whether *that* candidate's namespace has
+    /// an in-scope glob import whose tail pattern glob-matches `word`. A
+    /// wildcard import only ever imports names its source namespace has
+    /// actually `namespace export`ed — an unexported sibling command is
+    /// **not** reachable through it (tclsh9.0/8.6-verified: `invalid command
+    /// name` calling it bare) — so this also requires the pattern's source
+    /// namespace to have exported a covering pattern, and a real proc/class
+    /// definition to exist anywhere in the workspace at the resolved
+    /// qualified name. Returns that qualified name, `::`-rooted, or `None`.
+    ///
+    /// Restricted to a genuine bareword `word` (no embedded `::`), matching
+    /// the in-document resolver and the bug's scope (issue #923 idx 18).
+    #[must_use]
+    pub fn resolve_wildcard_import(
+        &self,
+        word: &str,
+        resolution_candidates: &[String],
+    ) -> Option<String> {
+        self.resolve_wildcard_import_indexed(
+            word,
+            resolution_candidates,
+            &WildcardImportIndex::build(self),
+        )
+    }
+
+    /// The indexed core of [`Self::resolve_wildcard_import`], taking a
+    /// precomputed [`WildcardImportIndex`] instead of scanning
+    /// `glob_imports`/`namespace_exports` in full — the fast path
+    /// [`Self::invocation_resolves_to`] uses so a workspace-wide
+    /// invocation-settling pass builds the index once (O(every glob import
+    /// / export in the workspace)) rather than once per invocation (which
+    /// would be O(invocation count × workspace-wide glob-import count) —
+    /// measurably regressed find-references latency on a codebase using
+    /// `namespace import NS::*` in more than a handful of files).
+    fn resolve_wildcard_import_indexed(
+        &self,
+        word: &str,
+        resolution_candidates: &[String],
+        wci: &WildcardImportIndex<'_>,
+    ) -> Option<String> {
+        if word.contains("::") {
+            return None;
+        }
+        for cand in resolution_candidates {
+            let Some((prefix, tail)) = cand.rsplit_once("::") else {
+                continue;
+            };
+            if tail != word {
+                continue;
+            }
+            let candidate_ns = if prefix.is_empty() { "::" } else { prefix };
+            let Some(imports) = wci.imports_by_ns.get(candidate_ns) else {
+                continue;
+            };
+            for imp in imports {
+                if !tcl_syntax::glob::string_match(&imp.tail_pattern, word) {
+                    continue;
+                }
+                if !wci.exports_name(&imp.source_ns, word) {
+                    continue;
+                }
+                let target = format!("{}::{word}", imp.source_ns);
+                if self.workspace_command_exists(&target) {
+                    return Some(target);
+                }
+            }
+        }
+        None
+    }
+}
+
+/// Precomputed per-namespace grouping of [`WorkspaceIndex::glob_imports`]
+/// and [`WorkspaceIndex::namespace_exports`], built once per query rather
+/// than re-scanned per call site — see
+/// [`WorkspaceIndex::resolve_wildcard_import_indexed`]'s doc for why.
+struct WildcardImportIndex<'a> {
+    imports_by_ns: std::collections::HashMap<&'a str, Vec<&'a WorkspaceGlobImport>>,
+    exports_by_ns: std::collections::HashMap<&'a str, Vec<&'a str>>,
+}
+
+impl<'a> WildcardImportIndex<'a> {
+    fn build(index: &'a WorkspaceIndex) -> Self {
+        let mut imports_by_ns: std::collections::HashMap<&str, Vec<&WorkspaceGlobImport>> =
+            std::collections::HashMap::new();
+        for imp in &index.glob_imports {
+            imports_by_ns.entry(imp.ns.as_str()).or_default().push(imp);
+        }
+        let mut exports_by_ns: std::collections::HashMap<&str, Vec<&str>> =
+            std::collections::HashMap::new();
+        for exp in &index.namespace_exports {
+            exports_by_ns
+                .entry(exp.ns.as_str())
+                .or_default()
+                .push(exp.pattern.as_str());
+        }
+        Self {
+            imports_by_ns,
+            exports_by_ns,
+        }
+    }
+
+    /// Whether `ns` (`::`-rooted) has recorded a `namespace export` pattern
+    /// that covers the unqualified `name` — the cross-document half of the
+    /// wildcard-import gate (issue #923 idx 18): real Tcl only imports names
+    /// a source namespace has actually exported (`Tcl_Export`,
+    /// `tclNamesp.c`).
+    fn exports_name(&self, ns: &str, name: &str) -> bool {
+        self.exports_by_ns.get(ns).is_some_and(|patterns| {
+            patterns
+                .iter()
+                .any(|p| tcl_syntax::glob::string_match(p, name))
+        })
     }
 }
 
@@ -1891,6 +2107,129 @@ mod tests {
                 .is_empty(),
             "glob import should record no link span",
         );
+    }
+
+    // Cross-document wildcard-import resolution (issue #923 idx 18):
+    // `resolve_wildcard_import` is the mechanism that DOES resolve a bare
+    // call through the glob import `glob_import_introduces_no_command_link`
+    // (above) proves records no fixed link for.
+
+    #[test]
+    fn resolve_wildcard_import_resolves_exported_proc_cross_document() {
+        // TP — `::mymod` (a.k.a. `mymod.tcl`) exports `helper`; `app.tcl`
+        // wildcard-imports it and calls it bare from inside `run`, whose
+        // own namespace is `::app` (a proc runs in the namespace it was
+        // defined in, regardless of call site).
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+        );
+        assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn resolve_wildcard_import_does_not_resolve_unexported_sibling_cross_document() {
+        // FP guard (CRITICAL) — `::mymod` also declares `other`, but never
+        // exports it; real Tcl's `namespace import ::mymod::*` never binds
+        // it, so the resolver must abstain (matching the in-document
+        // `wildcard_namespace_import_unexported_sibling_stays_unresolved`
+        // guard in `definition.rs`).
+        let mymod = analyse(
+            "namespace eval ::mymod {\n    proc helper {} {}\n    proc other {} {}\n    namespace export helper\n}\n",
+        );
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { other }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "other",
+            &["::app::other".to_string(), "::other".to_string()],
+        );
+        assert!(resolved.is_none(), "{resolved:?}");
+    }
+
+    #[test]
+    fn resolve_wildcard_import_is_not_restricted_to_the_calling_document() {
+        // TP, regression guard — `namespace import` binds to the
+        // *namespace*, not the file that wrote it: real Tcl reopening
+        // `::app` in a later `namespace eval ::app { ... }` block sees
+        // every import already recorded for `::app`, regardless of which
+        // file recorded it. A common real-world shape is a shared
+        // "imports.tcl" that does the import once, with sibling files
+        // reopening the same namespace to call the bare name. Three
+        // separate files: `mymod.tcl` exports `helper`; `imports.tcl` does
+        // `namespace eval ::app { namespace import ::mymod::* }`;
+        // `caller.tcl` does `namespace eval ::app { proc run {} { helper } }`
+        // — the import statement and the call site are never in the same
+        // document. An earlier version of this fix filtered candidate
+        // glob imports by `g.uri == uri` (the calling document), which
+        // this shape never satisfies — found by adversarial review before
+        // being shipped.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let imports = analyse("namespace eval ::app {\n    namespace import ::mymod::*\n}\n");
+        let caller = analyse("namespace eval ::app {\n    proc run {} { helper }\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///imports.tcl", &imports),
+            ("file:///caller.tcl", &caller),
+        ]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_string(), "::helper".to_string()],
+        );
+        assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn wildcard_import_call_site_is_a_reference_to_the_source_command() {
+        // TP — `linked_invocations_of` (find-references' cross-document
+        // mechanism) must reach the bare call site through a wildcard
+        // import exactly like it already does for an exact import
+        // (`namespace_import_call_site_references_the_source_command`).
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let refs = index.linked_invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert_eq!(refs.len(), 1, "{refs:?}");
+        assert_eq!(refs[0].uri, "file:///app.tcl");
+        assert_eq!(refs[0].name, "helper");
+    }
+
+    #[test]
+    fn wildcard_import_unexported_sibling_call_site_is_not_a_reference() {
+        // FP guard — the call site for an unexported sibling must not
+        // surface as a reference to it either.
+        let mymod = analyse(
+            "namespace eval ::mymod {\n    proc helper {} {}\n    proc other {} {}\n    namespace export helper\n}\n",
+        );
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { other }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        let refs = index.linked_invocations_of("::mymod::other", "file:///mymod.tcl");
+        assert!(refs.is_empty(), "{refs:?}");
     }
 
     #[test]

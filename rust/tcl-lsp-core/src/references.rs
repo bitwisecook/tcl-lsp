@@ -137,7 +137,15 @@ pub(crate) fn proc_reference_spans(
     analysis
         .command_invocations
         .iter()
-        .filter(|inv| invocation_references_proc(analysis, inv, qname, proc_def))
+        .filter(|inv| {
+            invocation_references_proc(analysis, inv, qname, proc_def)
+                || invocation_references_via_wildcard_import(
+                    analysis,
+                    inv,
+                    &proc_def.name,
+                    &proc_def.qualified_name,
+                )
+        })
         .map(|inv| inv.range)
         .collect()
 }
@@ -166,6 +174,61 @@ pub(crate) fn proc_reference_spans(
 /// from matching `::a::helper`. Qualified spellings and a
 /// resolved-qualified-name hit always count. Comparisons ignore the leading
 /// `::`.
+/// Whether call site `inv` reaches the definition named `def_name` /
+/// `def_qualified` **only** through an in-scope, same-document wildcard
+/// `namespace import NS::*` (issue #923 idx 18) — a case
+/// [`invocation_references_named`] can never catch, since a glob import
+/// creates no real command at any of the call's candidate names for the
+/// analyser's own resolution to have recorded.
+///
+/// Additive to that shared rule, **not** a replacement for it, and
+/// deliberately **not** wired into [`invocation_references_proc`] /
+/// [`invocation_references_class`] themselves: [`proc_reference_spans`] /
+/// [`class_reference_spans`] (Find All References, the code-lens reference
+/// count) OR this in, but `rename::rename_proc` / `rename::rename_class`
+/// call [`invocation_references_proc`] / [`invocation_references_class`]
+/// directly and so never see it — the call names the *local* imported
+/// command, which keeps its own spelling regardless of a rename of the
+/// source, exactly like the cross-document analogue
+/// (`WorkspaceIndex::linked_invocations_of`, used by cross-document
+/// references only, never by cross-document rename's
+/// `invocations_of`-based edit gathering).
+#[must_use]
+fn invocation_references_via_wildcard_import(
+    analysis: &AnalysisResult,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    def_name: &str,
+    def_qualified: &str,
+) -> bool {
+    if inv.name != def_name {
+        return false;
+    }
+    let target_ns = def_qualified
+        .trim_start_matches("::")
+        .rsplit_once("::")
+        .map_or(String::new(), |(ns, _)| ns.to_owned());
+    let call_ns = crate::definition::innermost_namespace_at(
+        &analysis.global_scope,
+        inv.range.start(),
+        &analysis.namespace_overrides,
+    );
+    let imported = analysis.namespace_imports.iter().any(|imp| {
+        imp.ns.trim_start_matches("::") == call_ns
+            && imp
+                .pattern
+                .rsplit_once("::")
+                .is_some_and(|(source_ns, tail)| {
+                    source_ns.trim_start_matches("::") == target_ns
+                        && tcl_syntax::glob::string_match(tail, def_name)
+                })
+    });
+    imported
+        && analysis.namespace_exports.iter().any(|e| {
+            e.ns.trim_start_matches("::") == target_ns
+                && tcl_syntax::glob::string_match(&e.pattern, def_name)
+        })
+}
+
 #[must_use]
 pub(crate) fn invocation_references_named(
     analysis: &AnalysisResult,
@@ -470,7 +533,15 @@ pub(crate) fn class_reference_spans(
     analysis
         .command_invocations
         .iter()
-        .filter(|inv| invocation_references_class(analysis, inv, qname, class_def))
+        .filter(|inv| {
+            invocation_references_class(analysis, inv, qname, class_def)
+                || invocation_references_via_wildcard_import(
+                    analysis,
+                    inv,
+                    &class_def.name,
+                    &class_def.qualified_name,
+                )
+        })
         .map(|inv| inv.range)
         .collect()
 }
@@ -2265,6 +2336,39 @@ mod tests {
         assert!(refs.len() >= 2, "expected decl + call sites: {refs:?}");
         // First entry is the declaration on line 0.
         assert_eq!(refs[0].start_line, 0);
+    }
+
+    #[test]
+    fn references_include_wildcard_imported_bareword_call_same_document() {
+        // TP (same-document) — issue #923 idx 18: a wildcard `namespace
+        // import ::Foo::*` reaches an exported proc via a bare call with no
+        // real command recorded at any of the call's own candidate names,
+        // so `invocation_references_named`'s ordinary rule can never catch
+        // it; `proc_reference_spans` ORs in
+        // `invocation_references_via_wildcard_import` for exactly this
+        // case.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
+        let analysis = analyse(src);
+        // Cursor on the `bar` declaration (line 1, col 9).
+        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&5),
+            "wildcard-imported bareword call site missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_do_not_include_unexported_sibling_wildcard_call_same_document() {
+        // FP guard — the unexported sibling must not surface as a reference
+        // through the wildcard import either.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nother\n";
+        let analysis = analyse(src);
+        // Cursor on the `other` declaration (line 2, col 9).
+        let refs = references(src, "tcl", 2, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(lines, vec![2], "only the declaration itself: {refs:?}");
     }
 
     #[test]

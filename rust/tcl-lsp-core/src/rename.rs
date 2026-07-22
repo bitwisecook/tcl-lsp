@@ -1338,6 +1338,27 @@ mod tests {
     }
 
     #[test]
+    fn rename_leaves_wildcard_imported_bareword_call_site_untouched_same_document() {
+        // Same-document analogue of
+        // `cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched`:
+        // renaming `proc bar` (reached bare elsewhere only through a
+        // wildcard `namespace import`) must rewrite the declaration but
+        // leave the imported bareword call site alone — it names the
+        // *local* imported command, which keeps its own spelling.
+        // `rename_proc` calls `invocation_references_proc` directly (not
+        // the wildcard-aware `proc_reference_spans`), so it is unaffected
+        // by `references()`'s newly widened same-document reference set
+        // (see `references::tests::references_include_wildcard_imported_bareword_call_same_document`).
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
+        let analysis = analyse(src);
+        // Cursor on the `bar` declaration (line 1, col 9).
+        let edits = rename(src, "tcl", 1, 9, "baz", &analysis, None);
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(edits[0].range.start_line, 1);
+        assert_eq!(edits[0].new_text, "baz");
+    }
+
+    #[test]
     fn cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word() {
         use crate::workspace_index::WorkspaceIndex;
         // `::mymod::helper` is imported by `::app` and renamed-away in a third
@@ -1368,6 +1389,33 @@ mod tests {
             .find(|e| e.uri == "file:///ren.tcl")
             .expect("rename OLD edit");
         assert_eq!(ren_edit.new_text, "::mymod::helper2");
+    }
+
+    #[test]
+    fn cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched() {
+        use crate::workspace_index::WorkspaceIndex;
+        // A wildcard `namespace import ::mymod::*` creates no textual link to
+        // rewrite (issue #923 idx 18, unlike the exact-import case tested
+        // above): renaming `::mymod::helper` must rewrite its own
+        // declaration but leave `app.tcl`'s bareword call site untouched —
+        // it names the *local* imported command, which keeps its own
+        // spelling, and a glob pattern has no literal occurrence of
+        // `helper` to rewrite in the first place.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        // `current_uri` is a third, unrelated file so `mymod.tcl`'s own
+        // declaration is not excluded from this cross-document sweep.
+        let edits =
+            cross_document_symbol_edits("::mymod::helper", "helper2", &index, "file:///caller.tcl");
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(edits[0].uri, "file:///mymod.tcl");
     }
 
     #[test]

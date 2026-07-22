@@ -1426,6 +1426,96 @@ fn proc_visible_from_namespace<'a>(
         .find_map(|qname| analysis.all_procs.get(&qname))
 }
 
+/// Resolve a bareword `word` (`namespace` context, honouring `namespace
+/// path` exactly like [`proc_visible_from_namespace`]) through an
+/// in-document wildcard `namespace import NS::*` — a glob (or exact)
+/// pattern recorded in `analysis.namespace_imports`.
+///
+/// For each candidate qualified name Tcl's own lookup would try (the
+/// caller's namespace, then each `namespace path` entry, then global — the
+/// same order [`proc_visible_from_namespace`] walks), this checks whether
+/// that candidate's namespace has an in-scope import whose pattern's tail
+/// glob-matches `word`. A wildcard import only ever imports names its
+/// source namespace has actually `namespace export`ed (`Tcl_Export`,
+/// `tclNamesp.c`) — an unexported sibling command living in the same
+/// namespace is **not** reachable through the import (tclsh9.0/8.6-verified:
+/// `invalid command name` calling it bare) — so this also requires a recorded
+/// `analysis.namespace_exports` entry from that same source namespace whose
+/// pattern covers `word`.
+///
+/// Only resolves a source namespace defined in **this** document
+/// (`analysis.all_procs`); a source namespace defined in another file is
+/// the cross-document oracle's job
+/// (`tcl_lsp_core::workspace_index::WorkspaceIndex::resolve_wildcard_import`).
+fn proc_visible_via_wildcard_import<'a>(
+    analysis: &'a AnalysisResult,
+    namespace: &str,
+    word: &str,
+) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    let path = analysis
+        .namespace_paths
+        .get(namespace)
+        .map_or(&[][..], Vec::as_slice);
+    let source_ns = wildcard_import_source_namespace(analysis, namespace, path, word)?;
+    analysis
+        .all_procs
+        .get(&tcl_syntax::naming::qualify(source_ns, word))
+}
+
+/// Shared candidate walk behind [`proc_visible_via_wildcard_import`] and
+/// [`resolve_class_target_at`]'s wildcard-import fallback: find the first
+/// in-scope `namespace import` whose pattern covers `word`, whose source
+/// namespace has actually exported a matching pattern, and return that
+/// source namespace. `path` is the caller's own `namespace path` entries
+/// (empty for the class resolver, which — like
+/// [`tcl_syntax::naming::bareword_resolution_candidates`] — does not
+/// consult it). The caller joins the result with `word`
+/// ([`tcl_syntax::naming::qualify`]) and looks the qualified name up in
+/// whichever map (`all_procs` / `all_classes`) applies.
+///
+/// Restricted to a genuine bareword `word` (no embedded `::`) — `namespace
+/// import` / `namespace export` patterns only ever name simple command
+/// tails, matching the bug's scope (issue #923 idx 18); a qualified call
+/// (`inner::p`) never goes through an imported alias in real Tcl, so this
+/// abstains rather than risk mismatching a namespace-path segment against
+/// an unrelated import.
+fn wildcard_import_source_namespace<'a, S: AsRef<str>>(
+    analysis: &'a AnalysisResult,
+    namespace: &str,
+    path: &[S],
+    word: &str,
+) -> Option<&'a str> {
+    if word.contains("::") {
+        return None;
+    }
+    for candidate in tcl_syntax::naming::command_resolution_candidates(namespace, path, word) {
+        let Some((prefix, _)) = candidate.rsplit_once("::") else {
+            continue;
+        };
+        let candidate_ns = if prefix.is_empty() { "::" } else { prefix };
+        for imp in analysis
+            .namespace_imports
+            .iter()
+            .filter(|i| i.ns == candidate_ns)
+        {
+            let Some((source_ns, export_tail)) = imp.pattern.rsplit_once("::") else {
+                continue;
+            };
+            if source_ns.is_empty() || !tcl_syntax::glob::string_match(export_tail, word) {
+                continue;
+            }
+            let exported = analysis
+                .namespace_exports
+                .iter()
+                .any(|e| e.ns == source_ns && tcl_syntax::glob::string_match(&e.pattern, word));
+            if exported {
+                return Some(source_ns);
+            }
+        }
+    }
+    None
+}
+
 /// Resolve a call `word` written in `namespace` to the proc it denotes:
 /// C Tcl's rule first ([`proc_visible_from_namespace`]); then, unless the
 /// word names a `registry` builtin — which C Tcl would resolve instead, so a
@@ -1460,6 +1550,20 @@ pub(crate) fn resolve_called_proc<'a>(
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
     let has_builtin = registry.is_some_and(|r| r.get(word).is_some());
     if let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word) {
+        let nested_shadow = has_builtin
+            && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
+        if !nested_shadow {
+            return Some(proc_def);
+        }
+    }
+    // A wildcard `namespace import NS::*` creates no real `ProcDef` of its
+    // own — `proc_visible_from_namespace` can never see it — but it makes
+    // an exported command in `NS` callable bare, exactly as if a real proc
+    // existed at the candidate's qualified name. Tried at the same
+    // priority tier (same nested-shadow gate) so an unconditional
+    // top-level import still outranks a same-named builtin, matching how
+    // an equivalent top-level `proc` redefinition already would.
+    if let Some(proc_def) = proc_visible_via_wildcard_import(analysis, namespace, word) {
         let nested_shadow = has_builtin
             && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
         if !nested_shadow {
@@ -1532,9 +1636,20 @@ pub(crate) fn resolve_class_target_at<'a>(
         cursor_off,
         &analysis.namespace_overrides,
     );
-    tcl_syntax::naming::bareword_resolution_candidates(&ns, word)
+    if let Some(hit) = tcl_syntax::naming::bareword_resolution_candidates(&ns, word)
         .into_iter()
         .find_map(|cand| analysis.all_classes.get_key_value(&cand))
+    {
+        return Some(hit);
+    }
+    // A wildcard `namespace import NS::*` makes an exported class in `NS`
+    // callable bare — see [`proc_visible_via_wildcard_import`] for the full
+    // rationale (issue #923 idx 18); classes never consult `namespace path`,
+    // matching `bareword_resolution_candidates` above.
+    let source_ns = wildcard_import_source_namespace(analysis, &ns, &[] as &[&str], word)?;
+    analysis
+        .all_classes
+        .get_key_value(&tcl_syntax::naming::qualify(source_ns, word))
 }
 
 /// Deterministic replacement for the old first-`HashMap`-hit tail match: of
@@ -1877,6 +1992,129 @@ mod tests {
         let locs_b = definition(src, 7, 11, &analysis);
         assert_eq!(locs_b.len(), 1, "{locs_b:?}");
         assert_eq!(locs_b[0].start_line, 4);
+    }
+
+    // wildcard namespace import bareword resolution (issue #923 idx 18):
+    // `namespace import NS::*` makes every command `NS` has `namespace
+    // export`ed callable bare wherever the import is in scope — but real
+    // Tcl only imports *exported* names (`Tcl_Export`), so an unexported
+    // sibling in `NS` stays unreachable through the import.
+
+    #[test]
+    fn wildcard_namespace_import_resolves_exported_proc() {
+        // TP — single command in `Foo`, exported, reached only through the
+        // wildcard import (tclsh9.0/8.6-verified: `bar` prints 1).
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
+        let analysis = analyse(src);
+        // Cursor on the bareword `bar` call (line 5, col 0).
+        let locs = definition(src, 5, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to Foo::bar's declaration"
+        );
+        assert_eq!(locs[0].start_character, 9);
+    }
+
+    #[test]
+    fn wildcard_namespace_import_resolves_exported_proc_alongside_unexported_sibling() {
+        // TP — the finding's own headline shape: `Foo` has both an exported
+        // `bar` and an unrelated, unexported `other`. Exhaustive tracing
+        // found the old code blocked *every* route identically regardless
+        // of sibling count — this proves the fix does not regress to some
+        // sibling-count-dependent "ambiguity threshold" that doesn't exist
+        // in real Tcl either.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
+        let analysis = analyse(src);
+        // Cursor on the bareword `bar` call (line 6, col 0).
+        let locs = definition(src, 6, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to Foo::bar's declaration"
+        );
+        assert_eq!(locs[0].start_character, 9);
+    }
+
+    #[test]
+    fn wildcard_namespace_import_unexported_sibling_stays_unresolved() {
+        // FP guard (CRITICAL) — `other` lives in `Foo` but is never
+        // exported, so real Tcl's `namespace import ::Foo::*` never binds
+        // it: a bare `other` call errors "invalid command name" at runtime
+        // (Tcl manual, `namespace` — "namespace import" only imports
+        // exported names). The wildcard-import resolver must not
+        // manufacture a resolution the interpreter itself would reject.
+        //
+        // Exercises `proc_visible_via_wildcard_import` directly rather than
+        // the full `definition()` provider: `resolve_called_proc`'s own
+        // pre-existing, unrelated lenient fallback
+        // (`fallback_proc_by_simple_name`, "any proc with this simple name,
+        // anywhere") would otherwise also resolve a bare `other` call
+        // regardless of import/export state — a longstanding, documented
+        // leniency for procs whose defining namespace isn't statically
+        // visible, not the gate this test is proving.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nother\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "::", "other");
+        assert!(
+            hit.is_none(),
+            "an unexported sibling must stay unresolved through the wildcard import: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn wildcard_namespace_import_resolves_exported_class() {
+        // TP — the class analogue of
+        // `wildcard_namespace_import_resolves_exported_proc`:
+        // `resolve_class_target_at` is the fixed function directly (the
+        // top-level `definition()` provider's own bareword-class match is
+        // namespace-blind already and would not exercise this fix).
+        let src = "namespace eval Foo {\n    oo::class create Widget {}\n    namespace export Widget\n}\nnamespace import ::Foo::*\nWidget new\n";
+        let analysis = analyse(src);
+        let line_index = LineIndex::new(src);
+        let cursor_off = byte_offset_at(&line_index, src, 5, 0);
+        let hit = resolve_class_target_at(&analysis, cursor_off, "Widget");
+        assert!(
+            hit.is_some(),
+            "must resolve Widget through the wildcard import"
+        );
+        let (qname, _) = hit.unwrap();
+        assert_eq!(qname, "::Foo::Widget");
+    }
+
+    #[test]
+    fn wildcard_namespace_import_unexported_sibling_class_stays_unresolved() {
+        // FP guard — the class analogue: `Other` lives in `Foo` but is
+        // never exported, so it must stay unresolved through the wildcard
+        // import exactly like the proc case.
+        let src = "namespace eval Foo {\n    oo::class create Widget {}\n    oo::class create Other {}\n    namespace export Widget\n}\nnamespace import ::Foo::*\nOther new\n";
+        let analysis = analyse(src);
+        let line_index = LineIndex::new(src);
+        let cursor_off = byte_offset_at(&line_index, src, 6, 0);
+        let hit = resolve_class_target_at(&analysis, cursor_off, "Other");
+        assert!(
+            hit.is_none(),
+            "an unexported sibling class must stay unresolved: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn exact_namespace_import_resolves_source_proc_in_document() {
+        // FP guard / bonus TP — a plain (non-glob) `namespace import
+        // ::Foo::bar` must keep working through the same in-document path
+        // (the wildcard resolver's glob match degrades to exact equality
+        // for a literal pattern), matching the already-passing
+        // cross-document `namespace_import_call_site_references_the_source_command`
+        // (`tcl-lsp-core::workspace_index`) — this exercises the same-file
+        // case that resolver never covers.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::bar\nbar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 5, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to Foo::bar's declaration"
+        );
     }
 
     #[test]
