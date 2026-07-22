@@ -2845,6 +2845,35 @@ impl Analyser {
         if old.is_empty() {
             return false;
         }
+        // `OLD` names an existing command as data — manipulated, not called —
+        // the same shape `ArgRole::CommandName` already models for `info body
+        // PROC` / `namespace origin NAME`. Recorded as an ordinary command
+        // invocation so find-references / go-to-definition / rename see this
+        // exact token like any other reference, including for a deleting
+        // `rename OLD {}` (there is no `NEW` in that case, so a NEW-keyed
+        // span map could never have covered it either way). Real Tcl requires
+        // `OLD` to exist (`can't rename "X": command doesn't exist`
+        // otherwise), so this also correctly feeds W123 like a real reference
+        // would (issue #923 idx 39, main audit wave: a rename applied without
+        // rewriting this occurrence leaves it pointing at a now-nonexistent
+        // command, crashing the program at runtime with no diagnostic
+        // warning).
+        if let Some(tok) = arg_tokens.first() {
+            self.push_command_reference(args[0].clone(), tok.span, old.clone(), None);
+        }
+        // `OLD`'s own deletion must not appear to have already happened *at*
+        // the reference just pushed above for it — `deleted_commands` is
+        // keyed by a single load-order offset compared with `>=` (see
+        // `registry_name_deleted_before`), and `OLD`'s token always sits
+        // textually after the `rename` command's own start (`offset`), so
+        // recording the deletion at `offset` would make that offset compare
+        // as "at or after" a call site that is really the deletion's own
+        // trigger — wrongly W123-flagging `rename puts myputs`'s own `puts`
+        // as a call to an already-dead builtin. Anchoring the deletion to
+        // just past `OLD`'s own token keeps every *other*, later call site's
+        // ordering unaffected (nothing else can sit between `OLD`'s token
+        // and here) while excluding this one.
+        let deletion_offset = arg_tokens.first().map_or(offset, |t| t.span.end());
         // A rename moves whatever real Tcl object `OLD` currently denotes —
         // including a live interpreter's own handle command — to `NEW` (or,
         // for a deleting `rename OLD {}`, off the command table entirely).
@@ -2879,19 +2908,13 @@ impl Analyser {
             }
         }
         if new.is_empty() {
-            self.deleted_commands.insert(old, offset);
+            self.deleted_commands.insert(old, deletion_offset);
             return false;
         }
         self.renamed_commands.insert(new.clone(), old.clone());
         self.rename_offsets.insert(new.clone(), offset);
-        self.deleted_commands.insert(old.clone(), offset);
-        // `OLD` (`args[0]`, token `arg_tokens[0]`) names the command being
-        // moved — a reference to it that rename rewrites.
-        if let Some(tok) = arg_tokens.first() {
-            self.result
-                .rename_target_spans
-                .insert(new.clone(), tok.span);
-        }
+        self.deleted_commands.insert(old.clone(), deletion_offset);
+        self.result.rename_offsets.insert(new.clone(), offset);
         self.result.renamed_commands.insert(new, old);
         false
     }

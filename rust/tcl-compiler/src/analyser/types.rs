@@ -876,25 +876,28 @@ pub struct AnalysisResult {
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Byte offset of the `interp alias` command token that established each
     /// [`Self::command_aliases`] entry, keyed the same way (by qualified
-    /// alias name) — the promoted, cross-document twin of
-    /// [`Self::rename_target_spans`] for aliases: lets a consumer such as
+    /// alias name) — lets a consumer such as
     /// [`Self::offset_is_inside_any_definition_body`] tell an alias declared
     /// inside a proc/class body (conditional — exists only while that
     /// enclosing definition is running) apart from a top-level one
-    /// (unconditional), the same distinction [`Self::rename_target_spans`]
-    /// already lets it draw for a `rename`.
+    /// (unconditional).
     pub alias_offsets: HashMap<String, u32>,
     /// Static `rename OLD NEW` records: `new_qname → old_qname`. `NEW`
     /// resolves to whatever `OLD` denoted (unchanged) — see
     /// [`super::state::Analyser::renamed_commands`] for why a dynamic
-    /// rename is deliberately absent here.
+    /// rename is deliberately absent here. `OLD`'s own token is recorded
+    /// as an ordinary [`SignatureCommandInvocation`] (`command_invocations`)
+    /// instead of a dedicated span map here — it is a first-class reference
+    /// to the command it names, exactly like `info body PROC` — so
+    /// find-references / go-to-definition / rename reach it through the
+    /// same path as any other reference, covering a deleting `rename OLD
+    /// {}` too (issue #923 idx 39, main audit wave).
     pub renamed_commands: HashMap<String, String>,
-    /// Source span of the `OLD` word of each static `rename OLD NEW`, keyed
-    /// by `new_qname` (the same key as [`Self::renamed_commands`]). `OLD`
-    /// names the command being moved, so it is a reference to it that rename
-    /// rewrites; kept beside the name map rather than in it so the existing
-    /// consumers of `renamed_commands` are untouched.
-    pub rename_target_spans: HashMap<String, Span>,
+    /// Byte offset of the `rename` command token that established each
+    /// [`Self::renamed_commands`] entry, keyed the same way (by qualified
+    /// `NEW` name) — the `rename` analogue of [`Self::alias_offsets`], for
+    /// the same "declared inside a proc/class body" nested-link check.
+    pub rename_offsets: HashMap<String, u32>,
     /// Static `namespace ensemble create -map {sub target …}` /
     /// `-subcommands {a b …}` records: outer key is the ensemble's own
     /// resolved, qualified invocable name (`::widget`) — the same identity

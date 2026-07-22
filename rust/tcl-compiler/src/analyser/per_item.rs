@@ -423,9 +423,7 @@ impl Analyser {
         self.result.command_aliases.extend(r.command_aliases);
         self.result.alias_offsets.extend(r.alias_offsets);
         self.result.renamed_commands.extend(r.renamed_commands);
-        self.result
-            .rename_target_spans
-            .extend(r.rename_target_spans);
+        self.result.rename_offsets.extend(r.rename_offsets);
         // Per-ensemble union, not a flat `.extend()` — the outer key is the
         // ensemble's own name, and a flat extend would replace one grafted
         // body's whole inner subcommand map instead of merging into it.
@@ -892,10 +890,10 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     for (_, span) in &mut r.proc_declaration_sites {
         *span = shift(*span, d);
     }
-    for sp in r.rename_target_spans.values_mut() {
-        *sp = shift(*sp, d);
-    }
     for off in r.alias_offsets.values_mut() {
+        *off += d;
+    }
+    for off in r.rename_offsets.values_mut() {
         *off += d;
     }
     for records in r.object_methods.values_mut() {

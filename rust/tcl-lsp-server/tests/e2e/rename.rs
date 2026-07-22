@@ -532,3 +532,38 @@ fn rename_from_shadowed_duplicate_proc_decl_reaches_cross_document_caller() {
     );
     assert_eq!(consumer_edits[0]["newText"], "ListToArray");
 }
+
+/// idx 39 (differential-audit main audit wave, high severity): `rename OLD
+/// NEW`'s own `OLD` word was omitted from the reference set find-references
+/// and rename both build from — go-to-definition/hover on that exact token
+/// resolved it correctly (an independent cursor-token walk), but rename
+/// silently left it unrewritten. The real corpus shape is a tcltest
+/// `-setup`/`-body`/`-cleanup` idiom (`proc gaussfunc {...} {...}` /
+/// `rename gaussfunc ""`) — applying the LSP's own incomplete rename
+/// `WorkspaceEdit` to that shape crashes a previously-passing test at runtime
+/// ("can't delete ...: command doesn't exist") with no diagnostic warning
+/// anywhere.
+#[test]
+fn rename_rewrites_the_renames_own_old_word_too() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n",
+    );
+    let result = lsp.rename(&uri, 0, 6, "newName");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    assert_eq!(for_uri.len(), 3, "{for_uri:?}");
+    assert!(lines.contains(&0), "decl missing: {for_uri:?}");
+    assert!(lines.contains(&1), "call site missing: {for_uri:?}");
+    assert!(
+        lines.contains(&2),
+        "the rename statement's own OLD word must be rewritten too: {for_uri:?}"
+    );
+    assert!(for_uri.iter().all(|e| e["newText"] == "newName"));
+}

@@ -1359,6 +1359,28 @@ mod tests {
     }
 
     #[test]
+    fn rename_rewrites_the_renames_own_old_word_too() {
+        // TP — issue #923 idx 39 (main audit wave), the critical half: a
+        // rename that skips this occurrence is worse than a no-op — the
+        // real corpus repro shows the resulting edit set leaves a genuine
+        // `rename OLD ""` pointing at a now-nonexistent command, crashing a
+        // previously-passing tcltest at runtime with "can't delete ...:
+        // command doesn't exist" and no diagnostic warning anywhere.
+        let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 0, 6, "newName", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert_eq!(edits.len(), 3, "{edits:?}");
+        assert!(lines.contains(&0), "decl missing: {edits:?}");
+        assert!(lines.contains(&1), "call site missing: {edits:?}");
+        assert!(
+            lines.contains(&2),
+            "the rename statement's own OLD word must be rewritten too: {edits:?}"
+        );
+        assert!(edits.iter().all(|e| e.new_text == "newName"));
+    }
+
+    #[test]
     fn cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word() {
         use crate::workspace_index::WorkspaceIndex;
         // `::mymod::helper` is imported by `::app` and renamed-away in a third

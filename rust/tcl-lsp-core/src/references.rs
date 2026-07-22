@@ -2391,6 +2391,47 @@ mod tests {
     }
 
     #[test]
+    fn references_include_the_renames_own_old_word() {
+        // TP — issue #923 idx 39 (main audit wave): `rename OLD NEW`'s own
+        // `OLD` word is a genuine reference to the proc it names
+        // (tclsh9.0/8.6-verified: `rename` requires `OLD` to exist,
+        // "can't rename ...: command doesn't exist" otherwise) — the real
+        // corpus shape is a tcltest `-setup`/`-body`/`-cleanup` idiom
+        // (georgtree_tclopt test/arbitaryTest.tcl:46/113's `proc gaussfunc`
+        // / `rename gaussfunc ""`). Go-to-definition/hover already resolved
+        // this token (independent cursor-token walk); `references` missed
+        // it entirely, so a rename built on the same list left this
+        // occurrence pointing at a now-nonexistent command — a previously
+        // passing tcltest crashes with "can't delete ...: command doesn't
+        // exist" purely from applying the LSP's own rename edit.
+        let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(lines.contains(&1), "call site missing: {refs:?}");
+        assert!(
+            lines.contains(&2),
+            "rename's own OLD word missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_do_not_include_the_renames_new_word() {
+        // FP guard — `rename OLD NEW`'s `NEW` word is not itself a
+        // reference to `OLD`'s proc; only `OLD` is. A bare later call to
+        // `NEW` reaches the target through the rename *link* (a
+        // cross-document concern — see `workspace_index.rs`'s
+        // `rename_new_name_call_site_references_the_old_command`), not
+        // through this same-document text-reference scan.
+        let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nrename helperFunc renamedFunc\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(lines, vec![0, 1], "{refs:?}");
+    }
+
+    #[test]
     fn references_include_unbraced_if_body_bareword_call() {
         // TP — differential-audit finding idx 61 (main audit wave,
         // nico-robert_ticklecharts): `if {$cond} mymod::foo` (an unbraced

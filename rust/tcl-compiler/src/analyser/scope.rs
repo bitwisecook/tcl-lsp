@@ -1677,10 +1677,17 @@ mod tests {
                    namespace eval ::ns { puts x }\n";
         let mut a = Analyser::new();
         let analysis = a.analyse(src, "tcl8.6");
+        // `rename`'s own OLD argument (`puts`, line 0) is now itself a
+        // recorded, correctly-resolved-to-the-still-live-builtin reference
+        // (issue #923 idx 39) — an earlier "puts" entry this test must not
+        // mistake for the *call* site (`puts x`, line 1) it actually means
+        // to check. The call site is always the *last* "puts"-named
+        // invocation in source order.
         let inv = analysis
             .command_invocations
             .iter()
-            .find(|i| i.name == "puts" && i.resolved_qualified_name.as_deref() != Some("::a::p"))
+            .rev()
+            .find(|i| i.name == "puts")
             .expect("namespaced puts invocation recorded");
         assert_eq!(
             inv.resolved_qualified_name.as_deref(),

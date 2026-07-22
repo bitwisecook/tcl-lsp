@@ -516,17 +516,21 @@ impl WorkspaceIndex {
             });
         }
         // `rename OLD NEW` makes `NEW` run what `OLD` denoted.  The recorded
-        // map is `NEW → OLD`, both already `::`-normalised.
+        // map is `NEW → OLD`, both already `::`-normalised.  `OLD`'s own
+        // word is already a first-class command invocation (issue #923 idx
+        // 39) — the ordinary reference/rename path covers it — so, like
+        // `interp alias`'s `TARGET` word above, it needs no `target_span`
+        // here.
         for (new, old) in &analysis.renamed_commands {
             let nested = analysis
-                .rename_target_spans
+                .rename_offsets
                 .get(new)
-                .is_some_and(|sp| analysis.offset_is_inside_any_definition_body(sp.start()));
+                .is_some_and(|&off| analysis.offset_is_inside_any_definition_body(off));
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
                 linked_qname: normalise_qualified_name(new),
                 target_qname: normalise_qualified_name(old),
-                target_span: analysis.rename_target_spans.get(new).copied(),
+                target_span: None,
                 nested,
             });
         }
@@ -2041,7 +2045,11 @@ mod tests {
 
     #[test]
     fn rename_new_name_call_site_references_the_old_command() {
-        // `rename ::mymod::helper h` makes `h` run what `::mymod::helper` was.
+        // `rename ::mymod::helper h` makes `h` run what `::mymod::helper`
+        // was. Same shape as the `interp alias` case above (issue #923 idx
+        // 39): the `OLD` word is itself a first-class invocation, so
+        // references see two sites — the `OLD` word and the `h` call
+        // reaching the target through the rename link.
         let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
         let app = analyse("rename ::mymod::helper h\nh\n");
         let index = WorkspaceIndex::from_documents([
@@ -2049,12 +2057,30 @@ mod tests {
             ("file:///app.tcl", &app),
         ]);
         let refs = index.linked_invocations_of("::mymod::helper", "file:///mymod.tcl");
-        assert_eq!(refs.len(), 1, "{refs:?}");
-        assert_eq!(refs[0].uri, "file:///app.tcl");
-        // The `OLD` word of the rename is a reference rename rewrites.
-        let spans = index.link_target_spans("::mymod::helper", "file:///mymod.tcl");
-        assert_eq!(spans.len(), 1, "{spans:?}");
-        assert_eq!(spans[0].0, "file:///app.tcl");
+        assert!(
+            refs.iter().any(|r| r.name == "h"),
+            "the renamed call should reference the target: {refs:?}",
+        );
+        assert!(
+            refs.iter()
+                .any(|r| r.name == "::mymod::helper" && r.uri == "file:///app.tcl"),
+            "the rename's own OLD word is a reference too: {refs:?}",
+        );
+        // The direct-only resolver (rename) sees just the `OLD` word, never
+        // the `h` call — that call names the local renamed alias, which
+        // keeps its own name.
+        let direct = index.invocations_of("::mymod::helper", "file:///mymod.tcl");
+        assert!(
+            direct.iter().all(|r| r.name != "h"),
+            "rename must not rewrite the renamed-to call site: {direct:?}",
+        );
+        // The `OLD` word needs no separate link span — it is already an
+        // invocation the ordinary reference/rename path covers.
+        assert!(
+            index
+                .link_target_spans("::mymod::helper", "file:///mymod.tcl")
+                .is_empty(),
+        );
     }
 
     #[test]
