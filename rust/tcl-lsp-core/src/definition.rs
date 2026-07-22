@@ -337,7 +337,7 @@ fn instance_method_definition(
                 analysis,
                 source,
                 line_index,
-                &class_q,
+                class_q,
                 &method,
                 false,
                 MethodBucket::Instance,
@@ -392,43 +392,40 @@ fn lookup_class_member(
     word: &str,
     cursor_offset: u32,
 ) -> Option<tcl_lexer::Span> {
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
+    let class_def = analysis
+        .all_classes
+        .get(enclosing_class_at(analysis, cursor_offset)?)?;
+    if let Some(target) = class_def.linked_members.get(word) {
+        if let Some(m) = class_def.methods.get(target) {
+            return Some(m.name_span);
         }
-        if let Some(target) = class_def.linked_members.get(word) {
-            if let Some(m) = class_def.methods.get(target) {
-                return Some(m.name_span);
-            }
-            if let Some(m) = class_def.class_methods.get(target) {
-                return Some(m.name_span);
-            }
-            if let Some(p) = class_def.properties.get(target) {
-                return Some(p.name_span);
-            }
+        if let Some(m) = class_def.class_methods.get(target) {
+            return Some(m.name_span);
         }
-        if word == "constructor"
-            && let Some(c) = class_def.constructors.first()
-        {
-            if !c.name_span.is_empty() {
-                return Some(c.name_span);
-            }
-            // Analyser doesn't store a name span for the
-            // constructor keyword (it has no name token).
-            // Fall back to the body span's start so the
-            // editor at least lands on the constructor's
-            // body opener.
-            return Some(c.body_span);
+        if let Some(p) = class_def.properties.get(target) {
+            return Some(p.name_span);
         }
-        if word == "destructor"
-            && let Some(d) = &class_def.destructor
-        {
-            if !d.name_span.is_empty() {
-                return Some(d.name_span);
-            }
-            return Some(d.body_span);
+    }
+    if word == "constructor"
+        && let Some(c) = class_def.constructors.first()
+    {
+        if !c.name_span.is_empty() {
+            return Some(c.name_span);
         }
+        // Analyser doesn't store a name span for the
+        // constructor keyword (it has no name token).
+        // Fall back to the body span's start so the
+        // editor at least lands on the constructor's
+        // body opener.
+        return Some(c.body_span);
+    }
+    if word == "destructor"
+        && let Some(d) = &class_def.destructor
+    {
+        if !d.name_span.is_empty() {
+            return Some(d.name_span);
+        }
+        return Some(d.body_span);
     }
     None
 }
@@ -517,14 +514,29 @@ fn variable_scope_extent(
 }
 
 /// The qualified name of the class whose body contains `offset`, if any —
-/// the enclosing class for `my`-call dispatch.
-fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Option<String> {
+/// the enclosing class for `my`-call dispatch and every other "which class
+/// am I lexically inside" query in this crate.
+///
+/// Consults [`AnalysisResult::class_body_spans`] rather than
+/// `ClassDef::body_span` alone: a class extended via a *separate*
+/// `oo::define ClassName { ... }` block (real corpus shape:
+/// `ticklecharts::chart`'s `oo::class create` at one line, every method
+/// added via a later, separate `oo::define` block) has textually disjoint
+/// body spans, not one contiguous range — `body_span` alone only ever
+/// covers the *first* one recorded (issue #923 idx 52, main audit wave).
+/// Ties (nested definitions) resolve to the narrowest containing span,
+/// same tie-break the single-span version always used.
+///
+/// The single canonical implementation of this check — every other
+/// module in this crate that used to keep its own copy now calls this
+/// one instead, so the multi-span fix applies everywhere uniformly.
+pub(crate) fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Option<&str> {
     analysis
-        .all_classes
-        .values()
-        .filter(|c| c.body_span.start() < offset && offset < c.body_span.end())
-        .min_by_key(|c| c.body_span.end() - c.body_span.start())
-        .map(|c| c.qualified_name.clone())
+        .class_body_spans
+        .iter()
+        .filter(|(_, span)| span.start() < offset && offset < span.end())
+        .min_by_key(|(_, span)| span.end() - span.start())
+        .map(|(name, _)| name.as_str())
 }
 
 /// Which of a class's two method buckets a dispatch receiver reaches
@@ -664,14 +676,12 @@ fn next_dispatch_target(
 /// The `(qualified_class, method_name)` whose method body contains the
 /// cursor offset, or `None` when the cursor is not inside a method body.
 fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, String)> {
-    for cd in analysis.all_classes.values() {
-        if !(cd.body_span.start() <= cursor && cursor <= cd.body_span.end()) {
-            continue;
-        }
-        for (mname, m) in cd.methods.iter().chain(cd.class_methods.iter()) {
-            if m.body_span.start() <= cursor && cursor <= m.body_span.end() {
-                return Some((cd.qualified_name.clone(), mname.clone()));
-            }
+    let cd = analysis
+        .all_classes
+        .get(enclosing_class_at(analysis, cursor)?)?;
+    for (mname, m) in cd.methods.iter().chain(cd.class_methods.iter()) {
+        if m.body_span.start() <= cursor && cursor <= m.body_span.end() {
+            return Some((cd.qualified_name.clone(), mname.clone()));
         }
     }
     None
@@ -2824,6 +2834,26 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         // The method declaration is now on line 2.
         assert_eq!(locs[0].start_line, 2);
+    }
+
+    #[test]
+    fn definition_my_dispatch_resolves_when_class_extended_via_separate_oo_define() {
+        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
+        // created via `oo::class create` with no body, then every method —
+        // including the `my Helper` call site itself — is added via a
+        // *separate*, later `oo::define Gadget { ... }` block. This is
+        // exactly the real corpus shape (`ticklecharts::chart`: `oo::class
+        // create` at one line, all methods added via a later `oo::define`).
+        // tclsh9.0/8.6 both prove `my Helper` genuinely dispatches to
+        // `Helper` here — go-to-definition must resolve it, not abstain.
+        let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n";
+        let analysis = analyse(src);
+        // Line 5: `    method Caller {} { my Helper }` — cursor on the
+        // `Helper` word inside `my Helper` (col 26).
+        let locs = definition(src, 5, 26, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The `Helper` method declaration is on line 4.
+        assert_eq!(locs[0].start_line, 4);
     }
 
     #[test]

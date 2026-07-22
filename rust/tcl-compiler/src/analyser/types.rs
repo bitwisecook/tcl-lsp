@@ -847,6 +847,19 @@ pub struct AnalysisResult {
     pub proc_declaration_sites: Vec<(String, Span)>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
+    /// Every class-body span contributing member declarations to a
+    /// qualified class name, in source order: the `oo::class create`
+    /// block's own body span, plus one entry per later same-class
+    /// `oo::define ClassName { ... }` extension (or inline-form call) in
+    /// this file. The multi-span analogue of [`ClassDef::body_span`]
+    /// (which stays pinned to the class's primary/creation site for
+    /// hover / document-symbol / rename-target purposes): a class
+    /// extended via a *separate* `oo::define` block has textually
+    /// disjoint body spans, not one contiguous range, so any consumer
+    /// asking "which class's body lexically contains this offset" for
+    /// `my`-dispatch resolution must check every entry here rather than
+    /// just `ClassDef::body_span` (issue #923 idx 52, main audit wave).
+    pub class_body_spans: Vec<(String, Span)>,
     /// Free variables (vars defined outside any proc scope) keyed
     /// by qualified name.
     pub all_variables: HashMap<String, VarDef>,

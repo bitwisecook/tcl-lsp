@@ -459,6 +459,7 @@ impl Analyser {
         self.result
             .proc_declaration_sites
             .extend(r.proc_declaration_sites);
+        self.result.class_body_spans.extend(r.class_body_spans);
         self.result.auto_path_entries.extend(r.auto_path_entries);
         self.result.regex_patterns.extend(r.regex_patterns);
         self.result
@@ -888,6 +889,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
         x.range = shift(x.range, d);
     }
     for (_, span) in &mut r.proc_declaration_sites {
+        *span = shift(*span, d);
+    }
+    for (_, span) in &mut r.class_body_spans {
         *span = shift(*span, d);
     }
     for off in r.alias_offsets.values_mut() {

@@ -679,6 +679,11 @@ impl Analyser {
                 body, body_tok, &mut class, &qualified, scope_path, &definer,
             );
         }
+        // For `my`-dispatch resolution (issue #923 idx 52) — see
+        // `class_body_spans`'s doc.
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), class.body_span));
         self.result.all_classes.insert(qualified, class.clone());
         let path = scope_path.to_vec();
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
@@ -1020,6 +1025,11 @@ impl Analyser {
                 body, body_tok, &mut class, &qualified, scope_path, grammar,
             );
         }
+        // For `my`-dispatch resolution (issue #923 idx 52) — see
+        // `class_body_spans`'s doc.
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), class.body_span));
         self.result.all_classes.insert(qualified, class.clone());
         let path = scope_path.to_vec();
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {

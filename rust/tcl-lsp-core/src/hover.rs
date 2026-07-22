@@ -2825,50 +2825,50 @@ fn class_member_hover_text(
     word: &str,
     cursor_offset: u32,
 ) -> Option<String> {
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
+    let class_def = analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(
+            analysis,
+            cursor_offset,
+        )?)?;
+    let qname = &class_def.qualified_name;
+    if let Some(target) = class_def.linked_members.get(word) {
+        let linked_note = if target == word {
+            String::new()
+        } else {
+            format!("  \nlinked from `{word}`")
+        };
+        if let Some(m) = class_def.methods.get(target) {
+            let note = oo_method_resolution_note(analysis, qname, target)
+                .map_or(String::new(), |n| format!("  \n{n}"));
+            return Some(format!(
+                "**method** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
+                name = m.name,
+                nparam = m.params.len(),
+            ));
         }
-        let qname = &class_def.qualified_name;
-        if let Some(target) = class_def.linked_members.get(word) {
-            let linked_note = if target == word {
-                String::new()
-            } else {
-                format!("  \nlinked from `{word}`")
-            };
-            if let Some(m) = class_def.methods.get(target) {
-                let note = oo_method_resolution_note(analysis, qname, target)
-                    .map_or(String::new(), |n| format!("  \n{n}"));
-                return Some(format!(
-                    "**method** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
-                    name = m.name,
-                    nparam = m.params.len(),
-                ));
-            }
-            if let Some(m) = class_def.class_methods.get(target) {
-                let note = oo_method_resolution_note(analysis, qname, target)
-                    .map_or(String::new(), |n| format!("  \n{n}"));
-                return Some(format!(
-                    "**classmethod** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
-                    name = m.name,
-                    nparam = m.params.len(),
-                ));
-            }
-            if let Some(p) = class_def.properties.get(target) {
-                return Some(format!(
-                    "**property** `{qname}::{name}`{linked_note}",
-                    name = p.name
-                ));
-            }
+        if let Some(m) = class_def.class_methods.get(target) {
+            let note = oo_method_resolution_note(analysis, qname, target)
+                .map_or(String::new(), |n| format!("  \n{n}"));
+            return Some(format!(
+                "**classmethod** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
+                name = m.name,
+                nparam = m.params.len(),
+            ));
         }
-        if word == "constructor" && !class_def.constructors.is_empty() {
-            let nparam = class_def.constructors.first().map_or(0, |c| c.params.len());
-            return Some(format!("**constructor** of `{qname}` ({nparam} param(s))"));
+        if let Some(p) = class_def.properties.get(target) {
+            return Some(format!(
+                "**property** `{qname}::{name}`{linked_note}",
+                name = p.name
+            ));
         }
-        if word == "destructor" && class_def.destructor.is_some() {
-            return Some(format!("**destructor** of `{qname}`"));
-        }
+    }
+    if word == "constructor" && !class_def.constructors.is_empty() {
+        let nparam = class_def.constructors.first().map_or(0, |c| c.params.len());
+        return Some(format!("**constructor** of `{qname}` ({nparam} param(s))"));
+    }
+    if word == "destructor" && class_def.destructor.is_some() {
+        return Some(format!("**destructor** of `{qname}`"));
     }
     None
 }
@@ -4483,6 +4483,26 @@ mod tests {
         assert!(h.value.contains("C::greet"), "{}", h.value);
         assert!(h.value.contains("1 param"), "{}", h.value);
         assert!(!h.value.contains("linked from"), "{}", h.value);
+    }
+
+    #[test]
+    fn class_member_hover_resolves_when_class_extended_via_separate_oo_define() {
+        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
+        // created via `oo::class create` with no body; the `link`, the
+        // linked method, and the bareword call site that depends on it are
+        // all added via a *separate*, later `oo::define Gadget { ... }`
+        // block — the real corpus shape (`ticklecharts::chart`). Hover on
+        // the bareword `Helper` call must still resolve — the cursor sits
+        // inside that separate block, which `class_member_hover_text`'s
+        // `enclosing_class_at` containment check must recognise as part of
+        // `Gadget`'s body too, not just the original creation block.
+        let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    constructor {} { link Helper }\n    method Helper {} { return hi }\n    method Caller {} { Helper }\n}\n";
+        let analysis = analyse(src);
+        // Line 6: `    method Caller {} { Helper }` — cursor on the bareword
+        // `Helper` call (col 23).
+        let h = hover(src, 6, 23, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("Gadget::Helper"), "{}", h.value);
     }
 
     #[test]

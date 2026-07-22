@@ -241,17 +241,14 @@ pub fn prepare_rename(
     }
     // Method / classmethod / property inside a class body?
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        if let Some((_, span)) = resolve_member_span(class_def, &word, cursor_offset) {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, span),
-                placeholder: word.clone(),
-            });
-        }
+    if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor_offset)
+        .and_then(|q| analysis.all_classes.get(q))
+        && let Some((_, span)) = resolve_member_span(class_def, &word, cursor_offset)
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, span),
+            placeholder: word.clone(),
+        });
     }
     // External `$obj method` call site — editors that gate the
     // rename UI on `prepare_rename` should still see it as
@@ -500,14 +497,9 @@ pub fn method_target_with_access(
         // `my method` — an internal call from inside the enclosing class.
         // Always instance-context: `my` never reaches a classmethod.
         if inst == "my"
-            && let Some(class_q) = analysis
-                .all_classes
-                .values()
-                .filter(|c| c.body_span.start() < cursor && cursor < c.body_span.end())
-                .min_by_key(|c| c.body_span.end() - c.body_span.start())
-                .map(|c| c.qualified_name.clone())
+            && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor)
         {
-            return Some((class_q, method, false, MethodAccess::Internal));
+            return Some((class_q.to_owned(), method, false, MethodAccess::Internal));
         }
         // External `$obj method` — resolve `$obj`'s class.  Always
         // instance-context too: a classmethod is never reached via `$obj`.
@@ -528,11 +520,12 @@ pub fn method_target_with_access(
     }
     // Inside a class body on one of its method / classmethod names — the
     // declaration side, an internal context.
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
+    if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor)
+        .and_then(|q| analysis.all_classes.get(q))
+    {
         let has_method = class_def.methods.contains_key(&word);
         let has_classmethod = class_def.class_methods.contains_key(&word);
-        if body.start() < cursor && cursor < body.end() && (has_method || has_classmethod) {
+        if has_method || has_classmethod {
             // A `method` and a `classmethod` of the same name are distinct
             // members; unambiguous when only one exists, otherwise prefer
             // whichever one's declaration the cursor is actually on (falls
@@ -969,83 +962,82 @@ fn rename_method(
 ) -> Option<Vec<TextEdit>> {
     use tcl_lexer::Span;
 
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        // Methods, classmethods, and properties are independent tables; a
-        // name shared by more than one (rare, but real — `TclOO` never
-        // merges them) disambiguates by which declaration's own span the
-        // cursor sits on rather than a fixed priority — see
-        // `resolve_member_span`.
-        let (selected_kind, name_span) = resolve_member_span(class_def, word, cursor_offset)?;
-        let is_classmethod = selected_kind == MemberSel::ClassMethod;
-        let mut edits = vec![TextEdit {
-            range: span_to_range(source, line_index, name_span),
-            new_text: new_name.to_owned(),
-        }];
-        // `command_invocations` records top-level invocations only; method
-        // bodies aren't walked there.  `body_spans` (every method /
-        // classmethod / constructor / destructor body) is the re-segmentable
-        // material both branches below scan via the shared `my`-aware
-        // matcher — a `TclOO` member is never a bare-callable command (a
-        // bare `word` errors "invalid command name" at runtime; only `my
-        // word` dispatches), so there is no separate bare-head scan here.
-        let body_spans: Vec<Span> = crate::references::collect_member_bodies(class_def);
-        // Methods / classmethods (not properties — those aren't dispatched
-        // through the MRO) are one polymorphic name across the whole override
-        // family: a method (re)defined by a super- or sub-class renames as a
-        // unit.  For every family member — **including the class under the
-        // cursor** — pull its declaration, intra-class `my method` sites (its
-        // own bodies *and* any purely-inheriting subclass's), and external
-        // `$obj method` sites via the shared resolver.  Routing the cursor
-        // class through it too (rather than an ad-hoc self-only scan) is what
-        // catches an inheriting subclass's `my method` / `$obj method` sites
-        // when renaming from the base declaration.
-        if matches!(selected_kind, MemberSel::Method | MemberSel::ClassMethod) {
-            for member in override_family(analysis, &class_def.qualified_name, word) {
-                let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
-                    source,
-                    dialect,
-                    analysis,
-                    &member,
-                    word,
-                    is_classmethod,
-                ) else {
-                    continue;
-                };
-                // The cursor class's own declaration edit is already queued.
-                if member != class_def.qualified_name {
-                    edits.push(TextEdit {
-                        range: span_to_range(source, line_index, decl_span),
-                        new_text: new_name.to_owned(),
-                    });
-                }
-                for span in call_spans {
-                    edits.push(TextEdit {
-                        range: span_to_range(source, line_index, span),
-                        new_text: new_name.to_owned(),
-                    });
-                }
+    let class_def = analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(
+            analysis,
+            cursor_offset,
+        )?)?;
+    // Methods, classmethods, and properties are independent tables; a
+    // name shared by more than one (rare, but real — `TclOO` never
+    // merges them) disambiguates by which declaration's own span the
+    // cursor sits on rather than a fixed priority — see
+    // `resolve_member_span`.
+    let (selected_kind, name_span) = resolve_member_span(class_def, word, cursor_offset)?;
+    let is_classmethod = selected_kind == MemberSel::ClassMethod;
+    let mut edits = vec![TextEdit {
+        range: span_to_range(source, line_index, name_span),
+        new_text: new_name.to_owned(),
+    }];
+    // `command_invocations` records top-level invocations only; method
+    // bodies aren't walked there.  `body_spans` (every method /
+    // classmethod / constructor / destructor body) is the re-segmentable
+    // material both branches below scan via the shared `my`-aware
+    // matcher — a `TclOO` member is never a bare-callable command (a
+    // bare `word` errors "invalid command name" at runtime; only `my
+    // word` dispatches), so there is no separate bare-head scan here.
+    let body_spans: Vec<Span> = crate::references::collect_member_bodies(class_def);
+    // Methods / classmethods (not properties — those aren't dispatched
+    // through the MRO) are one polymorphic name across the whole override
+    // family: a method (re)defined by a super- or sub-class renames as a
+    // unit.  For every family member — **including the class under the
+    // cursor** — pull its declaration, intra-class `my method` sites (its
+    // own bodies *and* any purely-inheriting subclass's), and external
+    // `$obj method` sites via the shared resolver.  Routing the cursor
+    // class through it too (rather than an ad-hoc self-only scan) is what
+    // catches an inheriting subclass's `my method` / `$obj method` sites
+    // when renaming from the base declaration.
+    if matches!(selected_kind, MemberSel::Method | MemberSel::ClassMethod) {
+        for member in override_family(analysis, &class_def.qualified_name, word) {
+            let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
+                source,
+                dialect,
+                analysis,
+                &member,
+                word,
+                is_classmethod,
+            ) else {
+                continue;
+            };
+            // The cursor class's own declaration edit is already queued.
+            if member != class_def.qualified_name {
+                edits.push(TextEdit {
+                    range: span_to_range(source, line_index, decl_span),
+                    new_text: new_name.to_owned(),
+                });
             }
-        } else {
-            // Properties have no `$obj prop` dispatch and no inheritance model
-            // (see `references::find_class_member_references`), so a
-            // class-local `my <prop>` scan is the whole story.
-            for span in
-                crate::references::scan_my_method_sites(source, dialect, &body_spans, word, None)
-            {
+            for span in call_spans {
                 edits.push(TextEdit {
                     range: span_to_range(source, line_index, span),
                     new_text: new_name.to_owned(),
                 });
             }
         }
-        dedup_edits(&mut edits);
-        return Some(edits);
+    } else {
+        // Properties have no `$obj prop` dispatch and no inheritance model
+        // (see `references::find_class_member_references`), so a
+        // class-local `my <prop>` scan is the whole story.
+        for span in
+            crate::references::scan_my_method_sites(source, dialect, &body_spans, word, None)
+        {
+            edits.push(TextEdit {
+                range: span_to_range(source, line_index, span),
+                new_text: new_name.to_owned(),
+            });
+        }
     }
-    None
+    dedup_edits(&mut edits);
+    Some(edits)
 }
 
 /// Compute the qualified rewrite (`prefix::new`) and the
@@ -1898,6 +1890,29 @@ mod tests {
         for e in &edits {
             assert_eq!(e.new_text, "salute");
         }
+    }
+
+    #[test]
+    fn rename_method_rewrites_my_dispatch_when_class_extended_via_separate_oo_define() {
+        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
+        // created via `oo::class create` with no body; every method
+        // (including the `my Helper` call site) is added via a *separate*,
+        // later `oo::define Gadget { ... }` block — the real corpus shape
+        // (`ticklecharts::chart`). Renaming from the `Helper` declaration
+        // must rewrite the `my Helper` call site living in that separate
+        // block too, not silently skip it (which would leave the program
+        // calling a now-nonexistent method after the rename).
+        let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `Helper` declaration (line 4, col 11).
+        let edits = rename(src, "tcl", 4, 11, "Assist", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&4), "decl missing: {edits:?}");
+        assert!(
+            lines.contains(&5),
+            "the my Helper call site inside the separate oo::define block must be rewritten too: {edits:?}"
+        );
+        assert!(edits.iter().all(|e| e.new_text == "Assist"));
     }
 
     #[test]

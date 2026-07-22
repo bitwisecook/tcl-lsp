@@ -365,3 +365,36 @@ fn class_instantiation_resolves_cross_document_via_wildcard_import() {
     assert_eq!(locs[0].uri, lib_uri, "must jump into the library file");
     assert_eq!(start_line(&locs[0]), 2, "oo::class create GSA is on line 2");
 }
+
+/// idx 52 (differential-audit main audit wave, high severity): a class
+/// created via `oo::class create` with no body, then extended by every
+/// one of its methods through a *separate*, later `oo::define ClassName {
+/// ... }` block — exactly the real corpus shape (`ticklecharts::chart`:
+/// `oo::class create` at one line, every method — including the `my
+/// AddBarSeries`-style internal dispatch calls in its switch arms — added
+/// via a later, separate `oo::define` block). tclsh9.0/8.6 both prove `my
+/// Helper` genuinely dispatches to `Helper` here; go-to-definition
+/// previously abstained (0 locations) because `ClassDef::body_span` only
+/// ever covered the *first* block recorded for the class, so a cursor
+/// inside the separate `oo::define` block's own text never satisfied the
+/// "which class am I lexically inside" containment check `my`-dispatch
+/// resolution depends on.
+#[test]
+fn my_dispatch_resolves_when_class_extended_via_separate_oo_define() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n",
+    );
+    // Line 5: `    method Caller {} { my Helper }` — cursor on the `Helper`
+    // word inside `my Helper` (column 26).
+    let result = lsp.definition(&uri, 5, 26);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        4,
+        "must resolve to the Helper method declaration on line 4"
+    );
+}

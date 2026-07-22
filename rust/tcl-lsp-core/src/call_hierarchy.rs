@@ -223,24 +223,24 @@ fn enclosing_class_method<'a>(
     word: &str,
     cursor_offset: u32,
 ) -> Option<(&'a ClassDef, &'a MethodDef)> {
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        let in_classmethod_territory = class_def.class_methods.values().any(|m| {
-            span_contains_offset(m.name_span, cursor_offset)
-                || span_contains_offset(m.body_span, cursor_offset)
-        });
-        if in_classmethod_territory && let Some(m) = class_def.class_methods.get(word) {
-            return Some((class_def, m));
-        }
-        if let Some(m) = class_def.methods.get(word) {
-            return Some((class_def, m));
-        }
-        if let Some(m) = class_def.class_methods.get(word) {
-            return Some((class_def, m));
-        }
+    let class_def = analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(
+            analysis,
+            cursor_offset,
+        )?)?;
+    let in_classmethod_territory = class_def.class_methods.values().any(|m| {
+        span_contains_offset(m.name_span, cursor_offset)
+            || span_contains_offset(m.body_span, cursor_offset)
+    });
+    if in_classmethod_territory && let Some(m) = class_def.class_methods.get(word) {
+        return Some((class_def, m));
+    }
+    if let Some(m) = class_def.methods.get(word) {
+        return Some((class_def, m));
+    }
+    if let Some(m) = class_def.class_methods.get(word) {
+        return Some((class_def, m));
     }
     None
 }

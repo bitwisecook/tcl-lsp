@@ -3287,6 +3287,11 @@ impl Analyser {
         // ``scope.classes`` map is keyed by the bare (unqualified)
         // name so per-scope lookups and shadowing rules work.
         let simple_key = class.name.clone();
+        // The creation site's own body span, for `my`-dispatch resolution
+        // to find (issue #923 idx 52) — see `class_body_spans`'s doc.
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), class.body_span));
         self.result.all_classes.insert(qualified, class.clone());
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
@@ -3369,38 +3374,49 @@ impl Analyser {
         // qualified (``oo::define ::ns::Other``), the same
         // ``simple`` extraction as ``handle_oo_class_command``.
         let simple = crate::naming::key_tail(&qualified).to_string();
+        // The class-name token's own span, and this specific `oo::define`
+        // invocation's own extent — from the class-name token's start to
+        // the last argument token's end, covering whichever of the
+        // inline-form tail or the `{ body }` token is present. The *whole*
+        // invocation, not just the class-name token, so any member this
+        // call adds (inline `method`/`property`/… words, or a `{ … }`
+        // body) stays nested inside it for document-symbol rendering — a
+        // name-token-sized span would leave every subsequently-added
+        // member "escaping" its own parent's range, a self-contradictory,
+        // checkable-from-source-alone structural error.
+        //
+        // Recorded in `class_body_spans` for *every* `oo::define` call,
+        // not just when creating a fresh stub (issue #923 idx 52): a class
+        // extended via a *separate* `oo::define ClassName { ... }` block
+        // has its methods living inside THIS span, textually disjoint from
+        // the class's original `oo::class create` block (or an earlier
+        // `oo::define`), so `my`-dispatch resolution needs every
+        // contributing span on file, not just the first one recorded.
+        let name_span = arg_tokens.first().map_or(
+            super::types::Scope::default()
+                .body_span
+                .unwrap_or_else(|| tcl_lexer::Span::new(0, 0)),
+            |t| t.span,
+        );
+        let this_call_span = arg_tokens.last().map_or(name_span, |last| {
+            tcl_lexer::Span::new(name_span.start(), last.span.end())
+        });
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), this_call_span));
         let mut class_def = self
             .result
             .all_classes
             .remove(&qualified)
-            .unwrap_or_else(|| {
-                let name_span = arg_tokens.first().map_or(
-                    super::types::Scope::default()
-                        .body_span
-                        .unwrap_or_else(|| tcl_lexer::Span::new(0, 0)),
-                    |t| t.span,
-                );
-                // The stub's body span must cover the *whole* `oo::define`
-                // invocation, not just the class-name token, so any member
-                // this call adds (inline `method`/`property`/… words, or a
-                // `{ … }` body) stays nested inside it for document-symbol
-                // rendering — a name-token-sized span left every
-                // subsequently-added member "escaping" its own parent's
-                // range, a self-contradictory, checkable-from-source-alone
-                // structural error.
-                let body_span = arg_tokens.last().map_or(name_span, |last| {
-                    tcl_lexer::Span::new(name_span.start(), last.span.end())
-                });
-                super::types::ClassDef {
-                    name: simple,
-                    qualified_name: qualified.clone(),
-                    name_span,
-                    body_span,
-                    // An `oo::define` on a class not created in this file — a
-                    // cross-file extension stub, not the class's definition.
-                    via_define: true,
-                    ..Default::default()
-                }
+            .unwrap_or_else(|| super::types::ClassDef {
+                name: simple,
+                qualified_name: qualified.clone(),
+                name_span,
+                body_span: this_call_span,
+                // An `oo::define` on a class not created in this file — a
+                // cross-file extension stub, not the class's definition.
+                via_define: true,
+                ..Default::default()
             });
 
         if inline_form {
@@ -7073,6 +7089,38 @@ mod tests {
         assert!(r.all_classes.contains_key("::C"));
         let cls = &r.all_classes["::C"];
         assert!(cls.methods.contains_key("m"));
+    }
+
+    #[test]
+    fn oo_define_extending_an_existing_class_adds_its_own_class_body_span() {
+        // Issue #923 idx 52: `class_body_spans` must record BOTH the
+        // creation site's own span AND the separate `oo::define` block's
+        // own span for the same qualified class — a class extended via a
+        // *separate* `oo::define ClassName { ... }` block has textually
+        // disjoint body spans, not one contiguous range, and `my`-dispatch
+        // resolution (a lexical "which class's body am I inside" query)
+        // needs every contributing span, not just the first one recorded.
+        let mut a = crate::analyser::Analyser::new();
+        let src = "oo::class create C {}\noo::define C { method m {} {} }";
+        let r = a.analyse(src, "tcl");
+        let spans: Vec<tcl_lexer::Span> = r
+            .class_body_spans
+            .iter()
+            .filter(|(name, _)| name == "::C")
+            .map(|(_, span)| *span)
+            .collect();
+        assert_eq!(spans.len(), 2, "{spans:?}");
+        // One of the two recorded spans must cover the `oo::define`
+        // block's own `method m {} {}` text — the token whose containment
+        // `enclosing_class_at` checks for a cursor inside it.
+        let inside_define_block = u32::try_from(src.find("method m").unwrap()).unwrap();
+        assert!(
+            spans
+                .iter()
+                .any(|span| span.start() <= inside_define_block
+                    && inside_define_block < span.end()),
+            "no recorded span covers the oo::define block's own body: {spans:?}"
+        );
     }
 
     #[test]

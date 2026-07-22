@@ -1496,58 +1496,62 @@ fn find_class_member_references(
     analysis: &AnalysisResult,
     cursor_offset: u32,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        // Methods, classmethods, and properties are independent tables; a
-        // name shared by more than one (rare, but real — `TclOO` never
-        // merges them) disambiguates by which declaration's own span the
-        // cursor sits on rather than a fixed priority — see
-        // `resolve_member_span`.
-        let (kind, _) = resolve_member_span(class_def, word, cursor_offset)?;
-        if matches!(kind, MemberSel::Method | MemberSel::ClassMethod) {
-            let is_classmethod = kind == MemberSel::ClassMethod;
-            // Methods / classmethods: defer to the shared resolver — the *same*
-            // one the code lens counts with — so the peek and the lens can never
-            // drift.  It covers intra-class `my method` dispatch, external
-            // `$obj method` / bare `objcmd method` sites, and the call sites of
-            // any subclass that inherits (does not override) this definition
-            // (which the class-local scan below would miss).
-            let (decl, mut calls) = method_references_for_class(
-                source,
-                dialect,
-                analysis,
-                &class_def.qualified_name,
-                word,
-                is_classmethod,
-            )?;
-            // `next` / `nextto` super-dispatch is a reference / highlight (both
-            // callers are read-only); rename resolves methods elsewhere and
-            // must not see these keyword tokens.
-            calls.extend(method_next_dispatch_spans(
-                analysis,
-                source,
-                dialect,
-                &class_def.qualified_name,
-                word,
-                is_classmethod,
-            ));
-            return Some((decl, calls));
-        }
-        // Properties: defer to the shared resolver — the *same* one the code
-        // lens counts with — so the peek and the lens can never drift, just
-        // like the method / classmethod branch above.
-        return property_references_for_class(
+    let class_def = analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(
+            analysis,
+            cursor_offset,
+        )?)?;
+    // Methods, classmethods, and properties are independent tables; a
+    // name shared by more than one (rare, but real — `TclOO` never
+    // merges them) disambiguates by which declaration's own span the
+    // cursor sits on rather than a fixed priority — see
+    // `resolve_member_span`.
+    let (kind, member_span) = resolve_member_span(class_def, word, cursor_offset)?;
+    if matches!(kind, MemberSel::Method | MemberSel::ClassMethod) {
+        let is_classmethod = kind == MemberSel::ClassMethod;
+        // Methods / classmethods: defer to the shared resolver — the *same*
+        // one the code lens counts with — so the peek and the lens can never
+        // drift.  It covers intra-class `my method` dispatch, external
+        // `$obj method` / bare `objcmd method` sites, and the call sites of
+        // any subclass that inherits (does not override) this definition
+        // (which the class-local scan below would miss).
+        let (decl, mut calls) = method_references_for_class(
             source,
             dialect,
             analysis,
             &class_def.qualified_name,
             word,
-        );
+            is_classmethod,
+        )?;
+        // `next` / `nextto` super-dispatch is a reference / highlight (both
+        // callers are read-only); rename resolves methods elsewhere and
+        // must not see these keyword tokens.
+        calls.extend(method_next_dispatch_spans(
+            analysis,
+            source,
+            dialect,
+            &class_def.qualified_name,
+            word,
+            is_classmethod,
+        ));
+        return Some((decl, calls));
     }
-    None
+    // Properties: no `$obj prop` dispatch and no inheritance model, so a
+    // class-local `my <prop>` scan is the whole story — the same
+    // intra-class `my <name>` matcher [`scan_my_method_sites`] uses for
+    // methods (recursing into `[...]` substitutions and same-frame
+    // control-flow / `eval` bodies), just with no declaration span to
+    // skip: a property's declaration is `property <name>` in the
+    // definer body, never itself a `my <name>` call site.
+    let call_spans = scan_my_method_sites(
+        source,
+        dialect,
+        &collect_member_bodies(class_def),
+        word,
+        None,
+    );
+    Some((member_span, call_spans))
 }
 
 /// Find every external `$v method` / `[$v method]` call site
@@ -2925,6 +2929,27 @@ mod tests {
         let texts = h.iter().filter(|(_, k)| *k == HighlightKind::Text).count();
         assert_eq!(writes, 0, "{h:?}");
         assert_eq!(texts, 3, "{h:?}");
+    }
+
+    #[test]
+    fn references_from_decl_reach_my_dispatch_when_class_extended_via_separate_oo_define() {
+        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
+        // created via `oo::class create` with no body; every method
+        // (including the `my Helper` call site) is added via a *separate*,
+        // later `oo::define Gadget { ... }` block — the real corpus shape
+        // (`ticklecharts::chart`). References from the `Helper` declaration
+        // must reach the `my Helper` call site living in that separate
+        // block, not silently return nothing.
+        let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `Helper` declaration (line 4, col 11).
+        let refs = references(src, "tcl", 4, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&4), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&5),
+            "the my Helper call site inside the separate oo::define block is missing: {refs:?}"
+        );
     }
 
     // external $obj method sites
