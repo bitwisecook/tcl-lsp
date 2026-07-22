@@ -102,37 +102,6 @@ fn summarise_detail(description: &str) -> String {
     }
 }
 
-/// Split a form-2 ``switch`` braced body into its flat list of
-/// pattern/body elements.
-///
-/// Uses the segmenter to split the body: every word across every
-/// command in the body is one element, producing a flat
-/// alternating pattern/body sequence.
-///
-/// Returns `(text, token)` pairs in source order.  The token's
-/// span is rebased into the outer source's offset space via the
-/// body token's `content_offset`.  Dynamic bodies (non-`Str`
-/// tokens) yield an empty list — the caller must fall back to
-/// form-1-style alternation when the form-2 body cannot be
-/// statically split.
-pub(super) fn parse_switch_body_elements(body_text: &str, body_tok: Token) -> Vec<(String, Token)> {
-    if body_tok.kind != TokenType::Str {
-        return Vec::new();
-    }
-    let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-    let cmds = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
-    let mut elements = Vec::new();
-    for cmd in cmds {
-        if cmd.is_partial {
-            continue;
-        }
-        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()) {
-            elements.push((text.clone(), *tok));
-        }
-    }
-    elements
-}
-
 impl Analyser {
     /// Handle the `set` command: `set var ?value?`.
     ///
@@ -1813,8 +1782,8 @@ impl Analyser {
     ///    — pattern and body args alternate inline.
     /// 2. ``switch ?options? string {pattern body ?pattern body? ...}``
     ///    — pattern/body pairs live inside a single braced
-    ///    block.  See `parse_switch_body_elements` for how that
-    ///    braced form is split.
+    ///    block.  See [`crate::segmenter::flatten_clause_list_elements`]
+    ///    for how that braced form is split.
     ///
     /// Bodies that are literally ``-`` are fall-through markers
     /// (the next arm's body fires) and are skipped — recursing
@@ -1866,7 +1835,7 @@ impl Analyser {
             let Some(body_tok) = arg_tokens.get(i).copied() else {
                 return true;
             };
-            let elements = parse_switch_body_elements(&body_text, body_tok);
+            let elements = crate::segmenter::flatten_clause_list_elements(&body_text, body_tok);
             let mut j = 0;
             while j + 1 < elements.len() {
                 let (pat_text, pat_tok) = &elements[j];
@@ -5075,7 +5044,7 @@ mod tests {
     fn handle_switch_form2_braced_body_walks_each_arm() {
         // Form 2: ``switch $x { a {set y 1} b {set z 2} }``.
         // The single braced body holds all pattern/body pairs;
-        // ``parse_switch_body_elements`` re-segments to surface
+        // ``flatten_clause_list_elements`` re-segments to surface
         // each pair, then each body recurses.
         let mut a = Analyser::new();
         let body_text = " a {set y 1} b {set z 2} ".to_string();

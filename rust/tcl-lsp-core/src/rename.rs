@@ -87,6 +87,7 @@ use tcl_registry::CommandRegistry;
 
 use crate::definition::LspRange;
 use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::references::{MemberSel, resolve_member_span};
 
 /// One text edit in a rename — span plus replacement text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -248,22 +249,10 @@ pub fn prepare_rename(
         if !(body.start() < cursor_offset && cursor_offset < body.end()) {
             continue;
         }
-        if let Some(m) = class_def.methods.get(&word) {
+        if let Some((_, span)) = resolve_member_span(class_def, &word, cursor_offset) {
             return Some(PrepareRename {
-                range: span_to_range(source, &line_index, m.name_span),
-                placeholder: m.name.clone(),
-            });
-        }
-        if let Some(m) = class_def.class_methods.get(&word) {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, m.name_span),
-                placeholder: m.name.clone(),
-            });
-        }
-        if let Some(p) = class_def.properties.get(&word) {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, p.name_span),
-                placeholder: p.name.clone(),
+                range: span_to_range(source, &line_index, span),
+                placeholder: word.clone(),
             });
         }
     }
@@ -441,7 +430,11 @@ fn rename_method_in_class(
     let mut edits = Vec::new();
     for member in &family {
         // Only ever reached via an external `$obj method` call site (see the
-        // call site below), which is always an instance-method receiver.
+        // call site below), which is always an instance-method receiver —
+        // never a classmethod, which is called on the class object itself
+        // (confirmed against tclsh 9.0.4, see
+        // `tcl_compiler::analyser::diagnostics::var_command`'s dispatch-scope
+        // note).
         let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
             source, dialect, analysis, member, method, false,
         ) else {
@@ -971,54 +964,25 @@ fn rename_method(
         if !(body.start() < cursor_offset && cursor_offset < body.end()) {
             continue;
         }
-        // A `method` and a `classmethod` of the same name are distinct
-        // members; unambiguous when only one exists, otherwise prefer
-        // whichever one's declaration the cursor is actually on.
-        let has_method = class_def.methods.contains_key(word);
-        let has_classmethod = class_def.class_methods.contains_key(word);
-        let is_classmethod = has_classmethod
-            && (!has_method
-                || class_def.class_methods.get(word).is_some_and(|m| {
-                    m.name_span.start() <= cursor_offset && cursor_offset < m.name_span.end()
-                }));
-        // Try the disambiguated kind first, then the other, then properties.
-        let member_name_span: Option<Span> = if is_classmethod {
-            class_def.class_methods.get(word).map(|m| m.name_span)
-        } else {
-            class_def.methods.get(word).map(|m| m.name_span)
-        }
-        .or_else(|| class_def.properties.get(word).map(|p| p.name_span));
-        let name_span = member_name_span?;
+        // Methods, classmethods, and properties are independent tables; a
+        // name shared by more than one (rare, but real — `TclOO` never
+        // merges them) disambiguates by which declaration's own span the
+        // cursor sits on rather than a fixed priority — see
+        // `resolve_member_span`.
+        let (selected_kind, name_span) = resolve_member_span(class_def, word, cursor_offset)?;
+        let is_classmethod = selected_kind == MemberSel::ClassMethod;
         let mut edits = vec![TextEdit {
             range: span_to_range(source, line_index, name_span),
             new_text: new_name.to_owned(),
         }];
-        // Scan every method / classmethod / constructor /
-        // destructor body for command invocations whose head
-        // matches `word`.  Re-segments each body via the
-        // segmenter — analyser-side `command_invocations`
-        // only carries top-level invocations.
-        let mut body_spans: Vec<Span> = class_def
-            .methods
-            .values()
-            .map(|m| m.body_span)
-            .chain(class_def.class_methods.values().map(|m| m.body_span))
-            .chain(class_def.constructors.iter().map(|c| c.body_span))
-            .collect();
-        if let Some(d) = &class_def.destructor {
-            body_spans.push(d.body_span);
-        }
-        let scan_ctx = MethodRenameCtx {
-            source,
-            dialect,
-            word,
-            new_name,
-            name_span,
-            line_index,
-        };
-        for span in body_spans {
-            scan_body_for_method_calls(scan_ctx, span, &mut edits);
-        }
+        // `command_invocations` records top-level invocations only; method
+        // bodies aren't walked there.  `body_spans` (every method /
+        // classmethod / constructor / destructor body) is the re-segmentable
+        // material both branches below scan via the shared `my`-aware
+        // matcher — a `TclOO` member is never a bare-callable command (a
+        // bare `word` errors "invalid command name" at runtime; only `my
+        // word` dispatches), so there is no separate bare-head scan here.
+        let body_spans: Vec<Span> = crate::references::collect_member_bodies(class_def);
         // Methods / classmethods (not properties — those aren't dispatched
         // through the MRO) are one polymorphic name across the whole override
         // family: a method (re)defined by a super- or sub-class renames as a
@@ -1029,7 +993,7 @@ fn rename_method(
         // class through it too (rather than an ad-hoc self-only scan) is what
         // catches an inheriting subclass's `my method` / `$obj method` sites
         // when renaming from the base declaration.
-        if has_method || has_classmethod {
+        if matches!(selected_kind, MemberSel::Method | MemberSel::ClassMethod) {
             for member in override_family(analysis, &class_def.qualified_name, word) {
                 let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
                     source,
@@ -1055,89 +1019,23 @@ fn rename_method(
                     });
                 }
             }
+        } else {
+            // Properties have no `$obj prop` dispatch and no inheritance model
+            // (see `references::find_class_member_references`), so a
+            // class-local `my <prop>` scan is the whole story.
+            for span in
+                crate::references::scan_my_method_sites(source, dialect, &body_spans, word, None)
+            {
+                edits.push(TextEdit {
+                    range: span_to_range(source, line_index, span),
+                    new_text: new_name.to_owned(),
+                });
+            }
         }
         dedup_edits(&mut edits);
         return Some(edits);
     }
     None
-}
-
-/// Read-only context for the OO-method-rename body scan: the document
-/// `source` + `dialect`, the matched head `word`, its `new_name`
-/// replacement, the declaration `name_span` (skipped), and the
-/// `line_index` for span-to-range mapping.
-#[derive(Clone, Copy)]
-struct MethodRenameCtx<'a> {
-    source: &'a str,
-    dialect: &'a str,
-    word: &'a str,
-    new_name: &'a str,
-    name_span: tcl_lexer::Span,
-    line_index: &'a LineIndex,
-}
-
-/// Re-segment a method body and append a rewrite edit for
-/// every command invocation whose head matches `word` (and
-/// isn't the declaration site itself).  Uses
-/// [`tcl_compiler::segmenter::segment_commands_with_offset`]
-/// so the resulting token spans use absolute source offsets.
-fn scan_body_for_method_calls(
-    ctx: MethodRenameCtx<'_>,
-    body_span: tcl_lexer::Span,
-    edits: &mut Vec<TextEdit>,
-) {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    let source = ctx.source;
-    if body_span.is_empty() {
-        return;
-    }
-    let mut start = body_span.start() as usize;
-    let mut end = body_span.end() as usize;
-    if start >= source.len() || end > source.len() || start > end {
-        return;
-    }
-    // The analyser records body spans inclusive of the
-    // braces (`{...}`).  The segmenter treats a leading `{`
-    // as a braced literal opener and would refuse to
-    // segment the inner content, so strip the surrounding
-    // braces before re-segmenting.
-    if source.as_bytes().get(start) == Some(&b'{') {
-        start += 1;
-    }
-    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-        end -= 1;
-    }
-    let body_text = &source[start..end];
-    let commands = segment_commands_with_offset_and_config(
-        body_text,
-        u32::try_from(start).unwrap_or(body_span.start()),
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
-    );
-    for cmd in &commands {
-        let Some(head) = cmd.argv.first() else {
-            continue;
-        };
-        let head_span = head.span;
-        // Match the head token text against `word`.  We could
-        // use `cmd.texts[0]` but spans are sufficient here.
-        let head_start = head_span.start() as usize;
-        let head_end = head_span.end() as usize;
-        if head_start >= source.len() || head_end > source.len() {
-            continue;
-        }
-        let head_text = &source[head_start..head_end];
-        if head_text != ctx.word {
-            continue;
-        }
-        // Skip the declaration site itself.
-        if head_span.start() == ctx.name_span.start() && head_span.end() == ctx.name_span.end() {
-            continue;
-        }
-        edits.push(TextEdit {
-            range: span_to_range(source, ctx.line_index, head_span),
-            new_text: ctx.new_name.to_owned(),
-        });
-    }
 }
 
 /// Compute the qualified rewrite (`prefix::new`) and the
@@ -1854,10 +1752,11 @@ mod tests {
 
     #[test]
     fn rename_method_at_decl_rewrites_decl_and_calls() {
-        // Method declared on line 1, called from line 2's body
-        // twice — should rewrite the declaration plus both
-        // call sites.
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        // Method declared on line 1, dispatched via `my greet` from line 2's
+        // body twice — should rewrite the declaration plus both call sites.
+        // A bare `greet` call is never valid `TclOO` dispatch (only `my
+        // greet` reaches the method), so the fixture must use `my`.
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1 col 11).
         let edits = rename(src, "tcl", 1, 11, "salute", &analysis, None);
@@ -1891,14 +1790,129 @@ mod tests {
 
     #[test]
     fn rename_method_at_call_site_also_works() {
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
-        // Cursor on the first `greet` call site (line 2 col 22).
-        let edits = rename(src, "tcl", 2, 22, "salute", &analysis, None);
+        // Cursor on the first `greet` call site (line 2 col 25, after `my `).
+        let edits = rename(src, "tcl", 2, 25, "salute", &analysis, None);
         assert!(edits.len() >= 3, "{edits:?}");
         for e in &edits {
             assert_eq!(e.new_text, "salute");
         }
+    }
+
+    /// Regression: `rename_method` used to also run an unconditional
+    /// bare-head scan that rewrote *any* command invocation whose head text
+    /// matched the renamed method's name — including an unrelated builtin
+    /// call that merely happens to share the name.  A `TclOO` method is
+    /// never a bare-callable command (only `my <method>` dispatches it), so
+    /// a bare call is always a call to something else and must never be
+    /// touched by a method rename.
+    #[test]
+    fn rename_method_does_not_rewrite_unrelated_bare_command_with_same_name() {
+        let src = "oo::class create C {\n    method format {} {}\n    method show {} { format %d 1 }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `format` method's declaration (line 1, col 11).
+        let edits = rename(src, "tcl", 1, 11, "render", &analysis, None);
+        // Only the declaration is renamed — the bare `format %d 1` call
+        // inside `show` invokes the builtin, not this method.
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(edits[0].range.start_line, 1);
+    }
+
+    /// Regression: methods, classmethods, and properties are independent
+    /// tables, so a name shared by more than one (rare, but `TclOO` never
+    /// merges them) must resolve to whichever declaration the cursor
+    /// actually sits on — not always the same one by blind priority, which
+    /// would silently rename the wrong declaration.
+    #[test]
+    fn rename_disambiguates_property_and_method_sharing_a_name_by_cursor() {
+        let src = "oo::class create C {\n    property color\n    method color {} { return c }\n}\n";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        // Cursor on the *property* declaration (line 1, col 13).
+        let property_edits = rename(src, "tcl9.0", 1, 13, "shade", &analysis, None);
+        assert_eq!(
+            property_edits.len(),
+            1,
+            "expected only the property decl: {property_edits:?}"
+        );
+        assert_eq!(property_edits[0].range.start_line, 1, "{property_edits:?}");
+        // Cursor on the *method* declaration (line 2) picks the method
+        // instead, leaving the same-named property untouched.
+        let method_edits = rename(src, "tcl9.0", 2, 11, "shade", &analysis, None);
+        assert!(
+            method_edits.iter().any(|e| e.range.start_line == 2),
+            "{method_edits:?}"
+        );
+        assert!(
+            method_edits.iter().all(|e| e.range.start_line != 1),
+            "must not touch the same-named property: {method_edits:?}"
+        );
+    }
+
+    /// Regression: an instance `method` and a `classmethod` sharing a name
+    /// (rare, but `TclOO` keeps them in independent tables, so it's legal)
+    /// must never cross-link during rename — `my <word>` dispatch scope
+    /// depends on which table the *caller's own body* belongs to (`self` is
+    /// the class object inside a `classmethod`, the instance everywhere
+    /// else), so renaming the classmethod must not touch a `my greet` site
+    /// that actually dispatches to the unrelated instance method — doing so
+    /// would corrupt otherwise-working code (the call would then reference
+    /// a name that no longer exists on the instance).
+    #[test]
+    fn rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site() {
+        let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n    method twice {} { my greet }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the *classmethod* declaration (line 2, col 16).
+        let edits = rename(src, "tcl", 2, 16, "hail", &analysis, None);
+        assert_eq!(
+            edits.len(),
+            1,
+            "only the classmethod's own decl — `twice`'s `my greet` targets \
+             the unrelated instance method and must be untouched: {edits:?}"
+        );
+        assert_eq!(edits[0].range.start_line, 2, "{edits:?}");
+    }
+
+    // property rename
+
+    /// Regression: renaming a property must rewrite every `my <property>`
+    /// call site alongside the declaration.  Properties have no `$obj
+    /// prop` dispatch and no override family — but they *are* read via
+    /// `my <property>` inside the class's own methods, and a bare
+    /// `<property>` occurrence is never valid `TclOO` dispatch (only `my
+    /// <property>` reads it), so the bare-head scan `rename_method` also
+    /// runs never matches this shape — without the dedicated `my`-aware
+    /// scan, only the declaration was renamed, leaving call sites pointing
+    /// at the old name.
+    #[test]
+    fn rename_property_rewrites_decl_and_my_dispatch_call_sites() {
+        let src = "oo::class create C {\n    property color\n    method describe {} {\n        return [my color]\n    }\n}\n";
+        // `property` is Tcl 9.0+ — the shared `analyse()` helper fixes the
+        // dialect at 8.6, so this test analyses at 9.0 directly.
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        // Cursor on the `color` property declaration (line 1, col 13).
+        let edits = rename(src, "tcl9.0", 1, 13, "shade", &analysis, None);
+        assert_eq!(edits.len(), 2, "decl + `my color` call site: {edits:?}");
+        assert!(edits.iter().all(|e| e.new_text == "shade"));
+        assert_eq!(edits[0].range.start_line, 1);
+        assert_eq!(edits[1].range.start_line, 3);
+    }
+
+    /// FN→TP (issue #957's general form): a `my <property>` read nested
+    /// inside `if` control flow is renamed too — the property rename path
+    /// shares `scan_my_method_sites`'s control-flow recursion with methods.
+    #[test]
+    fn rename_property_rewrites_control_flow_nested_call_site() {
+        let src = "oo::class create C {\n    property color\n    method describe {} {\n        if {1} {\n            return [my color]\n        }\n    }\n}\n";
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+        let edits = rename(src, "tcl9.0", 1, 13, "shade", &analysis, None);
+        assert_eq!(
+            edits.len(),
+            2,
+            "decl + nested `my color` call site: {edits:?}"
+        );
+        assert!(edits.iter().all(|e| e.new_text == "shade"));
+        assert_eq!(edits[1].range.start_line, 4);
     }
 
     #[test]
@@ -1910,6 +1924,24 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(src, "tcl", 3, 2, "salute", &analysis, None);
         assert!(edits.is_empty(), "{edits:?}");
+    }
+
+    /// Regression for issue #957's general form: renaming a method must
+    /// rewrite a `my method` call site nested inside `if` / `switch`
+    /// control flow, not just a top-level or `[...]`-nested call — `rename`
+    /// delegates to the same `method_references_for_class` resolver
+    /// `references`/the code lens use, so the fix there covers rename too.
+    #[test]
+    fn rename_method_rewrites_control_flow_nested_my_dispatch() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        if {1} {\n            switch -- $k {\n                default {\n                    my getOptions $k\n                }\n            }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `getOptions` declaration (line 1, col 11).
+        let edits = rename(src, "tcl", 1, 11, "fetchOptions", &analysis, None);
+        assert_eq!(edits.len(), 2, "decl + nested `my` site: {edits:?}");
+        assert!(edits.iter().all(|e| e.new_text == "fetchOptions"));
+        assert_eq!(edits[0].range.start_line, 1);
+        // The nested call site, six lines further down.
+        assert_eq!(edits[1].range.start_line, 6);
     }
 
     #[test]

@@ -1530,7 +1530,7 @@ fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
 /// its first positional (option-skipping) argument; `switch -regexp`
 /// contributes every non-`default` pattern arm — inline pairs (form 1)
 /// or a single braced case list (form 2, re-segmented via
-/// [`super::handlers::parse_switch_body_elements`]).
+/// [`crate::segmenter::flatten_clause_list_elements`]).
 fn find_regex_patterns_in_command(
     takes_regex_pattern: bool,
     cmd_name: &str,
@@ -1574,7 +1574,8 @@ fn find_regex_patterns_in_command(
             if i < args.len() && i == args.len() - 1 {
                 // Form 2: single braced case list.
                 if let Some(case_tok) = arg_tokens.get(i) {
-                    let elements = super::handlers::parse_switch_body_elements(&args[i], *case_tok);
+                    let elements =
+                        crate::segmenter::flatten_clause_list_elements(&args[i], *case_tok);
                     let mut j = 0;
                     while j + 1 < elements.len() {
                         let (text, tok) = &elements[j];

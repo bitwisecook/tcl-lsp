@@ -294,6 +294,42 @@ pub fn segment_commands_with_offset_and_config(
         .collect()
 }
 
+/// Split a `{pattern body ?pattern body ...?}` clause-list body into its
+/// flat, alternating sequence of pattern/body elements — the single-braced
+/// form of a [`tcl_registry::CommandSpec::case_list`] command (`switch`'s
+/// braced-list form, Expect's `expect { ... }`).
+///
+/// Uses the segmenter to split the body: every word across every
+/// (pseudo-)command in the body is one element, so the result alternates
+/// pattern, body, pattern, body, … in source order, whatever whitespace or
+/// brace nesting separates them.
+///
+/// Returns `(text, token)` pairs; each token's span is rebased into the
+/// outer source's offset space via `body_tok`'s `content_offset`, so a
+/// caller holding `body_tok` from the outer document gets absolute spans
+/// with no further arithmetic. Dynamic bodies (`body_tok.kind !=
+/// TokenType::Str` — a `$var` / `[cmd]` clause list computed at runtime)
+/// yield an empty list: the shape can't be statically split, so the caller
+/// must fall back to whatever it does for a non-literal clause list.
+#[must_use]
+pub fn flatten_clause_list_elements(body_text: &str, body_tok: Token) -> Vec<(String, Token)> {
+    if body_tok.kind != TokenType::Str {
+        return Vec::new();
+    }
+    let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+    let cmds = segment_commands_with_offset(body_text, base_offset);
+    let mut elements = Vec::new();
+    for cmd in cmds {
+        if cmd.is_partial {
+            continue;
+        }
+        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()) {
+            elements.push((text.clone(), *tok));
+        }
+    }
+    elements
+}
+
 /// Incrementally re-segment `new_text` from the segmentation of
 /// `old_text` (`old_commands`), reusing the unchanged **prefix** of
 /// top-level commands and re-lexing only from the first affected command

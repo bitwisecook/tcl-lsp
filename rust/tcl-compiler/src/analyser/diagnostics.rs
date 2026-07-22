@@ -83,9 +83,7 @@ use super::types::Severity;
 // Re-export the sibling analyser modules the family submodules reference by
 // relative path (`super::types::Diagnostic`, `super::utils::…`, …) so those
 // references resolve from `analyser::diagnostics::<family>`.
-pub(super) use super::{
-    class_hierarchy, confusables_table, dispatch, handlers, state, types, utils,
-};
+pub(super) use super::{class_hierarchy, confusables_table, dispatch, state, types, utils};
 
 // Re-export the family helpers exercised by this module's unit tests so the
 // `tests` submodule reaches them through its `use super::*`.

@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, getServerLogSize, waitForServerLog } from "./helper";
+import { getDocUri, activate } from "./helper";
 
 suite("Rename Symbol", () => {
   const docUri = getDocUri("procs.tcl");
@@ -160,27 +160,21 @@ suite("Rename Symbol", () => {
   // the whole request.)
   test("rename from a consumer document rewrites the auto-loaded library definition (M8)", async () => {
     const uri = getDocUri("autoloadLibrary.tcl");
-    // Snapshot the log cursor BEFORE opening so the wait below only matches
-    // this document's settle, not a stale line from an earlier test.
-    const since = getServerLogSize();
     await activate(uri);
 
-    // Deterministic readiness via message passing — no polling.  The consumer's
-    // own call site (`Rbc_ActiveLegend .g`) only becomes a cross-document
-    // reference once its *focused* analysis is committed to the workspace index
-    // (that walk is what gives the invocation its resolution candidates, which
-    // the cross-document rename matches against).  The server logs
-    // `[timing] workspace_state.update (uri=…autoloadLibrary.tcl …)` at the end
-    // of that commit, so wait for exactly that message.  The timeout is only a
-    // backstop against a total hang, never the synchronisation mechanism.
-    const settled = await waitForServerLog(
-      (line) => line.includes("workspace_state.update") && line.includes("autoloadLibrary.tcl"),
-      { since, timeout: 20_000 },
-    );
-    assert.ok(
-      settled,
-      "server must report the consumer document's workspace_state.update before the deadline",
-    );
+    // No log-line wait needed here (issue #1003): the server's autoload
+    // resolution (`ensure_autoload_indexed`) now blocks out any in-flight
+    // `scan_workspace_folders` internally before consulting the package
+    // database, so the rename request below is correct regardless of when
+    // it lands relative to that scan — including immediately after
+    // `activate`, before any workspace-wide scan has necessarily finished.
+    // (An earlier version of this test waited for this document's own
+    // `[timing] workspace_state.update` log line, which was both the wrong
+    // signal for the actual dependency — that per-document commit is
+    // unrelated to the workspace-wide package-database scan the autoload
+    // tier needs — and unreliable in a full suite run, where an earlier
+    // test can already have opened this same fixture, leaving no *new*
+    // line for a fresh `since` cursor to ever match.)
 
     // `Rbc_ActiveLegend .g` — line 0; the definition lives in
     // rbclib/graph.tcl (line 2, after two comment lines).  A single rename now

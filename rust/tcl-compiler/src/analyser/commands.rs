@@ -2578,7 +2578,8 @@ fn record_command_invocations(
         };
         for body in bodies {
             if switch_list_idx == Some(body.index) {
-                let elements = super::handlers::parse_switch_body_elements(&body.text, body.token);
+                let elements =
+                    crate::segmenter::flatten_clause_list_elements(&body.text, body.token);
                 // Elements alternate pattern, body, pattern, body, … —
                 // descend the (odd-indexed) arm bodies only; a `-`
                 // fall-through has no body of its own.
