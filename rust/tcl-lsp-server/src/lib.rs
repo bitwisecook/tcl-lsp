@@ -12250,6 +12250,16 @@ fn is_tcl_source(path: &Path) -> bool {
                 | "impl"
                 | "exp"
                 | "apl"
+                // The standard `tcltest` test-file extension (tcllib's own
+                // test suite, and every mined corpus, use it throughout —
+                // e.g. `test/argparse.test`). Omitting it meant a proc's
+                // call sites inside an un-opened `.test` file were invisible
+                // to the background workspace scan, so cross-document
+                // find-references / rename-safety silently missed them
+                // (issue #923 differential-audit finding idx 10, main audit
+                // wave) — even though opening the file directly worked fine,
+                // since that path doesn't go through this scan at all.
+                | "test"
         )
     )
 }
@@ -17693,6 +17703,7 @@ mod tests {
     fn is_tcl_source_matches_the_full_tcl_family_extension_set() {
         for ext in [
             "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl",
+            "test",
         ] {
             assert!(
                 is_tcl_source(Path::new(&format!("/a/b.{ext}"))),
@@ -17701,6 +17712,17 @@ mod tests {
         }
         assert!(!is_tcl_source(Path::new("/a/b.txt")));
         assert!(!is_tcl_source(Path::new("/a/b")));
+    }
+
+    #[test]
+    fn is_tcl_source_recognises_tcltest_files() {
+        // TP — differential-audit finding idx 10 (main audit wave): the
+        // standard `tcltest` extension (`test/argparse.test`, and every
+        // `.test` file throughout tcllib's own test suite) was omitted from
+        // the background workspace scan's allowlist, so a proc's call sites
+        // living in an un-opened `.test` file were invisible to
+        // cross-document find-references / rename-safety.
+        assert!(is_tcl_source(Path::new("/ws/test/argparse.test")));
     }
 
     #[test]
@@ -17750,6 +17772,32 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
 
         assert_eq!(names, vec!["mod.tm", "nested.tcl", "top.tcl"]);
+    }
+
+    #[test]
+    fn collect_tcl_files_picks_up_tcltest_files() {
+        // TP — differential-audit finding idx 10 (main audit wave): a
+        // `.test` file (the standard `tcltest` extension — every mined
+        // corpus, and tcllib's own test suite, use it throughout, e.g.
+        // `test/argparse.test`) was invisible to the background workspace
+        // scan, so cross-document find-references / rename-safety
+        // silently missed call sites living in an un-opened `.test` file.
+        let root = unique_scratch_dir("tcltest");
+        std::fs::create_dir_all(root.join("test")).unwrap();
+        std::fs::write(root.join("lib.tcl"), "proc plain {} { return 1 }\n").unwrap();
+        std::fs::write(root.join("test/argparse.test"), "plain\n").unwrap();
+
+        let mut out = Vec::new();
+        collect_tcl_files(&root, 100, &mut out);
+        let mut names: Vec<String> = out
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+
+        std::fs::remove_dir_all(&root).ok();
+
+        assert_eq!(names, vec!["argparse.test", "lib.tcl"]);
     }
 
     #[test]
