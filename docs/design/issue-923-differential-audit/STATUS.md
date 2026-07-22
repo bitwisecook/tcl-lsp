@@ -31,14 +31,15 @@ pushed to this branch (§3/§6a); 6 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
-Nine of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
+Ten of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
 (high, §3's `26e4ea3`), idx 10 (high, §3's `9a55b00`), idx 18 (high, §3's
 `b3cbdb1`), idx 29 (high, already resolved by idx 18's fix, pinned in
 §3's `65aaa5c`), idx 31 (high, §3's `26c6e02`), idx 32 (high, §3's
 `77c5e97`), idx 33 (high, same root cause as idx 18, pinned in §3's
-`b1d7269`), idx 39 (high, §3's `6f58385`); the other 76 main-wave
-findings are clustered by feature/root-cause with a priority-ordered
-table in §6b, ready for a future session to pick up efficiently. Nothing
+`b1d7269`), idx 39 (high, §3's `6f58385`), idx 46 (high, partial — §3's
+`2fb4921`); the other 75 main-wave findings are clustered by
+feature/root-cause with a priority-ordered table in §6b, ready for a
+future session to pick up efficiently. Nothing
 is lost — the raw data,
 the exact scripts that
 produced it, and everything needed to resume are in
@@ -172,6 +173,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `77c5e97` | **main-wave** idx 32 (high) | A TclOO class body with 2+ separate `variable` statements (georgtree_tclopt's `::tclopt::Mpfit` declares `variable funct m ftol ...` then, separately, `variable Pars` — the same idiom recurs in all four real optimiser classes in `tclopt.tcl`) only kept the LAST statement's names as recognised instance variables — go-to-definition/hover/find-references on any name from an earlier statement returned nothing, even though tclsh9.0 proves both statements' names are simultaneously live (`variable` in a class body means "always present in every method", additive across statements, never a reset — the same declaration a `variable` command inside a method body itself makes, just issued once for the class). `apply_oo_subcommand`'s `"variable"` arm assigned `class_def.variables = sub_args.to_vec()` on every call, discarding earlier statements' names — unlike the sibling `"export"`/`"unexport"` arms right next to it, which already correctly `.extend()`. One-line fix (`=` → `.extend()`). Also confirmed (order-swap + plain-vs-`{*}`-command-head repros) that the finding's own dynamic-dispatch reference-tracking observation is a separate, pre-existing, correctly-abstained limitation, untouched here. |
 | `b1d7269` | **main-wave** idx 33 (high, test-only) | A class *instantiation* call (`GSA new`, the real corpus's `arbitaryTest.tcl` idiom) reached only through a cross-document wildcard `namespace import NS::*` — the finding's own root-cause citation is `WorkspaceIndex::index_command_links`'s glob-pattern skip, the exact mechanism idx 18 already fixed; found independently before idx 18 landed. Verification hit a wrinkle: the `lsp_client.py` CLI script initially reported this (and even a simpler same-document, non-wildcard, fully-qualified call) as still broken; cross-checking with the `tcl-lsp-core::definition::definition()` unit-level harness and the `Lsp::tcl()` e2e harness (both proven reliable all campaign) showed both resolve correctly — a CLI tooling artifact, not a real regression, now documented in the new test's own comment as a heads-up. No production changes — pinned as permanent, dedicated regression coverage (a class-instantiation call specifically, distinct in shape from idx 18/29's own tests). |
 | `6f58385` | **main-wave** idx 39 (high) | `rename OLD NEW`'s own `OLD` word is a genuine reference to the command being renamed (the same shape `ArgRole::CommandName` models for `info body PROC`), but `handle_rename` never recorded it as a `command_invocation` — `references()`/`rename()` build exclusively from that list, so the token was invisible to both (hover/go-to-definition already resolved it via an independent cursor-token walk). Real corpus shape: a tcltest `-setup`/`-body`/`-cleanup` idiom (`proc gaussfunc {...} {...}` ... `rename gaussfunc ""`) — applying the LSP's own incomplete rename `WorkspaceEdit` renames the proc but leaves the `rename` statement's `OLD` word stale, crashing a previously-passing test at runtime with no diagnostic warning. Fixed with a direct `push_command_reference` call from `handle_rename` rather than a registry retag (`ArgRole::Name` → `CommandName`): the generic `record_command_name_invocations` pass skips dynamic words outright, while `handle_rename` already constant-folds both arguments itself, so a direct push captures strictly more, including the deleting form `rename OLD {}`. Two more bugs surfaced and fixed while wiring this in: (1) the pre-existing `rename_target_spans`/`WorkspaceCommandLink.target_span` mechanism already produced an edit for this same token via a separate path, causing an exact duplicate `WorkspaceTextEdit` in cross-document rename — removed outright (strictly narrower than the new reference, mirroring `interp alias`'s existing `target_span: None` precedent) and replaced with a new `AnalysisResult::rename_offsets` field (mirroring `alias_offsets`) to keep the nested-link check working; (2) `rename puts myputs` started falsely W123-flagging its own `puts` word, because the recorded deletion offset sat textually before the new reference in the same statement, and `registry_name_deleted_before`'s ordering check read that as "deleted before this call" — fixed by anchoring the deletion offset just past `OLD`'s own token instead of the statement's start. |
+| `2fb4921` | **main-wave** idx 46 (high, partial) | `handle_source_command` recorded `is_literal: false` unconditionally for any `source` path containing `$`/`[` — even the audit's own "simplest possible case" control, a straight-line same-file `set p "e.tcl"; source $p` with zero branches and zero external input. An untracked `source` edge isn't just a missed resolution: `refresh_source_rehoming` silently drops it, so the sourced document keeps its default `::`-only analysis while its definitions still leak into every caller's go-to-definition as if unconditionally global — the finding demonstrates both a false negative (the real, qualified call resolves to 0 locations) and a false positive (a nonexistent name resolves confidently to a declaration) on the same file pair. Fixed by trying the same last-write-wins constant-string lattice already proven for `rename`'s OLD/NEW words (idx 3) before falling back to the existing dynamic path; `resolve_rename_arg` renamed to `resolve_dynamic_word` (already fully generic, nothing rename-specific about it) and shared by both callers. Covers a bare `source $p` and a multi-token concatenation (`source ${base}.tcl`) alike. Deliberately out of scope, pinned with a dedicated FN test: a variable wrapped inside a `[file join/dirname ...]` command substitution (`fold_interpolation_single` rejects any word containing `[` by design), and any variable whose constant value originates in a *different* file (the corpus's own primary ehuddle.tcl shape, `variable edir [file dirname [file normalize [info script]]]` in one file consumed via `source [file join $edir ...]` in another) — both need interprocedural constant propagation across files, the same class of follow-up idx 3/116/120 already deferred. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -352,12 +354,13 @@ tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
 merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
 from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
 `wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
-REFUTED.** Of the 85 CONFIRMED: **9 fixed** (idx 61, critical — §3's
+REFUTED.** Of the 85 CONFIRMED: **10 fixed** (idx 61, critical — §3's
 `d825d1d`; idx 9, high — §3's `26e4ea3`; idx 10, high — §3's `9a55b00`;
 idx 18, high — §3's `b3cbdb1`; idx 29, high, same root cause as idx 18 —
 §3's `65aaa5c`; idx 31, high — §3's `26c6e02`; idx 32, high — §3's
 `77c5e97`; idx 33, high, same root cause as idx 18 — §3's `b1d7269`; idx
-39, high — §3's `6f58385`), **76 remaining**.
+39, high — §3's `6f58385`; idx 46, high, partial — §3's `2fb4921`), **75
+remaining**.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
@@ -368,7 +371,7 @@ namespaces 11, proc_args 10, upvar 7, source 6, tcl_mathop 5, rename 4,
 package_loading 3, uplevel 3, tracing 3, aliasing 2, safe_interp 2, eval 1,
 autoindex 1.
 
-#### Priority tier 1 — critical + high (24 findings, 9 already fixed)
+#### Priority tier 1 — critical + high (24 findings, 10 already fixed)
 
 Fix these first — each is either data-loss-risk (a rename that silently
 breaks the program, idx 61) or a full-zero-results failure of a core
@@ -389,7 +392,7 @@ not a substitute.
 | 32 | high | tclopt | tricky_indirection | **FIXED** (`77c5e97`) — a class's 2nd+ `variable` statement silently discarded the 1st's names instead of accumulating. |
 | 33 | high | tclopt | tricky_indirection | **FIXED** (already resolved by `b3cbdb1`'s idx 18 fix — same root cause; pinned with a dedicated test in `b1d7269`). |
 | 39 | high | tclopt | rename | **FIXED** (`6f58385`) — `rename`'s own `OLD` word was omitted from references/rename; also fixed a duplicate-edit bug and a W123 false positive found while wiring it in. |
-| 46 | high | ticklecharts | source | A `source` target built from a namespace variable derived through another indirection layer — go-to-definition/cross-file resolution fails. |
+| 46 | high | ticklecharts | source | **PARTIALLY FIXED** (`2fb4921`) — a same-file constant-variable `source` target now resolves; a variable wrapped in `[file join ...]` or originating in a different file still doesn't (needs interprocedural constant propagation, pinned with an FN test). |
 | 52 | high | ticklecharts | tricky_indirection | Two distinct results bundled in one finding — `[self class]`/`[self method]`-based dynamic class-def dispatch. |
 | 56 | high | ticklecharts | tclOO | ticklecharts installs `classvar`/`callback` directly into `::oo::Helpers` — the doc/registry model for TclOO helper installation doesn't account for this. |
 | 63 | high | ticklecharts | proc_args | Go-to-definition AND find-references both zero-result for an internal `my AddBarSeries`/sibling-method-call idiom. |
@@ -526,12 +529,13 @@ manual differential checks — see its own docstring for usage
 4. Pick the next finding to fix — two ready queues, both fully triaged:
    - §6a: 6 remaining tcllib findings (idx 121/122/18/125/128/24), no
      refined plan for any — use `07`'s `root_cause_hint` directly.
-   - §6b: 76 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
-     idx 29, idx 31, idx 32, idx 33, and idx 39 are fixed so far), fully
-     triaged into a priority-ordered critical/high table (15 remaining,
-     start here) and a feature-clustered medium/low table (61 findings,
-     group by feature when fixing). Likely the higher-leverage queue given
-     its size and the presence of several zero-results
+   - §6b: 75 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
+     idx 29, idx 31, idx 32, idx 33, idx 39, and idx 46 are fixed — idx 46
+     only partially, see its §3/§6b row for what's still open — so far),
+     fully triaged into a priority-ordered critical/high table (14
+     remaining, start here) and a feature-clustered medium/low table (61
+     findings, group by feature when fixing). Likely the higher-leverage
+     queue given its size and the presence of several zero-results
      go-to-definition/references failures on common real-world idioms.
 5. Follow the playbook in §2/§4. Commit after each finding (or tightly
    related cluster of findings), same granularity as the fixes already
@@ -544,7 +548,7 @@ manual differential checks — see its own docstring for usage
    `rm -rf target/debug/incremental` is the cheap, safe recovery (regenerates
    on next build, and frees the bulk of it — no need to nuke all of `target/`
    first).
-7. Both queues (§6a's 6 tcllib findings, §6b's 76 main-wave findings) are
+7. Both queues (§6a's 6 tcllib findings, §6b's 75 main-wave findings) are
    independent — fix from whichever queue makes sense, no need to exhaust
    one before starting the other. Keep this document's counts current as
    findings get fixed: move a finished idx out of §6a/§6b's tables and into
