@@ -574,7 +574,11 @@ fn build_member_ranges(
 
 /// Every method / classmethod / constructor / destructor body span of `cd`
 /// — the regions re-segmented for intra-class `my <member>` call sites.
-fn collect_member_bodies(cd: &tcl_compiler::analyser::types::ClassDef) -> Vec<tcl_lexer::Span> {
+/// `pub(crate)` so `rename`'s property-rename path can reuse it instead of
+/// duplicating the same body-span collection.
+pub(crate) fn collect_member_bodies(
+    cd: &tcl_compiler::analyser::types::ClassDef,
+) -> Vec<tcl_lexer::Span> {
     let mut bodies: Vec<tcl_lexer::Span> = cd
         .methods
         .values()
@@ -872,8 +876,11 @@ pub fn method_reference_spans_in_document(
 /// name is argv[1], not the command head.  A bare head equal to the method
 /// name is *not* a call (a `TclOO` method is not a command in the body's
 /// namespace; `<method> …` without `my`/an object errors "invalid command
-/// name"), so only `my`-headed sites match.
-fn scan_my_method_sites(
+/// name"), so only `my`-headed sites match.  `pub(crate)` so
+/// `call_hierarchy`'s method incoming/outgoing-call edges resolve through
+/// the same matcher find-references / rename / the code lens use, instead
+/// of a bare-head comparison that never matches real (`my`-dispatched) Tcl.
+pub(crate) fn scan_my_method_sites(
     source: &str,
     dialect: &str,
     bodies: &[tcl_lexer::Span],
