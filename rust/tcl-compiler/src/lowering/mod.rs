@@ -42,6 +42,23 @@ use crate::segmenter::{
 pub(crate) mod hooks;
 mod structured;
 
+/// Stand-in `Script` for a body past [`MAX_LOWER_NEST_DEPTH`]: a single
+/// [`Statement::Barrier`] spanning `[base_offset, base_offset + len)`, so
+/// downstream passes treat the unanalysed region as having unknown effects
+/// (matching how a dynamic `eval`/`uplevel` body is already modelled)
+/// rather than as empty/dead code.
+fn over_depth_script(base_offset: u32, len: usize) -> Script {
+    let end = base_offset.saturating_add(u32::try_from(len).unwrap_or(u32::MAX));
+    Script::from_statements(vec![Statement::Barrier {
+        span: tcl_lexer::Span::new(base_offset, end),
+        reason: "nesting depth exceeds analysis limit".to_owned(),
+        command: String::new(),
+        canonical_command: None,
+        args: Vec::new(),
+        tokens: None,
+    }])
+}
+
 /// Map token kind to the simplified `ArgTokenKind` used by lowering hooks.
 fn arg_token_kind(kind: TokenType) -> ArgTokenKind {
     match kind {
@@ -638,7 +655,25 @@ pub struct Lowerer<'r> {
     /// `oo::`, `when`, or nested `proc`) where isolated lowering is byte-identical;
     /// `None` ⇒ the normal whole-file lowering.  See [`lower_to_ir_with_body_cache`].
     body_cache: Option<&'r BodyCacheFn<'r>>,
+    /// Current `lower_script` / `lower_body` recursion depth, bounded by
+    /// [`MAX_LOWER_NEST_DEPTH`] so deeply-nested bodies cannot overflow the
+    /// stack. Mirrors [`crate::cfg_builder::CfgBuilder`]'s `depth` field —
+    /// lowering runs *before* CFG construction, so an unguarded recursion
+    /// here reaches the same crash first and makes the CFG builder's own
+    /// cap moot (issue #996).
+    nest_depth: usize,
 }
+
+/// Maximum nesting depth for the recursive `lower_script` / `lower_body`
+/// descent (`lower_script` ↔ `lower_body` ↔ `lower_segmented` ↔
+/// `lower_command` are mutually recursive with one Rust frame group per
+/// braced-body nesting level). Matches
+/// [`crate::cfg_builder::MAX_LOWER_DEPTH`] and
+/// `tcl_compiler::analyser::commands::MAX_BODY_DEPTH` — all three
+/// independently-recursive walkers over the same source cap at the same
+/// depth, so no consumer of this crate depends on one pass reaching a
+/// deeper nesting level than another.
+const MAX_LOWER_NEST_DEPTH: usize = 256;
 
 impl<'r> Lowerer<'r> {
     /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
@@ -667,6 +702,7 @@ impl<'r> Lowerer<'r> {
             config,
             target: CompileTarget::Analysis,
             body_cache: None,
+            nest_depth: 0,
         }
     }
 
@@ -721,7 +757,27 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Lower a source string to an IR script.
+    ///
+    /// Depth-guarded entry to the recursive lowering, alongside
+    /// [`Self::lower_body`] — every nested body re-enters through one of
+    /// these two, so bounding both here caps the whole `lower_script` ↔
+    /// `lower_body` ↔ `lower_segmented` ↔ `lower_command` recursion. At the
+    /// cap we stop descending and lower the remaining text as a single
+    /// opaque [`Statement::Barrier`] rather than silently dropping it —
+    /// downstream passes (SCCP, dead-code elimination, …) must treat
+    /// unanalysed content as having unknown effects, not as empty/dead.
     fn lower_script(&mut self, source: &str, namespace: &str) -> Script {
+        self.nest_depth += 1;
+        if self.nest_depth > MAX_LOWER_NEST_DEPTH {
+            self.nest_depth -= 1;
+            return over_depth_script(0, source.len());
+        }
+        let result = self.lower_script_inner(source, namespace);
+        self.nest_depth -= 1;
+        result
+    }
+
+    fn lower_script_inner(&mut self, source: &str, namespace: &str) -> Script {
         let commands = segment_commands_with_offset_and_config(source, 0, self.config);
         self.const_map_stack.push(HashMap::new());
         let stmts = self.lower_segmented(&commands, namespace);
@@ -736,7 +792,21 @@ impl<'r> Lowerer<'r> {
     /// `eval` / `uplevel` against literals bound in the enclosing
     /// scope (`set body {literal}; catch {uplevel 1 $body}` is the
     /// canonical example).
+    ///
+    /// Depth-guarded the same way as [`Self::lower_script`] — see its doc
+    /// comment.
     fn lower_body(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
+        self.nest_depth += 1;
+        if self.nest_depth > MAX_LOWER_NEST_DEPTH {
+            self.nest_depth -= 1;
+            return over_depth_script(base_offset, text.len());
+        }
+        let result = self.lower_body_inner(text, base_offset, namespace);
+        self.nest_depth -= 1;
+        result
+    }
+
+    fn lower_body_inner(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
         let commands = segment_commands_with_offset_and_config(text, base_offset, self.config);
         let inherited = self.const_map_stack.last().cloned().unwrap_or_default();
         self.const_map_stack.push(inherited);
@@ -4530,5 +4600,95 @@ mod tests {
             ),
             other => panic!("expected Call via lower_default, got {other:?}"),
         }
+    }
+
+    /// `if {1} { if {1} { ... } }`, `depth` levels deep.
+    fn nested_if_source(depth: u32) -> String {
+        let mut source = String::new();
+        for _ in 0..depth {
+            source.push_str("if {1} {\n");
+        }
+        for _ in 0..depth {
+            source.push_str("}\n");
+        }
+        source
+    }
+
+    /// Depth-first search for a [`Statement::Barrier`] whose `reason`
+    /// contains `needle`, anywhere in `script`'s tree (into `If` clauses and
+    /// `else` bodies — the only nesting `nested_if_source` produces).
+    fn contains_barrier_reason(script: &Script, needle: &str) -> bool {
+        script.statements.iter().any(|stmt| match stmt {
+            Statement::Barrier { reason, .. } => reason.contains(needle),
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                clauses
+                    .iter()
+                    .any(|c| contains_barrier_reason(&c.body, needle))
+                    || else_body
+                        .as_ref()
+                        .is_some_and(|e| contains_barrier_reason(e, needle))
+            }
+            _ => false,
+        })
+    }
+
+    /// Issue #996: `lower_script` / `lower_body` recurse one Rust frame
+    /// group per `if` nesting level with no depth cap prior to this fix —
+    /// unlike `analyse_body` (`tcl_compiler::analyser::commands::
+    /// MAX_BODY_DEPTH`) and `cfg_builder::lower_script`
+    /// (`MAX_LOWER_DEPTH`), both already guarded. A document whose IR
+    /// lowering runs unguarded defeats the CFG builder's own guard
+    /// downstream — the crash happens one stage earlier. Lowering 2000
+    /// levels must neither hang nor overflow the stack, and must record the
+    /// cap trip as a `Statement::Barrier` (unknown effects) rather than
+    /// silently truncating to an empty, falsely-dead-looking script.
+    #[test]
+    fn deeply_nested_if_past_max_lower_depth_barriers_not_crashes() {
+        let source = nested_if_source(2000);
+        // `cargo test` runs each test on a small default-stack thread (the
+        // same undersized budget issue #996 was actually caused by) — see
+        // the identical helper's doc comment in `analyser::commands::tests`.
+        let m = std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || lower_to_ir(&source, &reg()))
+            .expect("spawn big-stack test thread")
+            .join()
+            .expect("lower_to_ir on big-stack thread panicked");
+        assert!(
+            contains_barrier_reason(&m.top_level, "nesting depth exceeds analysis limit"),
+            "expected a depth-cap Barrier somewhere in the lowered tree"
+        );
+    }
+
+    /// Depth of the deepest chain of nested `If` statements in `script`.
+    fn if_chain_depth(script: &Script) -> u32 {
+        script
+            .statements
+            .iter()
+            .map(|stmt| match stmt {
+                Statement::If { clauses, .. } => {
+                    1 + clauses.first().map_or(0, |c| if_chain_depth(&c.body))
+                }
+                _ => 0,
+            })
+            .max()
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn shallow_nested_if_lowers_with_no_barrier() {
+        // False-positive guard: ordinary, hand-written nesting must lower
+        // as real `If` statements all the way down, never barriered.
+        let source = nested_if_source(10);
+        let m = lower_to_ir(&source, &reg());
+        assert!(
+            !contains_barrier_reason(&m.top_level, "nesting depth exceeds analysis limit"),
+            "shallow nesting must not trip the depth cap"
+        );
+        // 10 real nested `If`s, not a single opaque barrier standing in for
+        // all of them.
+        assert_eq!(if_chain_depth(&m.top_level), 10);
     }
 }

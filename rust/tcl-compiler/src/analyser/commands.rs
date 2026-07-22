@@ -117,9 +117,28 @@ impl Analyser {
         }
         self.body_depth += 1;
         if self.body_depth > MAX_BODY_DEPTH {
-            // stop descending before the recursive body walk
-            // overflows the stack. Restore the depth and return — the
-            // diagnostics collected up to this nesting level still stand.
+            // Stop descending before the recursive body walk overflows the
+            // stack — the diagnostics collected up to this nesting level
+            // still stand. Report it as a diagnostic (once per walk, not
+            // once per nested body past the cap) rather than truncating
+            // silently: tclsh's own recursion limit raises a catchable
+            // "too many nested evaluations (infinite loop?)" error at this
+            // point rather than continuing quietly, and a process abort is
+            // never the right failure mode either way (issue #996).
+            if !self.structure_only && !self.e207_emitted {
+                self.e207_emitted = true;
+                self.result.diagnostics.push(Diagnostic {
+                    code: DiagCode::E207,
+                    span: body_tok.span,
+                    message: format!(
+                        "nesting depth exceeds the analysis limit ({MAX_BODY_DEPTH} levels) — \
+                         diagnostics for this body and anything nested inside it are not \
+                         collected"
+                    ),
+                    severity: Severity::Error,
+                    fixes: Vec::new(),
+                });
+            }
             self.body_depth -= 1;
             return;
         }
@@ -1502,7 +1521,11 @@ impl Analyser {
         // through the `SourceMap`); resolve + push afterwards so the
         // immutable source borrow has ended.
         let (heads, expr_toks) = {
-            let sm = SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let mut heads: Vec<CollectedHead> = Vec::new();
             let mut expr_toks: Vec<Token> = Vec::new();
             // `arg_tok` is the *merged* argv token.  For a compound word
@@ -1561,7 +1584,11 @@ impl Analyser {
         let config = self.lexer_config();
         let mut nested: Vec<SegmentedCommand> = Vec::new();
         {
-            let sm = SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             for arg_tok in arg_tokens_in {
                 let start = arg_tok.span.start() as usize;
                 let end = arg_tok.span.end() as usize;
@@ -1645,7 +1672,11 @@ impl Analyser {
         let config = self.lexer_config();
         let mut nested: Vec<SegmentedCommand> = Vec::new();
         {
-            let sm = SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             for idx in expr_indices {
                 // Only a *braced* expr arg is opaque to the bare-`Cmd` walk;
                 // an unbraced `[…]` expr arg is itself a `Cmd` token already
@@ -1864,7 +1895,11 @@ impl Analyser {
     fn record_invocations_from_expr_token(&mut self, expr_tok: Token, scope_path: &[usize]) {
         let config = self.lexer_config();
         let (heads, expr_toks) = {
-            let sm = SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let mut heads: Vec<CollectedHead> = Vec::new();
             let mut expr_toks: Vec<Token> = Vec::new();
             collect_expr_substitutions(
@@ -2049,7 +2084,11 @@ impl Analyser {
         });
         match cmd_tok.kind {
             TokenType::Var => {
-                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
                 // A composite head whose first token is a *braced* variable
                 // (`${ns}::define::[…]`) merges into one Var word token, so the
                 // raw text spans the whole word.  The dispatched variable is
@@ -2095,7 +2134,11 @@ impl Analyser {
                 });
             }
             TokenType::Cmd => {
-                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
                 let cmd_text = sm.token_text(cmd_tok).to_string();
                 let method_name = args.first().cloned();
                 self.cmd_command_sites.push(super::state::CmdCommandSite {
@@ -2940,6 +2983,102 @@ mod tests {
     /// select — including the subcommand-level stamps.  Runs on a bare
     /// `Analyser::new()`, which also exercises the shared
     /// [`fallback_registry`] path the unit harnesses rely on.
+    /// `if {1} { if {1} { ... } }`, `depth` levels deep, wrapped in a `proc`
+    /// body.
+    fn nested_if_source(depth: u32) -> String {
+        let mut source = String::from("proc deepnest {} {\n");
+        for _ in 0..depth {
+            source.push_str("if {1} {\n");
+        }
+        for _ in 0..depth {
+            source.push_str("}\n");
+        }
+        source.push_str("}\n");
+        source
+    }
+
+    /// Run `analyse` on a dedicated thread with a generous stack.
+    ///
+    /// `cargo test` runs each `#[test]` on its own thread with the platform
+    /// default stack size (~2 MiB on Linux) — the same undersized budget
+    /// that caused issue #996's crash in the first place (Tokio's default
+    /// worker-thread stack is the same size). A test that walks source
+    /// nested past [`MAX_BODY_DEPTH`] needs the same generous, explicit
+    /// stack production code now gets via `tokio::runtime::Builder::
+    /// thread_stack_size` (`tcl-lsp-server`/`tcl-mcp`) and `std::thread::
+    /// Builder::stack_size` (the `tcl` CLI) — otherwise the test harness
+    /// itself hits the bug this suite exists to catch.
+    fn analyse_on_big_stack(source: String, dialect: &str) -> super::super::types::AnalysisResult {
+        let dialect = dialect.to_owned();
+        std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || Analyser::new().analyse(&source, &dialect))
+            .expect("spawn big-stack test thread")
+            .join()
+            .expect("analyse on big-stack thread panicked")
+    }
+
+    #[test]
+    fn depth_exactly_at_cap_emits_no_e207() {
+        // The wrapping `proc` body is itself one level of `body_depth`, so
+        // `MAX_BODY_DEPTH - 1` nested `if`s is what brings body_depth to
+        // exactly `MAX_BODY_DEPTH`.
+        let source = nested_if_source(MAX_BODY_DEPTH - 1);
+        let res = analyse_on_big_stack(source, "tcl9.0");
+        assert!(
+            !res.diagnostics.iter().any(|d| d.code == DiagCode::E207),
+            "depth == MAX_BODY_DEPTH must not trip the cap: {:?}",
+            res.diagnostics.iter().map(|d| d.code).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn depth_one_past_cap_emits_e207_exactly_once() {
+        let source = nested_if_source(MAX_BODY_DEPTH);
+        let res = analyse_on_big_stack(source, "tcl9.0");
+        let e207_count = res
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E207)
+            .count();
+        assert_eq!(
+            e207_count, 1,
+            "depth == MAX_BODY_DEPTH + 1 must trip the cap exactly once, got {e207_count}"
+        );
+    }
+
+    #[test]
+    fn depth_far_past_cap_still_emits_e207_exactly_once() {
+        // Not flooded: the cap trips at the same nesting level every time
+        // (once body_depth cannot go higher), so it must still be exactly
+        // one diagnostic at 2000 levels, not one per level past the cap.
+        let source = nested_if_source(2000);
+        let res = analyse_on_big_stack(source, "tcl9.0");
+        let e207_count = res
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E207)
+            .count();
+        assert_eq!(
+            e207_count, 1,
+            "2000 levels must still trip the cap exactly once, got {e207_count}"
+        );
+    }
+
+    #[test]
+    fn shallow_nesting_never_emits_e207() {
+        // False-positive guard: ordinary, hand-written nesting must never
+        // draw E207.
+        let source = nested_if_source(10);
+        let mut a = Analyser::new();
+        let res = a.analyse(&source, "tcl9.0");
+        assert!(
+            !res.diagnostics.iter().any(|d| d.code == DiagCode::E207),
+            "shallow nesting must never emit E207: {:?}",
+            res.diagnostics.iter().map(|d| d.code).collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn resolve_analyser_hook_mirrors_the_retired_name_guards() {
         use tcl_registry::hooks::AnalyserHookId as H;

@@ -2017,6 +2017,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | E102 | Unmatched `}` -- missing opening `{` | Remove stray `}` |
 | E103 | Missing `}` -- a nested body consumed this closing brace | |
 | E200 | Parse error -- internal representation cannot be determined | |
+| E207 | Nesting depth exceeds the analysis limit -- diagnostics past this point are not collected | |
 
 ### Warnings -- Style & Best Practice
 

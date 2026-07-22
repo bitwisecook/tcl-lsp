@@ -922,7 +922,11 @@ Use braces: {{ \u{2026} }}"
         if cmd.texts.is_empty() {
             return;
         }
-        let sm = SourceMap::new(&self.source);
+        let sm = Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let source = self.source.as_bytes();
         // Word-start offsets the command reads as a variable name; a
         // `${name}(idx)` Pattern-(1) match starting there is the indirect

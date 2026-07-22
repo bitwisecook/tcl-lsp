@@ -41,6 +41,7 @@ for historical reference.
 - [E201 — unclosed bracket](kcs-diagnostic-e201-unclosed-bracket.md)
 - [E202 — unclosed quote](kcs-diagnostic-e202-unclosed-quote.md)
 - [E203 — unclosed brace](kcs-diagnostic-e203-unclosed-brace.md)
+- [E207 — nesting depth exceeds limit](kcs-diagnostic-e207-nesting-depth-exceeds-limit.md)
 
 ## Warnings and style (W-codes)
 

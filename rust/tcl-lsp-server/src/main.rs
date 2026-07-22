@@ -63,8 +63,31 @@ fn inject_type_hierarchy_provider(response: Response) -> Response {
     Response::from_parts(id, Ok(result))
 }
 
-#[tokio::main]
-async fn main() {
+/// Every Tokio worker thread's stack budget.
+///
+/// The analyser's `analyse_body` recursion (`tcl_compiler::analyser`) and
+/// the CFG builder's `lower_script` recursion (`tcl_compiler::cfg_builder`)
+/// each bound their nesting depth at a fixed cap (currently 256), but that
+/// cap only guarantees a *bounded* number of native stack frames — it says
+/// nothing about how much stack those frames need, and that need grows
+/// every time a hot function in the chain gains a local variable. Tokio's
+/// default worker-thread stack is 2 MiB, well under half of what capped
+/// recursion needs even today (measured: a 2 MiB stack overflows around
+/// nesting depth 130-140 — see issue #996). Sizing worker threads
+/// generously here is the load-bearing fix for the crash; the depth caps
+/// alone were never enough on this runtime's actual thread stacks.
+const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
+
+fn main() {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(WORKER_STACK_SIZE)
+        .build()
+        .expect("failed to build the Tokio runtime")
+        .block_on(serve());
+}
+
+async fn serve() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
     let (service, socket) = LspService::new(Backend::new);

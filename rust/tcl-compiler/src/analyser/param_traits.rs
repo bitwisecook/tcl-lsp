@@ -190,7 +190,31 @@ pub fn infer_param_traits_deep_with_config(
     stub_overlay: Option<&StubOverlay>,
     config: LexerConfig,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
-    if params.is_empty() || body_source.trim().is_empty() {
+    infer_param_traits_deep_at_depth(params, body_source, registry, stub_overlay, config, 0)
+}
+
+/// [`infer_param_traits_deep_with_config`] with an explicit starting depth.
+///
+/// The public entry points always start at `0`; `scan_deep`'s own `apply`
+/// (`ArgRole::LambdaLiteral`) handling calls this with `depth + 1` instead
+/// of re-entering at `0`. A lambda body is inferred in its own frame (see
+/// the doc comment at that call site for why), but it is still lexically
+/// nested inside the enclosing scan — starting it back at depth `0` would
+/// let alternating `if {…} { apply {x {…}} … }` nesting reset the logical
+/// counter on every `apply`, defeating [`MAX_DEPTH`] while the *native*
+/// call stack keeps growing one `scan_deep` ↔
+/// `infer_param_traits_deep_at_depth` frame group per level regardless —
+/// the same "guard exists but doesn't cover every recursive edge" bug
+/// class as issue #996 / #997.
+fn infer_param_traits_deep_at_depth(
+    params: &[&str],
+    body_source: &str,
+    registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
+    config: LexerConfig,
+    depth: u8,
+) -> HashMap<String, HashSet<ProcArgTrait>> {
+    if params.is_empty() || body_source.trim().is_empty() || depth > MAX_DEPTH {
         return HashMap::new();
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
@@ -204,7 +228,7 @@ pub fn infer_param_traits_deep_with_config(
         stub_overlay,
         config,
     };
-    scan_deep(body_source, &ctx, &mut traits, &mut aliases, 0);
+    scan_deep(body_source, &ctx, &mut traits, &mut aliases, depth);
 
     finalise_traits(traits)
 }
@@ -477,12 +501,13 @@ fn scan_deep<'p>(
             if lambda_param_names.is_empty() {
                 continue;
             }
-            let lambda_traits = infer_param_traits_deep_with_config(
+            let lambda_traits = infer_param_traits_deep_at_depth(
                 &lambda_param_names,
                 body_text,
                 ctx.registry,
                 ctx.stub_overlay,
                 ctx.config,
+                depth + 1,
             );
             if lambda_traits.is_empty() {
                 continue;
@@ -1635,6 +1660,57 @@ mod tests {
                 .get("deep_var")
                 .is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
             "MAX_DEPTH bound should keep deeply-nested eval from being surfaced, got {deep:?}",
+        );
+    }
+
+    /// Same-bug-class regression as issue #996's own fix, in the sibling
+    /// walker the issue explicitly calls out (`param_traits.rs`): before
+    /// this fix, `scan_deep`'s `apply` (`ArgRole::LambdaLiteral`) handling
+    /// re-entered `infer_param_traits_deep_with_config` — the *public*,
+    /// depth-0 entry point — instead of threading its own `depth + 1`
+    /// through. Alternating `if {1} { apply {x {…}} … }` nesting therefore
+    /// reset the *logical* [`MAX_DEPTH`] counter back to 0 on every `apply`
+    /// boundary while the *native* Rust call stack (`scan_deep` ↔
+    /// `infer_param_traits_deep_at_depth`) kept growing one frame group per
+    /// level regardless of the reset — unboundedly, for however deep the
+    /// input alternates. `MAX_DEPTH` (8) never actually bit.
+    ///
+    /// 2000 alternating pairs (4000 real nesting levels) is far beyond
+    /// anything the old bypass would have tolerated on a small-stack
+    /// thread; this must terminate cleanly, not hang or overflow the
+    /// stack — the same rationale as the big-stack helpers in
+    /// `analyser::commands::tests` / `lowering::tests` (`cargo test`'s
+    /// per-test thread has the same undersized default stack that made
+    /// issue #996 reproduce in production).
+    #[test]
+    fn deep_pass_bounds_alternating_if_apply_nesting() {
+        const PAIRS: usize = 2000;
+        let mut body = String::from("puts leaf");
+        for _ in 0..PAIRS {
+            body = format!("if {{1}} {{ apply {{x {{ {body} }}}} 1 }}");
+        }
+        // With `depth` correctly threaded, an `if`/`apply` pair costs 2
+        // logical levels, so real recursion stops at MAX_DEPTH (8) — a
+        // handful of native frames regardless of PAIRS. This deliberately
+        // runs on the *default* test-thread stack (no big-stack wrapper,
+        // unlike the sibling tests in this file and in
+        // `commands::tests`/`lowering::tests`): if the reset bug ever comes
+        // back, real recursion runs all the way down through every one of
+        // PAIRS × 2 levels again — verified locally, reverting just the
+        // `depth + 1` fix below to `0` reliably overflows the stack and
+        // aborts the test process outright on this same (small,
+        // default-sized) thread, before the wall-clock assertion even gets
+        // a chance to run. The elapsed-time check below is a second,
+        // softer signal for the rare platform/build where the crash
+        // threshold happens to sit a little higher.
+        let registry = CommandRegistry::build_default();
+        let start = std::time::Instant::now();
+        let _ = infer_param_traits_deep(&["p"], &body, &registry, None);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_secs(2),
+            "took {elapsed:?} — alternating if/apply nesting is no longer bounded by \
+             MAX_DEPTH (reset-to-0 bypass regression?)"
         );
     }
 
