@@ -1,32 +1,38 @@
-# Issue #923 — Differential Audit & Fix Campaign — STATUS (paused)
+# Issue #923 — Differential Audit & Fix Campaign — STATUS (active)
 
-**Paused:** 2026-07-20. Written so a fresh Claude Code session (or any engineer)
-with zero prior context can pick this up from the repo alone.
+Written so a fresh Claude Code session (or any engineer) with zero prior
+context can pick this up from the repo alone.
 
-**PR #963 (this branch) merged into `origin/rust` as `9ec4cff` on 2026-07-20,
-same day as the pause.** Everything described below as "on this branch" is
-now also on `origin/rust`. **Start resumed work from a fresh branch off
-`origin/rust`** (`git fetch origin rust && git checkout -b <new-branch>
-origin/rust`) — do **not** keep committing onto `claude/tcl-lsp-issue-923-qzkfqz`
-or reopen/reuse PR #963; per this session's own standing instructions, a
-merged PR's branch is finished and follow-up work is a fresh change. The
-`data/`/`scripts/` snapshot and this document itself came along with the
-merge, so nothing needs copying — just start the next fix on the new branch.
+**2026-07-22 update:** PR #963 (the original incarnation of this branch,
+through commit `2676cc1`) merged into `origin/rust` as `9ec4cff` on
+2026-07-20. Three more commits landed on `claude/tcl-lsp-issue-923-qzkfqz`
+*after* that PR closed (the merge-note doc commit, then idx 105 and idx 106
+— see §3) without ever being attached to a PR. Per this session's standing
+branch-restart instructions, that's now been corrected: the branch was
+`git rebase --onto`'d from `origin/rust`'s current tip (dropping the
+already-merged history, keeping the 3 orphaned commits) and
+force-with-lease-pushed, so **`claude/tcl-lsp-issue-923-qzkfqz` now sits
+directly on top of current `origin/rust`** (`db2dcf6`/`e77879b`/`9bd26c8`,
+new SHAs from the rebase) — no new branch name needed, and it's ready for a
+fresh PR. **Keep developing on this same branch name going forward**; the
+old "cut a fresh branch with a new suffix" advice below (§3, §8) is
+superseded — only re-do the restart dance if a PR from *this* branch merges
+and gets built on further without a rebase first.
 
-**Branch:** `claude/tcl-lsp-issue-923-qzkfqz` (now merged, see above) — 4
-campaign fixes + 1 merge from `origin/rust` + this handoff doc + 2 post-pause
-PR-maintenance commits (a CI fix and a PR-review-triage fix; see the commit
-table in §3 — **the campaign itself is still exactly where it was paused**,
-none of the post-pause commits resumed it).
+**Branch:** `claude/tcl-lsp-issue-923-qzkfqz` — rebased directly onto
+`origin/rust`, carrying only the not-yet-PR'd work: a merge-note doc commit
+plus idx 105 and idx 106 (both now fixed, tested, and pushed — see §3, and
+remove them from §6a's "not yet fixed" table).
 
 **tl;dr:** A deep differential-audit campaign against real-world Tcl code
 found ~66 confirmed LSP correctness bugs so far (22 in tcllib, 39+ across 7
-other corpora, more still being found). 7 tcllib bugs are fixed, tested, and
-merged into this branch. 14 more tcllib bugs are triaged with fix plans
-(8 of them researched in detail). ~56 findings from the other corpora are
-not yet even audited (the audit workflow was mid-run when paused). Nothing
-is lost — the raw data, the exact scripts that produced it, and everything
-needed to resume are in this directory.
+other corpora, more still being found). 9 tcllib bugs are fixed, tested, and
+pushed to this branch. 12 more tcllib bugs are triaged with fix plans
+(6 of them researched in detail). The 56-finding main-wave audit (other 7
+corpora) was resumed 2026-07-22 after stalling mid-run (see §6b) — check its
+current state before assuming it's still 32/56. Nothing is lost — the raw
+data, the exact scripts that produced it, and everything needed to resume
+are in this directory.
 
 ---
 
@@ -129,6 +135,18 @@ document — routine PR maintenance):
 | `4a33bea` | — | This handoff document (`STATUS.md` + the `data/`/`scripts/` snapshot) — captured when the campaign was paused. |
 | `136d270` | — | CI fix: linked `STATUS.md` from `docs/design/README.md`'s index (`cargo xtask kcs-index-links` gate). |
 | `55f9cb7` | — | **Not campaign work** — response to `chatgpt-codex-connector[bot]`'s automated review of PR #963, triaged and fixed after the pause per the standing PR-subscription protocol (basic maintenance of an already-open PR, distinct from resuming the audit). Three bugs, all confirmed against tclsh9.0 first: (a) `leading_option_word_count` didn't stop at a `--` terminator, so `interp create -- -safe` mis-consumed `-safe` as a flag instead of the literal name; (b) `workspace_command_exists_for_call` dropped *every* `command_links` entry under a builtin shadow, not just nested/conditional ones — fixed with a new `WorkspaceCommandLink.nested` field mirroring `WorkspaceProc.nested`; (c) `self.interpreters` wasn't invalidated by a plain `rename` of an interpreter's own handle command, so a later unrelated command reusing the freed name could be misidentified as isolated interpreter-eval. None of these correspond to a tracked audit finding (§5/§6 below) — the finding/idx inventory and remaining-work counts are unchanged by this commit. |
+
+**The rows above (`9448af9`..`55f9cb7`) are now squashed into `origin/rust`
+as `9ec4cff`** (PR #963) — their SHAs are historical (still visible on the
+closed PR / in reflogs) but are no longer ancestors of this branch's current
+tip; see the 2026-07-22 update at the top of this document. Rows below are
+the branch's actual current content, on top of `origin/rust`:
+
+| Commit | Finding(s) | Summary |
+|---|---|---|
+| `db2dcf6` | — | (rebased from `7289cd6`) The "PR #963 merged" doc update itself, folded into this restart. |
+| `e77879b` | tcllib idx 105 | (rebased from `1973832`) W123 false positive + harmful "replace with `exit`" quickfix for a bare `exists`/`get` call inside a proc defined under `::tcl::dict` (the ensemble's dynamically-mapped implementation namespace) — new `CommandSpec::implementation_namespace` field plus per-subcommand standalone `CommandSpec`s (`dict::qualified_specs`) so `::tcl::dict::exists` resolves as a real, independently-callable command the way C Tcl actually implements the ensemble. |
+| `9bd26c8` | tcllib idx 106 | (rebased from `c6936d7`) `namespace ensemble create -map`/`-subcommands` targets were never resolved for definition/hover/references/rename — new `AnalysisResult::ensemble_subcommand_targets` (per-ensemble subcommand→target-proc map, populated in `handlers.rs`) threaded through **both** command-invocation-recording pipelines (top-level `process_command` and nested-`[...]`-substitution `push_collected_heads`) as an existence-probed reference, then consumed by `tcl-lsp-core`'s definition/hover/references providers via the same `instance_method_at_cursor` cursor-shape helper TclOO method dispatch already used (`receiver method` and `ensemble subcommand` share the identical syntax). Tier 2 (cross-file ensemble resolution) intentionally scoped out as a separate follow-up. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -271,16 +289,18 @@ from scratch:
 
 ## 6. Remaining work, prioritized
 
-### 6a. tcllib — 14 CONFIRMED findings, not yet fixed
+### 6a. tcllib — 12 CONFIRMED findings, not yet fixed
 
-All in `data/07-remaining-tcllib-findings-14.json`; 8 have refined plans in
-`data/08-research-plans-PARTIAL-8of14.json`. Suggested order (by severity,
-then by whether a refined plan exists):
+**idx 105 and 106 are done** (fixed, tested, pushed — see §3's `e77879b` /
+`9bd26c8` rows); removed from the table below. 12 remain.
+
+All in `data/07-remaining-tcllib-findings-14.json`; the remaining 6 of the
+original 8 refined plans in `data/08-research-plans-PARTIAL-8of14.json` cover
+idx 3, 9, 110, 113, 116, 120. Suggested order (by severity, then by whether a
+refined plan exists):
 
 | idx | severity | feature | one-line summary | refined plan? |
 |---|---|---|---|---|
-| 105 | medium | namespaces | W123 false-positive + bad quickfix for bare `exists`/`get` inside a proc in `::tcl::dict`; separately W001/hover disagree on `dict getnull`. | yes |
-| 106 | medium | namespaces | `namespace ensemble create -map {...}` targets never resolved for definition/hover/references. | yes |
 | 3 | medium | rename | `rename $old newName` (or any `$`/`[`-containing rename arg) gives up entirely instead of trying constant-folding first. | yes |
 | 110 | medium | unknown | `namespace eval $ns [list namespace unknown $handler]` (list-wrapped, not literal) not recognised as installing a namespace-unknown handler → false W123. | yes |
 | 113 | medium | aliasing | Any bareword inside a TclOO class body matching a sibling method name resolves to it, even with no `link`/`forward`/`my` making it reachable. | yes |
@@ -301,23 +321,27 @@ truth if not already fully confirmed → registry-driven fix reusing §4's
 mechanisms where applicable → unit tests (TP/FP/TN/FN) + lsp_e2e test →
 validation gates → commit.
 
-### 6b. Main audit wave — 56 of 105 findings not yet even audited
+### 6b. Main audit wave — idx 49–104 resumed 2026-07-22, check current state
 
-`03-differential-audit-main105-IN_PROGRESS.js` (in `scripts/`) is the exact
-workflow script; it was killed mid-run when this session paused (49/105
-complete, captured in `data/06-...-PARTIAL-49of105.json`). To resume:
-re-invoke it fresh (embed-in-script pattern, see the Workflow gotcha above)
-against `data/05-main-audit-input-105.json`, most likely skip re-auditing
-idx 0–48 (already done, captured) and only run the remaining idx 49–104 —
-or just re-run all 105 if starting a fresh Workflow run is simpler than
-splicing partial results back in (the differential audit is not expensive
-per-item, mostly agent time).
+idx 0–48 are done (captured in `data/06-...-PARTIAL-49of105.json`: 39
+CONFIRMED, 10 REFUTED). idx 49–104 (the remaining 56) were run via
+`tcl-lsp-differential-audit-resume-wf_61c6b92a-e22.js` (persisted under this
+project's `workflows/scripts/` dir, run ID `wf_61c6b92a-e22`) — that run
+itself **stalled silently** after 32/56 (27 CONFIRMED, 5 REFUTED; no
+completion notification, no journal progress for 8+ hours — disk exhaustion
+is the suspected cause, see §4's gotcha) and was resumed in-place with
+`Workflow({scriptPath: <that file>, resumeFromRunId: "wf_61c6b92a-e22"})`,
+which reuses the 32 cached results and only re-runs the ~24 that never
+finished. **Check whether that resumed run has completed** (no journal
+movement for a long stretch again would mean it stalled a second time and
+needs another resume) before trusting any specific count in this document.
 
-Once complete, the 39 (and counting) CONFIRMED findings from this wave are
-**entirely untriaged** — nobody has looked at severity/priority/clustering
-for them yet. Do that first (cluster by root cause the way idx 107+115 and
-idx 118+119 were clustered and fixed together this session — look for
-repeated root-cause hints across findings before fixing one at a time).
+Once all 105 are complete, the CONFIRMED findings from this wave (39+ from
+idx 0-48, plus whatever idx 49-104 adds) are **entirely untriaged** —
+nobody has looked at severity/priority/clustering for them yet. Do that
+first (cluster by root cause the way idx 107+115 and idx 118+119 were
+clustered and fixed together — look for repeated root-cause hints across
+findings before fixing one at a time).
 
 ### 6c. Broader mandate coverage check
 
@@ -390,29 +414,39 @@ manual differential checks — see its own docstring for usage
 
 ## 8. Immediate next steps for whoever picks this up
 
-1. **Branch first:** PR #963 (the branch this document lived on) merged into
-   `origin/rust` as `9ec4cff` on 2026-07-20 (see §3). Don't push onto
-   `claude/tcl-lsp-issue-923-qzkfqz` — cut a **new** branch from current
-   `origin/rust`: `git fetch origin rust && git checkout -b
-   claude/tcl-lsp-issue-923-<new-suffix> origin/rust`. This document and the
-   `data/`/`scripts/` snapshot are already there (they merged too), so
-   nothing needs copying forward.
-2. `git log origin/rust -10` — check for any *other* new #923 work landed on
-   mainline since `9ec4cff` (other sessions/PRs land these in parallel, see
-   §3) before starting.
+1. **Branch is already current:** `claude/tcl-lsp-issue-923-qzkfqz` was
+   rebased directly onto `origin/rust`'s tip on 2026-07-22 (see the update at
+   the top of this doc and §3) — just `git fetch origin
+   claude/tcl-lsp-issue-923-qzkfqz && git checkout claude/tcl-lsp-issue-923-qzkfqz
+   && git reset --hard origin/claude/tcl-lsp-issue-923-qzkfqz` (or clone
+   fresh) and keep developing here. No new branch name needed unless a PR
+   from this branch merges and more work lands without a rebase first — if
+   that happens, repeat the same restart-and-rebase dance (§3's 2026-07-22
+   note) rather than inventing a new suffix.
+2. `git fetch origin rust && git log origin/rust -10` — check for any *other*
+   new #923 work landed on mainline since this branch's current base (see
+   §3) before starting; merge (not rebase, once you've started your own new
+   commits on top) if anything new is there.
 3. Recreate the tclsh9.0/8.6 oracle environment (§7).
-4. Pick the next tcllib finding from §6a (start with idx 105 or 106 — both
-   have refined plans and are medium severity, well-specified).
+4. Pick the next tcllib finding from §6a (idx 3, 9, 110, 113, 116, or 120 —
+   all have refined plans and are medium severity, well-specified; 105 and
+   106 are already done).
 5. Follow the playbook in §2/§4. Commit after each finding (or tightly
-   related cluster of findings), same granularity as the 4 campaign fixes
-   already landed — don't batch unrelated fixes into one commit.
+   related cluster of findings), same granularity as the fixes already
+   landed — don't batch unrelated fixes into one commit.
 6. Periodically re-run `cargo test --workspace` (full, not scoped) and
    `cargo clippy --workspace --all-targets -- -D warnings` as a sweep, not
    just the scoped per-crate checks used while iterating — the mandate's
-   validation bar is workspace-wide.
-7. Once the 14 tcllib findings are exhausted, resume/re-run the main 105-item
-   audit wave (§6b), triage its output, and repeat.
+   validation bar is workspace-wide. Watch disk space (§4's gotcha): a cold
+   `--workspace` test build can exhaust the session's allowance on its own;
+   `rm -rf target/debug/incremental` is the cheap, safe recovery (regenerates
+   on next build, and frees the bulk of it — no need to nuke all of `target/`
+   first).
+7. Once the 12 remaining tcllib findings are exhausted, triage and fix the
+   main-105-wave findings (§6b's audit workflow was resumed 2026-07-22 for
+   the 56 previously-unaudited indices; check whether it completed and, if
+   so, triage its CONFIRMED output before this doc's counts go stale again).
 8. Keep the Stop-hook's implicit contract: uncommitted work is a liability —
    commit and push after every completed fix, don't let it accumulate.
-9. When ready to submit, open a **new** PR from the new branch — don't try
-   to reopen or reuse #963, it's merged and closed for good.
+9. When ready to submit, open a PR from this branch (no PR is currently open
+   for it — #963 is closed/merged and superseded, see the top of this doc).
