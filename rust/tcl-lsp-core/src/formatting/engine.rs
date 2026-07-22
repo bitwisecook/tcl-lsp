@@ -27,7 +27,7 @@
 //! The entry point is [`format_tcl`]; everything else is the
 //! private machinery [`format_tcl`] drives.
 
-use tcl_compiler::lambda_literal::split_lambda_literal;
+use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -1017,12 +1017,23 @@ fn append_body_no_space(
 
 /// Reassemble an `ArgKind::LambdaLiteral` argument: its parameter-list
 /// element (normalised, not code) and its body element (`arg.formatted_body`
-/// — already recursively formatted by the caller from just the body span,
-/// never the whole lambda literal, so the parameter word is never misread as
-/// a command name), plus an optional namespace element, wrapped back in the
-/// outer `{}`. Falls back to the original literal verbatim if the source
-/// can no longer be split (should not happen once `identify_body_args` and
-/// this function agree, but a stale token must not panic).
+/// — already recursively formatted by the caller from just the *decoded*
+/// body span, never the whole lambda literal, so the parameter word is
+/// never misread as a command name), plus an optional namespace element,
+/// wrapped back in the outer `{}`. Falls back to the original literal
+/// verbatim if the source can no longer be split (should not happen once
+/// `identify_body_args` and this function agree, but a stale token must not
+/// panic).
+///
+/// The parameter-list and namespace elements are decoded (backslash escapes
+/// collapsed for a bare/quoted element — [`split_lambda_literal_decoded`])
+/// before use, not pasted through as raw source spelling: a non-literal
+/// element's escapes would otherwise survive reformatting and change what it
+/// means (codex review of #954's follow-up). The namespace is re-quoted with
+/// [`tcl_syntax::list::list_element`] on reassembly rather than always left
+/// bare, so an element that needs quoting (e.g. an escaped space) still
+/// round-trips safely; `normalise_param_list` already unconditionally
+/// brace-wraps the parameter list, so no further quoting is needed there.
 fn render_lambda_literal_arg(
     sm: &SourceMap,
     arg: &CommandArg,
@@ -1036,15 +1047,12 @@ fn render_lambda_literal_arg(
     let Some(&tok) = arg.tokens.first() else {
         return fallback();
     };
-    let Some(elems) = split_lambda_literal(source, tok) else {
+    let Some(elems) = split_lambda_literal_decoded(source, tok) else {
         return fallback();
     };
     let Some(formatted_body) = arg.formatted_body.as_deref() else {
         return fallback();
     };
-    let params_text = source
-        .get(elems.params.start() as usize..elems.params.end() as usize)
-        .unwrap_or_default();
     let mut body_parts: Vec<String> = Vec::new();
     append_body_no_space(
         &mut body_parts,
@@ -1054,13 +1062,13 @@ fn render_lambda_literal_arg(
         current_line_len,
         never_inline,
     );
-    let params_rendered = normalise_param_list(params_text);
+    let params_rendered = normalise_param_list(&elems.params);
     let body_rendered = body_parts.concat();
-    match elems
-        .namespace
-        .and_then(|ns| source.get(ns.start() as usize..ns.end() as usize))
-    {
-        Some(ns) => format!("{{{params_rendered} {body_rendered} {ns}}}"),
+    match elems.namespace.as_deref() {
+        Some(ns) => {
+            let ns_rendered = tcl_syntax::list::list_element(ns);
+            format!("{{{params_rendered} {body_rendered} {ns_rendered}}}")
+        }
         None => format!("{{{params_rendered} {body_rendered}}}"),
     }
 }
@@ -1381,16 +1389,18 @@ pub(crate) fn format_body(
             } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
                 && commands[i].args[a].is_braced
                 && let Some(&tok) = commands[i].args[a].tokens.first()
-                && let Some(elems) = split_lambda_literal(source, tok)
-                && let Some(body_span) = elems.body
+                && let Some(elems) = split_lambda_literal_decoded(source, tok)
+                && let Some(body_text) = elems.body
             {
-                // Format only the real body element — `render_lambda_literal_arg`
-                // re-derives the parameter list / namespace elements from the
-                // original source at reconstruction time and reassembles them.
-                let body_text = source
-                    .get(body_span.start() as usize..body_span.end() as usize)
-                    .unwrap_or_default()
-                    .to_owned();
+                // Format only the real, *decoded* body element —
+                // `render_lambda_literal_arg` re-derives the parameter list /
+                // namespace elements from the original source at
+                // reconstruction time and reassembles them. Decoding first
+                // (rather than reformatting the raw source spelling) matters
+                // for a non-literal (bare/quoted) body: its backslash escapes
+                // must be collapsed before the result is parsed as a script,
+                // exactly as Tcl's own list-then-script evaluation would
+                // (codex review of #954's follow-up).
                 let formatted = format_body(&body_text, config, registry, inner_level);
                 commands[i].args[a].formatted_body = Some(formatted);
             }
@@ -1903,6 +1913,15 @@ mod tests {
             "apply {dir {\nputs    $dir\n} ::foo} /tmp\n",
             "apply {{dir} { puts $dir } ::foo} /tmp\n",
         );
+    }
+
+    /// Codex review of #954's follow-up: a bare body element's backslash
+    /// escape must be decoded before reformatting, not reformatted from its
+    /// raw source spelling — `puts\ hi`'s real runtime body is the two-word
+    /// command `puts hi`, not one word containing a literal backslash.
+    #[test]
+    fn apply_lambda_body_with_backslash_escape_decodes() {
+        check(r"apply {{} puts\ hi}", "apply {{} { puts hi }}\n");
     }
 
     #[test]

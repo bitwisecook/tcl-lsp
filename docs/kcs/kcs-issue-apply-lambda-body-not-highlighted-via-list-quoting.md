@@ -155,6 +155,71 @@ needed).
 - `rust/tcl-irules/src/walker.rs` — the iRules object-reference walker's
   branch (feeds `bigip-cleanup` liveness)
 
+## Follow-up: codex review of the initial fix
+
+The first pass at this fix (the sections above) shipped four gaps a codex
+review of the PR caught — each a case where a *consumer* of the shared
+`LambdaLiteral` split treated the lambda's fresh call frame as if it were
+the same frame as its surroundings:
+
+1. **List-quoted detection wasn't actually gated on the enclosing role**
+   (decision rule 3 above describes the *intended* bound, but the shipped
+   `insert_lambda_literal_overrides` recognised `[list apply {…} $x]`
+   whenever `list`'s own first argument resolved to a `LambdaLiteral`-bearing
+   spec, with no check on what argument slot the whole `[list …]`
+   substitution itself occupied). `set data [list apply {x {puts $x}}
+   value]` — `list` here only ever returns a value; nothing invokes
+   `apply` — painted `x` as a `Parameter`, `puts` as a `Function`, and
+   `apply` as a call-site reference, exactly the "over-broad" failure mode
+   already called out below. Fixed by threading a `deferred_role` flag from
+   [`collect_script`] through to [`insert_lambda_literal_overrides`]:
+   `true` only when the `[…]` substitution being recursed into is itself the
+   whole value of an argument slot the registry marks `Body` /
+   `LambdaLiteral` / `CommandPrefix` (computed per-command by
+   `deferred_role_arg_starts`, never inherited across recursion levels — a
+   bare `list apply {…} $x` statement inside a real, executing body is
+   exactly as inert as one at the top level).
+2. **Call-graph resolution used the wrong namespace.** `interprocedural.rs`'s
+   `scan_source_for_calls` recursed into a lambda body with `ctx` unchanged,
+   so a bare call inside `apply {{} {helper}}` resolved relative to the
+   *enclosing* proc's namespace instead of the lambda's own (the global
+   namespace by default, or its optional third element) — Tcl always
+   evaluates a two/three-element `apply` lambda in `::` or the given
+   namespace, never the caller's. Fixed by building a synthetic caller qname
+   from `elems.namespace` (or `"::"` when absent) for that one recursive call.
+3. **Minify/format reprocessed a lambda element's raw, undecoded spelling.**
+   `apply {{} puts\ hi}`'s real body (after Tcl's list-element decode) is
+   `puts hi` — two words — but `minify.rs`/`formatting/engine.rs` fed the
+   *raw* source span (`puts\ hi`, backslash intact) straight to the
+   script minifier/formatter, which re-parses a bare `\ ` as an
+   escaped-space-within-one-word, silently changing what would execute.
+   Fixed with `split_lambda_literal_decoded` (a `lambda_literal.rs` sibling
+   of `split_lambda_literal` that also collapses a non-literal element's
+   backslashes, mirroring `tcl_syntax::list::split_list`), and re-quoting a
+   reconstructed lambda literal's elements with
+   `tcl_syntax::list::list_element` rather than an unconditional bare `{}`
+   wrap — which also fixes a related bug where a multi-word parameter list
+   (`apply {{x y} …}`) lost the braces grouping it into one list element on
+   reassembly.
+4. **`param_traits.rs` and `declaration.rs` treated the lambda's fresh frame
+   as the enclosing frame.** `scan_deep` recursed into a lambda body with the
+   *enclosing* proc's own `param_set`/`traits`, so `proc f {body} { apply {x
+   {eval $body}} 1 }` wrongly marked `f`'s unrelated `body` param as
+   evaluated (name collision only, the lambda's own param is `x`), while the
+   real forwarding case (`apply {x {eval $x}} $body`) was missed. Fixed by
+   inferring the lambda's own traits in isolation
+   (`infer_param_traits_deep_with_config` against just the lambda's own
+   param list and body) and propagating a lambda param's trait back to an
+   enclosing param only when the actual argument at that position is a bare
+   reference to it. Symmetrically, `declaration.rs`'s
+   `collect_declarations_in_region` recursed into a lambda's body
+   unconditionally whenever it fell inside the *current scan region*, so a
+   `global x` declared inside a lambda was "visible" (by pure lexical/`Span`
+   containment) to a cursor on an unrelated `$x` elsewhere in the enclosing
+   proc. The analyser's scope tree has no `apply`-body scope kind for
+   `scan.visible` to reflect this with, so the fix checks the cursor's raw
+   byte offset against the lambda's own body span directly before recursing.
+
 ## Failure modes
 
 - Tagging a lambda-literal-shaped argument `ArgRole::Body` instead of
@@ -198,10 +263,15 @@ needed).
 
 - `rust/tcl-lsp-core/src/semantic_tokens.rs` —
   `list_quoted_apply_lambda_body_recurses`,
-  `list_quoted_apply_lambda_false_positive_guards`,
+  `list_quoted_apply_lambda_false_positive_guards` (includes the
+  enclosing-role gate: `set data [list apply {…} value]` must not paint the
+  lambda as executable),
   `package_ifneeded_literal_script_recurses_as_body`
 - `rust/tcl-compiler/src/lambda_literal.rs` — `split_lambda_literal`'s own
-  unit tests (params/body/namespace splitting, dynamic-lambda guard)
+  unit tests (params/body/namespace splitting, dynamic-lambda guard) and
+  `split_lambda_literal_decoded`'s (`decodes_bare_body_backslash_escape`,
+  `braced_elements_are_not_decoded`, `decodes_bare_namespace_backslash_escape`,
+  `decoded_dynamic_lambda_is_not_split`)
 - `rust/tcl-lsp-core/tests/command_prefix_integration.rs` —
   `list_quoted_prefix_records_head_span_and_baked_count`,
   `list_quoted_prefix_dynamic_head_is_not_recorded`,
@@ -210,14 +280,21 @@ needed).
   `apply_lambda_body_folds_and_recurses_into_nested_blocks`
 - `rust/tcl-lsp-core/src/formatting/engine.rs` —
   `apply_lambda_body_indents_and_params_normalise`,
-  `apply_lambda_namespace_element_preserved`
-- `rust/tcl-lsp-core/src/minify.rs` — `apply_lambda_body_minifies`
+  `apply_lambda_namespace_element_preserved`,
+  `apply_lambda_body_with_backslash_escape_decodes`
+- `rust/tcl-lsp-core/src/minify.rs` — `apply_lambda_body_minifies`,
+  `apply_lambda_body_with_backslash_escape_decodes`,
+  `apply_lambda_multi_word_param_list_keeps_its_braces`
 - `rust/tcl-lsp-core/src/declaration.rs` —
-  `global_declared_inside_apply_lambda_body_is_found`
+  `global_declared_inside_apply_lambda_body_is_found`,
+  `global_declared_inside_apply_lambda_body_is_not_visible_outside_it`
 - `rust/tcl-compiler/src/interprocedural.rs` —
-  `call_inside_apply_lambda_body_is_a_direct_call`
+  `call_inside_apply_lambda_body_is_a_direct_call`,
+  `call_inside_apply_lambda_body_resolves_in_lambda_namespace`,
+  `call_inside_apply_lambda_body_resolves_in_explicit_namespace`
 - `rust/tcl-compiler/src/analyser/param_traits.rs` —
-  `eval_param_inside_apply_lambda_body_records_eval_trait`
+  `eval_inside_apply_lambda_body_does_not_leak_to_unrelated_enclosing_param`,
+  `eval_param_forwarded_into_apply_lambda_records_eval_trait`
 - `rust/tcl-irules/tests/script_bearing_args.rs` —
   `a_pool_used_only_inside_an_apply_lambda_body_is_referenced`,
   `the_walker_descends_into_every_script_bearing_role`

@@ -33,8 +33,10 @@
 //! parameter list, element 1 is the body script — lets each consumer recurse
 //! into the real body directly.
 
+use std::borrow::Cow;
+
 use tcl_lexer::{Span, Token, TokenType};
-use tcl_syntax::list::find_element;
+use tcl_syntax::list::{Element, find_element};
 
 /// The list elements of a lambda literal, as absolute byte spans into the
 /// original source.
@@ -65,6 +67,31 @@ pub struct LambdaLiteralElements {
 /// at all (an unmatched brace/quote in the parameter-list element).
 #[must_use]
 pub fn split_lambda_literal(source: &str, tok: Token) -> Option<LambdaLiteralElements> {
+    let (content_start, params_el, body_el, namespace_el) = locate_elements(source, tok)?;
+    let to_span = |el: &Element| -> Option<Span> {
+        Some(Span::new(
+            content_start + u32::try_from(el.value.start).ok()?,
+            content_start + u32::try_from(el.value.end).ok()?,
+        ))
+    };
+    Some(LambdaLiteralElements {
+        params: to_span(&params_el)?,
+        body: body_el.as_ref().and_then(to_span),
+        namespace: namespace_el.as_ref().and_then(to_span),
+    })
+}
+
+/// Shared element-location logic for [`split_lambda_literal`] and
+/// [`split_lambda_literal_decoded`]: locate the (params, ?body?, ?namespace?)
+/// list elements of a lambda literal, keeping each [`Element`]'s `literal`
+/// flag — whether it was `{brace}`-delimited (verbatim) vs bare/quoted
+/// (backslash escapes need collapsing) — that a `Span`-only result would
+/// discard. Returns the absolute byte offset the elements' (source-relative)
+/// spans are anchored to, alongside the elements themselves.
+fn locate_elements(
+    source: &str,
+    tok: Token,
+) -> Option<(u32, Element, Option<Element>, Option<Element>)> {
     if tok.kind != TokenType::Str {
         return None;
     }
@@ -78,26 +105,58 @@ pub fn split_lambda_literal(source: &str, tok: Token) -> Option<LambdaLiteralEle
     }
     let text = source.get(content_start as usize..content_end as usize)?;
 
-    let to_span = |el: &tcl_syntax::list::Element| -> Option<Span> {
-        Some(Span::new(
-            content_start + u32::try_from(el.value.start).ok()?,
-            content_start + u32::try_from(el.value.end).ok()?,
-        ))
-    };
-
     let params_el = find_element(text, 0).ok().flatten()?;
-    let params = to_span(&params_el)?;
-
     let body_el = find_element(text, params_el.next).ok().flatten();
-    let body = body_el.as_ref().and_then(to_span);
-    let namespace = body_el
-        .and_then(|el| find_element(text, el.next).ok().flatten())
-        .and_then(|el| to_span(&el));
+    let namespace_el = body_el
+        .as_ref()
+        .and_then(|el| find_element(text, el.next).ok().flatten());
 
-    Some(LambdaLiteralElements {
-        params,
-        body,
-        namespace,
+    Some((content_start, params_el, body_el, namespace_el))
+}
+
+/// A lambda literal's list elements, decoded to the actual value Tcl's list
+/// parser produces — a `{braced}` element verbatim, a bare/quoted element
+/// with its backslash escapes collapsed ([`tcl_lexer::backslash_subst`]).
+///
+/// Reconstruction consumers (minification, formatting) that rewrite an
+/// element and reassemble the literal need this rather than
+/// [`LambdaLiteralElements`]'s raw spans: reprocessing a non-literal
+/// element's still-escaped source spelling directly as list/script text
+/// silently changes what it means (codex review of #954's follow-up —
+/// `apply {{} puts\ hi}`'s real body is `puts hi`, not the literal text
+/// `puts\ hi`, since list-element decoding collapses the `\ ` into a space
+/// *before* the result is ever parsed as a script).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedLambdaLiteral<'a> {
+    /// Element 0's decoded value (the parameter list).
+    pub params: Cow<'a, str>,
+    /// Element 1's decoded value (the body script), when present.
+    pub body: Option<Cow<'a, str>>,
+    /// Element 2's decoded value (the namespace), when present.
+    pub namespace: Option<Cow<'a, str>>,
+}
+
+/// Decoded counterpart of [`split_lambda_literal`] — see
+/// [`DecodedLambdaLiteral`]. Returns `None` under the same conditions as
+/// [`split_lambda_literal`] (a `$var`/`[cmd]`-computed lambda, or content
+/// that isn't parseable as a Tcl list).
+#[must_use]
+pub fn split_lambda_literal_decoded(source: &str, tok: Token) -> Option<DecodedLambdaLiteral<'_>> {
+    let (content_start, params_el, body_el, namespace_el) = locate_elements(source, tok)?;
+    let decode = |el: &Element| -> Option<Cow<'_, str>> {
+        let start = content_start as usize + el.value.start;
+        let end = content_start as usize + el.value.end;
+        let raw = source.get(start..end)?;
+        Some(if el.literal {
+            Cow::Borrowed(raw)
+        } else {
+            tcl_lexer::backslash_subst(raw)
+        })
+    };
+    Some(DecodedLambdaLiteral {
+        params: decode(&params_el)?,
+        body: body_el.as_ref().and_then(decode),
+        namespace: namespace_el.as_ref().and_then(decode),
     })
 }
 
@@ -165,5 +224,42 @@ mod tests {
         let cmds = segment_commands(src);
         let tok = cmds[0].argv[1];
         assert!(split_lambda_literal(src, tok).is_none());
+    }
+
+    /// Codex review of #954's follow-up: a bare body element's backslash
+    /// escapes must be collapsed to get the value Tcl's list parser (and
+    /// then `apply`'s script evaluator) actually sees — `puts\ hi`'s real
+    /// runtime body is `puts hi` (a two-word command), not the literal
+    /// source text `puts\ hi` (which would parse as one word if re-lexed
+    /// verbatim as script source).
+    #[test]
+    fn decodes_bare_body_backslash_escape() {
+        let src = r"apply {{} puts\ hi}";
+        let decoded = split_lambda_literal_decoded(src, lambda_tok(src)).unwrap();
+        assert_eq!(decoded.params, "");
+        assert_eq!(decoded.body.as_deref(), Some("puts hi"));
+    }
+
+    #[test]
+    fn braced_elements_are_not_decoded() {
+        let src = "apply {dir {puts $dir}} /tmp";
+        let decoded = split_lambda_literal_decoded(src, lambda_tok(src)).unwrap();
+        assert_eq!(decoded.params, "dir");
+        assert_eq!(decoded.body.as_deref(), Some("puts $dir"));
+    }
+
+    #[test]
+    fn decodes_bare_namespace_backslash_escape() {
+        let src = r"apply {dir {puts $dir} ::ns\ x} /tmp";
+        let decoded = split_lambda_literal_decoded(src, lambda_tok(src)).unwrap();
+        assert_eq!(decoded.namespace.as_deref(), Some("::ns x"));
+    }
+
+    #[test]
+    fn decoded_dynamic_lambda_is_not_split() {
+        let src = "apply $lambda /tmp";
+        let cmds = segment_commands(src);
+        let tok = cmds[0].argv[1];
+        assert!(split_lambda_literal_decoded(src, tok).is_none());
     }
 }

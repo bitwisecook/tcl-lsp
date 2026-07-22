@@ -429,12 +429,20 @@ fn scan_deep<'p>(
             scan_deep(body_text, ctx, traits, aliases, depth + 1);
         }
 
-        // `apply {argList body ?ns?} …` — the lambda-literal argument is a
-        // 2-element list, not a script, so scanning the whole word as a
-        // `Body` (like the loop above) would misread the parameter word as
-        // a command and never reach the real body's own calls. Split it and
-        // recurse only into the body element (issue #954's param-trait
-        // sibling gap).
+        // `apply {argList body ?ns?} …` — an apply body runs in a *fresh*
+        // call frame with its own parameters; recursing into it with the
+        // enclosing proc's own `ctx`/`traits` (as a plain `Body` arg would)
+        // conflates the two frames. A lambda-local variable that happens to
+        // share a name with an enclosing param (`proc f {body} { apply {x
+        // {eval $body}} 1 }`) would wrongly mark `f`'s `body` param as
+        // evaluated, while the real forwarding case (`apply {x {eval $x}}
+        // $body`) would be missed entirely (codex review of #954's
+        // follow-up). Instead: infer the lambda's own traits in complete
+        // isolation — as if it were its own tiny proc — then propagate a
+        // lambda param's trait back onto an enclosing param only when the
+        // corresponding actual argument is a bare, unadorned reference to
+        // that enclosing param, i.e. only when the value genuinely flows
+        // from the caller's frame into the lambda's.
         for idx in ctx
             .registry
             .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::LambdaLiteral)
@@ -458,7 +466,44 @@ fn scan_deep<'p>(
             if body_text.trim().is_empty() {
                 continue;
             }
-            scan_deep(body_text, ctx, traits, aliases, depth + 1);
+            let Some(params_text) =
+                source.get(elems.params.start() as usize..elems.params.end() as usize)
+            else {
+                continue;
+            };
+            let lambda_param_defs = crate::signature_scan::params::parse_param_list(params_text);
+            let lambda_param_names: Vec<&str> =
+                lambda_param_defs.iter().map(|p| p.name.as_str()).collect();
+            if lambda_param_names.is_empty() {
+                continue;
+            }
+            let lambda_traits = infer_param_traits_deep_with_config(
+                &lambda_param_names,
+                body_text,
+                ctx.registry,
+                ctx.stub_overlay,
+                ctx.config,
+            );
+            if lambda_traits.is_empty() {
+                continue;
+            }
+            // Positional actual arguments following the lambda literal bind
+            // to `argList`'s names in order (`apply {argList body} a1 a2 …`).
+            for (param_name, actual) in lambda_param_names.iter().copied().zip(&cmd_args[idx + 1..])
+            {
+                let Some(outer_name) = extract_var_name(actual) else {
+                    continue;
+                };
+                let Some(outer_param) = ctx.param_set.get(outer_name).copied() else {
+                    continue;
+                };
+                if let Some(lambda_param_traits) = lambda_traits.get(param_name) {
+                    traits
+                        .entry(outer_param)
+                        .or_default()
+                        .extend(lambda_param_traits.iter().copied());
+                }
+            }
         }
     }
 }
@@ -1103,12 +1148,35 @@ mod tests {
     /// would treat the parameter word as a command name and never find the
     /// `eval` at all) — mirrors `overlay_deep_recurses_through_stub_body_args`,
     /// swapping the registry-known `apply`/`LambdaLiteral` shape in for a
-    /// stub-declared `Body` shape.
+    /// stub-declared `Body` shape. The lambda's own param is `x`, bound to
+    /// the literal `1` — an enclosing `body` param is neither the lambda's
+    /// param nor forwarded into the call, so it must record nothing (codex
+    /// review of #954's follow-up: a lambda body runs in a fresh frame, and
+    /// a same-named enclosing param is not implicitly in scope there).
     #[test]
-    fn eval_param_inside_apply_lambda_body_records_eval_trait() {
+    fn eval_inside_apply_lambda_body_does_not_leak_to_unrelated_enclosing_param() {
         let registry = CommandRegistry::build_default();
         let traits =
             infer_param_traits_deep(&["body"], "apply {x {eval $body}} 1", &registry, None);
+        assert!(
+            !traits
+                .get("body")
+                .is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
+            "an apply lambda's fresh frame must not leak a same-named \
+             enclosing param's trait when that param is never forwarded \
+             into the call; got {traits:?}"
+        );
+    }
+
+    /// The real forwarding case: the lambda's own param `x` is `eval`'d
+    /// inside its body, and the enclosing `body` param is passed as the
+    /// actual argument that binds to `x` — so `body`'s value genuinely does
+    /// flow into an `eval`, and the trait must propagate back to it.
+    #[test]
+    fn eval_param_forwarded_into_apply_lambda_records_eval_trait() {
+        let registry = CommandRegistry::build_default();
+        let traits =
+            infer_param_traits_deep(&["body"], "apply {x {eval $x}} $body", &registry, None);
         assert_trait(&traits, "body", ProcArgTrait::Eval);
     }
 

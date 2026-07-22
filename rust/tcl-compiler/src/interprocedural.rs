@@ -1702,7 +1702,29 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts)
                 && let Some(body_text) =
                     source.get(body_span.start() as usize..body_span.end() as usize)
             {
-                scan_source_for_calls(body_text, ctx, facts);
+                // A lambda body runs in a fresh call frame whose current
+                // namespace is the lambda's own (optional) third element, or
+                // the global namespace when omitted — never the enclosing
+                // procedure's namespace. Build a synthetic "caller" qname
+                // carrying that namespace so `resolve_internal_call` (which
+                // derives its search namespace from the caller qname's own
+                // namespace prefix) resolves bare calls inside the lambda the
+                // same way Tcl itself would, instead of relative to
+                // `ctx.caller`'s enclosing namespace (codex review of #954's
+                // follow-up: an `apply {{} {helper}}` inside `::ns::f` calls
+                // `::helper`, not `::ns::helper`).
+                let lambda_caller = match elems
+                    .namespace
+                    .and_then(|ns| source.get(ns.start() as usize..ns.end() as usize))
+                {
+                    Some(ns) => format!("{ns}::<apply>"),
+                    None => "<apply>".to_owned(),
+                };
+                let lambda_ctx = ScanCtx {
+                    caller: &lambda_caller,
+                    ..ctx
+                };
+                scan_source_for_calls(body_text, lambda_ctx, facts);
             }
         }
         // Recurse into EXPR-role args. `expr {…}` (and the registry's other
@@ -2293,6 +2315,64 @@ mod tests {
         assert!(
             s.direct_calls.iter().any(|c| c == "::helper"),
             "expected a direct_calls edge to ::helper via the apply lambda body; got {:?}",
+            s.direct_calls
+        );
+    }
+
+    /// Codex review of #954's follow-up: a lambda body's bare calls must
+    /// resolve in the lambda's own namespace (the optional third `apply`
+    /// element, or global when omitted) — never the enclosing procedure's
+    /// namespace. `::ns::f`'s `apply {{} {helper}}` must resolve `helper` to
+    /// `::helper` (the two-element form runs in `::`), not `::ns::helper`,
+    /// even though `::ns::helper` also exists and would otherwise look like
+    /// the "closer" match.
+    #[test]
+    fn call_inside_apply_lambda_body_resolves_in_lambda_namespace() {
+        let ia = build(
+            "namespace eval ::ns {\n\
+                 proc helper {} { return 1 }\n\
+             }\n\
+             proc ::helper {} { return 2 }\n\
+             proc ::ns::f {} { set y [apply {{} {helper}}]; return $y }\n",
+        );
+        let s = ia.procedures.get("::ns::f").expect("::ns::f summary");
+        assert!(
+            s.direct_calls.iter().any(|c| c == "::helper"),
+            "expected the apply lambda body's bare `helper` call to resolve \
+             in the global namespace (Tcl evaluates a two-element apply \
+             lambda in `::`); got {:?}",
+            s.direct_calls
+        );
+        assert!(
+            !s.direct_calls.iter().any(|c| c == "::ns::helper"),
+            "the apply lambda body must not resolve `helper` against the \
+             enclosing proc's `::ns` namespace; got {:?}",
+            s.direct_calls
+        );
+    }
+
+    /// The lambda's explicit third-element namespace overrides both the
+    /// enclosing procedure's namespace and the global default.
+    #[test]
+    fn call_inside_apply_lambda_body_resolves_in_explicit_namespace() {
+        let ia = build(
+            "namespace eval ::other {\n\
+                 proc helper {} { return 1 }\n\
+             }\n\
+             proc ::helper {} { return 2 }\n\
+             proc ::ns::f {} { set y [apply {{} {helper} ::other}]; return $y }\n",
+        );
+        let s = ia.procedures.get("::ns::f").expect("::ns::f summary");
+        assert!(
+            s.direct_calls.iter().any(|c| c == "::other::helper"),
+            "expected the apply lambda's explicit `::other` namespace \
+             element to resolve `helper` there; got {:?}",
+            s.direct_calls
+        );
+        assert!(
+            !s.direct_calls.iter().any(|c| c == "::helper"),
+            "the explicit lambda namespace must not fall back to global; \
+             got {:?}",
             s.direct_calls
         );
     }

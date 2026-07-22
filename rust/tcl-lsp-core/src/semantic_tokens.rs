@@ -1303,6 +1303,7 @@ fn special_arg_kinds(
     extra_var_write: &FxHashMap<String, Vec<u32>>,
     extra_var_read: &FxHashMap<String, Vec<u32>>,
     extra_command: &FxHashMap<String, Vec<u32>>,
+    deferred_role: bool,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
 
@@ -1362,7 +1363,7 @@ fn special_arg_kinds(
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
     insert_definer_class_name_override(seg, registry, &mut overrides);
-    insert_lambda_literal_overrides(seg, registry, head, &mut overrides);
+    insert_lambda_literal_overrides(seg, registry, head, deferred_role, &mut overrides);
     insert_case_list_override(seg, registry, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, oo_grammar, arg_texts, &mut overrides);
@@ -2810,10 +2811,23 @@ fn insert_oo_define_keyword_overrides(
 ///   spec, the token at `argv[K + 2]` (shifted by one for `list` itself) is
 ///   the lambda literal. A dynamic `list` argument (`$var`, `[cmd]`) can't be
 ///   resolved statically and is left alone.
+///
+/// The list-quoted case is additionally gated on `deferred_role`: `list`
+/// itself never invokes anything — it only ever returns a value — so
+/// `[list apply {…} $x]` builds a real deferred invocation only when
+/// *its own* enclosing argument slot is one that's later invoked/sourced
+/// (`Body` / `LambdaLiteral` / `CommandPrefix`), e.g. `package ifneeded`'s
+/// script argument. Plain data such as `set data [list apply {x {puts $x}}
+/// value]` must not paint `x`/`puts`/`apply` as executable (codex review of
+/// #954's follow-up) — `deferred_role` carries that enclosing-role check in
+/// from [`collect_script`], computed once per `[…]` substitution. The direct
+/// case needs no such gate: writing `apply {…}` literally *always* invokes
+/// `apply` when reached, regardless of what its caller does with the result.
 fn insert_lambda_literal_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
+    deferred_role: bool,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
@@ -2833,6 +2847,10 @@ fn insert_lambda_literal_overrides(
         for idx in direct {
             mark(idx, overrides);
         }
+        return;
+    }
+
+    if !deferred_role {
         return;
     }
 
@@ -4092,6 +4110,7 @@ fn collect_case_list(
                     u32::try_from(bstart).unwrap_or(0),
                     entries,
                     depth + 1,
+                    false,
                 );
             } else if let Some(kind) = classify_arg_token(btok, full_source) {
                 push_token(line_index, full_source, btok, kind, 0, entries);
@@ -4149,6 +4168,7 @@ fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entr
                 u32::try_from(bstart).unwrap_or(0),
                 entries,
                 depth + 1,
+                false,
             );
         } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
             push_token(line_index, full_source, *word_tok, kind, 0, entries);
@@ -4438,12 +4458,25 @@ fn emit_command_head(
 /// (`ArgRole::Expr`), and `[…]` command substitutions.  Token spans are
 /// already absolute (the segmenter shifts them by `base_offset`), so positions
 /// and text are resolved against `full_source` + `line_index`.
+///
+/// `deferred_role` is `true` only when this call's *entire* `text` is the
+/// content of a `[…]` substitution whose own enclosing argument slot (in the
+/// command containing it) carries `Body` / `LambdaLiteral` / `CommandPrefix`
+/// — i.e. a position whose value is later invoked or sourced, not merely
+/// computed. It gates [`insert_lambda_literal_overrides`]'s list-quoted-lambda
+/// recognition (codex review of #954's follow-up) and is otherwise `false`:
+/// every other recursion (the top-level script, a body, a lambda body, a
+/// case-list clause, an expression) processes source that is *itself*
+/// executed code, not a value that might or might not be invoked later, so
+/// list-quoted detection inside it is decided fresh at the next `[…]` hop
+/// rather than inherited.
 fn collect_script(
     ctx: ScriptCtx<'_>,
     text: &str,
     base_offset: u32,
     entries: &mut Vec<Entry>,
     depth: u32,
+    deferred_role: bool,
 ) {
     if depth > MAX_TOKEN_RECURSION {
         return;
@@ -4524,6 +4557,7 @@ fn collect_script(
             ctx.extra_var_write,
             ctx.extra_var_read,
             ctx.extra_command,
+            deferred_role,
         );
         // `my method …` inside a class body resolves against the enclosing
         // class's MRO (the most common `TclOO` dispatch form).
@@ -4569,6 +4603,9 @@ fn collect_script(
             ..ctx
         };
 
+        let deferred_role_starts =
+            deferred_role_arg_starts(&seg, registry, resolved_head, &arg_texts);
+
         for tok in &seg.all_tokens {
             // Skip every token that falls inside a *static* head word — not
             // just the exact head token.  Such a head is one word that
@@ -4593,11 +4630,39 @@ fn collect_script(
                 body_ctx,
                 *tok,
                 overrides.get(&tok.span.start()),
+                deferred_role_starts.contains(&tok.span.start()),
                 entries,
                 depth,
             );
         }
     }
+}
+
+/// This command's own argument slots whose registry role means "the value
+/// here is later invoked/sourced as a command" — `Body` / `LambdaLiteral` /
+/// `CommandPrefix` — as the set of their representative tokens' start
+/// offsets. A `[…]` substitution occupying one of these slots recurses with
+/// `deferred_role = true` (see [`collect_script`]) so list-quoted-lambda
+/// detection ([`insert_lambda_literal_overrides`]) only fires for a
+/// genuinely deferred invocation (`package ifneeded … [list apply {…}
+/// $dir]`), never for inert data (`set x [list apply {…} value]`) — codex
+/// review of #954's follow-up.
+fn deferred_role_arg_starts(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    head: &str,
+    arg_texts: &[&str],
+) -> FxHashSet<u32> {
+    [
+        tcl_registry::ArgRole::Body,
+        tcl_registry::ArgRole::LambdaLiteral,
+        tcl_registry::ArgRole::CommandPrefix,
+    ]
+    .into_iter()
+    .flat_map(|role| registry.arg_indices_for_role(head, arg_texts, role))
+    .filter_map(|i| seg.argv.get(i + 1))
+    .map(|t| t.span.start())
+    .collect()
 }
 
 /// Emit semantic-token entries for a single non-head argument token,
@@ -4637,6 +4702,7 @@ fn emit_arg_token(
     body_ctx: ScriptCtx<'_>,
     tok: Token,
     override_kind: Option<&ArgOverride>,
+    deferred_role: bool,
     entries: &mut Vec<Entry>,
     depth: u32,
 ) {
@@ -4709,6 +4775,7 @@ fn emit_arg_token(
                     u32::try_from(cstart).unwrap_or(0),
                     entries,
                     depth + 1,
+                    false,
                 );
             } else if let Some(kind) = classify_arg_token(*tok, full_source) {
                 push_token(line_index, full_source, *tok, kind, 0, entries);
@@ -4735,14 +4802,24 @@ fn emit_arg_token(
             | ArgOverride::ClassNameDef
             | ArgOverride::ClassNameRef,
         ) => {}
-        None => emit_default_arg_token(plain_ctx, *tok, entries, depth),
+        None => emit_default_arg_token(plain_ctx, *tok, entries, depth, deferred_role),
     }
 }
 
 /// Handle an argument token with no [`ArgOverride`]: recurse into a `[…]`
 /// command substitution, or classify a plain word (splitting backslash
 /// escapes out of string literals).  Extracted from [`emit_arg_token`].
-fn emit_default_arg_token(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
+///
+/// `deferred_role` is `tok`'s own [`collect_script`]-computed deferred-role
+/// flag (see there) — threaded through unchanged so the `[…]` recursion below
+/// carries it into the substitution's content.
+fn emit_default_arg_token(
+    ctx: ScriptCtx<'_>,
+    tok: Token,
+    entries: &mut Vec<Entry>,
+    depth: u32,
+    deferred_role: bool,
+) {
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     if matches!(tok.kind, TokenType::Cmd) {
@@ -4759,6 +4836,7 @@ fn emit_default_arg_token(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entr
                 u32::try_from(cstart).unwrap_or(0),
                 entries,
                 depth + 1,
+                deferred_role,
             );
         }
     } else if let Some(kind) = classify_arg_token(tok, full_source) {
@@ -4802,6 +4880,7 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
                     u32::try_from(abs_start + usize::from(has_open)).unwrap_or(0),
                     entries,
                     depth + 1,
+                    false,
                 );
             }
             E::Number => {
@@ -5346,7 +5425,7 @@ fn collect_entries(
         extra_var_read: &extra_var_read,
         extra_command: &extra_command,
     };
-    collect_script(ctx, source, 0, &mut entries, 0);
+    collect_script(ctx, source, 0, &mut entries, 0, false);
 
     // Comments aren't in the segmenter's command stream
     // (it strips them).  Scan the source for `#` comments
@@ -8112,6 +8191,31 @@ mod tests {
                 TokenKind::Parameter
             ),
             "llength must never be treated as a command-quoting construct"
+        );
+
+        // Codex review of #954's follow-up: a well-formed `[list apply …]`
+        // shape sitting in an *inert* argument slot (here `set`'s value,
+        // which carries no `Body` / `LambdaLiteral` / `CommandPrefix` role)
+        // must not be treated as a deferred invocation — `list` only ever
+        // returns a value here; nothing ever invokes `apply`.
+        let inert_data = "set data [list apply {x {puts $x}} value]\n";
+        assert!(
+            !has_token_kind(inert_data, "tcl", &registry, "x", TokenKind::Parameter),
+            "an inert `[list apply …]` value must not paint its param as a \
+             Parameter; got {:?}",
+            decode_full(inert_data, "tcl", &registry)
+        );
+        assert!(
+            !has_token_kind(inert_data, "tcl", &registry, "puts", TokenKind::Function),
+            "an inert `[list apply …]` value must not recurse into its body \
+             as executable code; got {:?}",
+            decode_full(inert_data, "tcl", &registry)
+        );
+        assert!(
+            !has_token_kind(inert_data, "tcl", &registry, "apply", TokenKind::Function),
+            "an inert `[list apply …]` value's `apply` word must not read as \
+             a call-site reference; got {:?}",
+            decode_full(inert_data, "tcl", &registry)
         );
     }
 
