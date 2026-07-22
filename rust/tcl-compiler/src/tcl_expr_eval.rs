@@ -232,6 +232,26 @@ pub fn is_known_mathfunc_in_dialect(name: &str, dialect: &str) -> bool {
     math_func_ceiling_for_dialect(dialect).is_none_or(|ceiling| since <= ceiling)
 }
 
+/// Whether `dialect` exposes math functions as literal `::tcl::mathfunc::*`
+/// **commands** — TIP 232's own wrapper mechanism, landed in 8.5 alongside
+/// `bool`/`entier`/`isqrt`/`min`/`max` (see
+/// [`tcl_syntax::expr::mathfunc::MathFuncSince::Tcl85`]'s doc comment). This
+/// is a coarser, single fact than [`is_known_mathfunc_in_dialect`]: it does
+/// not vary per function name, because every wrapper command — even one
+/// backing an 8.4-vintage function like `sin` — only exists from 8.5
+/// onward. An 8.4-based dialect supports `expr {sin(1)}` (the internal
+/// expr-grammar dispatch predates TIP 232) but not a bareword
+/// `::tcl::mathfunc::sin 1` call (the command itself does not exist there) —
+/// [`crate::analyser::diagnostics::unresolved`]'s W123 check uses this to
+/// keep an *ordinary* call that happens to resolve to a `tcl::mathfunc`-
+/// shaped qualified name from being waved through by the `expr`
+/// function-call shortcut, which only reflects the first, narrower fact.
+#[must_use]
+pub fn mathfunc_command_wrappers_available_in_dialect(dialect: &str) -> bool {
+    use tcl_syntax::expr::mathfunc::MathFuncSince;
+    math_func_ceiling_for_dialect(dialect).is_none_or(|ceiling| ceiling >= MathFuncSince::Tcl85)
+}
+
 fn eval_with_config(
     node: &ExprNode,
     env: &Env,

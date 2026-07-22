@@ -6399,6 +6399,77 @@ fn w123_tn_unrelated_proc_sharing_a_mathfunc_name_is_unaffected() {
     );
 }
 
+// The `expr`-function shortcut above is keyed on `is_mathfunc_call`, not
+// merely on the settled qualified name matching `::tcl::mathfunc::<name>` —
+// an *ordinary* call can resolve to that same shape by being made from
+// inside the real `::tcl::mathfunc` namespace, and TIP 232's command
+// wrappers (the mechanism that makes such a bareword call valid at all)
+// only exist from Tcl 8.5 onward, independent of any individual function's
+// own, earlier expr-grammar availability.
+
+#[test]
+fn w123_tp_ordinary_call_shaped_like_mathfunc_fires_under_84() {
+    // `sin` is a valid *expr* function since 8.4, but the `::tcl::mathfunc`
+    // *command* namespace TIP 232 introduced does not exist until 8.5 — an
+    // ordinary bareword call to `sin` from inside that namespace is not a
+    // real command under an 8.4-based dialect.
+    let src = "namespace eval ::tcl::mathfunc {\n    sin 1\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.4");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "an ordinary call shaped like a mathfunc dispatch must still draw \
+         W123 under an 8.4-based dialect; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_ordinary_call_shaped_like_mathfunc_resolves_under_86() {
+    // The same call is genuinely valid Tcl from 8.5 onward: `::tcl::mathfunc::sin`
+    // really is a callable command there, so the bareword call must resolve.
+    let src = "namespace eval ::tcl::mathfunc {\n    sin 1\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "the command wrapper genuinely exists under tcl8.6; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_tp_custom_mathfunc_body_bareword_call_fires_under_84() {
+    // The more realistic trigger: a custom math function's own body calling
+    // a built-in bareword (not through `expr`'s function-call syntax) —
+    // still invalid under an 8.4-based dialect for the same reason.
+    let src = "proc ::tcl::mathfunc::myfunc {x} { return [sin $x] }\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.4");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a bareword call to a builtin from inside a custom mathfunc body \
+         must still draw W123 under an 8.4-based dialect; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_expr_function_call_unaffected_by_wrapper_availability_under_84() {
+    // Regression guard: the wrapper-availability gate must apply only to
+    // ordinary calls, never to a genuine `expr` function-call site — issue
+    // #968's original fix must not regress under an 8.4-based dialect.
+    let src = "set x [expr {sin(1.0)}]\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.4");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "expr {{sin(1.0)}} is valid under tcl8.4 regardless of TIP 232's \
+         command-wrapper availability; got {:?}",
+        r.diagnostics,
+    );
+}
+
 #[test]
 fn analyse_static_rename_does_not_set_has_dynamic_providers() {
     // A fully static `rename OLD NEW` is now recorded precisely

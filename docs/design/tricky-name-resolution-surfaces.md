@@ -352,6 +352,27 @@ the ensemble configuration string. Same fix location, same milestone.
   unmodified throughout, so nothing regressed, but no test in this effort
   specifically targets a mathfunc call through any of them.
 
+  **Review follow-up:** the W123 shortcut (`w123_invocation_resolves`,
+  `unresolved.rs`) checked only the settled qualified name against
+  `expr_mathfunc_name_known`, with no regard for *how* the invocation was
+  recorded. An *ordinary* call made from inside the real `::tcl::mathfunc`
+  namespace (or targeting a custom function's own body) can settle to the
+  identical `::tcl::mathfunc::<name>` shape a genuine `expr` function-call
+  site does, and TIP 232's command wrappers — the mechanism that makes such
+  a bareword call valid *at all* — only exist from Tcl 8.5 onward,
+  independent of any individual function's own earlier expr-grammar
+  availability (`sin` is a valid 8.4 expr function with no 8.4 command
+  form). The shortcut now also checks `is_mathfunc_call`: a genuine `expr`
+  function-call site keeps the existing per-function expr-grammar check
+  unchanged, while any other invocation additionally requires
+  `tcl_expr_eval::mathfunc_command_wrappers_available_in_dialect` — a
+  coarser, single fact (available from 8.5 onward, regardless of which
+  function) rather than the per-function ceiling. Covered by
+  `tests.rs`'s `w123_tp_ordinary_call_shaped_like_mathfunc_fires_under_84`
+  / `w123_fp_ordinary_call_shaped_like_mathfunc_resolves_under_86` /
+  `w123_tp_custom_mathfunc_body_bareword_call_fires_under_84` /
+  `w123_fp_expr_function_call_unaffected_by_wrapper_availability_under_84`.
+
 ### 1.7 Literal command names in dispatch tables — **CONFIRMED** (medium)
 
 - **Real Tcl:** a literal extracted from a dict/array/string-map value becomes the

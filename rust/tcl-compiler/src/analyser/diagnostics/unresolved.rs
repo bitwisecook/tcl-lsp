@@ -364,6 +364,14 @@ impl Analyser {
         crate::tcl_expr_eval::is_known_mathfunc_in_dialect(name, self.dialect())
     }
 
+    /// Whether this dialect exposes `::tcl::mathfunc::*` as literal,
+    /// bareword-callable commands (TIP 232, Tcl 8.5+) — see
+    /// [`crate::tcl_expr_eval::mathfunc_command_wrappers_available_in_dialect`].
+    #[must_use]
+    fn mathfunc_command_wrappers_available(&self) -> bool {
+        crate::tcl_expr_eval::mathfunc_command_wrappers_available_in_dialect(self.dialect())
+    }
+
     /// Whether byte offset `off` falls inside any recorded proc or class
     /// definition body — code there runs at *call* time, not load time.
     fn offset_is_inside_definition_body(&self, off: u32) -> bool {
@@ -381,6 +389,7 @@ impl Analyser {
         name: &str,
         range: tcl_lexer::Span,
         resolved_qualified_name: Option<&str>,
+        is_mathfunc_call: bool,
     ) -> bool {
         // A built-in renamed away / deleted at an earlier offset no longer
         // resolves here — fall through to the user-defined paths below,
@@ -410,10 +419,24 @@ impl Analyser {
         // {}` breaks `expr {sin(…)}` in C Tcl (confirmed by the WASM
         // runtime's `expr_routes_through_the_command_table` test), so a call
         // after that point falls through to the user-defined paths below.
+        //
+        // `is_mathfunc_call` gates which of two distinct facts applies. A
+        // genuine `expr` function-call site is governed by expr-grammar
+        // per-function availability alone (`expr_mathfunc_name_known`) —
+        // `expr {sin(1)}` is valid under an 8.4-based dialect even though
+        // TIP 232 (and the `::tcl::mathfunc` *command* namespace it
+        // introduced) did not land until 8.5. An *ordinary* call that
+        // merely happens to resolve to the same qualified shape (a bareword
+        // `sin` invoked from inside a real `::tcl::mathfunc` namespace) has
+        // no such exemption — it can only be that literal command, which
+        // exists only where the wrapper mechanism itself does
+        // (`mathfunc_command_wrappers_available_in_dialect`). Without this
+        // split, an 8.4-based dialect would wrongly resolve the latter.
         if let Some(resolved) = resolved_qualified_name {
             let mathfunc_qualified = format!("::tcl::mathfunc::{name}");
             if resolved == mathfunc_qualified
                 && self.expr_mathfunc_name_known(name)
+                && (is_mathfunc_call || self.mathfunc_command_wrappers_available())
                 && !self.qualified_name_deleted_before(&mathfunc_qualified, range.start())
             {
                 return true;
@@ -515,6 +538,7 @@ impl Analyser {
                 name,
                 inv.range,
                 inv.resolved_qualified_name.as_deref(),
+                inv.is_mathfunc_call,
             ) {
                 continue;
             }
