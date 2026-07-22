@@ -10081,6 +10081,131 @@ fn w004_later_version_options_never_leak_into_supersets() {
     }
 }
 
+// Issue #973 — a proc / class / rename / alias target that was renamed or
+// deleted away, with no later re-establishment under the same name, must
+// not still read as "known" for W123: calling it fails "invalid command
+// name" in real Tcl. `finalise_invocation_resolutions`'s `known` predicate
+// (scope.rs) and `build_w123_known_names` (unresolved.rs — the pass that
+// actually decides W123) both gated deletion only for registry builtins /
+// aliases / rename targets, never for user procs or classes themselves.
+//
+// Fixed by extending the same "was this fact re-established after its
+// last deletion" question the arity resolver's `fact_superseded_by_deletion`
+// already answers for E002/E003 (see
+// `same_file_rename_reestablished_after_deletion_checks_new_arity` above)
+// to the proc/class checks here — `fact_live_for_call` in unresolved.rs —
+// with the same call-site + conditional-body awareness
+// `qualified_name_deleted_before` already gives registry builtins: a
+// deletion recorded inside a proc/class/method body is conditional (it
+// executes only if that body is ever invoked) and a top-level call
+// textually before a later deletion still resolves. All cases below
+// confirmed against tclsh 8.6.14.
+fn w123_codes(src: &str) -> Vec<String> {
+    let mut a = Analyser::new();
+    a.analyse(src, "tcl8.6")
+        .diagnostics
+        .into_iter()
+        .filter(|d| d.code == DiagCode::W123)
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+#[test]
+fn w123_fp_issue_973_proc_call_before_rename_resolves() {
+    let src = "proc helper {} { return 1 }\nproc caller {} { helper }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_973_proc_deleted_via_rename_no_reestablishment() {
+    // The exact shape from issue #973's repro.
+    let src = "\
+namespace eval ::a {
+    proc helper {} { return 1 }
+}
+rename ::a::helper {}
+namespace eval ::a {
+    proc caller {} { helper }
+}
+";
+    assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_fp_issue_973_proc_reestablished_after_deletion_resolves() {
+    let src = "proc helper {} { return 1 }\nrename helper {}\nproc helper {} { return 2 }\nproc caller {} { helper }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_973_class_deleted_via_rename_no_reestablishment() {
+    let src = "oo::class create Helper\nrename Helper {}\nproc caller {} { Helper new }\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_fp_issue_973_class_call_before_rename_resolves() {
+    let src = "oo::class create Helper\nproc caller {} { Helper new }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_973_class_reestablished_after_deletion_resolves() {
+    let src = "oo::class create Helper\nrename Helper {}\noo::class create Helper\nproc caller {} { Helper new }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_973_interp_alias_deleted_no_reestablishment() {
+    let src = "proc target {} {}\ninterp alias {} short {} target\ninterp alias {} short {}\nproc caller {} { short }\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_fp_issue_973_interp_alias_call_before_deletion_resolves() {
+    let src = "proc target {} {}\ninterp alias {} short {} target\nproc caller {} { short }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_973_interp_alias_reestablished_after_deletion_resolves() {
+    let src = "\
+proc target {} {}
+proc target2 {} {}
+interp alias {} short {} target
+interp alias {} short {}
+interp alias {} short {} target2
+proc caller {} { short }
+";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_973_rename_to_new_name_call_to_old_name_stays_unknown() {
+    // A rename that *moves* the name (not a deletion) leaves the old name
+    // permanently gone — must stay unknown, same as before this fix.
+    let src = "proc helper {} { return 1 }\nrename helper newhelper\nproc caller {} { helper }\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_fp_issue_973_top_level_call_before_later_proc_deletion_resolves() {
+    // A top-level call textually before a *later* same-file deletion still
+    // resolves — order matters at top level (tclsh: `proc helper {} {};
+    // helper; rename helper {}` succeeds).
+    let src = "proc helper {} { return 1 }\nhelper\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_973_deletion_inside_never_triggered_proc_body_resolves() {
+    // A `rename` recorded inside a proc body that's never called is
+    // conditional — it never executes, so the name stays live (tclsh:
+    // calling `caller` without ever calling `maybeDelete` succeeds).
+    let src = "proc helper {} { return 1 }\nproc maybeDelete {} { rename helper {} }\nproc caller {} { helper }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
 #[test]
 fn vendor_command_inherited_options_resolve_cleanly() {
     // expect_after's options inherit the command's EXPECT gate — under the

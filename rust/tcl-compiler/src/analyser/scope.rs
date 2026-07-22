@@ -388,6 +388,23 @@ impl Analyser {
     /// (`graphs`, `minify`) find no same-file definition either way, and
     /// the cross-file reference matchers treat the field as a candidate,
     /// not ground truth.
+    /// Registry builtin names renamed away (`rename puts ::a::p`) or
+    /// deleted (`rename puts ""` / an `interp alias` deletion) anywhere in
+    /// the file — no longer callable under their original name (C raises
+    /// `invalid command name`), so the registry name must not count as
+    /// existing. Gates only [`Self::finalise_invocation_resolutions`]'s
+    /// registry-builtin clause; user procs/classes keep that function's
+    /// whole-file semantics (a proc/class's own deletion is instead gated
+    /// per qualified name, via `deleted_commands` directly).
+    fn renamed_away_builtin_names(&self) -> std::collections::HashSet<String> {
+        self.result
+            .renamed_commands
+            .values()
+            .cloned()
+            .chain(self.deleted_commands.keys().cloned())
+            .collect()
+    }
+
     pub(super) fn finalise_invocation_resolutions(&mut self) {
         // Populate the per-dialect builtin-name cache before splitting field
         // borrows below (`builtin_command_names` needs `&mut self`).
@@ -412,19 +429,9 @@ impl Analyser {
         // consumers (definition / hover / signature help) can honour a
         // `namespace path` the same way call-site settling does.
         self.result.namespace_paths.clone_from(&paths);
-        // A builtin renamed away (`rename puts ::a::p`) or deleted
-        // (`rename puts ""` / alias deletion) is no longer callable under
-        // its original name — C raises `invalid command name` — so the
-        // registry name must not count as existing. (User procs keep the
-        // whole-file semantics documented above; this gates only the
-        // builtin clause.)
-        let renamed_away: std::collections::HashSet<String> = self
-            .result
-            .renamed_commands
-            .values()
-            .cloned()
-            .chain(self.deleted_commands.keys().cloned())
-            .collect();
+        let renamed_away = self.renamed_away_builtin_names();
+        let deleted_commands = &self.deleted_commands;
+        let rename_offsets = &self.rename_offsets;
         let result = &mut self.result;
         let (procs, classes, aliases, renames) = (
             &result.all_procs,
@@ -432,11 +439,44 @@ impl Analyser {
             &result.command_aliases,
             &result.renamed_commands,
         );
+        let alias_offsets = &result.alias_offsets;
+        // Whether `qualified`'s fact — a proc/class definition, a `rename`
+        // target, or an `interp alias` target, established at `fact_off` —
+        // is still live: no `rename NAME {}` / `interp alias {} NAME {}`
+        // deletion of `qualified` itself has been recorded *after* that
+        // offset (issue #973: a proc/class/rename/alias target that was
+        // later renamed away must not still count as known — calling it
+        // fails "invalid command name" in real Tcl, confirmed against
+        // tclsh 8.6.14). Mirrors `fact_superseded_by_deletion` in
+        // `diagnostics/validity.rs` (the arity resolver's answer to the
+        // same "most recent fact: live definition or deletion?" question)
+        // rather than re-deriving it: a name deleted and then
+        // re-established under the same name (a fresh `proc`, `rename`, or
+        // `interp alias`) is live again, so only a deletion that postdates
+        // this specific fact's own establishing offset disqualifies it.
+        // `deleted_commands` stores only the last-seen deletion offset per
+        // name, which — since the walk visits statements in source order —
+        // is always the most recent one.
+        let live = |qualified: &str, fact_off: u32| {
+            deleted_commands
+                .get(qualified)
+                .is_none_or(|&del_off| del_off <= fact_off)
+        };
         let known = |qualified: &str| {
-            procs.contains_key(qualified)
-                || classes.contains_key(qualified)
-                || aliases.contains_key(qualified)
-                || renames.contains_key(qualified)
+            procs
+                .get(qualified)
+                .is_some_and(|p| live(qualified, p.name_span.start()))
+                || classes
+                    .get(qualified)
+                    .is_some_and(|c| live(qualified, c.name_span.start()))
+                || (aliases.contains_key(qualified)
+                    && alias_offsets
+                        .get(qualified)
+                        .is_none_or(|&off| live(qualified, off)))
+                || (renames.contains_key(qualified)
+                    && rename_offsets
+                        .get(qualified)
+                        .is_none_or(|&off| live(qualified, off)))
                 || (builtins.contains(qualified.trim_start_matches(':'))
                     && !renamed_away.contains(qualified))
         };
