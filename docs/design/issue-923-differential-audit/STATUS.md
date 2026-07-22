@@ -25,14 +25,17 @@ plus each fixed-and-pushed finding since the rebase (see §3 for the full,
 current commit list).
 
 **tl;dr:** A deep differential-audit campaign against real-world Tcl code
-found ~66 confirmed LSP correctness bugs so far (22 in tcllib, 39+ across 7
-other corpora, more still being found). 15 tcllib bugs are fixed, tested, and
-pushed to this branch. 6 more tcllib bugs are triaged with fix plans
-(0 of them researched in detail — the one remaining refined plan, idx 116,
-just landed). The main-wave audit (other 7 corpora, 105 findings total) is
-now **fully complete** (see §6b) — 85 CONFIRMED, entirely untriaged. Nothing
-is lost — the raw data, the exact scripts that produced it, and everything
-needed to resume are in this directory.
+found 107 confirmed LSP correctness bugs total (22 in tcllib, 85 across 7
+other corpora — the "main wave"). 14 tcllib findings are fixed, tested, and
+pushed to this branch (§3/§6a); 6 tcllib findings remain, each with a
+detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
+(other 7 corpora, 105 findings total) is now **fully complete and triaged**
+(§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED. The
+one critical finding (idx 61) is **fixed** (§3's `d825d1d`); the other 84
+main-wave findings are clustered by feature/root-cause with a
+priority-ordered table in §6b, ready for a future session to pick up
+efficiently. Nothing is lost — the raw data, the exact scripts that
+produced it, and everything needed to resume are in this directory.
 
 ---
 
@@ -153,6 +156,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `edd0119` | tcllib idx 9 | `set s [interp create -safe]` never bound `s` to the interpreter it created, so a later `interp alias $s name {} target` / `interp eval $s {…}` / `$s eval {…}` (the idiom tcllib's doctools.tcl actually uses) abstained outright — spurious "unknown command" + zero go-to-definition. New scope-chain-aware `Analyser::interp_var_bindings` map (mirrors `const_strings`, not the flat `instance_classes`) populated by `handle_set_command`, consumed by `handle_interp_alias`'s cross-domain branch, `handle_interp_eval_command`, and `handle_interp_handle_eval_command`. A pathless `interp create` gets a synthetic per-call-site `@autoname@<offset>` key (same convention as `@dynns@`/`@dynclass@`). Also fixed two bugs found live while researching: nested `interp create` inside `[...]` never reached its handler at all (worked around the same way TclOO's `record_instance_creation` does, by detecting the `set VAR [interp create ...]` shape directly rather than routing through the general nested-dispatch machinery); and `interp eval $var {…}`'s dynamic-path handling keyed its isolated child scope by raw variable text, collapsing unrelated procs sharing a variable name into one domain — closed for the now-tracked subset. Deliberately out of scope: the fully-untracked dynamic-path case (e.g. a bare proc parameter) stays as conservative as before; `interp delete $var` still uses the blunt file-wide `dynamic_interp_ops` flag rather than precisely bumping one interpreter's epoch. |
 | `6f54b9b` | tcllib idx 120 | `ActiveRecord find ...` (a classmethod called on the class's own bound command) and the same call inherited by a non-overriding subclass (`Table find ...`) never resolved — `receiver_instance_class` only ever recognised a `$var`/created-instance-command receiver, never a bare word naming a class directly. Three-part, two-crate fix: (1) `tcl-compiler/oo.rs` gains `apply_oo_self` — stock TclOO's own `self method NAME ARGS BODY` spelling (ooutil's `classmethod` counterpart) had no `apply_oo_subcommand` arm at all, a separate gap found while researching this finding; new `MethodDef::is_self_method` marks it as NOT inherited by a subclass (unlike ooutil's `classmethod`, confirmed via tclsh); `collect_method_body` now unwraps `self`/`private` via the existing `unwrap_wrapper_member`, so their bodies get walked for diagnostics for the first time too. (2) `definition.rs`'s `receiver_instance_class` also resolves a bare class-name word (via the existing `resolve_written_class_name`); new `MethodBucket` (`Instance`/`Class`) keeps the two receiver kinds from cross-resolving — bundled in, since the signature was already changing: instance dispatch no longer falls back to `class_methods` either, closing a pre-existing false positive on `rec1 find` (an instance calling a classmethod); `completion.rs` picked up the same bucket-awareness via a new shared `receiver_method_bucket` helper. (3) `references.rs`'s `find_obj_method_call_sites` gains the class's own bound-command names (and, when not `is_self_method`, every inheriting subclass's) as a receiver set separate from its existing `instance_classes`-keyed one, so references/rename now find every class-command call site too. Deliberately out of scope: the `self { … }` block form; mixin-only classmethod propagation (ooutil follows `superclass` only); `hover.rs`'s `obj_method_hover_text` staying un-bucketed (no MRO walk there at all, so only the direct-declaration case benefits). |
 | `7ae4e6c` | tcllib idx 116 | `apply {{params} body ns}` runs `body` in `ns`, not wherever the `apply` call is lexically written — a bareword call inside that body resolved against its lexical nesting purely by coincidence of the pre-existing "lexically nearest" fallback, since the `Scope` subtree `handle_apply_command` builds for `ns` sits under fresh, body-span-less namespace wrapper nodes the ordinary span-containment walk can never reach. New `AnalysisResult::namespace_overrides: Vec<(Span, String)>` (flat, span-keyed runtime-context pins), consulted by `innermost_namespace_at`/`namespace_context_at` ahead of the lexical walk, threaded through their ~13 call sites across `tcl-lsp-core`. Also resolves one hop through a `$var` or `[list {params} $body ns]` indirection via new `Analyser::resolve_dynamic_apply_lambda` + `lookup_const_string_in_namespace` (the `const_strings` analogue of `lookup_var_in_namespace`). Wired into `per_item.rs`'s incremental rebase/graft — required, not optional, for the fix to survive on-keystroke analysis. Deliberately out of scope, documented in `definition.rs`'s module doc: `apply` reached only via a registry `command_prefixes` slot (`coroutine co ::apply $lambda`); a proc that re-injects its own arguments as a script via a captured `uplevel`-namespace + trace/callback (tcllib generator.tcl's `finally` — the exact idiom the finding's own repro traces through, unmodelable without hardcoding a specific library); and `$var`-to-`$var` indirection deeper than one hop. |
+| `d825d1d` | **main-wave** idx 61 (critical) | `if {$cond} mymod::foo` / `uplevel 1 mymod::qux` — an unbraced (bareword) body — is a legitimate, statically-known zero-arg call, but `dispatch_body_arguments` only ever recursed a *braced* body into `analyse_body`, so it was invisible to `command_invocations` entirely: go-to-definition/hover still resolved it (independent cursor-token walk), but references/rename silently missed the call site — an LSP-presented "complete" rename left it referring to the old, now-nonexistent name, breaking the program at runtime. Fixed by dispatching a genuinely-static bareword body (`Esc`-kind, single word, no `$`/`[`) through the ordinary `process_command` path, reusing the existing `has_substitution` guard (widened from `pub(super)`). New `dispatch_one_body_argument` extracted to keep the caller under the line-count lint. This is the **first fixed finding from the main audit wave** (see §6b), not the tcllib list — everything else in §6a stays tcllib-only. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -289,7 +293,8 @@ from scratch:
 | `03-tcllib-audit-input-25.json` | The 25 tcllib-corpus findings selected for the first audit wave (indices 105–129 in the flattened numbering). |
 | `04-tcllib-audit-results-COMPLETE-25of25.json` | **Complete.** All 25 tcllib findings differentially audited: 22 CONFIRMED, 3 REFUTED. This is the source for the tcllib triage in §6. |
 | `05-main-audit-input-105.json` | The 105 findings from the other 7 corpora (SpiceGenTcl, argparse, tclopt, ticklecharts, pix, tomato, tk) selected for the second audit wave (indices 0–104). |
-| `06-main-audit-results-PARTIAL-49of105.json` | **Partial — 49 of 105 done** (idx 0–48; 49–104 not yet audited). 39 CONFIRMED, 10 REFUTED so far. **None of these 39 have been triaged or fixed yet** — this is entirely open work. |
+| `06-main-audit-results-PARTIAL-49of105.json` | Superseded by the `COMPLETE` file below — kept for history (idx 0–48 only, the first half of the wave). |
+| `06-main-audit-results-COMPLETE-105of105.json` | **Complete.** All 105 main-wave findings (idx 0–104) differentially audited: 85 CONFIRMED, 20 REFUTED. **Triaged** — see §6b for the severity/corpus/feature breakdown and priority-ordered tables. idx 61 (critical) is fixed (§3's `d825d1d`); the other 84 CONFIRMED findings are open work. |
 | `07-remaining-tcllib-findings-14.json` | The 14 tcllib CONFIRMED findings not yet fixed (full detail: summary, failure_scenario, oracle_output, lsp_output, root_cause_hint, repro_path — repro files themselves are gone, scratchpad-only, but the hints are detailed enough to rebuild a repro in minutes). |
 | `08-research-plans-PARTIAL-8of14.json` | **Partial — 8 of 14 done.** Refined, current-code-verified fix plans for 8 of the 14 remaining tcllib findings (idx 3, 9, 105, 106, 110, 113, 116, 120), produced by a research-only agent fan-out (no file edits) that re-checked each root-cause hint against the *current* (post-merge) code and proposed concrete changes + test scenarios. idx 18, 24, 121, 122, 125, 128 do not have refined plans yet — use `07`'s `root_cause_hint` field directly for those, which is still quite detailed.
 
@@ -325,27 +330,94 @@ truth if not already fully confirmed → registry-driven fix reusing §4's
 mechanisms where applicable → unit tests (TP/FP/TN/FN) + lsp_e2e test →
 validation gates → commit.
 
-### 6b. Main audit wave — idx 49–104 resumed 2026-07-22, check current state
+### 6b. Main audit wave — COMPLETE (105/105) and triaged
 
-idx 0–48 are done (captured in `data/06-...-PARTIAL-49of105.json`: 39
-CONFIRMED, 10 REFUTED). idx 49–104 (the remaining 56) were run via
-`tcl-lsp-differential-audit-resume-wf_61c6b92a-e22.js` (persisted under this
-project's `workflows/scripts/` dir, run ID `wf_61c6b92a-e22`) — that run
-itself **stalled silently** after 32/56 (27 CONFIRMED, 5 REFUTED; no
-completion notification, no journal progress for 8+ hours — disk exhaustion
-is the suspected cause, see §4's gotcha) and was resumed in-place with
-`Workflow({scriptPath: <that file>, resumeFromRunId: "wf_61c6b92a-e22"})`,
-which reuses the 32 cached results and only re-runs the ~24 that never
-finished. **Check whether that resumed run has completed** (no journal
-movement for a long stretch again would mean it stalled a second time and
-needs another resume) before trusting any specific count in this document.
+All 105 findings (idx 0–104, the other 7 corpora: SpiceGenTcl, argparse,
+tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
+merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
+from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
+`wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
+REFUTED.** Of the 85 CONFIRMED: **1 fixed** (idx 61, critical — §3's
+`d825d1d`), **84 remaining**.
 
-Once all 105 are complete, the CONFIRMED findings from this wave (39+ from
-idx 0-48, plus whatever idx 49-104 adds) are **entirely untriaged** —
-nobody has looked at severity/priority/clustering for them yet. Do that
-first (cluster by root cause the way idx 107+115 and idx 118+119 were
-clustered and fixed together — look for repeated root-cause hints across
-findings before fixing one at a time).
+**By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
+SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
+strings in the raw data — same corpus), tomato 7, pix 8.
+
+**By feature** (confirmed only): tricky_indirection 14, tclOO 13,
+namespaces 11, proc_args 10, upvar 7, source 6, tcl_mathop 5, rename 4,
+package_loading 3, uplevel 3, tracing 3, aliasing 2, safe_interp 2, eval 1,
+autoindex 1.
+
+#### Priority tier 1 — critical + high (24 findings, 1 already fixed)
+
+Fix these first — each is either data-loss-risk (a rename that silently
+breaks the program, idx 61) or a full-zero-results failure of a core
+navigation feature (go-to-definition/references/hover returning nothing)
+on a common real-world idiom. `severity`/`summary` are the audit's own
+classification; read the finding's full `root_cause_hint` in the JSON
+before starting each — the one-line summaries below are index-and-locate,
+not a substitute.
+
+| idx | severity | corpus | feature | one-line summary |
+|---|---|---|---|---|
+| 61 | critical | ticklecharts | uplevel | **FIXED** (`d825d1d`) — unbraced `if`/`uplevel` body bareword call sites invisible to references/rename. |
+| 9 | high | argparse | tcl_mathop | Find-References/Hover/Go-to-Definition all empty on the cursor at a `tcl::mathfunc`/`tcl::mathop` proc's own *declaration*. |
+| 10 | high | argparse | source | Cross-document find-references (and rename-safety) misses call sites living in a file only reached via a dynamic `source` target. |
+| 18 | high | SpiceGenTcl | namespaces | A bareword class/proc name only reachable through a wildcard `namespace import NS::*` never resolves. |
+| 29 | high | tclopt | namespaces | Probing the same `namespace import`-adjacent mechanic as idx 18 from a different angle — read both together. |
+| 31 | high | tclopt | tricky_indirection | A proc defined twice, verbatim, at two different line ranges in the same file — which declaration wins is not modelled correctly. |
+| 32 | high | tclopt | tricky_indirection | Two related sub-questions, LSP gets them backwards from what's actually correct — read the full note. |
+| 33 | high | tclopt | tricky_indirection | Go-to-definition/find-references fail on a bareword class/command reference gated by a runtime condition. |
+| 39 | high | tclopt | rename | `textDocument/rename`/`references` omit the target-name argument of `rename` itself as a reference site. |
+| 46 | high | ticklecharts | source | A `source` target built from a namespace variable derived through another indirection layer — go-to-definition/cross-file resolution fails. |
+| 52 | high | ticklecharts | tricky_indirection | Two distinct results bundled in one finding — `[self class]`/`[self method]`-based dynamic class-def dispatch. |
+| 56 | high | ticklecharts | tclOO | ticklecharts installs `classvar`/`callback` directly into `::oo::Helpers` — the doc/registry model for TclOO helper installation doesn't account for this. |
+| 63 | high | ticklecharts | proc_args | Go-to-definition AND find-references both zero-result for an internal `my AddBarSeries`/sibling-method-call idiom. |
+| 68 | high | pix | proc_args | Find-References (and Rename) never unifies a proc's `global` declaration with its call sites the same way it does for other variable-scope forms. |
+| 70 | high | pix | tricky_indirection | The parallel/lock-step multi-list `foreach` form (`foreach dirName {LIST1} fileName {LIST2} {...}`) breaks resolution. |
+| 71 | high | pix | source | `source [file join [file dirname [info script]] ...]` — the canonical "load my sibling file" idiom — has a real gap somewhere in the chain despite the base case resolving. |
+| 76 | high | tomato | tclOO | LSP guesses the wrong class among several structurally-similar TclOO classes for a dynamically-dispatched call. |
+| 77 | high | tomato | tclOO | `method * {type}` (operator-overload dispatch) reads `$other` in its isa-object branch incorrectly / the resolver doesn't follow it. |
+| 79 | high | tomato | proc_args | `constructor {args}` reinterprets its single `args` list as multiple different logical shapes depending on caller — the parameter model doesn't track this. |
+| 84 | high | tk | namespaces | `tk/library/systray.tcl` (and print.tcl, fileicon.tcl, accessibility.tcl) splices a namespace-qualified name dynamically; resolution fails. |
+| 86 | high | tk | rename | `tk/library/accessibility.tcl`'s `foreach wtype {...} { rename ::$wtype ::tk::ac... }` loop-generated rename targets aren't tracked. |
+| 90 | high | tk | safe_interp | `tk/library/safetk.tcl` declares a throwaway 0-arg `proc ::safe::loadTk {}` stub then redefines it with the real signature later — arity/definition tracking picks the wrong one. |
+| 94 | high | tk | tricky_indirection | `tearoff.tcl`'s `-tearoffcommand`/`cget`/`upvar`-adjacent indirection mechanics both reproduce, need a combined fix. |
+| 95 | high | tk | tricky_indirection | `tk.tcl:594-596`'s `$w ${dir}view scroll ...` — a subcommand synthesized by string-concatenation at the call site — isn't resolved. |
+
+#### Priority tier 2 — medium + low (60 + 1 = 61 findings), grouped by feature for clustering
+
+Group findings sharing a feature/root-cause together in one fix pass the
+way idx 107+115 and idx 118+119 were — many of these look like they share
+a root cause within a feature group (e.g. the three `upvar`-adjacent W210
+false-positives in ticklecharts, idx 57/58/59; the two `tclopt`
+mixin/oo::configurable class-scoping findings, idx 34/36).
+
+| feature | count | idx (severity) |
+|---|---|---|
+| tclOO | 10 | 15, 16, 34, 35, 36, 53, 54, 55, 96, 97 (all medium) |
+| namespaces | 8 | 3, 19, 43, 44, 64, 65, 75, 85 (all medium) |
+| tricky_indirection | 7 | 0, 1, 2, 14, 49, 50, 51 (all medium) |
+| upvar | 7 | 7, 22, 57, 58, 59, 98, 99 (all medium) |
+| proc_args | 7 | 11, 28, 37, 62, 67, 78, 104 (all medium) |
+| tcl_mathop | 4 | 30, 80, 81, 103 (all medium) |
+| package_loading | 3 | 4, 42, 72 (all medium) |
+| source | 3 | 27, 41, 102 (all medium) |
+| tracing | 3 | 47, 48, 92 (all medium) |
+| rename | 2 | 5, 45 (all medium) |
+| aliasing | 2 | 21, 89 (all medium) |
+| uplevel | 2 | 38 (medium), 100 (low) |
+| eval | 1 | 24 (medium) |
+| autoindex | 1 | 73 (medium) |
+| safe_interp | 1 | 91 (medium) |
+
+Each idx's full detail (summary, failure_scenario, oracle_output,
+lsp_output, root_cause_hint) is in
+`data/06-main-audit-results-COMPLETE-105of105.json`, keyed by `idx`. Follow
+the same playbook as every fix already landed: re-confirm against current
+code and a real tclsh oracle → registry-driven fix reusing §4's mechanisms
+→ TP/FP/TN/FN unit tests + lsp_e2e test → validation gates → commit.
 
 ### 6c. Broader mandate coverage check
 
@@ -432,11 +504,15 @@ manual differential checks — see its own docstring for usage
    §3) before starting; merge (not rebase, once you've started your own new
    commits on top) if anything new is there.
 3. Recreate the tclsh9.0/8.6 oracle environment (§7).
-4. Pick the next tcllib finding from §6a (105, 106, 3, 110, 113, 9, 120,
-   and 116 are already done; the remaining idx 121/122/18/125/128/24 have
-   no refined plan — use `07`'s `root_cause_hint` directly), **or** start
-   triaging the now-complete main-wave audit (§6b — 85 CONFIRMED findings,
-   entirely untriaged, likely the higher-leverage next step given its size).
+4. Pick the next finding to fix — two ready queues, both fully triaged:
+   - §6a: 6 remaining tcllib findings (idx 121/122/18/125/128/24), no
+     refined plan for any — use `07`'s `root_cause_hint` directly.
+   - §6b: 84 remaining main-wave findings (idx 61 is the only one fixed so
+     far), fully triaged into a priority-ordered critical/high table (24
+     findings, start here) and a feature-clustered medium/low table (61
+     findings, group by feature when fixing). Likely the higher-leverage
+     queue given its size and the presence of several zero-results
+     go-to-definition/references failures on common real-world idioms.
 5. Follow the playbook in §2/§4. Commit after each finding (or tightly
    related cluster of findings), same granularity as the fixes already
    landed — don't batch unrelated fixes into one commit.
@@ -448,10 +524,11 @@ manual differential checks — see its own docstring for usage
    `rm -rf target/debug/incremental` is the cheap, safe recovery (regenerates
    on next build, and frees the bulk of it — no need to nuke all of `target/`
    first).
-7. Once the 12 remaining tcllib findings are exhausted, triage and fix the
-   main-105-wave findings (§6b's audit workflow was resumed 2026-07-22 for
-   the 56 previously-unaudited indices; check whether it completed and, if
-   so, triage its CONFIRMED output before this doc's counts go stale again).
+7. Both queues (§6a's 6 tcllib findings, §6b's 84 main-wave findings) are
+   independent — fix from whichever queue makes sense, no need to exhaust
+   one before starting the other. Keep this document's counts current as
+   findings get fixed: move a finished idx out of §6a/§6b's tables and into
+   §3's commit table, same pattern as every fix so far.
 8. Keep the Stop-hook's implicit contract: uncommitted work is a liability —
    commit and push after every completed fix, don't let it accumulate.
 9. When ready to submit, open a PR from this branch (no PR is currently open
