@@ -240,6 +240,38 @@ findings above, found a fifth instance the review itself hadn't flagged
    references use) — mirrors the `param_traits.rs` fix in (4) exactly, one
    layer down (constant propagation instead of trait inference).
 
+A deeper follow-up search for the same bug class (this time deliberately
+broad rather than reactive to a specific review) found a sixth instance,
+this time in a dimension none of the above touch — TclOO self-dispatch —
+and, separately, positively confirmed the deep SSA/CFG/taint analyser has
+no instances of its own:
+
+6. **`my`/`$self`/`$this` dispatch resolved *through* an apply lambda's fresh
+   frame.** `semantic_tokens.rs`'s `collect_lambda_literal` recursed into the
+   body with the *enclosing* `ScriptCtx` unchanged, so `enclosing_class`
+   (which correctly persists into an `if`/`foreach` body — those share the
+   calling method's frame) also persisted into an `apply` lambda's body,
+   which does not: `oo::class create C { method helper {} {} method run {} {
+   apply {{} {my helper}} } }` painted `my helper` inside the lambda as a
+   resolved call to `C`'s `helper` method, even though a bare (namespace-less)
+   `apply` lambda runs in `::`, where `my` isn't defined — that call would
+   actually raise "invalid command name my" at runtime. Fixed by clearing
+   `oo_grammar` / `enclosing_class` / `scoped_env` before recursing into the
+   lambda body, mirroring `folding.rs`'s pre-existing `None` reset for the
+   same recursion (which this search re-confirmed is correct and was the
+   template for the fix, not a new finding).
+7. **The deep SSA/CFG/taint analyser: searched, no instances found.** Despite
+   the doc's decision rule 4 above describing its `apply` handling as
+   deliberately narrow (direct-call-shape only), a targeted search of
+   `handlers.rs`'s `handle_apply_command`, `lowering/mod.rs`'s `lower_apply`,
+   `per_item.rs`'s deferred-body machinery, `diagnostics/validity.rs`'s arity
+   check, `bounds_checks.rs`'s scope-boundary scan, and `var_escape`'s
+   conservative bail-out set confirmed each already treats the lambda's frame
+   as genuinely isolated (fresh scope rooted at the lambda's own namespace,
+   params bound only from the lambda's own element 0, no enclosing-proc state
+   threaded in) — this line of the codebase predates the recent fixes and
+   was already correct.
+
 ## Failure modes
 
 - Tagging a lambda-literal-shaped argument `ArgRole::Body` instead of
@@ -286,7 +318,8 @@ findings above, found a fifth instance the review itself hadn't flagged
   `list_quoted_apply_lambda_false_positive_guards` (includes the
   enclosing-role gate: `set data [list apply {…} value]` must not paint the
   lambda as executable),
-  `package_ifneeded_literal_script_recurses_as_body`
+  `package_ifneeded_literal_script_recurses_as_body`,
+  `my_call_inside_apply_lambda_body_does_not_resolve`
 - `rust/tcl-compiler/src/lambda_literal.rs` — `split_lambda_literal`'s own
   unit tests (params/body/namespace splitting, dynamic-lambda guard) and
   `split_lambda_literal_decoded`'s (`decodes_bare_body_backslash_escape`,

@@ -4128,6 +4128,18 @@ fn collect_case_list(
 /// other body.  The first element (the argument list) and an optional third
 /// (the namespace) are emitted with their default classification, so no part
 /// of the lambda is dropped.  Mirrors C Tcl's `apply` lambda shape.
+///
+/// The body recurses in a *fresh* context (`oo_grammar` / `enclosing_class` /
+/// `scoped_env` all cleared), never the enclosing command's: `apply`'s body
+/// runs in a new call frame in the global namespace by default (or the
+/// lambda's own optional third element, never inherited), so `my foo` inside
+/// a bare `apply {{} {my foo}}` called from a method body is not actually a
+/// call to that method at runtime — `my` isn't defined in `::`. Leaving the
+/// enclosing class/grammar/scoped-env active here would resolve such a call
+/// anyway, painting it as live when it would error (mirrors `folding.rs`'s
+/// `None` reset for the same recursion, and the same fresh-frame reasoning
+/// as the interprocedural/param-trait/declaration fixes for issue #954's
+/// follow-up).
 fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
     if depth > MAX_TOKEN_RECURSION {
         return;
@@ -4141,6 +4153,12 @@ fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entr
             push_token(line_index, full_source, tok, kind, 0, entries);
         }
         return;
+    };
+    let lambda_ctx = ScriptCtx {
+        oo_grammar: None,
+        enclosing_class: None,
+        scoped_env: None,
+        ..ctx
     };
     // Flatten the lambda's list elements (params, body, ?ns?).
     let mut words: Vec<Token> = Vec::new();
@@ -4163,7 +4181,7 @@ fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entr
         {
             // Element 1 is the body — recurse it as a script when braced.
             collect_script(
-                ctx,
+                lambda_ctx,
                 body,
                 u32::try_from(bstart).unwrap_or(0),
                 entries,
@@ -7266,6 +7284,44 @@ mod tests {
             toks.iter()
                 .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Method as u32 && m == 0),
             "expected `my helper` to resolve; got {toks:?}"
+        );
+    }
+
+    /// A bare (namespace-less) `apply {{} {...}}` runs its body in a *fresh*
+    /// call frame in the global namespace by default — never the enclosing
+    /// method's object namespace — so `my helper` inside it is not actually a
+    /// call to the enclosing class's method at runtime (`my` isn't defined in
+    /// `::`); a class-definition-body scan would raise "invalid command name
+    /// my" here. The `enclosing_class` context must not leak into an
+    /// `apply`-lambda body the way it correctly persists into an ordinary
+    /// nested `if`/`foreach` body, or this gets painted as a resolved,
+    /// legitimate method call anyway (codex-review-adjacent follow-up to
+    /// issue #954: the same fresh-frame class of bug already fixed for
+    /// call-graph namespace resolution, param traits, and declarations).
+    #[test]
+    fn my_call_inside_apply_lambda_body_does_not_resolve() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::class create C {\n\
+                   \x20   method helper {} {}\n\
+                   \x20   method run {} { apply {{} {my helper}} }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        assert!(
+            !toks
+                .iter()
+                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Method as u32 && m == 0),
+            "a bare apply lambda's `my helper` must not resolve as the \
+             enclosing class's method — it isn't one at runtime; got {toks:?}"
         );
     }
 
