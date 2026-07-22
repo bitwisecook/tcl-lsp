@@ -77,9 +77,15 @@ alongside the standard operators, and recognised as operator tokens by
 
 ## Decision rule
 
-- To add a new operator, add its binding power entry to `binary_bp()` in
-  `rust/tcl-syntax/src/expr/parser.rs` and its `BinOp`/`UnaryOp` variant in
-  `rust/tcl-syntax/src/expr/ast.rs`.
+- To add a new operator, add its binding power entry to `binary_bp()`, map its
+  text to the new `BinOp`/`UnaryOp` variant in `binop_from_text()` /
+  `unaryop_from_text()` (all in `rust/tcl-syntax/src/expr/parser.rs`), and add
+  the variant itself in `rust/tcl-syntax/src/expr/ast.rs`. A new word-like
+  spelling (not already a recognised operator symbol) also needs registering
+  in `irules_ops()` in `rust/tcl-lexer/src/expr_lexer.rs`, or the lexer won't
+  tokenise it as an operator at all. Skipping any of these steps fails
+  silently — the parser falls back to `ExprNode::Raw`, compiling fine but
+  disabling structured analysis for expressions using the new operator.
 - If the expression is unbraced, no AST is produced — downstream passes must
   handle `ExprNode::Raw` gracefully (skip constant folding, skip type inference).
 - Right-associative operators use `left_bp > right_bp` (e.g. `**` uses 25, 24).
