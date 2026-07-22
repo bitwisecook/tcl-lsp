@@ -21,14 +21,14 @@ and gets built on further without a rebase first.
 
 **Branch:** `claude/tcl-lsp-issue-923-qzkfqz` — rebased directly onto
 `origin/rust`, carrying only the not-yet-PR'd work: a merge-note doc commit
-plus idx 105 and idx 106 (both now fixed, tested, and pushed — see §3, and
-remove them from §6a's "not yet fixed" table).
+plus each fixed-and-pushed finding since the rebase (see §3 for the full,
+current commit list).
 
 **tl;dr:** A deep differential-audit campaign against real-world Tcl code
 found ~66 confirmed LSP correctness bugs so far (22 in tcllib, 39+ across 7
-other corpora, more still being found). 12 tcllib bugs are fixed, tested, and
-pushed to this branch. 9 more tcllib bugs are triaged with fix plans
-(3 of them researched in detail). The 56-finding main-wave audit (other 7
+other corpora, more still being found). 13 tcllib bugs are fixed, tested, and
+pushed to this branch. 8 more tcllib bugs are triaged with fix plans
+(2 of them researched in detail). The 56-finding main-wave audit (other 7
 corpora) was resumed 2026-07-22 after stalling mid-run (see §6b) — check its
 current state before assuming any specific count is still current. Nothing
 is lost — the raw data, the exact scripts that produced it, and everything
@@ -150,6 +150,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `b56d0f9` | tcllib idx 3 | `rename OLD NEW` treated either argument as unconditionally dynamic the instant it contained `$`/`[`, even when the value was a compile-time constant (`set old ::foo_impl; rename $old ::foo`). New `Analyser::resolve_rename_arg` tries `resolve_const_word` (a pure single `Var`/literal token) then a new `text::fold_interpolation_single` (multi-token concatenation) against the existing `lookup_const_string` lattice — no new lattice, mirrors `resolve_expansion_count`'s precedent for `{*}$var`. Deliberately out of scope (documented via two FN tests): a `foreach` loop variable and a bare proc parameter are never constant-tracked, so the tcllib `json::SwitchTo` idiom this finding was mined from stays unresolved — needs interprocedural constant propagation, a separate follow-up. Also confirmed unaffected (pre-existing, separately-scoped gaps): hover and same-file references through any rename, even the always-worked fully-literal case. |
 | `b8f8d1e` | tcllib idx 110 | `namespace eval $ns [list namespace unknown $handler]` (tcllib's `namespacex::hook::Set` idiom) never installed as far as the analyser could tell — the `[...]` body is a `Cmd`-kind token `analyse_body`'s literal-`{...}`-only body walk never enters, and the generic nested-substitution scan resolves the segment's head to `list`, never dispatching `AnalyserHookId::NamespaceUnknown` — so a call the handler chain resolves at runtime drew a false W123. New `Analyser::detect_list_wrapped_namespace_unknown`, called from `handle_namespace_eval_command` (shared by `namespace eval`/`namespace inscope`), descends the `Cmd` body one level with the same `cmd_fragments`/`descend_token`/`segments_from_tree` idiom already used three times elsewhere for nested-substitution discovery, and on an exact `list namespace unknown ?HANDLER?` match calls the existing `handle_namespace_unknown_command` unmodified. Deliberately narrow (pinned via a dedicated test): does not recognise the same idiom built via `concat`/`format`/`linsert`/a helper proc. |
 | `538f3af` | tcllib idx 113 | A bareword call to a sibling TclOO method/classmethod/property inside another method's body only actually dispatches when `oo::Helpers::link` (a genuine core TclOO builtin since 8.6) installed a per-object-namespace alias for it — `lookup_class_member`/`class_member_hover_text` matched unconditionally, resolving calls real tclsh errors "invalid command name" on. New `link` `CommandSpec` (mirrors `next`/`self`/`classvariable`; also fixes a pre-existing spurious W002 on legitimate `link` usage, since the only prior "link" spec was the unrelated EDA-Synopsys command) + new `ClassDef::linked_members` populated by `Analyser::collect_oo_links` (shallow, top-level-only method-body scan) gate the three lookup arms; the two-element `link {alias target}` form also closes a related false negative (hover/definition on the alias previously returned nothing). Incidental registry hygiene needed for a clean `command-backing` gate: classified the `::tcl::dict::*` names idx 105 left unclassified (genuinely backed via `dict`'s single handler) and a pre-existing, unrelated `zipfs` gap. |
+| `edd0119` | tcllib idx 9 | `set s [interp create -safe]` never bound `s` to the interpreter it created, so a later `interp alias $s name {} target` / `interp eval $s {…}` / `$s eval {…}` (the idiom tcllib's doctools.tcl actually uses) abstained outright — spurious "unknown command" + zero go-to-definition. New scope-chain-aware `Analyser::interp_var_bindings` map (mirrors `const_strings`, not the flat `instance_classes`) populated by `handle_set_command`, consumed by `handle_interp_alias`'s cross-domain branch, `handle_interp_eval_command`, and `handle_interp_handle_eval_command`. A pathless `interp create` gets a synthetic per-call-site `@autoname@<offset>` key (same convention as `@dynns@`/`@dynclass@`). Also fixed two bugs found live while researching: nested `interp create` inside `[...]` never reached its handler at all (worked around the same way TclOO's `record_instance_creation` does, by detecting the `set VAR [interp create ...]` shape directly rather than routing through the general nested-dispatch machinery); and `interp eval $var {…}`'s dynamic-path handling keyed its isolated child scope by raw variable text, collapsing unrelated procs sharing a variable name into one domain — closed for the now-tracked subset. Deliberately out of scope: the fully-untracked dynamic-path case (e.g. a bare proc parameter) stays as conservative as before; `interp delete $var` still uses the blunt file-wide `dynamic_interp_ops` flag rather than precisely bumping one interpreter's epoch. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -197,9 +198,11 @@ these rather than inventing something new:
   (unrepresentable in real Tcl) marker plus either the interpreter's
   qualified path or the argument token's own byte offset. Already used for:
   child-interpreter domains, dynamic `namespace eval` targets, dynamic
-  `oo::define` targets. **Candidate for reuse**: idx 121 (dynamic TclOO
-  constructor class — though that one may be better solved by consulting
-  `const_contributors`, see its research plan) and potentially others.
+  `oo::define` targets, and (idx 9) a pathless `set VAR [interp create
+  ...]`'s auto-generated interpreter name (`@autoname@<offset>`).
+  **Candidate for reuse**: idx 121 (dynamic TclOO constructor class — though
+  that one may be better solved by consulting `const_contributors`, see its
+  research plan) and potentially others.
 - **`AnalysisResult::offset_is_inside_any_definition_body`**
   (`rust/tcl-compiler/src/analyser/types.rs`) — "is this byte offset inside
   any recorded proc/class body", i.e. "does this only exist conditionally,
@@ -292,20 +295,19 @@ from scratch:
 
 ## 6. Remaining work, prioritized
 
-### 6a. tcllib — 9 CONFIRMED findings, not yet fixed
+### 6a. tcllib — 8 CONFIRMED findings, not yet fixed
 
-**idx 105, 106, 3, 110, and 113 are done** (fixed, tested, pushed — see §3's
-`e77879b` / `9bd26c8` / `b56d0f9` / `b8f8d1e` / `538f3af` rows); removed from
-the table below. 9 remain.
+**idx 105, 106, 3, 110, 113, and 9 are done** (fixed, tested, pushed — see
+§3's `e77879b` / `9bd26c8` / `b56d0f9` / `b8f8d1e` / `538f3af` / `edd0119`
+rows); removed from the table below. 8 remain.
 
-All in `data/07-remaining-tcllib-findings-14.json`; the remaining 3 of the
+All in `data/07-remaining-tcllib-findings-14.json`; the remaining 2 of the
 original 8 refined plans in `data/08-research-plans-PARTIAL-8of14.json` cover
-idx 9, 116, 120. Suggested order (by severity, then by whether a refined
+idx 116, 120. Suggested order (by severity, then by whether a refined
 plan exists):
 
 | idx | severity | feature | one-line summary | refined plan? |
 |---|---|---|---|---|
-| 9 | medium | safe_interp | `set mpip [interp create -safe]` (auto-generated name via a variable) never tracked, so `interp alias $mpip ...` cross-domain resolution never fires. | yes |
 | 120 | medium | tclOO | A class's own bound command name (`ActiveRecord find ...` calling its own `classmethod`) never resolves — `receiver_instance_class` requires `instance_classes`/`created_instance_commands`, never populated for the class-defining call itself. | yes |
 | 116 | low | tracing | `apply {argList body namespaceOverride}`'s runtime namespace override isn't modelled; bareword resolution uses purely lexical nesting. | yes |
 | 121 | medium | tclOO | `set class ::Derived; set obj [$class create NAME]` — single-hop variable-indirected class name never resolved (needs `const_contributors`/SSA wiring, or the `@dyn...@` pattern). | no — use root_cause_hint |
@@ -347,10 +349,10 @@ findings before fixing one at a time).
 ### 6c. Broader mandate coverage check
 
 The mandate named specific "tricky Tcl feature" dimensions. Rough coverage
-so far (from mined+fixed findings): namespaces ✓✓✓, rename (open, idx 3),
-unknown (open, idx 110; interp-create angle done), aliasing (open, idx 113),
-safe-/sub-interpreters ✓ (idx 111 done; idx 9's variable-indirected case
-open), tracing (idx 115 done, idx 116 open), tricky indirection ✓✓ (idx
+so far (from mined+fixed findings): namespaces ✓✓✓, rename ✓ (idx 3 done),
+unknown ✓ (idx 110 done; interp-create angle done), aliasing ✓ (idx 113
+done), safe-/sub-interpreters ✓✓ (idx 111, 9 both done), tracing (idx 115
+done, idx 116 open), tricky indirection ✓✓ (idx
 118/119 done), tclOO (open, idx 120/121), upvar (open, idx 122), uplevel
 (open, idx 18), eval (open, idx 125), `::tcl`/`::tcl::mathop` namespaces ✓
 (idx 127's host procs were the bug, mathop dispatch itself was already
@@ -429,9 +431,9 @@ manual differential checks — see its own docstring for usage
    §3) before starting; merge (not rebase, once you've started your own new
    commits on top) if anything new is there.
 3. Recreate the tclsh9.0/8.6 oracle environment (§7).
-4. Pick the next tcllib finding from §6a (idx 9, 116, or 120 — all have
-   refined plans and are medium severity, well-specified; 105, 106, 3, 110,
-   and 113 are already done).
+4. Pick the next tcllib finding from §6a (idx 116 or 120 — both have
+   refined plans and are medium/low severity, well-specified; 105, 106, 3,
+   110, 113, and 9 are already done).
 5. Follow the playbook in §2/§4. Commit after each finding (or tightly
    related cluster of findings), same granularity as the fixes already
    landed — don't batch unrelated fixes into one commit.
