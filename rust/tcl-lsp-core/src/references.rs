@@ -58,6 +58,19 @@
 //! `analysis.instance_classes`) matches.  See
 //! [`find_obj_method_call_sites`] for the scan's coverage.
 //!
+//! Intra-class `my`/`$obj` dispatch and `next`/`nextto` super-dispatch scans
+//! (`scan_my_method_sites`, [`find_obj_method_call_sites`],
+//! [`method_next_dispatch_spans`]) all recurse into every `[...]`
+//! command-substitution *and* every same-frame (`Plain` `BodyKind`)
+//! control-flow / `eval` body — `if`/`while`/`foreach`/`switch` (both the
+//! inline and single-braced-clause-list forms)/`try`/`catch`/`dict for`, any
+//! nested combination of the two, and, generically, any future command
+//! whose registry spec declares a `Plain`-body role — via
+//! [`nested_dispatch_regions`].  Recursion is entirely registry-driven
+//! ([`tcl_registry::CommandRegistry::plain_body_arg_indices`],
+//! [`tcl_registry::CaseListSpec`]); no command name is hardcoded in the
+//! walkers themselves (issue #957's general form).
+//!
 //! Limitations:
 //!
 //! * Cross-document references — surfacing references across
@@ -67,6 +80,26 @@
 //!   (`"prefix[$d bark]"`) — the scan descends into
 //!   command-substitution args and proc / method bodies but
 //!   not into string interpolation.
+//! * `uplevel`'s body is `BodyKind::Structural` (a different call frame in
+//!   the general case — level `0` and level `1`+ can't be told apart from
+//!   the static registry spec alone), so a `my`/`next`/`$obj method`
+//!   dispatch written inside it is not found.
+//! * A well-formed `apply {{arglist} {body}} …` lambda's body likewise runs
+//!   in its own frame with no route back to the enclosing object's `my`
+//!   unless the lambda is explicitly constructed with the object's
+//!   namespace, and is not found — though for a different, incidental
+//!   reason than `uplevel`: `apply`'s registry `arg_roles` marks its whole
+//!   `{arglist body}` argument `Body` (not the body sub-element alone), so
+//!   re-segmenting that span as a script sees one non-matching command
+//!   (`{arglist}` `{body}`) rather than descending into the nested body at
+//!   all. A source that omits the required `{arglist}` wrapper (invalid
+//!   `apply` usage, e.g. `apply {my getOptions $k}`) collapses that span to
+//!   one level and *can* incidentally re-parse as a matching `my` site —
+//!   a narrow quirk of malformed input, not a real dispatch the runtime
+//!   would ever reach.
+//! * A `case_list` command with per-clause flags (Expect's `expect { -re
+//!   pat body … }`) is not decomposed — only a plain `{pattern body …}`
+//!   clause list (`switch`'s shape) is.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
@@ -487,7 +520,11 @@ fn build_member_ranges(
 
 /// Every method / classmethod / constructor / destructor body span of `cd`
 /// — the regions re-segmented for intra-class `my <member>` call sites.
-fn collect_member_bodies(cd: &tcl_compiler::analyser::types::ClassDef) -> Vec<tcl_lexer::Span> {
+/// `pub(crate)` so `rename`'s property-rename path can reuse it instead of
+/// duplicating the same body-span collection.
+pub(crate) fn collect_member_bodies(
+    cd: &tcl_compiler::analyser::types::ClassDef,
+) -> Vec<tcl_lexer::Span> {
     let mut bodies: Vec<tcl_lexer::Span> = cd
         .methods
         .values()
@@ -645,8 +682,11 @@ pub fn method_reference_spans_in_document(
 /// name is argv[1], not the command head.  A bare head equal to the method
 /// name is *not* a call (a `TclOO` method is not a command in the body's
 /// namespace; `<method> …` without `my`/an object errors "invalid command
-/// name"), so only `my`-headed sites match.
-fn scan_my_method_sites(
+/// name"), so only `my`-headed sites match.  `pub(crate)` so
+/// `call_hierarchy`'s method incoming/outgoing-call edges resolve through
+/// the same matcher find-references / rename / the code lens use, instead
+/// of a bare-head comparison that never matches real (`my`-dispatched) Tcl.
+pub(crate) fn scan_my_method_sites(
     source: &str,
     dialect: &str,
     bodies: &[tcl_lexer::Span],
@@ -689,36 +729,38 @@ fn scan_my_method_body(ctx: MyMethodScan<'_>, body_span: tcl_lexer::Span, sink: 
     if body_span.is_empty() {
         return;
     }
-    let source = ctx.source;
-    let mut start = body_span.start() as usize;
-    let mut end = body_span.end() as usize;
-    if start >= source.len() || end > source.len() || start > end {
+    let (start, end) = strip_outer_braces(ctx.source, body_span);
+    if start >= end {
         return;
     }
-    if source.as_bytes().get(start) == Some(&b'{') {
-        start += 1;
-    }
-    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-        end -= 1;
-    }
-    scan_my_method_region(ctx, start, end, sink);
+    scan_my_method_region(ctx, start, end, 0, sink);
 }
 
 /// Segment `source[start..end]` and record the argv[1] span of every
 /// `my <method>` invocation whose method name is `ctx.method`, recursing into
-/// command-substitution (`[...]`) args so dispatches nested inside
-/// `return [my …]` / `set x [my …]` are found too.  This is the same `[...]`
+/// command-substitution (`[...]`) args **and** every same-frame
+/// (`Plain`-`BodyKind`) control-flow / `eval` body argument
+/// ([`nested_dispatch_regions`]) so a dispatch nested inside `return [my …]`,
+/// an `if` / `while` / `foreach` / `switch` / `try` / `catch` body, or any
+/// combination of the two, is found too (issue #957). This is the same
 /// recursion [`scan_obj_method_region`] performs, keeping intra-class `my`
 /// dispatch and external `$obj` dispatch at parity.  The declaration span
-/// (`ctx.skip`) and already-seen spans are elided.
+/// (`ctx.skip`) and already-seen spans are elided.  `depth` guards against
+/// runaway recursion on pathological input — see [`MAX_DISPATCH_SCAN_DEPTH`].
 ///
 /// A bare head equal to the method name is *not* a call (a `TclOO` method is
 /// not a command in the body's namespace; `<method> …` without `my`/an object
 /// errors "invalid command name"), so only `my`-headed sites match.
-fn scan_my_method_region(ctx: MyMethodScan<'_>, start: usize, end: usize, sink: &mut SpanSink<'_>) {
+fn scan_my_method_region(
+    ctx: MyMethodScan<'_>,
+    start: usize,
+    end: usize,
+    depth: u32,
+    sink: &mut SpanSink<'_>,
+) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     let source = ctx.source;
-    if start >= end || end > source.len() {
+    if start >= end || end > source.len() || depth > MAX_DISPATCH_SCAN_DEPTH {
         return;
     }
     let region = &source[start..end];
@@ -746,12 +788,8 @@ fn scan_my_method_region(ctx: MyMethodScan<'_>, start: usize, end: usize, sink: 
                 }
             }
         }
-        // Recurse into command-substitution args, including a `[…]` embedded
-        // in a bareword / quoted compound word.
-        for arg in &cmd.argv {
-            for (inner_start, inner_end) in cmd_substitution_regions(source, ctx.dialect, *arg) {
-                scan_my_method_region(ctx, inner_start, inner_end, sink);
-            }
+        for (inner_start, inner_end) in nested_dispatch_regions(source, ctx.dialect, cmd) {
+            scan_my_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
     }
 }
@@ -761,29 +799,42 @@ fn scan_my_method_region(ctx: MyMethodScan<'_>, start: usize, end: usize, sink: 
 /// the next `method` of the same name up the MRO, so a `next` / `nextto` inside
 /// a `method` body is a polymorphic reference to `method` itself.
 ///
-/// Like [`scan_my_method_sites`], this walks the body's top-level commands
-/// only (a `next` nested inside an `if`/`while` body is not reached — the same
-/// bound the intra-class `my method` scan carries).
+/// Recurses into `[...]` command substitutions and same-frame (`Plain`
+/// `BodyKind`) control-flow / `eval` bodies via [`nested_dispatch_regions`],
+/// exactly like [`scan_my_method_region`] / [`scan_obj_method_region`] — a
+/// `next` inside an `if` / `while` / `foreach` / `switch` / `try` / `catch`
+/// body is found too (issue #957's general form).
 fn scan_next_dispatch_sites(
     source: &str,
     dialect: &str,
     body: tcl_lexer::Span,
 ) -> Vec<tcl_lexer::Span> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
     if body.is_empty() {
         return out;
     }
-    let mut start = body.start() as usize;
-    let mut end = body.end() as usize;
-    if start >= source.len() || end > source.len() || start > end {
-        return out;
+    let (start, end) = strip_outer_braces(source, body);
+    if start < end {
+        scan_next_dispatch_region(source, dialect, start, end, 0, &mut out);
     }
-    if source.as_bytes().get(start) == Some(&b'{') {
-        start += 1;
-    }
-    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-        end -= 1;
+    out
+}
+
+/// Segment `source[start..end]` and append the head-token span of every
+/// `next` / `nextto` command, recursing per [`nested_dispatch_regions`].
+/// `depth` guards against runaway recursion — see
+/// [`MAX_DISPATCH_SCAN_DEPTH`].
+fn scan_next_dispatch_region(
+    source: &str,
+    dialect: &str,
+    start: usize,
+    end: usize,
+    depth: u32,
+    out: &mut Vec<tcl_lexer::Span>,
+) {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    if start >= end || end > source.len() || depth > MAX_DISPATCH_SCAN_DEPTH {
+        return;
     }
     let body_text = &source[start..end];
     let commands = segment_commands_with_offset_and_config(
@@ -792,19 +843,19 @@ fn scan_next_dispatch_sites(
         tcl_lexer::LexerConfig::for_dialect(dialect),
     );
     for cmd in &commands {
-        let Some(head) = cmd.argv.first() else {
-            continue;
-        };
-        let (h_start, h_end) = (head.span.start() as usize, head.span.end() as usize);
-        if h_end > source.len() || h_start >= h_end {
-            continue;
+        if let Some(head) = cmd.argv.first() {
+            let (h_start, h_end) = (head.span.start() as usize, head.span.end() as usize);
+            if h_end <= source.len() && h_start < h_end {
+                let h = &source[h_start..h_end];
+                if h == "next" || h == "nextto" {
+                    out.push(head.span);
+                }
+            }
         }
-        let h = &source[h_start..h_end];
-        if h == "next" || h == "nextto" {
-            out.push(head.span);
+        for (inner_start, inner_end) in nested_dispatch_regions(source, dialect, cmd) {
+            scan_next_dispatch_region(source, dialect, inner_start, inner_end, depth + 1, out);
         }
     }
-    out
 }
 
 /// Call sites of an **inherited** `method` inside `class_q`, a class that
@@ -848,9 +899,6 @@ fn find_class_member_references(
     analysis: &AnalysisResult,
     cursor_offset: u32,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    use tcl_lexer::Span;
-
     for class_def in analysis.all_classes.values() {
         let body = class_def.body_span;
         if !(body.start() < cursor_offset && cursor_offset < body.end()) {
@@ -883,59 +931,20 @@ fn find_class_member_references(
             return Some((decl, calls));
         }
         // Properties: no `$obj prop` dispatch and no inheritance model, so a
-        // class-local `my <prop>` scan is the whole story.
+        // class-local `my <prop>` scan is the whole story — the same
+        // intra-class `my <name>` matcher [`scan_my_method_sites`] uses for
+        // methods (recursing into `[...]` substitutions and same-frame
+        // control-flow / `eval` bodies), just with no declaration span to
+        // skip: a property's declaration is `property <name>` in the
+        // definer body, never itself a `my <name>` call site.
         let decl_span = class_def.properties.get(word).map(|p| p.name_span)?;
-        let mut call_spans: Vec<Span> = Vec::new();
-        for body_span in collect_member_bodies(class_def) {
-            if body_span.is_empty() {
-                continue;
-            }
-            let mut start = body_span.start() as usize;
-            let mut end = body_span.end() as usize;
-            if start >= source.len() || end > source.len() || start > end {
-                continue;
-            }
-            if source.as_bytes().get(start) == Some(&b'{') {
-                start += 1;
-            }
-            if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-                end -= 1;
-            }
-            let body_text = &source[start..end];
-            let commands = segment_commands_with_offset_and_config(
-                body_text,
-                u32::try_from(start).unwrap_or(body_span.start()),
-                tcl_lexer::LexerConfig::for_dialect(dialect),
-            );
-            for cmd in &commands {
-                // A property is read as `$prop`, never as a command head; the
-                // only command-form reference is `my <prop>` (its generated
-                // accessor).  Match that, at argv[1].
-                let Some(head) = cmd.argv.first() else {
-                    continue;
-                };
-                let h_start = head.span.start() as usize;
-                let h_end = head.span.end() as usize;
-                if h_start >= source.len()
-                    || h_end > source.len()
-                    || &source[h_start..h_end] != "my"
-                {
-                    continue;
-                }
-                let Some(name_tok) = cmd.argv.get(1) else {
-                    continue;
-                };
-                let n_start = name_tok.span.start() as usize;
-                let n_end = name_tok.span.end() as usize;
-                if n_start >= source.len() || n_end > source.len() {
-                    continue;
-                }
-                if &source[n_start..n_end] != word {
-                    continue;
-                }
-                call_spans.push(name_tok.span);
-            }
-        }
+        let call_spans = scan_my_method_sites(
+            source,
+            dialect,
+            &collect_member_bodies(class_def),
+            word,
+            None,
+        );
         return Some((decl_span, call_spans));
     }
     None
@@ -1007,7 +1016,7 @@ pub(crate) fn find_obj_method_call_sites(
             out: &mut out,
             seen: &mut seen,
         };
-        scan_obj_method_region(ctx, 0, source.len(), &mut sink);
+        scan_obj_method_region(ctx, 0, source.len(), 0, &mut sink);
     }
     // Regions 2/3: proc + method bodies (the top-level scan
     // skips braced body args, so descend explicitly).
@@ -1067,35 +1076,32 @@ fn scan_obj_method_body(
     if body_span.is_empty() {
         return;
     }
-    let source = ctx.source;
-    let mut start = body_span.start() as usize;
-    let mut end = body_span.end() as usize;
-    if start >= source.len() || end > source.len() || start > end {
+    let (start, end) = strip_outer_braces(ctx.source, body_span);
+    if start >= end {
         return;
     }
-    if source.as_bytes().get(start) == Some(&b'{') {
-        start += 1;
-    }
-    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-        end -= 1;
-    }
-    scan_obj_method_region(ctx, start, end, sink);
+    scan_obj_method_region(ctx, start, end, 0, sink);
 }
 
-/// Segment `source[start..end]` and record every `$v method`
-/// call site, recursing into command-substitution (`[...]`)
-/// args.  `var_set` holds the bare names of in-scope instance
-/// variables.
+/// Segment `source[start..end]` and record every `$v method` call site,
+/// recursing into command-substitution (`[...]`) args **and** every
+/// same-frame (`Plain` `BodyKind`) control-flow / `eval` body argument
+/// ([`nested_dispatch_regions`]), so a dispatch nested inside an `if` /
+/// `while` / `foreach` / `switch` / `try` / `catch` body is found too
+/// (issue #957's general form).  `var_set` holds the bare names of
+/// in-scope instance variables.  `depth` guards against runaway recursion
+/// — see [`MAX_DISPATCH_SCAN_DEPTH`].
 fn scan_obj_method_region(
     ctx: ObjMethodScan<'_>,
     start: usize,
     end: usize,
+    depth: u32,
     sink: &mut SpanSink<'_>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
     let source = ctx.source;
-    if start >= end || end > source.len() {
+    if start >= end || end > source.len() || depth > MAX_DISPATCH_SCAN_DEPTH {
         return;
     }
     let region = &source[start..end];
@@ -1138,14 +1144,173 @@ fn scan_obj_method_region(
                 }
             }
         }
-        // Recurse into command-substitution args, including a `[…]` embedded
-        // in a bareword / quoted compound word.
-        for arg in &cmd.argv {
-            for (inner_start, inner_end) in cmd_substitution_regions(source, ctx.dialect, *arg) {
-                scan_obj_method_region(ctx, inner_start, inner_end, sink);
+        for (inner_start, inner_end) in nested_dispatch_regions(source, ctx.dialect, cmd) {
+            scan_obj_method_region(ctx, inner_start, inner_end, depth + 1, sink);
+        }
+    }
+}
+
+/// Strip a single layer of `{`/`}` delimiters from `span`'s source text, if
+/// present.  The analyser's body / member spans are inclusive of the braces,
+/// but the segmenter treats a leading `{` as a braced-literal opener and
+/// refuses to descend into it, so every re-scanned body needs the braces
+/// stripped first.  Out-of-bounds / empty input is returned unchanged — the
+/// caller is expected to bounds-check before segmenting.
+fn strip_outer_braces(source: &str, span: tcl_lexer::Span) -> (usize, usize) {
+    let mut start = span.start() as usize;
+    let mut end = span.end() as usize;
+    if start >= source.len() || end > source.len() || start > end {
+        return (start, end);
+    }
+    if source.as_bytes().get(start) == Some(&b'{') {
+        start += 1;
+    }
+    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+        end -= 1;
+    }
+    (start, end)
+}
+
+/// Recursion bound for [`nested_dispatch_regions`] — mirrors the analyser's
+/// own `MAX_BODY_DEPTH` (`tcl_compiler::analyser::commands`): a guard against
+/// a stack overflow on pathologically nested / generated / minified Tcl, not
+/// a limit any hand-written script should ever approach.
+const MAX_DISPATCH_SCAN_DEPTH: u32 = 256;
+
+/// Every nested region reachable from one segmented command that a
+/// dispatch scan (`my` / `next` / `nextto` / `$obj method` call-site search)
+/// must also visit, so a dispatch written *inside* a nested construct is
+/// still found as a reference from the enclosing method: every `[…]`
+/// command-substitution fragment in any argument
+/// ([`cmd_substitution_regions`]), plus every argument the command registry
+/// marks [`tcl_registry::ArgRole::Body`] with a `Plain`
+/// [`tcl_registry::BodyKind`] — a same-frame body (`if` / `while` /
+/// `foreach` / `switch` / `try` / `catch` / `eval`, …) that still executes in
+/// the enclosing method's own dispatch context.
+///
+/// `Structural` bodies (`proc`, `oo::class create`, `uplevel`, `namespace
+/// eval`, …) are *not* descended here — those run in a different scope, so a
+/// call written inside one is not a same-context dispatch from this site
+/// (see [`tcl_registry::CommandRegistry::plain_body_arg_indices`]). This is
+/// the one general mechanism behind the fix for issue #957 (a `my method`
+/// call nested in `if` / `while` / `foreach` / `switch` / `try` / `catch` /
+/// `eval` was invisible to Find-References, the code-lens reference count,
+/// and Rename) — registry-driven, so it needs no per-command-name branch
+/// here and covers any command whose spec declares a `Plain` body role, not
+/// just the control-flow keywords a hand-written list would enumerate.
+fn nested_dispatch_regions(
+    source: &str,
+    dialect: &str,
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Vec<(usize, usize)> {
+    let mut regions: Vec<(usize, usize)> = Vec::new();
+    for arg in &cmd.argv {
+        regions.extend(cmd_substitution_regions(source, dialect, *arg));
+    }
+    let Some(cmd_name) = cmd.texts.first() else {
+        return regions;
+    };
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+    // A `case_list` command (`switch`'s braced-list form, Expect's `expect {
+    // ... }`) marks its single trailing clause-list argument `ArgRole::Body`
+    // too, but that argument is not itself a script — it's alternating
+    // `pattern body …` words, so segmenting it directly would misparse each
+    // `pattern body` pair as one bogus command (`default { … }`) and never
+    // reach the pattern's own body.  When the call is in that single-braced
+    // shape, flatten it via the registry's own clause-list vocabulary
+    // ([`tcl_registry::CaseListSpec`], never a hardcoded "switch" check) and
+    // recurse into each clause's own body word instead.
+    if let Some(case_list) = registry.get(cmd_name).and_then(|s| s.case_list)
+        && let Some(clause_regions) = case_list_clause_body_regions(source, case_list, &args, cmd)
+    {
+        regions.extend(clause_regions);
+        return regions;
+    }
+    for idx in registry.plain_body_arg_indices(cmd_name, &args) {
+        // `idx` is 0-based into `args` (post-command-name); `argv` is
+        // 1-based (`argv[0]` is the command name itself).
+        if let Some(tok) = cmd.argv.get(idx + 1) {
+            let (start, end) = strip_outer_braces(source, tok.span);
+            if start < end {
+                regions.push((start, end));
             }
         }
     }
+    regions
+}
+
+/// For a `case_list` command whose call is in the single-braced-list shape
+/// (`switch $x { pat1 body1 pat2 body2 }`) — exactly one non-option argument
+/// remains after `case_list.subject_args` — the source regions of every
+/// clause's own body word, skipping the literal `-` Tcl `switch`
+/// fall-through marker (not a body of its own).
+///
+/// Returns `None` when the call is instead in the inline pattern/body-pairs
+/// shape (any pair count) — each pair's body argument there is already a
+/// standalone script `plain_body_arg_indices` finds directly, needing no
+/// clause-list unpacking.  Also `None` for a clause list with `clause_flags`
+/// (Expect's `expect { -re pat body … }`) — a clause there may carry a
+/// variable number of leading flag words before its pattern and body, so
+/// naively alternating pattern/body/pattern/body would misassign a flag word
+/// as a body; conservative abstention rather than a wrong split, matching
+/// this codebase's "fall through to the generic path when correctness can't
+/// be proven" rule for constructs the compiler can't safely specialise.  The
+/// option-skip loop is driven entirely by `case_list`'s own fields
+/// (`value_options`, `subject_args`), never a hardcoded command name, so it
+/// applies identically to `switch` and to any future plain (no
+/// `clause_flags`) `case_list` command.
+fn case_list_clause_body_regions(
+    source: &str,
+    case_list: &tcl_registry::CaseListSpec,
+    args: &[&str],
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Option<Vec<(usize, usize)>> {
+    if !case_list.clause_flags.is_empty() {
+        return None;
+    }
+    let mut i = 0usize;
+    while i < args.len() {
+        let a = args[i];
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if !a.starts_with('-') {
+            break;
+        }
+        i += if case_list.value_options.contains(&a) {
+            2
+        } else {
+            1
+        };
+    }
+    i += usize::from(case_list.subject_args);
+    if i >= args.len() || args.len() - i != 1 {
+        // Inline pairs shape (or no clause-list argument at all) — not this
+        // function's concern.
+        return None;
+    }
+    // `args` is 0-based post-command-name; `cmd.texts`/`cmd.argv` are
+    // 1-based (index 0 is the command name), so the clause-list word is at
+    // `i + 1` in both.
+    let (Some(text), Some(tok)) = (cmd.texts.get(i + 1), cmd.argv.get(i + 1).copied()) else {
+        return Some(Vec::new());
+    };
+    let elements = tcl_compiler::segmenter::flatten_clause_list_elements(text, tok);
+    let mut out = Vec::new();
+    let mut j = 0;
+    while j + 1 < elements.len() {
+        let (body_text, body_tok) = &elements[j + 1];
+        if body_text != "-" {
+            let (start, end) = strip_outer_braces(source, body_tok.span);
+            if start < end {
+                out.push((start, end));
+            }
+        }
+        j += 2;
+    }
+    Some(out)
 }
 
 /// The inner regions of every `[…]` command substitution reachable from a

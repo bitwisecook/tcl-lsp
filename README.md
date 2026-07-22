@@ -384,9 +384,11 @@ puts [add 3 4]           ;# ← reference to 'add'
 References follow `TclOO` dispatch, too. A method is found through every
 `$obj method` call on a tracked instance, every intra-class `my method`
 dispatch, and `next` / `nextto` super-dispatch — including calls nested in a
-`[…]` substitution or embedded in a quoted / compound word. Expr math
-functions resolve to their backing proc, so a `proc ::tcl::mathfunc::foo` is
-found (and renamed) from every `foo(...)` used inside `expr`.
+`[…]` substitution, embedded in a quoted / compound word, or nested inside
+`if` / `while` / `foreach` / `switch` / `try` / `catch` / `eval` / `dict for`
+(any combination, arbitrarily deep). Expr math functions resolve to their
+backing proc, so a `proc ::tcl::mathfunc::foo` is found (and renamed) from
+every `foo(...)` used inside `expr`.
 
 A class is found through every use of its name, not only `<Class> new`. A
 `superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class

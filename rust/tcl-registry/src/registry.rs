@@ -29,6 +29,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
+use crate::body_kind::BodyKind;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
 use crate::forms::CommandForm;
@@ -1151,6 +1152,44 @@ impl CommandRegistry {
         push_option_value_roles(&mut out, spec.options, args, 0, role);
         out.retain(|&idx| idx < n);
         out
+    }
+
+    /// [`Self::arg_indices_for_role`]`(name, args, `[`ArgRole::Body`]`)`,
+    /// filtered to the indices whose [`BodyKind`] is
+    /// [`Plain`](BodyKind::Plain) — a body that runs in the caller's own
+    /// frame (`if`/`while`/`for`/`foreach`/`switch`/`try`/`catch`/`eval`, …).
+    ///
+    /// `Structural` bodies (`proc`, `oo::class create`, `oo::define`,
+    /// `snit::method`, `uplevel`, `namespace eval`, …) execute in a
+    /// definition or different-frame dispatch context, so are excluded —
+    /// a command found inside one is *not* still running in the enclosing
+    /// call's scope.  This is the generic test for "is a dispatch nested in
+    /// this body argument still the same lexical/dispatch context as the
+    /// caller": intra-class `my`/`next`/`nextto` `TclOO` dispatch and `$obj`
+    /// method dispatch recursion both need this to decide which nested
+    /// script regions still belong to the same enclosing method.
+    ///
+    /// Respects a subcommand's own `body_kind` override (e.g. a compound
+    /// command whose subcommand's body is structural even though the
+    /// top-level spec defaults to `Plain`), the same resolution order
+    /// [`Self::arg_indices_for_role`] uses for the subcommand's other roles.
+    #[must_use]
+    pub fn plain_body_arg_indices(&self, name: &str, args: &[&str]) -> Vec<usize> {
+        let Some(spec) = self.get(name) else {
+            return Vec::new();
+        };
+        let sub_body_kind = if spec.subcommands.is_empty() {
+            None
+        } else {
+            args.first()
+                .and_then(|first| spec.resolve_subcommand(first))
+                .map(|sub| sub.body_kind)
+        };
+        let body_kind = sub_body_kind.unwrap_or(spec.body_kind);
+        if body_kind != BodyKind::Plain {
+            return Vec::new();
+        }
+        self.arg_indices_for_role(name, args, ArgRole::Body)
     }
 
     /// Resolve [`ArgRole::CommandPrefix`] argument positions and their
@@ -3325,6 +3364,61 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.load_irules();
         assert_eq!(reg.get("when").unwrap().body_kind, BodyKind::Structural);
+    }
+
+    /// `plain_body_arg_indices` surfaces the same-frame control-flow /
+    /// `eval` bodies a nested dispatch (e.g. `TclOO` `my method`) still
+    /// executes inside — every `Plain`-kind `ArgRole::Body` argument.
+    #[test]
+    fn plain_body_arg_indices_covers_same_frame_bodies() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(reg.plain_body_arg_indices("if", &["1", "{body}"]), vec![1]);
+        assert_eq!(
+            reg.plain_body_arg_indices("while", &["1", "{body}"]),
+            vec![1]
+        );
+        assert_eq!(
+            reg.plain_body_arg_indices("foreach", &["v", "$list", "{body}"]),
+            vec![2]
+        );
+        assert_eq!(reg.plain_body_arg_indices("eval", &["{body}"]), vec![0]);
+        assert_eq!(
+            reg.plain_body_arg_indices("catch", &["{body}", "res"]),
+            vec![0]
+        );
+    }
+
+    /// `Structural` bodies (`proc`, `oo::class create`, `uplevel`,
+    /// `namespace eval`) never come back from `plain_body_arg_indices` —
+    /// they run in a definition / different-frame context, so a dispatch
+    /// found inside is not still the caller's scope.
+    #[test]
+    fn plain_body_arg_indices_excludes_structural_bodies() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.plain_body_arg_indices("proc", &["name", "args", "{body}"]),
+            Vec::<usize>::new()
+        );
+        assert_eq!(
+            reg.plain_body_arg_indices("uplevel", &["1", "{body}"]),
+            Vec::<usize>::new()
+        );
+        assert_eq!(
+            reg.plain_body_arg_indices("namespace", &["eval", "ns", "{body}"]),
+            Vec::<usize>::new()
+        );
+    }
+
+    /// An unknown command name (a user proc, a `TclOO` method body's own
+    /// `unknownProc arg` call) has no registry spec at all — returns empty
+    /// rather than panicking.
+    #[test]
+    fn plain_body_arg_indices_unknown_command_is_empty() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.plain_body_arg_indices("myUserProc", &["a", "b"]),
+            Vec::<usize>::new()
+        );
     }
 
     /// `body_arg_implicit_args` defaults to 0 and is set on

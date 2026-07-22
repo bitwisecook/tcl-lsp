@@ -92,4 +92,67 @@ suite("Call Hierarchy", () => {
       assert.ok(selfCall, "fib should have a recursive outgoing call to itself");
     }
   });
+
+  // Regression for issue #957's general form: TclOO method call-hierarchy
+  // edges must match `my <method>` dispatch (including nested in `if`
+  // control flow), never a bare method-name call — a method is not a
+  // bare-callable command in Tcl, so a bare `greet` head never dispatches.
+  suite("TclOO method dispatch (`my <method>`)", () => {
+    const methodDocUri = getDocUri("methodCallHierarchy.tcl");
+
+    test("incoming calls for a method match `my <method>` dispatch, including control-flow-nested sites", async () => {
+      await activate(methodDocUri);
+
+      // `greet` declaration — line 1, col 11.
+      const pos = new vscode.Position(1, 11);
+      const items = (await vscode.commands.executeCommand(
+        "vscode.prepareCallHierarchy",
+        methodDocUri,
+        pos,
+      )) as vscode.CallHierarchyItem[] | undefined;
+
+      assert.ok(items && items.length > 0, "prepareCallHierarchy must return items for `greet`");
+
+      const incoming = (await vscode.commands.executeCommand(
+        "vscode.provideIncomingCalls",
+        items[0],
+      )) as vscode.CallHierarchyIncomingCall[] | undefined;
+
+      assert.ok(incoming, "Should return incoming calls");
+      const twiceCall = incoming?.find((call) => call.from.name.includes("twice"));
+      assert.ok(
+        twiceCall,
+        `twice should dispatch to greet via 'my greet', got ${JSON.stringify(incoming)}`,
+      );
+      // Two `my greet` sites — one nested inside `if`, one top-level.
+      assert.strictEqual(
+        twiceCall?.fromRanges.length,
+        2,
+        `expected both my-dispatch sites, got ${JSON.stringify(twiceCall?.fromRanges)}`,
+      );
+    });
+
+    test("outgoing calls from a method include a `my <method>` site nested inside `if`", async () => {
+      await activate(methodDocUri);
+
+      // `twice` declaration — line 2, col 11.
+      const pos = new vscode.Position(2, 11);
+      const items = (await vscode.commands.executeCommand(
+        "vscode.prepareCallHierarchy",
+        methodDocUri,
+        pos,
+      )) as vscode.CallHierarchyItem[] | undefined;
+
+      assert.ok(items && items.length > 0, "prepareCallHierarchy must return items for `twice`");
+
+      const outgoing = (await vscode.commands.executeCommand(
+        "vscode.provideOutgoingCalls",
+        items[0],
+      )) as vscode.CallHierarchyOutgoingCall[] | undefined;
+
+      assert.ok(outgoing, "Should return outgoing calls");
+      const greetCall = outgoing?.find((call) => call.to.name.includes("greet"));
+      assert.ok(greetCall, `twice should call greet, got ${JSON.stringify(outgoing)}`);
+    });
+  });
 });

@@ -35,10 +35,12 @@
 //! declaration's name span gets a `N references` lens whose count comes
 //! from [`crate::references::method_references_for_class`] — the same
 //! resolver Find All References and rename use — so the lens and the peek
-//! always agree.  That resolver counts intra-class `my method` dispatch,
-//! external `$obj method` call sites (matched through the analyser's
-//! `instance_classes` variable-type tracking), and the sites of any
-//! subclass that inherits the definition (issue #864).
+//! always agree.  That resolver counts intra-class `my method` dispatch
+//! (however deeply nested in `[...]` substitutions and same-frame
+//! control-flow / `eval` bodies — see the `references` module doc, issue
+//! #957), external `$obj method` call sites (matched through the
+//! analyser's `instance_classes` variable-type tracking), and the sites of
+//! any subclass that inherits the definition (issue #864).
 //!
 //! Cross-document reference counts: when the
 //! caller threads a [`crate::workspace_index::WorkspaceIndex`]
