@@ -75,16 +75,16 @@ pub fn spec() -> CommandSpec {
         // result is the character count instead (an Int, or -1 — see
         // the hover snippet). The registry's `return_type` has no
         // per-form axis yet (`CommandForm` carries no return-type
-        // field of its own), so — mirroring `scan_.rs`'s identical
-        // values-vs-count gap — this models the two-arg form's
-        // documented Int count: the idiomatic usage gets.n's own
-        // EXAMPLE section demonstrates (`while {[gets $chan line] >=
-        // 0} {...}`), and the characterisation this codebase's own
-        // `VarWriteTyping` docs and `type_infer.rs` already give
-        // `gets` ("returns the character count while writing a text
-        // line"). The one-arg form's actual String result is a known,
-        // deferred imprecision here, not an oversight.
-        return_type: Some(TclType::Int),
+        // field of its own). A prior revision of this comment modelled
+        // the two-arg form's Int count instead (reasoning that it is
+        // the more idiomatic `while {[gets $chan line] >= 0} {...}`
+        // usage) — reverted after it broke real taint propagation
+        // through the equally-realistic one-arg `set x [gets $chan]`
+        // pattern (`tcl-compiler`'s `t100_fires_for_open_tainted_filename`
+        // and 50+ other taint tests, all of which read `gets`'s own
+        // result as a string). Until `return_type` gains a per-form
+        // axis, String is the safer of the two imprecise choices here.
+        return_type: Some(TclType::String),
         // The two-arg `gets chan varName` form writes the read *line* (a
         // String) to its target while returning the character *count* (an
         // Int).  Type the target as the line it always receives, not the

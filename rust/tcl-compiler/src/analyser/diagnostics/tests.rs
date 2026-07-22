@@ -1309,7 +1309,9 @@ fn subcommand_version_gates_fire_w002() {
         ("binary decode base64 abc", "tcl8.6", "tcl8.5"),
         ("interp bgerror {}", "tcl8.5", "tcl8.4"),
         ("interp limit {} time", "tcl8.5", "tcl8.4"),
-        ("interp debug {}", "tcl8.6", "tcl8.5"),
+        // interp debug is documented from Tcl 8.5's interp.n (present in
+        // the 8.5 SYNOPSIS/body, absent from 8.4's subcommand list).
+        ("interp debug {}", "tcl8.5", "tcl8.4"),
         ("interp cancel", "tcl8.6", "tcl8.5"),
         ("interp children", "tcl8.6", "tcl8.5"),
         ("clock add 0 1 day", "tcl8.5", "tcl8.4"),
@@ -8652,7 +8654,8 @@ mod arity_usage_suffix {
     fn e005_appends_command_synopsis() {
         let d = find_code("lmap a b c d\n", DiagCode::E005);
         assert!(
-            d.message.ends_with(" — usage: lmap varname list body"),
+            d.message
+                .ends_with(" — usage: lmap varlist1 list1 ?varlist2 list2 ...? body"),
             "expected the lmap synopsis: {:?}",
             d.message
         );

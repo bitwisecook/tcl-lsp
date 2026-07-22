@@ -29,6 +29,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// A concise `SubSubCommand` — most `info object`/`info class` operations are
 /// available since 8.6 (dialect `None`, inheriting the parent subcommand).
+///
+/// Every `9.0`-gated fact below (`sub_since` call sites) was cross-checked
+/// against the Tcl 9.1 beta manpage as well: `info.n` in 9.1 is byte-for-byte
+/// identical to 9.0 apart from the version banner, so a `TCL90_PLUS` gate is
+/// exact for both releases — there is no 9.1-only delta to model separately.
 const fn sub(name: &'static str, detail: &'static str, synopsis: &'static str) -> SubSubCommand {
     SubSubCommand {
         name,
@@ -70,7 +75,7 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
     ),
     sub_since(
         "creationid",
-        "Report the unique creation id of an object.",
+        "Report the object's unique creation id, fixed for its lifetime.",
         "info object creationid object",
         DialectSet::TCL90_PLUS,
     ),
@@ -91,13 +96,13 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
     ),
     sub(
         "isa",
-        "Test whether an object belongs to a category.",
+        "Test whether an object belongs to a category: class, metaclass, mixin, object, or typeof.",
         "info object isa category object ?arg?",
     ),
     sub(
         "methods",
         "List the methods of an object.",
-        "info object methods object ?option ...?",
+        "info object methods object ?option...?",
     ),
     sub(
         "methodtype",
@@ -117,12 +122,12 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
     sub_since(
         "properties",
         "List the declared properties of an object.",
-        "info object properties object ?option ...?",
+        "info object properties object ?options...?",
         DialectSet::TCL90_PLUS,
     ),
     sub(
         "variables",
-        "List the declared instance variables of an object.",
+        "List the declared instance variables of an object. Tcl 9.0+ accepts an optional -private flag to list private variables instead.",
         "info object variables object",
     ),
     sub(
@@ -153,7 +158,7 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
     ),
     sub_since(
         "definitionnamespace",
-        "Report a class's definition namespace.",
+        "Report the definition namespace used for kind definitions of the class: -class (the default) or -instance.",
         "info class definitionnamespace class ?kind?",
         DialectSet::TCL90_PLUS,
     ),
@@ -180,7 +185,7 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
     sub(
         "methods",
         "List the methods of a class.",
-        "info class methods class ?option ...?",
+        "info class methods class ?options...?",
     ),
     sub(
         "methodtype",
@@ -195,7 +200,7 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
     sub_since(
         "properties",
         "List the declared properties of a class.",
-        "info class properties class ?option ...?",
+        "info class properties class ?options...?",
         DialectSet::TCL90_PLUS,
     ),
     sub(
@@ -210,8 +215,8 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
     ),
     sub(
         "variables",
-        "List the declared instance variables of a class.",
-        "info class variables class ?-private?",
+        "List the declared instance variables of a class. Tcl 9.0+ accepts an optional -private flag to list private variables instead.",
+        "info class variables class",
     ),
 ];
 
@@ -257,17 +262,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the total number of commands evaluated in this interpreter.",
         synopsis: "info cmdcount",
+        pure: true,
         return_type: Some(TclType::Int),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "cmdtype",
         arity: Arity::exact(1),
-        detail: "Returns the type of the command named commandName.",
+        detail: "Returns the type of the command named commandName: alias, coroutine, ensemble, import, native, object, privateObject, proc, interp, or zlibStream.",
         synopsis: "info cmdtype commandName",
         pure: true,
         return_type: Some(TclType::String),
         dialects: Some(DialectSet::TCL90_PLUS),
+        // `commandName` is an introspected command (a command reference),
+        // matching `info args`/`info body`'s treatment of `procname`.
+        arg_roles: &[(0, ArgRole::CommandName)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -297,12 +306,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "constant",
+        traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::exact(1),
         detail: "Returns 1 if varName is a constant variable and 0 otherwise.",
         synopsis: "info constant varName",
         pure: true,
         return_type: Some(TclType::Boolean),
         dialects: Some(DialectSet::TCL90_PLUS),
+        arg_roles: &[(0, ArgRole::VarRead)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -329,7 +340,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "default",
         traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::exact(3),
-        detail: "If the parameter has a default value, stores that value in varname and returns 1.",
+        detail: "If the parameter has a default value, stores that value in varname and returns 1; otherwise returns 0.",
         synopsis: "info default procname parameter varname",
         return_type: Some(TclType::Boolean),
         // `procname` is an introspected proc (a command reference); `varname`
@@ -340,7 +351,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "errorstack",
         arity: Arity::new(0, 1),
-        detail: "Returns a description of the active command at each level from the call stack of the last error.",
+        detail: "Returns an even-sized list of CALL/UP/INNER tokens and parameters describing the active command at each level from the call stack of the last error. Also available as the -errorstack entry of a 3-argument catch's options dictionary.",
         synopsis: "info errorstack ?interp?",
         pure: true,
         return_type: Some(TclType::List),
@@ -362,7 +373,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "frame",
         arity: Arity::new(0, 1),
-        detail: "Returns the depth of the call to info frame itself.",
+        detail: "Returns the depth of the call to info frame itself when depth is omitted; otherwise returns a dictionary describing the active command at that depth (keys: type, source/file/line, cmd, proc, lambda, level). Reports every stack frame, including eval/uplevel/source frames that info level does not see.",
         synopsis: "info frame ?depth?",
         pure: true,
         return_type: Some(TclType::Dict),
@@ -400,7 +411,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "level",
         arity: Arity::new(0, 1),
-        detail: "Returns the level this routine was called from.",
+        detail: "Returns the current stack level (0 at top level) when level is omitted; otherwise returns the complete command (name and arguments, as a list) active at that level. A positive level is absolute (1 = outermost active procedure); zero or a negative level is relative to the current one.",
         synopsis: "info level ?level?",
         pure: true,
         return_type: Some(TclType::Int),
@@ -419,7 +430,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "loaded",
         arity: Arity::new(0, 2),
-        detail: "Returns the name of each file loaded in interp by the load command.",
+        detail: "Returns the name of each file loaded in interp by the load command, paired with the package prefix it was loaded under. From Tcl 9.0, an optional trailing prefix argument restricts the results to that prefix; Tcl 8.4-8.6 accept only the interp argument.",
         synopsis: "info loaded ?interp? ?prefix?",
         pure: true,
         return_type: Some(TclType::List),
@@ -474,16 +485,30 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info procs ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
+        // Same probe semantics as `info commands` above: an exact spelling
+        // (`info procs helper`) is a navigable reference to an existing
+        // proc, a glob pattern contributes none.
+        arg_roles: &[(0, ArgRole::CommandNameProbe)],
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "script",
         arity: Arity::new(0, 1),
-        detail: "Returns the pathname of the innermost script currently being evaluated.",
+        detail: "Returns the pathname of the innermost script currently being evaluated, or the empty string if none. With filename, overrides the return value of this command for the remainder of the active invocation — useful in virtual filesystem applications.",
         synopsis: "info script ?filename?",
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        // Read-only in its common bare form; the optional `filename`
+        // argument writes interpreter-level state (the active script-path
+        // override), unchanged across 8.4-9.1.
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::InterpState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::None,
+            dialects: None,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -533,10 +558,10 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Information about the state of the Tcl interpreter",
             synopsis: &["info option ?arg arg ...?"],
-            snippet: "Available commands: info args procname Returns the names of the parameters to the procedure named procname.",
-            source: "Tcl man page info.n",
-            examples: "",
-            return_value: "",
+            snippet: "A large introspection ensemble; option names may be abbreviated to any unambiguous prefix. Covers procedure metadata (args, body, default, procs), variable metadata (exists, vars, globals, locals), and command/interpreter/environment metadata (commands, cmdcount, complete, level, loaded, hostname, library, nameofexecutable, patchlevel, script, sharedlibextension, tclversion). Tcl 8.5 adds stack-frame introspection (frame). Tcl 8.6 adds coroutine, errorstack, and the TclOO info class/info object introspection subcommands. Tcl 9.0 adds cmdtype, constant, consts, an optional prefix argument to loaded, and extends the TclOO introspection with creationid, definitionnamespace, and properties. Tcl 9.1 makes no further changes to info.",
+            source: "Tcl info(n)",
+            examples: "if {[info exists myVar]} {\n    puts $myVar\n}\nforeach p [info procs helper*] {\n    puts \"found $p\"\n}\nputs \"Tcl [info tclversion] (patchlevel [info patchlevel])\"",
+            return_value: "Varies by subcommand: most return a string, list, or boolean. info level and info frame return an integer when called with no argument, and a list or dictionary respectively when given one. See each subcommand's own description for its exact shape.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT

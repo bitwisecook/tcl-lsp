@@ -3100,8 +3100,21 @@ mod tests {
             "lappend",
             "lreverse",
             "lreplace",
+            // Tcl 9.0+: shares `lreplace`'s core (see
+            // `tcl-vm/src/cmd_list.rs::cmd_ledit`); a flat single-variable
+            // read-modify-write with no eval fallback and no sublist-index
+            // descent (unlike `lset`, which deliberately stays off this
+            // list) — see `commands/tcl/ledit.rs`.
+            "ledit",
             "lrepeat",
             "lassign",
+            // Tcl 9.0+: a flat native dispatch over `tcl-cmd-core::lseq`
+            // (`tcl-vm/src/cmd_lseq.rs::cmd_lseq`) with no script-body eval
+            // fallback of its own — its only recursive edge is evaluating
+            // one argument word as an *expression* via `Vm::eval_expr`,
+            // the same evaluator `expr` (also on this list) runs on, not a
+            // general eval-a-script fallback — see `commands/tcl/lseq.rs`.
+            "lseq",
             "concat",
             "split",
             "join",

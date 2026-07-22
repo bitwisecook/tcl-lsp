@@ -27,9 +27,22 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
+        // Universal Tcl data (`dialects: None`) is deliberate, not an
+        // oversight: `join` is absent from every dialect profile's
+        // subtractive `disabled_commands` list (`IRULES_DISABLED_COMMANDS`
+        // in `tcl-dialect/src/profile.rs` bans filesystem/process/interp
+        // commands — `open`, `exec`, `file`, `glob`, `namespace`, … — but
+        // no list-manipulation command), and none of the irules/, expect/,
+        // tk/, itcl/, iapps/, or eda_*/ command packs declares an override
+        // or an extra form for it, so it resolves identically everywhere.
+        dialects: None,
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_join),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
+        // `join list ?joinString?` — synopsis, argument defaults, and
+        // documented behaviour are byte-for-byte identical across the
+        // join.n manual page in Tcl 8.4, 8.5, 8.6, 9.0, and 9.1: no option
+        // or form was ever added, removed, or had its default changed.
         arity: Arity::new(1, 2),
         return_type: Some(TclType::String),
         arg_types: &[(
@@ -41,12 +54,12 @@ pub fn spec() -> CommandSpec {
             },
         )],
         hover: Some(HoverSnippet {
-            summary: "Create a string by joining together list elements",
+            summary: "Create a string by joining together list elements.",
             synopsis: &["join list ?joinString?"],
-            snippet: "The list argument must be a valid Tcl list.",
-            source: "Tcl man page join.n",
-            examples: "",
-            return_value: "",
+            snippet: "list must be a valid Tcl list; an invalid list raises an error. joinString is inserted between each adjacent pair of elements and defaults to a single space when omitted. Each element contributes only its own string value, so a nested sublist element is not itself re-joined — a list nested two levels deep is flattened by exactly one level, not recursively, as shown in the second example below.",
+            source: "Tcl join(n)",
+            examples: "join {1 2 3 4 5} \", \"\njoin {1 {2 3} 4 {5 {6 7} 8}}",
+            return_value: "A string formed by joining the elements of list together, with joinString (a single space by default) between each adjacent pair.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT

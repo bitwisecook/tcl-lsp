@@ -18,7 +18,12 @@
 
 //! `lset` — change an element in a list variable.
 //
-// VERIFIED: Tcl 9.0.3 manpage lset(n) (man3/lset.n).
+// Cross-checked against the tcl-lang.org lset(n) manpages for Tcl 8.4,
+// 8.5, 8.6, 9.0, and 9.1. Forms, arity, and error conditions are
+// identical across that range except for the index-equals-length case:
+// Tcl 8.4/8.5 treat an index equal to the target sublist's length as out
+// of range, Tcl 8.6+ appends there instead (see `hover.snippet` below for
+// the exact wording surfaced to users).
 use crate::forms::CommandForm;
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
@@ -37,7 +42,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
-/// `lset varName newValue` — replace the entire list (no index).
+/// `lset varName newValue` — replace the entire list (no index). A
+/// single empty-list index (`lset varName {} newValue`, 3 args at
+/// runtime) is an equivalent spelling of this same whole-list
+/// replacement, but arity-wise it matches `LSET_SINGLE_INDEX` below, not
+/// this form.
 const LSET_REPLACE: CommandForm = CommandForm {
     name: "replace",
     arity: Arity::exact(2),
@@ -46,7 +55,9 @@ const LSET_REPLACE: CommandForm = CommandForm {
     ..CommandForm::DEFAULT
 };
 
-/// `lset varName index newValue` — single-level update.
+/// `lset varName index newValue` — single-level update. `index` may equal
+/// the list's length: Tcl 8.6+ appends `newValue` there, while 8.4/8.5
+/// raise "list index out of range" (see the command's `hover.snippet`).
 const LSET_SINGLE_INDEX: CommandForm = CommandForm {
     name: "single_index",
     arity: Arity::exact(3),
@@ -55,7 +66,11 @@ const LSET_SINGLE_INDEX: CommandForm = CommandForm {
     ..CommandForm::DEFAULT
 };
 
-/// `lset varName index1 ?index2 ...? newValue` — multi-level path.
+/// `lset varName index1 ?index2 ...? newValue` — multi-level path; each
+/// index after the first addresses an element of the sublist the
+/// previous index selected. The same length-equal append rule (Tcl
+/// 8.6+; see `LSET_SINGLE_INDEX` above) applies to the final index in
+/// the chain.
 const LSET_FLAT_PATH: CommandForm = CommandForm {
     name: "flat_path",
     arity: Arity::at_least(4),
@@ -71,10 +86,25 @@ pub fn spec() -> CommandSpec {
         // and — like `set`/`append`/`lappend`/`incr` — its first argument is
         // a variable *name*, so it joins the name-first set the write-command
         // consumers (bounds checks, dead-store cancellation, minifier RMW
-        // protection) query via `FIRST_ARG_VARNAME`.
+        // protection) query via `FIRST_ARG_VARNAME`. `BYTE_COMPILED`: the
+        // compiler special-cases the common shapes with its own codegen
+        // (`codegen_hook` below; see `tcl-vm/src/cmd_list.rs::cmd_lset`'s
+        // doc comment for the compiled-vs-fallback split), so the minifier
+        // must not rewrite this head to a `$var` alias. `NOT_PROC_FACTORY`:
+        // the 3-arg `lset varName index newValue` form is exactly the
+        // proc-factory scanner's four-token `HEAD NAME ARGS BODY` shape
+        // (`tcl-compiler/src/signature_scan/handlers.rs::
+        // maybe_record_factory_candidate`) whenever `newValue` is a braced
+        // literal, e.g. `lset mylist 0 {hello there}` — without this trait
+        // that ordinary call would be misread as a factory-wrapper
+        // definition. `lset` deliberately stays off `FRAMELESS_RUNTIME`
+        // (see the allow-list comment in `registry.rs`): its multi-level
+        // descent has no frameless codegen path today.
         traits: Traits::FRAME_HASH_BUILTIN
             .union(Traits::READS_BEFORE_WRITE)
-            .union(Traits::FIRST_ARG_VARNAME),
+            .union(Traits::FIRST_ARG_VARNAME)
+            .union(Traits::BYTE_COMPILED)
+            .union(Traits::NOT_PROC_FACTORY),
         dialects: None,
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::VarWrite)],
@@ -82,12 +112,12 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
         hover: Some(HoverSnippet {
-            summary: "Change an element in a list",
+            summary: "Change an element (or nested element) in a list stored in a variable.",
             synopsis: &["lset varName ?index ...? newValue"],
-            snippet: "The lset command accepts a parameter, varName, which it interprets as the name of a variable containing a Tcl list.",
-            source: "Tcl man page lset.n",
-            examples: "",
-            return_value: "",
+            snippet: "varName must already name a variable holding a valid Tcl list — unlike set, lset cannot create the variable, so an undefined varName raises \"can't read ...\" even when no index is given. With no index, or a single empty-list index ({}), newValue replaces the variable's entire contents, the same as set varName newValue. With one index, lset addresses that 0-based element of the list. index accepts a non-negative or negative integer, end, end-integer, or — since Tcl 8.5 — the fuller index-arithmetic syntax of `string index`, such as end-1+1; Tcl 8.4 supports only a bare integer or the fixed end-integer form. Two or more indices descend into nested sublists, each addressing an element of the sublist the previous index selected — lset a 1 2 v is equivalent to lset a [list 1 2] v — and the indices may be given as separate words or grouped into a single list argument, e.g. lset x {2 1} v. Every index must be zero or greater; a negative index, or one greater than the target sublist's length, raises \"list index out of range\". An index equal to the target sublist's current length appends newValue as a new element — but only from Tcl 8.6 onward; Tcl 8.4 and 8.5 treat an equal-to-length index the same as one that is too large.",
+            source: "Tcl lset(n)",
+            examples: "set x {{a b c} {d e f} {g h i}}\nlset x 0 j             ;# j {d e f} {g h i}\nlset x end j           ;# {a b c} {d e f} j\nlset x 2 1 j           ;# {a b c} {d e f} {g j i}\nlset x {2 1} j         ;# {a b c} {d e f} {g j i} -- indices as one grouped list argument\n\nlset x {2 3} j         ;# {a b c} {d e f} {g h i j} -- Tcl 8.6+ appends when index equals the sublist length",
+            return_value: "The new value of varName after the replacement — the same value that is stored back into the variable.",
         }),
         codegen_hook: Some(CodegenHookId::Lset),
         command_forms: &[LSET_REPLACE, LSET_SINGLE_INDEX, LSET_FLAT_PATH],

@@ -27,11 +27,31 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     dialects: None,
 }];
 
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "lassign list ?varName ...?",
-    dialects: None,
-}];
+// Tcl 8.5's SYNOPSIS is `lassign list varName ?varName ...?` — at least one
+// varName is required there (`lassign $lst` alone is a "wrong # args"
+// error). Tcl 8.6 relaxed this to `lassign list ?varName ...?`, making
+// every varName optional; Tcl 9.0 and 9.1 keep the 8.6 shape unchanged.
+// The two dialect-scoped forms below capture the exact legal shape per
+// version — the broader 8.6+ shape is listed first since
+// `CommandSpec::primary_synopsis` (the arity-diagnostic "usage: …" suffix)
+// picks the first non-empty form regardless of dialect, and 8.6+ covers
+// three of the four dialects `lassign` is available in. The command-level
+// `arity` floor below stays at 1 (the 8.6+ minimum) since `Arity` has no
+// per-dialect axis of its own — a real but narrow gap for arity
+// diagnostics against code specifically targeting Tcl 8.5 and calling
+// `lassign` with a list but no varName at all.
+const FORMS: &[FormSpec] = &[
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "lassign list ?varName ...?",
+        dialects: Some(DialectSet::TCL86_PLUS),
+    },
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "lassign list varName ?varName ...?",
+        dialects: Some(DialectSet::TCL85),
+    },
+];
 
 /// D4-F2: `lassign list ?varName ...?` accepts variable-name args from index 1
 /// onward to the end of the call.  Resolve `VarWrite` dynamically so calls with
@@ -45,7 +65,7 @@ fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
-        traits: Traits::FRAMELESS_RUNTIME | Traits::FRAME_HASH_BUILTIN,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::FRAME_HASH_BUILTIN | Traits::BYTE_COMPILED,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
@@ -53,13 +73,17 @@ pub fn spec() -> CommandSpec {
         // while returning the *leftover* list.  The elements are not the
         // return value, so they must not be typed `List` (issue #867).
         var_write_typing: VarWriteTyping::ElementsOf { container_arg: 0 },
+        // The returned leftover elements are a contiguous tail sub-list of
+        // `list` (arg 0) — the same element-type-inference relationship as
+        // `lrange list first last`.
+        return_elements: Some(ReturnElements::SubListOf { container_arg: 0 }),
         hover: Some(HoverSnippet {
             summary: "Assign list elements to variables",
             synopsis: &["lassign list ?varName ...?"],
-            snippet: "This command treats the value list as a list and assigns successive elements from that list to the variables given by the varName arguments in order.",
-            source: "Tcl man page lassign.n",
-            examples: "",
-            return_value: "",
+            snippet: "Treats list as a Tcl list and assigns its successive elements, in order, to the variables named by the varName arguments. If there are more varName arguments than list elements, the surplus variables are set to the empty string. If list has more elements than there are varName arguments, the leftover elements are returned as a list; otherwise the return value is the empty string. Before Tcl 8.6, at least one varName was required; from Tcl 8.6 onward `lassign list` alone is also legal and simply returns every element of list, since none of them get assigned. A common idiom uses `lassign` to \"shift\" the first element off a list: `set ::argv [lassign $::argv argumentToReadOff]` reassigns argv to everything after the first element while binding the first element to argumentToReadOff.",
+            source: "Tcl lassign(n)",
+            examples: "lassign {a b c} x y z       ;# assigns a to x, b to y, c to z; returns {}\nlassign {d e} x y z         ;# assigns d to x, e to y; z becomes {}; returns {}\nlassign {f g h i} x y       ;# assigns f to x, g to y; returns {h i}\nset ::argv [lassign $::argv argumentToReadOff]  ;# \"shift\" idiom: pops the first element off argv",
+            return_value: "The empty string when every list element was assigned to a variable; otherwise a list of the elements left over after the last variable was assigned.",
         }),
         codegen_hook: Some(CodegenHookId::Lassign),
         forms: FORMS,
