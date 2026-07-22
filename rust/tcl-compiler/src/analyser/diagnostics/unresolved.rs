@@ -68,6 +68,10 @@ impl Analyser {
     ///
     /// - `cmd_name in registry_names` (built-in command), unless the
     ///   built-in was renamed away / deleted earlier in the file.
+    /// - The call is an `expr` math-function application (`sin($x)`,
+    ///   `max($a, $b)`) whose name is a genuine built-in `::tcl::mathfunc`
+    ///   function available under the dialect's `expr` grammar version,
+    ///   unless that qualified name was renamed away / deleted earlier.
     /// - `cmd_name` contains `::` (qualified — defer to
     ///   per-namespace logic, conservative skip).
     /// - `cmd_name` starts with `$` / `[` (interpolated /
@@ -312,7 +316,17 @@ impl Analyser {
     fn registry_name_deleted_before(&self, name: &str, call_off: u32) -> bool {
         // `handle_rename` / `handle_interp_alias` record deletions under the
         // normalised qualified name; an unqualified built-in lives at `::`.
-        let Some(&del_off) = self.deleted_commands.get(&format!("::{name}")) else {
+        self.qualified_name_deleted_before(&format!("::{name}"), call_off)
+    }
+
+    /// [`Self::registry_name_deleted_before`] for a name that is already
+    /// fully qualified (`::tcl::mathfunc::sin`) rather than an unqualified
+    /// built-in living at the global `::`. Shared so the deletion-gating
+    /// rule — a deletion recorded inside a proc/method/class body is
+    /// conditional and never disqualifies — cannot drift between the two
+    /// callers.
+    fn qualified_name_deleted_before(&self, qualified: &str, call_off: u32) -> bool {
+        let Some(&del_off) = self.deleted_commands.get(qualified) else {
             return false;
         };
         if del_off >= call_off {
@@ -325,6 +339,33 @@ impl Analyser {
         // path byte-identical: an isolated body's analyser state, including
         // its deletions, is not grafted back into the shell.)
         !self.offset_is_inside_definition_body(del_off)
+    }
+
+    /// Whether `name` is a genuine built-in `expr` math function (`sin`,
+    /// `max`, …) for W123 purposes — i.e. a real name in
+    /// [`tcl_syntax::expr::mathfunc`], the single shared function/version
+    /// table the const-folder, the runtime, and
+    /// [`Self::emit_expr_function_dialect_diagnostics`] (W002) already
+    /// consult.
+    ///
+    /// Deliberately does **not** gate on the dialect's `expr`-grammar
+    /// version ceiling the way W002 does: a function that predates the
+    /// active dialect (`min(…)` under `tcl8.4`) is still a *real* name, just
+    /// disabled here — exactly the same "known but disabled" split the
+    /// generic registry-builtin path draws for a dialect-gated command like
+    /// `dict` under `tcl8.4` (`build_w123_known_names`'s profile filter): W002
+    /// explains why the call is disabled, and W123 fires alongside it since
+    /// the name still doesn't dispatch to anything in *this* dialect. A
+    /// dialect with no `expr` grammar base at all
+    /// (`math_func_ceiling_for_dialect` returns `None`) applies no ceiling,
+    /// matching W002's own "don't restrict" rule for that case.
+    #[must_use]
+    fn expr_mathfunc_name_known(&self, name: &str) -> bool {
+        let Some(since) = tcl_syntax::expr::mathfunc::added_in(name) else {
+            return false;
+        };
+        crate::tcl_expr_eval::math_func_ceiling_for_dialect(self.dialect())
+            .is_none_or(|ceiling| since <= ceiling)
     }
 
     /// Whether byte offset `off` falls inside any recorded proc or class
@@ -343,6 +384,7 @@ impl Analyser {
         known: &W123KnownNames,
         name: &str,
         range: tcl_lexer::Span,
+        resolved_qualified_name: Option<&str>,
     ) -> bool {
         // A built-in renamed away / deleted at an earlier offset no longer
         // resolves here — fall through to the user-defined paths below,
@@ -353,6 +395,33 @@ impl Analyser {
             && !self.registry_name_deleted_before(name, range.start())
         {
             return true;
+        }
+        // An `expr` math-function application (`sin($x)`, `max($a, $b)`) is
+        // recorded by `record_expr_function_invocations` with the *bare*
+        // function word as `name` and `::tcl::mathfunc::<name>` as the
+        // settled qualified name — never a bareword registry entry, unlike
+        // `tcl::mathop`'s `+`/`!`. A bare `sin`/`abs`/`round`/`bool`
+        // registration would misdirect *every other* consumer of the bare
+        // registry-name set (an unrelated `proc abs {x} {…}` would misread
+        // as "renaming a builtin") — precisely the defect `tcl::mathop`
+        // deliberately avoids by leaving `max`/`min` unregistered bare (see
+        // `mathop_generated.rs`). So this checks the settled qualified name
+        // directly against the single shared math-function name/version
+        // table (`tcl_syntax::expr::mathfunc`) — the same table
+        // `emit_expr_function_dialect_diagnostics` (W002) already consults —
+        // rather than the registry's bare-name set, and is gated by the same
+        // deletion rule as a registry builtin: `rename ::tcl::mathfunc::sin
+        // {}` breaks `expr {sin(…)}` in C Tcl (confirmed by the WASM
+        // runtime's `expr_routes_through_the_command_table` test), so a call
+        // after that point falls through to the user-defined paths below.
+        if let Some(resolved) = resolved_qualified_name {
+            let mathfunc_qualified = format!("::tcl::mathfunc::{name}");
+            if resolved == mathfunc_qualified
+                && self.expr_mathfunc_name_known(name)
+                && !self.qualified_name_deleted_before(&mathfunc_qualified, range.start())
+            {
+                return true;
+            }
         }
         // Qualified names defer to per-namespace logic (conservative skip);
         // `$`-interpolated / `[…]`-substituted heads are W307 / W308's
@@ -445,7 +514,12 @@ impl Analyser {
             if inv.existence_probe {
                 continue;
             }
-            if self.w123_invocation_resolves(known, name, inv.range) {
+            if self.w123_invocation_resolves(
+                known,
+                name,
+                inv.range,
+                inv.resolved_qualified_name.as_deref(),
+            ) {
                 continue;
             }
 

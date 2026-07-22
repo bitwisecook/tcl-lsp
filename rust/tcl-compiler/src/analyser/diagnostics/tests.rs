@@ -6209,6 +6209,196 @@ foo$suffix
     );
 }
 
+// Issue #968 — W123 false-positived on every built-in `expr` math function
+// (`sin(...)`, `max(...)`, ...): `record_expr_function_invocations` already
+// resolved a math-function call to `::tcl::mathfunc::<name>`, but the W123
+// pass only recognised that qualified name via a *user-defined*
+// `proc ::tcl::mathfunc::<name>` (`proc_tail_names`) — never the built-in
+// function table itself, so every stock call read as unresolved.
+
+#[test]
+fn w123_tp_unknown_function_name_inside_expr_still_fires() {
+    // FP fix must not swallow a genuinely unknown function — `frobnicate` is
+    // not a real `::tcl::mathfunc` name in any Tcl release.
+    let src = "set x [expr {frobnicate(1)}]\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "an unknown expr function must still draw W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_tp_math_function_before_its_release_dual_fires_with_w002() {
+    // `min`/`max` are TIP 232 (8.5+); under 8.4 the name is not a real
+    // `::tcl::mathfunc` command in *this* dialect — the same "known
+    // elsewhere, disabled here" split the registry-builtin path draws for
+    // e.g. `dict` under `tcl8.4` (both W002 *and* W123 fire — see
+    // `build_w123_known_names`'s profile-filter comment; verified live
+    // against `exec` under `f5-irules`).
+    let src = "set x [expr {min(1, 2)}]\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.4");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W002),
+        "min() under tcl8.4 must draw W002 (disabled in dialect); got {:?}",
+        r.diagnostics,
+    );
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "min() under tcl8.4 must also draw W123 (unresolved in this dialect); got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_tp_expr_function_after_rename_away_is_unresolved() {
+    // `rename ::tcl::mathfunc::sin {}` really does break `expr {sin(...)}}`
+    // in C Tcl (`invalid command name "tcl::mathfunc::sin"` — see the WASM
+    // runtime's `expr_routes_through_the_command_table` test) — a call after
+    // the deletion must not silently resolve.
+    let src = "rename ::tcl::mathfunc::sin {}\nset x [expr {sin(1.0)}]\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a call through a renamed-away mathfunc must be flagged unresolved; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_tp_bareword_call_to_a_mathfunc_shaped_name_is_still_unresolved() {
+    // `sin` is only ever callable via `::tcl::mathfunc::sin` or the `expr`
+    // function-call grammar — a bare top-level command call to `sin` (no
+    // user `proc sin`, not inside `expr`) is `invalid command name` in real
+    // Tcl, and the fix must not leak resolution into ordinary bareword
+    // command dispatch.
+    let src = "sin 1.0\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a bareword call to a mathfunc-shaped name must still be unresolved; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_original_issue_968_repro_is_silent() {
+    // The exact shape reported in issue #968: built-in `expr` math
+    // functions must resolve with no diagnostic at all.
+    let src = "set x [expr {sin(1.0) + max(1, 2, 3)}]\nputs $x\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "issue #968: built-in expr math functions must not draw W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_nested_function_calls_both_resolve() {
+    // `sqrt(abs($x))` records both the outer and the inner function as
+    // separate mathfunc invocations (`expr_nested_function_calls_are_both_recorded`
+    // in commands.rs) — both must resolve.
+    let src = "set x [expr {sqrt(abs($y))}]\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "nested built-in expr math functions must not draw W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_version_gated_function_resolves_at_its_introducing_release() {
+    // `isnan` is TIP 521 (9.0+) — available (and silent) exactly at tcl9.0,
+    // unlike the tcl8.4 case above.
+    let src = "set x [expr {isnan(1.0)}]\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl9.0");
+    assert!(
+        !r.diagnostics
+            .iter()
+            .any(|d| matches!(d.code, DiagCode::W002 | DiagCode::W123)),
+        "isnan() under tcl9.0 must draw neither W002 nor W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_expr_function_resolves_inside_if_condition() {
+    // The `expr`-function resolution path is driven by the registry's
+    // `ArgRole::Expr` role, so it fires for *any* EXPR-role argument —
+    // `if`'s condition, not only a literal `expr` command.
+    let src = "if {sin($y) > 0} {\n    puts hi\n}\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a math function inside an `if` condition must not draw W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_expr_function_resolves_inside_namespace_and_proc_body() {
+    // Interprocedural context (a namespace-scoped proc body) must not
+    // change resolution — the function dispatches through the global
+    // `::tcl::mathfunc` namespace regardless of the caller's own scope.
+    let src = "\
+namespace eval ::acme {
+    proc calc {y} {
+        return [expr {sin($y) + cos($y)}]
+    }
+}
+";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a math function inside a namespaced proc body must not draw W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_tn_user_defined_mathfunc_override_still_resolves() {
+    // Pre-existing behaviour (`expr_function_call_records_a_mathfunc_invocation`
+    // in commands.rs), unaffected by the built-in-name fix: a user override
+    // resolves via `proc_tail_names` exactly as before.
+    let src = "proc ::tcl::mathfunc::myfunc {x} { return $x }\nset r [expr {myfunc(1)}]\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a user-defined mathfunc override must resolve; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_tn_unrelated_proc_sharing_a_mathfunc_name_is_unaffected() {
+    // `proc abs {x} {...}` is an ordinary, unrelated command — the fix is
+    // scoped to `expr` function-call invocations only (via the settled
+    // `::tcl::mathfunc::<name>` qualified name), so a same-named regular
+    // proc and its ordinary bareword call sites must resolve exactly as
+    // they did before this fix, via the normal proc-tail path.
+    let src = "proc abs {x} {\n    if {$x < 0} { return [expr {-$x}] }\n    return $x\n}\nputs [abs -5]\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl8.6");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "an unrelated proc sharing a mathfunc name must resolve normally; got {:?}",
+        r.diagnostics,
+    );
+}
+
 #[test]
 fn analyse_static_rename_does_not_set_has_dynamic_providers() {
     // A fully static `rename OLD NEW` is now recorded precisely

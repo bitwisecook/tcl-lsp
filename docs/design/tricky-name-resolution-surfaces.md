@@ -245,6 +245,22 @@ the ensemble configuration string. Same fix location, same milestone.
 - **Repro:** `proc ::tcl::mathfunc::dbl {x} {expr {$x*2}}; set y [expr {dbl(3)}]`.
 - **Milestone:** none. **NEW** — expr-body function-name resolution; slot into
   **M7** (or a small standalone). Niche (requires custom mathfuncs).
+- **Status (M7, shipped):** `record_expr_function_invocations`
+  (`commands.rs`) now harvests every `f(...)` bareword inside an `expr`
+  (via `expr_function_calls`, the const-folder's expr parse) as a command
+  invocation resolved to `::tcl::mathfunc::f` — closing the go-to-def /
+  references / rename gap above for a *user*-defined
+  `proc ::tcl::mathfunc::f`. Issue #968 closed the companion W123 gap this
+  left open: a *built-in* function name (`sin`, `max`, …) with no user
+  override drew a spurious "unknown command" hint, since only the
+  user-proc path resolved (`w123_invocation_resolves`'s
+  `expr_mathfunc_name_known`, `unresolved.rs`, consulting the shared
+  `tcl_syntax::expr::mathfunc` name/version table). **Still open:** the
+  settled qualified name is always the *global* `::tcl::mathfunc::f`, never
+  accounting for a namespace-local override (`::ns::tcl::mathfunc::f`
+  shadowing inside `::ns` — real per TIP 232 / verified by the WASM
+  runtime's `namespace_local_mathfunc_shadows_in_expr` test) — a narrower,
+  separate follow-up.
 
 ### 1.7 Literal command names in dispatch tables — **CONFIRMED** (medium)
 
