@@ -498,6 +498,66 @@ accessing `specs_by_name`.
 
 Higher levels override lower ones for the matched invocation form.
 
+## Known limitations
+
+### Lookup is by literal spelling, not by command identity
+
+`CommandRegistry::get` / `get_for_dialect`
+(`rust/tcl-registry/src/registry.rs`) resolve a segmented command's head by
+an exact string match against `by_name` — a plain by-name lookup keyed on
+the spelling baked into the static `CommandSpec`. Every piece of
+registry-driven behaviour reached through that lookup (`arg_roles` /
+`arg_role_resolver`, `taint_*`, `side_effect_hints`, `safe_on_uninit`,
+`lowering`, `object_class`, `definition_body`, …) is therefore only found
+when the call site's literal head text matches the spec's registered name.
+
+Real Tcl does not work this way: `rename apply myapply` and `interp alias
+{} myapply {} apply` both make `myapply` fully behaviourally identical to
+`apply` at runtime — same argument handling, same effects, same result —
+because Tcl resolves a command by its interpreter-level binding, not by
+the spelling used to invoke it. The registry has no equivalent notion of
+binding; it only ever sees the token text a caller wrote. A renamed or
+aliased call to *any* registry-special command silently reverts to
+whatever generic, no-special-knowledge handling applies to an unknown
+command — not an error, just a quiet loss of everything the spec would
+otherwise have provided.
+
+This is not specific to `apply`. It is a project-wide consequence of the
+lookup mechanism: any command whose spec carries role, taint, side-effect,
+purity, or lowering information loses all of it under `rename`/`interp
+alias`, in every consumer that calls `CommandRegistry::get` /
+`arg_indices_for_role` — which is effectively every consumer, since that
+is the only path from a segmented command's head to its spec. The concrete,
+verified case is `apply`'s `ArgRole::LambdaLiteral` handling (semantic
+tokens, folding, formatting, minification, declaration scanning, the
+interprocedural call-graph scanner, param-trait inference, and the iRules
+object-reference walker): see the "Failure modes" section of
+[the `apply`-lambda-body KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
+for the reproduction and its file-path anchors. The same blind spot exists
+for taint sinks, purity, and every other registry-keyed field — `apply` is
+simply the instance that has been reproduced and written up (issue #1002).
+
+This is a different mechanism from issue #973, which is about the
+analyser's `known()` predicate (`scope.rs`) not gating an existence check
+(W123) on deletion — a single analyser-side predicate partially growing
+rename/alias-awareness for one diagnostic. The registry head lookup
+described here has no rename/alias-awareness at all, in any form, and
+affects every consumer that queries the registry, not one diagnostic.
+
+**Plausible future fix direction** (out of scope here — this note only
+records the limitation): resolve a call's spec by the command's actual
+bound identity — e.g. following `rename`/`interp alias` chains back to
+their origin before the `by_name` lookup, or tracking a command's
+canonical identity separately from the spelling used to invoke it — rather
+than by literal head text. This is a large, separate change: `by_name`
+lookup and `arg_indices_for_role` sit on the one path every consumer in
+the codebase depends on to go from a segmented command's head to its
+spec, so correctly resolving through renames/aliases means touching that
+core lookup path itself, not adding a special case to any one consumer.
+It also needs a source of rename/alias facts (static, where the source
+program's `rename`/`interp alias` calls are visible to analysis) that the
+registry does not currently track at all.
+
 ## Decision rule
 
 - To add a new command: create a `CommandDef` subclass in the appropriate
