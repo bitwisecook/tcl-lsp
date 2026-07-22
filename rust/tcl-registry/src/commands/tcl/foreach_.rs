@@ -30,7 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
-    synopsis: "foreach varList list ?varList list ...? body",
+    synopsis: "foreach varlist1 list1 ?varlist2 list2 ...? body",
     dialects: None,
 }];
 
@@ -85,15 +85,15 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         var_write_typing: VarWriteTyping::ElementsOf { container_arg: 0 },
         hover: Some(HoverSnippet {
-            summary: "Iterate over list elements with one or more loop variables.",
+            summary: "Iterate over one or more lists, assigning loop variables from each.",
             synopsis: &[
-                "foreach varList list ?varList list ...? body",
+                "foreach varname list body",
                 "foreach varlist1 list1 ?varlist2 list2 ...? body",
             ],
-            snippet: "Variables are assigned from list elements; `body` runs once per assignment group.",
-            source: "Tcl foreach(1)",
-            examples: "",
-            return_value: "",
+            snippet: "In the simple form, varname takes on each value of list in turn and body runs once per value. In the general form, each varlist/list pair is handled independently: on every iteration, the variables of each varlist are assigned consecutive values from its corresponding list, as if by lindex. Iteration continues until every value from every list has been used exactly once — enough passes to exhaust the longest list — and a list too short for its varlist supplies empty strings for the missing elements on later passes. break and continue inside body behave exactly as they do in for. foreach itself always returns an empty string, regardless of what body does.",
+            source: "Tcl foreach(n)",
+            examples: "foreach x {a b c} {\n    puts $x\n}\nforeach {name value} {height 6 width 8} {\n    puts \"$name = $value\"\n}\nforeach x {1 2 3} y {a b} {\n    puts \"$x $y\"\n}",
+            return_value: "An empty string.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

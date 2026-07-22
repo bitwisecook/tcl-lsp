@@ -2324,13 +2324,18 @@ mod tests {
             "the package-unknown query form has no command prefix",
         );
 
-        // `coroinject`/`coroprobe coroName command ?arg...?` — the injected
-        // command's appended arity depends on the coroutine's yield point, so
-        // it is a reference-only prefix (Unknown ⇒ never arity-checked).
+        // `coroinject coroName command ?arg...?` — per the Tcl 9.0/9.1
+        // coroutine(n) manpage, exactly two more words are appended when the
+        // injected command runs: the name of the command that suspended the
+        // coroutine (yield or yieldto) and its current resumption value.
         assert_eq!(
             reg.command_prefixes("coroinject", &["myCoro", "cb", "x"]),
-            vec![(1, AppendedArity::Unknown)],
+            vec![(1, AppendedArity::Exactly(2))],
         );
+        // `coroprobe coroName command ?arg...?` runs command immediately
+        // inside the suspended coroutine (not deferred through a yield/
+        // yieldto resumption), so no fixed extra-argument count is
+        // documented -- it stays a reference-only prefix (Unknown).
         assert_eq!(
             reg.command_prefixes("coroprobe", &["myCoro", "cb"]),
             vec![(1, AppendedArity::Unknown)],
@@ -3101,6 +3106,7 @@ mod tests {
             "split",
             "join",
             "string",
+            "format",
             "expr",
             "global",
             "variable",

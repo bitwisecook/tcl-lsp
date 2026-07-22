@@ -45,10 +45,10 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Check for end of file condition on channel",
             synopsis: &["eof channel"],
-            snippet: "The eof command has been superceded by the chan eof command which supports the same syntax and options.",
-            source: "Tcl man page eof.n",
-            examples: "",
-            return_value: "",
+            snippet: "Returns 1 if an end-of-file condition occurred during the most recent input operation on channel (such as gets or read), 0 otherwise. eof performs no I/O of its own; it only reports the outcome of the last read, so a later read that reaches new data (for example on a pipe or socket where more input arrives) can clear the condition again. Tcl 8.5 introduced chan eof, an equivalent command reached through the chan ensemble; from Tcl 9.0 the eof manual page documents itself purely as an alias for chan eof, though eof keeps working exactly as before in every version through 9.1.",
+            source: "Tcl eof(n)",
+            examples: "set f [open somefile.txt]\nwhile {1} {\n    set line [gets $f]\n    if {[eof $f]} {\n        close $f\n        break\n    }\n    puts \"Read line: $line\"\n}",
+            return_value: "1 if the channel is at end-of-file, 0 otherwise.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT

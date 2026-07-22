@@ -26,6 +26,35 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+/// `fcopy`'s two switches, present unchanged by name/shape in every Tcl
+/// release from 8.4 through 9.1 — only their documented value semantics
+/// shift across versions (see each `detail` below), so neither carries a
+/// `dialects` restriction of its own.
+///
+/// `fcopy` itself is banned in F5 iRules (it is one of the 42 K36322151
+/// commands in `IRULES_DISABLED_COMMANDS`, `tcl-dialect/src/profile.rs` —
+/// the TMM event sandbox has no general channel/filesystem model), but
+/// that ban is enforced generically by the iRules profile's subtractive
+/// `disabled_commands` list, not by a `CommandSpec`-level `dialects` gate
+/// here — the same treatment `open` (also on that list) gets in
+/// `open_.rs`. Every other modelled dialect (iApps, tmsh, Expect, the EDA
+/// vendor shells, Tk) has an empty `disabled_commands` list, so `fcopy`
+/// resolves there normally through its `dialects: None`.
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-size",
+        value: OptionValue::value("size"),
+        detail: "Maximum amount of data to transfer before stopping; without it, fcopy copies until end of file. Counted in bytes when the input channel is in binary mode, in characters otherwise (Tcl 9.0+); Tcl 8.6 counted bytes only when both channels shared an encoding, and Tcl 8.4/8.5 counted bytes unconditionally.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::command_prefix_n("callback", AppendedArity::AtLeast(1)),
+        detail: "Run the copy in the background and return immediately; callback is invoked when the copy completes or fails, with the byte/character count appended and an error-message argument on failure. inputChan/outputChan are switched to non-blocking mode automatically; an active event loop (vwait or Tk) is required to drive the copy.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
 /// Command spec for `fcopy`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -43,14 +72,15 @@ pub fn spec() -> CommandSpec {
             dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "Copy data from one channel to another",
+            summary: "Copy data from one channel to another, synchronously or in the background.",
             synopsis: &["fcopy inputChan outputChan ?-size size? ?-command callback?"],
-            snippet: "The fcopy command copies data from one I/O channel, inchan, to another I/O channel, outchan.",
-            source: "Tcl man page fcopy.n",
-            examples: "",
-            return_value: "",
+            snippet: "Transfers data from inputChan to outputChan until -size bytes/characters have been copied or end of file is reached, whichever comes first; without -size, fcopy copies to end of file. Without -command, fcopy blocks until the copy finishes and returns the count written to outputChan. With -command, fcopy returns immediately and runs the copy in the background, invoking callback with the count (and an error message on failure) once it completes; if either channel is closed mid-copy, the copy stops silently and callback is never invoked. Only same-direction I/O is barred while a background copy runs — further reads on inputChan or writes on outputChan get a \"channel busy\" error — but a simultaneous fcopy in the opposite direction is fine (Tcl 8.6+, and is how a bidirectional copy pair is built); Tcl 8.4/8.5 instead barred all other I/O on either channel during a background copy. fcopy honors each channel's -translation and -encoding (and, from Tcl 9.0, -profile) configuration; the reported count is always outputChan's byte/character count, which can differ from the amount read from inputChan. From Tcl 9.0, fcopy can raise an encoding error (POSIX EILSEQ) when either channel uses the \"strict\" encoding profile.",
+            source: "Tcl fcopy(n)",
+            examples: "fcopy $in $out\nfcopy $in $out -size 4096\nfcopy $in $out -command [list onCopyDone $in $out]",
+            return_value: "Synchronous: the number of bytes written to outputChan (or characters, under the same bytes/characters rule as -size, from Tcl 8.6 on — Tcl 8.4/8.5 always counted bytes). Asynchronous (-command given): fcopy returns immediately and the count is delivered to the callback instead.",
         }),
         forms: FORMS,
+        options: OPTIONS,
         ..CommandSpec::DEFAULT
     }
 }

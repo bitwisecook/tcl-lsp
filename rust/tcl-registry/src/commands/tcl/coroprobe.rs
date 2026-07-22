@@ -16,7 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `coroprobe` — probe a suspended coroutine.
+//! `coroprobe` — run a command inside a suspended coroutine without
+//! resuming it.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -35,6 +36,14 @@ static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     dialects: None,
 }];
 
+/// Command spec for `coroprobe`.
+///
+/// `coroprobe`/`coroinject` were added together with Tcl 9.0 (documented on
+/// the shared `coroutine(n)` manual page alongside `coroutine`/`yield`/
+/// `yieldto`); the command itself is absent from the 8.4, 8.5, and 8.6
+/// manual pages (8.6's `coroutine.n` documents only `coroutine`/`yield`/
+/// `yieldto`), so `dialects: TCL90_PLUS` gates the whole command, not just
+/// one form or option.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroprobe",
@@ -48,12 +57,12 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {
-            summary: "Evaluate a command in a suspended coroutine.",
+            summary: "Run a command inside a suspended coroutine, without resuming it.",
             synopsis: &["coroprobe coroName command ?arg ...?"],
-            snippet: "",
-            source: "Tcl coroprobe(1)",
-            examples: "",
-            return_value: "",
+            snippet: "coroName must name a coroutine that is currently suspended (parked at a yield or yieldto); a coroutine that is running, has already finished, or does not exist is an error (\"can only inject a probe command into a coroutine\"). command and its args run immediately, in place, inside the coroutine's own call frame and namespace — so info coroutine, local variables, and any upvar/uplevel levels resolve there, not in the caller's. The coroutine is not resumed: afterwards it is left suspended at the same yield/yieldto, still waiting for the same kind of resumption value as before, though any variables the probe touched keep their new values. Since command is a runtime command reference invoked with unknown arguments, treat it like eval/uplevel for static analysis: unknown reads and writes. coroinject is the companion command for scheduling a command to run when the coroutine is next resumed, rather than immediately.",
+            source: "Tcl coroutine(n)",
+            examples: "proc worker {} {\n    set state 0\n    while 1 {\n        incr state [yield $state]\n    }\n}\ncoroutine counter worker\ncounter 5\ncounter 10\nputs [coroprobe counter set state]\n# -> 15",
+            return_value: "The result of command, evaluated inside the suspended coroutine's own frame and namespace.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT

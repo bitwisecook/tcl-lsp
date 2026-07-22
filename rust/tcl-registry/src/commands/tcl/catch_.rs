@@ -28,11 +28,32 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     dialects: None,
 }];
 
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "catch script ?resultVarName? ?optionsVarName?",
-    dialects: None,
-}];
+const FORMS: &[FormSpec] = &[
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "catch script ?resultVarName? ?optionsVarName?",
+        // `optionsVarName` (and the return-options dict it receives) was
+        // added to the synopsis in Tcl 8.5's catch(n); 8.4's synopsis is
+        // the narrower two-argument form below. `TCL85_PLUS` — not
+        // extended to iRules — mirrors `incr_.rs`'s `safe_on_uninit:
+        // Some(DialectSet::TCL85_PLUS)`: iRules embeds a genuine Tcl 8.4.6
+        // runtime with nothing backported at any BIG-IP version
+        // (docs/design/compiler/dialects-events.md, "Dialect base
+        // versions", ratified D3), so version-dependent behaviour follows
+        // 8.4 there too.
+        dialects: Some(DialectSet::TCL85_PLUS),
+    },
+    // Tcl 8.4's `catch(n)`: `catch script ?varName?` — a single result
+    // variable (there named `varName`, not `resultVarName`) and no
+    // `optionsVarName` / return-options dict. iRules' `catch` runs on that
+    // same embedded 8.4.6 core (see the comment above), so it follows this
+    // shape too.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "catch script ?varName?",
+        dialects: Some(DialectSet::TCL84.union(DialectSet::IRULES)),
+    },
+];
 
 /// Command spec for `catch`.
 pub fn spec() -> CommandSpec {
@@ -54,10 +75,10 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Evaluate script and trap exceptional returns",
             synopsis: &["catch script ?resultVarName? ?optionsVarName?"],
-            snippet: "The catch command may be used to prevent errors from aborting command interpretation.",
+            snippet: "Evaluates script in the caller's own variable scope and always completes normally, even when script raises an error — a single unguarded error never aborts the surrounding script. The integer catch returns is script's completion code: 0 (TCL_OK) for normal completion, 1 (TCL_ERROR) for an error, 2 (TCL_RETURN) if script executed return, 3 (TCL_BREAK) for break, 4 (TCL_CONTINUE) for continue, or a larger custom code set via `return -code`. When resultVarName is given, it is set to script's result on success or to the error message on failure. From Tcl 8.5, an optional third word, optionsVarName, receives a dict of the return options: -code and -level are always present, and on an error -errorinfo, -errorcode, and -errorline are added too — joined by -errorstack from Tcl 8.6 onward. Tcl 8.4's catch takes only the single result variable (there named varName) and has no options dict; iRules' embedded Tcl 8.4.6 runtime follows that same two-argument form. Only run-time errors are trapped: a syntax error Tcl finds while compiling script itself (e.g. unmatched braces) is not caught.",
             source: "Tcl man page catch.n",
-            examples: "",
-            return_value: "",
+            examples: "if {[catch {open $someFile w} fid]} {\n    puts stderr \"Could not open $someFile for writing\\n$fid\"\n    exit 1\n}\nif {[catch {expr {1 / 0}} result options]} {\n    puts \"error: $result (code [dict get $options -code])\"\n}",
+            return_value: "An integer completion code — 0 (TCL_OK) through 4 (TCL_CONTINUE) for the standard completion codes, or a larger custom code set via `return -code`.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

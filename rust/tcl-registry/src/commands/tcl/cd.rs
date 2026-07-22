@@ -16,19 +16,39 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `cd` — change working directory.
+//! `cd` — change the process's current working directory.
+
 use crate::prelude::*;
+
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "cd ?dirName?",
     dialects: None,
 }];
 
+/// Command spec for `cd`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cd",
+        // Universal core Tcl 8.4-9.1 (identical `cd ?dirName?` synopsis and
+        // behaviour on every fetched manpage). Disabled specifically under
+        // `f5-irules` via the subtractive `IRULES_DISABLED_COMMANDS` list
+        // in `tcl-dialect/src/profile.rs` (no real per-request filesystem
+        // there), the same mechanism `open` relies on rather than a
+        // `CommandSpec`-level dialect restriction — see `open_.rs`.
         dialects: None,
-        traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
+        // `Traits::TAINT_SINK`: `dirName` unconditionally becomes the
+        // process's current working directory — a per-process resource
+        // shared by every interpreter and, in a threaded build, every
+        // thread (all five manpages: "the current working directory is a
+        // per-process resource; the cd command changes the working
+        // directory for all interpreters and ... all threads"). Attacker-
+        // influenced input reaching this argument lets the caller redirect
+        // every later *relative*-path operation (`source`, `open`, `exec`,
+        // `glob`, …) to a directory of its choosing — the same downstream
+        // hazard noted on `auto_mkindex`, whose internal `cd $dir` call
+        // this mirrors directly.
+        traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN | Traits::TAINT_SINK,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
@@ -39,12 +59,12 @@ pub fn spec() -> CommandSpec {
             dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "Change working directory",
+            summary: "Change the process's current working directory.",
             synopsis: &["cd ?dirName?"],
-            snippet: "Change the current working directory to dirName, or to the home directory (as specified in the HOME environment variable) if dirName is not given.",
-            source: "Tcl man page cd.n",
-            examples: "",
-            return_value: "",
+            snippet: "Changes the current working directory to dirName, or to the user's home directory (as given by the HOME environment variable) when dirName is omitted; returns the empty string. The working directory is a per-process resource: the change is visible to every interpreter and, in a threaded build, every thread, not just the one that called cd. Errors if dirName does not exist, is not a directory, or cannot be entered. Through Tcl 8.6, a dirName beginning with ~ underwent automatic tilde substitution to a home directory (e.g. cd ~fred); Tcl 9.0 removed this implicit tilde substitution from file-name processing, so a ~ path must now be expanded explicitly first, e.g. with `file home` or `file tildeexpand`.",
+            source: "Tcl cd(n)",
+            examples: "cd /var/log\ncd ..\ncd ~fred              ;# Tcl 8.4-8.6: ~ expands automatically\ncd [file home fred]    ;# Tcl 9.0+: ~ is no longer expanded implicitly",
+            return_value: "The empty string.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT

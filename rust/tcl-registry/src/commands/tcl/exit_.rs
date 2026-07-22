@@ -27,6 +27,26 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Command spec for `exit`.
+///
+/// Synopsis, arity, and semantics are identical across Tcl 8.4, 8.5, 8.6,
+/// 9.0, and 9.1 — `exit ?returnCode?` has taken exactly one form since 8.4,
+/// with no options ever added, removed, or changed in any of the five
+/// manpages (`tcl-lang.org/man/tcl{8.4,8.5,8.6,9.0,9.1}/TclCmd/exit.html`,
+/// the 8.6 tree served under the `.htm` extension). `returnCode` defaults
+/// to 0 in every version; the 8.6, 9.0, and 9.1 manpages add "abort" to
+/// the KEYWORDS section (alongside the "exit"/"process" keywords already
+/// present in 8.4–8.5) but the command's synopsis, description, and
+/// behaviour are unchanged.
+///
+/// `exit` is one of the K36322151 commands F5's TMM interpreter strips
+/// from iRules (`tcl-dialect/src/profile.rs`'s `IRULES_DISABLED_COMMANDS`)
+/// — subtracted from the bare `IRULES` availability mask rather than
+/// modelled as a `dialects:` gate here, so `dialects: None` below is
+/// correct and deliberate (same pattern as `open`, also on that list).
+/// Expect registers its own unrelated `exit` (`-onexit`/`-noexit`,
+/// closing spawned processes rather than the interpreter) as a fully
+/// separate spec under `commands/expect/exit.rs`, loaded only for the
+/// `EXPECT` dialect, so no dialect-specific form is needed here either.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
@@ -43,10 +63,10 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "End the application",
             synopsis: &["exit ?returnCode?"],
-            snippet: "Terminate the process, returning returnCode to the system as the exit status.",
-            source: "Tcl man page exit.n",
-            examples: "",
-            return_value: "",
+            snippet: "Terminates the process immediately, returning returnCode to the system as the exit status; nothing after the call runs, in this command or anywhere else in the process. returnCode must be an integer and defaults to 0 (success) when omitted. Non-zero codes are conventionally interpreted as error cases by the calling process, so exit is commonly used at the end of a top-level error handler to signal a fatal condition with a distinct status.",
+            source: "Tcl exit(n)",
+            examples: "if {[catch {main} msg]} {\n    puts stderr \"unexpected script error: $msg\"\n    exit 2\n}\nexit 0",
+            return_value: "Never returns: the process terminates immediately and no value comes back to the calling script.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT

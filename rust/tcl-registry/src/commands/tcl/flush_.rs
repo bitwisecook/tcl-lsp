@@ -20,9 +20,17 @@
 
 use crate::prelude::*;
 
+// `channelId` is mandatory in every version's synopsis — 8.4/8.5/8.6's
+// flush.n gives only `flush channelId`, and 9.0/9.1's abbreviated flush.n
+// (see below) still gives only `flush channel`. There is no bare/optional
+// form; a missing or extra argument is `wrong # args`, matching the
+// `Arity::exact(1)` below. iRules disables `flush` outright (it is one of
+// the K36322151 bans in `IRULES_DISABLED_COMMANDS`, applied subtractively
+// by the dialect profile rather than as a gate here — see that list's doc
+// comment), so `dialects: None` below is deliberate, not an oversight.
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
-    synopsis: "flush ?channelId?",
+    synopsis: "flush channelId",
     dialects: None,
 }];
 
@@ -43,12 +51,21 @@ pub fn spec() -> CommandSpec {
             dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "Flush buffered output for a channel",
-            synopsis: &["flush channel"],
-            snippet: "The flush command has been superceded by the chan flush command which supports the same syntax and options.",
-            source: "Tcl man page flush.n",
-            examples: "",
-            return_value: "",
+            summary: "Flush buffered output for a channel.",
+            synopsis: &["flush channelId"],
+            // The blocking/nonblocking behaviour below is documented in
+            // full on flush.n through 8.4, 8.5, and 8.6. From 9.0 onward
+            // flush.n itself is reduced to a one-line pointer at chan(n)
+            // ("The flush command has been superceded by the chan flush
+            // command which supports the same syntax and options.") — that
+            // is a documentation reorganisation, not a behaviour change:
+            // `flush` itself is not removed or deprecated at the interpreter
+            // level in 9.0/9.1, so the full behaviour is stated here as the
+            // current truth for every version rather than only for 8.4-8.6.
+            snippet: "channelId must identify an open channel that has been opened for writing — a Tcl standard channel (stdout or stderr), the result of open or socket, or a channel created by a Tcl extension. On a blocking channel, flush does not return until all buffered output has reached the channel; on a nonblocking channel, it may return before flushing completes, with the remainder flushed in the background as fast as the underlying file or device can absorb it. Since Tcl 8.5, chan flush offers the identical functionality through the chan ensemble; from Tcl 9.0 the flush manual page itself just redirects to chan flush, though flush remains a fully supported command in every version.",
+            source: "Tcl flush(n)",
+            examples: "puts -nonewline \"Please type your name: \"\nflush stdout\ngets stdin name\nputs \"Hello there, $name!\"",
+            return_value: "Empty string on success.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
