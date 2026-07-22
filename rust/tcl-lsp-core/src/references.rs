@@ -62,9 +62,14 @@
 //!
 //! Limitations:
 //!
-//! * Cross-document references — surfacing references across
-//!   every open document via a workspace-index integration —
-//!   are not supported.
+//! * This module is single-document only.  Cross-document references are
+//!   built *on top of* it — `tcl-lsp-server`'s `cross_document_references` /
+//!   `cross_file_method_references` / `cross_file_consumer_method_references`
+//!   call [`obj_method_call_sites`], [`method_reference_spans_in_document`],
+//!   and [`inherited_method_call_sites`] once per candidate document, using
+//!   the workspace index to find which documents to scan and (for a
+//!   classmethod) which class names are valid bare-dispatch heads when the
+//!   scanned document doesn't declare the class itself.
 //! * A classmethod's class-command dispatch is matched by exact name-set
 //!   membership (the class's as-written simple name plus its fully
 //!   `::`-qualified name) rather than full namespace-relative resolution —
@@ -597,6 +602,16 @@ pub fn method_next_dispatch_spans(
 /// [`inherited_method_spans_in_document`] (which key off a local class body)
 /// find nothing; this keys off `instance_classes`, which the cross-file
 /// analysis populates from the workspace class set.
+///
+/// `classmethod_class_names` carries the caller's *workspace-wide* knowledge
+/// of which class names are valid bare-dispatch heads for `method` when it is
+/// a `classmethod` — a pure-consumer document has no local `ClassDef` for
+/// `class_q` to derive this from (unlike the same-document path, whose
+/// [`find_obj_method_call_sites`] derives it from `analysis.all_classes`
+/// directly), so the caller supplies it from the workspace index's
+/// [`WorkspaceMethod`](crate::workspace_index::WorkspaceMethod) `kind`
+/// instead.  Empty when `method` is not a classmethod, or the caller has no
+/// workspace index (same behaviour as before this parameter existed).
 #[must_use]
 pub fn obj_method_call_sites(
     source: &str,
@@ -604,8 +619,16 @@ pub fn obj_method_call_sites(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    classmethod_class_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
-    find_obj_method_call_sites(source, dialect, analysis, class_q, method)
+    find_obj_method_call_sites_with_extra_cmd_names(
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        classmethod_class_names,
+    )
 }
 
 /// Reference spans for `method` on `class_q` **within `source`**, for
@@ -822,6 +845,16 @@ fn scan_next_dispatch_sites(
 /// lives in a *different* file from the method's definer: the cross-file
 /// rename opens the subclass's document and collects these sites so an
 /// inherited-method rename doesn't leave them pointing at the old name.
+///
+/// `extra_classmethod_cmd_names` carries the caller's workspace-wide
+/// knowledge of which class names are valid bare-dispatch heads for `method`
+/// when it is a `classmethod` — this document has `class_q`'s own `ClassDef`
+/// (it *is* declared here), but not necessarily the *definer's* (a pure
+/// inheritor never declares a copy of `method`, so `class_q`'s own
+/// `class_methods` map never lists it, and the definer may live in a document
+/// this one never mentions).  See
+/// [`obj_method_call_sites`]'s identical parameter for the pure-consumer
+/// case this mirrors.
 #[must_use]
 pub(crate) fn inherited_method_call_sites(
     source: &str,
@@ -829,14 +862,20 @@ pub(crate) fn inherited_method_call_sites(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    extra_classmethod_cmd_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
     let Some(class_def) = analysis.all_classes.get(class_q) else {
         return Vec::new();
     };
     let bodies = collect_member_bodies(class_def);
     let mut spans = scan_my_method_sites(source, dialect, &bodies, method, None);
-    spans.extend(find_obj_method_call_sites(
-        source, dialect, analysis, class_q, method,
+    spans.extend(find_obj_method_call_sites_with_extra_cmd_names(
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        extra_classmethod_cmd_names,
     ));
     spans
 }
@@ -968,6 +1007,27 @@ pub(crate) fn find_obj_method_call_sites(
     class_q: &str,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
+    find_obj_method_call_sites_with_extra_cmd_names(source, dialect, analysis, class_q, method, &[])
+}
+
+/// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
+/// names to treat as valid classmethod-dispatch heads for `method`
+/// regardless of what this document's own `analysis.all_classes` knows.
+///
+/// A same-document call (`extra_cmd_names` empty) derives everything from
+/// `analysis` directly, as before.  The cross-file *pure-consumer* path
+/// ([`obj_method_call_sites`]) cannot: a document that only calls `Factory
+/// make` and never declares/extends `Factory` has no `::Factory` entry in
+/// its own `all_classes` for the local classmethod check below to find, so
+/// its caller supplies the workspace-wide answer here instead.
+fn find_obj_method_call_sites_with_extra_cmd_names(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    extra_cmd_names: &[String],
+) -> Vec<tcl_lexer::Span> {
     // Variables whose `$obj method` dispatch resolves to `class_q`'s copy of
     // `method` — its own instances **plus** instances of any subclass that
     // *inherits* this definition (the subclass's MRO resolves `method` to
@@ -998,11 +1058,11 @@ pub(crate) fn find_obj_method_call_sites(
     // A `classmethod` dispatches on the *class's own* command (`Factory
     // make`) — never on an instance: TclOO's `classmethod` sugar puts the
     // method on the class object's own class, which no instance's MRO
-    // reaches.  When `method` is one of `class_q`'s classmethods, fold in
-    // the defining class's own name (simple + qualified) plus the own name
-    // of any subclass that inherits (does not override) it — the same
-    // inheritance test as the instance `var_set` above, so a `Sub make`
-    // dispatch on an inheriting subclass counts too.
+    // reaches.  When `method` is one of `class_q`'s classmethods (known
+    // locally), fold in the defining class's own name (simple + qualified)
+    // plus the own name of any subclass that inherits (does not override) it
+    // — the same inheritance test as the instance `var_set` above, so a `Sub
+    // make` dispatch on an inheriting subclass counts too.
     if analysis
         .all_classes
         .get(class_q)
@@ -1017,6 +1077,9 @@ pub(crate) fn find_obj_method_call_sites(
             }
         }
     }
+    // The caller's workspace-wide classmethod knowledge, for a document where
+    // the class itself isn't known locally.
+    cmd_set.extend(extra_cmd_names.iter().map(String::as_str));
     if var_set.is_empty() && cmd_set.is_empty() {
         return Vec::new();
     }

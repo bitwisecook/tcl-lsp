@@ -22,7 +22,7 @@ all-editors, MCP, analyser
 
 Locates all usages of the symbol under the cursor, including definitions, calls, and variable reads/writes. Uses shared proc-reference matching.
 
-TclOO dispatch is followed as well. A method is found through every `$obj method` call on a tracked instance, every intra-class `my method` dispatch, and `next` / `nextto` super-dispatch, whether the call sits at the top level of a body, inside a `[…]` command substitution, or embedded in a quoted or compound word such as `"value: [my get]"`. A `classmethod` is dispatched differently — on the class's own command, never on an instance — so its references are every bare `ClassName method` call, including from a subclass's own command when the subclass inherits (does not override) the classmethod. An expr math function resolves to its backing proc, so a `proc ::tcl::mathfunc::foo` is found from every `foo(...)` written inside an `expr`.
+TclOO dispatch is followed as well. A method is found through every `$obj method` call on a tracked instance, every intra-class `my method` dispatch, and `next` / `nextto` super-dispatch, whether the call sits at the top level of a body, inside a `[…]` command substitution, or embedded in a quoted or compound word such as `"value: [my get]"`. A `classmethod` is dispatched differently — on the class's own command, never on an instance — so its references are every bare `ClassName method` call, including from a subclass's own command when the subclass inherits (does not override) the classmethod, in the defining file, a subclass-only file, or a pure-consumer file that never mentions the class body at all (the workspace index's per-method `kind` carries the "this is a classmethod" fact to whichever file needs it). The same applies to snit's `typemethod` — snit and TclOO members are both registry-declared class methods, so this is not a TclOO-specific check. An expr math function resolves to its backing proc, so a `proc ::tcl::mathfunc::foo` is found from every `foo(...)` written inside an `expr`.
 
 A class is found through every use of its name, not only `<Class> new` instantiations: a `superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class is a reference to it, and a `forward` member's delegated command is a reference to that command. These references are resolved by the class's namespace exactly as a call would be, so a fully-qualified `superclass ::ns::Base` in one file is found from `::ns::Base`'s declaration in another, and a same-named class in an unrelated namespace is never cross-linked. Because the same references drive rename, renaming a class rewrites every `superclass` / `mixin` / `inherit` site that names it, keeping the inheritance graph intact.
 
@@ -54,14 +54,30 @@ double-quoted string.
 
 - A class referenced only through a dynamic (`$var`) superclass / mixin name is
   not linked — the name is not statically decidable.
+- [incr Tcl] dispatches a class-scoped `proc` (itcl's own class-method form)
+  as a single `::`-qualified identifier — `Factory::make`, not `Factory make`
+  — which is a different call shape entirely from `classmethod` /
+  `typemethod`'s two-word dispatch. Find References does not yet follow this
+  form (it would need to be resolved through the ordinary proc-reference
+  path, not the object-method scanner).
+- A classmethod's / typemethod's own-class-command dispatch (unlike an
+  instance's `$obj method`) is matched by exact name-set membership (the
+  class's as-written simple name plus its fully `::`-qualified name), so a
+  call spelled with a *partial* namespace qualifier from a sibling namespace
+  is not matched — the same imprecision `CLASS create NAME` object-command
+  dispatch already has.
 
 ## Test anchors
 
 - `rust/tcl-lsp-core/tests/references_residual.rs`
 - `rust/tcl-lsp-core/tests/name_resolution.rs` (`classmethod_dispatch`,
   `obj_method_dispatch` — TP/FP/TN/FN matrix, including issue #956's exact
-  repro)
+  repro, snit `typemethod`, and the itcl `proc` boundary)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs` (cross-file)
+- `rust/tcl-lsp-server/src/lib.rs` unit tests: `cross_file_consumer_finds_classmethod_bare_dispatch`,
+  `cross_file_consumer_finds_inheriting_subclass_classmethod_dispatch`,
+  `cross_file_method_references_reach_inheritor_document_for_classmethod`,
+  `classmethod_rename_reaches_subclass_only_document`
 
 ## Screenshots
 

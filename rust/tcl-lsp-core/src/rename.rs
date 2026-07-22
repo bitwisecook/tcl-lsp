@@ -573,6 +573,11 @@ pub fn method_spans_in_document(
 /// cross-file complement to [`method_spans_in_document`], so an
 /// inherited-method rename reaches `my method` / `$obj method` sites that
 /// live in a subclass-only file.
+///
+/// `extra_classmethod_cmd_names`: see
+/// [`crate::references::inherited_method_call_sites`]'s identical parameter —
+/// the workspace-wide classmethod-dispatch names this subclass-only document
+/// cannot derive from its own (definer-less) `all_classes`.
 #[must_use]
 pub fn inherited_method_spans_in_document(
     source: &str,
@@ -580,8 +585,16 @@ pub fn inherited_method_spans_in_document(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    extra_classmethod_cmd_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
-    crate::references::inherited_method_call_sites(source, dialect, analysis, class_q, method)
+    crate::references::inherited_method_call_sites(
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        extra_classmethod_cmd_names,
+    )
 }
 
 /// The set of classes whose definition of `method` must be renamed

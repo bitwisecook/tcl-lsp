@@ -246,6 +246,42 @@ mod classmethod_dispatch {
         let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n}\n";
         assert_eq!(refs_at(src, 1, 16), vec![1], "declaration only");
     }
+
+    /// FN→TP: snit's `typemethod` is snit's equivalent of `TclOO`'s
+    /// `classmethod` — dispatched the same way, on the type's own command
+    /// (`Factory make`), never an instance. The definition-body grammar maps
+    /// both to the same `class_methods` map (a registry-driven fact, not a
+    /// TclOO-specific hardcoded check), so this generalises for free with no
+    /// snit-specific code in `find_obj_method_call_sites`.
+    #[test]
+    fn tp_snit_typemethod_bare_dispatch_is_a_reference() {
+        let src = "snit::type Factory {\n    typemethod make {} {\n        return [Factory create x]\n    }\n}\nFactory make\n";
+        assert_eq!(
+            refs_at(src, 1, 15),
+            vec![1, 5],
+            "decl + `Factory make` (snit typemethod)"
+        );
+    }
+
+    /// FP guard: [incr Tcl]'s class-scoped `proc` maps to the same
+    /// `class_methods` bucket as `classmethod`/`typemethod` (so the
+    /// declaration-side lookup reaches this fix's code path too), but itcl
+    /// dispatches it as a single `::`-qualified identifier
+    /// (`Factory::make`), never the two-word `Factory make` form this fix's
+    /// `cmd_set` scan matches. Widening `cmd_set` with `Factory`'s bare name
+    /// must not fabricate a phantom reference for an unrelated bare `Factory`
+    /// command elsewhere, and the real `Factory::make` call is simply out of
+    /// this scanner's shape (a distinct, pre-existing gap — namespace-style
+    /// dispatch is a job for the ordinary proc-reference path, not this
+    /// object-method scanner).
+    #[test]
+    fn fp_itcl_class_proc_colon_dispatch_not_confused_with_bare_dispatch() {
+        let src = "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\nFactory::make\n";
+        // Only the declaration; the `::`-qualified call is not the
+        // two-word shape this scanner looks for, so it must not appear —
+        // and no bare `Factory make` exists here to spuriously match either.
+        assert_eq!(refs_at(src, 1, 9), vec![1], "declaration only");
+    }
 }
 
 // ───────────────────────── #957 — `my method` references ──────────────────
