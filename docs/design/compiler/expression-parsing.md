@@ -8,13 +8,15 @@ needs to add support for new operators (e.g. iRules extensions).
 
 ## Context
 
-The Pratt parser in `expr_parser.py` uses binding powers to handle operator
-precedence without recursive-descent ambiguity.  Braced expressions (`expr {…}`)
-are parsed into `ExprNode` AST trees; unbraced expressions fall back to
-`ExprRaw` and cannot be statically analysed (diagnostic W100).
+The Pratt parser in `rust/tcl-syntax/src/expr/parser.rs` uses binding powers
+to handle operator precedence without recursive-descent ambiguity.  Braced
+expressions (`expr {…}`) are parsed into `ExprNode` AST trees; unbraced
+expressions fall back to `ExprNode::Raw` and cannot be statically analysed
+(diagnostic W100).
 
-Source: `compiler/parsing/expr_parser.py`,
-`compiler/expr_ast.py`
+Source: `rust/tcl-syntax/src/expr/parser.rs` (Pratt parser),
+`rust/tcl-syntax/src/expr/ast.rs` (AST), `rust/tcl-lexer/src/expr_lexer.rs`
+(`irules_ops()` — iRules word-operator lexing)
 
 ## Content
 
@@ -28,7 +30,7 @@ Source: `compiler/parsing/expr_parser.py`,
 **Unbraced** — `expr $a + $b * 2`:
 - Tcl substitutes variables *before* the expression is compiled.
 - The parser receives an already-substituted string it cannot statically analyse.
-- Falls back to `ExprRaw(text="${a} + ${b} * 2")`.
+- Falls back to `ExprNode::Raw { text: "${a} + ${b} * 2" }`.
 - Triggers diagnostic **W100** ("Unbraced expr body").
 
 ### Pratt parser binding powers
@@ -51,13 +53,13 @@ binding powers bind tighter:
 Tokenisation produces: `$a`, `+`, `$b`, `*`, `2`.
 
 Pratt parsing:
-1. Parse `$a` → `ExprVar("a")`
-2. See `+` (bp 20,21) — enter infix with left=`ExprVar("a")`
-3. Parse `$b` → `ExprVar("b")`
+1. Parse `$a` → `ExprNode::Var { name: "a", .. }`
+2. See `+` (bp 20,21) — enter infix with left=`ExprNode::Var { name: "a", .. }`
+3. Parse `$b` → `ExprNode::Var { name: "b", .. }`
 4. See `*` (bp 22,23 > 21) — tighter, recurse
-5. Parse `2` → `ExprLiteral("2")`
-6. Build `ExprBinary(MUL, ExprVar("b"), ExprLiteral("2"))`
-7. Return to `+`: build `ExprBinary(ADD, ExprVar("a"), MUL-node)`
+5. Parse `2` → `ExprNode::Literal { text: "2", .. }`
+6. Build `ExprNode::Binary { op: BinOp::Mul, left: Var("b"), right: Literal("2") }`
+7. Return to `+`: build `ExprNode::Binary { op: BinOp::Add, left: Var("a"), right: MUL-node }`
 
 ### iRules extensions
 
@@ -69,14 +71,17 @@ Pratt parsing:
 | `matches_glob` | glob match | (14, 15) |
 | `matches_regex` | regexp | (14, 15) |
 
-These are registered in `_BINARY_BP` alongside the standard operators.
+These are registered in `binary_bp()` (`rust/tcl-syntax/src/expr/parser.rs`)
+alongside the standard operators, and recognised as operator tokens by
+`irules_ops()` in `rust/tcl-lexer/src/expr_lexer.rs`.
 
 ## Decision rule
 
-- To add a new operator, add its binding power entry to `_BINARY_BP` in
-  `expr_parser.py` and its `BinOp`/`UnOp` variant in `expr_ast.py`.
+- To add a new operator, add its binding power entry to `binary_bp()` in
+  `rust/tcl-syntax/src/expr/parser.rs` and its `BinOp`/`UnaryOp` variant in
+  `rust/tcl-syntax/src/expr/ast.rs`.
 - If the expression is unbraced, no AST is produced — downstream passes must
-  handle `ExprRaw` gracefully (skip constant folding, skip type inference).
+  handle `ExprNode::Raw` gracefully (skip constant folding, skip type inference).
 - Right-associative operators use `left_bp > right_bp` (e.g. `**` uses 25, 24).
 
 ## Related docs
