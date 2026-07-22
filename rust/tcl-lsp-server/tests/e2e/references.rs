@@ -297,3 +297,42 @@ fn references_namespace_variable_unify_across_procs() {
     assert!(lines.contains(&2), "bump alias+use (line 2): {lines:?}");
     assert!(lines.contains(&3), "get alias+use (line 3): {lines:?}");
 }
+
+/// End-to-end (real server): an unrelated ordinary `proc pf` sharing an
+/// `expr` math-function's bare tail name must not leak into either symbol's
+/// references — the two live in entirely separate command tables in real
+/// Tcl. Pins the same fix `definition.rs`'s
+/// `no_definition_for_mathfunc_call_despite_unrelated_same_named_proc`
+/// covers, at the find-references layer.
+#[test]
+fn references_do_not_cross_between_unrelated_proc_and_mathfunc_override() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc pf {y} { return bogus }\n\
+               namespace eval ::nsa::tcl::mathfunc {}\n\
+               proc ::nsa::tcl::mathfunc::pf {x} { return 20 }\n\
+               namespace eval ::nsa {\n    proc caller {} { return [expr {pf(1)}] }\n}\n";
+    lsp.open_ready(&uri, src);
+
+    // References on the mathfunc override's declaration (line 2) must reach
+    // the expr call site (line 4), never the unrelated proc (line 0).
+    let override_col = src.lines().nth(2).unwrap().rfind("pf").unwrap() as u32;
+    let override_lines = start_lines(&lsp.references(&uri, 2, override_col, true));
+    assert!(
+        override_lines.contains(&4),
+        "override references must reach the expr call site: {override_lines:?}"
+    );
+    assert!(
+        !override_lines.contains(&0),
+        "override references must not include the unrelated proc: {override_lines:?}"
+    );
+
+    // References on the unrelated proc's declaration (line 0) must not
+    // include the expr call site, which never dispatches to it.
+    let unrelated_col = src.lines().next().unwrap().find("pf").unwrap() as u32;
+    let unrelated_lines = start_lines(&lsp.references(&uri, 0, unrelated_col, true));
+    assert!(
+        !unrelated_lines.contains(&4),
+        "unrelated proc's references must not include the expr call site: {unrelated_lines:?}"
+    );
+}

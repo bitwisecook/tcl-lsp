@@ -809,7 +809,11 @@ pub struct Module {
     /// Synthetic *body units* — the bodies of commands that run their script
     /// argument in a fresh frame but are **not** real named procedures:
     /// `apply` lambdas and `namespace eval` bodies (keyed by a synthetic
-    /// qualified name like `::apply#0` or `::namespace-eval::NS#0`).
+    /// qualified name like `::apply#0`, or `::NS::namespace-eval#0` — `NS`
+    /// *prefixes* the marker, matching every other qname's "everything
+    /// before the last `::` is the enclosing namespace" convention, so a
+    /// bare call inside the body resolves against the namespace it actually
+    /// targets rather than always the global namespace).
     ///
     /// These are lowered into [`Procedure`]s purely so the static-analysis
     /// pipeline (CFG → SSA → SCCP → taint) reaches *inside* the body — the

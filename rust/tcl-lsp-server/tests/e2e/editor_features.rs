@@ -159,14 +159,20 @@ fn test_unresolved_call_scoped_to_namespace() {
     assert_eq!(b["command"]["title"], json!("0 references"));
 }
 
-/// Title of the method / member lens anchored on `line` (0-based).  Member
-/// lenses are informational: their eager `command.title` is authoritative
-/// and needs no `codeLens/resolve`.
-fn member_lens_title_on_line(ls: &[Value], line: i64) -> Option<String> {
-    ls.iter()
+/// Resolve the method / member lens anchored on `line` (0-based) and return
+/// the resolved `command`.  Since issue #956, member lenses resolve lazily
+/// the same way proc/class lenses do (range + `data`, no `command` until
+/// `codeLens/resolve` — see `tcl-lsp-server`'s `code_lens` handler and the
+/// `#724` "reference is not active" defect it fixed for proc/class lenses),
+/// so a raw, unresolved listing has no `command` for a caller to read
+/// directly; this always resolves first.
+fn resolve_member_lens_on_line(lsp: &mut Lsp, ls: &[Value], line: i64) -> Value {
+    let lens = ls
+        .iter()
         .find(|l| l["range"]["start"]["line"].as_i64() == Some(line))
-        .and_then(|l| l["command"]["title"].as_str())
-        .map(str::to_owned)
+        .unwrap_or_else(|| panic!("no lens anchored at line {line}: {ls:?}"))
+        .clone();
+    lsp.code_lens_resolve(lens)["command"].clone()
 }
 
 #[test]
@@ -194,9 +200,17 @@ fn test_method_lens_counts_external_obj_dispatch_issue_864() {
     );
     let ls = lenses(&mut lsp, &uri);
     // `method get` is on line 6 (0-based).
-    let title = member_lens_title_on_line(&ls, 6)
-        .unwrap_or_else(|| panic!("no method lens on line 6: {ls:?}"));
-    assert_eq!(title, "1 reference", "{ls:?}");
+    let command = resolve_member_lens_on_line(&mut lsp, &ls, 6);
+    assert_eq!(command["title"], json!("1 reference"), "{ls:?}");
+    // Regression for issue #956: the lens must resolve to a *clickable*
+    // command, not the empty-id inert shape (the `#724` defect recurring
+    // for methods — the count above was already correct before the fix;
+    // only the command was empty).
+    assert_eq!(
+        command["command"],
+        json!("tcl-lsp.showReferences"),
+        "method lens resolved to an inert command: {command:?}"
+    );
     // The lens count must equal Find All References (declaration excluded) on
     // the `get` method-name token (`    method get` → col 11).
     let refs = match lsp.references(&uri, 6, 11, false) {
@@ -208,7 +222,9 @@ fn test_method_lens_counts_external_obj_dispatch_issue_864() {
 
 #[test]
 fn test_method_lens_zero_when_uncalled() {
-    // TN: an instance method with no dispatch site reads "0 references".
+    // TN: an instance method with no dispatch site reads "0 references" but
+    // still resolves to a real, clickable command (an empty peek is a valid
+    // target — the count being zero must not leave the lens inert).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
@@ -216,9 +232,61 @@ fn test_method_lens_zero_when_uncalled() {
         "oo::class create Solo {\n    method lonely {} {}\n}\nSolo new\n",
     );
     let ls = lenses(&mut lsp, &uri);
-    let title = member_lens_title_on_line(&ls, 1)
-        .unwrap_or_else(|| panic!("no method lens on line 1: {ls:?}"));
-    assert_eq!(title, "0 references", "{ls:?}");
+    let command = resolve_member_lens_on_line(&mut lsp, &ls, 1);
+    assert_eq!(command["title"], json!("0 references"), "{ls:?}");
+    assert_eq!(
+        command["command"],
+        json!("tcl-lsp.showReferences"),
+        "{command:?}"
+    );
+}
+
+#[test]
+fn test_classmethod_lens_resolves_to_clickable_command() {
+    // TP: a classmethod lens (a distinct member map from instance methods)
+    // resolves the same way, with its own disambiguated qname.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n",
+    );
+    let ls = lenses(&mut lsp, &uri);
+    let command = resolve_member_lens_on_line(&mut lsp, &ls, 1);
+    assert_eq!(command["title"], json!("1 reference"), "{ls:?}");
+    assert_eq!(
+        command["command"],
+        json!("tcl-lsp.showReferences"),
+        "{command:?}"
+    );
+}
+
+#[test]
+fn test_find_references_on_classmethod_finds_bare_class_command_dispatch() {
+    // The `textDocument/references` peek (not just the lens) must also see
+    // the bare `Factory make` dispatch — including through an inheriting
+    // subclass's own command (`SubFactory make`), which never overrides
+    // `make` so its dispatch still targets `Factory::make`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\noo::class create SubFactory {\n    superclass Factory\n}\nFactory make\nSubFactory make\n",
+    );
+    // cursor on the `make` declaration name (line 1, col 16).
+    let refs = match lsp.references(&uri, 1, 16, true) {
+        Value::Array(a) => a,
+        _ => Vec::new(),
+    };
+    let lines: std::collections::BTreeSet<i64> = refs
+        .iter()
+        .filter_map(|l| l["range"]["start"]["line"].as_i64())
+        .collect();
+    assert_eq!(
+        lines,
+        std::collections::BTreeSet::from([1, 6, 7]),
+        "decl + `Factory make` + inheriting `SubFactory make`: {refs:?}"
+    );
 }
 
 // -- TestDocumentLinks ---------------------------------------------------

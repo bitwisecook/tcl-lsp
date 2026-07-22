@@ -35,12 +35,13 @@
 //! declaration's name span gets a `N references` lens whose count comes
 //! from [`crate::references::method_references_for_class`] — the same
 //! resolver Find All References and rename use — so the lens and the peek
-//! always agree.  That resolver counts intra-class `my method` dispatch
-//! (however deeply nested in `[...]` substitutions and same-frame
-//! control-flow / `eval` bodies — see the `references` module doc, issue
-//! #957), external `$obj method` call sites (matched through the
-//! analyser's `instance_classes` variable-type tracking), and the sites of
-//! any subclass that inherits the definition (issue #864).
+//! always agree.  That resolver counts intra-class `my method` dispatch,
+//! external `$obj method` call sites (matched through the analyser's
+//! `instance_classes` variable-type tracking), and the sites of any
+//! subclass that inherits the definition (issue #864).  Each member lens
+//! carries a `qname` ([`tcl_compiler::analyser::class_member_key`]) just
+//! like the proc / class lenses, so it resolves to a clickable
+//! `tcl-lsp.showReferences` command the same way (issue #956).
 //!
 //! Cross-document reference counts: when the
 //! caller threads a [`crate::workspace_index::WorkspaceIndex`]
@@ -55,15 +56,11 @@
 //!   object's class needs whole-workspace instance-type flow the index
 //!   does not yet carry.  Proc / class lenses do fold in cross-document
 //!   command-head call sites via the workspace index.
-//! * The lens carries a static label rather than an inline
-//!   "show references" jump-out; the editor's built-in
-//!   references command can be invoked from the lens itself.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
-use crate::references::MemberSel;
 
 /// One code-lens entry — anchor range plus a command label.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,6 +188,14 @@ pub fn code_lenses(
 /// `my method` dispatch, external `$obj method` sites (resolved through the
 /// analyser's `instance_classes` variable-type tracking), and the call sites
 /// of any subclass that inherits (does not override) this definition.
+///
+/// Each lens carries a `{class}::method::{name}` / `{class}::classmethod::{name}`
+/// `qname` ([`tcl_compiler::analyser::class_member_key`]) — the same
+/// `qname`-present shape as the proc / class lenses — so the server's
+/// `code_lens_resolve` treats it as resolvable and attaches the *clickable*
+/// `tcl-lsp.showReferences` command instead of leaving it an inert bare
+/// title (issue #956: the `#724` "reference is not active" defect,
+/// previously fixed for proc/class lenses, recurring for methods).
 fn emit_class_member_lenses(
     source: &str,
     dialect: &str,
@@ -202,55 +207,55 @@ fn emit_class_member_lenses(
 ) {
     // Reference count for one member, matching the peek exactly: the number
     // of call sites (declaration excluded) the shared resolver returns.
-    // `kind` is known at the call site (whether `m` came from `.methods` or
-    // `.class_methods`) and is passed through so a method/classmethod name
-    // collision on this class resolves to the right table, not a
-    // methods-first guess.
-    let member_ref_count = |name: &str, kind: MemberSel| -> usize {
+    // `is_classmethod` is passed explicitly rather than inferred, so a
+    // `method` and `classmethod` sharing a name each count and resolve only
+    // their own dispatch shape (Codex review on #971, P2).
+    let member_ref_count = |name: &str, is_classmethod: bool| -> usize {
         crate::references::method_references_for_class(
             source,
             dialect,
             analysis,
             class_q,
             name,
-            Some(kind),
+            is_classmethod,
         )
         .map_or(0, |(_decl, calls)| calls.len())
     };
-    let push_lens = |name_span: tcl_lexer::Span, title: String, lenses: &mut Vec<CodeLens>| {
-        let start = line_index.position_at_utf16(name_span.start(), source);
-        let end = line_index.position_at_utf16(name_span.end(), source);
-        lenses.push(CodeLens {
-            range: LspRange {
-                start_line: start.line,
-                start_character: start.character.get(),
-                end_line: end.line,
-                end_character: end.character.get(),
-            },
-            command_title: title,
-            command: String::new(),
-            // Method lenses are informational; the references-jump `data`
-            // is populated for proc / class lenses (where it's exercised).
-            qname: String::new(),
-        });
-    };
-    for (kind, m) in class_def
-        .methods
-        .values()
-        .map(|m| (MemberSel::Method, m))
-        .chain(
-            class_def
-                .class_methods
-                .values()
-                .map(|m| (MemberSel::ClassMethod, m)),
-        )
-    {
+    let push_lens =
+        |name_span: tcl_lexer::Span, qname: String, title: String, lenses: &mut Vec<CodeLens>| {
+            let start = line_index.position_at_utf16(name_span.start(), source);
+            let end = line_index.position_at_utf16(name_span.end(), source);
+            lenses.push(CodeLens {
+                range: LspRange {
+                    start_line: start.line,
+                    start_character: start.character.get(),
+                    end_line: end.line,
+                    end_character: end.character.get(),
+                },
+                command_title: title,
+                command: String::new(),
+                qname,
+            });
+        };
+    for (name, m) in &class_def.methods {
         if m.name_span.is_empty() {
             continue;
         }
         push_lens(
             m.name_span,
-            reference_count_title(member_ref_count(&m.name, kind)),
+            tcl_compiler::analyser::class_member_key(class_q, name, false),
+            reference_count_title(member_ref_count(name, false)),
+            lenses,
+        );
+    }
+    for (name, m) in &class_def.class_methods {
+        if m.name_span.is_empty() {
+            continue;
+        }
+        push_lens(
+            m.name_span,
+            tcl_compiler::analyser::class_member_key(class_q, name, true),
+            reference_count_title(member_ref_count(name, true)),
             lenses,
         );
     }
@@ -454,6 +459,72 @@ mod tests {
             .find(|l| l.range.start_line == 1)
             .expect("orphan lens");
         assert_eq!(orphan_lens.command_title, "0 references", "{lenses:?}");
+    }
+
+    // qname wiring (issue #956): a method / classmethod lens must carry a
+    // non-empty `qname` matching `tcl_compiler::analyser::class_member_key`
+    // so the server treats it as resolvable (`has_qname` in
+    // `tcl-lsp-server`'s `code_lens` handler) and attaches a clickable
+    // `tcl-lsp.showReferences` command via `codeLens/resolve`, instead of
+    // leaving it an inert bare title (the `#724` defect recurring for
+    // methods).  The wire-level resolve round-trip itself is covered by
+    // `tcl-lsp-server`'s `code_lens_resolve_wires_show_references_command_for_method`
+    // / `..._for_classmethod` tests; these lock in the `qname` this crate
+    // hands the server.
+
+    #[test]
+    fn method_lens_carries_class_member_key_qname() {
+        // FN→TP regression for the exact issue #956 shape: a `variable` and
+        // `constructor` declared before the `method` in the class body.
+        let src = "oo::class create Bar {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n\n    method get {key} {\n        return [dict get $_options $key]\n    }\n\n}\nset b [Bar new]\nputs [$b get foo]\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let get_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 6)
+            .expect("get lens");
+        assert_eq!(
+            get_lens.qname,
+            tcl_compiler::analyser::class_member_key("::Bar", "get", false),
+            "{lenses:?}"
+        );
+        assert!(!get_lens.qname.is_empty(), "empty qname stays inert");
+    }
+
+    #[test]
+    fn classmethod_lens_carries_class_member_key_qname() {
+        let src =
+            "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let make_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("make lens");
+        assert_eq!(
+            make_lens.qname,
+            tcl_compiler::analyser::class_member_key("::Factory", "make", true),
+            "{lenses:?}"
+        );
+    }
+
+    #[test]
+    fn method_and_classmethod_qnames_never_collide_on_same_name() {
+        // FP guard: a class with both a `method foo` and a `classmethod foo`
+        // must get two distinct, disambiguated qnames — a naive
+        // `{class}::{name}` key would collide and let `codeLens/resolve`
+        // attach one member's locations to the other's lens.
+        let src = "oo::class create C {\n    method foo {} {}\n    classmethod foo {} {}\n}\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let qnames: std::collections::HashSet<&str> = lenses
+            .iter()
+            .filter(|l| l.range.start_line == 1 || l.range.start_line == 2)
+            .map(|l| l.qname.as_str())
+            .collect();
+        assert_eq!(qnames.len(), 2, "{lenses:?}");
+        assert!(qnames.contains("::C::method::foo"), "{qnames:?}");
+        assert!(qnames.contains("::C::classmethod::foo"), "{qnames:?}");
     }
 
     // workspace-index: cross-document reference counts

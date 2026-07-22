@@ -16,12 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl::tm::roots` command.
+//! `tcl::tm::roots` command (Tcl Modules, TIP 189 — added in Tcl 8.5).
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::tm::roots",
-        dialects: None,
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Set the root paths for Tcl module discovery.",

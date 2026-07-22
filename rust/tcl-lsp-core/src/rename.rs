@@ -429,19 +429,14 @@ fn rename_method_in_class(
     }
     let mut edits = Vec::new();
     for member in &family {
-        // `$obj method` dispatch can only ever reach an *instance* method
-        // (never a classmethod, which is called on the class object itself —
-        // confirmed against tclsh 9.0.4, see
+        // Only ever reached via an external `$obj method` call site (see the
+        // call site below), which is always an instance-method receiver —
+        // never a classmethod, which is called on the class object itself
+        // (confirmed against tclsh 9.0.4, see
         // `tcl_compiler::analyser::diagnostics::var_command`'s dispatch-scope
-        // note), so force `Method` even if a family member also happens to
-        // have a same-named classmethod.
+        // note).
         let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
-            source,
-            dialect,
-            analysis,
-            member,
-            method,
-            Some(MemberSel::Method),
+            source, dialect, analysis, member, method, false,
         ) else {
             continue;
         };
@@ -477,8 +472,9 @@ pub fn method_rename_target(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-) -> Option<(String, String)> {
-    method_target_with_access(source, line, character, analysis).map(|(c, m, _)| (c, m))
+) -> Option<(String, String, bool)> {
+    method_target_with_access(source, line, character, analysis)
+        .map(|(c, m, is_cm, _)| (c, m, is_cm))
 }
 
 /// Like [`method_rename_target`] but also reports the **access context**
@@ -492,7 +488,7 @@ pub fn method_target_with_access(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-) -> Option<(String, String, crate::workspace_index::MethodAccess)> {
+) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
     use crate::workspace_index::MethodAccess;
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
@@ -502,6 +498,7 @@ pub fn method_target_with_access(
         && method == word
     {
         // `my method` — an internal call from inside the enclosing class.
+        // Always instance-context: `my` never reaches a classmethod.
         if inst == "my"
             && let Some(class_q) = analysis
                 .all_classes
@@ -510,27 +507,46 @@ pub fn method_target_with_access(
                 .min_by_key(|c| c.body_span.end() - c.body_span.start())
                 .map(|c| c.qualified_name.clone())
         {
-            return Some((class_q, method, MethodAccess::Internal));
+            return Some((class_q, method, false, MethodAccess::Internal));
         }
-        // External `$obj method` — resolve `$obj`'s class.
+        // External `$obj method` — resolve `$obj`'s class.  Always
+        // instance-context too: a classmethod is never reached via `$obj`.
         if let Some(class_q) =
             crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
         {
-            return Some((class_q.clone(), method, MethodAccess::External));
+            return Some((class_q.clone(), method, false, MethodAccess::External));
+        }
+        // Bare `ClassName method` — a classmethod dispatches on the class's
+        // own command, never an instance, so it's tried only when the
+        // receiver isn't `$`-prefixed (a `$var` can never name a class).
+        if !is_dollar
+            && let Some(class_q) =
+                crate::definition::classmethod_dispatch_class(analysis, &inst, &method)
+        {
+            return Some((class_q, method, true, MethodAccess::External));
         }
     }
     // Inside a class body on one of its method / classmethod names — the
     // declaration side, an internal context.
     for class_def in analysis.all_classes.values() {
         let body = class_def.body_span;
-        if body.start() < cursor
-            && cursor < body.end()
-            && (class_def.methods.contains_key(&word)
-                || class_def.class_methods.contains_key(&word))
-        {
+        let has_method = class_def.methods.contains_key(&word);
+        let has_classmethod = class_def.class_methods.contains_key(&word);
+        if body.start() < cursor && cursor < body.end() && (has_method || has_classmethod) {
+            // A `method` and a `classmethod` of the same name are distinct
+            // members; unambiguous when only one exists, otherwise prefer
+            // whichever one's declaration the cursor is actually on (falls
+            // back to the method when the cursor is elsewhere in the body,
+            // e.g. a `my word` call site — the pre-existing preference).
+            let is_classmethod = has_classmethod
+                && (!has_method
+                    || class_def.class_methods.get(&word).is_some_and(|m| {
+                        m.name_span.start() <= cursor && cursor < m.name_span.end()
+                    }));
             return Some((
                 class_def.qualified_name.clone(),
                 word,
+                is_classmethod,
                 MethodAccess::Internal,
             ));
         }
@@ -550,9 +566,15 @@ pub fn method_spans_in_document(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    is_classmethod: bool,
 ) -> Vec<tcl_lexer::Span> {
     match crate::references::method_references_for_class(
-        source, dialect, analysis, class_q, method, None,
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        is_classmethod,
     ) {
         Some((decl, calls)) => {
             let mut spans = Vec::with_capacity(1 + calls.len());
@@ -574,6 +596,11 @@ pub fn method_spans_in_document(
 /// cross-file complement to [`method_spans_in_document`], so an
 /// inherited-method rename reaches `my method` / `$obj method` sites that
 /// live in a subclass-only file.
+///
+/// `extra_classmethod_cmd_names`: see
+/// [`crate::references::inherited_method_call_sites`]'s identical parameter —
+/// the workspace-wide classmethod-dispatch names this subclass-only document
+/// cannot derive from its own (definer-less) `all_classes`.
 #[must_use]
 pub fn inherited_method_spans_in_document(
     source: &str,
@@ -581,8 +608,18 @@ pub fn inherited_method_spans_in_document(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    is_classmethod: bool,
+    extra_classmethod_cmd_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
-    crate::references::inherited_method_call_sites(source, dialect, analysis, class_q, method)
+    crate::references::inherited_method_call_sites(
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        is_classmethod,
+        extra_classmethod_cmd_names,
+    )
 }
 
 /// The set of classes whose definition of `method` must be renamed
@@ -927,7 +964,13 @@ fn rename_method(
         if !(body.start() < cursor_offset && cursor_offset < body.end()) {
             continue;
         }
+        // Methods, classmethods, and properties are independent tables; a
+        // name shared by more than one (rare, but real — `TclOO` never
+        // merges them) disambiguates by which declaration's own span the
+        // cursor sits on rather than a fixed priority — see
+        // `resolve_member_span`.
         let (selected_kind, name_span) = resolve_member_span(class_def, word, cursor_offset)?;
+        let is_classmethod = selected_kind == MemberSel::ClassMethod;
         let mut edits = vec![TextEdit {
             range: span_to_range(source, line_index, name_span),
             new_text: new_name.to_owned(),
@@ -958,7 +1001,7 @@ fn rename_method(
                     analysis,
                     &member,
                     word,
-                    Some(selected_kind),
+                    is_classmethod,
                 ) else {
                     continue;
                 };

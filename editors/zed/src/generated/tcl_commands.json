@@ -7920,6 +7920,10 @@
       "summary": "This command creates a zlib compressor transformation on top of the channel chan and returns its handle."
     },
     {
+      "name": "tcl::unsupported::corotype",
+      "summary": "Return the suspension state of a coroutine."
+    },
+    {
       "name": "tclLog",
       "summary": "Default logger for Tcl's library error messages"
     },

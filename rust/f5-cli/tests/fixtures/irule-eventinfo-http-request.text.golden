@@ -6,4 +6,4 @@ description: Fires when request headers are fully parsed (pre-LB). On keep-alive
 side: client-side
 transport: tcp
 profiles: FASTHTTP, HTTP
-valid commands: 886
+valid commands: 875

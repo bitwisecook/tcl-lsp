@@ -1301,6 +1301,7 @@ impl Analyser {
                 indirect: false,
                 rename_safe: true,
                 existence_probe: false,
+                is_mathfunc_call: false,
             });
         }
         self.result.command_invocations.extend(new_invocations);

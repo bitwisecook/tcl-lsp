@@ -1772,6 +1772,18 @@ impl<'r> Lowerer<'r> {
     /// covers the body text (used by the complexity guard). Purely additive —
     /// the caller still emits the runtime `Statement::Barrier` that executes
     /// the body, so bytecode is unchanged.
+    /// `label` is either a bare marker (`"apply"`, reducing to the global
+    /// namespace once `#N`-suffixed — matching `apply`'s own default
+    /// resolution namespace for the common 2-element-lambda form) or an
+    /// already-namespace-qualified prefix (`"::ns::namespace-eval"`, from
+    /// [`Self::lower_namespace_eval`]) — so the resulting `qualified` name's
+    /// *enclosing* namespace (everything before the last `::`, the same
+    /// convention every proc/method qname uses) is the namespace this body
+    /// actually executes in, not always the global namespace. This is what
+    /// lets [`crate::compilation_unit::build_extra_call_site_scan_contexts`]
+    /// resolve a bare call inside the body against the *correct* namespace
+    /// via [`crate::interprocedural::resolve_internal_call`], rather than
+    /// silently defaulting every body unit to global.
     fn register_body_unit(
         &mut self,
         label: &str,
@@ -1781,11 +1793,16 @@ impl<'r> Lowerer<'r> {
     ) {
         let n = self.body_unit_count;
         self.body_unit_count += 1;
-        let qualified = format!("::{label}#{n}");
+        let prefix = label.strip_prefix("::").unwrap_or(label);
+        let qualified = format!("::{prefix}#{n}");
+        // `name` stays the short leaf marker (`"apply"` / `"namespace-eval"`)
+        // even when `label` carries a namespace prefix — matching every
+        // other `Procedure::name`'s "short name" contract.
+        let short_name = prefix.rsplit("::").next().unwrap_or(prefix).to_string();
         self.module.body_units.insert(
             qualified.clone(),
             Procedure {
-                name: label.to_string(),
+                name: short_name,
                 qualified_name: qualified,
                 params,
                 span,
@@ -1948,7 +1965,21 @@ impl<'r> Lowerer<'r> {
             body_offset,
             body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
         );
-        self.register_body_unit("namespace-eval", vec![], span, body);
+        // Prefix the body unit's own qualified name with `child_ns` (not just
+        // the bare "namespace-eval" marker): a bare command inside this body
+        // resolves against `child_ns`, never the caller's own namespace, so
+        // the body unit's qname must encode that for
+        // `interprocedural::resolve_internal_call` to get it right (see
+        // `register_body_unit`'s doc). tclsh8.6-confirmed:
+        // `namespace eval ::foo { helper }` calls `::foo::helper` even when
+        // nested inside an unrelated proc, never a same-named proc in the
+        // caller's own namespace.
+        self.register_body_unit(
+            &join_namespace(&child_ns, "namespace-eval"),
+            vec![],
+            span,
+            body,
+        );
 
         Statement::Barrier {
             span: seg.span,

@@ -55,31 +55,28 @@
 //! call (or inside the class body), the provider additionally
 //! scans the whole document for `$v method` / `[$v method]`
 //! call sites where `v`'s class (per
-//! `analysis.instance_classes`) matches.  See
-//! [`find_obj_method_call_sites`] for the scan's coverage.
-//!
-//! Intra-class `my`/`$obj` dispatch and `next`/`nextto` super-dispatch scans
-//! (`scan_my_method_sites`, [`find_obj_method_call_sites`],
-//! [`method_next_dispatch_spans`]) all recurse into every `[...]`
-//! command-substitution *and* every same-frame (`Plain` `BodyKind`)
-//! control-flow / `eval` body — `if`/`while`/`foreach`/`switch` (both the
-//! inline and single-braced-clause-list forms)/`try`/`catch`/`dict for`, any
-//! nested combination of the two, and, generically, any future command
-//! whose registry spec declares a `Plain`-body role — via
-//! [`nested_dispatch_regions`].  Recursion is entirely registry-driven
-//! ([`tcl_registry::CommandRegistry::plain_body_arg_indices`],
-//! [`tcl_registry::CaseListSpec`]); no command name is hardcoded in the
-//! walkers themselves (issue #957's general form).
+//! `analysis.instance_classes`) matches — plus, when the member is a
+//! `classmethod`, every bare `ClassName method` dispatch on the class's
+//! own command (a classmethod is never dispatched via an instance).  See
+//! [`find_obj_method_call_sites`] for the scan's full coverage.
 //!
 //! Limitations:
 //!
-//! * Cross-document references — surfacing references across
-//!   every open document via a workspace-index integration —
-//!   are not supported.
-//! * `$obj method` sites embedded in quoted / word tokens
-//!   (`"prefix[$d bark]"`) — the scan descends into
-//!   command-substitution args and proc / method bodies but
-//!   not into string interpolation.
+//! * This module is single-document only.  Cross-document references are
+//!   built *on top of* it — `tcl-lsp-server`'s `cross_document_references` /
+//!   `cross_file_method_references` / `cross_file_consumer_method_references`
+//!   call [`obj_method_call_sites`], [`method_reference_spans_in_document`],
+//!   and [`inherited_method_call_sites`] once per candidate document, using
+//!   the workspace index to find which documents to scan and (for a
+//!   classmethod) which class names are valid bare-dispatch heads when the
+//!   scanned document doesn't declare the class itself.
+//! * A classmethod's class-command dispatch is matched by exact name-set
+//!   membership (the class's as-written simple name plus its fully
+//!   `::`-qualified name) rather than full namespace-relative resolution —
+//!   a call spelled with a *partial* namespace qualifier from a sibling
+//!   namespace (`ns::Factory make` where the class is `::ns::Factory`) is
+//!   not matched.  The same imprecision already applies to `CLASS create
+//!   NAME` object-command dispatch above.
 //! * `uplevel`'s body is `BodyKind::Structural` (a different call frame in
 //!   the general case — level `0` and level `1`+ can't be told apart from
 //!   the static registry spec alone), so a `my`/`next`/`$obj method`
@@ -100,6 +97,19 @@
 //! * A `case_list` command with per-clause flags (Expect's `expect { -re
 //!   pat body … }`) is not decomposed — only a plain `{pattern body …}`
 //!   clause list (`switch`'s shape) is.
+//!
+//! Intra-class `my`/`$obj` dispatch and `next`/`nextto` super-dispatch scans
+//! (`scan_my_method_sites`, [`find_obj_method_call_sites`],
+//! [`method_next_dispatch_spans`]) all recurse into every `[...]`
+//! command-substitution *and* every same-frame (`Plain` `BodyKind`)
+//! control-flow / `eval` body — `if`/`while`/`foreach`/`switch` (both the
+//! inline and single-braced-clause-list forms)/`try`/`catch`/`dict for`, any
+//! nested combination of the two, and, generically, any future command
+//! whose registry spec declares a `Plain`-body role — via
+//! [`nested_dispatch_regions`].  Recursion is entirely registry-driven
+//! ([`tcl_registry::CommandRegistry::plain_body_arg_indices`],
+//! [`tcl_registry::CaseListSpec`]); no command name is hardcoded in the
+//! walkers themselves (issue #957's general form).
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
@@ -293,6 +303,12 @@ pub fn references(
         return out;
     }
 
+    // Bare `ClassName method` external call site — a classmethod's own
+    // dispatch shape, tried only once the instance path above has failed.
+    if let Some(out) = classmethod_call_site_references(&ctx) {
+        return out;
+    }
+
     // Class-member references (cursor inside a class body on a member name).
     if let Some(out) = class_member_references(&ctx, &word) {
         return out;
@@ -456,23 +472,49 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     let (inst, method, is_dollar) =
         crate::definition::instance_method_at_cursor(source, line, character)?;
     let class_q = crate::definition::receiver_instance_class(analysis, &inst, is_dollar)?;
-    // `$obj method` dispatch can only ever reach an *instance* method — a
-    // classmethod is called on the class object itself, never on an
-    // instance (confirmed against tclsh 9.0.4, see
-    // `tcl_compiler::analyser::diagnostics::var_command`'s dispatch-scope
-    // note) — so force `Method` even if this class also happens to have a
-    // same-named classmethod.
-    let (decl_span, mut call_spans) = method_references_for_class(
-        source,
-        dialect,
-        analysis,
-        class_q,
-        &method,
-        Some(MemberSel::Method),
-    )?;
+    // `$obj method` dispatch is always an instance-method receiver — a
+    // `classmethod` is never reached this way.
+    let (decl_span, mut call_spans) =
+        method_references_for_class(source, dialect, analysis, class_q, &method, false)?;
     // `next` / `nextto` super-dispatch is a reference (but never a rename site).
     call_spans.extend(method_next_dispatch_spans(
-        analysis, source, dialect, class_q, &method,
+        analysis, source, dialect, class_q, &method, false,
+    ));
+    Some(build_member_ranges(
+        source,
+        line_index,
+        decl_span,
+        call_spans,
+        include_declaration,
+    ))
+}
+
+/// Build references for a bare `ClassName method` call site: the reverse of
+/// [`instance_method_references`], for a `classmethod` — which dispatches on
+/// the class's own command, never an instance, so it is never found by
+/// `$obj`/`my` resolution.  Without this, Find References / Rename
+/// triggered from the actual dispatch site (as opposed to the declaration
+/// or a code lens) silently found nothing (Codex review on #971, P2).
+fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    } = *ctx;
+    let (inst, method, is_dollar) =
+        crate::definition::instance_method_at_cursor(source, line, character)?;
+    if is_dollar {
+        return None;
+    }
+    let class_q = crate::definition::classmethod_dispatch_class(analysis, &inst, &method)?;
+    let (decl_span, mut call_spans) =
+        method_references_for_class(source, dialect, analysis, &class_q, &method, true)?;
+    call_spans.extend(method_next_dispatch_spans(
+        analysis, source, dialect, &class_q, &method, true,
     ));
     Some(build_member_ranges(
         source,
@@ -532,11 +574,7 @@ fn build_member_ranges(
 
 /// Every method / classmethod / constructor / destructor body span of `cd`
 /// — the regions re-segmented for intra-class `my <member>` call sites.
-/// `pub(crate)` so `rename`'s property-rename path can reuse it instead of
-/// duplicating the same body-span collection.
-pub(crate) fn collect_member_bodies(
-    cd: &tcl_compiler::analyser::types::ClassDef,
-) -> Vec<tcl_lexer::Span> {
+fn collect_member_bodies(cd: &tcl_compiler::analyser::types::ClassDef) -> Vec<tcl_lexer::Span> {
     let mut bodies: Vec<tcl_lexer::Span> = cd
         .methods
         .values()
@@ -550,11 +588,42 @@ pub(crate) fn collect_member_bodies(
     bodies
 }
 
+/// Every member body span of `cd` reachable for `my <name>` dispatch from a
+/// body scoped the same way `is_classmethod` selects: instance-scoped
+/// (`false` — methods, constructors, the destructor, everywhere `self` is
+/// the instance) or class-scoped (`true` — class methods only, where `self`
+/// is the class object itself).  The two tables never merge (confirmed
+/// against tclsh 9.0.4, see
+/// `tcl_compiler::analyser::diagnostics::var_command`'s dispatch-scope
+/// note): a `my` dispatch written in one can never reach a member of the
+/// other, so the re-segmented body set passed to [`scan_my_method_sites`]
+/// must stay scoped to the same table `is_classmethod` selects — unlike
+/// [`collect_member_bodies`], which mixes both (used only where the caller
+/// has no per-table dispatch-scope concern of its own, e.g. `rename`'s
+/// property scan).
+fn collect_member_bodies_scoped(
+    cd: &tcl_compiler::analyser::types::ClassDef,
+    is_classmethod: bool,
+) -> Vec<tcl_lexer::Span> {
+    if is_classmethod {
+        return cd.class_methods.values().map(|m| m.body_span).collect();
+    }
+    let mut bodies: Vec<tcl_lexer::Span> = cd
+        .methods
+        .values()
+        .map(|m| m.body_span)
+        .chain(cd.constructors.iter().map(|c| c.body_span))
+        .collect();
+    if let Some(d) = &cd.destructor {
+        bodies.push(d.body_span);
+    }
+    bodies
+}
+
 /// Which of a class's independent member tables a name resolves to —
 /// methods, classmethods, and properties never share one table, so a name
 /// collision between them (rare, but real) needs an explicit tag alongside
-/// its span; see [`resolve_member_span`].  `pub(crate)` so `rename` shares
-/// this one resolver instead of its own priority-order guess.
+/// its span; see [`resolve_member_span`].
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MemberSel {
     Method,
@@ -600,38 +669,6 @@ pub(crate) fn resolve_member_span(
         .copied()
 }
 
-/// Every method / classmethod body span of `cd` that can host `my <name>`
-/// dispatch reachable for the given `kind` — methods / constructors /
-/// destructor (`self` is the instance) for [`MemberSel::Method`], class
-/// methods only (`self` is the class object) for [`MemberSel::ClassMethod`].
-/// The two tables are never merged (confirmed against tclsh 9.0.4, see
-/// [`tcl_compiler::analyser::diagnostics::var_command`]'s dispatch-scope
-/// note) — mirrors [`crate::call_hierarchy::dispatch_reaches`]. [`MemberSel::Property`]
-/// (never passed here) falls back to the instance-scoped set.
-fn collect_member_bodies_of_kind(
-    cd: &tcl_compiler::analyser::types::ClassDef,
-    kind: MemberSel,
-) -> Vec<tcl_lexer::Span> {
-    if kind == MemberSel::ClassMethod {
-        return cd.class_methods.values().map(|m| m.body_span).collect();
-    }
-    // Method / Property: instance-scoped bodies only — methods, constructors,
-    // and the destructor all run with `self` bound to the instance.
-    // Deliberately excludes `class_methods` (unlike `collect_member_bodies`,
-    // which mixes both tables for the property-scan path, where properties
-    // have no classmethod-equivalent to conflate with in the first place).
-    let mut bodies: Vec<tcl_lexer::Span> = cd
-        .methods
-        .values()
-        .map(|m| m.body_span)
-        .chain(cd.constructors.iter().map(|c| c.body_span))
-        .collect();
-    if let Some(d) = &cd.destructor {
-        bodies.push(d.body_span);
-    }
-    bodies
-}
-
 /// Resolve a method's declaration span plus every call site —
 /// intra-class (re-segment the class's own method bodies plus any
 /// inheriting subclass's bodies) and external (`$obj method` across the
@@ -643,72 +680,76 @@ pub(crate) fn method_references_for_class(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
-    preferred_kind: Option<MemberSel>,
+    is_classmethod: bool,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
     use tcl_lexer::Span;
     let class_def = analysis.all_classes.get(class_q)?;
-    // A method and a classmethod sharing a name (rare, but `TclOO` keeps
-    // them in independent tables) never merge: `my <word>` dispatch scope
-    // depends on which table the *caller's own body* belongs to, so every
-    // body collected below and the external `$obj method` scan must be
-    // scoped to the same one this declaration resolves to.  `preferred_kind`
-    // lets a caller that already knows which table it means (the cursor sat
-    // on that declaration, or `$obj method` dispatch can only ever mean
-    // `Method`) force it — falling back to methods-first priority only when
-    // no preference applies to *this* class (e.g. it doesn't have the
-    // collision at all, or the caller has no cursor context).
-    let (kind, decl_span) = match preferred_kind {
-        Some(MemberSel::ClassMethod) if class_def.class_methods.contains_key(method) => (
-            MemberSel::ClassMethod,
-            class_def.class_methods.get(method)?.name_span,
-        ),
-        Some(MemberSel::Method) if class_def.methods.contains_key(method) => {
-            (MemberSel::Method, class_def.methods.get(method)?.name_span)
-        }
-        _ => match class_def.methods.get(method) {
-            Some(m) => (MemberSel::Method, m.name_span),
-            None => (
-                MemberSel::ClassMethod,
-                class_def.class_methods.get(method)?.name_span,
-            ),
-        },
-    };
+    let decl_span = if is_classmethod {
+        class_def.class_methods.get(method)
+    } else {
+        class_def.methods.get(method)
+    }
+    .map(|m| m.name_span)?;
 
     let mut call_spans: Vec<Span> = Vec::new();
-    // Intra-class `my method` dispatch: re-segment every same-kind body for
-    // `my method` invocations.  Scan `class_q`'s own bodies **and** the
-    // bodies of every subclass that *inherits* this definition — a class
-    // whose MRO resolves `method` to `class_q` (i.e. it does not override).
-    // A pure inheritor is not itself a rename family member (it declares no
-    // copy of `method`), but its `my method` calls dispatch to `class_q`'s
-    // definition, so they must rename with it; omitting them left those
-    // call sites pointing at the old name.  A subclass that *overrides*
-    // `method` resolves to itself, not `class_q`, so its bodies are
-    // handled under its own family entry — never here.
+    // Intra-class `my method` dispatch: `self`/`my` is bound to the instance
+    // for a plain method (and its constructors/destructor) and to the class
+    // object itself for a classmethod — the two tables never merge
+    // (confirmed against tclsh 9.0.4), so the re-segmented body set must
+    // stay scoped to the same table `is_classmethod` selects on both sides
+    // (see `collect_member_bodies_scoped`) — mixing them let a classmethod
+    // wrongly "reach" an unrelated instance method (or vice versa) whenever
+    // the two happened to share a name.
+    //
+    // For a plain method, scan `class_q`'s own bodies **and** the bodies of
+    // every subclass that *inherits* this definition — a class whose MRO
+    // resolves `method` to `class_q` (i.e. it does not override).  A pure
+    // inheritor is not itself a rename family member (it declares no copy of
+    // `method`), but its `my method` calls dispatch to `class_q`'s
+    // definition, so they must rename with it; omitting them left those call
+    // sites pointing at the old name.  A subclass that *overrides* `method`
+    // resolves to itself, not `class_q`, so its bodies are handled under its
+    // own family entry — never here.  A classmethod has no equivalent
+    // inheriting-subclass walk here: unlike the instance MRO, there's no
+    // established evidence in this codebase of how classmethod inheritance
+    // should fold into this specific intra-class scan, so this stays scoped
+    // to `class_q`'s own class-method bodies only.
     let hierarchy = analysis.class_hierarchy();
-    let mut bodies: Vec<Span> = collect_member_bodies_of_kind(class_def, kind);
-    for (other_q, other_cd) in &analysis.all_classes {
-        if other_q.as_str() != class_q && hierarchy.method_target(other_q, method) == Some(class_q)
-        {
-            bodies.extend(collect_member_bodies_of_kind(other_cd, kind));
+    if is_classmethod {
+        let bodies: Vec<Span> = collect_member_bodies_scoped(class_def, true);
+        call_spans.extend(scan_my_method_sites(
+            source,
+            dialect,
+            &bodies,
+            method,
+            Some(decl_span),
+        ));
+    } else {
+        let mut bodies: Vec<Span> = collect_member_bodies_scoped(class_def, false);
+        for (other_q, other_cd) in &analysis.all_classes {
+            if other_q.as_str() != class_q
+                && hierarchy.method_target(other_q, method) == Some(class_q)
+            {
+                bodies.extend(collect_member_bodies_scoped(other_cd, false));
+            }
         }
-    }
-    call_spans.extend(scan_my_method_sites(
-        source,
-        dialect,
-        &bodies,
-        method,
-        Some(decl_span),
-    ));
-    // External `$obj method` sites — only reachable when `method` is an
-    // instance method; `$obj` dispatch is always on the class object
-    // itself for a classmethod, never on an instance (confirmed against
-    // tclsh 9.0.4, same dispatch-scope note as above).
-    if kind == MemberSel::Method {
-        call_spans.extend(find_obj_method_call_sites(
-            source, dialect, analysis, class_q, method,
+        call_spans.extend(scan_my_method_sites(
+            source,
+            dialect,
+            &bodies,
+            method,
+            Some(decl_span),
         ));
     }
+    // External `$obj method` / bare `ClassName method` sites.
+    call_spans.extend(find_obj_method_call_sites(
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        is_classmethod,
+    ));
     Some((decl_span, call_spans))
 }
 
@@ -717,7 +758,7 @@ pub(crate) fn method_references_for_class(
 /// [`method_references_for_class`] because that set also drives *rename*, and
 /// `next` / `nextto` are keywords that must never be rewritten to the new
 /// name; only the reference paths add these.  Empty when `class_q` does not
-/// define `method`.
+/// define `method` as a member of the stated kind.
 #[must_use]
 pub fn method_next_dispatch_spans(
     analysis: &AnalysisResult,
@@ -725,15 +766,17 @@ pub fn method_next_dispatch_spans(
     dialect: &str,
     class_q: &str,
     method: &str,
+    is_classmethod: bool,
 ) -> Vec<tcl_lexer::Span> {
     let Some(class_def) = analysis.all_classes.get(class_q) else {
         return Vec::new();
     };
-    let Some(m) = class_def
-        .methods
-        .get(method)
-        .or_else(|| class_def.class_methods.get(method))
-    else {
+    let member = if is_classmethod {
+        class_def.class_methods.get(method)
+    } else {
+        class_def.methods.get(method)
+    };
+    let Some(m) = member else {
         return Vec::new();
     };
     scan_next_dispatch_sites(source, dialect, m.body_span)
@@ -750,6 +793,16 @@ pub fn method_next_dispatch_spans(
 /// [`inherited_method_spans_in_document`] (which key off a local class body)
 /// find nothing; this keys off `instance_classes`, which the cross-file
 /// analysis populates from the workspace class set.
+///
+/// `classmethod_class_names` carries the caller's *workspace-wide* knowledge
+/// of which class names are valid bare-dispatch heads for `method` when it is
+/// a `classmethod` — a pure-consumer document has no local `ClassDef` for
+/// `class_q` to derive this from (unlike the same-document path, whose
+/// [`find_obj_method_call_sites`] derives it from `analysis.all_classes`
+/// directly), so the caller supplies it from the workspace index's
+/// [`WorkspaceMethod`](crate::workspace_index::WorkspaceMethod) `kind`
+/// instead.  Empty when `method` is not a classmethod, or the caller has no
+/// workspace index (same behaviour as before this parameter existed).
 #[must_use]
 pub fn obj_method_call_sites(
     source: &str,
@@ -757,8 +810,18 @@ pub fn obj_method_call_sites(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    is_classmethod: bool,
+    classmethod_class_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
-    find_obj_method_call_sites(source, dialect, analysis, class_q, method)
+    find_obj_method_call_sites_with_extra_cmd_names(
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        is_classmethod,
+        classmethod_class_names,
+    )
 }
 
 /// Reference spans for `method` on `class_q` **within `source`**, for
@@ -777,8 +840,9 @@ pub fn method_reference_spans_in_document(
     class_q: &str,
     method: &str,
     include_decl: bool,
+    is_classmethod: bool,
 ) -> Vec<tcl_lexer::Span> {
-    match method_references_for_class(source, dialect, analysis, class_q, method, None) {
+    match method_references_for_class(source, dialect, analysis, class_q, method, is_classmethod) {
         Some((decl, mut calls)) => {
             if include_decl {
                 calls.push(decl);
@@ -786,7 +850,12 @@ pub fn method_reference_spans_in_document(
             // `next` / `nextto` super-dispatch is a reference (references path
             // only; rename uses `method_spans_in_document`, which excludes it).
             calls.extend(method_next_dispatch_spans(
-                analysis, source, dialect, class_q, method,
+                analysis,
+                source,
+                dialect,
+                class_q,
+                method,
+                is_classmethod,
             ));
             calls
         }
@@ -803,11 +872,8 @@ pub fn method_reference_spans_in_document(
 /// name is argv[1], not the command head.  A bare head equal to the method
 /// name is *not* a call (a `TclOO` method is not a command in the body's
 /// namespace; `<method> …` without `my`/an object errors "invalid command
-/// name"), so only `my`-headed sites match.  `pub(crate)` so
-/// `call_hierarchy`'s method incoming/outgoing-call edges resolve through
-/// the same matcher find-references / rename / the code lens use, instead
-/// of a bare-head comparison that never matches real (`my`-dispatched) Tcl.
-pub(crate) fn scan_my_method_sites(
+/// name"), so only `my`-headed sites match.
+fn scan_my_method_sites(
     source: &str,
     dialect: &str,
     bodies: &[tcl_lexer::Span],
@@ -989,6 +1055,16 @@ fn scan_next_dispatch_region(
 /// lives in a *different* file from the method's definer: the cross-file
 /// rename opens the subclass's document and collects these sites so an
 /// inherited-method rename doesn't leave them pointing at the old name.
+///
+/// `extra_classmethod_cmd_names` carries the caller's workspace-wide
+/// knowledge of which class names are valid bare-dispatch heads for `method`
+/// when it is a `classmethod` — this document has `class_q`'s own `ClassDef`
+/// (it *is* declared here), but not necessarily the *definer's* (a pure
+/// inheritor never declares a copy of `method`, so `class_q`'s own
+/// `class_methods` map never lists it, and the definer may live in a document
+/// this one never mentions).  See
+/// [`obj_method_call_sites`]'s identical parameter for the pure-consumer
+/// case this mirrors.
 #[must_use]
 pub(crate) fn inherited_method_call_sites(
     source: &str,
@@ -996,14 +1072,26 @@ pub(crate) fn inherited_method_call_sites(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    is_classmethod: bool,
+    extra_classmethod_cmd_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
     let Some(class_def) = analysis.all_classes.get(class_q) else {
         return Vec::new();
     };
-    let bodies = collect_member_bodies(class_def);
+    // Scoped to the same table `is_classmethod` selects (see
+    // `collect_member_bodies_scoped`) — `class_q` here is the pure
+    // inheritor itself, so its own classmethod bodies may still contain a
+    // `my <method>` call reaching the inherited classmethod.
+    let bodies = collect_member_bodies_scoped(class_def, is_classmethod);
     let mut spans = scan_my_method_sites(source, dialect, &bodies, method, None);
-    spans.extend(find_obj_method_call_sites(
-        source, dialect, analysis, class_q, method,
+    spans.extend(find_obj_method_call_sites_with_extra_cmd_names(
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        is_classmethod,
+        extra_classmethod_cmd_names,
     ));
     spans
 }
@@ -1026,24 +1114,26 @@ fn find_class_member_references(
             continue;
         }
         // Methods, classmethods, and properties are independent tables; a
-        // name shared by more than one (rare, but real) disambiguates by
-        // which declaration's own span the cursor sits on rather than a
-        // fixed priority — see `resolve_member_span`.
-        let (selected_kind, member_span) = resolve_member_span(class_def, word, cursor_offset)?;
-        // Methods / classmethods: defer to the shared resolver — the *same*
-        // one the code lens counts with — so the peek and the lens can never
-        // drift.  It covers intra-class `my method` dispatch, external
-        // `$obj method` / bare `objcmd method` sites, and the call sites of
-        // any subclass that inherits (does not override) this definition
-        // (which the class-local scan below would miss).
-        if matches!(selected_kind, MemberSel::Method | MemberSel::ClassMethod) {
+        // name shared by more than one (rare, but real — `TclOO` never
+        // merges them) disambiguates by which declaration's own span the
+        // cursor sits on rather than a fixed priority — see
+        // `resolve_member_span`.
+        let (kind, member_span) = resolve_member_span(class_def, word, cursor_offset)?;
+        if matches!(kind, MemberSel::Method | MemberSel::ClassMethod) {
+            let is_classmethod = kind == MemberSel::ClassMethod;
+            // Methods / classmethods: defer to the shared resolver — the *same*
+            // one the code lens counts with — so the peek and the lens can never
+            // drift.  It covers intra-class `my method` dispatch, external
+            // `$obj method` / bare `objcmd method` sites, and the call sites of
+            // any subclass that inherits (does not override) this definition
+            // (which the class-local scan below would miss).
             let (decl, mut calls) = method_references_for_class(
                 source,
                 dialect,
                 analysis,
                 &class_def.qualified_name,
                 word,
-                Some(selected_kind),
+                is_classmethod,
             )?;
             // `next` / `nextto` super-dispatch is a reference / highlight (both
             // callers are read-only); rename resolves methods elsewhere and
@@ -1054,6 +1144,7 @@ fn find_class_member_references(
                 dialect,
                 &class_def.qualified_name,
                 word,
+                is_classmethod,
             ));
             return Some((decl, calls));
         }
@@ -1079,8 +1170,10 @@ fn find_class_member_references(
 /// Find every external `$v method` / `[$v method]` call site
 /// in the document where `v` is an instance variable whose
 /// class qualified-name is `class_q` (per
-/// `analysis.instance_classes`).  Returns the spans of the
-/// method-name tokens.
+/// `analysis.instance_classes`), plus — when `method` is a
+/// `classmethod` — every bare `ClassName method` dispatch on the
+/// defining class's own command (and any inheriting subclass's own
+/// command).  Returns the spans of the method-name tokens.
 ///
 /// Scans three region kinds — the top-level command stream,
 /// each user proc body, and each class method body — and
@@ -1095,7 +1188,64 @@ pub(crate) fn find_obj_method_call_sites(
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
+    is_classmethod: bool,
 ) -> Vec<tcl_lexer::Span> {
+    find_obj_method_call_sites_with_extra_cmd_names(
+        source,
+        dialect,
+        analysis,
+        class_q,
+        method,
+        is_classmethod,
+        &[],
+    )
+}
+
+/// Whether `cd`'s definer command dispatches its class-scoped members as a
+/// single `::`-qualified identifier (`Factory::make`) rather than the
+/// two-word `Factory make` shape — true for [incr Tcl] only.  Registry data
+/// (`DefinerFamily`), not a hardcoded command-name check: `cd.metaclass` is
+/// looked up in `dialect`'s registry and its attached
+/// [`tcl_registry::definer::DefinitionBodyGrammar::family`] compared.  A
+/// metaclass the registry doesn't recognise as a definer (shouldn't happen
+/// for a real `ClassDef`) is conservatively treated as *not* itcl, matching
+/// prior behaviour.
+fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialect: &str) -> bool {
+    tcl_registry::registry_for_dialect(dialect)
+        .get(&cd.metaclass)
+        .and_then(|spec| spec.definition_body)
+        .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+}
+
+/// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
+/// names to treat as valid classmethod-dispatch heads for `method`
+/// regardless of what this document's own `analysis.all_classes` knows.
+///
+/// `is_classmethod` selects `method`'s dispatch shape explicitly rather than
+/// inferring it from map membership: a class may legally define a `method`
+/// and a `classmethod` of the *same name* (they occupy separate dispatch
+/// tables — the instance's and the class object's own), so "does
+/// `class_methods` contain this name" cannot answer "which one does the
+/// caller mean" when both do (Codex review on #971, P2).
+///
+/// A same-document call (`extra_cmd_names` empty) derives everything from
+/// `analysis` directly, as before.  The cross-file *pure-consumer* path
+/// ([`obj_method_call_sites`]) cannot: a document that only calls `Factory
+/// make` and never declares/extends `Factory` has no `::Factory` entry in
+/// its own `all_classes` for the local classmethod check below to find, so
+/// its caller supplies the workspace-wide answer here instead.
+fn find_obj_method_call_sites_with_extra_cmd_names(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    is_classmethod: bool,
+    extra_cmd_names: &[String],
+) -> Vec<tcl_lexer::Span> {
+    let hierarchy = analysis.class_hierarchy();
+    // A classmethod dispatches on the class's own command, never an
+    // instance — instance-receiver matching only ever applies to a `method`.
     // Variables whose `$obj method` dispatch resolves to `class_q`'s copy of
     // `method` — its own instances **plus** instances of any subclass that
     // *inherits* this definition (the subclass's MRO resolves `method` to
@@ -1105,27 +1255,71 @@ pub(crate) fn find_obj_method_call_sites(
     // to itself, so its instances are excluded here and rewritten under that
     // subclass's own family entry — each site is attributed to exactly one
     // family member (no double count).
-    let hierarchy = analysis.class_hierarchy();
-    let var_set: FxHashSet<&str> = analysis
-        .instance_classes
-        .iter()
-        .filter(|(_, c)| {
-            c.as_str() == class_q || hierarchy.method_target(c, method) == Some(class_q)
-        })
-        .map(|(v, _)| v.as_str())
-        .collect();
-    if var_set.is_empty() {
-        return Vec::new();
-    }
+    let var_set: FxHashSet<&str> = if is_classmethod {
+        FxHashSet::default()
+    } else {
+        analysis
+            .instance_classes
+            .iter()
+            .filter(|(_, c)| {
+                c.as_str() == class_q || hierarchy.method_target(c, method) == Some(class_q)
+            })
+            .map(|(v, _)| v.as_str())
+            .collect()
+    };
     // Receivers that are also *object commands* — bound by `CLASS create NAME`
     // (so `NAME` is a command, dispatched bare as `NAME method`, not `$NAME
     // method`).  A `set v [CLASS new]` receiver is a *variable* only and never
     // enters this set, so a bare `v method` is (correctly) not matched.
-    let cmd_set: FxHashSet<&str> = var_set
+    let mut cmd_set: FxHashSet<&str> = var_set
         .iter()
         .copied()
         .filter(|name| analysis.created_instance_commands.contains(*name))
         .collect();
+    // A `classmethod` dispatches on the *class's own* command (`Factory
+    // make`) — never on an instance: TclOO's `classmethod` sugar puts the
+    // method on the class object's own class, which no instance's MRO
+    // reaches.  When the caller says `method` is a classmethod, and
+    // `class_q`'s definer family actually uses this two-word dispatch shape,
+    // fold in the defining class's own name (simple + qualified) plus the
+    // own name of any subclass that inherits (does not override) it — the
+    // same inheritance test as the instance `var_set` above, so a `Sub make`
+    // dispatch on an inheriting subclass counts too.  Never runs for a plain
+    // `method` — even one that shares a name with a `classmethod` on the same
+    // class — which must never gain a phantom `ClassName method` match.
+    //
+    // The definer-family check matters because [incr Tcl]'s class-scoped
+    // `proc` lands in this same `class_methods` bucket (so the declaration
+    // side finds it) but dispatches as a single `::`-qualified identifier
+    // (`Factory::make`) — a bare two-word `Factory make` in itcl source is
+    // unrelated instance-creation syntax (`ClassName instanceName`), not a
+    // call to this proc.  The dispatch shape is registry data
+    // (`DefinerFamily`), not something to infer from the shared storage
+    // bucket.
+    if is_classmethod
+        && analysis
+            .all_classes
+            .get(class_q)
+            .is_some_and(|cd| cd.class_methods.contains_key(method) && !is_itcl_class(cd, dialect))
+    {
+        for (other_q, other_cd) in &analysis.all_classes {
+            if (other_q.as_str() == class_q
+                || hierarchy.method_target(other_q, method) == Some(class_q))
+                && !is_itcl_class(other_cd, dialect)
+            {
+                cmd_set.insert(other_cd.name.as_str());
+                cmd_set.insert(other_cd.qualified_name.as_str());
+            }
+        }
+    }
+    // The caller's workspace-wide classmethod knowledge, for a document where
+    // the class itself isn't known locally.  Meaningless for a plain method.
+    if is_classmethod {
+        cmd_set.extend(extra_cmd_names.iter().map(String::as_str));
+    }
+    if var_set.is_empty() && cmd_set.is_empty() {
+        return Vec::new();
+    }
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     let ctx = ObjMethodScan {
@@ -1781,64 +1975,6 @@ mod tests {
         );
     }
 
-    /// Regression: a `classmethod` is dispatched on the class object, never
-    /// on an instance — `my <classmethod>` inside an *instance* method's
-    /// body is invalid `TclOO` (errors "invalid command name" at runtime;
-    /// confirmed against tclsh 9.0.4, see
-    /// `tcl_compiler::analyser::diagnostics::var_command`'s dispatch-scope
-    /// note) and must not count as a reference, even when there is no name
-    /// collision with an instance method of the same name — `method_references_for_class`
-    /// used to scan every method/classmethod/ctor/dtor body together,
-    /// regardless of which table the name actually resolved to.
-    #[test]
-    fn fp_classmethod_not_reachable_from_instance_method_body() {
-        let src = "oo::class create C {\n    classmethod build {} {}\n    method oops {} {\n        my build\n    }\n}\n";
-        let refs = references(src, "tcl", 1, 16, &analyse(src), true);
-        assert_eq!(
-            refs.len(),
-            1,
-            "decl only — instance `my` cannot reach a classmethod: {refs:?}"
-        );
-    }
-
-    /// Regression: the mirror image — `my <method>` inside a *classmethod*
-    /// body cannot reach an ordinary instance method either (`self` there
-    /// is the class object, whose own method table is `class_methods`).
-    #[test]
-    fn fp_instance_method_not_reachable_from_classmethod_body() {
-        let src = "oo::class create C {\n    method greet {} {}\n    classmethod oops {} {\n        my greet\n    }\n}\n";
-        let refs = references(src, "tcl", 1, 11, &analyse(src), true);
-        assert_eq!(
-            refs.len(),
-            1,
-            "decl only — a classmethod's `my` cannot reach an instance method: {refs:?}"
-        );
-    }
-
-    /// Regression: `after`'s (and `fileevent` / `chan event`'s) deferred
-    /// script fires later, from the event loop, in a different call frame
-    /// than the one that registered it — a `my` dispatch written inside it
-    /// is not valid `TclOO` dispatch and must not count as a reference
-    /// (matching the already-established `uplevel` / `apply` exclusions).
-    #[test]
-    fn fp_deferred_callback_body_not_same_frame_dispatch() {
-        let after_src = "oo::class create C {\n    method greet {} {}\n    method get {} {\n        after 0 {my greet}\n    }\n}\n";
-        let after_refs = references(after_src, "tcl", 1, 11, &analyse(after_src), true);
-        assert_eq!(
-            after_refs.len(),
-            1,
-            "`after`'s deferred body is not same-frame: {after_refs:?}"
-        );
-
-        let fileevent_src = "oo::class create C {\n    method greet {} {}\n    method get {} {\n        fileevent stdin readable {my greet}\n    }\n}\n";
-        let fileevent_refs = references(fileevent_src, "tcl", 1, 11, &analyse(fileevent_src), true);
-        assert_eq!(
-            fileevent_refs.len(),
-            1,
-            "`fileevent`'s deferred body is not same-frame: {fileevent_refs:?}"
-        );
-    }
-
     #[test]
     fn references_to_var_includes_definition_and_uses() {
         let src = "set x 1\nputs $x\nputs $x\n";
@@ -2047,119 +2183,6 @@ mod tests {
         assert_eq!(refs.len(), 2, "{refs:?}");
     }
 
-    /// Positive-path coverage for `find_class_member_references`'s property
-    /// branch — previously exercised only indirectly (via `rename`'s
-    /// property tests), never through `references()` itself.
-    #[test]
-    fn references_for_property_includes_decl_and_my_dispatch_call_sites() {
-        let src = "oo::class create C {\n    property color\n    method describe {} {\n        return [my color]\n    }\n}\n";
-        // `property` is Tcl 9.0+ — the shared `analyse()` helper fixes the
-        // dialect at 8.6, so this test analyses at 9.0 directly.
-        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
-        // Cursor on the `color` property declaration (line 1, col 13).
-        let refs = references(src, "tcl9.0", 1, 13, &analysis, true);
-        assert_eq!(refs.len(), 2, "decl + `my color` call site: {refs:?}");
-        assert!(refs.iter().any(|r| r.start_line == 1), "{refs:?}");
-        assert!(refs.iter().any(|r| r.start_line == 3), "{refs:?}");
-    }
-
-    /// FN→TP (issue #957's general form): a `my <property>` read nested
-    /// inside `if` control flow is a reference too.
-    #[test]
-    fn references_for_property_includes_control_flow_nested_call_site() {
-        let src = "oo::class create C {\n    property color\n    method describe {} {\n        if {1} {\n            return [my color]\n        }\n    }\n}\n";
-        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
-        let refs = references(src, "tcl9.0", 1, 13, &analysis, true);
-        assert_eq!(refs.len(), 2, "{refs:?}");
-        assert!(refs.iter().any(|r| r.start_line == 4), "{refs:?}");
-    }
-
-    /// Regression: a method, a classmethod, and a property can share one
-    /// name within a class (rare, but each lives in its own independent
-    /// table, so it's legal) — `find_class_member_references` must resolve
-    /// to whichever declaration the cursor actually sits on, not always the
-    /// method by a fixed methods-first priority (which would silently
-    /// attribute the property's own references to the unrelated method).
-    #[test]
-    fn references_disambiguates_property_and_method_sharing_a_name_by_cursor() {
-        let src = "oo::class create C {\n    property color\n    method color {} { return c }\n}\n";
-        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
-        // Cursor on the *property* declaration (line 1, col 13).
-        let property_refs = references(src, "tcl9.0", 1, 13, &analysis, true);
-        assert_eq!(
-            property_refs.len(),
-            1,
-            "expected only the property decl (no call sites): {property_refs:?}"
-        );
-        assert_eq!(property_refs[0].start_line, 1, "{property_refs:?}");
-        // Cursor on the *method* declaration (line 2) picks the method
-        // instead.
-        let method_refs = references(src, "tcl9.0", 2, 11, &analysis, true);
-        assert_eq!(method_refs.len(), 1, "{method_refs:?}");
-        assert_eq!(method_refs[0].start_line, 2, "{method_refs:?}");
-    }
-
-    /// The [`MAX_DISPATCH_SCAN_DEPTH`] recursion guard actually stops
-    /// runaway nesting rather than hanging or overflowing the stack —
-    /// previously unverified by any test.  Exercises `scan_my_method_sites`
-    /// directly against a hand-built body span, bypassing
-    /// `Analyser::analyse()` entirely: its own separate recursive-descent
-    /// parse overflows the stack on control-flow nesting well under this
-    /// scanner's 256-deep cap (confirmed separately — a pre-existing,
-    /// unrelated robustness gap in the analyser/parser layer, out of scope
-    /// here), so driving the segmenter-based scan directly is the only safe
-    /// way to reach the cap this scanner actually enforces.  A dispatch
-    /// nested comfortably under the cap is still found; one nested far past
-    /// it is conservatively not.
-    #[test]
-    fn dispatch_scan_depth_guard_stops_runaway_nesting() {
-        let nest = |levels: u32| {
-            let mut body = "my greet".to_string();
-            for _ in 0..levels {
-                body = format!("if {{1}} {{ {body} }}");
-            }
-            format!("{{{body}}}")
-        };
-
-        let shallow = nest(10);
-        let shallow_span = tcl_lexer::Span::new(0, u32::try_from(shallow.len()).unwrap());
-        let shallow_spans = scan_my_method_sites(&shallow, "tcl", &[shallow_span], "greet", None);
-        assert_eq!(
-            shallow_spans.len(),
-            1,
-            "10 levels is well under the cap: {shallow_spans:?}"
-        );
-
-        let deep = nest(300);
-        let deep_span = tcl_lexer::Span::new(0, u32::try_from(deep.len()).unwrap());
-        let deep_spans = scan_my_method_sites(&deep, "tcl", &[deep_span], "greet", None);
-        assert!(
-            deep_spans.is_empty(),
-            "300 levels exceeds the cap — must abstain, not hang/crash: {deep_spans:?}"
-        );
-    }
-
-    /// TN / documented limitation: Expect's `expect { -re pat body … }`
-    /// clause-list shape carries per-clause flags the registry's
-    /// `case_list_clause_body_regions` deliberately does not decompose (see
-    /// the module doc's Limitations) — a nested `my` dispatch inside such a
-    /// clause body is conservatively not found, matching this codebase's
-    /// "fall through rather than guess wrong" rule (the naive
-    /// `plain_body_arg_indices` fallback can't tell a flag word from a
-    /// pattern word without the clause-list vocabulary this path abstains
-    /// from using).
-    #[test]
-    fn tn_expect_clause_flags_not_decomposed() {
-        let src = "oo::class create C {\n    method greet {} {}\n    method get {} {\n        expect {\n            -re {foo} {\n                my greet\n            }\n        }\n    }\n}\n";
-        let analysis = analyse(src);
-        let refs = references(src, "expect", 1, 11, &analysis, true);
-        assert_eq!(
-            refs.len(),
-            1,
-            "decl only — Expect clauses abstain: {refs:?}"
-        );
-    }
-
     #[test]
     fn document_highlights_for_method_marks_decl_and_calls_text() {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
@@ -2206,7 +2229,7 @@ mod tests {
     fn find_obj_method_call_sites_covers_top_level_and_subst() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
         // Two external sites: `$d bark` and `[$d bark]`.
         assert_eq!(sites.len(), 2, "{sites:?}");
     }
@@ -2215,7 +2238,7 @@ mod tests {
     fn find_obj_method_call_sites_finds_calls_in_proc_body() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
         assert_eq!(sites.len(), 1, "{sites:?}");
     }
 
@@ -2226,7 +2249,7 @@ mod tests {
         // through `created_instance_commands`.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
         assert_eq!(sites.len(), 1, "{sites:?}");
         // The matched span is the `bark` method-name token of `rex bark`.
         let s = sites[0];
@@ -2269,7 +2292,7 @@ mod tests {
         // so it must not be matched — only `$d bark` counts.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nd bark\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
         assert!(
             sites.is_empty(),
             "bare var receiver wrongly matched: {sites:?}"

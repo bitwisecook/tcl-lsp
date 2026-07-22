@@ -290,6 +290,147 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   (`fp_ds_06_traced_array_same_element_overwrite_silent`), joining the
   existing `fp_ds_06_*` pair, `state.rs::w220_must_alias_kill_same_array_element`
   and `elimination.rs::o109_array_element_*`.
+- [x] **FP-IPCP-01** I230 on a genuinely alternating recursive parameter —
+  CLOSED (issue #969). `compilation_unit.rs`'s interprocedural
+  `param_constants` SCCP seed (`collect_call_site_constants` /
+  `params_constants_from_call_sites`) trusted a proc parameter as a
+  compile-time literal whenever every call site *the scan could resolve*
+  passed the same value. Two ways a real, varying call site could go
+  unresolved (and so silently vanish from the "every caller agrees"
+  evidence) both reproduced the exact reported shape (`if {$count & 1}`
+  folding to a fixed boolean on a recursive, alternating counter):
+  1. **Namespace-blind resolution** — a proc declared inside `namespace
+     eval` recursed into itself by its bare name; the old resolver only
+     tried global-qualified spellings of the command word, so it never
+     matched the proc's namespaced qualified name and the recursive
+     self-call (necessarily non-literal) was dropped, leaving only the one
+     external caller's literal. Fixed by routing resolution through
+     `crate::interprocedural::resolve_internal_call` (the same
+     namespace-relative, existence-checked resolver the analyser and
+     optimiser already use), evaluated in the *calling* function's own
+     namespace.
+  2. **Body-argument blindness** — a call embedded inside a `catch { … }`
+     / literal `uplevel { … }` body is a real caller, but the body is an
+     `ArgRole::Body` argument of a *builtin* (never a user proc), so a
+     flat, one-level `Statement::Call`/`Barrier` walk resolved the builtin,
+     found no matching proc, and never noticed the nested call. Fixed by
+     recursing into `ArgRole::Body` arguments (registry-driven via
+     `CommandRegistry::arg_indices_for_role`, re-segmented with
+     `crate::segmenter`, capped at `MAX_CALL_SITE_BODY_DEPTH`), the same
+     primitives `interprocedural::scan_source_for_calls` already uses for
+     its own call-graph walk.
+  Two further instances of the exact same "the scan's completeness is
+  unproven" failure were found (and closed) by post-fix audit, before either
+  was reported by a user:
+  3. **`TclOO` method bodies** — methods are built in a *separate* pass
+     (`FunctionUnit::build_method_units`, always seeding its own
+     `param_constants: None`) that runs *after* `collect_call_site_constants`
+     and was never in its scan set at all — a call from inside a method body
+     to an ordinary user proc was invisible regardless of namespace. Fixed by
+     `build_extra_call_site_scan_contexts`: bare CFGs (no further analysis)
+     for every method and synthetic body unit (`apply` lambda, `namespace
+     eval` body), fed into the same scan as additional callers. Required
+     hoisting `cfg_context`'s construction earlier in `build_for_inner` (it
+     already existed for the methods/body-units *analysis* pass; the scan
+     now shares it rather than rebuilding it).
+  4. **`namespace import` aliasing** — `resolve_internal_call` only tries the
+     calling function's own namespace and the global one; a call reached
+     only via an imported bare name (`namespace import ::lib::helper`, or a
+     `::lib::*` wildcard) resolved to nothing and vanished from the
+     evidence. Fixed by `resolve_via_namespace_import`, a fallback consulted
+     when direct resolution fails, reusing `ir::Module::namespace_imports`
+     (already recorded at lowering time for a documented future use this is
+     the first consumer of).
+  Also added, since every instance above is the same class of gap: a
+  `!command_mutations.trusts_proc_binding(qname)` gate (reusing the
+  optimiser's own O103 rename/`interp alias` trust lattice —
+  `command_binding::scan_module_command_mutations` — instead of a second,
+  divergent one) and a `package provide`-in-file gate (a package file's
+  procs may be public API another file calls with a different literal,
+  invisible to this single-file compilation unit). A speculative
+  module-wide "any dynamic `$cmd` dispatch anywhere disqualifies every
+  seed" wildcard was tried and **reverted** — it broke a genuine,
+  already-covered TP (`fp_var_as_cmd_param_flow_non_command_fires`, a
+  dispatch-table proc whose own body legitimately uses `$cmd`) for a
+  residual soundness gap (a dynamic dispatch site's target can't be
+  statically enumerated at all) that pre-dates this fix and is orthogonal to
+  what #969 actually reported — documented as a known limitation rather than
+  papered over with disproportionate collateral damage.
+  **Known, deliberately out-of-scope residual gaps** (none reproduce the
+  reported shape; listed so they aren't mistaken for silently-missed):
+  cross-file soundness for a plain (non-`package provide`) file `source`d
+  by another that calls its procs differently; `CommandPrefix`-role
+  indirection (`trace add variable … command cb`, `-command` callback
+  options) — neither this scan nor the pre-existing
+  `interprocedural::scan_source_for_calls` call-graph walk follows a
+  `CommandPrefix` argument, so this is a shared, pre-existing limitation,
+  not a regression; and `namespace ensemble configure -map` redirection.
+  Traced end-to-end: the same `SccpResult` feeds I230, the optimiser's O101
+  fold and O107 dead-code suggestions (all suggestion-only text rewrites,
+  never applied to the compiled CFG/IR — confirmed codegen/`tcl-vm`/WASM
+  never consume SCCP at all and are structurally immune), so fixing the seed
+  corrects every consumer at once. Tests: `compilation_unit.rs`'s
+  `call_site_param_constants` module (15 cases spanning TP/FP/TN/FN across
+  namespaces, recursion, `TclOO` methods, `namespace import` (exact +
+  wildcard), rename/`interp alias`, dynamic dispatch, `package provide`, and
+  nested `catch`/`uplevel` bodies), native e2e
+  (`diagnostics::namespaced_recursive_proc_parity_check_does_not_fire_i230`
+  and siblings), and a VS Code integration suite (`issue969.test.ts`).
+  **PR #970 review follow-up (Codex, all tclsh8.6-verified live before
+  fixing):** three more confirmed instances of the identical class of bug,
+  each closing a way "resolve the callee, then trust its own qname's
+  namespace for the recursion/scan context" was itself wrong, not just
+  incomplete:
+  - **`TclOO` method bodies resolve bare commands against global, never the
+    class's namespace** — `method go {} { helper }` calls `::helper` even
+    when `::Widget::helper` exists and is exactly what naively deriving the
+    caller's namespace from the method's own qualified name would try
+    first. `build_extra_call_site_scan_contexts` was misattributing the
+    method's call to the wrong (never-actually-invoked) proc while
+    simultaneously losing it as evidence for the real target. Fixed by
+    forcing the caller-context string (not the CFG's own identity) to the
+    same global-resolving pseudo-qname `"::top"` already uses.
+  - **A `namespace eval NS { … }` body unit's synthetic qname never encoded
+    `NS`** — `register_body_unit`'s `::{label}#{n}` scheme reduced every
+    namespace-eval body's *resolution* namespace to global regardless of
+    its real target (coincidentally correct for `apply`'s common
+    global-default form, silently wrong for namespace eval). Fixed by
+    threading the real target namespace (already computed in
+    `lower_namespace_eval` as `child_ns`, used correctly for nested `proc`
+    *registration* but never for the body unit's own qname) through via
+    `join_namespace(&child_ns, "namespace-eval")`, so the qname's enclosing
+    namespace — the same "everything before the last `::`" convention every
+    proc/method qname already relies on — is the block's actual target.
+  - **`package provide` detection was a raw-text substring scan** — over-
+    triggered on the phrase merely appearing in a comment/string (needlessly
+    disabling the seed) and under-triggered on unusual-but-valid spellings
+    (`package\tprovide`, `::package provide` — silently *reopening* the
+    exact cross-file gap the guard exists to close). Fixed by
+    `has_package_provide_statement`, a recursive walk of the lowered IR
+    (top level, every proc/method/body-unit, and every nested control-flow
+    body) checking for a resolved `Call`/`Barrier` statement whose command
+    is `package` with a literal `provide` first argument.
+  **Newly confirmed (not merely theoretical) by the same review, deliberately
+  left open:** `uplevel #0 { … }` also resolves against global
+  (tclsh8.6-confirmed), and reproduces the identical misattribution +
+  phantom-fold pair as the `TclOO`/namespace-eval cases — but
+  `Statement::UpFrame`'s body is inlined into the enclosing function's own
+  CFG blocks *before* `collect_call_site_constants` ever runs, and
+  `frame_shift` (the field that distinguishes `#0` from a relative level)
+  doesn't survive that flattening to where this scan could consult it.
+  Properly fixing this needs `frame_shift == 0` preserved through CFG
+  construction, or a pre-CFG scan of `Statement::UpFrame` mirroring
+  `build_extra_call_site_scan_contexts`'s method/body-unit approach — larger
+  than the one-line namespace-context overrides above, so left as a pinned,
+  `#[ignore]`d regression
+  (`uplevel_zero_body_resolves_against_global_not_enclosing_namespace`) for
+  follow-up rather than a rushed fix. `uplevel N` for any relative
+  (non-`#0`) level remains a separate, permanent approximation: the target
+  frame's namespace depends on the live call stack, which is undecidable by
+  a single-file static analysis. Tests: 4 new cases in the same
+  `call_site_param_constants` module (19 passing + 1 pinned `#[ignore]`),
+  plus the `namespace_eval_body_unit_does_not_change_bytecode` regression
+  in `regex_source.rs` updated for the corrected qname format.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 

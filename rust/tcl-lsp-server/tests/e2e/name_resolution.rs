@@ -84,17 +84,30 @@ fn token_type_of(lsp: &mut Lsp, uri: &str, src: &str, needle: &str) -> Option<St
         .map(|t| legend[usize::try_from(t.ttype).unwrap()].clone())
 }
 
-/// The reference-count lens title anchored on `line` (member lenses carry an
-/// eager `command.title`).
+/// The reference-count lens title anchored on `line`, resolved.  Since
+/// issue #956, a method / classmethod lens resolves lazily the same way a
+/// proc/class lens does (range + `data`, no `command` until
+/// `codeLens/resolve`), so the raw listing has no `command.title` for a
+/// caller to read directly.
 fn member_lens_title(lsp: &mut Lsp, uri: &str, line: i64) -> Option<String> {
     let ls = match lsp.code_lens(uri) {
         Value::Array(a) => a,
         _ => Vec::new(),
     };
-    ls.iter()
-        .find(|l| l["range"]["start"]["line"].as_i64() == Some(line))
-        .and_then(|l| l["command"]["title"].as_str())
-        .map(str::to_owned)
+    let lens = ls
+        .iter()
+        .find(|l| l["range"]["start"]["line"].as_i64() == Some(line))?
+        .clone();
+    let resolved = lsp.code_lens_resolve(lens);
+    // Every lens this server emits resolves to a real, clickable command
+    // (issue #956 — a member lens must never stay inert with an empty
+    // command id).
+    assert_ne!(
+        resolved["command"]["command"].as_str(),
+        Some(""),
+        "lens at line {line} resolved to an inert empty command id: {resolved:?}"
+    );
+    resolved["command"]["title"].as_str().map(str::to_owned)
 }
 
 /// Whether any diagnostic carries the string `code` (W-codes are strings).

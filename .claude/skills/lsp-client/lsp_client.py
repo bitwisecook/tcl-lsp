@@ -1048,6 +1048,64 @@ def cmd_references(client: LspClient, uri: str, line: int, col: int) -> None:
     print_locations(result, "References")
 
 
+def print_code_lenses(lenses: list[dict] | None) -> None:
+    """Print code-lens results, one line per lens.
+
+    Shows the anchor range, the resolved title when the lens carries a
+    `command`, and `(unresolved)` plus the `data` payload when it does
+    not — the lazy shape a proc/class/method/classmethod reference-count
+    lens takes before the client calls `codeLens/resolve` (see
+    `cmd_code_lens`, which resolves every lens automatically).
+    """
+    if not lenses:
+        lenses = []
+    print(f"=== Code Lenses ({len(lenses)} lenses) ===")
+    if not lenses:
+        print("  (none)")
+        return
+    for lens in lenses:
+        r = lens.get("range", {})
+        s = r.get("start", {})
+        e = r.get("end", {})
+        pos = f"{s.get('line', 0)}:{s.get('character', 0)}-{e.get('line', 0)}:{e.get('character', 0)}"
+        command = lens.get("command")
+        if command:
+            title = command.get("title", "?")
+            cmd_name = command.get("command", "")
+            if cmd_name:
+                arg_count = len(command.get("arguments") or [])
+                print(f"  {pos}  {title!r}  [{cmd_name}, {arg_count} args]")
+            else:
+                print(f"  {pos}  {title!r}  [inert — empty command id]")
+        else:
+            data = lens.get("data", {})
+            print(f"  {pos}  (unresolved)  data={data!r}")
+
+
+def cmd_code_lens(client: LspClient, uri: str) -> None:
+    """Request code lenses, then resolve every unresolved one.
+
+    Proc / class / method / classmethod reference-count lenses are
+    returned lazily (range + `data`, no `command`) so the server can
+    recompute the count against the live document at resolve time; a
+    real editor always calls `codeLens/resolve` before display, so this
+    mirrors that round-trip instead of only showing the raw lazy list.
+    """
+    lenses = client.send_request(
+        "textDocument/codeLens", {"textDocument": {"uri": uri}}
+    )
+    if not lenses:
+        print_code_lenses(lenses)
+        return
+    resolved = []
+    for lens in lenses:
+        if lens.get("command"):
+            resolved.append(lens)
+        else:
+            resolved.append(client.send_request("codeLens/resolve", lens))
+    print_code_lenses(resolved)
+
+
 def cmd_code_actions(
     client: LspClient,
     uri: str,
@@ -1530,6 +1588,12 @@ examples:
     p.add_argument("line", type=int, help="Line (0-based)")
     p.add_argument("col", type=int, help="Column (0-based)")
 
+    # code-lens
+    p = sub.add_parser(
+        "code-lens", help="Show code lenses (reference-count lenses), resolved"
+    )
+    p.add_argument("file", help="Tcl file to analyze")
+
     # code-actions
     p = sub.add_parser("code-actions", help="Show code actions in a range")
     p.add_argument("file", help="Tcl file")
@@ -1683,6 +1747,8 @@ examples:
                     cmd_definition(client, uri, args.line, args.col)
                 case "references":
                     cmd_references(client, uri, args.line, args.col)
+                case "code-lens":
+                    cmd_code_lens(client, uri)
                 case "code-actions":
                     cmd_code_actions(
                         client, uri, args.line, args.col, args.end_line, args.end_col

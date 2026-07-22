@@ -386,9 +386,12 @@ References follow `TclOO` dispatch, too. A method is found through every
 dispatch, and `next` / `nextto` super-dispatch — including calls nested in a
 `[…]` substitution, embedded in a quoted / compound word, or nested inside
 `if` / `while` / `foreach` / `switch` / `try` / `catch` / `eval` / `dict for`
-(any combination, arbitrarily deep). Expr math functions resolve to their
-backing proc, so a `proc ::tcl::mathfunc::foo` is found (and renamed) from
-every `foo(...)` used inside `expr`.
+(any combination, arbitrarily deep). A `classmethod` dispatches on the
+class's own command rather than an instance, so it is found through every
+bare `ClassName method` call, including from a subclass's own command when
+the subclass inherits (does not override) the classmethod. Expr math
+functions resolve to their backing proc, so a `proc ::tcl::mathfunc::foo` is
+found (and renamed) from every `foo(...)` used inside `expr`.
 
 A class is found through every use of its name, not only `<Class> new`. A
 `superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class
@@ -645,6 +648,17 @@ try {
 
 # With dialect = tcl8.5:
 try { ... }              ;# W002: command disabled in active dialect (try requires 8.6)
+```
+
+The `::tcl::` namespace itself is a Tcl 8.5+ addition — plain `tcl8.4` and F5
+iRules (a real embedded Tcl 8.4.6) have no such namespace at all, so its
+contents are gated to their real introduction release:
+
+```tcl
+# With dialect = tcl8.4 (or f5-irules):
+::tcl::mathop::+ 1 2               ;# W002: disabled in active dialect (::tcl:: is 8.5+)
+tcl::build-info version             ;# W002: disabled in active dialect (available in: tcl9.0, tcl9.1)
+tcl::tm::path add /some/dir         ;# W002: disabled in active dialect (available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1)
 ```
 
 ### TclOO support
@@ -2024,7 +2038,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W120 | Package-gated command used without `package require` | Insert `package require` |
 | W121 | Subnet mask has non-contiguous bits | Replace with nearest valid mask |
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
-| W123 | Unknown command — not found in registry, user procs, or `unknown` handler | Replace with suggestion |
+| W123 | Unknown command — not found in registry, user procs, built-in `expr` math functions, or `unknown` handler | Replace with suggestion |
 | W124 | Invalid IP address literal | |
 | W125 | Orphaned control-flow keyword used as a standalone command | |
 | W126 | Non-channel value in channel argument position | |

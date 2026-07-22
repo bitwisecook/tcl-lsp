@@ -396,3 +396,51 @@ fn rename_from_callsite_does_not_touch_same_named_proc_in_other_namespace() {
         "must NOT rename ::b::helper (line 5): {for_uri:?}"
     );
 }
+
+/// End-to-end: renaming an `expr` math-function override renames both its
+/// declaration and the call site's bare tail token (`pf(1)` ->
+/// `pfRenamed(1)`), and never touches an unrelated same-named ordinary proc.
+#[test]
+fn rename_mathfunc_override_updates_call_site_and_skips_unrelated_proc() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 0: unrelated proc pf; line 2: the override decl; line 4: the expr call
+    let src = "proc pf {y} { return bogus }\n\
+               namespace eval ::nsa::tcl::mathfunc {}\n\
+               proc ::nsa::tcl::mathfunc::pf {x} { return 20 }\n\
+               namespace eval ::nsa {\n    proc caller {} { return [expr {pf(1)}] }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(2).unwrap().rfind("pf").unwrap() as u32;
+    let result = lsp.rename(&uri, 2, col, "pfRenamed");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<u64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_u64())
+        .collect();
+    assert!(
+        lines.contains(&2),
+        "the override decl (line 2) must rename: {for_uri:?}"
+    );
+    assert!(
+        lines.contains(&4),
+        "the expr call site (line 4) must rename: {for_uri:?}"
+    );
+    assert!(
+        !lines.contains(&0),
+        "must NOT rename the unrelated proc pf (line 0): {for_uri:?}"
+    );
+    // The declaration's own name token is written in source as the full
+    // qualified name (`proc ::nsa::tcl::mathfunc::pf {...}`), so its edit
+    // rewrites the whole qualified string; the `expr` call site only ever
+    // has the bare tail written (`pf(1)`), so its edit rewrites just that.
+    let new_texts: std::collections::BTreeSet<&str> = for_uri
+        .iter()
+        .filter_map(|e| e["newText"].as_str())
+        .collect();
+    assert_eq!(
+        new_texts,
+        std::collections::BTreeSet::from(["::nsa::tcl::mathfunc::pfRenamed", "pfRenamed"]),
+        "decl rewrites the qualified name, the call site rewrites only the tail: {for_uri:?}"
+    );
+}
