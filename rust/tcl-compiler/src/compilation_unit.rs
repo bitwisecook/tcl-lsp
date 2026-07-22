@@ -580,7 +580,10 @@ pub struct CompilationUnit {
     /// `namespace eval` blocks, lowered to [`FunctionUnit`]s so the
     /// static-analysis pipeline reaches inside them (see
     /// [`crate::ir::Module::body_units`]). Keyed by a synthetic qualified name
-    /// (`::apply#N`, `::namespace-eval::NS#N`). Kept **separate** from both
+    /// (`::apply#N`, or `::NS::namespace-eval#N` — `NS` *prefixes* the marker
+    /// so the qname's enclosing namespace, the same "everything before the
+    /// last `::`" convention every proc/method qname uses, is the namespace
+    /// the block actually targets). Kept **separate** from both
     /// [`Self::procedures`] and [`Self::methods`] so no existing consumer —
     /// codegen, the optimiser/minifier, the per-proc or OO diagnostic passes —
     /// changes behaviour; only analyses that explicitly opt in (via
@@ -759,7 +762,7 @@ impl CompilationUnit {
         // A file that declares `package provide` may export procs other
         // files call (with call sites this single-file compilation unit can
         // never see) — see `params_constants_from_call_sites`'s doc.
-        let has_package_provide = source.contains("package provide");
+        let has_package_provide = has_package_provide_statement(&ir_module);
         // Fully-qualified names of every class defined in the unit, sourced from
         // the signature scanner so this build and the incremental/db build
         // derive an identical set (⇒ identical OBJECT-constructor typing on both
@@ -1616,7 +1619,20 @@ fn build_extra_call_site_scan_contexts(
     ir_module
         .methods
         .iter()
-        .map(|(mqname, method)| (mqname.clone(), build(mqname, &method.body)))
+        .map(|(mqname, method)| {
+            // tclsh8.6-confirmed (live): a bare command inside a `TclOO`
+            // method body resolves against the GLOBAL namespace, never the
+            // class's own declaring namespace — `method go {} { helper }`
+            // calls `::helper` even when a proc of the same name sits in
+            // the class's own namespace. `mqname`'s own namespace (e.g.
+            // `::foo::Widget` for method `::foo::Widget::go`) would be
+            // wrong here, so the caller-context string this scan resolves
+            // against is forced to global — reusing `"::top"`, the same
+            // pseudo-qname the top-level script already uses to mean
+            // exactly that. The CFG's own identity still uses the real
+            // `mqname` (unrelated to this scan's namespace concern).
+            ("::top".to_owned(), build(mqname, &method.body))
+        })
         .chain(
             ir_module
                 .body_units
@@ -1624,6 +1640,78 @@ fn build_extra_call_site_scan_contexts(
                 .map(|(qname, unit)| (qname.clone(), build(qname, &unit.body))),
         )
         .collect()
+}
+
+/// True when `ir_module` contains a resolved `package provide` invocation
+/// anywhere — top level, any proc/method/body-unit, or nested inside control
+/// flow. A registry/IR-level check (Codex review, PR #970) rather than the
+/// raw-text substring scan it replaces: that scan both over-triggered (any
+/// script merely *mentioning* the phrase in a comment, string, or embedded
+/// example disabled every interprocedural seed in the file) and
+/// under-triggered (a real invocation spelled `package\tprovide` or
+/// `::package provide` didn't match the literal substring, silently
+/// re-opening the exact cross-file soundness gap this guard exists to close).
+fn has_package_provide_statement(ir_module: &IrModule) -> bool {
+    use crate::ir::Statement;
+
+    fn is_package_provide(command: &str, args: &[String]) -> bool {
+        command.trim_start_matches("::") == "package"
+            && args.first().map(String::as_str) == Some("provide")
+    }
+
+    fn walk_script(script: &crate::ir::Script) -> bool {
+        script.statements.iter().any(walk_statement)
+    }
+
+    fn walk_statement(stmt: &Statement) -> bool {
+        match stmt {
+            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+                is_package_provide(command, args)
+            }
+            Statement::Block { body, .. }
+            | Statement::UpFrame { body, .. }
+            | Statement::While { body, .. }
+            | Statement::Foreach { body, .. }
+            | Statement::Catch { body, .. } => walk_script(body),
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                clauses.iter().any(|c| walk_script(&c.body))
+                    || else_body.as_ref().is_some_and(walk_script)
+            }
+            Statement::For {
+                init, next, body, ..
+            } => walk_script(init) || walk_script(next) || walk_script(body),
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                walk_script(body)
+                    || handlers.iter().any(|h| walk_script(&h.body))
+                    || finally_body.as_ref().is_some_and(walk_script)
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                arms.iter()
+                    .any(|a| a.body.as_ref().is_some_and(walk_script))
+                    || default_body.as_ref().is_some_and(walk_script)
+            }
+            Statement::AssignConst { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::AssignValue { .. }
+            | Statement::Incr { .. }
+            | Statement::ExprEval { .. }
+            | Statement::Return { .. } => false,
+        }
+    }
+
+    walk_script(&ir_module.top_level)
+        || ir_module.procedures.values().any(|p| walk_script(&p.body))
+        || ir_module.methods.values().any(|m| walk_script(&m.body))
+        || ir_module.body_units.values().any(|b| walk_script(&b.body))
 }
 
 /// Collect literal arg values per user-proc call site across the whole
@@ -2255,6 +2343,159 @@ mod tests {
             );
         }
 
+        /// FP guard (Codex review, PR #970): a `TclOO` method body resolves
+        /// bare commands against the GLOBAL namespace, never the class's own
+        /// namespace — tclsh8.6-confirmed live: `[::foo::Widget new] go`
+        /// (method body `helper b`) calls `::helper`, never
+        /// `::foo::Widget::helper`, even though the latter exists and is
+        /// exactly what naively deriving the caller's namespace from the
+        /// method's own qualified name (`::foo::Widget::go` → `::foo::Widget`)
+        /// would try first. Before forcing method bodies to resolve against
+        /// global, this misattributed the method's call to
+        /// `::foo::Widget::helper` (folding a condition on a call that never
+        /// actually happens) while simultaneously losing it as evidence for
+        /// the real target `::helper` (which then wrongly folded on its one
+        /// remaining, external-only literal).
+        #[test]
+        fn method_body_bare_call_resolves_against_global_not_class_namespace() {
+            let reg = registry();
+            let src = "
+                namespace eval ::foo {
+                    oo::class create Widget {
+                        method go {} { helper b }
+                    }
+                }
+                namespace eval ::foo::Widget {
+                    proc helper {mode} {
+                        if {$mode eq \"WRONG\"} { set r 1 } else { set r 2 }
+                    }
+                }
+                proc helper {mode} {
+                    if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                }
+                helper a
+                [::foo::Widget new] go
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let global_helper = cu.procedures.get("::helper").expect("::helper analysed");
+            let ns_helper = cu
+                .procedures
+                .get("::foo::Widget::helper")
+                .expect("::foo::Widget::helper analysed");
+            assert!(
+                !folds_condition_mentioning(global_helper, "mode"),
+                "::helper is called with both \"a\" and \"b\" (the method body, once \
+                 correctly resolved to global): {:?}",
+                global_helper.sccp.constant_branches,
+            );
+            assert!(
+                !folds_condition_mentioning(ns_helper, "mode"),
+                "::foo::Widget::helper is never actually called by real Tcl semantics, \
+                 so no call-site evidence should ever reach it: {:?}",
+                ns_helper.sccp.constant_branches,
+            );
+        }
+
+        /// KNOWN RESIDUAL GAP (Codex review, PR #970) — confirmed, not yet
+        /// fixed: `uplevel #0 { … }`'s body resolves bare commands against
+        /// the GLOBAL namespace (tclsh8.6-confirmed live,
+        /// `/tmp/uplevel0_probe.tcl`: `uplevel #0 { helper }` inside
+        /// `::foo::runIt` calls `::helper`, never `::foo::helper`), but
+        /// `Statement::UpFrame`'s body is inlined into the enclosing
+        /// function's own CFG blocks *before* `collect_call_site_constants`
+        /// ever sees it — `frame_shift` (the field that would tell us "this
+        /// call originated inside an absolute-frame `uplevel #0`, force
+        /// global") is consumed by CFG construction and isn't visible at the
+        /// point this scan walks `block.statements`. Confirmed live: this
+        /// call is misattributed to `::foo::helper` (which real Tcl never
+        /// actually invokes this way — a phantom fold) while the real target
+        /// `::helper` is *also* wrong, not merely under-evidenced. Properly
+        /// fixing this needs `frame_shift == 0` preserved through CFG
+        /// construction (or a pre-CFG scan of `Statement::UpFrame`, mirroring
+        /// `build_extra_call_site_scan_contexts`'s method/body-unit
+        /// approach) — larger than a one-line namespace-context override, so
+        /// deliberately left for follow-up rather than a rushed fix.
+        /// `uplevel N` for any relative (non-`#0`) level is separately
+        /// undecidable by a single-file static analysis (the target frame's
+        /// namespace depends on the live call stack) and stays a documented,
+        /// permanent approximation.
+        #[test]
+        #[ignore = "confirmed residual gap, PR #970 review: uplevel #0 body namespace context; see doc comment"]
+        fn uplevel_zero_body_resolves_against_global_not_enclosing_namespace() {
+            let reg = registry();
+            let src = "
+                namespace eval ::foo {
+                    proc helper {mode} {
+                        if {$mode eq \"WRONG\"} { set r 1 } else { set r 2 }
+                    }
+                    proc runIt {} {
+                        uplevel #0 { helper b }
+                    }
+                }
+                proc helper {mode} {
+                    if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                }
+                helper a
+                ::foo::runIt
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let global_helper = cu.procedures.get("::helper").expect("::helper analysed");
+            let ns_helper = cu
+                .procedures
+                .get("::foo::helper")
+                .expect("::foo::helper analysed");
+            assert!(
+                !folds_condition_mentioning(global_helper, "mode"),
+                "::helper is called with both \"a\" and \"b\" (uplevel #0, once correctly \
+                 resolved to global): {:?}",
+                global_helper.sccp.constant_branches,
+            );
+            assert!(
+                !folds_condition_mentioning(ns_helper, "mode"),
+                "::foo::helper is never actually called by real Tcl semantics: {:?}",
+                ns_helper.sccp.constant_branches,
+            );
+        }
+
+        /// FP guard (Codex review, PR #970): `namespace eval ::other { … }`
+        /// runs its body in `::other`, never the enclosing proc's own
+        /// namespace — tclsh8.6-confirmed live: a bare call inside such a
+        /// block, nested arbitrarily deep inside an unrelated proc, still
+        /// resolves against `::other`. Before threading the block's real
+        /// target namespace into its body-unit qname
+        /// (`register_body_unit`/`lower_namespace_eval`), every
+        /// `namespace eval` body unit's qname reduced to the *global*
+        /// namespace regardless of its actual target, so this call would
+        /// have resolved (or misattributed) against global instead of
+        /// `::other`.
+        #[test]
+        fn namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace() {
+            let reg = registry();
+            let src = "
+                namespace eval ::other {
+                    proc helper {mode} {
+                        if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                    }
+                }
+                proc runIt {} {
+                    namespace eval ::other { helper b }
+                }
+                ::other::helper a
+                runIt
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu
+                .procedures
+                .get("::other::helper")
+                .expect("::other::helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "::other::helper is called with both \"a\" (direct) and \"b\" (via the \
+                 namespace eval block nested inside runIt): {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
         /// True if any constant-branch condition recorded for `fu` mentions
         /// `needle` (a variable name) — the ambient SCCP-fold check the I230
         /// diagnostic, and the O101/O107 optimiser suggestions, all key off.
@@ -2579,6 +2820,54 @@ mod tests {
             assert!(
                 folds_condition_mentioning(helper, "mode"),
                 "no package-provide in this file, seed should still fold: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FP guard (Codex review, PR #970): `package provide` merely
+        /// *mentioned* in a comment must not disable the interprocedural
+        /// seed — the guard now checks the lowered IR for a real, resolved
+        /// invocation, not a raw-text substring match over the whole file.
+        #[test]
+        fn package_provide_mentioned_only_in_a_comment_does_not_disqualify() {
+            let reg = registry();
+            let src = "
+                # this file does not package provide anything itself
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                folds_condition_mentioning(helper, "mode"),
+                "a comment merely mentioning the phrase must not disqualify: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN guard (Codex review, PR #970): a real `package provide`
+        /// invocation must still disqualify the seed even when it's spelled
+        /// with unusual whitespace or fully namespace-qualified — cases the
+        /// old `source.contains("package provide")` substring check missed.
+        #[test]
+        fn package_provide_with_unusual_spelling_still_disqualifies() {
+            let reg = registry();
+            let src = "
+                ::package\tprovide mylib 1.0
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "a real (if oddly-spelled) package provide must still disqualify: {:?}",
                 helper.sccp.constant_branches,
             );
         }

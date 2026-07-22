@@ -622,8 +622,9 @@ mod tests {
         assert!(
             cu.body_units
                 .keys()
-                .all(|k| k.starts_with("::namespace-eval#")),
-            "{:?}",
+                .all(|k| k.starts_with("::ns::namespace-eval#")),
+            "the qname's enclosing namespace must be `::ns` (the block's own \
+             target namespace), not global: {:?}",
             cu.body_units.keys().collect::<Vec<_>>()
         );
         // The body unit is not a real procedure (codegen would emit it).
