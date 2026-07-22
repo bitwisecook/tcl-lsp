@@ -361,11 +361,7 @@ impl Analyser {
     /// matching W002's own "don't restrict" rule for that case.
     #[must_use]
     fn expr_mathfunc_name_known(&self, name: &str) -> bool {
-        let Some(since) = tcl_syntax::expr::mathfunc::added_in(name) else {
-            return false;
-        };
-        crate::tcl_expr_eval::math_func_ceiling_for_dialect(self.dialect())
-            .is_none_or(|ceiling| since <= ceiling)
+        crate::tcl_expr_eval::is_known_mathfunc_in_dialect(name, self.dialect())
     }
 
     /// Whether byte offset `off` falls inside any recorded proc or class

@@ -395,6 +395,12 @@ impl Analyser {
         let Some(builtins) = self.builtin_names.as_ref() else {
             return;
         };
+        // `&'static str`, not a borrow of `self` — safe to read after the
+        // field-splitting `result` borrow below, unlike an `&self` method
+        // call (which is why the math-function existence check the
+        // mathfunc branch uses is a free function, not `Analyser::dialect`
+        // plus an instance method).
+        let dialect = self.dialect();
         // Recorded `namespace path` declarations, cloned before borrowing
         // `result` mutably. Entries are passed as written — the shared
         // candidate builder roots a relative entry against the declaring
@@ -445,6 +451,45 @@ impl Analyser {
             let Some(resolved) = inv.resolved_qualified_name.clone() else {
                 continue;
             };
+            // A math-function invocation's resolved name carries the fixed
+            // `tcl::mathfunc` dispatch segment, never the calling namespace —
+            // the generic one-hop `{ns}::{name}` strip just below would
+            // misparse `::tcl::mathfunc::sin` (minus `::sin`) as the nonsense
+            // namespace `::tcl::mathfunc`, silently mis-resolving to an
+            // unrelated global command that happens to share the bare tail
+            // name (a same-file `proc sin {…}` would hijack `expr {sin(x)}`).
+            // Settle these against the real two-candidate rule instead: the
+            // caller's own `tcl::mathfunc` (a TIP 232 namespace-local
+            // override), else the global one — `known` plus, for the global
+            // candidate only, genuine built-in membership (a local slot is
+            // never a built-in; only the true global one ever is).
+            let mathfunc_suffix = format!("::tcl::mathfunc::{}", inv.name);
+            if let Some(stripped) = resolved.strip_suffix(mathfunc_suffix.as_str()) {
+                let ns: String = if stripped.is_empty() {
+                    "::".to_owned()
+                } else {
+                    stripped.to_owned()
+                };
+                let candidates = crate::naming::bareword_resolution_candidates(
+                    &ns,
+                    &format!("tcl::mathfunc::{}", inv.name),
+                );
+                inv.resolution_candidates.clone_from(&candidates);
+                let global = format!("::tcl::mathfunc::{}", inv.name);
+                let winner = candidates.into_iter().find(|c| {
+                    known(c)
+                        || (*c == global
+                            && crate::tcl_expr_eval::is_known_mathfunc_in_dialect(
+                                &inv.name, dialect,
+                            ))
+                });
+                if let Some(w) = winner
+                    && w != resolved
+                {
+                    inv.resolved_qualified_name = Some(w);
+                }
+                continue;
+            }
             // The walk stored the local-first candidate (`{ns}::{name}`);
             // recover the call namespace and re-run the *shared* resolver
             // (`resolve_command_with`, the same rule the optimiser, the

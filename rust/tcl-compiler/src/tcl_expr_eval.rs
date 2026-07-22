@@ -215,6 +215,23 @@ pub fn math_func_ceiling_for_dialect(
     })
 }
 
+/// Whether `name` is a genuine built-in `expr` math function (`sin`, `max`,
+/// …) available under `dialect` — a real name in
+/// [`tcl_syntax::expr::mathfunc`] whose introducing release is at or before
+/// [`math_func_ceiling_for_dialect`]'s ceiling for this dialect.  Free
+/// function (rather than an `Analyser` method) so both the W123
+/// unresolved-command check and the cross-namespace invocation resettlement
+/// (`finalise_invocation_resolutions`, which runs after `self.result` is
+/// borrowed mutably and so cannot call back through `&self`) share one
+/// answer without either duplicating the other's logic.
+#[must_use]
+pub fn is_known_mathfunc_in_dialect(name: &str, dialect: &str) -> bool {
+    let Some(since) = tcl_syntax::expr::mathfunc::added_in(name) else {
+        return false;
+    };
+    math_func_ceiling_for_dialect(dialect).is_none_or(|ceiling| since <= ceiling)
+}
+
 fn eval_with_config(
     node: &ExprNode,
     env: &Env,
