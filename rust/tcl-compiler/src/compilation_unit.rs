@@ -721,11 +721,35 @@ impl CompilationUnit {
         // that splices the body inline.
         crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
         let cfg_module = build_cfg(&ir_module, defer_top_level);
+        // Module-wide upvar/param context — the CFG-determining context a
+        // procedure body is rebuilt under.  Computed once and shared by every
+        // memoised request, the methods/body-units below, and the call-site
+        // scan's extra caller contexts, so the offset-0 CFG the memo rebuilds
+        // is identical to this whole-module build's.  Only needed on the
+        // memoised path or when methods/body units are present.
+        let cfg_context =
+            (cache.is_some() || !ir_module.methods.is_empty() || !ir_module.body_units.is_empty())
+                .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
+        // Bare CFGs for every TclOO method and synthetic body unit (`apply`
+        // lambda, `namespace eval` body) — the call-site scan below must
+        // walk these as *callers* too, even though neither is itself seeded
+        // with `param_constants` (`build_method_units`/`build_body_units`
+        // always pass `None`): a call from inside one of these bodies to an
+        // ordinary user proc is a real call site whose argument can vary
+        // between call sites, exactly like a bare top-level/proc-body call.
+        let extra_call_site_scan_contexts =
+            build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref());
         // Collect call-site literal arg values per user proc so each
         // callee's SCCP can fold a param every caller passes the same literal
         // for (interprocedural constant propagation).
-        let call_site_constants =
-            collect_call_site_constants(&cfg_module, &ir_module.procedures, registry, dialect);
+        let call_site_constants = collect_call_site_constants(
+            &cfg_module,
+            &extra_call_site_scan_contexts,
+            &ir_module.procedures,
+            &ir_module.namespace_imports,
+            registry,
+            dialect,
+        );
         // Whole-module `rename` / `interp alias` / dynamic-redefinition trust
         // fact — reused (not duplicated) from the optimiser's identical O103
         // proc-call-fold trust gate, so the interprocedural param-constant
@@ -778,14 +802,6 @@ impl CompilationUnit {
                 trace_facts,
             },
         );
-        // Module-wide upvar/param context — the CFG-determining context a
-        // procedure body is rebuilt under.  Computed once and shared by every
-        // memoised request (and the methods below), so the offset-0 CFG the
-        // memo rebuilds is identical to this whole-module build's.  Only needed
-        // on the memoised path or when methods are present.
-        let cfg_context =
-            (cache.is_some() || !ir_module.methods.is_empty() || !ir_module.body_units.is_empty())
-                .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
         let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
         for (qname, cfg) in &cfg_module.procedures {
             let params = ir_module
@@ -1409,6 +1425,61 @@ struct CallSiteScanCtx<'a> {
     known: &'a HashSet<String>,
     registry: &'a CommandRegistry,
     dialect: &'a str,
+    /// `namespace import` directives (`(importing_namespace, absolute_pattern)`
+    /// pairs), from [`crate::ir::Module::namespace_imports`] — see
+    /// [`resolve_via_namespace_import`].
+    namespace_imports: &'a [(String, String)],
+}
+
+/// Resolve `command` to a qualified proc name via a `namespace import`
+/// directive active in `caller_qname`'s own namespace, when
+/// [`crate::interprocedural::resolve_internal_call`] found no direct match.
+///
+/// `namespace import ::lib::helper` binds the bare name `helper` in the
+/// importing namespace to `::lib::helper` — a real command-resolution path
+/// distinct from (and checked *after*) plain namespace-relative lookup, so a
+/// call site reached only this way was invisible to the collector before
+/// this: `::lib::helper`'s only *visible* caller was some unrelated external
+/// call, while every importing-namespace caller's (potentially differing)
+/// argument silently vanished from the evidence, exactly like the
+/// namespace-blind recursion and `ArgRole::Body` gaps above.
+///
+/// `::foo::*` (wildcard) imports resolve `command` under `::foo`; an exact
+/// pattern (`::foo::bar`) binds only its own leaf name — `namespace_imports`
+/// already only ever records absolute patterns (relative ones need runtime
+/// namespace-path walking this compile-time pass does not model, per
+/// [`crate::ir::Module::namespace_imports`]'s own doc).
+fn resolve_via_namespace_import<S: std::hash::BuildHasher>(
+    command: &str,
+    caller_qname: &str,
+    namespace_imports: &[(String, String)],
+    known: &HashSet<String, S>,
+) -> Option<String> {
+    if namespace_imports.is_empty() {
+        return None;
+    }
+    let ns_parts = crate::interprocedural::namespace_parts_from_proc(caller_qname);
+    let caller_ns = if ns_parts.is_empty() {
+        "::".to_owned()
+    } else {
+        format!("::{}", ns_parts.join("::"))
+    };
+    for (import_ns, pattern) in namespace_imports {
+        if *import_ns != caller_ns {
+            continue;
+        }
+        if let Some(ns_prefix) = pattern.strip_suffix("::*") {
+            let candidate = format!("{ns_prefix}::{command}");
+            if known.contains(&candidate) {
+                return Some(candidate);
+            }
+        } else if pattern.rsplit("::").next().unwrap_or(pattern.as_str()) == command
+            && known.contains(pattern)
+        {
+            return Some(pattern.clone());
+        }
+    }
+    None
 }
 
 /// Record one call site's literal-argument evidence into `out`, then recurse
@@ -1450,8 +1521,14 @@ fn record_call_site_evidence(
     // enumerate every indirect dispatch, only every statically-resolvable
     // one (including, now, one level of script-body nesting at a time).
     if !command.contains(['$', '['])
-        && let Some(target) =
-            crate::interprocedural::resolve_internal_call(command, caller_qname, ctx.known)
+        && let Some(target) = crate::interprocedural::resolve_internal_call(
+            command,
+            caller_qname,
+            ctx.known,
+        )
+        .or_else(|| {
+            resolve_via_namespace_import(command, caller_qname, ctx.namespace_imports, ctx.known)
+        })
     {
         // A call that omits a (defaulted) parameter uses its default, an
         // unknown value at that slot — poison every param position this
@@ -1497,11 +1574,63 @@ fn record_call_site_evidence(
     }
 }
 
+/// Build bare CFGs (no further per-function analysis) for every `TclOO` method
+/// and synthetic body unit (`apply` lambda, `namespace eval` body), so
+/// [`collect_call_site_constants`] can walk them as *callers* too.
+///
+/// Neither is itself ever seeded with `param_constants`
+/// (`build_method_units` / `build_body_units` always pass `None` for their
+/// own analysis), but a call *from* one of their bodies *to* an ordinary
+/// user proc is a real call site whose argument can vary between call
+/// sites, exactly like a bare top-level or proc-body call — invisible to
+/// the collector before this, which walked only `cfg_module.top_level` and
+/// `cfg_module.procedures`. The same class of bug as issue #969's own root
+/// cause (a real, varying call site silently missing from the "every
+/// caller agrees" evidence), reached through a method/lambda body instead
+/// of namespace-blind recursion or a `catch`/`uplevel` body.
+///
+/// Returns an empty `Vec` (no cost beyond the emptiness checks) when the
+/// module has neither methods nor body units — the overwhelmingly common
+/// case — or when `cfg_context` is `None` (methods/body units require it;
+/// [`CompilationUnit::build_for_inner`] only omits it when both are empty).
+fn build_extra_call_site_scan_contexts(
+    ir_module: &IrModule,
+    cfg_context: Option<&CfgContext>,
+) -> Vec<(String, CfgFunction)> {
+    if ir_module.methods.is_empty() && ir_module.body_units.is_empty() {
+        return Vec::new();
+    }
+    let Some((upvar_procs, proc_params, global_write_procs)) = cfg_context else {
+        return Vec::new();
+    };
+    let build = |qname: &str, body: &crate::ir::Script| {
+        crate::cfg_builder::build_cfg_function_with_upvars(
+            qname,
+            body,
+            true,
+            upvar_procs.clone(),
+            proc_params.clone(),
+            global_write_procs.clone(),
+        )
+    };
+    ir_module
+        .methods
+        .iter()
+        .map(|(mqname, method)| (mqname.clone(), build(mqname, &method.body)))
+        .chain(
+            ir_module
+                .body_units
+                .iter()
+                .map(|(qname, unit)| (qname.clone(), build(qname, &unit.body))),
+        )
+        .collect()
+}
+
 /// Collect literal arg values per user-proc call site across the whole
-/// module's CFGs (top-level + every proc body, statements already
-/// flattened), including calls nested inside `ArgRole::Body` arguments
-/// (`catch { … }`, a literal `uplevel { … }`, `apply {{…} {…}}`, a non-exact
-/// `switch` arm, …) via [`record_call_site_evidence`].
+/// module's CFGs (top-level + every proc/method/body-unit, statements
+/// already flattened), including calls nested inside `ArgRole::Body`
+/// arguments (`catch { … }`, a literal `uplevel { … }`, `apply {{…} {…}}`, a
+/// non-exact `switch` arm, …) via [`record_call_site_evidence`].
 ///
 /// Each call site is resolved to its callee via
 /// [`crate::interprocedural::resolve_internal_call`] — Tcl's real,
@@ -1526,7 +1655,9 @@ fn record_call_site_evidence(
 /// 1`) to a fixed boolean.
 fn collect_call_site_constants(
     cfg_module: &CfgModule,
+    extra_callers: &[(String, CfgFunction)],
     procedures: &HashMap<String, crate::ir::Procedure>,
+    namespace_imports: &[(String, String)],
     registry: &CommandRegistry,
     dialect: &str,
 ) -> HashMap<String, HashMap<usize, ArgConsts>> {
@@ -1538,6 +1669,7 @@ fn collect_call_site_constants(
         known: &known,
         registry,
         dialect,
+        namespace_imports,
     };
     // The top level has no qualified name of its own; `"::top"` (the same
     // pseudo-qname `FunctionUnit::build_full` uses for it) resolves to the
@@ -1545,7 +1677,8 @@ fn collect_call_site_constants(
     // segment" rule, matching a bare top-level call's real resolution
     // scope.
     let funcs = std::iter::once(("::top", &cfg_module.top_level))
-        .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)));
+        .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
+        .chain(extra_callers.iter().map(|(q, f)| (q.as_str(), f)));
     for (caller_qname, func) in funcs {
         for block in func.blocks.values() {
             for stmt in &block.statements {
@@ -2025,6 +2158,102 @@ mod tests {
     mod call_site_param_constants {
         use super::*;
         use crate::analyses::LatticeValue;
+
+        /// FN regression: a call from inside a `TclOO` method body to an
+        /// ordinary user proc is a real caller with a differing argument,
+        /// but methods are built in a *separate* pass that runs after (and
+        /// was invisible to) the call-site scan — the same "call site
+        /// silently vanishes from the evidence" failure as issue #969's own
+        /// root cause, reached through a method body instead of
+        /// namespace-blind recursion or a `catch`/`uplevel` body. Before
+        /// `build_extra_call_site_scan_contexts`, this scan only ever saw
+        /// the one external `helper a` call, so it wrongly seeded `mode` as
+        /// the constant `"a"`.
+        #[test]
+        fn call_site_inside_tcloo_method_body_is_not_missed() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                }
+                oo::class create Widget {
+                    method go {} { helper b }
+                }
+                helper a
+                [Widget new] go
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let f = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(f, "mode"),
+                "helper is called with both \"a\" (external) and \"b\" (from the method body); must not fold: {:?}",
+                f.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression: a call reached only via a `namespace import` alias
+        /// is a real caller with a differing argument, but
+        /// `resolve_internal_call` alone only tries the caller's own
+        /// namespace and the global one — it doesn't know about imports. The
+        /// same "call site silently vanishes from the evidence" failure as
+        /// issue #969's own root cause, reached through an imported bare
+        /// name instead of namespace-blind recursion, a `catch`/`uplevel`
+        /// body, or a `TclOO` method body.
+        #[test]
+        fn call_site_via_namespace_import_alias_is_not_missed() {
+            let reg = registry();
+            let src = "
+                namespace eval ::lib {
+                    namespace export helper
+                    proc helper {mode} {
+                        if {$mode eq \"a\"} { set r 1 } else { set r 2 }
+                    }
+                }
+                namespace eval ::app {
+                    namespace import ::lib::helper
+                    proc go {} { helper b }
+                }
+                ::lib::helper a
+                ::app::go
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let f = cu.procedures.get("::lib::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(f, "mode"),
+                "helper is called with both \"a\" (direct) and \"b\" (via the ::app import); must not fold: {:?}",
+                f.sccp.constant_branches,
+            );
+        }
+
+        /// TP control: a wildcard `namespace import ::lib::*` alias must
+        /// still resolve correctly (not just exact-name imports), and the
+        /// mechanism must still fold when every resolved caller — direct and
+        /// imported — genuinely agrees on the literal.
+        #[test]
+        fn wildcard_namespace_import_alias_resolves_and_still_folds_when_uniform() {
+            let reg = registry();
+            let src = "
+                namespace eval ::lib {
+                    namespace export *
+                    proc helper {mode} {
+                        if {$mode eq \"prod\"} { set r 1 } else { set r 2 }
+                    }
+                }
+                namespace eval ::app {
+                    namespace import ::lib::*
+                    proc go {} { helper prod }
+                }
+                ::lib::helper prod
+                ::app::go
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let f = cu.procedures.get("::lib::helper").expect("helper analysed");
+            assert!(
+                folds_condition_mentioning(f, "mode"),
+                "both the direct and the wildcard-imported caller pass \"prod\": {:?}",
+                f.sccp.constant_branches,
+            );
+        }
 
         /// True if any constant-branch condition recorded for `fu` mentions
         /// `needle` (a variable name) — the ambient SCCP-fold check the I230

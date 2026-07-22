@@ -319,9 +319,31 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
      `crate::segmenter`, capped at `MAX_CALL_SITE_BODY_DEPTH`), the same
      primitives `interprocedural::scan_source_for_calls` already uses for
      its own call-graph walk.
-  Also added, since both gaps are instances of "the scan's completeness is
-  unproven": a `!command_mutations.trusts_proc_binding(qname)` gate (reusing
-  the optimiser's own O103 rename/`interp alias` trust lattice —
+  Two further instances of the exact same "the scan's completeness is
+  unproven" failure were found (and closed) by post-fix audit, before either
+  was reported by a user:
+  3. **`TclOO` method bodies** — methods are built in a *separate* pass
+     (`FunctionUnit::build_method_units`, always seeding its own
+     `param_constants: None`) that runs *after* `collect_call_site_constants`
+     and was never in its scan set at all — a call from inside a method body
+     to an ordinary user proc was invisible regardless of namespace. Fixed by
+     `build_extra_call_site_scan_contexts`: bare CFGs (no further analysis)
+     for every method and synthetic body unit (`apply` lambda, `namespace
+     eval` body), fed into the same scan as additional callers. Required
+     hoisting `cfg_context`'s construction earlier in `build_for_inner` (it
+     already existed for the methods/body-units *analysis* pass; the scan
+     now shares it rather than rebuilding it).
+  4. **`namespace import` aliasing** — `resolve_internal_call` only tries the
+     calling function's own namespace and the global one; a call reached
+     only via an imported bare name (`namespace import ::lib::helper`, or a
+     `::lib::*` wildcard) resolved to nothing and vanished from the
+     evidence. Fixed by `resolve_via_namespace_import`, a fallback consulted
+     when direct resolution fails, reusing `ir::Module::namespace_imports`
+     (already recorded at lowering time for a documented future use this is
+     the first consumer of).
+  Also added, since every instance above is the same class of gap: a
+  `!command_mutations.trusts_proc_binding(qname)` gate (reusing the
+  optimiser's own O103 rename/`interp alias` trust lattice —
   `command_binding::scan_module_command_mutations` — instead of a second,
   divergent one) and a `package provide`-in-file gate (a package file's
   procs may be public API another file calls with a different literal,
@@ -331,20 +353,29 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   already-covered TP (`fp_var_as_cmd_param_flow_non_command_fires`, a
   dispatch-table proc whose own body legitimately uses `$cmd`) for a
   residual soundness gap (a dynamic dispatch site's target can't be
-  statically enumerated at all, recursively or otherwise) that pre-dates
-  this fix and is orthogonal to what #969 actually reported — documented as
-  a known limitation rather than papered over with disproportionate
-  collateral damage. Traced end-to-end: the same `SccpResult` feeds I230,
-  the optimiser's O101 fold and O107 dead-code suggestions (all
-  suggestion-only text rewrites, never applied to the compiled CFG/IR —
-  confirmed codegen/`tcl-vm`/WASM never consume SCCP at all and are
-  structurally immune), so fixing the seed corrects every consumer at
-  once. Tests: `compilation_unit.rs`'s `call_site_param_constants` module
-  (16 cases spanning TP/FP/TN/FN across namespaces, recursion, rename/
-  `interp alias`, dynamic dispatch, `package provide`, and nested `catch`/
-  `uplevel` bodies), native e2e (`diagnostics::namespaced_recursive_proc_
-  parity_check_does_not_fire_i230` and siblings), and a VS Code integration
-  suite (`issue969.test.ts`).
+  statically enumerated at all) that pre-dates this fix and is orthogonal to
+  what #969 actually reported — documented as a known limitation rather than
+  papered over with disproportionate collateral damage.
+  **Known, deliberately out-of-scope residual gaps** (none reproduce the
+  reported shape; listed so they aren't mistaken for silently-missed):
+  cross-file soundness for a plain (non-`package provide`) file `source`d
+  by another that calls its procs differently; `CommandPrefix`-role
+  indirection (`trace add variable … command cb`, `-command` callback
+  options) — neither this scan nor the pre-existing
+  `interprocedural::scan_source_for_calls` call-graph walk follows a
+  `CommandPrefix` argument, so this is a shared, pre-existing limitation,
+  not a regression; and `namespace ensemble configure -map` redirection.
+  Traced end-to-end: the same `SccpResult` feeds I230, the optimiser's O101
+  fold and O107 dead-code suggestions (all suggestion-only text rewrites,
+  never applied to the compiled CFG/IR — confirmed codegen/`tcl-vm`/WASM
+  never consume SCCP at all and are structurally immune), so fixing the seed
+  corrects every consumer at once. Tests: `compilation_unit.rs`'s
+  `call_site_param_constants` module (15 cases spanning TP/FP/TN/FN across
+  namespaces, recursion, `TclOO` methods, `namespace import` (exact +
+  wildcard), rename/`interp alias`, dynamic dispatch, `package provide`, and
+  nested `catch`/`uplevel` bodies), native e2e
+  (`diagnostics::namespaced_recursive_proc_parity_check_does_not_fire_i230`
+  and siblings), and a VS Code integration suite (`issue969.test.ts`).
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
