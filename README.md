@@ -2022,7 +2022,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W120 | Package-gated command used without `package require` | Insert `package require` |
 | W121 | Subnet mask has non-contiguous bits | Replace with nearest valid mask |
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
-| W123 | Unknown command — not found in registry, user procs, or `unknown` handler | Replace with suggestion |
+| W123 | Unknown command — not found in registry, user procs, built-in `expr` math functions, or `unknown` handler | Replace with suggestion |
 | W124 | Invalid IP address literal | |
 | W125 | Orphaned control-flow keyword used as a standalone command | |
 | W126 | Non-channel value in channel argument position | |

@@ -3234,3 +3234,106 @@ fn irules_subcommands_named_like_banned_commands_are_clean_end_to_end() {
         codes(&diags)
     );
 }
+
+// -- Issue #968: W123 false-positived on every built-in `expr` math
+// function (`sin(...)`, `max(...)`, ...) — `expr_function_call_records_a_
+// mathfunc_invocation` (commands.rs) already resolved the call to
+// `::tcl::mathfunc::<name>`, but the W123 pass never recognised that
+// qualified name unless a same-named user proc happened to shadow it.
+
+#[test]
+fn issue_968_builtin_expr_math_functions_are_clean_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x [expr {sin(1.0) + max(1, 2, 3)}]\nputs $x\n");
+    assert!(
+        !has_code(&diags, "W123"),
+        "issue #968: built-in expr math functions must not draw W123: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn issue_968_nested_expr_math_functions_are_clean_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x [expr {sqrt(abs($y))}]\n");
+    assert!(
+        !has_code(&diags, "W123"),
+        "nested built-in expr math functions must not draw W123: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn issue_968_unknown_expr_function_still_w123_end_to_end() {
+    // Control: the fix must not swallow a genuinely unknown function name.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "set x [expr {frobnicate(1)}]\n");
+    assert!(
+        has_code(&diags, "W123"),
+        "an unknown expr function must still draw W123: {:?}",
+        codes(&diags)
+    );
+    assert!(
+        diags.iter().any(|d| message(d).contains("frobnicate")),
+        "message names the unknown function: {diags:?}",
+    );
+}
+
+#[test]
+fn issue_968_version_gated_math_function_dual_fires_end_to_end() {
+    // `min`/`max` are TIP 232 (Tcl 8.5+) — under an 8.4 document the name
+    // is a real function elsewhere but disabled here, so both the
+    // dialect-availability diagnostic (W002) and the unresolved-command
+    // diagnostic (W123) fire, matching the established dual-fire precedent
+    // for a dialect-disabled registry builtin (e.g. `lmap` under an 8.5
+    // host, exercised by `iapps_86_core_still_draws_w123_end_to_end` above).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl84");
+    let diags = lsp.open_ready_lang(&uri, "set x [expr {min(1, 2)}]\n", "tcl8.4");
+    assert!(
+        has_code(&diags, "W002") && has_code(&diags, "W123"),
+        "min() under tcl8.4 must draw both W002 and W123: {:?}",
+        codes(&diags)
+    );
+
+    let uri2 = unique_uri("tcl86");
+    let diags2 = lsp.open_ready_lang(&uri2, "set x [expr {min(1, 2)}]\n", "tcl8.6");
+    assert!(
+        !has_code(&diags2, "W002") && !has_code(&diags2, "W123"),
+        "min() under tcl8.6 must be clean: {:?}",
+        codes(&diags2)
+    );
+}
+
+#[test]
+fn issue_968_expr_function_after_rename_away_still_w123_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "rename ::tcl::mathfunc::sin {}\nset x [expr {sin(1.0)}]\n",
+    );
+    assert!(
+        has_code(&diags, "W123"),
+        "a call through a renamed-away mathfunc must be unresolved: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn issue_968_user_defined_mathfunc_override_still_resolves_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc ::tcl::mathfunc::myfunc {x} { return $x }\nset r [expr {myfunc(1)}]\n",
+    );
+    assert!(
+        !has_code(&diags, "W123"),
+        "a user-defined mathfunc override must resolve end-to-end: {:?}",
+        codes(&diags)
+    );
+}

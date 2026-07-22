@@ -364,6 +364,7 @@ impl Analyser {
                     indirect: false,
                     rename_safe: true,
                     existence_probe: false,
+                    is_mathfunc_call: false,
                 },
             );
 
@@ -391,6 +392,7 @@ impl Analyser {
                         indirect: false,
                         rename_safe: true,
                         existence_probe: false,
+                        is_mathfunc_call: false,
                     },
                 );
             }
@@ -1286,6 +1288,7 @@ impl Analyser {
                     indirect: false,
                     rename_safe: true,
                     existence_probe: false,
+                    is_mathfunc_call: false,
                 },
             );
         }
@@ -1334,6 +1337,38 @@ impl Analyser {
                 indirect: false,
                 rename_safe: true,
                 existence_probe,
+                is_mathfunc_call: false,
+            },
+        );
+    }
+
+    /// [`Self::push_command_reference`] for an `expr` math-function call —
+    /// see
+    /// [`crate::signature_scan::types::SignatureCommandInvocation::is_mathfunc_call`].
+    /// A dedicated method rather than another positional bool on
+    /// [`Self::push_command_reference_with_policy`]: it has exactly one
+    /// caller, and a same-typed `existence_probe, is_mathfunc_call` pair
+    /// invites a silently-transposed call.
+    pub(in crate::analyser) fn push_mathfunc_command_reference(
+        &mut self,
+        written: String,
+        span: Span,
+        resolved: String,
+        argc: Option<usize>,
+    ) {
+        self.result.command_invocations.push(
+            crate::signature_scan::types::SignatureCommandInvocation {
+                name: written,
+                range: span,
+                resolved_qualified_name: Some(resolved),
+                resolution_candidates: Vec::new(),
+                argc,
+                callback_arity: None,
+                callback_baked_args: 0,
+                indirect: false,
+                rename_safe: true,
+                existence_probe: false,
+                is_mathfunc_call: true,
             },
         );
     }
@@ -1496,7 +1531,7 @@ impl Analyser {
         // to `::tcl::mathfunc::<fn>` — recorded here (with `&mut self`) because
         // the free-function collection can't resolve that namespace.
         for expr_tok in expr_toks {
-            self.record_expr_function_invocations(expr_tok);
+            self.record_expr_function_invocations(expr_tok, scope_path);
         }
     }
 
@@ -1845,9 +1880,9 @@ impl Analyser {
         self.push_collected_heads(heads, scope_path);
         // This expr's own math functions, plus any nested inside a `[expr {…}]`
         // substitution the collection surfaced (`if {[expr {Pi()}]}`).
-        self.record_expr_function_invocations(expr_tok);
+        self.record_expr_function_invocations(expr_tok, scope_path);
         for nested in expr_toks {
-            self.record_expr_function_invocations(nested);
+            self.record_expr_function_invocations(nested, scope_path);
         }
     }
 
@@ -1891,19 +1926,28 @@ impl Analyser {
 
     /// Record each math-function application (`sin($x)`, `max($a, $b)`) as an
     /// invocation of the command it dispatches to, `::tcl::mathfunc::<name>`.
-    /// A user who defines `proc ::tcl::mathfunc::myfunc { … }` then gets
-    /// go-to-definition, references, rename, and arity checking on
-    /// `myfunc(...)` calls, and the function is no longer reported unused.
+    /// A user who defines `proc ::tcl::mathfunc::myfunc { … }` — or, per TIP
+    /// 232, a namespace-local `proc ::ns::tcl::mathfunc::myfunc` that shadows
+    /// it inside `::ns` — then gets go-to-definition, references, rename, and
+    /// arity checking on `myfunc(...)` calls, and the function is no longer
+    /// reported unused.
     ///
-    /// The written head is the bare function word (`sin`) and the resolved
-    /// name is `::tcl::mathfunc::sin`; [`Self::finalise_invocation_resolutions`]
-    /// recovers the `::tcl::mathfunc` namespace from that pair and settles the
-    /// candidate list the same way it does an ordinary namespaced call, so a
-    /// rename rewrites only the tail token in the expression.
-    fn record_expr_function_invocations(&mut self, expr_tok: Token) {
+    /// The written head is the bare function word (`sin`); the resolved name
+    /// is the *local-first* candidate `{ns}::tcl::mathfunc::sin` for the
+    /// call's own namespace, computed the same way an ordinary bareword
+    /// command's walk-time guess is ([`Self::resolve_command_qualified_name`])
+    /// so a rename rewrites only the tail token in the expression.
+    /// [`Self::finalise_invocation_resolutions`] settles it against the real
+    /// two-candidate rule (the caller's `tcl::mathfunc`, else the global
+    /// one) — never the generic one-hop `{ns}::{name}` suffix-strip it uses
+    /// for an ordinary call, which would misparse the fixed `tcl::mathfunc`
+    /// dispatch segment as if it were the calling namespace and could
+    /// mis-resolve to an unrelated global command sharing the bare tail name.
+    fn record_expr_function_invocations(&mut self, expr_tok: Token, scope_path: &[usize]) {
         for (name, span, argc) in self.expr_function_calls(expr_tok) {
-            let resolved = format!("::tcl::mathfunc::{name}");
-            self.push_command_reference(name, span, resolved, Some(argc));
+            let resolved =
+                self.resolve_command_qualified_name(&format!("tcl::mathfunc::{name}"), scope_path);
+            self.push_mathfunc_command_reference(name, span, resolved, Some(argc));
         }
     }
 
@@ -1927,6 +1971,7 @@ impl Analyser {
                     indirect: false,
                     rename_safe: true,
                     existence_probe: false,
+                    is_mathfunc_call: false,
                 },
             );
         }
@@ -1977,6 +2022,7 @@ impl Analyser {
                     indirect: false,
                     rename_safe: true,
                     existence_probe: false,
+                    is_mathfunc_call: false,
                 },
             );
         }
@@ -3506,5 +3552,153 @@ mod tests {
                     .collect::<Vec<_>>(),
             );
         }
+    }
+
+    /// An unrelated ordinary `proc sin` sharing a math function's bare tail
+    /// name must never hijack `expr {sin(...)}` — the two live in entirely
+    /// separate command tables in real Tcl (confirmed by the VM's own
+    /// `tcl::mathfunc::*` dispatch, which never consults an ordinary
+    /// top-level command). Before the two-candidate resettlement rule
+    /// below, `finalise_invocation_resolutions`'s generic one-hop
+    /// `{ns}::{name}` suffix-strip misparsed the mathfunc-qualified
+    /// `::tcl::mathfunc::sin` as if `::tcl::mathfunc` were the *calling*
+    /// namespace, and — once `sin` was `known` only as the unrelated
+    /// global proc — silently rewrote the resolved name to `::sin`.
+    #[test]
+    fn expr_function_call_ignores_unrelated_same_named_global_proc() {
+        let src = "proc sin {x} { return bogus }\nset y [expr {sin(1.0)}]\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "sin" && i.argc == Some(1))
+            .expect("mathfunc invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::tcl::mathfunc::sin"),
+            "the unrelated proc sin must not hijack expr's sin(...): {inv:?}",
+        );
+    }
+
+    /// TIP 232: a namespace-local `proc ::ns::tcl::mathfunc::f` shadows the
+    /// global `::tcl::mathfunc::f` for a call made from inside `::ns` —
+    /// confirmed real Tcl behaviour by the VM's
+    /// `namespace_local_mathfunc_shadows_global_in_expr`
+    /// (`tcl-vm/tests/tricky_resolution_e2e.rs`). The analyser must settle
+    /// the call to the local override, not the fixed global form.
+    #[test]
+    fn expr_function_call_resolves_namespace_local_mathfunc_override() {
+        let src = "namespace eval ::nsa::tcl::mathfunc {}\n\
+                    proc ::nsa::tcl::mathfunc::pf {x} { return 20 }\n\
+                    namespace eval ::nsa {\n    proc caller {} { return [expr {pf(1)}] }\n}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "pf")
+            .expect("mathfunc invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::nsa::tcl::mathfunc::pf"),
+            "pf(1) inside ::nsa must resolve to the local override: {inv:?}",
+        );
+        assert_eq!(
+            inv.resolution_candidates,
+            vec!["::nsa::tcl::mathfunc::pf", "::tcl::mathfunc::pf"],
+            "local-first, then global, matching the VM's own search order",
+        );
+    }
+
+    /// The companion of the override case above: no local override exists at
+    /// `::nsa::tcl::mathfunc::pf`, only a *global* user-defined one — the
+    /// call still finds it via the two-candidate rule's fallback step.
+    #[test]
+    fn expr_function_call_falls_back_to_global_user_override_from_a_namespace() {
+        let src = "proc ::tcl::mathfunc::pf {x} { return 10 }\n\
+                    namespace eval ::nsa {\n    proc caller {} { return [expr {pf(1)}] }\n}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "pf")
+            .expect("mathfunc invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::tcl::mathfunc::pf"),
+            "no local override at ::nsa -- must fall back to the global proc: {inv:?}",
+        );
+    }
+
+    /// The everyday case exercised via the new namespace-aware resolution
+    /// path: a built-in (`sin`), called from inside a namespace with no
+    /// override anywhere, must still settle to the global built-in slot —
+    /// the fix to the collision/shadowing bugs above must not regress the
+    /// common no-namespace, no-override call this project's issue #968
+    /// fix already covers at the diagnostic layer.
+    #[test]
+    fn expr_function_call_resolves_builtin_from_inside_a_namespace() {
+        let src = "namespace eval ::nsa {\n    proc caller {} { return [expr {sin(1.0)}] }\n}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "sin")
+            .expect("mathfunc invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::tcl::mathfunc::sin"),
+            "a built-in with no override anywhere must settle globally: {inv:?}",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+            "must still draw no W123: {:?}",
+            r.diagnostics,
+        );
+    }
+
+    /// TIP 232 math functions are ordinary commands, so `namespace path`
+    /// applies to their resolution exactly as it does to any other command —
+    /// confirmed against the VM's own `resolve_command_fqn`, which routes
+    /// every lookup (mathfunc calls included) through the same `ns_paths`-
+    /// aware resolver. Neither the caller's own namespace nor the global
+    /// slot defines `triple`; only the `namespace path` entry does.
+    #[test]
+    fn expr_function_call_honours_namespace_path() {
+        let src = "namespace eval ::libns::tcl::mathfunc {}\n\
+                    proc ::libns::tcl::mathfunc::triple {x} { return [expr {$x * 3}] }\n\
+                    namespace eval ::consumer {\n    \
+                        namespace path ::libns\n    \
+                        proc caller {} { return [expr {triple(2)}] }\n\
+                    }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let inv = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "triple")
+            .expect("mathfunc invocation recorded");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::libns::tcl::mathfunc::triple"),
+            "must settle via the namespace path entry: {inv:?}",
+        );
+        assert_eq!(
+            inv.resolution_candidates,
+            vec![
+                "::consumer::tcl::mathfunc::triple",
+                "::libns::tcl::mathfunc::triple",
+                "::tcl::mathfunc::triple",
+            ],
+            "current namespace, then the path entry, then global",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+            "must draw no W123: {:?}",
+            r.diagnostics,
+        );
     }
 }

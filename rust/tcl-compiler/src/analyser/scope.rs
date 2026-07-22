@@ -395,6 +395,12 @@ impl Analyser {
         let Some(builtins) = self.builtin_names.as_ref() else {
             return;
         };
+        // `&'static str`, not a borrow of `self` — safe to read after the
+        // field-splitting `result` borrow below, unlike an `&self` method
+        // call (which is why the math-function existence check the
+        // mathfunc branch uses is a free function, not `Analyser::dialect`
+        // plus an instance method).
+        let dialect = self.dialect();
         // Recorded `namespace path` declarations, cloned before borrowing
         // `result` mutably. Entries are passed as written — the shared
         // candidate builder roots a relative entry against the declaring
@@ -445,6 +451,56 @@ impl Analyser {
             let Some(resolved) = inv.resolved_qualified_name.clone() else {
                 continue;
             };
+            // A math-function invocation's resolved name carries the fixed
+            // `tcl::mathfunc` dispatch segment, never the calling namespace —
+            // the generic one-hop `{ns}::{name}` strip just below assumes
+            // `resolved` is exactly `{callingNamespace}::{name}`, which is
+            // false here (it would misparse `::tcl::mathfunc::sin` as if
+            // `::tcl::mathfunc` were the calling namespace, silently
+            // mis-resolving to an unrelated global command that happens to
+            // share the bare tail name — a same-file `proc sin {…}` would
+            // hijack `expr {sin(x)}`). `is_mathfunc_call` — set once, at
+            // record time, never re-derived by guessing at the resolved
+            // string's shape — routes these through the real two-candidate
+            // rule instead: the caller's own `tcl::mathfunc` (honouring its
+            // `namespace path`, exactly like the VM's own
+            // `resolve_command_fqn` does for every command lookup, math
+            // functions included), else the global one — `known` plus, for
+            // the global candidate only, genuine built-in membership (a
+            // local slot is never a built-in; only the true global one
+            // ever is).
+            if inv.is_mathfunc_call {
+                let mathfunc_suffix = format!("::tcl::mathfunc::{}", inv.name);
+                let ns: String = match resolved.strip_suffix(mathfunc_suffix.as_str()) {
+                    Some("") => "::".to_owned(),
+                    Some(prefix) => prefix.to_owned(),
+                    // The walk always produces this shape for a mathfunc
+                    // invocation; treat an unrecognised one conservatively,
+                    // matching the generic path's own fallback below.
+                    None => {
+                        inv.resolution_candidates = vec![resolved];
+                        continue;
+                    }
+                };
+                let path: &[String] = paths.get(&ns).map_or(&[], Vec::as_slice);
+                let rel = format!("tcl::mathfunc::{}", inv.name);
+                let candidates = crate::naming::command_resolution_candidates(&ns, path, &rel);
+                inv.resolution_candidates.clone_from(&candidates);
+                let global = format!("::tcl::mathfunc::{}", inv.name);
+                let winner = candidates.into_iter().find(|c| {
+                    known(c)
+                        || (*c == global
+                            && crate::tcl_expr_eval::is_known_mathfunc_in_dialect(
+                                &inv.name, dialect,
+                            ))
+                });
+                if let Some(w) = winner
+                    && w != resolved
+                {
+                    inv.resolved_qualified_name = Some(w);
+                }
+                continue;
+            }
             // The walk stored the local-first candidate (`{ns}::{name}`);
             // recover the call namespace and re-run the *shared* resolver
             // (`resolve_command_with`, the same rule the optimiser, the

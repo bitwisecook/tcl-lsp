@@ -184,6 +184,53 @@ fn global_call_fallback_is_deterministic_across_repeats() {
     }
 }
 
+// -- TestMathFunctionDefinition -------------------------------------------
+// `expr` math-function calls (`sin(...)`) dispatch through the fixed
+// `::tcl::mathfunc` sub-namespace, never the calling namespace — a generic
+// one-hop resolver that (mis)treated the qualified dispatch name as
+// `{callingNamespace}::{name}` could mis-jump to an unrelated same-named
+// top-level proc. These pin the fix at the go-to-definition layer, not just
+// the underlying resolved-name data.
+
+#[test]
+fn no_definition_for_mathfunc_call_despite_unrelated_same_named_proc() {
+    // `proc sin` is an ordinary, unrelated top-level command — it has zero
+    // effect on `expr {sin(...)}`, which only ever dispatches through
+    // `::tcl::mathfunc::sin` (a real Tcl builtin with no source location).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc sin {x} { return bogus }\nset y [expr {sin(1.0)}]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.definition(&uri, 1, 14);
+    assert!(
+        locations(&result).is_empty(),
+        "must not jump to the unrelated proc sin: {result:?}"
+    );
+}
+
+#[test]
+fn mathfunc_call_jumps_to_namespace_local_override() {
+    // TIP 232: a namespace-local `proc ::nsa::tcl::mathfunc::pf` shadows the
+    // global `::tcl::mathfunc::pf` for a call made from inside `::nsa` (real
+    // Tcl behaviour — see the VM's
+    // `namespace_local_mathfunc_shadows_global_in_expr`). Go-to-definition
+    // on the call must land on the local override, not report nothing.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ::nsa::tcl::mathfunc {}\n\
+               proc ::nsa::tcl::mathfunc::pf {x} { return 20 }\n\
+               namespace eval ::nsa {\n    proc caller {} { return [expr {pf(1)}] }\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.definition(&uri, 3, 36);
+    let locs = locations(&result);
+    assert!(!locs.is_empty(), "{result:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        1,
+        "must resolve to the local override"
+    );
+}
+
 // -- TestVariableDefinition ----------------------------------------------
 
 #[test]

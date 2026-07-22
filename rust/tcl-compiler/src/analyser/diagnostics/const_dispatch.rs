@@ -174,6 +174,7 @@ fn settle_one_site(
             indirect: true,
             rename_safe,
             existence_probe: false,
+            is_mathfunc_call: false,
         });
         for c in group {
             let Some(span) = c.literal_span else { continue };
@@ -190,6 +191,7 @@ fn settle_one_site(
                 indirect: false,
                 rename_safe: true,
                 existence_probe: false,
+                is_mathfunc_call: false,
             });
         }
     }

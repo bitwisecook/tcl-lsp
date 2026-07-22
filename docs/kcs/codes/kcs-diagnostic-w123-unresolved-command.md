@@ -31,6 +31,17 @@ unknownCmd $arg
 
 The analyser reports **`W123`** on `unknownCmd`.
 
+## What does not trigger it
+
+A built-in `expr` math function (`sin`, `max`, `abs`, …) called with
+function-call syntax inside `expr` resolves to the command it dispatches to
+(`::tcl::mathfunc::<name>`) and never draws `W123`, whether or not it has
+also been overridden by a `proc ::tcl::mathfunc::<name>` in the file:
+
+```tcl
+set x [expr {sin(1.0) + max(1, 2, 3)}]
+```
+
 ## Fix
 
 ```tcl
