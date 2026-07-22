@@ -26,20 +26,33 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
-/// `namespace ensemble create`'s options — verified against this project's
-/// own `namespace ensemble` implementation
-/// (`runtime/rust/src/cmd_namespace.rs`'s `ens_create` /
-/// `apply_ensemble_option`), whose "bad option" error text enumerates
-/// exactly these six. Every one takes a single value word — `create` (and
-/// `configure`'s update form) both parse strict `-option value` pairs, no
-/// bare flags. `-namespace` is deliberately excluded: it's a read-only
-/// property `configure` can report but neither `create` nor `configure`
-/// accepts as a setter (rejected by `apply_ensemble_option`'s `_` arm).
+/// `namespace ensemble create`'s options — the six settable names match
+/// this project's own `namespace ensemble` implementations (compare
+/// `runtime/rust/src/cmd_namespace.rs`'s `apply_ensemble_option` and
+/// `rust/tcl-vm/src/cmd_namespace.rs`'s `ns_ensemble_create`). Every one
+/// takes a single value word — `create` (and `configure`'s update form)
+/// both parse strict `-option value` pairs, no bare flags. `-namespace`
+/// is deliberately excluded: it's a read-only property `configure` can
+/// report but neither `create` nor `configure` accepts as a setter
+/// (rejected by `apply_ensemble_option`'s `_` arm).
+///
+/// Dialect gating below is checked directly against the Tcl 8.5, 8.6,
+/// 9.0, and 9.1 `namespace.n` manpages (this project's own
+/// implementations don't themselves version-gate any option, so they
+/// can't be the source of truth here): `-command`, `-map`, `-prefixes`,
+/// `-subcommands`, and `-unknown` are present from 8.5 (when `namespace
+/// ensemble` itself was introduced) onward and so inherit the
+/// subcommand's own `TCL85_PLUS` gate. `-parameters` is the one
+/// exception — it is absent from the Tcl 8.5 ENSEMBLE OPTIONS list
+/// (missing from both the option table and the `-map`/`-prefixes`/
+/// `-subcommands`/`-unknown`/`-command`/`-namespace` enumeration) and
+/// first appears in the Tcl 8.6 manpage, so it carries its own,
+/// narrower `TCL86_PLUS` gate.
 static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-command",
         value: OptionValue::value("name"),
-        detail: "Name of the ensemble's dispatch command (default: the namespace's own name).",
+        detail: "Name of the ensemble's dispatch command (default: the fully-qualified name of the invoking namespace). Write-only, and valid only with create.",
         dialects: None,
         aliases: &[],
         min_version: None,
@@ -47,7 +60,7 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-map",
         value: OptionValue::value("dict"),
-        detail: "Maps subcommand names to target command prefixes.",
+        detail: "Maps subcommand names to target command-prefix lists, similar to interp alias (default: empty, meaning each subcommand maps to the identically-named command in the linked namespace).",
         dialects: None,
         aliases: &[],
         min_version: None,
@@ -55,15 +68,15 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-parameters",
         value: OptionValue::value("list"),
-        detail: "Parameter names inserted between the ensemble command and the subcommand.",
-        dialects: None,
+        detail: "Named arguments inserted between the ensemble command and the subcommand, used when generating error messages (default: none).",
+        dialects: Some(DialectSet::TCL86_PLUS),
         aliases: &[],
         min_version: None,
     },
     OptionSpec {
         name: "-prefixes",
         value: OptionValue::value("boolean"),
-        detail: "Whether unambiguous subcommand prefixes are accepted.",
+        detail: "Whether unambiguous subcommand prefixes are accepted (default: on).",
         dialects: None,
         aliases: &[],
         min_version: None,
@@ -71,15 +84,15 @@ static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-subcommands",
         value: OptionValue::value("list"),
-        detail: "Explicit list of valid subcommand names.",
+        detail: "Explicit list of valid subcommand names (default: empty, meaning the -map keys or the linked namespace's exported commands).",
         dialects: None,
         aliases: &[],
         min_version: None,
     },
     OptionSpec {
         name: "-unknown",
-        value: OptionValue::value("prefix"),
-        detail: "Command prefix invoked for an unrecognised subcommand.",
+        value: OptionValue::command_prefix("prefix"),
+        detail: "Command prefix invoked, with the ensemble's own invocation words appended, when a subcommand is not recognised (default: none, which raises a standard \"unknown subcommand\" error).",
         dialects: None,
         aliases: &[],
         min_version: None,
@@ -137,6 +150,52 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         min_version: None,
     },
 ];
+
+/// `namespace ensemble`'s own dispatch word (`create`/`configure`/
+/// `exists`) — a single bare word in every version that documents
+/// `namespace ensemble` at all (8.5, 8.6, 9.0, 9.1 all enumerate exactly
+/// these three and no others), never a list, so exact-word closure is
+/// safe here — unlike `open`'s `ACCESS_VALUES`, which must stay open
+/// because its argument can legitimately be a multi-word list.
+const ENSEMBLE_OP_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "create",
+        detail: "Create a new ensemble command linked to the current namespace.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "configure",
+        detail: "Query or update the options of an existing ensemble command.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "exists",
+        detail: "Test whether a command exists and is an ensemble command.",
+        ..ArgValue::DEFAULT
+    },
+];
+
+/// `namespace export`'s only flag — present unchanged in the synopsis of
+/// every fetched version (8.4 through 9.1).
+static EXPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-clear",
+    value: OptionValue::flag(),
+    detail: "Reset the namespace's export pattern list to empty before appending the given patterns.",
+    dialects: None,
+    aliases: &[],
+    min_version: None,
+}];
+
+/// `namespace import`'s only flag — present unchanged in the synopsis of
+/// every fetched version (8.4 through 9.1).
+static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-force",
+    value: OptionValue::flag(),
+    detail: "Silently overwrite an existing command instead of erroring on conflict.",
+    dialects: None,
+    aliases: &[],
+    min_version: None,
+}];
 
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -198,6 +257,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // this covers the whole `namespace ensemble …` surface rather than
         // just `create`'s.
         options: ENSEMBLE_CREATE_OPTIONS,
+        // The dispatch word itself (index 0, right after `ensemble`) is a
+        // closed 3-word enum in every version that has `namespace
+        // ensemble` at all — see `ENSEMBLE_OP_VALUES`. Like the top-level
+        // `namespace` dispatch ("you can abbreviate the subcommands"),
+        // this second-level dispatch also accepts a unique prefix —
+        // confirmed empirically against real `tclsh` 8.6.14: both
+        // `namespace ensemble cre` and `namespace ensemble conf` resolve
+        // (to `create`/`configure`) exactly like the unabbreviated forms.
+        arg_values: &[(0, ENSEMBLE_OP_VALUES)],
+        closed_value_args: &[0],
+        arg_values_accept_prefix: true,
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEnsemble),
         ..SubCommand::DEFAULT
     },
@@ -233,9 +303,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "export",
         arity: Arity::any(),
-        detail: "Specifies which commands are exported from a namespace.",
+        detail: "Specifies which commands are exported from a namespace; with no patterns and no -clear, returns the namespace's current export list.",
         synopsis: "namespace export ?-clear? ?pattern pattern ...?",
         return_type: Some(TclType::List),
+        options: EXPORT_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -256,9 +327,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "import",
         arity: Arity::any(),
-        detail: "Imports commands into a namespace.",
+        // The bare (no-pattern, no-flag) query form — "returns the list of
+        // commands in the current namespace that have been imported from
+        // other namespaces" — is documented starting with the Tcl 8.5
+        // manpage; the Tcl 8.4 manpage only describes the importing
+        // behaviour, with no query-form return value stated for a
+        // zero-argument call. `import` itself has no dialect gate (it is
+        // present in 8.4 too), so this is a behavioural note rather than a
+        // `dialects:` restriction — see the module-level task guidance on
+        // "exists everywhere but behaviour changed at some version".
+        detail: "Imports commands into a namespace; with no arguments, returns the list of commands already imported into the current namespace (Tcl 8.5+).",
         synopsis: "namespace import ?-force? ?pattern pattern ...?",
         return_type: Some(TclType::List),
+        options: IMPORT_OPTIONS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceImport),
         ..SubCommand::DEFAULT
     },
@@ -346,8 +427,33 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "upvar",
-        arity: Arity::at_least(1),
-        detail: "Arrange local variables to refer to namespace variables.",
+        // `namespace` + zero-or-more otherVar/myVar PAIRS is a stepped
+        // shape, not a flat `at_least` range: Tcl 9.1's own
+        // `NamespaceUpvarCmd` (tclNamesp.c) rejects both too few args
+        // (`objc < 2`) and an odd count (`objc & 1`) — i.e. a namespace
+        // followed by an *incomplete* trailing var is a hard arity error,
+        // not merely ignored. Confirmed empirically against real `tclsh`
+        // 8.6.14: `namespace upvar ::ns v` (one bare var, no completing
+        // myVar) fails with "wrong # args", while `namespace upvar ::ns`
+        // (zero pairs) and `namespace upvar ::ns v mv` (one full pair)
+        // both succeed. `stepped(1, UNLIMITED, 2)` captures the odd-count-
+        // from-1 shape this yields on 8.6+.
+        //
+        // The Tcl 8.5 manpage's synopsis is `namespace upvar namespace
+        // otherVar myVar ?otherVar myVar ...?` ("arranges for ONE OR MORE
+        // local variables") — the first pair is mandatory there, so the
+        // true 8.5 floor is 3 (odd counts from 3), not 1. From Tcl 8.6 the
+        // manpage synopsis changed to `namespace upvar namespace
+        // ?otherVar myVar ...?` ("arranges for ZERO OR MORE local
+        // variables"): the first pair became optional and the floor
+        // dropped to 1. `stepped(1, UNLIMITED, 2)` matches the 8.6/9.0/9.1
+        // shape — the loosest of the two that never rejects a valid 8.6+
+        // call; Tcl 8.5's stricter 3-word floor is documented in `detail`
+        // below rather than modelled structurally, since `Arity` has no
+        // per-dialect variant and the gap only matters for the
+        // essentially-unused zero-pair call shape.
+        arity: Arity::stepped(1, Arity::UNLIMITED, 2),
+        detail: "Arrange local variables to refer to namespace variables, as zero or more otherVar/myVar pairs. Tcl 8.5 requires at least one pair; from Tcl 8.6 the namespace argument alone is legal (and a no-op).",
         synopsis: "namespace upvar namespace ?otherVar myVar ...?",
         return_type: Some(TclType::String),
         creates_scope_alias: true,
@@ -404,11 +510,11 @@ pub fn spec() -> CommandSpec {
             },
         ],
         hover: Some(HoverSnippet {
-            summary: "create and manipulate contexts for commands and variables",
+            summary: "Create and manipulate contexts for commands and variables.",
             synopsis: &["namespace subcommand ?arg ...?"],
-            snippet: "The namespace command lets you create, access, and destroy separate contexts for commands and variables.",
-            source: "Tcl man page namespace.n",
-            examples: "",
+            snippet: "A namespace is a container for commands and variables, keeping them separate from same-named commands and variables elsewhere in a program. Namespaces nest, using :: to qualify names (::foo::bar::x); the global namespace's real name is the empty string, though :: is accepted everywhere as a synonym. An unqualified command name resolves in the current namespace, then the namespace's command resolution path (Tcl 8.5+, empty by default), then the global namespace, or else the namespace unknown handler. An unqualified variable name resolves the same way through Tcl 8.6 (current namespace, then global); Tcl 9.0 removed the fallback to the global namespace, so an unqualified variable is found only in the current namespace unless declared with `variable` or referenced by a qualified name. Not available in F5 iRules, whose data-plane interpreter strips namespace entirely.",
+            source: "Tcl namespace(n)",
+            examples: "namespace eval ::counter {\n    variable n 0\n    namespace export bump\n    proc bump {} {\n        variable n\n        incr n\n    }\n}\n::counter::bump\nnamespace eval ::client {\n    namespace import ::counter::bump\n    bump\n}",
             return_value: "",
         }),
         forms: FORMS,
