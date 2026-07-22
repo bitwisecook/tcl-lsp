@@ -4,4 +4,4 @@ deprecated: no
 multiplicity: init
 description: Fires once when the iRule is loaded (device boot, config change, or iRule save). Use for initialising static:: variables only.
 side: global
-valid commands: 722
+valid commands: 711
