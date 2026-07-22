@@ -59,9 +59,13 @@ const REPORT_PATH: &str = "docs/generated/wasm-command-backing.md";
 /// Core commands the runtime backs natively but **not** through a
 /// `register_builtin(b"…")` literal the [`scan_handlers`] pass can see, with a
 /// note on the mechanism: `TclOO` metaclasses bootstrapped as objects
-/// (`oo::class create ::oo::…` in `cmd_oo.rs`) and the per-object `my` command
-/// created by method dispatch (`oo_register_my`). Names are canonical (no
-/// leading `::`). Kept sorted.
+/// (`oo::class create ::oo::…` in `cmd_oo.rs`), the per-object `my` command
+/// created by method dispatch (`oo_register_my`), and the `::tcl::dict::*`
+/// registry names (issue #923 idx 105) — alternate, independently-resolvable
+/// spellings of `dict`'s own subcommands (real C Tcl implements the `dict`
+/// ensemble's default map that way), backed by the single
+/// `register_builtin(b"dict", …)` handler, not a separate one per name. Names
+/// are canonical (no leading `::`). Kept sorted.
 const HANDLER_EXTRA: &[(&str, &str)] = &[
     (
         "my",
@@ -86,6 +90,94 @@ const HANDLER_EXTRA: &[(&str, &str)] = &[
     (
         "oo::singleton",
         "TclOO metaclass bootstrapped as an object in cmd_oo.rs",
+    ),
+    (
+        "tcl::dict::append",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::create",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::exists",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::filter",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::for",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::get",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::getdef",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::getwithdefault",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::incr",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::info",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::keys",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::lappend",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::map",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::merge",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::remove",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::replace",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::set",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::size",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::unset",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::update",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::values",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
+    ),
+    (
+        "tcl::dict::with",
+        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
     ),
 ];
 
@@ -207,16 +299,20 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
     ),
 ];
 
-/// Core commands that *should* be backed but are not yet — real gaps tracked by
-/// `RUST_ISSUE_007`. Allow-listed so the gate stays green while they are
-/// implemented one by one; removing a name here (as it gains a handler) is the
-/// visible progress marker. Names are canonical (no leading `::`). Kept sorted.
+/// Core commands that *should* be backed but are not yet — real gaps, each
+/// with its own reason below (`RUST_ISSUE_007`, the original tracking issue
+/// for this class of gap, is itself resolved/closed — its own closing note
+/// records the allow-list as empty at that point; these are newer,
+/// independent additions, not a reopening of that issue). Allow-listed so
+/// the gate stays green while they are implemented one by one; removing a
+/// name here (as it gains a handler) is the visible progress marker. Names
+/// are canonical (no leading `::`). Kept sorted.
 ///
-/// The Tcl 9.1 entries below (everything but `tcl::zipfs`/`zipfs`) only
-/// became visible to this gate once `core_commands()`'s `TCL90`→`TCL90_PLUS`
-/// fix stopped silently excluding every 9.1-only-gated command (adversarial
-/// review of PR #1008) — they were always genuinely unbacked, just invisible
-/// to the check before that fix.
+/// The Tcl 9.1 entries below (everything but `link`/`tcl::zipfs`/`zipfs`)
+/// only became visible to this gate once `core_commands()`'s
+/// `TCL90`→`TCL90_PLUS` fix stopped silently excluding every 9.1-only-gated
+/// command (adversarial review of PR #1008) — they were always genuinely
+/// unbacked, just invisible to the check before that fix.
 const KNOWN_UNBACKED: &[(&str, &str)] = &[
     (
         "divmod",
@@ -231,6 +327,10 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
         "Tcl 9.1 list-filter command; not yet implemented in runtime/rust",
     ),
     (
+        "link",
+        "TclOO oo::Helpers::link (issue #923 idx 113) — installs a per-object-namespace alias to a method via the object's own command table, not a standalone dispatchable command; no runtime handler",
+    ),
+    (
         "modf",
         "TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust",
     ),
@@ -240,7 +340,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "tcl::zipfs",
-        "Tcl 9 zipfs archive-filesystem ensemble; not yet implemented in runtime/rust",
+        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
     ),
     (
         "timer",
@@ -252,7 +352,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "zipfs",
-        "Tcl 9 zipfs archive-filesystem ensemble; not yet implemented in runtime/rust",
+        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
     ),
 ];
 

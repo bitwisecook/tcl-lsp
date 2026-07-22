@@ -874,3 +874,80 @@ async fn list_wrapped_namespace_unknown_installer_suppresses_w123_e2e() {
     drop(writer);
     server.abort();
 }
+
+/// FP/TP — issue #923 idx 113: a bareword call to a sibling `TclOO`
+/// method/classmethod/property inside another method's body only
+/// actually dispatches when `oo::Helpers::link` exposed it that way;
+/// `lookup_class_member`/`class_member_hover_text` used to match
+/// unconditionally. `link foo` (constructor) makes `foo` genuinely
+/// bareword-callable; without it, the call errors "invalid command
+/// name" in real tclsh and go-to-definition/hover must abstain, not
+/// guess.
+#[tokio::test]
+async fn class_member_bareword_call_requires_link_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///link.tcl",
+        "oo::class create Widget {\n    method foo {x} { return \"foo-called:$x\" }\n    method bar {} { return [foo 42] }\n}\n",
+    )
+    .await;
+    // `foo` inside `bar`'s body (`method bar {} { return [foo 42] }`) —
+    // line 2, char 28 lands on the `f` of `foo`.
+    let def_req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///link.tcl"},"position":{"line":2,"character":28}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":2", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        def_resp.contains(r#""result":[]"#) || def_resp.contains(r#""result":null"#),
+        "un-linked bareword sibling call must abstain from definition: {def_resp}",
+    );
+    let hover_req = r#"{"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///link.tcl"},"position":{"line":2,"character":28}}}"#;
+    writer.write_all(frame(hover_req).as_bytes()).await.unwrap();
+    let hover_resp = read_until_id(&mut reader, "\"id\":3", 8)
+        .await
+        .expect("hover response");
+    assert!(
+        hover_resp.contains(r#""result":null"#),
+        "un-linked bareword sibling call must abstain from hover: {hover_resp}",
+    );
+
+    did_open(
+        &mut writer,
+        "file:///link2.tcl",
+        "oo::class create Widget {\n    constructor {} { link foo }\n    method foo {x} { return \"foo-called:$x\" }\n    method bar {} { return [foo 42] }\n}\n",
+    )
+    .await;
+    // `foo` inside `bar`'s body — now line 3, char 28 (constructor line
+    // shifted everything down by one; same column as above, the body
+    // text itself is unchanged).
+    let def_req2 = r#"{"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///link2.tcl"},"position":{"line":3,"character":28}}}"#;
+    writer.write_all(frame(def_req2).as_bytes()).await.unwrap();
+    let def_resp2 = read_until_id(&mut reader, "\"id\":4", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        def_resp2.contains(r#""line":2"#),
+        "linked bareword sibling call must resolve to foo's declaration on line 2: {def_resp2}",
+    );
+    let hover_req2 = r#"{"jsonrpc":"2.0","id":5,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///link2.tcl"},"position":{"line":3,"character":28}}}"#;
+    writer
+        .write_all(frame(hover_req2).as_bytes())
+        .await
+        .unwrap();
+    let hover_resp2 = read_until_id(&mut reader, "\"id\":5", 8)
+        .await
+        .expect("hover response");
+    assert!(
+        hover_resp2.contains("**method**") && hover_resp2.contains("Widget::foo"),
+        "linked bareword sibling call must resolve hover to foo's declaration: {hover_resp2}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}

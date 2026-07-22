@@ -325,7 +325,15 @@ fn instance_method_definition(
 
 /// Walk every class whose `body_span` contains the cursor
 /// offset and look up `word` in that class's methods,
-/// class-methods, properties, constructors, or destructor.
+/// class-methods, or properties — but ONLY when `word` is
+/// itself genuinely bareword-callable from a method body of
+/// this class: a bareword sibling call only actually dispatches
+/// when `link` (`oo::Helpers::link`) exposed it that way
+/// (`ClassDef::linked_members`, issue #923 idx 113); an
+/// un-linked member of the same name errors "invalid command
+/// name" at runtime, so it must not resolve here either. Also
+/// checks constructors/destructor, unconditionally (a distinct,
+/// unrelated feature — see [`ClassDef::linked_members`]'s doc).
 /// Returns the matched member's `name_span` when found.
 ///
 /// `"constructor"` matches any defined constructor;
@@ -341,14 +349,16 @@ fn lookup_class_member(
         if !(body.start() < cursor_offset && cursor_offset < body.end()) {
             continue;
         }
-        if let Some(m) = class_def.methods.get(word) {
-            return Some(m.name_span);
-        }
-        if let Some(m) = class_def.class_methods.get(word) {
-            return Some(m.name_span);
-        }
-        if let Some(p) = class_def.properties.get(word) {
-            return Some(p.name_span);
+        if let Some(target) = class_def.linked_members.get(word) {
+            if let Some(m) = class_def.methods.get(target) {
+                return Some(m.name_span);
+            }
+            if let Some(m) = class_def.class_methods.get(target) {
+                return Some(m.name_span);
+            }
+            if let Some(p) = class_def.properties.get(target) {
+                return Some(p.name_span);
+            }
         }
         if word == "constructor"
             && let Some(c) = class_def.constructors.first()
@@ -2140,30 +2150,60 @@ mod tests {
     // class-member lookup
 
     #[test]
-    fn definition_jumps_to_method_inside_class_body() {
-        // Inside an OO class body, `greet` refers to the
-        // class's own method.  Cursor on `greet` should jump
-        // to the `method greet` declaration.
+    fn definition_bare_sibling_method_call_without_link_abstains() {
+        // FP (issue #923 idx 113) — a bareword sibling method call is NOT
+        // actually reachable from another method's body unless `link`
+        // exposed it that way; real tclsh: "invalid command name". Must
+        // abstain rather than falsely resolve.
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the first `greet` in the `twice` body.
         // Line 2: `    method twice {} { greet ; greet }`
         // Col 22 lands on the `g` of the first `greet`.
         let locs = definition(src, 2, 22, &analysis);
-        assert_eq!(locs.len(), 1, "{locs:?}");
-        // The method declaration is on line 1.
-        assert_eq!(locs[0].start_line, 1);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]
-    fn definition_jumps_to_classmethod() {
+    fn definition_linked_sibling_method_call_resolves() {
+        // TP (issue #923 idx 113) — `link greet` (called from the
+        // constructor) makes `greet` genuinely bareword-callable from
+        // every method body of this class, so the bare call now
+        // correctly resolves to the method's declaration.
+        let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Line 3: `    method twice {} { greet ; greet }` — same text/col
+        // as the un-linked test above, one line further down.
+        let locs = definition(src, 3, 22, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The method declaration is now on line 2.
+        assert_eq!(locs[0].start_line, 2);
+    }
+
+    #[test]
+    fn definition_bare_sibling_classmethod_call_without_link_abstains() {
+        // FP (issue #923 idx 113) — same shape as the method case above,
+        // for `classmethod`.
         let src = "oo::class create C {\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
         let analysis = analyse(src);
         // Line 2: `    method use {} { factory }`
         // Cursor on `factory` (col 20).
         let locs = definition(src, 2, 20, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn definition_linked_sibling_classmethod_call_resolves() {
+        // TP (issue #923 idx 113) — `link factory` makes the classmethod
+        // call resolve.
+        let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
+        let analysis = analyse(src);
+        // Line 3: `    method use {} { factory }` — same text/col as the
+        // un-linked test above, one line further down.
+        let locs = definition(src, 3, 20, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
-        assert_eq!(locs[0].start_line, 1);
+        // The classmethod declaration is now on line 2.
+        assert_eq!(locs[0].start_line, 2);
     }
 
     #[test]
@@ -2182,6 +2222,20 @@ mod tests {
         // for the empty-span case, but the keyword span is
         // populated now, so the jump lands on line 1.
         assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn definition_bare_sibling_property_call_without_link_abstains() {
+        // FP (issue #923 idx 113) — same rationale as the method/classmethod
+        // cases above, for a Tcl 9.0+ `oo::configurable` `property`
+        // accessor bareword call: `[length]` is not actually reachable
+        // without a `link`; real tclsh: "invalid command name".
+        let src = "oo::configurable create Widget {\n    property length -get {return 42}\n    method use {} { return [length] }\n}\n";
+        let analysis = analyse(src);
+        // Line 2: `    method use {} { return [length] }` — col 27 lands
+        // on the `l` of `length`.
+        let locs = definition(src, 2, 27, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]

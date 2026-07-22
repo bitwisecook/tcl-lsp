@@ -588,6 +588,15 @@ pub struct ClassDef {
     pub exports: HashSet<String>,
     /// Methods explicitly unexported via ``unexport``.
     pub unexports: HashSet<String>,
+    /// Names genuinely bareword-callable from any method body of this
+    /// class, because ``link`` (``oo::Helpers::link``) installed a
+    /// per-object-namespace alias — keyed by the alias name, valued by
+    /// the real member name it dispatches to via ``my TARGET`` (alias ==
+    /// target for the plain ``link NAME`` form). In contrast, a bareword
+    /// matching an un-linked sibling method/classmethod/property name is
+    /// **not** reachable that way and errors "invalid command name" at
+    /// runtime (issue #923 idx 113).
+    pub linked_members: HashMap<String, String>,
     /// Doc-comment text harvested from the line(s) above the
     /// ``oo::class create`` / ``oo::define`` statement.
     pub doc: String,
@@ -629,6 +638,7 @@ impl Default for ClassDef {
             filters: Vec::new(),
             exports: HashSet::new(),
             unexports: HashSet::new(),
+            linked_members: HashMap::new(),
             doc: String::new(),
             via_define: false,
         }

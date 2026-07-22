@@ -2364,6 +2364,136 @@ mod tcloo_classes {
 }
 
 // ===========================================================================
+// oo::Helpers::link — ClassDef::linked_members population (issue #923
+// idx 113). Consumer-side (definition/hover resolution) is covered in
+// tcl-lsp-core; this module is about `collect_oo_links` itself.
+// ===========================================================================
+mod oo_link {
+    use super::*;
+    use tcl_compiler::analyser::ClassDef;
+
+    fn class(src: &str, qn: &str) -> ClassDef {
+        Analyser::new()
+            .analyse(src, D)
+            .all_classes
+            .get(qn)
+            .cloned()
+            .expect("class recorded")
+    }
+
+    #[test]
+    fn single_name_link_records_alias_to_itself() {
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo }\n    method foo {x} { return $x }\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("foo").map(String::as_str),
+            Some("foo")
+        );
+    }
+
+    #[test]
+    fn two_element_link_records_alias_to_a_different_target() {
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link {shortcut realMethod} }\n    method realMethod {x} { return $x }\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("shortcut").map(String::as_str),
+            Some("realMethod")
+        );
+    }
+
+    #[test]
+    fn link_called_from_destructor_is_recorded() {
+        // TP — `collect_method_body` covers constructor/method/destructor
+        // uniformly, and the link scan must too.
+        let cd = class(
+            "oo::class create C {\n    method foo {x} {return $x}\n    destructor { link foo }\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("foo").map(String::as_str),
+            Some("foo")
+        );
+    }
+
+    #[test]
+    fn multiple_single_name_aliases_in_one_link_call_all_record() {
+        // `link foo bar` is TWO independent one-element arguments, not a
+        // single two-element pair — both must be recorded.
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo bar }\n    method foo {x} {return $x}\n    method bar {y} {return $y}\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("foo").map(String::as_str),
+            Some("foo")
+        );
+        assert_eq!(
+            cd.linked_members.get("bar").map(String::as_str),
+            Some("bar")
+        );
+    }
+
+    #[test]
+    fn links_from_different_method_bodies_all_accumulate() {
+        // Links recorded from different member bodies (not just the
+        // constructor) must all accumulate onto the same ClassDef.
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo }\n    method setup {} { link bar }\n    method foo {x} {return $x}\n    method bar {y} {return $y}\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("foo").map(String::as_str),
+            Some("foo")
+        );
+        assert_eq!(
+            cd.linked_members.get("bar").map(String::as_str),
+            Some("bar")
+        );
+    }
+
+    #[test]
+    fn dynamic_link_target_is_not_recorded() {
+        // TN — a dynamic `link $which` is skipped (mirrors
+        // `detect_interp_alias`'s literal-only requirement): no
+        // fabricated alias, conservative fallback to "not reachable".
+        let cd = class(
+            "oo::class create C {\n    variable which\n    constructor {w} { set which $w; link $which }\n    method foo {x} {return $x}\n}\n",
+            "::C",
+        );
+        assert!(cd.linked_members.is_empty(), "{:?}", cd.linked_members);
+    }
+
+    #[test]
+    fn link_for_one_name_does_not_blanket_legitimize_others() {
+        // Precision guard — a link for a DIFFERENT name must not
+        // blanket-legitimize every bareword in the class.
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo }\n    method foo {x} {return $x}\n    method other {y} {return $y}\n}\n",
+            "::C",
+        );
+        assert!(cd.linked_members.contains_key("foo"));
+        assert!(!cd.linked_members.contains_key("other"));
+    }
+
+    #[test]
+    fn link_nested_inside_a_conditional_is_not_recorded() {
+        // Deliberately shallow — only a top-level `link` call is
+        // recognised, not one nested inside an `if`/`catch`/… body
+        // argument (matches `scan_my_method_region`'s own accepted
+        // scope boundary for this class of problem).
+        let cd = class(
+            "oo::class create C {\n    constructor {} { if {1} { link foo } }\n    method foo {x} {return $x}\n}\n",
+            "::C",
+        );
+        assert!(cd.linked_members.is_empty(), "{:?}", cd.linked_members);
+    }
+}
+
+// ===========================================================================
 // Diagnostics keyed on command name must hit identically across bare /
 // qualified / aliased spellings.
 //

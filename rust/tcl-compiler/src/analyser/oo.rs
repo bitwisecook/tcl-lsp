@@ -428,6 +428,12 @@ impl Analyser {
                 _ => {}
             }
         }
+        // A bareword-callable-from-this-class fact, gathered before Phase 2
+        // starts (so it's already populated by the time member-lookup
+        // consumers — go-to-definition / hover — read `class_def`, and
+        // regardless of *which* method body called `link`).
+        self.collect_oo_links(&method_bodies, class_def);
+
         // Phase 2: walk each method / accessor body in its own `Method` scope
         // with the formal parameters and the class's instance variables
         // pre-bound; the `initialise` body walks in the enclosing scope.
@@ -453,6 +459,64 @@ impl Analyser {
         }
         for (body, tok) in init_bodies {
             self.analyse_body(&body, tok, scope_path);
+        }
+    }
+
+    /// Scan every collected method/constructor/destructor body's own
+    /// top-level statements for a `link`-headed call (`oo::Helpers::link`,
+    /// a genuine core `TclOO` builtin since 8.6 — `TclOOLinkObjCmd`, on
+    /// every method body's namespace path via `::oo::Helpers`), recording each
+    /// alias into [`ClassDef::linked_members`] (issue #923 idx 113).
+    ///
+    /// `link NAME` installs a per-object-namespace command `NAME` that
+    /// dispatches to `my NAME`; `link {NAME TARGET}` dispatches to `my
+    /// TARGET` instead. Each argument word of one `link` call is an
+    /// independent alias (`link foo bar` installs both `foo` and `bar`),
+    /// and a name/target built from a variable or command substitution is
+    /// skipped (mirrors [`crate::alias::detect_interp_alias`]'s
+    /// literal-only requirement — no lattice lookup here, this runs
+    /// before Phase 2's per-method scope walk even exists).
+    ///
+    /// Deliberately shallow: only a `link` call written directly at a
+    /// body's own top level is recognised, not one nested inside an
+    /// `if`/`catch`/… body argument — the same scope boundary
+    /// `scan_my_method_region`/`scan_obj_method_region` (`references.rs`)
+    /// already accept for this class of "scan a method body for one
+    /// specific call shape" problem.
+    fn collect_oo_links(&self, method_bodies: &[CollectedMethodBody], class_def: &mut ClassDef) {
+        for mb in method_bodies {
+            if mb.body_tok.kind != TokenType::Str {
+                continue;
+            }
+            let base = mb.body_tok.span.start() + u32::from(mb.body_tok.content_offset);
+            let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+                &mb.body_text,
+                base,
+                self.lexer_config(),
+            );
+            for cmd in &cmds {
+                if cmd.is_partial || cmd.texts.first().map(String::as_str) != Some("link") {
+                    continue;
+                }
+                for word in cmd.texts.iter().skip(1) {
+                    if crate::naming::is_dynamic_word(word) {
+                        continue;
+                    }
+                    match crate::tcl_expr_eval::split_tcl_list(word).as_slice() {
+                        [name] if !name.is_empty() => {
+                            let key = name.trim_start_matches("::").to_string();
+                            class_def.linked_members.entry(key.clone()).or_insert(key);
+                        }
+                        [name, target] if !name.is_empty() => {
+                            class_def
+                                .linked_members
+                                .entry(name.trim_start_matches("::").to_string())
+                                .or_insert_with(|| target.clone());
+                        }
+                        _ => {}
+                    }
+                }
+            }
         }
     }
 

@@ -2749,10 +2749,13 @@ fn infer_var_taint(unit: &CompilationUnit, var_name: &str) -> Option<String> {
 
 /// Hover text for a class member at the cursor's byte
 /// offset.  Walks every class whose body span contains the
-/// cursor and looks `word` up against `methods`,
-/// `class_methods`, `properties`, plus the `constructor` /
-/// `destructor` keywords.  Returns a one-line markdown
-/// summary on hit, `None` otherwise.
+/// cursor and looks `word` up against `methods` /
+/// `class_methods` / `properties` — but ONLY when `word` is
+/// genuinely bareword-callable from a method body of this class
+/// (`ClassDef::linked_members`, issue #923 idx 113; see
+/// `lookup_class_member`'s doc for the full rationale) — plus the
+/// `constructor` / `destructor` keywords, unconditionally.
+/// Returns a one-line markdown summary on hit, `None` otherwise.
 fn class_member_hover_text(
     analysis: &AnalysisResult,
     word: &str,
@@ -2764,26 +2767,36 @@ fn class_member_hover_text(
             continue;
         }
         let qname = &class_def.qualified_name;
-        if let Some(m) = class_def.methods.get(word) {
-            let note = oo_method_resolution_note(analysis, qname, word)
-                .map_or(String::new(), |n| format!("  \n{n}"));
-            return Some(format!(
-                "**method** `{qname}::{name}` ({nparam} param(s)){note}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        if let Some(m) = class_def.class_methods.get(word) {
-            let note = oo_method_resolution_note(analysis, qname, word)
-                .map_or(String::new(), |n| format!("  \n{n}"));
-            return Some(format!(
-                "**classmethod** `{qname}::{name}` ({nparam} param(s)){note}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        if let Some(p) = class_def.properties.get(word) {
-            return Some(format!("**property** `{qname}::{name}`", name = p.name));
+        if let Some(target) = class_def.linked_members.get(word) {
+            let linked_note = if target == word {
+                String::new()
+            } else {
+                format!("  \nlinked from `{word}`")
+            };
+            if let Some(m) = class_def.methods.get(target) {
+                let note = oo_method_resolution_note(analysis, qname, target)
+                    .map_or(String::new(), |n| format!("  \n{n}"));
+                return Some(format!(
+                    "**method** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
+                    name = m.name,
+                    nparam = m.params.len(),
+                ));
+            }
+            if let Some(m) = class_def.class_methods.get(target) {
+                let note = oo_method_resolution_note(analysis, qname, target)
+                    .map_or(String::new(), |n| format!("  \n{n}"));
+                return Some(format!(
+                    "**classmethod** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
+                    name = m.name,
+                    nparam = m.params.len(),
+                ));
+            }
+            if let Some(p) = class_def.properties.get(target) {
+                return Some(format!(
+                    "**property** `{qname}::{name}`{linked_note}",
+                    name = p.name
+                ));
+            }
         }
         if word == "constructor" && !class_def.constructors.is_empty() {
             let nparam = class_def.constructors.first().map_or(0, |c| c.params.len());
@@ -4341,22 +4354,69 @@ mod tests {
     // class-member hover
 
     #[test]
-    fn class_member_hover_fires_for_method_inside_body() {
+    fn class_member_hover_bare_sibling_method_without_link_abstains() {
+        // FP (issue #923 idx 113) — a bareword sibling method call is NOT
+        // actually reachable from another method's body unless `link`
+        // exposed it that way; real tclsh: "invalid command name". Must
+        // abstain rather than falsely resolve.
         let src = "oo::class create C {\n    method greet {who} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
-        // Cursor on the first `greet` invocation (line 2,
-        // col 22).
-        let h = hover(src, 2, 22, &analysis, None).expect("hover");
-        assert!(h.value.contains("**method**"), "{}", h.value);
-        assert!(h.value.contains("C::greet"), "{}", h.value);
-        assert!(h.value.contains("1 param"), "{}", h.value);
+        // Cursor on the first `greet` invocation (line 2, col 22).
+        assert!(hover(src, 2, 22, &analysis, None).is_none());
     }
 
     #[test]
-    fn class_member_hover_fires_for_classmethod() {
+    fn class_member_hover_linked_sibling_method_resolves() {
+        // TP (issue #923 idx 113) — `link greet` (called from the
+        // constructor) makes `greet` genuinely bareword-callable, so
+        // hover now resolves. alias == target here, so no "linked from"
+        // note (see the two-element-alias test below for that).
+        let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {who} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Line 3: `    method twice {} { greet ; greet }` — same text/col
+        // as the un-linked test above, one line further down.
+        let h = hover(src, 3, 22, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("C::greet"), "{}", h.value);
+        assert!(h.value.contains("1 param"), "{}", h.value);
+        assert!(!h.value.contains("linked from"), "{}", h.value);
+    }
+
+    #[test]
+    fn class_member_hover_two_element_link_alias_notes_the_real_target() {
+        // TP (issue #923 idx 113) — `link {shortcut realMethod}` aliases
+        // a DIFFERENT bareword to the real method; hover on the alias
+        // must resolve to `realMethod`'s own declaration and note it was
+        // reached via the alias (a currently-live false negative this
+        // closes: today's LSP returns no hover at all for `shortcut`).
+        let src = "oo::class create C {\n    constructor {} { link {shortcut realMethod} }\n    method realMethod {x} { return $x }\n    method bar {} { return [shortcut 42] }\n}\n";
+        let analysis = analyse(src);
+        // Line 3: `    method bar {} { return [shortcut 42] }` — col 28
+        // lands on the `s` of `shortcut`.
+        let h = hover(src, 3, 28, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("C::realMethod"), "{}", h.value);
+        assert!(h.value.contains("linked from `shortcut`"), "{}", h.value);
+    }
+
+    #[test]
+    fn class_member_hover_bare_sibling_classmethod_without_link_abstains() {
+        // FP (issue #923 idx 113) — same shape as the method case above,
+        // for `classmethod`.
         let src = "oo::class create C {\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
         let analysis = analyse(src);
-        let h = hover(src, 2, 20, &analysis, None).expect("hover");
+        assert!(hover(src, 2, 20, &analysis, None).is_none());
+    }
+
+    #[test]
+    fn class_member_hover_linked_sibling_classmethod_resolves() {
+        // TP (issue #923 idx 113) — `link factory` makes the classmethod
+        // hover resolve.
+        let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
+        let analysis = analyse(src);
+        // Line 3: `    method use {} { factory }` — same text/col as the
+        // un-linked test above, one line further down.
+        let h = hover(src, 3, 20, &analysis, None).expect("hover");
         assert!(h.value.contains("**classmethod**"), "{}", h.value);
         assert!(h.value.contains("C::factory"), "{}", h.value);
     }
