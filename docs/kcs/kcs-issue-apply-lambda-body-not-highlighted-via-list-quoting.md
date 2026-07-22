@@ -270,7 +270,34 @@ no instances of its own:
    as genuinely isolated (fresh scope rooted at the lambda's own namespace,
    params bound only from the lambda's own element 0, no enclosing-proc state
    threaded in) — this line of the codebase predates the recent fixes and
-   was already correct.
+   was already correct. Unlike the highlighting/analysis-text consumers
+   above (which recurse by re-segmenting a body-text slice and so had to be
+   *taught* isolation one file at a time), this layer gets it for free
+   structurally: `lower_apply` builds each lambda body as its own
+   `FunctionUnit` with its own `CfgFunction`/SSA graph — a bare `$var` inside
+   the lambda has no shared symbol table to wrongly resolve against, and
+   `taint_interproc.rs` seeds its proc-name set from
+   `cu.ir_module.procedures.keys()` only, so a body unit's taint always falls
+   back to its own bare facts rather than an inherited merge. `var_escape` /
+   `memory_ssa` / `shimmer` don't visit body units at all (they iterate
+   `analysable_functions()`, procedures only) — a coverage gap, not a leak,
+   since every `apply` call site is already a `Statement::Barrier` those
+   passes treat as clobber-everything regardless.
+
+   One latent, currently-unreachable landmine for the same bug class: like
+   `var_escape`/`memory_ssa`/`shimmer`, `class_lattice.rs`'s
+   `collect_assign_kinds` / `build_class_values` iterate `top_level +
+   procedures + methods`, excluding body units — so its `NsContext::enclosing`
+   (a pure lexical-span lookup against `namespace eval` ranges, with no
+   `apply`-frame awareness at all) never runs on an apply-lambda body's
+   statements today. If a future change ever widens that iteration to cover
+   body units (mirroring how taint's `analysable_body_function_units()` was
+   added), a bare class name inside an `apply {…}` lexically nested in a
+   `namespace eval NS {…}` block would resolve via the lexically-enclosing
+   `NS` instead of Tcl's actual default (`::`, or the lambda's own third
+   element) — the exact bug class fixed above, just for class-value
+   inference. Not a fix here since there's nothing live to fix; a flag for
+   whoever touches that iterator next.
 
 ## Failure modes
 
