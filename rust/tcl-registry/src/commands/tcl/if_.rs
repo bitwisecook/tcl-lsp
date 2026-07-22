@@ -185,9 +185,24 @@ fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
 }
 
 /// Command spec for `if`.
+///
+/// Synopsis, grammar, and semantics are identical across Tcl 8.4, 8.5, 8.6,
+/// 9.0, and 9.1: the if(n) manpage's SYNOPSIS, DESCRIPTION, and EXAMPLES
+/// sections are word-for-word identical on all five version trees (the only
+/// differences across the five pages are typographic — an ASCII vs. Unicode
+/// quote glyph around "noise words", and a hyphen vs. em dash in the NAME
+/// line). `if` has never taken an option, never gained or lost a form, and
+/// has no version-gated behaviour to model here.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",
+        // Present, unrestricted, and never named in `IRULES_DISABLED_COMMANDS`
+        // or any other dialect's `disabled_commands` list (checked against
+        // tcl-dialect/src/profile.rs) — `if` is a pure control-flow keyword
+        // with no filesystem/process/network access, so every dialect that
+        // hosts a real Tcl core (irules, iapps, tmsh, the EDA shells, expect,
+        // tk) carries it unmodified.
+        dialects: None,
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
@@ -217,10 +232,10 @@ pub fn spec() -> CommandSpec {
                 "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else? ?bodyN?",
                 "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?",
             ],
-            snippet: "Expressions are evaluated left-to-right until a true branch is selected.",
-            source: "Tcl if(1)",
-            examples: "",
-            return_value: "",
+            snippet: "Each expr is evaluated left to right, the same way expr evaluates its argument, until one is true; that clause's body runs and no later expr or body is touched. `then` and `else` are optional noise words kept only for readability — `if {$x} then {body}` and `if {$x} {body}` are equivalent. A boolean value is either numeric (0 is false, anything else is true) or one of the strings true/yes/false/no. Any number of elseif clauses may appear, including none, and the final body may be introduced with `else` or left bare with no keyword at all; an `else` with no body is an error, but a bare trailing body needs no `else` to be recognised. With no true expr and no final body, `if` returns an empty string.",
+            source: "Tcl if(n)",
+            examples: "if {$vbl == 1} {\n    puts \"vbl is one\"\n} elseif {$vbl == 2} {\n    puts \"vbl is two\"\n} else {\n    puts \"vbl is not one or two\"\n}",
+            return_value: "The result of whichever body script ran, or an empty string if no expr was true and no final body was given.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
