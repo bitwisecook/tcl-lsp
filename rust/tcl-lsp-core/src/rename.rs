@@ -429,8 +429,19 @@ fn rename_method_in_class(
     }
     let mut edits = Vec::new();
     for member in &family {
+        // `$obj method` dispatch can only ever reach an *instance* method
+        // (never a classmethod, which is called on the class object itself —
+        // confirmed against tclsh 9.0.4, see
+        // `tcl_compiler::analyser::diagnostics::var_command`'s dispatch-scope
+        // note), so force `Method` even if a family member also happens to
+        // have a same-named classmethod.
         let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
-            source, dialect, analysis, member, method,
+            source,
+            dialect,
+            analysis,
+            member,
+            method,
+            Some(MemberSel::Method),
         ) else {
             continue;
         };
@@ -540,8 +551,9 @@ pub fn method_spans_in_document(
     class_q: &str,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
-    match crate::references::method_references_for_class(source, dialect, analysis, class_q, method)
-    {
+    match crate::references::method_references_for_class(
+        source, dialect, analysis, class_q, method, None,
+    ) {
         Some((decl, calls)) => {
             let mut spans = Vec::with_capacity(1 + calls.len());
             spans.push(decl);
@@ -941,7 +953,12 @@ fn rename_method(
         if matches!(selected_kind, MemberSel::Method | MemberSel::ClassMethod) {
             for member in override_family(analysis, &class_def.qualified_name, word) {
                 let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
-                    source, dialect, analysis, &member, word,
+                    source,
+                    dialect,
+                    analysis,
+                    &member,
+                    word,
+                    Some(selected_kind),
                 ) else {
                     continue;
                 };
@@ -1787,6 +1804,30 @@ mod tests {
             method_edits.iter().all(|e| e.range.start_line != 1),
             "must not touch the same-named property: {method_edits:?}"
         );
+    }
+
+    /// Regression: an instance `method` and a `classmethod` sharing a name
+    /// (rare, but `TclOO` keeps them in independent tables, so it's legal)
+    /// must never cross-link during rename — `my <word>` dispatch scope
+    /// depends on which table the *caller's own body* belongs to (`self` is
+    /// the class object inside a `classmethod`, the instance everywhere
+    /// else), so renaming the classmethod must not touch a `my greet` site
+    /// that actually dispatches to the unrelated instance method — doing so
+    /// would corrupt otherwise-working code (the call would then reference
+    /// a name that no longer exists on the instance).
+    #[test]
+    fn rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site() {
+        let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n    method twice {} { my greet }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the *classmethod* declaration (line 2, col 16).
+        let edits = rename(src, "tcl", 2, 16, "hail", &analysis, None);
+        assert_eq!(
+            edits.len(),
+            1,
+            "only the classmethod's own decl — `twice`'s `my greet` targets \
+             the unrelated instance method and must be untouched: {edits:?}"
+        );
+        assert_eq!(edits[0].range.start_line, 2, "{edits:?}");
     }
 
     // property rename

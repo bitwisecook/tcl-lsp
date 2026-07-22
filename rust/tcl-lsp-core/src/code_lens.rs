@@ -63,6 +63,7 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
+use crate::references::MemberSel;
 
 /// One code-lens entry — anchor range plus a command label.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,9 +202,20 @@ fn emit_class_member_lenses(
 ) {
     // Reference count for one member, matching the peek exactly: the number
     // of call sites (declaration excluded) the shared resolver returns.
-    let member_ref_count = |name: &str| -> usize {
-        crate::references::method_references_for_class(source, dialect, analysis, class_q, name)
-            .map_or(0, |(_decl, calls)| calls.len())
+    // `kind` is known at the call site (whether `m` came from `.methods` or
+    // `.class_methods`) and is passed through so a method/classmethod name
+    // collision on this class resolves to the right table, not a
+    // methods-first guess.
+    let member_ref_count = |name: &str, kind: MemberSel| -> usize {
+        crate::references::method_references_for_class(
+            source,
+            dialect,
+            analysis,
+            class_q,
+            name,
+            Some(kind),
+        )
+        .map_or(0, |(_decl, calls)| calls.len())
     };
     let push_lens = |name_span: tcl_lexer::Span, title: String, lenses: &mut Vec<CodeLens>| {
         let start = line_index.position_at_utf16(name_span.start(), source);
@@ -222,17 +234,23 @@ fn emit_class_member_lenses(
             qname: String::new(),
         });
     };
-    for m in class_def
+    for (kind, m) in class_def
         .methods
         .values()
-        .chain(class_def.class_methods.values())
+        .map(|m| (MemberSel::Method, m))
+        .chain(
+            class_def
+                .class_methods
+                .values()
+                .map(|m| (MemberSel::ClassMethod, m)),
+        )
     {
         if m.name_span.is_empty() {
             continue;
         }
         push_lens(
             m.name_span,
-            reference_count_title(member_ref_count(&m.name)),
+            reference_count_title(member_ref_count(&m.name, kind)),
             lenses,
         );
     }

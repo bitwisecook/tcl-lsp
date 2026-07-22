@@ -33,6 +33,10 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
+        // The script fires later, when the channel becomes ready — a
+        // different call frame than the one that registered it (same
+        // reasoning as `after`'s `body_kind`, which see).
+        body_kind: BodyKind::Structural,
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,

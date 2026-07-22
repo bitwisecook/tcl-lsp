@@ -219,6 +219,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan event channelId event ?script?",
         return_type: Some(TclType::String),
         arg_roles: &[(2, ArgRole::Body)],
+        // The script fires later, when the channel event occurs — a
+        // different call frame than the one that registered it (same
+        // reasoning as `after`'s `body_kind`, which see).
+        body_kind: BodyKind::Structural,
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,

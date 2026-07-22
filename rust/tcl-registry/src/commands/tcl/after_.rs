@@ -92,6 +92,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Arrange for a script to be evaluated later as an idle callback.",
         synopsis: "after idle script ?script script ...?",
         return_type: Some(TclType::String),
+        // Same different-frame reasoning as the default form — see the
+        // top-level spec's `body_kind`.
+        body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -114,6 +117,15 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         arg_role_resolver: Some(after_arg_roles),
+        // The script runs later, dispatched by the event loop once the
+        // delay elapses — a different call frame than the one that
+        // registered it (confirmed: a bare variable reference inside the
+        // script does not see the registering proc's locals when it fires,
+        // any more than a `TclOO` method's per-invocation `my`/`next`
+        // survive past that method's own call). `Structural`, matching
+        // `uplevel`'s rationale, so neither SSA dataflow nor `my`/`next`/
+        // `$obj method` dispatch scanning treats it as same-frame.
+        body_kind: BodyKind::Structural,
         subcommands: SUBCOMMANDS,
         // `after 200 …` — an integer first word selects the default
         // delayed-execution form rather than dispatching on a subcommand.
