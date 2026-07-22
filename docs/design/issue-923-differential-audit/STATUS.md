@@ -26,9 +26,9 @@ remove them from §6a's "not yet fixed" table).
 
 **tl;dr:** A deep differential-audit campaign against real-world Tcl code
 found ~66 confirmed LSP correctness bugs so far (22 in tcllib, 39+ across 7
-other corpora, more still being found). 10 tcllib bugs are fixed, tested, and
-pushed to this branch. 11 more tcllib bugs are triaged with fix plans
-(5 of them researched in detail). The 56-finding main-wave audit (other 7
+other corpora, more still being found). 11 tcllib bugs are fixed, tested, and
+pushed to this branch. 10 more tcllib bugs are triaged with fix plans
+(4 of them researched in detail). The 56-finding main-wave audit (other 7
 corpora) was resumed 2026-07-22 after stalling mid-run (see §6b) — check its
 current state before assuming it's still 32/56. Nothing is lost — the raw
 data, the exact scripts that produced it, and everything needed to resume
@@ -148,6 +148,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `e77879b` | tcllib idx 105 | (rebased from `1973832`) W123 false positive + harmful "replace with `exit`" quickfix for a bare `exists`/`get` call inside a proc defined under `::tcl::dict` (the ensemble's dynamically-mapped implementation namespace) — new `CommandSpec::implementation_namespace` field plus per-subcommand standalone `CommandSpec`s (`dict::qualified_specs`) so `::tcl::dict::exists` resolves as a real, independently-callable command the way C Tcl actually implements the ensemble. |
 | `9bd26c8` | tcllib idx 106 | (rebased from `c6936d7`) `namespace ensemble create -map`/`-subcommands` targets were never resolved for definition/hover/references/rename — new `AnalysisResult::ensemble_subcommand_targets` (per-ensemble subcommand→target-proc map, populated in `handlers.rs`) threaded through **both** command-invocation-recording pipelines (top-level `process_command` and nested-`[...]`-substitution `push_collected_heads`) as an existence-probed reference, then consumed by `tcl-lsp-core`'s definition/hover/references providers via the same `instance_method_at_cursor` cursor-shape helper TclOO method dispatch already used (`receiver method` and `ensemble subcommand` share the identical syntax). Tier 2 (cross-file ensemble resolution) intentionally scoped out as a separate follow-up. |
 | `b56d0f9` | tcllib idx 3 | `rename OLD NEW` treated either argument as unconditionally dynamic the instant it contained `$`/`[`, even when the value was a compile-time constant (`set old ::foo_impl; rename $old ::foo`). New `Analyser::resolve_rename_arg` tries `resolve_const_word` (a pure single `Var`/literal token) then a new `text::fold_interpolation_single` (multi-token concatenation) against the existing `lookup_const_string` lattice — no new lattice, mirrors `resolve_expansion_count`'s precedent for `{*}$var`. Deliberately out of scope (documented via two FN tests): a `foreach` loop variable and a bare proc parameter are never constant-tracked, so the tcllib `json::SwitchTo` idiom this finding was mined from stays unresolved — needs interprocedural constant propagation, a separate follow-up. Also confirmed unaffected (pre-existing, separately-scoped gaps): hover and same-file references through any rename, even the always-worked fully-literal case. |
+| `b8f8d1e` | tcllib idx 110 | `namespace eval $ns [list namespace unknown $handler]` (tcllib's `namespacex::hook::Set` idiom) never installed as far as the analyser could tell — the `[...]` body is a `Cmd`-kind token `analyse_body`'s literal-`{...}`-only body walk never enters, and the generic nested-substitution scan resolves the segment's head to `list`, never dispatching `AnalyserHookId::NamespaceUnknown` — so a call the handler chain resolves at runtime drew a false W123. New `Analyser::detect_list_wrapped_namespace_unknown`, called from `handle_namespace_eval_command` (shared by `namespace eval`/`namespace inscope`), descends the `Cmd` body one level with the same `cmd_fragments`/`descend_token`/`segments_from_tree` idiom already used three times elsewhere for nested-substitution discovery, and on an exact `list namespace unknown ?HANDLER?` match calls the existing `handle_namespace_unknown_command` unmodified. Deliberately narrow (pinned via a dedicated test): does not recognise the same idiom built via `concat`/`format`/`linsert`/a helper proc. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -290,19 +291,19 @@ from scratch:
 
 ## 6. Remaining work, prioritized
 
-### 6a. tcllib — 11 CONFIRMED findings, not yet fixed
+### 6a. tcllib — 10 CONFIRMED findings, not yet fixed
 
-**idx 105, 106, and 3 are done** (fixed, tested, pushed — see §3's `e77879b`
-/ `9bd26c8` / `b56d0f9` rows); removed from the table below. 11 remain.
+**idx 105, 106, 3, and 110 are done** (fixed, tested, pushed — see §3's
+`e77879b` / `9bd26c8` / `b56d0f9` / `b8f8d1e` rows); removed from the table
+below. 10 remain.
 
-All in `data/07-remaining-tcllib-findings-14.json`; the remaining 5 of the
+All in `data/07-remaining-tcllib-findings-14.json`; the remaining 4 of the
 original 8 refined plans in `data/08-research-plans-PARTIAL-8of14.json` cover
-idx 9, 110, 113, 116, 120. Suggested order (by severity, then by whether a
+idx 9, 113, 116, 120. Suggested order (by severity, then by whether a
 refined plan exists):
 
 | idx | severity | feature | one-line summary | refined plan? |
 |---|---|---|---|---|
-| 110 | medium | unknown | `namespace eval $ns [list namespace unknown $handler]` (list-wrapped, not literal) not recognised as installing a namespace-unknown handler → false W123. | yes |
 | 113 | medium | aliasing | Any bareword inside a TclOO class body matching a sibling method name resolves to it, even with no `link`/`forward`/`my` making it reachable. | yes |
 | 9 | medium | safe_interp | `set mpip [interp create -safe]` (auto-generated name via a variable) never tracked, so `interp alias $mpip ...` cross-domain resolution never fires. | yes |
 | 120 | medium | tclOO | A class's own bound command name (`ActiveRecord find ...` calling its own `classmethod`) never resolves — `receiver_instance_class` requires `instance_classes`/`created_instance_commands`, never populated for the class-defining call itself. | yes |
@@ -428,9 +429,9 @@ manual differential checks — see its own docstring for usage
    §3) before starting; merge (not rebase, once you've started your own new
    commits on top) if anything new is there.
 3. Recreate the tclsh9.0/8.6 oracle environment (§7).
-4. Pick the next tcllib finding from §6a (idx 9, 110, 113, 116, or 120 —
-   all have refined plans and are medium severity, well-specified; 105, 106,
-   and 3 are already done).
+4. Pick the next tcllib finding from §6a (idx 9, 113, 116, or 120 — all have
+   refined plans and are medium severity, well-specified; 105, 106, 3, and
+   110 are already done).
 5. Follow the playbook in §2/§4. Commit after each finding (or tightly
    related cluster of findings), same granularity as the fixes already
    landed — don't batch unrelated fixes into one commit.
