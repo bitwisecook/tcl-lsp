@@ -2337,15 +2337,37 @@ short 1 2
 }
 
 #[test]
-fn same_file_dynamic_rename_or_alias_target_does_not_false_positive() {
-    // A dynamically-named rename target can't be resolved statically —
-    // must never invent a diagnostic.
+fn same_file_dynamic_but_resolvable_rename_target_checks_arity() {
+    // `$newname` is dynamic-*looking* but a known constant (`set newname
+    // target_orig`) — issue #923 idx 3's constant-folding fix now
+    // resolves it, so `target_orig` correctly inherits `target`'s arity
+    // (a rename is a pure name move, never an arity change) and a call
+    // with too few arguments is caught exactly like the fully-literal
+    // `same_file_static_rename_inherits_original_arity` case. Before
+    // that fix this whole rename was untracked (dynamic per a naive
+    // `$`-in-the-text check), so `target_orig 1` was silently missed.
     let src =
         "proc target {a b c} {}\nset newname target_orig\nrename target $newname\ntarget_orig 1\n";
     assert_eq!(
         arity_codes(src, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "newname's value is a known constant, so this rename must resolve and check arity"
+    );
+    let ok = src.replace("target_orig 1\n", "target_orig 1 2 3\n");
+    assert_eq!(arity_codes(&ok, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn same_file_genuinely_dynamic_rename_target_does_not_false_positive() {
+    // Unlike the sibling test above, `newname`'s value here is never a
+    // tracked compile-time constant (piped through `gets`) — the rename
+    // stays genuinely unresolvable and must never invent a diagnostic.
+    let src =
+        "proc target {a b c} {}\nset newname [gets stdin]\nrename target $newname\ntarget_orig 1\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
         Vec::<String>::new(),
-        "a dynamic rename target must not be resolved to target's arity"
+        "a genuinely dynamic rename target must not be resolved to target's arity"
     );
 }
 
@@ -6620,16 +6642,37 @@ fn analyse_static_rename_does_not_set_has_dynamic_providers() {
 }
 
 #[test]
-fn analyse_dynamic_rename_still_sets_has_dynamic_providers() {
-    // `rename $x y` cannot be resolved statically, so the document
-    // still falls back to the conservative `has_dynamic_providers`
-    // flag, matching `command_binding.rs`'s wildcard-collapse
-    // convention for the identical shape.
+fn analyse_dynamic_but_resolvable_rename_does_not_set_has_dynamic_providers() {
+    // `$x` is dynamic-*looking* but `x` is a known constant (`set x
+    // set`) — issue #923 idx 3's constant-folding fix now resolves this
+    // exactly like the fully-static
+    // `analyse_static_rename_does_not_set_has_dynamic_providers` case,
+    // instead of falling back to the conservative
+    // `has_dynamic_providers` flag.
     let mut a = Analyser::new();
     let r = a.analyse("set x set\nrename $x myset\n", "tcl");
     assert!(
+        !r.has_dynamic_providers,
+        "x's value is a known constant, so this rename must resolve, not widen"
+    );
+    assert_eq!(
+        r.renamed_commands.get("::myset").map(String::as_str),
+        Some("::set")
+    );
+}
+
+#[test]
+fn analyse_genuinely_dynamic_rename_still_sets_has_dynamic_providers() {
+    // Unlike the sibling test above, `x`'s value here is never a
+    // tracked compile-time constant (piped through `gets`) — the
+    // document still falls back to the conservative
+    // `has_dynamic_providers` flag, matching `command_binding.rs`'s
+    // wildcard-collapse convention for the identical shape.
+    let mut a = Analyser::new();
+    let r = a.analyse("set x [gets stdin]\nrename $x myset\n", "tcl");
+    assert!(
         r.has_dynamic_providers,
-        "a dynamic rename must still set has_dynamic_providers"
+        "a genuinely dynamic rename must still set has_dynamic_providers"
     );
     assert!(r.renamed_commands.is_empty());
 }

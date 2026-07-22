@@ -1509,6 +1509,127 @@ mod interp_alias {
 }
 
 // ===========================================================================
+// rename — issue #923 idx 3: constant-folding a dynamic-but-resolvable
+// `rename OLD NEW` argument instead of unconditionally giving up.
+// ===========================================================================
+mod rename {
+    use super::*;
+
+    fn renamed_commands(src: &str) -> std::collections::HashMap<String, String> {
+        Analyser::new().analyse(src, D).renamed_commands.clone()
+    }
+
+    #[test]
+    fn static_rename_recorded_unchanged() {
+        // TN — control check: a fully literal rename never even reaches
+        // the new constant-folding resolver and must keep working
+        // byte-for-byte as before.
+        let src = "proc ::foo_impl {} { return impl }\nrename ::foo_impl ::foo\n";
+        assert_eq!(
+            renamed_commands(src).get("::foo"),
+            Some(&"::foo_impl".to_string())
+        );
+    }
+
+    #[test]
+    fn single_var_old_name_resolves_via_constant_folding() {
+        // TP — finding's own simplest repro #1: a single whole-word
+        // `$var` holding a known-constant command name.
+        let src = "proc ::foo_impl {} { return impl }\nset old ::foo_impl\nrename $old ::foo\n";
+        assert_eq!(
+            renamed_commands(src).get("::foo"),
+            Some(&"::foo_impl".to_string())
+        );
+    }
+
+    #[test]
+    fn concatenated_var_new_name_resolves_via_constant_folding() {
+        // TP — finding's own simplest repro #2: a literal-plus-`$var`
+        // concatenation.
+        let src = "proc ::foo_impl {} { return impl }\nset key impl\nrename ::foo_$key ::foo\n";
+        assert_eq!(
+            renamed_commands(src).get("::foo"),
+            Some(&"::foo_impl".to_string())
+        );
+    }
+
+    #[test]
+    fn two_concatenated_vars_in_same_straight_line_scope_resolve() {
+        // TP — both OLD and NEW built from resolvable variables in the
+        // same straight-line proc scope, the closest Tier-1-fixable
+        // approximation of the tcllib `json::SwitchTo` idiom (which
+        // additionally needs a `foreach` var and a proc parameter — see
+        // the two FN tests below, deliberately out of scope for Tier 1).
+        let src = "namespace eval ::mypkg {}\n\
+             proc ::mypkg::greet_tcl {name} { return \"hi $name\" }\n\
+             proc ::mypkg::activate {} {\n    \
+                 set c greet\n    \
+                 set key tcl\n    \
+                 rename ::mypkg::${c}_$key ::mypkg::${c}\n\
+             }\n";
+        assert_eq!(
+            renamed_commands(src).get("::mypkg::greet"),
+            Some(&"::mypkg::greet_tcl".to_string())
+        );
+    }
+
+    #[test]
+    fn genuinely_dynamic_value_stays_unresolved() {
+        // TN — regression guard against over-eager folding: a value
+        // that's never a compile-time constant (piped through `gets`)
+        // must still be reported dynamic (no entry recorded).
+        let src = "proc ::foo_impl {} { return impl }\nset old [gets stdin]\nrename $old ::foo\n";
+        assert!(!renamed_commands(src).contains_key("::foo"));
+    }
+
+    #[test]
+    fn foreach_loop_variable_is_not_constant_folded() {
+        // FN (expected, documented — not a regression): a `foreach`
+        // loop variable is never entered into the constant-string
+        // lattice (`define_vars_from_list` only calls `define_var`),
+        // so a rename built from it isn't foldable by this
+        // intentionally-scoped-down Tier-1 fix even though the list
+        // here has a single literal element.
+        let src =
+            "proc ::foo_impl {} { return impl }\nforeach c {foo} { rename ::${c}_impl ::${c} }\n";
+        assert!(!renamed_commands(src).contains_key("::foo"));
+    }
+
+    #[test]
+    fn proc_parameter_is_not_constant_folded() {
+        // FN (expected, documented — explicitly out of scope per idx 3's
+        // research plan: closing this needs interprocedural single-
+        // call-site literal-argument propagation, a materially larger,
+        // separate feature).
+        let src = "proc ::foo_impl {} { return impl }\n\
+             proc activate {key} { rename ::foo_$key ::foo }\n\
+             activate impl\n";
+        assert!(!renamed_commands(src).contains_key("::foo"));
+    }
+
+    #[test]
+    fn resolvable_dynamic_rename_no_longer_widens_has_dynamic_providers() {
+        // TN (bonus side effect) — before this fix, ANY dynamic-*looking*
+        // rename set `has_dynamic_providers`, which blanket-suppresses
+        // W123 for the whole file (diagnostics/unresolved.rs). Once the
+        // rename resolves statically, that flag must stay false so W123
+        // keeps firing on genuinely unknown commands elsewhere in the
+        // file.
+        let src = "proc ::foo_impl {} { return impl }\nset old ::foo_impl\nrename $old ::foo\n";
+        assert!(!Analyser::new().analyse(src, D).has_dynamic_providers);
+    }
+
+    #[test]
+    fn unresolvable_rename_still_widens_has_dynamic_providers() {
+        // TN — control check for the above: a genuinely unresolvable
+        // dynamic rename must still widen `has_dynamic_providers`,
+        // unchanged from before this fix.
+        let src = "proc ::foo_impl {} { return impl }\nset old [gets stdin]\nrename $old ::foo\n";
+        assert!(Analyser::new().analyse(src, D).has_dynamic_providers);
+    }
+}
+
+// ===========================================================================
 // TestW123UnresolvedCommand — unknown-command detection.
 // ===========================================================================
 mod unresolved_command {

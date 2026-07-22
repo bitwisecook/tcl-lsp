@@ -2515,6 +2515,38 @@ impl Analyser {
         );
     }
 
+    /// Resolve one `rename` argument to a constant command name: the
+    /// word unchanged when it's already static, else an attempt to
+    /// constant-fold it through the same lexical (last-write-wins)
+    /// constant-string lattice [`Self::lookup_const_string`] already
+    /// serves [`Self::resolve_expansion_count`] for the analogous
+    /// `{*}$var`-with-known-value case (issue #923 idx 3) — first via
+    /// [`Self::resolve_const_word`] (a pure single `Var`/literal token),
+    /// then via [`crate::text::fold_interpolation_single`] for a
+    /// multi-token concatenation (`::mypkg::${c}_$key`). `None` means
+    /// genuinely unresolvable: no token to inspect, a command
+    /// substitution (`[…]`) anywhere in the word, or a variable that
+    /// isn't a tracked constant.
+    fn resolve_rename_arg(
+        &self,
+        text: &str,
+        tok: Option<Token>,
+        is_single: bool,
+        scope_path: &[usize],
+    ) -> Option<String> {
+        if !crate::naming::is_dynamic_word(text) {
+            return Some(text.to_string());
+        }
+        let tok = tok?;
+        if let Some(resolved) = self.resolve_const_word(text, tok, is_single, scope_path) {
+            return Some(resolved);
+        }
+        crate::text::fold_interpolation_single(text, |name| {
+            self.lookup_const_string(name, scope_path)
+                .map(str::to_string)
+        })
+    }
+
     /// Handle `rename OLD NEW` — record a static rename so calls to
     /// `NEW` resolve to whatever `OLD` denoted (the same proc, unchanged
     /// signature — a rename is a pure name move, never an arity change).
@@ -2523,10 +2555,14 @@ impl Analyser {
     /// "invalid command name" afterwards, not a "wrong # args" against
     /// its original signature).
     ///
-    /// Returns `true` when the rename is *dynamic* (`rename $x y` /
-    /// `rename x [y]`, per [`crate::naming::is_dynamic_word`]) and so
-    /// could not be resolved statically — the caller widens
-    /// `has_dynamic_providers` in that case, the same wildcard-collapse
+    /// `OLD`/`NEW` need not themselves be literal words: each is first
+    /// run through [`Self::resolve_rename_arg`], which also resolves a
+    /// constant-foldable dynamic word (`rename $old ::new`, `set key
+    /// impl; rename ::foo_$key ::foo`) — a bare variable read of a
+    /// runtime value (`rename [somecommand] ::new`) or one that folding
+    /// can't pin down still can't be, and only *that* residual case
+    /// returns `true` (dynamic) — the caller widens
+    /// `has_dynamic_providers` then, the same wildcard-collapse
     /// convention `command_binding.rs`'s flow-sensitive lattice uses for
     /// the identical shape. A malformed `rename` (wrong argument count,
     /// already flagged by the registry arity check) is not treated as
@@ -2538,15 +2574,35 @@ impl Analyser {
     /// command name" afterwards) — there is no `NEW` to map it to.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Rename`].
-    pub fn handle_rename(&mut self, args: &[String], arg_tokens: &[Token], offset: u32) -> bool {
+    pub fn handle_rename(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        offset: u32,
+    ) -> bool {
         if args.len() != 2 {
             return false;
         }
-        if crate::naming::is_dynamic_word(&args[0]) || crate::naming::is_dynamic_word(&args[1]) {
+        let Some(old_resolved) = self.resolve_rename_arg(
+            &args[0],
+            arg_tokens.first().copied(),
+            arg_single.first().copied().unwrap_or(false),
+            scope_path,
+        ) else {
             return true;
-        }
-        let old = crate::naming::normalise_qualified_name(&args[0]);
-        let new = crate::naming::normalise_qualified_name(&args[1]);
+        };
+        let Some(new_resolved) = self.resolve_rename_arg(
+            &args[1],
+            arg_tokens.get(1).copied(),
+            arg_single.get(1).copied().unwrap_or(false),
+            scope_path,
+        ) else {
+            return true;
+        };
+        let old = crate::naming::normalise_qualified_name(&old_resolved);
+        let new = crate::naming::normalise_qualified_name(&new_resolved);
         if old.is_empty() {
             return false;
         }
@@ -2565,11 +2621,15 @@ impl Analyser {
         // `NEW` mirrors `handle_interp_delete_command`, so a later
         // `interp create` recreating either name never merges with the
         // interpreter that used to be tracked there (issue #945 fault 8).
-        let old_interp_key = self.qualified_interp_key(&args[0]);
+        // Keyed off the *resolved* text (identical to `args[N]` for an
+        // already-static rename) so a resolvable dynamic handle
+        // (`set h sandbox; rename $h moved`) migrates the tracked state
+        // too, not just the ones spelled out literally.
+        let old_interp_key = self.qualified_interp_key(&old_resolved);
         if let Some(state) = self.interpreters.remove(&old_interp_key) {
             *self.interp_epochs.entry(old_interp_key).or_insert(0) += 1;
             if !new.is_empty() {
-                let new_interp_key = self.qualified_interp_key(&args[1]);
+                let new_interp_key = self.qualified_interp_key(&new_resolved);
                 if self.interpreters.remove(&new_interp_key).is_some() {
                     *self
                         .interp_epochs
@@ -6185,12 +6245,49 @@ mod tests {
         assert!(a.alias_offsets.is_empty());
     }
 
+    // resolve_rename_arg
+
+    #[test]
+    fn resolve_rename_arg_braced_literal_dollar_is_not_mistaken_for_dynamic() {
+        // A brace-quoted word containing a literal `$`/`[` character is
+        // legitimately STATIC — Tcl suppresses substitution inside
+        // `{}` — so this must return it as-is via `resolve_const_word`'s
+        // `Str`/`Esc` branch, even though `is_dynamic_word`'s naive text
+        // scan alone would call it dynamic (issue #923 idx 3).
+        let a = Analyser::new();
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 10),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(
+            a.resolve_rename_arg("::pkg::$c", Some(tok), true, &[]),
+            Some("::pkg::$c".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_rename_arg_missing_token_is_none() {
+        // A dynamic word with no token to inspect (the handful of
+        // existing handle_rename unit tests pass `arg_tokens: &[]`)
+        // must fall through to None, not panic.
+        let a = Analyser::new();
+        assert_eq!(a.resolve_rename_arg("$x", None, false, &[]), None);
+    }
+
     // handle_rename
 
     #[test]
     fn handle_rename_records_static_move() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["target".to_string(), "target_orig".to_string()], &[], 42);
+        let dynamic = a.handle_rename(
+            &["target".to_string(), "target_orig".to_string()],
+            &[],
+            &[],
+            &[],
+            42,
+        );
         assert!(!dynamic, "a fully static rename is not dynamic");
         assert_eq!(
             a.renamed_commands.get("::target_orig").map(String::as_str),
@@ -6217,7 +6314,7 @@ mod tests {
         // itself must be recorded as gone (confirmed against tclsh
         // 9.0.4: also "invalid command name" afterwards).
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["target".to_string(), String::new()], &[], 7);
+        let dynamic = a.handle_rename(&["target".to_string(), String::new()], &[], &[], &[], 7);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert_eq!(a.deleted_commands.get("::target"), Some(&7));
@@ -6226,7 +6323,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_old_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], &[], 0);
+        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], &[], &[], &[], 0);
         assert!(dynamic, "rename $x y cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -6235,7 +6332,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_new_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], &[], 0);
+        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], &[], &[], &[], 0);
         assert!(dynamic, "rename x y[z] cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -6244,7 +6341,7 @@ mod tests {
     #[test]
     fn handle_rename_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["onlyone".to_string()], &[], 0);
+        let dynamic = a.handle_rename(&["onlyone".to_string()], &[], &[], &[], 0);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());

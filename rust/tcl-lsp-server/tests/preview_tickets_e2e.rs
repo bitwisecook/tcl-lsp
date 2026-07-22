@@ -776,3 +776,73 @@ async fn apply_lambda_param_definition_resolves_to_name_for_second_param_e2e() {
     drop(writer);
     server.abort();
 }
+
+/// TP — issue #923 idx 3: `rename OLD NEW` gave up entirely (treated as
+/// unconditionally dynamic, no binding recorded) whenever either argument
+/// contained `$`/`[`, even when the value was a compile-time constant.
+/// `set old ::foo_impl; rename $old ::foo` is the finding's own simplest
+/// repro; before the fix, go-to-definition on the resulting `::foo` call
+/// returned an empty result.
+#[tokio::test]
+async fn dynamic_but_resolvable_rename_definition_follows_the_move_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///rename.tcl",
+        "proc ::foo_impl {} { return \"impl body\" }\nset old ::foo_impl\nrename $old ::foo\nputs [::foo]\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    // `::foo` in `puts [::foo]` (line 3, char 7) — reached only through a
+    // dynamic-but-constant-foldable `rename $old ::foo`.
+    let req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///rename.tcl"},"position":{"line":3,"character":7}}}"#;
+    writer.write_all(frame(req).as_bytes()).await.unwrap();
+    let resp = read_until_id(&mut reader, "\"id\":2", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        !resp.contains(r#""result":[]"#) && !resp.contains(r#""result":null"#),
+        "definition through a resolvable dynamic rename must not be empty: {resp}",
+    );
+    assert!(
+        resp.contains(r#""line":0"#),
+        "must resolve to ::foo_impl's declaration on line 0: {resp}",
+    );
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
+
+/// TN — issue #923 idx 3 regression guard: a rename argument that is
+/// dynamic and genuinely unresolvable (piped through `gets`, never a
+/// tracked compile-time constant) must still abstain — no false
+/// go-to-definition claim.
+#[tokio::test]
+async fn genuinely_dynamic_rename_still_abstains_from_definition_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///rename_dynamic.tcl",
+        "proc ::foo_impl {} { return \"impl body\" }\nset old [gets stdin]\nrename $old ::foo\nputs [::foo]\n",
+    )
+    .await;
+    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    let req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///rename_dynamic.tcl"},"position":{"line":3,"character":7}}}"#;
+    writer.write_all(frame(req).as_bytes()).await.unwrap();
+    let resp = read_until_id(&mut reader, "\"id\":2", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        resp.contains(r#""result":[]"#) || resp.contains(r#""result":null"#),
+        "definition through a genuinely-dynamic rename must abstain, not guess: {resp}",
+    );
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}
