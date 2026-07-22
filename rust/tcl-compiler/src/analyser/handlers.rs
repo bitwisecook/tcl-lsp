@@ -1010,6 +1010,12 @@ impl Analyser {
         let body_span = arg_tokens.get(2).map(|t| t.span);
         let body_text = args.get(2).cloned();
         let body_tok = arg_tokens.get(2).copied();
+        // `namespace eval $ns [list namespace unknown $handler]` — the
+        // list-wrapped installer idiom `analyse_body`'s literal-`{...}`
+        // -only gate below never sees (issue #923 idx 110).
+        if let Some(tok) = body_tok {
+            self.detect_list_wrapped_namespace_unknown(tok);
+        }
 
         // A dynamic target (`namespace eval $name { … }`, the irc.tcl
         // per-connection idiom) can't be resolved to a real namespace path —

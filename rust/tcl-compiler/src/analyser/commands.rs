@@ -1894,6 +1894,57 @@ impl Analyser {
         }
     }
 
+    /// Recognise the tcllib `namespace eval $ns [list namespace unknown
+    /// $handler]` idiom (issue #923 idx 110): the ``[...]`` body is a
+    /// `Cmd` token, so [`Self::analyse_body`]'s literal-`{...}`-only gate
+    /// never walks it as a script, and the generic nested-substitution
+    /// scan resolves the segment's head to `list` (never dispatching
+    /// `AnalyserHookId::NamespaceUnknown`) — so the handler installation
+    /// is invisible to every existing path. Narrowly recognises the
+    /// exact `list namespace unknown ?HANDLER?` shape and, on a match,
+    /// calls [`Self::handle_namespace_unknown_command`] unmodified with
+    /// a synthesised `["unknown", HANDLER?]` args slice, reusing its
+    /// established empty/query-form gating rather than reimplementing
+    /// it.
+    ///
+    /// Deliberately narrow: does not recognise the same idiom built via
+    /// `concat`, `format`, `linsert`, string concatenation, or a
+    /// `list`-building helper proc — a documented scope boundary, not
+    /// an oversight (no attested real-world instance of those forms).
+    pub(super) fn detect_list_wrapped_namespace_unknown(&mut self, body_tok: Token) {
+        if body_tok.kind != TokenType::Cmd {
+            return;
+        }
+        let config = self.lexer_config();
+        // Collect the descended segments first (this borrows
+        // `self.source` through the `SourceMap`); call the `&mut self`
+        // handler afterwards, once the immutable borrow has ended — the
+        // same two-phase shape as `record_invocations_from_cmd_token`.
+        let segs: Vec<SegmentedCommand> = {
+            let sm = SourceMap::new(&self.source);
+            let mut segs = Vec::new();
+            for frag in self.cmd_fragments(body_tok, config) {
+                if frag.kind != TokenType::Cmd || sm.token_text(frag).is_empty() {
+                    continue;
+                }
+                let descended = descend_token(&sm, frag, config);
+                segs.extend(segments_from_tree(descended.tree(), &sm));
+            }
+            segs
+        };
+        for seg in &segs {
+            if seg.texts.len() < 3
+                || seg.texts.len() > 4
+                || seg.texts[0] != "list"
+                || seg.texts[1] != "namespace"
+                || seg.texts[2] != "unknown"
+            {
+                continue;
+            }
+            self.handle_namespace_unknown_command(&seg.texts[2..]);
+        }
+    }
+
     /// Run the per-command syntactic dispatch
     /// ([`Self::emit_dispatch_site_diagnostics`] — security W101-W312,
     /// bounds W230-W242, W001 / W004 / W304, arity E002-E003, …) on every

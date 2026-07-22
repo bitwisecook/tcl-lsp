@@ -846,3 +846,31 @@ async fn genuinely_dynamic_rename_still_abstains_from_definition_e2e() {
     drop(writer);
     server.abort();
 }
+
+/// FP — issue #923 idx 110: `namespace eval $ns [list namespace unknown
+/// $handler]` (the tcllib `namespacex::hook::Set` idiom) installs a
+/// per-namespace unknown-command handler, but the `[...]` body is a
+/// `Cmd`-kind token that the analyser's literal-`{...}`-only body walk
+/// never enters — so the installer used to be invisible and a call the
+/// handler chain resolves at runtime drew a false W123.
+#[tokio::test]
+async fn list_wrapped_namespace_unknown_installer_suppresses_w123_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///nsunknown.tcl",
+        "proc handler {args} { puts $args }\nnamespace eval ::target [list namespace unknown handler]\nmystery_cmd 1\n",
+    )
+    .await;
+    let diags = published_codes(&mut reader, "file:///nsunknown.tcl").await;
+    assert!(
+        !diags.contains("W123"),
+        "a resolvable list-wrapped namespace-unknown installer must suppress W123: {diags}",
+    );
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}

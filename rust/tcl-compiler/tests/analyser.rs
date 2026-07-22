@@ -1835,6 +1835,91 @@ mod unresolved_command {
     }
 
     #[test]
+    fn list_wrapped_namespace_unknown_installer_suppresses_w123() {
+        // FP — issue #923 idx 110: `namespace eval $ns [list namespace
+        // unknown $handler]` (tcllib's `namespacex::hook::Set` idiom) is
+        // a `Cmd`-kind body — `analyse_body`'s literal-`{...}`-only gate
+        // never walks it, and the generic nested-substitution scan
+        // resolves the head to `list`, never `namespace unknown` — so
+        // the installer was previously invisible to every path.
+        let src = "proc handler {args} { puts $args }\nnamespace eval ::target [list namespace unknown handler]\nmystery_cmd 1\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_full_tcllib_idiom_suppresses_w123() {
+        // FP — the full attested shape (mirrors tcllib
+        // modules/namespacex/namespacex.tcl:157-162's `hook::Set`, and
+        // the finding's own repro): the installer is itself wrapped in
+        // another proc, and the handler is installed from inside a
+        // namespace body.
+        let src = "proc ::hooklib::Set {ns handler} {\n    namespace eval $ns [list namespace unknown $handler]\n}\nnamespace eval ::target {\n    proc fallbackHandler {args} { return \"handled:$args\" }\n    ::hooklib::Set ::target [namespace code fallbackHandler]\n    proc run {} { return [mystery arg1 arg2] }\n}\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_via_namespace_inscope_suppresses_w123() {
+        // FP — `namespace inscope` shares the same
+        // `AnalyserHookId::NamespaceEval` hook as `namespace eval`, so
+        // one fix covers both call forms.
+        let src = "proc handler {args} { puts $args }\nnamespace inscope ::target [list namespace unknown handler]\nmystery_cmd 1\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_requires_the_exact_shape() {
+        // TP — over-suppression guards: each of these must still fire
+        // W123, proving the recogniser requires the literal `list
+        // namespace unknown` head with a non-empty handler, not "any
+        // list-wrapped namespace eval body".
+        assert_eq!(
+            w123("namespace eval ::target [list puts hello]\nmystery_cmd 1\n").len(),
+            1,
+            "an unrelated list-wrapped body must not suppress W123"
+        );
+        assert_eq!(
+            w123("namespace eval ::target [list namespace export foo]\nmystery_cmd 1\n").len(),
+            1,
+            "a different namespace subcommand must not suppress W123"
+        );
+        assert_eq!(
+            w123("namespace eval ::target [list namespace unknown]\nmystery_cmd 1\n").len(),
+            1,
+            "the bare query form installs nothing"
+        );
+        assert_eq!(
+            w123("namespace eval ::target [list namespace unknown {}]\nmystery_cmd 1\n").len(),
+            1,
+            "an empty handler resets to the default, installs nothing"
+        );
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_does_not_blanket_suppress_the_namespace() {
+        // TP — negative control: with no `namespace unknown` installer
+        // anywhere, a genuinely unknown command inside the namespace
+        // body must still be flagged.
+        let src = "namespace eval ::target {\n    proc run {} { return [mystery arg1 arg2] }\n}\n";
+        assert_eq!(w123(src).len(), 1);
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_via_concat_is_a_known_remaining_gap() {
+        // FP (documented, NOT fixed by this change) — the same idiom
+        // built via `concat` instead of a literal `list` call is
+        // intentionally out of scope (issue #923 idx 110's fix is
+        // narrow to the exact attested `list namespace unknown` shape).
+        // Pinned so nobody mistakes the narrow fix for a full
+        // generalisation.
+        let src = "proc handler {args} { puts $args }\nnamespace eval ::target [concat namespace unknown handler]\nmystery_cmd 1\n";
+        assert_eq!(
+            w123(src).len(),
+            1,
+            "concat-built installers are a documented, out-of-scope gap"
+        );
+    }
+
+    #[test]
     fn static_rename_target_is_a_known_command() {
         // A static `rename OLD NEW` *defines* NEW (confirmed against tclsh
         // 9.0.4: `rename puts myputs; info commands myputs` lists it), so a
