@@ -18615,6 +18615,36 @@ mod tests {
         );
     }
 
+    /// M9 + issue #923 idx 46: the same re-homing must also fire when the
+    /// `source` target is a same-file constant variable rather than a
+    /// literal path (`set b "b.tcl"; source $b`, the corpus's `set p
+    /// "e.tcl"; source $p` idiom) — previously this whole `source` call
+    /// went untracked, silently abstaining from M9 rehoming entirely.
+    #[tokio::test]
+    async fn sourced_file_defs_rehome_through_a_same_file_constant_variable_idx_46() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\nhelper\n").await;
+        let a_src = "namespace eval ::x { set b \"b.tcl\"; source $b }\n::x::helper\n";
+        register(&backend, &a, a_src).await;
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(a_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&a, a_src, &analysis, Position::new(1, 3), true)
+            .await;
+        assert!(
+            refs.iter().any(|l| l.uri == b && l.range.start.line == 0),
+            "the sourced declaration must be a reference target: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b && l.range.start.line == 1),
+            "the sourced file's own bare call re-homes too: {refs:?}"
+        );
+    }
+
     /// M9, declaration side: references from the sourced file's own
     /// declaration cursor reach the sourcing document's qualified call.
     #[tokio::test]

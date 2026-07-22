@@ -1013,7 +1013,7 @@ impl Analyser {
                 false
             }
             Hook::Source => {
-                self.handle_source_command(args, arg_tokens, scope_path);
+                self.handle_source_command(args, arg_tokens, arg_single, scope_path);
                 false
             }
             Hook::NamespaceImport => {

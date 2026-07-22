@@ -2754,8 +2754,8 @@ impl Analyser {
         );
     }
 
-    /// Resolve one `rename` argument to a constant command name: the
-    /// word unchanged when it's already static, else an attempt to
+    /// Resolve one command argument word to a constant string: the word
+    /// unchanged when it's already static, else an attempt to
     /// constant-fold it through the same lexical (last-write-wins)
     /// constant-string lattice [`Self::lookup_const_string`] already
     /// serves [`Self::resolve_expansion_count`] for the analogous
@@ -2766,7 +2766,13 @@ impl Analyser {
     /// genuinely unresolvable: no token to inspect, a command
     /// substitution (`[…]`) anywhere in the word, or a variable that
     /// isn't a tracked constant.
-    fn resolve_rename_arg(
+    ///
+    /// Shared by any command whose argument names something else purely
+    /// as data rather than computing it — [`Self::handle_rename`]'s
+    /// `OLD`/`NEW` words, and [`Self::handle_source_command`]'s path word
+    /// (issue #923 idx 46: `set p "e.tcl"; source $p`, the same shape
+    /// `rename $old new` already resolved for idx 3).
+    fn resolve_dynamic_word(
         &self,
         text: &str,
         tok: Option<Token>,
@@ -2795,7 +2801,7 @@ impl Analyser {
     /// its original signature).
     ///
     /// `OLD`/`NEW` need not themselves be literal words: each is first
-    /// run through [`Self::resolve_rename_arg`], which also resolves a
+    /// run through [`Self::resolve_dynamic_word`], which also resolves a
     /// constant-foldable dynamic word (`rename $old ::new`, `set key
     /// impl; rename ::foo_$key ::foo`) — a bare variable read of a
     /// runtime value (`rename [somecommand] ::new`) or one that folding
@@ -2824,7 +2830,7 @@ impl Analyser {
         if args.len() != 2 {
             return false;
         }
-        let Some(old_resolved) = self.resolve_rename_arg(
+        let Some(old_resolved) = self.resolve_dynamic_word(
             &args[0],
             arg_tokens.first().copied(),
             arg_single.first().copied().unwrap_or(false),
@@ -2832,7 +2838,7 @@ impl Analyser {
         ) else {
             return true;
         };
-        let Some(new_resolved) = self.resolve_rename_arg(
+        let Some(new_resolved) = self.resolve_dynamic_word(
             &args[1],
             arg_tokens.get(1).copied(),
             arg_single.get(1).copied().unwrap_or(false),
@@ -3455,6 +3461,7 @@ impl Analyser {
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) {
         if args.is_empty() {
@@ -3470,9 +3477,30 @@ impl Analyser {
         }
         let st = arg_tokens[file_idx];
         let path = &args[file_idx];
-        let is_lit = !matches!(st.kind, TokenType::Var | TokenType::Cmd)
-            && !path.contains('$')
-            && !path.contains('[');
+        let is_single = arg_single.get(file_idx).copied().unwrap_or(false);
+        // A dynamic path — a bare `$var` or a concatenation like
+        // `${dir}lit.tcl` — is first tried against the same last-write-wins
+        // constant-string lattice already proven for `rename`'s OLD/NEW
+        // words (issue #923 idx 3): the real corpus idiom is `set p
+        // "e.tcl"; source $p`, a few lines apart in the same file, which
+        // should resolve exactly like the literal `source e.tcl` it's
+        // equivalent to — instead of going untracked and leaking the
+        // sourced file's definitions into every caller as if unconditionally
+        // global (issue #923 idx 46). A `[...]` command substitution
+        // anywhere in the word (e.g. `[file join $dir lit.tcl]`) still
+        // can't be folded this way — `resolve_dynamic_word` rejects it
+        // outright, same as a variable whose value originates in a
+        // different file — both stay conservatively dynamic, falling
+        // through to `evaluate_auto_path_expr`'s narrower `[info script]`
+        // subset unchanged.
+        let (path, is_lit) = match self.resolve_dynamic_word(path, Some(st), is_single, scope_path)
+        {
+            Some(resolved) => {
+                let is_lit = !crate::naming::is_dynamic_word(&resolved);
+                (resolved, is_lit)
+            }
+            None => (path.clone(), false),
+        };
         // `source` evaluates the file in the caller's current namespace (M9):
         // record the command-resolution namespace at this call site so the
         // workspace index can re-home the sourced document's definitions.
@@ -3480,7 +3508,7 @@ impl Analyser {
         self.result
             .source_targets
             .push(crate::signature_scan::types::SignatureSource {
-                raw_path: path.clone(),
+                raw_path: path,
                 range: st.span,
                 is_literal: is_lit,
                 site_namespace,
@@ -6691,10 +6719,10 @@ mod tests {
         assert!(a.alias_offsets.is_empty());
     }
 
-    // resolve_rename_arg
+    // resolve_dynamic_word
 
     #[test]
-    fn resolve_rename_arg_braced_literal_dollar_is_not_mistaken_for_dynamic() {
+    fn resolve_dynamic_word_braced_literal_dollar_is_not_mistaken_for_dynamic() {
         // A brace-quoted word containing a literal `$`/`[` character is
         // legitimately STATIC — Tcl suppresses substitution inside
         // `{}` — so this must return it as-is via `resolve_const_word`'s
@@ -6708,18 +6736,18 @@ mod tests {
             in_quote: false,
         };
         assert_eq!(
-            a.resolve_rename_arg("::pkg::$c", Some(tok), true, &[]),
+            a.resolve_dynamic_word("::pkg::$c", Some(tok), true, &[]),
             Some("::pkg::$c".to_string())
         );
     }
 
     #[test]
-    fn resolve_rename_arg_missing_token_is_none() {
+    fn resolve_dynamic_word_missing_token_is_none() {
         // A dynamic word with no token to inspect (the handful of
         // existing handle_rename unit tests pass `arg_tokens: &[]`)
         // must fall through to None, not panic.
         let a = Analyser::new();
-        assert_eq!(a.resolve_rename_arg("$x", None, false, &[]), None);
+        assert_eq!(a.resolve_dynamic_word("$x", None, false, &[]), None);
     }
 
     // handle_rename
@@ -6791,6 +6819,79 @@ mod tests {
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
+    }
+
+    // handle_source_command
+
+    #[test]
+    fn handle_source_command_resolves_a_same_file_constant_variable() {
+        // The audit's own "reduced to the simplest possible case" control
+        // (issue #923 idx 46): a straight-line `set`, zero branches, zero
+        // external input, immediately followed by `source $var` — the real
+        // corpus's `set p "e.tcl"; source $p` shape, resolved through the
+        // same constant-string lattice already proven for `rename`'s
+        // OLD/NEW words (idx 3), via the now-shared `resolve_dynamic_word`.
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace eval ::z { set p \"e.tcl\"; source $p }\n", "tcl");
+        let target = r
+            .source_targets
+            .iter()
+            .find(|s| s.raw_path == "e.tcl")
+            .unwrap_or_else(|| panic!("resolved literal not found: {:?}", r.source_targets));
+        assert!(target.is_literal, "{target:?}");
+    }
+
+    #[test]
+    fn handle_source_command_resolves_a_concatenated_constant_variable() {
+        // A multi-token word (`${base}.tcl`, a Var fragment concatenated
+        // with a literal) goes through `fold_interpolation_single` rather
+        // than the single-token `resolve_const_word` fast path — covered
+        // separately since it's a different code path inside
+        // `resolve_dynamic_word`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::z { set base \"helper\"; source ${base}.tcl }\n",
+            "tcl",
+        );
+        let target = r
+            .source_targets
+            .iter()
+            .find(|s| s.raw_path == "helper.tcl")
+            .unwrap_or_else(|| panic!("resolved literal not found: {:?}", r.source_targets));
+        assert!(target.is_literal, "{target:?}");
+    }
+
+    #[test]
+    fn handle_source_command_a_dynamic_variable_with_no_known_value_stays_dynamic() {
+        // A proc parameter is never constant-tracked (the same limitation
+        // `resolve_dynamic_word` already documents for `rename`, issue
+        // #923 idx 3) — `source $p` here must stay conservatively dynamic
+        // rather than guess.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {p} { source $p }\n", "tcl");
+        assert_eq!(r.source_targets.len(), 1, "{:?}", r.source_targets);
+        assert!(!r.source_targets[0].is_literal, "{:?}", r.source_targets[0]);
+    }
+
+    #[test]
+    fn handle_source_command_leaves_a_bracket_wrapped_variable_dynamic() {
+        // Deliberately out of scope (issue #923 idx 46): a same-file
+        // constant wrapped inside a `[file join ...]` command
+        // substitution — the real corpus's `source [file join $edir
+        // extra.tcl]` shape — can't be folded by the same-word constant
+        // lattice (`fold_interpolation_single` rejects any word containing
+        // `[` outright, by design — a command substitution can have
+        // arbitrary side effects), and `evaluate_auto_path_expr`'s
+        // separate `[info script]`-anchored folder doesn't evaluate `$var`
+        // at all. Pinned here so a future fix that closes this gap updates
+        // this test deliberately rather than by surprise.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::z { set dir \"lib\"; source [file join $dir extra.tcl] }\n",
+            "tcl",
+        );
+        assert_eq!(r.source_targets.len(), 1, "{:?}", r.source_targets);
+        assert!(!r.source_targets[0].is_literal, "{:?}", r.source_targets[0]);
     }
 
     // handle_oo_objdefine
