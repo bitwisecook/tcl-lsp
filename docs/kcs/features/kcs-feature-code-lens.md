@@ -54,6 +54,10 @@ The lens updates as you type. If you rename or remove a call, the count adjusts 
   clickable command, the same as a proc or class lens — a lens that shows a
   count but does nothing when clicked is a bug (issues #724, #956), not
   expected behaviour.
+- A `method` and a `classmethod` sharing the same name on one class are
+  counted and resolved independently — the method's lens never picks up the
+  classmethod's `ClassName foo` dispatch sites (or vice versa), even though
+  both are legal, separate members.
 
 ## Related
 
