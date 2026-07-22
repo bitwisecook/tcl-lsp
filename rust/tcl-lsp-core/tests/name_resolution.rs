@@ -156,6 +156,96 @@ mod obj_method_dispatch {
         let src = "oo::class create Solo {\n    method ping {} { return pong }\n}\n";
         assert_eq!(refs_at(src, 1, 11), vec![1], "declaration only");
     }
+
+    /// FN→TP regression for the *exact* issue #956 repro: a `variable` and
+    /// `constructor` declared before the `method`, with the method body
+    /// reading the instance variable.  The previous investigation of #956
+    /// tested a simplified `Bar956` fixture without these members and
+    /// concluded the count was already correct — true for the count, but
+    /// the codeLens *command* was still empty (fixed separately in
+    /// `tcl-lsp-core::code_lens` / `tcl-lsp-server`); this locks in that
+    /// find-references itself was never affected by the extra members.
+    #[test]
+    fn fn_to_tp_exact_issue_956_repro_with_constructor_and_variable() {
+        let src = "oo::class create Bar {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n\n    method get {key} {\n        return [dict get $_options $key]\n    }\n\n}\nset b [Bar new]\nputs [$b get foo]\n";
+        // cursor on the `get` declaration name (line 6, col 11).
+        assert_eq!(
+            refs_at(src, 6, 11),
+            vec![6, 12],
+            "decl + `puts [$b get foo]`"
+        );
+    }
+}
+
+// ─────────────────── classmethod dispatch on the class's own command ──────
+
+mod classmethod_dispatch {
+    use super::*;
+
+    /// FN→TP: a `classmethod` dispatches on the *class's own* command
+    /// (`Factory make`) — never on an instance.  Before this fix,
+    /// `find_obj_method_call_sites` only tracked instance handles, so a
+    /// classmethod's reference count and codeLens were always "0
+    /// references" regardless of how many times it was actually called —
+    /// the common (in fact only) classmethod dispatch shape was invisible.
+    #[test]
+    fn tp_bare_class_command_dispatch_is_a_reference() {
+        let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n";
+        // cursor on the `make` declaration name (line 1, col 16); the bare
+        // `Factory make` dispatch is on line 5.
+        assert_eq!(refs_at(src, 1, 16), vec![1, 5], "decl + `Factory make`");
+    }
+
+    /// TP: a subclass that inherits (does not override) the classmethod
+    /// dispatches on its *own* command and still counts as a reference to
+    /// the ancestor's declaration — mirrors the existing instance-method
+    /// inheritance handling.
+    #[test]
+    fn tp_inheriting_subclass_own_command_dispatch_is_a_reference() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\noo::class create SubFactory {\n    superclass Factory\n}\nSubFactory make\n";
+        assert_eq!(
+            refs_at(src, 1, 16),
+            vec![1, 6],
+            "decl + inheriting subclass's own-command dispatch"
+        );
+    }
+
+    /// FP guard: an *overriding* subclass's own dispatch must attribute to
+    /// its own declaration, not the ancestor's — the ancestor's reference
+    /// set must not include it.
+    #[test]
+    fn fp_overriding_subclass_dispatch_excluded_from_ancestor() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n}\noo::class create SubFactory {\n    superclass Factory\n    classmethod make {} { return 2 }\n}\nSubFactory make\n";
+        // cursor on Factory::make (line 1). References must be its
+        // declaration only — `SubFactory make` resolves to SubFactory's own
+        // override, never Factory's.
+        assert_eq!(refs_at(src, 1, 16), vec![1], "override excluded");
+    }
+
+    /// FP guard: a regular *instance* method must never gain bare
+    /// class-command dispatch — `Factory get` (no `$obj`/instance) is not a
+    /// valid `TclOO` call for an instance method, so it must not be
+    /// synthesised as a reference just because the class's own command
+    /// shares a name-set entry point with classmethod dispatch.
+    #[test]
+    fn fp_instance_method_gets_no_bare_class_command_dispatch() {
+        let src = "oo::class create Factory {\n    method get {} { return 1 }\n}\nFactory get\n";
+        // `Factory get` is not a `$obj`/instance dispatch, so it must not be
+        // pulled in — declaration only.
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1],
+            "no phantom class-command dispatch"
+        );
+    }
+
+    /// TN: a declared-but-never-dispatched classmethod has only its
+    /// declaration.
+    #[test]
+    fn tn_uncalled_classmethod_only_declaration() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n}\n";
+        assert_eq!(refs_at(src, 1, 16), vec![1], "declaration only");
+    }
 }
 
 // ───────────────────────── #957 — `my method` references ──────────────────

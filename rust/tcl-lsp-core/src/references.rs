@@ -55,18 +55,23 @@
 //! call (or inside the class body), the provider additionally
 //! scans the whole document for `$v method` / `[$v method]`
 //! call sites where `v`'s class (per
-//! `analysis.instance_classes`) matches.  See
-//! [`find_obj_method_call_sites`] for the scan's coverage.
+//! `analysis.instance_classes`) matches — plus, when the member is a
+//! `classmethod`, every bare `ClassName method` dispatch on the class's
+//! own command (a classmethod is never dispatched via an instance).  See
+//! [`find_obj_method_call_sites`] for the scan's full coverage.
 //!
 //! Limitations:
 //!
 //! * Cross-document references — surfacing references across
 //!   every open document via a workspace-index integration —
 //!   are not supported.
-//! * `$obj method` sites embedded in quoted / word tokens
-//!   (`"prefix[$d bark]"`) — the scan descends into
-//!   command-substitution args and proc / method bodies but
-//!   not into string interpolation.
+//! * A classmethod's class-command dispatch is matched by exact name-set
+//!   membership (the class's as-written simple name plus its fully
+//!   `::`-qualified name) rather than full namespace-relative resolution —
+//!   a call spelled with a *partial* namespace qualifier from a sibling
+//!   namespace (`ns::Factory make` where the class is `::ns::Factory`) is
+//!   not matched.  The same imprecision already applies to `CLASS create
+//!   NAME` object-command dispatch above.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
@@ -944,8 +949,10 @@ fn find_class_member_references(
 /// Find every external `$v method` / `[$v method]` call site
 /// in the document where `v` is an instance variable whose
 /// class qualified-name is `class_q` (per
-/// `analysis.instance_classes`).  Returns the spans of the
-/// method-name tokens.
+/// `analysis.instance_classes`), plus — when `method` is a
+/// `classmethod` — every bare `ClassName method` dispatch on the
+/// defining class's own command (and any inheriting subclass's own
+/// command).  Returns the spans of the method-name tokens.
 ///
 /// Scans three region kinds — the top-level command stream,
 /// each user proc body, and each class method body — and
@@ -979,18 +986,40 @@ pub(crate) fn find_obj_method_call_sites(
         })
         .map(|(v, _)| v.as_str())
         .collect();
-    if var_set.is_empty() {
-        return Vec::new();
-    }
     // Receivers that are also *object commands* — bound by `CLASS create NAME`
     // (so `NAME` is a command, dispatched bare as `NAME method`, not `$NAME
     // method`).  A `set v [CLASS new]` receiver is a *variable* only and never
     // enters this set, so a bare `v method` is (correctly) not matched.
-    let cmd_set: FxHashSet<&str> = var_set
+    let mut cmd_set: FxHashSet<&str> = var_set
         .iter()
         .copied()
         .filter(|name| analysis.created_instance_commands.contains(*name))
         .collect();
+    // A `classmethod` dispatches on the *class's own* command (`Factory
+    // make`) — never on an instance: TclOO's `classmethod` sugar puts the
+    // method on the class object's own class, which no instance's MRO
+    // reaches.  When `method` is one of `class_q`'s classmethods, fold in
+    // the defining class's own name (simple + qualified) plus the own name
+    // of any subclass that inherits (does not override) it — the same
+    // inheritance test as the instance `var_set` above, so a `Sub make`
+    // dispatch on an inheriting subclass counts too.
+    if analysis
+        .all_classes
+        .get(class_q)
+        .is_some_and(|cd| cd.class_methods.contains_key(method))
+    {
+        for (other_q, other_cd) in &analysis.all_classes {
+            if other_q.as_str() == class_q
+                || hierarchy.method_target(other_q, method) == Some(class_q)
+            {
+                cmd_set.insert(other_cd.name.as_str());
+                cmd_set.insert(other_cd.qualified_name.as_str());
+            }
+        }
+    }
+    if var_set.is_empty() && cmd_set.is_empty() {
+        return Vec::new();
+    }
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     let ctx = ObjMethodScan {

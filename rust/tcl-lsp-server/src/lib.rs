@@ -9328,9 +9328,11 @@ impl LanguageServer for Backend {
                     range: lift_lsp_range(l.range),
                     // Carry the qualified name *and* the document URI so
                     // `codeLens/resolve` can recompute the count against the
-                    // live workspace and attach the clickable command.
-                    // Method / class-member lenses have no qname and stay
-                    // informational (their eager title is authoritative).
+                    // live workspace and attach the clickable command.  Every
+                    // lens kind (proc, class, method, classmethod) carries a
+                    // qname today; a lens with none stays eagerly-resolved
+                    // below as a defensive fallback for a future lens kind
+                    // that genuinely has no re-identifiable symbol.
                     data: has_qname
                         .then(|| serde_json::json!({ "qname": l.qname, "uri": uri_str.clone() })),
                     // A reference-count lens is returned WITHOUT a command so the
@@ -9339,8 +9341,8 @@ impl LanguageServer for Backend {
                     // `[uri, position, locations]` arguments.  Setting a command
                     // here would mark the lens resolved, the client would skip
                     // `resolve`, and the lens would render as an inert bare title
-                    // (#724 — "reference is not active").  Informational lenses
-                    // keep their eager title+command (they are never resolved).
+                    // (#724 / #956 — "reference is not active", the latter for
+                    // TclOO method / classmethod lenses specifically).
                     command: (!has_qname).then_some(tower_lsp_server::ls_types::Command {
                         title: l.command_title,
                         command: l.command,
@@ -9360,8 +9362,10 @@ impl LanguageServer for Backend {
     /// workspace keeps the title consistent with Find All References even
     /// when the workspace changed since the lens was produced.
     ///
-    /// A lens with no `{qname, uri}` data (the informational method /
-    /// class-member lenses) is returned unchanged — its eager title stands.
+    /// A lens with no `{qname, uri}` data is returned unchanged — its eager
+    /// title stands.  Every lens kind this server currently emits (proc,
+    /// class, method, classmethod) carries `data`, so this is a defensive
+    /// fallback rather than the common case.
     async fn code_lens_resolve(&self, lens: CodeLens) -> jsonrpc::Result<CodeLens> {
         let Some((qname, uri)) = lens
             .data
@@ -18507,6 +18511,181 @@ mod tests {
         assert_eq!(args[0], serde_json::Value::String(uri.to_string()));
         let locations = args[2].as_array().expect("locations array");
         assert_eq!(locations.len(), 2, "two call sites: {locations:?}");
+    }
+
+    /// Resolve the single member lens on `src` whose declaration sits on
+    /// `decl_line` (0-based) — the harness shared by the `TclOO` method /
+    /// classmethod lens tests below.
+    async fn resolve_member_lens_at_line(
+        backend: &Backend,
+        uri: &Uri,
+        src: &str,
+        decl_line: u32,
+    ) -> CodeLens {
+        register(backend, uri, src).await;
+        let lens_params = CodeLensParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let lenses = backend
+            .code_lens(lens_params)
+            .await
+            .expect("ok")
+            .expect("some lenses");
+        let lens = lenses
+            .into_iter()
+            .find(|l| l.range.start.line == decl_line)
+            .unwrap_or_else(|| panic!("no lens anchored at line {decl_line}: src={src:?}"));
+        backend.code_lens_resolve(lens).await.expect("resolve ok")
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_wires_show_references_command_for_method() {
+        // FN→TP regression for issue #956: the *exact* reported repro — a
+        // TclOO class whose body declares `variable` and `constructor`
+        // before the `method`, with the method body reading the instance
+        // variable and the external dispatch nested in `puts [...]`. The
+        // method lens must resolve to a *clickable* `tcl-lsp.showReferences`
+        // command, not an inert bare title (the `#724` defect recurring for
+        // methods specifically — the count was already correct; only the
+        // command was empty).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///bar956.tcl").unwrap();
+        let src = "oo::class create Bar {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n\n    method get {key} {\n        return [dict get $_options $key]\n    }\n\n}\nset b [Bar new]\nputs [$b get foo]\n";
+        let resolved = resolve_member_lens_at_line(&backend, &uri, src, 6).await;
+        let command = resolved
+            .command
+            .expect("method lens must resolve to a command, not stay inert");
+        assert_eq!(
+            command.command, "tcl-lsp.showReferences",
+            "method lens must invoke the show-references wrapper, got {command:?}",
+        );
+        assert!(
+            !command.command.is_empty(),
+            "command id must never be empty"
+        );
+        assert_eq!(command.title, "1 reference", "{command:?}");
+        let args = command.arguments.expect("showReferences needs arguments");
+        let locations = args[2].as_array().expect("locations array");
+        assert_eq!(
+            locations.len(),
+            1,
+            "the `puts [$b get foo]` dispatch is the one call site: {locations:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_wires_show_references_command_for_classmethod() {
+        // TP: a classmethod lens resolves the same way a method lens does.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///classmethod.tcl").unwrap();
+        let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nset f [Factory make]\n";
+        let resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let command = resolved
+            .command
+            .expect("classmethod lens must resolve to a command, not stay inert");
+        assert_eq!(command.command, "tcl-lsp.showReferences", "{command:?}");
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_for_unused_method_is_clickable_with_zero_locations() {
+        // TN: a declared-but-never-dispatched method still resolves to a
+        // real command (an empty peek is a valid "0 references" click
+        // target) rather than staying inert because the count is zero.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///solo.tcl").unwrap();
+        let src = "oo::class create Solo {\n    method ping {} { return pong }\n}\n";
+        let resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let command = resolved
+            .command
+            .expect("even a 0-reference method lens must carry a real command");
+        assert_eq!(command.command, "tcl-lsp.showReferences", "{command:?}");
+        assert_eq!(command.title, "0 references", "{command:?}");
+        let args = command.arguments.expect("showReferences needs arguments");
+        let locations = args[2].as_array().expect("locations array");
+        assert!(locations.is_empty(), "{locations:?}");
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_disambiguates_same_named_methods_on_different_classes() {
+        // FP guard: two unrelated classes each declaring a method named
+        // `get` must resolve to *independent* lenses — the qname-based
+        // resolve match (`::Bar::method::get` vs `::Foo::method::get`) must
+        // never cross-contaminate the two, and each lens's clickable command
+        // must carry only its own class's call site.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///two_classes.tcl").unwrap();
+        let src = "oo::class create Bar {\n    method get {} { return 1 }\n}\noo::class create Foo {\n    method get {} { return 2 }\n}\nset b [Bar new]\nputs [$b get]\n";
+        let bar_resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let bar_command = bar_resolved.command.expect("Bar::get must resolve");
+        assert_eq!(bar_command.title, "1 reference", "{bar_command:?}");
+
+        let foo_resolved = resolve_member_lens_at_line(&backend, &uri, src, 3).await;
+        let foo_command = foo_resolved.command.expect("Foo::get must resolve");
+        assert_eq!(
+            foo_command.title, "0 references",
+            "Foo::get must not see Bar's dispatch: {foo_command:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_for_inherited_method_counts_subclass_dispatch() {
+        // TP: a subclass that inherits (does not override) a method is a
+        // valid dispatch target for the ancestor's lens — mirrors the
+        // existing `find_obj_method_call_sites` inheritance coverage, wired
+        // through the resolve round-trip.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///inherit.tcl").unwrap();
+        let src = "oo::class create Base {\n    method get {key} { return $key }\n}\noo::class create Sub {\n    superclass Base\n}\nset s [Sub new]\n$s get x\n";
+        let resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let command = resolved.command.expect("Base::get must resolve");
+        assert_eq!(
+            command.title, "1 reference",
+            "`$s get x` dispatches to the inherited Base::get: {command:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_code_lens_ever_carries_an_inert_empty_command() {
+        // Broad regression guard for the #724 / #956 defect class: every
+        // lens this server can emit for a rich TclOO document — proc,
+        // class, method, classmethod, across inheritance — must resolve to
+        // a real, non-empty command id.  A future lens kind that forgets to
+        // carry a qname would be caught here rather than shipping silently
+        // inert.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///rich.tcl").unwrap();
+        let src = "proc helper {} {}\nhelper\noo::class create Base {\n    variable _options\n    constructor {args} { set _options $args }\n    method get {key} { return [dict get $_options $key] }\n    classmethod make {} { return [Base new] }\n    method unused {} { return 0 }\n}\noo::class create Sub {\n    superclass Base\n}\nset b [Base new]\nputs [$b get foo]\nBase make\nset s [Sub new]\n$s get bar\n";
+        register(&backend, &uri, src).await;
+        let lens_params = CodeLensParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let lenses = backend
+            .code_lens(lens_params)
+            .await
+            .expect("ok")
+            .expect("some lenses");
+        assert!(
+            lenses.len() >= 4,
+            "expected proc + class + 2 member lenses, got {lenses:?}"
+        );
+        for lens in lenses {
+            let resolved = backend
+                .code_lens_resolve(lens.clone())
+                .await
+                .expect("resolve ok");
+            let command = resolved.command.unwrap_or_else(|| {
+                panic!("lens at {:?} resolved with no command at all", lens.range)
+            });
+            assert!(
+                !command.command.is_empty(),
+                "lens at {:?} resolved to an inert empty command id: {command:?}",
+                lens.range,
+            );
+        }
     }
 
     #[tokio::test]
