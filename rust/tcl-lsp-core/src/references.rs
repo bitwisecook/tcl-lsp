@@ -757,6 +757,35 @@ pub(crate) fn method_references_for_class(
     Some((decl_span, call_spans))
 }
 
+/// Resolve a property's declaration span plus every `my <property>` call
+/// site — the property counterpart of [`method_references_for_class`], and
+/// the single source of truth the code lens and the reference peek both
+/// defer to so their counts can never drift.  Properties have no `$obj
+/// property` dispatch shape and no inheritance model (confirmed against
+/// tclsh 9.0.4), so a class-local `my <name>` scan — the same matcher
+/// [`scan_my_method_sites`] uses for methods — is the whole story; a
+/// property's own `property <name>` declaration is never itself a `my
+/// <name>` call site, so there's no declaration span to skip. Returns
+/// `None` when `class_q` has no property named `property`.
+pub(crate) fn property_references_for_class(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    property: &str,
+) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    let class_def = analysis.all_classes.get(class_q)?;
+    let decl_span = class_def.properties.get(property)?.name_span;
+    let call_spans = scan_my_method_sites(
+        source,
+        dialect,
+        &collect_member_bodies(class_def),
+        property,
+        None,
+    );
+    Some((decl_span, call_spans))
+}
+
 /// The `next` / `nextto` super-dispatch spans inside `class_q`'s own `method`
 /// body — polymorphic **references** to `method`.  Kept out of
 /// [`method_references_for_class`] because that set also drives *rename*, and
@@ -1125,7 +1154,7 @@ fn find_class_member_references(
         // merges them) disambiguates by which declaration's own span the
         // cursor sits on rather than a fixed priority — see
         // `resolve_member_span`.
-        let (kind, member_span) = resolve_member_span(class_def, word, cursor_offset)?;
+        let (kind, _) = resolve_member_span(class_def, word, cursor_offset)?;
         if matches!(kind, MemberSel::Method | MemberSel::ClassMethod) {
             let is_classmethod = kind == MemberSel::ClassMethod;
             // Methods / classmethods: defer to the shared resolver — the *same*
@@ -1155,21 +1184,16 @@ fn find_class_member_references(
             ));
             return Some((decl, calls));
         }
-        // Properties: no `$obj prop` dispatch and no inheritance model, so a
-        // class-local `my <prop>` scan is the whole story — the same
-        // intra-class `my <name>` matcher [`scan_my_method_sites`] uses for
-        // methods (recursing into `[...]` substitutions and same-frame
-        // control-flow / `eval` bodies), just with no declaration span to
-        // skip: a property's declaration is `property <name>` in the
-        // definer body, never itself a `my <name>` call site.
-        let call_spans = scan_my_method_sites(
+        // Properties: defer to the shared resolver — the *same* one the code
+        // lens counts with — so the peek and the lens can never drift, just
+        // like the method / classmethod branch above.
+        return property_references_for_class(
             source,
             dialect,
-            &collect_member_bodies(class_def),
+            analysis,
+            &class_def.qualified_name,
             word,
-            None,
         );
-        return Some((member_span, call_spans));
     }
     None
 }

@@ -43,6 +43,15 @@
 //! like the proc / class lenses, so it resolves to a clickable
 //! `tcl-lsp.showReferences` command the same way (issue #956).
 //!
+//! Per-property reference-count lenses: each `property` declaration gets
+//! the same treatment, sourced from
+//! [`crate::references::property_references_for_class`] instead — a
+//! class-local `my <property>` scan, since properties have no `$obj
+//! property` dispatch shape and no inheritance model. Carries a
+//! `{class}::property::{name}` qname
+//! ([`tcl_compiler::analyser::class_property_key`]) so it resolves through
+//! the same click-to-references flow (issue #992).
+//!
 //! Cross-document reference counts: when the
 //! caller threads a [`crate::workspace_index::WorkspaceIndex`]
 //! and the document's URI, the proc / class lens count
@@ -180,22 +189,29 @@ pub fn code_lenses(
     lenses
 }
 
-/// Emit per-member reference-count lenses for every method and classmethod
-/// in `class_def`.  The count for each member is the number of call sites
-/// [`references::method_references_for_class`] resolves — the single source
-/// of truth also used by Find All References and rename — so the lens title
-/// and the peek can never drift.  That resolver covers intra-class
-/// `my method` dispatch, external `$obj method` sites (resolved through the
-/// analyser's `instance_classes` variable-type tracking), and the call sites
-/// of any subclass that inherits (does not override) this definition.
+/// Emit per-member reference-count lenses for every method, classmethod, and
+/// property in `class_def`.  The count for a method / classmethod is the
+/// number of call sites [`references::method_references_for_class`]
+/// resolves; for a property it's [`references::property_references_for_class`]
+/// instead (a class-local `my <property>` scan — properties have no `$obj
+/// property` dispatch shape and no inheritance model).  Both are the same
+/// single source of truth also used by Find All References and rename, so
+/// the lens title and the peek can never drift.  The method/classmethod
+/// resolver covers intra-class `my method` dispatch, external `$obj method`
+/// sites (resolved through the analyser's `instance_classes` variable-type
+/// tracking), and the call sites of any subclass that inherits (does not
+/// override) this definition.
 ///
 /// Each lens carries a `{class}::method::{name}` / `{class}::classmethod::{name}`
-/// `qname` ([`tcl_compiler::analyser::class_member_key`]) — the same
+/// / `{class}::property::{name}` `qname`
+/// ([`tcl_compiler::analyser::class_member_key`] /
+/// [`tcl_compiler::analyser::class_property_key`]) — the same
 /// `qname`-present shape as the proc / class lenses — so the server's
 /// `code_lens_resolve` treats it as resolvable and attaches the *clickable*
 /// `tcl-lsp.showReferences` command instead of leaving it an inert bare
 /// title (issue #956: the `#724` "reference is not active" defect,
-/// previously fixed for proc/class lenses, recurring for methods).
+/// previously fixed for proc/class lenses, recurring for methods; issue
+/// #992 extends the same treatment to properties).
 fn emit_class_member_lenses(
     source: &str,
     dialect: &str,
@@ -256,6 +272,21 @@ fn emit_class_member_lenses(
             m.name_span,
             tcl_compiler::analyser::class_member_key(class_q, name, true),
             reference_count_title(member_ref_count(name, true)),
+            lenses,
+        );
+    }
+    for (name, p) in &class_def.properties {
+        if p.name_span.is_empty() {
+            continue;
+        }
+        let count = crate::references::property_references_for_class(
+            source, dialect, analysis, class_q, name,
+        )
+        .map_or(0, |(_decl, calls)| calls.len());
+        push_lens(
+            p.name_span,
+            tcl_compiler::analyser::class_property_key(class_q, name),
+            reference_count_title(count),
             lenses,
         );
     }
@@ -525,6 +556,86 @@ mod tests {
         assert_eq!(qnames.len(), 2, "{lenses:?}");
         assert!(qnames.contains("::C::method::foo"), "{qnames:?}");
         assert!(qnames.contains("::C::classmethod::foo"), "{qnames:?}");
+    }
+
+    // property-member lenses (issue #992)
+
+    /// `property` is Tcl 9.0+ — the shared `analyse()` helper above fixes the
+    /// dialect at 8.6, so these tests analyse at 9.0 directly (mirrors
+    /// `rename.rs`'s property-rename tests).
+    fn analyse90(source: &str) -> AnalysisResult {
+        let mut a = Analyser::new();
+        a.analyse(source, "tcl9.0").clone()
+    }
+
+    #[test]
+    fn lens_counts_property_my_dispatch_within_class_body() {
+        // A property's auto-generated accessor dispatches through `my
+        // <property>`, exactly like a method — `bump` reads/writes `size`
+        // twice, so its lens must read "2 references" the same way a
+        // twice-dispatched method would (`lens_counts_method_calls_within_class_body`).
+        let src = "oo::class create Widget {\n    property size -get {return $mySize} -set {set mySize $value}\n    method bump {} { my size ; my size }\n}\n";
+        let analysis = analyse90(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let size_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("size lens");
+        assert_eq!(size_lens.command_title, "2 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_reports_zero_for_unused_property() {
+        let src = "oo::class create Widget {\n    property size\n}\n";
+        let analysis = analyse90(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let size_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("size lens");
+        assert_eq!(size_lens.command_title, "0 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn property_lens_carries_class_property_key_qname() {
+        let src = "oo::class create Widget {\n    property size\n}\n";
+        let analysis = analyse90(src);
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let size_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("size lens");
+        assert_eq!(
+            size_lens.qname,
+            tcl_compiler::analyser::class_property_key("::Widget", "size"),
+            "{lenses:?}"
+        );
+        assert!(!size_lens.qname.is_empty(), "empty qname stays inert");
+    }
+
+    #[test]
+    fn property_qname_never_collides_with_a_same_named_method() {
+        // FP guard mirroring `method_and_classmethod_qnames_never_collide_on_same_name`:
+        // methods and properties are independent tables, so a `property
+        // color` and a `method color` on the same class must still get two
+        // distinct, disambiguated lenses.
+        let src = "oo::class create C {\n    property color\n    method color {} {}\n}\n";
+        let analysis = analyse90(src);
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let qnames: std::collections::HashSet<&str> = lenses
+            .iter()
+            .filter(|l| l.range.start_line == 1 || l.range.start_line == 2)
+            .map(|l| l.qname.as_str())
+            .collect();
+        assert_eq!(qnames.len(), 2, "{lenses:?}");
+        assert!(qnames.contains("::C::property::color"), "{qnames:?}");
+        assert!(qnames.contains("::C::method::color"), "{qnames:?}");
     }
 
     // workspace-index: cross-document reference counts
