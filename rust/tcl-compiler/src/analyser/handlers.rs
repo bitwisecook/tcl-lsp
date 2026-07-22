@@ -4565,6 +4565,386 @@ mod tests {
         );
     }
 
+    // -- issue #1001: W129 through `[...]` bracket-substitution indirection --
+
+    /// TP (the reported repro): `package ifneeded`'s script argument is
+    /// `ArgRole::Body`-tagged (`Structural` — runs later, via `uplevel #0`,
+    /// never the definer's frame), so a `[list apply {…} $dir]`
+    /// deferred-command idiom sitting there is genuinely invoked later —
+    /// a hidden `source` nested inside the lambda body must draw W129, the
+    /// same way it would if `apply {dir {source …}} $dir` were written
+    /// directly (no `[list …]` wrapper).
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_lambda_body_reports_hidden_source_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 package ifneeded myPackage 1.0 [list apply {dir {\n\
+                     source [file join $dir font.tcl]\n\
+                 }} $dir]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `source` nested inside a list-quoted apply lambda body \
+             (reached only via `package ifneeded`'s deferred script) warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same `[list apply {…} $x]` idiom in an `ArgRole::CommandPrefix`
+    /// position (`trace add variable … command CALLBACK`) — a different
+    /// registry role than `package ifneeded`'s `Body`, exercising the same
+    /// deferred-call resolution through a different gate.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 trace add variable x write [list apply {{a b c} {\n\
+                     exec ls\n\
+                 }} $x]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `exec` nested inside a list-quoted apply lambda body \
+             reached via a CommandPrefix (`trace add … command`) position warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `after idle [list apply {…} $x]` — the `after`/`after idle`
+    /// deferred-callback idiom the issue calls out by name.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_after_idle_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 after idle [list apply {x {\n\
+                     file delete $x\n\
+                 }} val]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `file` nested inside a list-quoted apply lambda body \
+             reached via `after idle` warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `[list source $file]` / `[list exec …]` directly — no `apply` at
+    /// all, `list` command-quoting a hidden command straight.
+    #[test]
+    fn safe_interp_w129_list_quoted_hidden_command_directly_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { after idle [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a bare `[list source …]` in a deferred-call position warns \
+             directly, with no `apply` indirection needed: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard (mirrors #954's `set data [list apply {…} value]`
+    /// non-invocation case, adapted to W129): `[list apply {…} value]`
+    /// sitting in ordinary `set` data — not a `Body` / `LambdaLiteral` /
+    /// `CommandPrefix` argument position — is never invoked, so it must
+    /// never draw W129 even though its lambda body contains a hidden
+    /// command.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_in_plain_data_is_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 set data [list apply {x { source $x }} value]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a `[list apply …]` value that is only ever stored, never \
+             invoked, must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: the exact same list-quoted-apply-with-a-hidden-command
+    /// shape, but with **no** enclosing safe interpreter at all, must not
+    /// warn — and, since this fix's whole mechanism is gated on a
+    /// non-empty `safe_interp_stack`, must not create any new scope either
+    /// (no `apply@…` proc scope, no collateral diagnostics of any other
+    /// kind) — this stays exactly as un-analysed as it was before #1001.
+    #[test]
+    fn list_quoted_apply_lambda_outside_any_safe_interp_is_untouched_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "package ifneeded myPackage 1.0 [list apply {dir {source [file join $dir x]}} $dir]\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.all_procs.is_empty(),
+            "this fix must not widen the general analyser's scope — \
+             the list-quoted lambda body stays un-analysed outside a \
+             safe-interpreter context, exactly as before #1001: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// TP: a direct nested `[…]` bracket substitution (no `list`-quoting at
+    /// all) — `set x [source b.tcl]` — is an *immediate* invocation
+    /// (bracket substitution always evaluates its content right away,
+    /// wherever it appears), so it must warn exactly like a bare top-level
+    /// `source b.tcl` statement would.
+    #[test]
+    fn safe_interp_w129_direct_nested_bracket_substitution_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { set x [source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a directly nested `[source …]` substitution warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same direct-nested shape, reached through a deeper `[…]` /
+    /// braced-body combination (`if {$c} { [exec ls] }` inside another
+    /// substitution) — pins that the fix covers arbitrary nesting depth,
+    /// not just one level.
+    #[test]
+    fn safe_interp_w129_direct_nested_bracket_substitution_deep_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { if {[catch {set y [exec ls]} err]} { puts $err } }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a deeply nested `[exec …]` substitution still warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `{*}[list source $file]` as the *whole* statement — `{*}`
+    /// expansion splices `list`'s result into this statement's own argv, so
+    /// the command's effective head becomes `source`, even though the
+    /// literal head word is the substitution text (never itself a
+    /// registry name).
+    #[test]
+    fn safe_interp_w129_expand_list_quoted_head_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { {*}[list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`{{*}}[list source …]` used as the whole statement warns \
+             on the effective (expanded) head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: `{*}$cmdList` — an opaque variable expansion. Unlike
+    /// `{*}[list source $file]`, the value isn't statically known, so this
+    /// must NOT warn (matches this codebase's "prefer a miss over a false
+    /// positive" stance for dynamic dispatch — the same policy `$cmd $file`
+    /// direct dynamic dispatch already gets).
+    #[test]
+    fn safe_interp_w129_expand_dynamic_var_head_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { set cmdList [list source b.tcl]; {*}$cmdList }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an opaque `{{*}}$var` expansion is not statically resolvable \
+             and must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: a bare dynamic dispatch via a variable (`set cmd source; $cmd
+    /// $file`) is not statically provable and must stay unflagged, matching
+    /// this codebase's existing precedent for dynamic command dispatch.
+    #[test]
+    fn safe_interp_w129_dynamic_variable_dispatch_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { set cmd source; $cmd b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "dynamic dispatch through a variable is not statically \
+             resolvable and must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `eval [list source $file]` — combining `eval` (a `Body`-role
+    /// command) with list-quoting; `eval` evaluates the built string as a
+    /// script, immediately invoking `source`.
+    #[test]
+    fn safe_interp_w129_eval_list_quoted_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { eval [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`eval [list source …]` warns on the resolved head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `uplevel [list source $file]` — the same combination via
+    /// `uplevel` instead of `eval`.
+    #[test]
+    fn safe_interp_w129_uplevel_list_quoted_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { uplevel [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`uplevel [list source …]` warns on the resolved head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: a *safe* command wrapped the same list-quoted-apply way must not
+    /// warn — this fix widens W129's recall, it must not start flagging
+    /// ordinary, allowed calls just because they are reached via `[list
+    /// apply …]`.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_safe_command_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { after idle [list apply {x { puts $x }} val] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a safe command (`puts`) reached via list-quoted apply must \
+             not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// A locally-redefined hidden-builtin name (issue #945 fault 7 follow-up
+    /// — see `safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945`)
+    /// stays callable through this fix's new indirection paths too: once
+    /// `proc source {} {…}` has run earlier in the same interpreter body,
+    /// `source` is a real, locally-defined command — independent of the
+    /// hidden-command table — so a later `[list apply {…} $x]`-nested call
+    /// to it must not warn.
+    #[test]
+    fn safe_interp_w129_redefined_command_not_flagged_through_indirection_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 proc source {} { return ok }\n\
+                 after idle [list apply {{} { source }}]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a locally-redefined name reached via list-quoted apply is \
+             callable, not hidden: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The standard safe-interpreter delegation pattern — the trusted
+    /// parent creates `interp alias s foo {} source`, bridging its *own*
+    /// (non-hidden) `source` into the child under a new name — must not
+    /// warn when `foo` is called inside the child, including through this
+    /// fix's new indirection paths: `foo` is never itself a
+    /// `SAFE_INTERP_HIDDEN` registry name, so the gate correctly leaves it
+    /// alone (rename/`interp alias` cannot resurrect a *hidden* command's
+    /// callability from within the child — confirmed against the `tcl-vm`
+    /// runtime, which resolves both only through the ordinary, hidden-
+    /// command-free lookup table).
+    #[test]
+    fn safe_interp_w129_alias_bridged_command_not_flagged_through_indirection_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp alias s foo {} source\n\
+             interp eval s { after idle [list apply {{} { foo }}] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an alias bridging a capability in from the trusted parent is \
+             not itself a hidden registry name, so it must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
     /// `namespace inscope ::x { proc foo }` runs the body in `::x`, so `foo`
     /// homes to `::x::foo` — the same namespace frame as `namespace eval`, not
     /// the caller's scope.
@@ -6460,6 +6840,45 @@ proc runs {body} {\n\
                 .is_some_and(|s| s.contains(&crate::analyser::ProcArgTrait::Body)),
             "expected NO Body trait without stub directive, got {:?}",
             proc.param_traits.get("body"),
+        );
+    }
+
+    /// Pre-existing, **separate** gap found while investigating issue #1001
+    /// (tracked distinctly, not folded into this fix — see the issue's KCS
+    /// doc): `analyse_per_item`'s shell/body-pass split (`per_item.rs`)
+    /// defers *every* proc/method body — including one nested inside a
+    /// tracked `interp eval` safe-interpreter body — to an isolated second
+    /// pass (`DeferredBody` / `analyse_proc_body_isolated`) that carries no
+    /// `safe_interp_stack` snapshot at all, so W129 never fires for a hidden
+    /// call inside *any* proc body nested in a safe interpreter when
+    /// analysed incrementally (the live LSP server's diagnostics path always
+    /// uses `analyse_per_item`) — even a directly-written call, with no
+    /// bracket-substitution indirection whatsoever. `Analyser::analyse`
+    /// (the whole-file walk; also what every existing W129/#945 unit test
+    /// above uses) is unaffected, since it never defers a body at all. This
+    /// pins the gap so a future fix has a red test to turn green; it is
+    /// out of scope here because it is not specific to bracket-substitution
+    /// indirection (issue #1001's actual subject) and touches the
+    /// differential-fuzzer-gated incremental-analysis core rather than the
+    /// W129 gate itself.
+    #[test]
+    fn safe_interp_w129_lost_across_per_item_deferred_proc_body_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\ninterp eval s { proc f {} { source foo }; f }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "known gap (separate from #1001): per-item analysis currently \
+             loses the hidden `source` call inside `f`'s deferred body — \
+             `Analyser::analyse` (non-per-item) correctly flags it \
+             (`safe_interp_hides_unsafe_commands_and_expose_restores_945`); \
+             flip this assertion once a future fix threads \
+             `safe_interp_stack` through `DeferredBody`: {:?}",
+            r.diagnostics
         );
     }
 }

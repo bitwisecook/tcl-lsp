@@ -28,6 +28,17 @@ interpreter's visible command set (safe state plus any explicit
 [source](../../GLOSSARY.md#source-edge) or definition facts from it,
 because C Tcl never runs it.
 
+The check also follows a hidden command through `[...]` bracket-substitution
+indirection — a direct nested call (`set x [source b.tcl]`), `{*}` expansion
+of a built command, and the pervasive `package ifneeded name ver [list apply
+{dir {...}} $dir]` deferred-command idiom (also seen as `-command [list
+apply {...} $x]`, `after idle [list apply {...} $x]`, `trace add ...
+command [list apply {...} $x]`) — so a hidden `source` nested inside such a
+lambda body is flagged the same way a direct `source` call would be.  The
+underlying runtime already refuses every one of these shapes at execution
+time regardless of whether this diagnostic catches it ahead of time — this
+check is early, editor-time feedback, not the enforcement mechanism itself.
+
 ## Symptoms
 
 - A yellow squiggle appears under a command inside an
@@ -67,3 +78,11 @@ An `interp hide` in a **normal** interpreter draws the same warning for
 the hidden name, and a dynamic `interp hide` / `interp expose` operand
 makes the visible set unknowable, so the analyser abstains entirely for
 that interpreter.
+
+A command reached only through an unresolvable dynamic value (`{*}$cmdList`,
+or `set cmd source; $cmd b.tcl`) is not flagged — its identity cannot be
+proven statically, and this diagnostic prefers a missed warning over a
+false one. See the
+[contributor-level note on the bracket-indirection fix](../kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md)
+for the full list of indirection shapes this check follows (and the ones it
+deliberately does not).

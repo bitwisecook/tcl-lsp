@@ -57,7 +57,7 @@ use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::{AppendedArity, CommandRegistry};
 use tcl_syntax::list::find_element;
 
-use crate::segmenter::segment_commands_with_offset;
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset};
 
 /// A command-prefix callback head extracted from a call site.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -254,6 +254,29 @@ fn extract_list_quoted_prefix_head(
     tok: Token,
     text: &str,
 ) -> Option<(String, Span, usize)> {
+    let seg = list_quoted_command_segment(registry, tok, text)?;
+    let head_tok = seg.argv[1];
+    let baked = seg.texts.len().saturating_sub(2);
+    Some((seg.texts[1].clone(), head_tok.span, baked))
+}
+
+/// Extract the full segmented `list HEAD arg1 arg2 …` command from a
+/// `[list …]` `Cmd` token: `Some` when the token's sole inner command is a
+/// call to a [`tcl_registry::Traits::BUILDS_COMMAND_PREFIX`] command
+/// (`list`) whose own first argument is a literal, resolvable bareword.
+///
+/// `seg.texts[1]` / `seg.argv[1]` is the resolved head; `seg.texts[2..]` /
+/// `seg.argv[2..]` are the words `list` appends after it when the value is
+/// later invoked as a command. Shared by [`extract_list_quoted_prefix_head`]
+/// (which only needs the head/span/baked-count) and the W129 safe-interpreter
+/// gate's deferred-call resolution (`analyser::commands`), which also needs
+/// the full remaining words to recurse into an `apply` lambda body the same
+/// way a direct `apply {…} $x` call would.
+pub(crate) fn list_quoted_command_segment(
+    registry: &CommandRegistry,
+    tok: Token,
+    text: &str,
+) -> Option<SegmentedCommand> {
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
     let content_start = tok.span.start() + u32::from(tok.content_offset);
     let mut segs = segment_commands_with_offset(inner, content_start);
@@ -261,6 +284,9 @@ fn extract_list_quoted_prefix_head(
         return None;
     }
     let seg = segs.pop()?;
+    if seg.texts.len() < 2 {
+        return None;
+    }
     if !registry.get(&seg.texts[0]).is_some_and(|s| {
         s.traits
             .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
@@ -274,10 +300,8 @@ fn extract_list_quoted_prefix_head(
     {
         return None;
     }
-    let head = seg.texts.get(1)?.as_str();
-    if looks_unresolvable(head) {
+    if looks_unresolvable(seg.texts.get(1)?) {
         return None;
     }
-    let baked = seg.texts.len().saturating_sub(2);
-    Some((head.to_string(), head_tok.span, baked))
+    Some(seg)
 }
