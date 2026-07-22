@@ -314,9 +314,43 @@ the ensemble configuration string. Same fix location, same milestone.
   `expr_function_call_resolves_namespace_local_mathfunc_override` /
   `expr_function_call_falls_back_to_global_user_override_from_a_namespace` /
   `expr_function_call_resolves_builtin_from_inside_a_namespace` /
-  `expr_function_call_honours_namespace_path`, and `definition.rs`'s
+  `expr_function_call_honours_namespace_path`, `definition.rs`'s
   `no_definition_for_mathfunc_call_despite_unrelated_same_named_proc` /
-  `mathfunc_call_jumps_to_namespace_local_override`.
+  `mathfunc_call_jumps_to_namespace_local_override`, `references.rs`'s
+  `references_do_not_cross_between_unrelated_proc_and_mathfunc_override`,
+  and `rename.rs`'s
+  `rename_mathfunc_override_updates_call_site_and_skips_unrelated_proc` —
+  the last two close out the two consumers (go-to-def already had direct
+  coverage) this section's own "Gap" line named as broken: references and
+  rename now have direct e2e coverage, not just an inference from the
+  analyser-level `resolved_qualified_name` being correct.
+
+  **Known residual gap, confirmed pre-existing and generic — not fixed
+  here:** `finalise_invocation_resolutions`'s `known()` predicate checks
+  `all_procs.contains_key(qualified)` with no deletion gating at all (unlike
+  its registry-builtin clause, which explicitly excludes a renamed-away
+  name via `renamed_away`). A namespace-local mathfunc override that is
+  declared and then `rename`d away before a later call resolves — and
+  therefore fails to draw W123 — is one instance of this, but the identical
+  probe against an ordinary same-shape case (`namespace eval ::a { proc
+  helper {} {...} }; rename ::a::helper {}; namespace eval ::a { proc
+  caller {} { helper } }`) shows the same non-detection, proving this
+  predates every change in this section and is not mathfunc-specific. Given
+  W123's own documented design bias (prefer a missed warning over a false
+  positive — see `build_w123_known_names`'s profile-filter reasoning
+  above), leaving it be is consistent with that stance; fixing it for real
+  would mean threading `deleted_commands` through `known()` for every
+  invocation kind, a separate, broader change out of scope here.
+
+  **Consumers verified only indirectly, via the shared
+  `resolved_qualified_name`/`resolution_candidates` fields being correct at
+  the source, not by a dedicated end-to-end test:** hover, completion, call
+  hierarchy, minify, and the dependency graphs (`tcl-lsp-core`'s
+  `references.rs`, `linked_editing_range.rs`, `minify.rs`, `graphs.rs`,
+  `call_hierarchy.rs`, `completion.rs` all read these same fields). Their
+  own test suites (1017+ tests across `tcl-lsp-core`/`tcl-lsp-db`) passed
+  unmodified throughout, so nothing regressed, but no test in this effort
+  specifically targets a mathfunc call through any of them.
 
 ### 1.7 Literal command names in dispatch tables — **CONFIRMED** (medium)
 
