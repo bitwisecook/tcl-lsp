@@ -1458,10 +1458,18 @@ mod interp_alias {
 
     #[test]
     fn real_world_safe_and_cross_interp_aliases_945() {
-        // A *dynamic* source path (`interp alias $i add …`) names no
-        // literal domain — the record abstains, exactly as before.
+        // A dynamic source path bound by a tracked `set i [interp create
+        // ...]` (issue #923 idx 9) resolves through that binding rather
+        // than aborting: `add` is defined *inside* `$i`'s domain (calling
+        // `::api::add` back in the parent), so it homes under `$i`'s
+        // synthetic `@interp@@autoname@<offset>` domain — never under the
+        // bare `::add` a plain top-level alias would use.
         let safe = "set i [interp create -safe]\ninterp alias $i add {} ::api::add\nproc ::api::add {a b} {\n    return [expr {$a + $b}]\n}\n";
         assert!(alias(safe, "::add").is_none());
+        assert_eq!(
+            alias(safe, "::@interp@@autoname@6::add"),
+            Some(("::api::add".to_string(), vec![])),
+        );
         // A literal parent-side alias into a live child is tracked with a
         // domain-qualified target (issue #945 fault 8): `localGreet` runs
         // the child's `greet`, so navigation follows the alias link into
@@ -1505,6 +1513,151 @@ mod interp_alias {
         assert!(!fires(original, D, "W214"));
         let reopened = "interp alias {} = {} expr\nset scriptPath [file dirname [file normalize [info script]]]\nproc pdPsCalc {width length} {\n    return [= {2*$width+2*$length}]\n}\nset vSupply 2.0\nset inpFreq 850e6\n";
         assert!(!fires(reopened, D, "W214"));
+    }
+}
+
+// ===========================================================================
+// interp_value_flow — issue #923 idx 9: `set VAR [interp create ...]`
+// binds VAR to an interpreter-domain key, so a later dynamic `$VAR` operand
+// to `interp alias` / `interp eval` / the handle's own object command can
+// resolve through the tracked binding instead of abstaining outright.
+// ===========================================================================
+mod interp_value_flow {
+    use super::*;
+
+    fn command_alias_targets(src: &str) -> std::collections::HashMap<String, String> {
+        Analyser::new()
+            .analyse(src, D)
+            .command_aliases
+            .iter()
+            .map(|(k, v)| (k.clone(), v.target.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn primary_repro_cross_domain_alias_through_tracked_binding_resolves() {
+        // TP — issue #923 idx 9 exact repro (tclsh9.0-verified: prints 42).
+        // `set s [interp create -safe]` binds `s`; `interp alias $s greet {}
+        // ::app::Helper` previously abstained outright because the source
+        // path was dynamic text, leaving `greet` unresolved inside the
+        // child's eval body (spurious W123 + 0 definition locations).
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset s [interp create -safe]\ninterp alias $s greet {} ::app::Helper\ninterp eval $s { greet }\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn object_command_handle_eval_form_resolves_through_tracked_binding() {
+        // TP — the object-command spelling (`$mpip eval { ... }`) doctools.tcl
+        // actually uses, exercising `handle_interp_handle_eval_command` rather
+        // than the literal `interp eval PATH` form. `$mpip eval {...}` is
+        // itself a non-literal command dispatch — `mpip` is tracked only as
+        // an interpreter handle, not a known TclOO object
+        // (`var_command.rs`'s separate, unrelated dispatch-suppression
+        // system), so it legitimately still draws W307 the same as any
+        // other untracked `$var subcommand` call. What this fix controls is
+        // narrower: `greet` must resolve *inside* the eval body — no W123
+        // (unknown command) and no W140 (never-created interpreter).
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset mpip [interp create -safe]\ninterp alias $mpip greet {} ::app::Helper\n$mpip eval { greet }\n";
+        let diags = analyser_diags(src, D);
+        assert!(
+            diags.iter().all(|(c, _, _)| c != "W123" && c != "W140"),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn explicit_literal_name_variant_records_no_spurious_w140() {
+        // TP — `set s [interp create -safe literalName]` now records
+        // `literalName` in the interpreter map via the value-flow path, so a
+        // later literal `interp eval literalName {...}` no longer sees an
+        // apparently-uncreated interpreter, even though the path never
+        // reaches `handle_interp_create_command` directly (it's nested
+        // inside a `set`, not a bare top-level statement).
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset s [interp create -safe literalName]\ninterp alias literalName greet {} ::app::Helper\ninterp eval literalName { greet }\n";
+        assert!(!fires(src, D, "W140"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn two_procs_sharing_a_variable_name_never_collide() {
+        // TP — cross-contamination guard (secondary issue #2 found during
+        // this fix's research): each proc's `set s [interp create -safe]`
+        // must get its own per-call-site `@autoname@<offset>` domain, not
+        // one shared domain keyed off the raw variable text `s`. Before the
+        // fix (verified live against the LSP binary) makeA's `helper` call
+        // resolved into makeB's definition.
+        let src = "proc makeA {} {\n    set s [interp create -safe]\n    interp eval $s {\n        proc helper {} { return A }\n        helper\n    }\n}\nproc makeB {} {\n    set s [interp create -safe]\n    interp eval $s {\n        proc helper {} { return B }\n        helper\n    }\n}\n";
+        let r = Analyser::new().analyse(src, D);
+        let helper_keys: Vec<&String> = r
+            .all_procs
+            .keys()
+            .filter(|k| k.ends_with("::helper"))
+            .collect();
+        assert_eq!(
+            helper_keys.len(),
+            2,
+            "expected 2 distinct helper domains: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert_ne!(helper_keys[0], helper_keys[1]);
+    }
+
+    #[test]
+    fn untracked_dynamic_interp_path_stays_conservative() {
+        // FP guard — a `$VAR` never bound by `set VAR [interp create ...]`
+        // (here a bare proc parameter) must stay exactly as conservative as
+        // before this fix: no crash, no spurious W140 (existence stays
+        // unknowable for a genuinely untracked dynamic path).
+        let src = "proc useEval {ip} {\n    interp eval $ip { someCmd }\n}\n";
+        assert!(!fires(src, D, "W140"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn reassigning_the_variable_clears_the_stale_interp_binding() {
+        // FP guard — a later plain-string `set` of the same variable must
+        // clear the interp binding, so a stale domain is never resolved and
+        // the cross-domain alias falls through exactly as it does today for
+        // a genuinely-unresolvable dynamic src_path.
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset mpip [interp create -safe]\nset mpip \"not an interpreter\"\ninterp alias $mpip greet {} ::app::Helper\n";
+        assert!(
+            command_alias_targets(src).is_empty(),
+            "{:?}",
+            command_alias_targets(src)
+        );
+    }
+
+    #[test]
+    fn existing_literal_top_level_behaviour_is_unchanged() {
+        // TN — byte-for-byte unchanged control (scratchpad/audit/a): the
+        // same shape as the primary repro, but with a literal path
+        // throughout instead of a tracked variable binding.
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\ninterp create -safe s\ninterp alias s greet {} ::app::Helper\ninterp eval s { greet }\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn builtins_only_dynamic_interp_eval_body_stays_silent() {
+        // TN — a tracked dynamic-path eval body containing only builtins
+        // must stay diagnostic-free, confirming the fix doesn't newly
+        // over-fire (scratchpad/audit/c).
+        let src = "set s [interp create -safe]\ninterp eval $s {\n    set x 1\n    expr {$x + 1}\n    puts \"hi\"\n}\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn synthetic_autoname_key_used_for_pathless_interp_create() {
+        // TP — pins the synthetic per-call-site key convention (mirrors
+        // `handle_namespace_eval_dynamic_target_gets_a_synthetic_span_keyed_name`'s
+        // `@dynns@15` pin): a pathless `interp create` inside `set` gets an
+        // `@autoname@<offset-of-the-substitution's-opening-bracket>` key,
+        // not the variable's raw text, so `foo`'s definition homes under a
+        // synthetic, call-site-unique domain rather than one keyed on `s`.
+        let src = "set s [interp create -safe]\ninterp eval $s { proc foo {} {} }\n";
+        let r = Analyser::new().analyse(src, D);
+        assert!(
+            r.all_procs.keys().any(|k| k.contains("@autoname@6")),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
     }
 }
 

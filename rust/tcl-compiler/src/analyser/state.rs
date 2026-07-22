@@ -409,6 +409,19 @@ pub struct Analyser {
     /// side-effect happens — so no source / package / definition edges
     /// may be built from it either; issue #945 fault 7).
     pub(super) safe_interp_stack: Vec<SafeInterpCtx>,
+    /// The scope-chain-aware **interpreter value-flow map** (issue #923
+    /// idx 9): `set VAR [interp create ...]` binds `VAR`, in the scope it
+    /// was written, to the `interpreters` domain key recorded for that
+    /// call — a literal path's qualified key, or a synthetic
+    /// per-call-site key when the call captured no literal path. Mirrors
+    /// `const_strings`'s scope-chain shape (never `instance_classes`'s
+    /// flat, file-wide one — a raw-name collision there only softens a
+    /// diagnostic; here it would corrupt real go-to-definition targets),
+    /// so two unrelated procs binding the same variable name to
+    /// different interpreters never collide. Consulted by
+    /// [`Self::resolve_dynamic_interp_path`] from the call sites that
+    /// used to require the interpreter path to be a source literal.
+    pub(super) interp_var_bindings: HashMap<Vec<usize>, HashMap<String, String>>,
     /// Guard against double W123 emission across
     /// ``analyse_commands`` / ``analyse_irule_event``.
     pub unresolved_commands_emitted: bool,
@@ -801,6 +814,7 @@ impl Analyser {
             interp_epochs: HashMap::new(),
             interp_path_stack: Vec::new(),
             safe_interp_stack: Vec::new(),
+            interp_var_bindings: HashMap::new(),
             unresolved_commands_emitted: false,
             registry: None,
             recovery_known_commands: HashSet::new(),

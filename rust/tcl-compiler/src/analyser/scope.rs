@@ -780,6 +780,44 @@ impl Analyser {
         None
     }
 
+    /// Record `set VAR [interp create ...]`'s resolved interpreter-domain
+    /// `key` as `var_name`'s value in the scope at `scope_path` (issue
+    /// #923 idx 9) — the interpreter-value-flow analogue of
+    /// [`Self::set_const_string`], scope-chain-aware for the same reason:
+    /// two unrelated procs binding the same variable name to different
+    /// interpreters must never collide.
+    pub fn set_interp_var_binding(&mut self, var_name: &str, key: String, scope_path: &[usize]) {
+        self.interp_var_bindings
+            .entry(scope_path.to_vec())
+            .or_default()
+            .insert(var_name.to_string(), key);
+    }
+
+    /// Remove interpreter-binding knowledge for `var_name` (reassigned to
+    /// something else — the reassigned value stops resolving as an
+    /// interpreter handle, exactly as [`Self::clear_const_string`] does
+    /// for a reassigned constant string).
+    pub fn clear_interp_var_binding(&mut self, var_name: &str, scope_path: &[usize]) {
+        if let Some(map) = self.interp_var_bindings.get_mut(scope_path) {
+            map.remove(var_name);
+        }
+    }
+
+    /// Look up the interpreter-domain key `var_name` was bound to,
+    /// walking the scope chain from `scope_path` outwards — the
+    /// interpreter-value-flow analogue of [`Self::lookup_const_string`].
+    #[must_use]
+    pub fn lookup_interp_var_binding(&self, var_name: &str, scope_path: &[usize]) -> Option<&str> {
+        for ancestor in ancestor_paths(scope_path) {
+            if let Some(map) = self.interp_var_bindings.get(&ancestor)
+                && let Some(key) = map.get(var_name)
+            {
+                return Some(key.as_str());
+            }
+        }
+        None
+    }
+
     /// Compute the namespace string for a scope path, with a
     /// per-call cache.
     ///

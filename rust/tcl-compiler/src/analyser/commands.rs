@@ -1000,7 +1000,7 @@ impl Analyser {
                 false
             }
             Hook::InterpAlias => {
-                self.handle_interp_alias(args, cmd_tok.span.start());
+                self.handle_interp_alias(args, scope_path, cmd_tok.span.start());
                 false
             }
             Hook::OoObjdefine => self.handle_oo_objdefine(args, arg_tokens, scope_path),

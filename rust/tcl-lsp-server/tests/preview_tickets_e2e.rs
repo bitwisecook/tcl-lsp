@@ -951,3 +951,47 @@ async fn class_member_bareword_call_requires_link_e2e() {
     drop(writer);
     server.abort();
 }
+
+/// TP — issue #923 idx 9: `set VAR [interp create ...]` never bound `VAR` to
+/// the interpreter it created, so a later dynamic `interp alias $VAR name {}
+/// target` / `interp eval $VAR { ... }` pair abstained outright — tclsh9.0-
+/// verified this idiom (a `-safe` sandbox alias-and-eval, the shape
+/// tcllib's doctools.tcl uses) actually runs and prints 42; the LSP saw a
+/// spurious "unknown command" and returned no definition location for the
+/// aliased call at all.
+#[tokio::test]
+async fn dynamic_interp_handle_alias_definition_follows_the_tracked_binding_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///dyninterp.tcl",
+        "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset s [interp create -safe]\ninterp alias $s greet {} ::app::Helper\ninterp eval $s { greet }\n",
+    )
+    .await;
+
+    let diags = published_codes(&mut reader, "file:///dyninterp.tcl").await;
+    assert!(
+        !diags.contains("W123") && !diags.contains("W140"),
+        "tracked binding must not leave a spurious unknown-command or \
+         never-created-interpreter warning: {diags}",
+    );
+
+    // `greet` inside `interp eval $s { greet }` (line 4, character 17).
+    let def_req = r#"{"jsonrpc":"2.0","id":7,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///dyninterp.tcl"},"position":{"line":4,"character":17}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":7", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        def_resp.contains(r#""line":1"#),
+        "greet must resolve through the tracked $s binding to ::app::Helper \
+         on line 1, following the cross-domain alias: {def_resp}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}

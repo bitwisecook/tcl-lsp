@@ -84,6 +84,46 @@ pub(super) fn interp_path_key(path: &str) -> String {
     path.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Parse `interp create`'s `?-safe? ?--? ?path?` leading words (issue
+/// #923 idx 9): returns `(safe, path)`, where `path` is the first
+/// non-flag word (or `None` for a bare, uncaptured `interp create
+/// -safe`). Shared by `Analyser::handle_interp_create_command` and the
+/// `set VAR [interp create ...]` value-flow detector in
+/// `Analyser::handle_set_command`, so both parse the flag/path shape
+/// identically.
+fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
+    let mut safe = false;
+    let mut path: Option<&str> = None;
+    let mut past_flags = false;
+    for &word in words {
+        if !past_flags && word == "-safe" {
+            safe = true;
+            continue;
+        }
+        if !past_flags && word == "--" {
+            past_flags = true;
+            continue;
+        }
+        path = Some(word);
+        break;
+    }
+    (safe, path)
+}
+
+/// `set VAR [interp create ?-safe? ?--? ?path?]`'s value word, stripped
+/// to just the words after `interp`/`create`, when `text` is exactly
+/// that literal `[...]` substitution shape and nothing else — feeds
+/// `Analyser::handle_set_command`'s value-flow detector through
+/// [`parse_interp_create_words`] (issue #923 idx 9).
+fn interp_create_words_from_value(text: &str) -> Option<Vec<&str>> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    let mut words = inner.split_whitespace();
+    if words.next()? != "interp" || words.next()? != "create" {
+        return None;
+    }
+    Some(words.collect())
+}
+
 /// Condense a definition's description argument into a single-line outline
 /// detail: the first non-empty line, trimmed, and length-capped so a verbose
 /// multi-line description doesn't bloat the outline entry.
@@ -152,8 +192,50 @@ impl Analyser {
         let value_token_kind = value_token.kind;
         if value_is_single_token && matches!(value_token_kind, TokenType::Esc | TokenType::Str) {
             self.set_const_string(&args[0], args[1].clone(), value_token.span, scope_path);
+            self.clear_interp_var_binding(&args[0], scope_path);
+        } else if let Some(words) = interp_create_words_from_value(&args[1]) {
+            // `set VAR [interp create ?-safe? ?--? ?path?]` (issue #923
+            // idx 9) — bind VAR, in this scope, to the interpreter-domain
+            // key this call records. Mirrors `record_instance_creation`'s
+            // TclOO `set g [Foo new]` value-flow shape, but scope-chain
+            // -aware like `const_strings` rather than flat like
+            // `instance_classes` — see `interp_var_bindings`'s doc for why.
+            self.clear_const_string(&args[0], scope_path);
+            let (safe, path) = parse_interp_create_words(&words);
+            match path {
+                Some(p) if crate::naming::is_dynamic_word(p) => {
+                    // A dynamic path argument (not just a missing one) —
+                    // mirrors `handle_interp_create_command`'s own
+                    // handling of the identical shape: existence becomes
+                    // unknowable file-wide, nothing recorded.
+                    self.dynamic_interp_ops = true;
+                    self.clear_interp_var_binding(&args[0], scope_path);
+                }
+                _ => {
+                    // A literal path resolves to its qualified key; a
+                    // missing path (Tcl auto-generates a fresh, always-
+                    // unique name) gets a synthetic per-call-site key —
+                    // mirrors `handle_namespace_eval_command`'s
+                    // `@dynns@<offset>` pattern — so two unrelated `set
+                    // VAR [interp create -safe]` call sites never collide
+                    // just because they wrote the same variable name.
+                    let key = path.map_or_else(
+                        || format!("@autoname@{}", value_token.span.start()),
+                        |p| self.qualified_interp_key(p),
+                    );
+                    self.interpreters.insert(
+                        key.clone(),
+                        super::state::InterpState {
+                            safe,
+                            ..Default::default()
+                        },
+                    );
+                    self.set_interp_var_binding(&args[0], key, scope_path);
+                }
+            }
         } else {
             self.clear_const_string(&args[0], scope_path);
+            self.clear_interp_var_binding(&args[0], scope_path);
         }
     }
 
@@ -1098,14 +1180,24 @@ impl Analyser {
         }
         // The interpreter path is a *list* relative to the current
         // interpreter — inside a child's eval body it is relative to that
-        // child — so qualify against the walk's interpreter-path stack.
+        // child — so qualify against the walk's interpreter-path stack. A
+        // dynamic path also resolves through a tracked `set VAR [interp
+        // create ...]` binding (issue #923 idx 9) — that key is already
+        // fully qualified at bind time, so it's used as-is, not
+        // requalified.
         let literal_path = !crate::naming::is_dynamic_word(&args[1]);
-        let key = self.qualified_interp_key(&args[1]);
-        if literal_path {
+        let resolved_dynamic = (!literal_path)
+            .then(|| self.resolve_dynamic_interp_path(&args[1], scope_path))
+            .flatten();
+        let key = resolved_dynamic
+            .clone()
+            .unwrap_or_else(|| self.qualified_interp_key(&args[1]));
+        if literal_path || resolved_dynamic.is_some() {
             // Interpreter existence (issue #945 fault 8): evaluating into a
-            // literal child this file never creates raises `could not find
+            // known-but-never-created child raises `could not find
             // interpreter` at run time.  Abstains when any interp operation
-            // in the file used a dynamic path (existence then unknowable).
+            // in the file used a dynamic, *unresolvable* path (existence
+            // then unknowable).
             if !self.interpreters.contains_key(&key)
                 && !self.dynamic_interp_ops
                 && let Some(tok) = arg_tokens.get(1)
@@ -1239,15 +1331,14 @@ impl Analyser {
     /// first word, wrong arity, an untracked head) falls through to the
     /// generic per-command dispatch by returning `false`.
     ///
-    /// Deliberately narrower than the mined idiom's `$handle eval { … }`
-    /// spelling: `cmd_name` is the literal, unsubstituted head text, so a
-    /// `$`-prefixed handle (the value of a variable, not a name this file
-    /// spells out) never matches an entry in [`Self::interpreters`] (which is
-    /// keyed by literal `interp create`/`interp eval` path text) and falls
-    /// through untouched — resolving a *variable's* interpreter value is the
-    /// separate, harder value-flow problem `interp alias`'s cross-domain
-    /// tracking already has its own narrower literal-path requirement for
-    /// (issue #945 fault 8), not one this handler takes on.
+    /// Handles the mined idiom's `$handle eval { … }` spelling too (issue
+    /// #923 idx 9): `cmd_name` is the literal, unsubstituted head text, so
+    /// a `$`-prefixed handle only resolves through a tracked `set VAR
+    /// [interp create ...]` binding
+    /// ([`Self::resolve_dynamic_interp_path`]) — a handle sourced any
+    /// other way (a proc parameter, a value read from elsewhere) still
+    /// falls through untouched, the same conservative fallback this
+    /// handler has always used for an untracked head.
     ///
     /// Dispatched from [`Self::dispatch_analyser_hook`]'s hookless fallback
     /// chain — `cmd_name` never matches a registry command (it's a
@@ -1263,7 +1354,14 @@ impl Analyser {
         if args.len() != 2 || args[0] != "eval" {
             return false;
         }
-        let key = self.qualified_interp_key(cmd_name);
+        let key = if crate::naming::is_dynamic_word(cmd_name) {
+            let Some(resolved) = self.resolve_dynamic_interp_path(cmd_name, scope_path) else {
+                return false;
+            };
+            resolved
+        } else {
+            self.qualified_interp_key(cmd_name)
+        };
         if !self.interpreters.contains_key(&key) {
             return false;
         }
@@ -1296,6 +1394,48 @@ impl Analyser {
         }
     }
 
+    /// Resolve a `$name`/`${name}` word to the interpreter-domain key a
+    /// tracked `set name [interp create ...]` bound it to (issue #923
+    /// idx 9) — the key is already fully resolved/qualified at bind
+    /// time, so callers must NOT re-run [`Self::qualified_interp_key`]/
+    /// interp-path-stack qualification on it.
+    ///
+    /// `None` for anything that isn't a plain scalar reference to a
+    /// tracked binding: [`crate::naming::split_array_name`] rejects an
+    /// array-indexed read (`$arr(idx)`) by returning an index, and a
+    /// concatenated/substituted word (`prefix$s`, `[cmd]`) is never a
+    /// key any `set` binds — [`Self::lookup_interp_var_binding`] simply
+    /// finds no entry for it, the same "fails closed" shape as looking
+    /// up an unknown name in `const_strings`.
+    fn resolve_dynamic_interp_path(&self, word: &str, scope_path: &[usize]) -> Option<String> {
+        let (base, index) = crate::naming::split_array_name(word);
+        if index.is_some() {
+            return None;
+        }
+        self.lookup_interp_var_binding(base, scope_path)
+            .map(str::to_string)
+    }
+
+    /// Resolve an `interp alias` path operand to the domain prefix its
+    /// alias/target command name qualifies under (issue #923 idx 9): the
+    /// plain-current-interpreter sentinel (`""`/`"{}"`) is the empty
+    /// prefix; a literal word resolves via [`Self::qualified_interp_key`]
+    /// and then [`Self::interp_domain_name`]; a dynamic word resolves
+    /// ONLY through [`Self::resolve_dynamic_interp_path`] — anything else
+    /// (an untracked dynamic word) returns `None`, aborting the whole
+    /// cross-domain alias (unchanged conservative behaviour).
+    fn resolve_alias_domain_prefix(&self, path: &str, scope_path: &[usize]) -> Option<String> {
+        if matches!(path, "" | "{}") {
+            return Some(String::new());
+        }
+        let key = if crate::naming::is_dynamic_word(path) {
+            self.resolve_dynamic_interp_path(path, scope_path)?
+        } else {
+            self.qualified_interp_key(path)
+        };
+        Some(format!("::{}", self.interp_domain_name(&key)))
+    }
+
     /// Handle `interp create ?-safe? ?--? ?path?` — record the child
     /// interpreter's existence and safe state in the interpreter-domain
     /// map (issue #945 faults 7–8).  A dynamic path makes interpreter
@@ -1305,21 +1445,8 @@ impl Analyser {
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpCreate`];
     /// `args[0]` is the subcommand word.
     pub fn handle_interp_create_command(&mut self, args: &[String]) {
-        let mut safe = false;
-        let mut path: Option<&str> = None;
-        let mut past_flags = false;
-        for word in &args[1..] {
-            if !past_flags && word == "-safe" {
-                safe = true;
-                continue;
-            }
-            if !past_flags && word == "--" {
-                past_flags = true;
-                continue;
-            }
-            path = Some(word);
-            break;
-        }
+        let words: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+        let (safe, path) = parse_interp_create_words(&words);
         let Some(path) = path else { return };
         if crate::naming::is_dynamic_word(path) {
             self.dynamic_interp_ops = true;
@@ -2447,7 +2574,7 @@ impl Analyser {
     /// [`tcl_registry::hooks::AnalyserHookId::InterpAlias`] (stamped on
     /// `interp`'s `alias` subcommand); `args[0]` is still the
     /// subcommand word the detectors expect.
-    pub fn handle_interp_alias(&mut self, args: &[String], offset: u32) {
+    pub fn handle_interp_alias(&mut self, args: &[String], scope_path: &[usize], offset: u32) {
         if let Some(deleted) = crate::alias::detect_interp_alias_delete(args) {
             self.deleted_commands.insert(deleted, offset);
             return;
@@ -2462,36 +2589,26 @@ impl Analyser {
         // running `target` resolved in the *target* interpreter.  With
         // literal paths both sides home under their `@interp@` domains, so
         // calls of the alias inside the child's eval bodies resolve to the
-        // target through the ordinary alias link machinery.
+        // target through the ordinary alias link machinery. A path need
+        // not itself be a source literal any more (issue #923 idx 9): it
+        // also resolves through a tracked `set VAR [interp create ...]`
+        // binding — only the alias/target *command* names stay hard
+        // literal requirements (a dynamic one genuinely names nothing
+        // statically, same reasoning `crate::alias::detect_interp_alias`
+        // already documents for the same-interpreter form).
         if args.len() >= 5 {
             let (src_path, alias_name, target_path, target_cmd) =
                 (&args[1], &args[2], &args[3], &args[4]);
             let literal = |w: &String| !crate::naming::is_dynamic_word(w);
-            let plain_path = |w: &String| matches!(w.as_str(), "" | "{}");
             if literal(alias_name)
                 && literal(target_cmd)
-                && literal(src_path)
-                && literal(target_path)
-                && !(plain_path(src_path) && plain_path(target_path))
+                && let Some(src_prefix) = self.resolve_alias_domain_prefix(src_path, scope_path)
+                && let Some(target_prefix) =
+                    self.resolve_alias_domain_prefix(target_path, scope_path)
+                && !(src_prefix.is_empty() && target_prefix.is_empty())
             {
-                let domain_prefix = |path: &String| {
-                    if plain_path(path) {
-                        String::new()
-                    } else {
-                        let key = self.qualified_interp_key(path);
-                        format!("::{}", self.interp_domain_name(&key))
-                    }
-                };
-                let qualified = format!(
-                    "{}::{}",
-                    domain_prefix(src_path),
-                    alias_name.trim_start_matches(':')
-                );
-                let target = format!(
-                    "{}::{}",
-                    domain_prefix(target_path),
-                    target_cmd.trim_start_matches(':')
-                );
+                let qualified = format!("{src_prefix}::{}", alias_name.trim_start_matches(':'));
+                let target = format!("{target_prefix}::{}", target_cmd.trim_start_matches(':'));
                 let prepended: Vec<String> = args[5..].to_vec();
                 self.record_interp_alias(qualified, target, prepended, offset);
             }
@@ -6209,6 +6326,7 @@ mod tests {
                 String::new(),
                 "set".to_string(),
             ],
+            &[],
             42,
         );
         assert!(a.command_aliases.contains_key("::myset"));
@@ -6236,6 +6354,7 @@ mod tests {
                 "puts".to_string(),
                 "stderr".to_string(),
             ],
+            &[],
             0,
         );
         let (target, prepended) = &a.command_aliases["::logerr"];
@@ -6246,7 +6365,7 @@ mod tests {
     #[test]
     fn handle_interp_alias_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        a.handle_interp_alias(&["alias".to_string()], 0);
+        a.handle_interp_alias(&["alias".to_string()], &[], 0);
         assert!(a.command_aliases.is_empty());
         assert!(a.alias_offsets.is_empty());
     }
