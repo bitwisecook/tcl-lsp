@@ -111,7 +111,11 @@ pub fn signature_help(
     let namespace = {
         let line_index = tcl_lexer::LineIndex::new(source);
         let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-        crate::definition::namespace_context_at(&analysis.global_scope, cursor_off)
+        crate::definition::namespace_context_at(
+            &analysis.global_scope,
+            cursor_off,
+            &analysis.namespace_overrides,
+        )
     };
     if let Some(proc_def) = lookup_proc(analysis, source, &namespace, &command, registry) {
         return Some(proc_signature_help(proc_def, active_param));

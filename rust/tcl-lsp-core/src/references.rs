@@ -182,8 +182,11 @@ pub(crate) fn invocation_references_named(
         .resolved_qualified_name
         .as_deref()
         .map(|r| r.trim_start_matches("::"));
-    let call_ns =
-        crate::definition::innermost_namespace_at(&analysis.global_scope, inv.range.start());
+    let call_ns = crate::definition::innermost_namespace_at(
+        &analysis.global_scope,
+        inv.range.start(),
+        &analysis.namespace_overrides,
+    );
     let simple_ok = inv.name == def_name
         && resolved_norm.is_none_or(|r| r == target_q || r == def_name)
         && call_ns == target_ns;
@@ -559,7 +562,11 @@ fn ensemble_subcommand_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         return None;
     }
     let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
-    let namespace = crate::definition::namespace_context_at(&analysis.global_scope, cursor_off);
+    let namespace = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        cursor_off,
+        &analysis.namespace_overrides,
+    );
     let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
     let (qname, proc_def) = analysis.all_procs.get_key_value(target)?;
     let mut out = Vec::new();

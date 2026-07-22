@@ -936,7 +936,11 @@ fn lookup_proc<'a>(
     name: &str,
     registry: Option<&CommandRegistry>,
 ) -> Option<&'a ProcDef> {
-    let ns = crate::definition::namespace_context_at(&analysis.global_scope, cmd_off);
+    let ns = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        cmd_off,
+        &analysis.namespace_overrides,
+    );
     crate::definition::resolve_called_proc(analysis, source, &ns, name, registry)
 }
 

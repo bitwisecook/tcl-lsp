@@ -171,7 +171,11 @@ fn ensemble_subcommand_hover(
     }
     let line_index = tcl_lexer::LineIndex::new(source);
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let namespace = crate::definition::namespace_context_at(&analysis.global_scope, cursor_offset);
+    let namespace = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        cursor_offset,
+        &analysis.namespace_overrides,
+    );
     let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
     let proc_def =
         crate::definition::resolve_called_proc(analysis, source, "::", target, registry)?;
@@ -180,6 +184,28 @@ fn ensemble_subcommand_hover(
         proc_hover_text(proc_def)
     );
     Some(Hover::markdown(text))
+}
+
+/// Proc hover at `cursor_offset`: namespace-aware, following C Tcl's
+/// command resolution (`Tcl_FindCommand`, `tclNamesp.c`) — the cursor's
+/// namespace first (consulting `analysis.namespace_overrides` ahead of the
+/// ordinary lexical walk, issue #923 idx 116), then the global namespace.
+/// Extracted from [`hover_with_profile`] to keep it within the line budget.
+fn proc_hover_at(
+    analysis: &AnalysisResult,
+    source: &str,
+    cursor_offset: u32,
+    word: &str,
+    registry: Option<&CommandRegistry>,
+) -> Option<Hover> {
+    let namespace = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        cursor_offset,
+        &analysis.namespace_overrides,
+    );
+    let proc_def =
+        crate::definition::resolve_called_proc(analysis, source, &namespace, word, registry)?;
+    Some(Hover::markdown(proc_hover_text(proc_def)))
 }
 
 /// [`hover`] resolving prefix-abbreviated subcommands and option / special-
@@ -301,11 +327,8 @@ pub fn hover_with_profile(
     // proc in an unrelated namespace must not hijack builtin hover.  A
     // non-builtin word keeps the lenient (deterministic) tail fallback.
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let namespace = crate::definition::namespace_context_at(&analysis.global_scope, cursor_offset);
-    if let Some(proc_def) =
-        crate::definition::resolve_called_proc(analysis, source, &namespace, &word, registry)
-    {
-        return Some(Hover::markdown(proc_hover_text(proc_def)));
+    if let Some(hover) = proc_hover_at(analysis, source, cursor_offset, &word, registry) {
+        return Some(hover);
     }
 
     if let Some((_, class_def)) =

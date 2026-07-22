@@ -459,6 +459,9 @@ impl Analyser {
         self.result.namespace_imports.extend(r.namespace_imports);
         self.result.auto_path_entries.extend(r.auto_path_entries);
         self.result.regex_patterns.extend(r.regex_patterns);
+        self.result
+            .namespace_overrides
+            .extend(r.namespace_overrides);
         self.result.has_dynamic_providers |= r.has_dynamic_providers;
         if self.result.unknown_proc_info.is_none() {
             self.result.unknown_proc_info = r.unknown_proc_info;
@@ -897,6 +900,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for x in &mut r.regex_patterns {
         x.range = shift(x.range, d);
+    }
+    for (span, _) in &mut r.namespace_overrides {
+        *span = shift(*span, d);
     }
     if !r.suppressed_lines.is_empty() {
         let old = std::mem::take(&mut r.suppressed_lines);

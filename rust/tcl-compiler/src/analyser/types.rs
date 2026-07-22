@@ -911,6 +911,17 @@ pub struct AnalysisResult {
     pub namespace_paths: HashMap<String, Vec<String>>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
     pub auto_path_entries: Vec<AutoPathEntry>,
+    /// Byte spans where command resolution is pinned to a namespace by
+    /// runtime context rather than lexical nesting (issue #923 idx 116):
+    /// `apply {{params} body ns}` runs `body` in `ns`, not the namespace
+    /// the lambda is lexically written inside. Each entry is `(body_span,
+    /// "::"-qualified namespace)`; consulted by `tcl-lsp-core`'s
+    /// `innermost_namespace_at` *before* the ordinary lexical scope-chain
+    /// walk, since the `Scope` subtree `handle_apply_command` builds for
+    /// `ns` is rooted under freshly-constructed, `body_span`-less
+    /// namespace wrapper nodes (`per_item::reconstruct_proc_scope`) that
+    /// the walk's span-containment descent can never reach.
+    pub namespace_overrides: Vec<(Span, String)>,
     /// Inline ``# stub: NAME ARGS BODY`` directive captures.
     pub stub_commands: Vec<StubCommandDef>,
     /// Inline ``# stub-expr: NAME ARGS`` directive captures.

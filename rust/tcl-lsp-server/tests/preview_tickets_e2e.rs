@@ -1105,3 +1105,45 @@ async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
     drop(writer);
     server.abort();
 }
+
+/// TP — issue #923 idx 116: `apply {{params} body ns}` runs `body` in
+/// `ns`, not the namespace the `apply` call is lexically written inside.
+/// tclsh9.0/8.6-verified: `real::cleanup` runs, printing "real done".
+/// Before the fix, the bareword `cleanup` inside the apply body resolved
+/// to whichever same-named proc happened to be lexically nearest
+/// (`lexical::cleanup`) — a `Scope` subtree `handle_apply_command` built
+/// for `::real` was structurally unreachable by the span-containment walk.
+#[tokio::test]
+async fn apply_namespace_override_resolves_bareword_to_the_lambdas_own_namespace_e2e() {
+    let (mut reader, mut writer, server) = start_session().await;
+    did_open(
+        &mut writer,
+        "file:///apply_ns.tcl",
+        "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\napply {{} {cleanup done} ::real}\n",
+    )
+    .await;
+
+    let diags = published_codes(&mut reader, "file:///apply_ns.tcl").await;
+    assert!(
+        !diags.contains("W123"),
+        "unexpected unknown-command: {diags}"
+    );
+
+    // `cleanup` inside the apply body (line 6, character 11).
+    let def_req = r#"{"jsonrpc":"2.0","id":12,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///apply_ns.tcl"},"position":{"line":6,"character":11}}}"#;
+    writer.write_all(frame(def_req).as_bytes()).await.unwrap();
+    let def_resp = read_until_id(&mut reader, "\"id\":12", 8)
+        .await
+        .expect("definition response");
+    assert!(
+        def_resp.contains(r#""line":1"#),
+        "cleanup must resolve to real::cleanup on line 1, not lexical::cleanup on line 4: {def_resp}",
+    );
+
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+}

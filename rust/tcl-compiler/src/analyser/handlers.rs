@@ -896,6 +896,95 @@ impl Analyser {
     /// so both consumers agree on exactly what counts as a
     /// statically-inspectable lambda, rather than each re-implementing the
     /// brace-literal guard and segmentation independently.
+    /// Resolve a *dynamic* `apply` lambda argument — `apply $lambda …` or
+    /// `apply [list {params} $body ns] …` — one hop through the constant-
+    /// value lattice, to the same `Vec<(Token, String)>` shape
+    /// [`Self::parse_apply_lambda_elements`] returns for a literal braced
+    /// lambda (issue #923 idx 116): so `handle_apply_command`'s downstream
+    /// code (`elements[0]` = params, `[1]` = body, `[2]` = namespace)
+    /// needs no changes regardless of which path supplied it.
+    ///
+    /// `arg_tok`'s kind decides the strategy:
+    /// - `Var` (`$lambda` / `$ns::lambda`): resolve the variable — a bare
+    ///   name via [`Self::lookup_const_string_with_span`] (the lexical
+    ///   ancestor-chain lookup), a `::`-qualified one via the namespace-
+    ///   targeted [`Self::lookup_const_string_in_namespace`] (Tcl variable
+    ///   qualifiers never search — exactly one namespace is consulted).
+    ///   A braced-literal resolution (`{` at the resolved span's start,
+    ///   the same guard `parse_apply_lambda_elements` itself applies)
+    ///   delegates straight to it — no re-implementation.
+    /// - `Cmd` (`[list {params} $body ns]`): the mined idiom's actual
+    ///   shape — a `list`-constructor call whose own arguments *are* the
+    ///   three lambda elements, positionally. Requires the inner command's
+    ///   head to be literally `"list"`; each of its own arguments is kept
+    ///   verbatim (already a real absolute span) unless it is itself a
+    ///   `Var`, which gets exactly one more hop through the same bare/
+    ///   qualified lookup (no further recursion — a deliberate depth
+    ///   bound). Anything else at any position aborts the whole fold
+    ///   (`None`) rather than emit a partial, misleading result.
+    ///
+    /// Bounded to one hop by design: `set a $lambda; apply $a` remains
+    /// unresolved (a second `$var`-to-`$var` forward), as does any deeper
+    /// list-element indirection — see the type's own module docs on the
+    /// `apply`-namespace-override limitation for the full rationale.
+    fn resolve_dynamic_apply_lambda(
+        &self,
+        arg_tok: Token,
+        scope_path: &[usize],
+    ) -> Option<Vec<(Token, String)>> {
+        let one_hop = |word_tok: Token| -> Option<(Token, String)> {
+            if word_tok.kind != TokenType::Var {
+                let word_text =
+                    &self.source[word_tok.span.start() as usize..word_tok.span.end() as usize];
+                return Some((word_tok, word_text.to_string()));
+            }
+            let sm = tcl_lexer::SourceMap::new(&self.source);
+            let var_name = sm.token_text(word_tok);
+            let (holder, base_name) = crate::naming::key_holder_and_tail(var_name);
+            let (value, span) = if holder.is_empty() {
+                self.lookup_const_string_with_span(var_name, scope_path)?
+            } else {
+                let target_ns = if holder.starts_with("::") {
+                    holder.to_string()
+                } else {
+                    let caller_ns = self.command_resolution_namespace(scope_path);
+                    crate::naming::qualify(caller_ns.trim_start_matches(':'), holder)
+                };
+                self.lookup_const_string_in_namespace(&target_ns, base_name)?
+            };
+            Some((
+                Token::with_content_offset(TokenType::Str, span, 1),
+                value.to_string(),
+            ))
+        };
+
+        match arg_tok.kind {
+            TokenType::Var => {
+                let (tok, text) = one_hop(arg_tok)?;
+                if text.as_bytes().first() != Some(&b'{') {
+                    return None;
+                }
+                self.parse_apply_lambda_elements(&[text], &[tok])
+            }
+            TokenType::Cmd => {
+                let (inner, base) = super::scope::inner_of(&self.source, arg_tok)?;
+                let segmented = crate::segmenter::segment_commands_with_offset(inner, base);
+                let [cmd] = segmented.as_slice() else {
+                    return None;
+                };
+                if cmd.texts.first().map(String::as_str) != Some("list") {
+                    return None;
+                }
+                let mut out = Vec::with_capacity(cmd.texts.len().saturating_sub(1));
+                for tok in cmd.argv.iter().skip(1) {
+                    out.push(one_hop(*tok)?);
+                }
+                Some(out)
+            }
+            _ => None,
+        }
+    }
+
     pub(in crate::analyser) fn parse_apply_lambda_elements(
         &self,
         args: &[String],
@@ -966,8 +1055,21 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) else {
-            return false;
+        // A literal braced lambda parses directly; a dynamic one (`apply
+        // $lambda`, `apply [list {params} $body ns]`) gets one hop through
+        // the constant-value lattice (issue #923 idx 116) before giving up
+        // — same downstream shape either way, so nothing past this point
+        // needs to know which path supplied `elements`.
+        let elements = if let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) {
+            elements
+        } else {
+            let Some(&arg_tok) = arg_tokens.first() else {
+                return false;
+            };
+            let Some(elements) = self.resolve_dynamic_apply_lambda(arg_tok, scope_path) else {
+                return false;
+            };
+            elements
         };
         // A lambda needs at least a parameter list and a body.
         if elements.len() < 2 {
@@ -1006,6 +1108,17 @@ impl Analyser {
         // Anonymous, but keyed by source position so two lambdas never collide
         // in `all_variables` (keyed `"<scope_name>::<var>"`).
         let scope_name = format!("apply@{}", arg_tokens[0].span.start());
+
+        // Record the namespace override for `tcl-lsp-core`'s command-
+        // resolution lookups (issue #923 idx 116): the `Scope` subtree
+        // rooted below, via `reconstruct_proc_scope`, sits under fresh
+        // `body_span`-less namespace wrapper nodes the ordinary lexical
+        // span-containment walk can never reach — `namespace_overrides` is
+        // a separate, flat, span-keyed fast path consulted ahead of that
+        // walk. Pushed once regardless of the inline/deferred split below.
+        self.result
+            .namespace_overrides
+            .push((body_span, body_ns.clone()));
 
         // Root the lambda scope at `body_ns` under the global scope — NOT under
         // the caller — via the same `reconstruct_proc_scope` the per-item path

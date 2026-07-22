@@ -780,6 +780,69 @@ impl Analyser {
         None
     }
 
+    /// The constant-string value recorded for `base_name` in the namespace
+    /// whose fully-qualified, `::`-rooted resolution path is `target_ns`
+    /// (issue #923 idx 116) — the `const_strings` analogue of
+    /// [`lookup_var_in_namespace`], needed because a namespace-qualified
+    /// reference (`$lexical::body`) must resolve against wherever that
+    /// namespace's own `set` lives, not the lexical ancestor chain
+    /// [`Self::lookup_const_string_with_span`] walks. `const_strings` is
+    /// keyed by scope *path* (`Vec<usize>`), not a [`super::types::Scope`]
+    /// reference, so — unlike `lookup_var_in_namespace`'s pure namespace-
+    /// string accumulation — this walk must also track the running
+    /// child-index path as it descends. Deliberately never a
+    /// [`super::types::ScopeKind::Proc`] / [`super::types::ScopeKind::Method`]
+    /// node's own table, even when its command-resolution namespace happens
+    /// to equal `target_ns`: a proc-local `set` is never the namespace's
+    /// own cell, mirroring `lookup_var_in_namespace`'s identical guard.
+    #[must_use]
+    pub fn lookup_const_string_in_namespace(
+        &self,
+        target_ns: &str,
+        base_name: &str,
+    ) -> Option<(&str, Span)> {
+        fn walk<'a>(
+            ns: &str,
+            node: &'a super::types::Scope,
+            path: &mut Vec<usize>,
+            target: &str,
+            name: &str,
+            const_strings: &'a std::collections::HashMap<
+                Vec<usize>,
+                std::collections::HashMap<String, (String, Span)>,
+            >,
+        ) -> Option<(&'a str, Span)> {
+            if ns == target
+                && matches!(
+                    node.kind,
+                    super::types::ScopeKind::Namespace | super::types::ScopeKind::Global
+                )
+                && let Some(map) = const_strings.get(path.as_slice())
+                && let Some((value, span)) = map.get(name)
+            {
+                return Some((value.as_str(), *span));
+            }
+            for (i, child) in node.children.iter().enumerate() {
+                path.push(i);
+                let child_ns = advance_command_resolution_namespace(ns, child);
+                if let Some(hit) = walk(&child_ns, child, path, target, name, const_strings) {
+                    return Some(hit);
+                }
+                path.pop();
+            }
+            None
+        }
+        let mut path: Vec<usize> = Vec::new();
+        walk(
+            "::",
+            &self.result.global_scope,
+            &mut path,
+            target_ns,
+            base_name,
+            &self.const_strings,
+        )
+    }
+
     /// Record `set VAR [interp create ...]`'s resolved interpreter-domain
     /// `key` as `var_name`'s value in the scope at `scope_path` (issue
     /// #923 idx 9) — the interpreter-value-flow analogue of
@@ -1333,7 +1396,7 @@ fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
 /// (e.g. `Analyser::recover_stray_close_bracket`'s virtual `Cmd` token)
 /// has no real opener in the source and sets `content_offset` to `0`.
 /// The span excludes the closing delimiter.
-fn inner_of(source: &str, tok: Token) -> Option<(&str, u32)> {
+pub(super) fn inner_of(source: &str, tok: Token) -> Option<(&str, u32)> {
     let off = u32::from(tok.content_offset);
     let (s, e) = ((tok.span.start() + off) as usize, tok.span.end() as usize);
     if s > e || e > source.len() {

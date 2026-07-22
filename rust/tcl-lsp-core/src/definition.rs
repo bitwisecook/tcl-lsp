@@ -63,6 +63,15 @@
 //! `Cls create obj` site), the provider jumps to the method
 //! declaration on that class.
 //!
+//! `apply` namespace override (issue #923 idx 116): a bareword call
+//! inside `apply {{params} body ns}`'s body resolves against `ns`, not
+//! wherever the `apply` call is lexically written — `namespace_context_at`
+//! / `innermost_namespace_at` consult `analysis.namespace_overrides`
+//! (populated by `Analyser::handle_apply_command`) ahead of the ordinary
+//! lexical scope-chain walk. Also resolves one hop through a `$var` or
+//! `[list {params} $body ns]` indirection (`set lambda {...}; apply
+//! $lambda`), bounded to that one hop by design.
+//!
 //! Limitations:
 //!
 //! * Flow-sensitive / scope-aware instance-class tracking —
@@ -74,6 +83,18 @@
 //!   dialect that resolves pool / data-group / iRule /
 //!   virtual-server names against a parsed `bigip.conf` — is
 //!   not implemented here.
+//! * `apply` reached only through a registry `command_prefixes` slot
+//!   (`coroutine co ::apply $lambda`) is not modelled — that slot is
+//!   consulted today only for IR-level interprocedural call-graph
+//!   reachability, never re-dispatched through `AnalyserHookId::Apply`.
+//!   Nor is a proc that re-injects its own arguments as a script via a
+//!   captured `uplevel`-namespace + trace/callback (tcllib generator.tcl's
+//!   `finally`, the exact idiom issue #923 idx 116's confirmed finding
+//!   traces through) — there is no static/lexical connection between such
+//!   a call and the token it eventually invokes, so this is a considered,
+//!   permanent limitation rather than an oversight. Deeper `$var`-to-`$var`
+//!   indirection beyond one hop (`set a $lambda; apply $a`) is the same
+//!   kind of deliberate, bounded gap, not a special case of this one.
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
@@ -164,7 +185,11 @@ pub fn definition(
     // workspace must never win.
     if let Some((head, sub, false)) = instance_method_at_cursor(source, line, character) {
         let cursor_offset = byte_offset_at(&line_index, source, line, character);
-        let namespace = namespace_context_at(&analysis.global_scope, cursor_offset);
+        let namespace = namespace_context_at(
+            &analysis.global_scope,
+            cursor_offset,
+            &analysis.namespace_overrides,
+        );
         if let Some(target) = ensemble_subcommand_target(analysis, &namespace, &head, &sub)
             && let Some(proc_def) = resolve_called_proc(
                 analysis,
@@ -206,7 +231,11 @@ pub fn definition(
     // to the lenient tail match for procs whose defining namespace isn't
     // statically visible, resolved deterministically (see
     // [`resolve_called_proc`]).
-    let namespace = namespace_context_at(&analysis.global_scope, cursor_offset);
+    let namespace = namespace_context_at(
+        &analysis.global_scope,
+        cursor_offset,
+        &analysis.namespace_overrides,
+    );
     if let Some(proc_def) = resolve_called_proc(
         analysis,
         source,
@@ -995,7 +1024,12 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     // the scope that wrote it (`chain[0]`, the global scope, always does),
     // exactly as before this lookup existed.
     if name.contains("::") {
-        let here = innermost_namespace_at(scope, byte_offset);
+        // Variable ($var) resolution deliberately does not consult
+        // `namespace_overrides` (issue #923 idx 116 scoped this to
+        // command/bareword resolution only) — `&[]` keeps this call
+        // provably unaffected; `scope` alone (no `analysis`) is available
+        // here regardless.
+        let here = innermost_namespace_at(scope, byte_offset, &[]);
         let qualified = tcl_compiler::naming::qualify(&here, name);
         let (target_ns, base_name) = tcl_compiler::naming::key_holder_and_tail(&qualified);
         if let Some(v) =
@@ -1268,10 +1302,28 @@ pub(crate) fn lexical_namespace_chain(
 /// proc's/method's own defining namespace inside its body, even when that
 /// proc was declared with a fully-qualified name with no enclosing
 /// `namespace eval` at all.
+///
+/// `overrides` (issue #923 idx 116) is checked *first*: a runtime-context
+/// namespace pin (`apply {{params} body ns}` runs `body` in `ns`, not its
+/// lexical home) that the ordinary span-containment walk above can never
+/// see, since `handle_apply_command` roots that `Scope` subtree under
+/// fresh, `body_span`-less namespace wrapper nodes. On multiple containing
+/// entries (nested `apply` calls), the smallest span wins — innermost,
+/// mirroring the lexical walk's own innermost-scope preference. Pass `&[]`
+/// to opt out (e.g. variable lookups, which this fix deliberately doesn't
+/// extend — see `lookup_var_in_scope_chain`).
 pub(crate) fn innermost_namespace_at(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
+    overrides: &[(tcl_lexer::Span, String)],
 ) -> String {
+    let pinned = overrides
+        .iter()
+        .filter(|(span, _)| span.start() <= byte_offset && byte_offset < span.end())
+        .min_by_key(|(span, _)| span.end() - span.start());
+    if let Some((_, ns)) = pinned {
+        return ns.trim_start_matches("::").to_string();
+    }
     tcl_compiler::analyser::command_resolution_namespace_at(scope, byte_offset)
         .trim_start_matches("::")
         .to_string()
@@ -1285,8 +1337,9 @@ pub(crate) fn innermost_namespace_at(
 pub(crate) fn namespace_context_at(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
+    overrides: &[(tcl_lexer::Span, String)],
 ) -> String {
-    let ns = innermost_namespace_at(scope, byte_offset);
+    let ns = innermost_namespace_at(scope, byte_offset, overrides);
     if ns.is_empty() {
         "::".to_owned()
     } else {
@@ -1314,7 +1367,11 @@ pub fn command_head_and_namespace_at(
     let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
     let line_index = LineIndex::new(source);
     let offset = byte_offset_at(&line_index, source, line, character);
-    let namespace = namespace_context_at(&analysis.global_scope, offset);
+    let namespace = namespace_context_at(
+        &analysis.global_scope,
+        offset,
+        &analysis.namespace_overrides,
+    );
     Some((word, namespace))
 }
 
@@ -1416,7 +1473,11 @@ pub(crate) fn resolve_proc_target_at<'a>(
     {
         return Some(hit);
     }
-    let ns = namespace_context_at(&analysis.global_scope, cursor_off);
+    let ns = namespace_context_at(
+        &analysis.global_scope,
+        cursor_off,
+        &analysis.namespace_overrides,
+    );
     let proc_def = resolve_called_proc(analysis, source, &ns, word, registry)?;
     analysis.all_procs.get_key_value(&proc_def.qualified_name)
 }
@@ -1440,7 +1501,11 @@ pub(crate) fn resolve_class_target_at<'a>(
     {
         return Some(hit);
     }
-    let ns = namespace_context_at(&analysis.global_scope, cursor_off);
+    let ns = namespace_context_at(
+        &analysis.global_scope,
+        cursor_off,
+        &analysis.namespace_overrides,
+    );
     tcl_syntax::naming::bareword_resolution_candidates(&ns, word)
         .into_iter()
         .find_map(|cand| analysis.all_classes.get_key_value(&cand))
@@ -1640,6 +1705,152 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 4, "must resolve to ::b::helper");
         assert_eq!(locs[0].start_character, 9);
+    }
+
+    // apply namespace override (issue #923 idx 116): a bareword called
+    // inside `apply {{params} body ns}`'s body resolves against `ns`, not
+    // wherever the `apply` call is lexically written.
+
+    #[test]
+    fn bareword_inside_apply_body_resolves_against_the_lambdas_own_namespace() {
+        // TP — the finding's own literal repro: `real` and `lexical` both
+        // define `cleanup`; `apply {{} {cleanup done} ::real}` must
+        // resolve the bareword `cleanup` inside its body to `::real`'s
+        // copy, not `::lexical`'s (tclsh9.0/8.6-verified: prints "real
+        // done"). Before this fix: resolved to `::lexical::cleanup`
+        // purely by lexical-nearest-definition coincidence.
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\napply {{} {cleanup done} ::real}\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside the apply body (line 6, col 11).
+        let locs = definition(src, 6, 11, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to real::cleanup (line 1), not lexical::cleanup (line 4): {locs:?}"
+        );
+        assert_eq!(locs[0].start_character, 9);
+    }
+
+    #[test]
+    fn bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace() {
+        // TP — one-hop `$var` indirection to a literal lambda triple:
+        // `set lambda {{} {cleanup done} ::real}` then `apply $lambda`.
+        // tclsh9.0/8.6-verified: prints "real done". Exercises
+        // `resolve_dynamic_apply_lambda`'s `TokenType::Var` branch.
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\nset lambda {{} {cleanup done} ::real}\napply $lambda\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside the `set`'s braced value (line 6, col 16).
+        let locs = definition(src, 6, 16, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to real::cleanup (line 1), not lexical::cleanup (line 4): {locs:?}"
+        );
+    }
+
+    #[test]
+    fn bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace() {
+        // TP — direct list-substitution + namespace-qualified var, `apply`
+        // as a literal command word: `apply [list {} $lexical::body
+        // ::real]`, where `lexical::body` itself holds the literal
+        // `{cleanup done}`. Exercises BOTH new pieces together
+        // (`lookup_const_string_in_namespace` + the list-folding
+        // `TokenType::Cmd` branch).
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n    set body {cleanup done}\n}\napply [list {} $lexical::body ::real]\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside `set body {cleanup done}` (line 5, col 14).
+        let locs = definition(src, 5, 14, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to real::cleanup (line 1), not lexical::cleanup (line 4): {locs:?}"
+        );
+    }
+
+    #[test]
+    fn two_hop_apply_var_indirection_stays_unresolved() {
+        // FN — deliberately out of scope: `set a $lambda; apply $a` is an
+        // extra level of $var-to-$var forwarding beyond the one hop
+        // `resolve_dynamic_apply_lambda` follows from `apply`'s own
+        // argument (`set a $lambda`'s value is itself a `$`-prefixed Var
+        // token, which `handle_set_command` never records as a constant
+        // string at all, so `apply $a` can't resolve even one hop back to
+        // the literal lambda). Two conflicting `cleanup` procs, matching
+        // the other scenarios' shape, so a wrong resolution would be
+        // visible rather than accidentally right via a single-candidate
+        // fallback. Confirm this stays unresolved after the fix — a
+        // documented depth bound, not a regression.
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\nset lambda {{} {cleanup done} ::real}\nset a $lambda\napply $a\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside the `set lambda`'s braced value (line 6, col 16).
+        let locs = definition(src, 6, 16, &analysis);
+        // Since `apply $a` never resolves (not even one hop), this text is
+        // never walked as a script body at all, so `namespace_overrides`
+        // gets no entry for it — whatever answer comes back is from the
+        // SAME pre-existing, coincidental lexical-nearest fallback that
+        // would fire with no `apply`/`namespace_overrides` mechanism in
+        // the picture at all (confirmed: resolves to lexical::cleanup,
+        // line 4 — the nearer declaration, not real::cleanup on line 1).
+        // The one assertion that actually matters: the override must NOT
+        // have kicked in and pointed this at real::cleanup.
+        assert!(
+            locs.iter().all(|l| l.start_line != 1),
+            "two-hop indirection is a deliberate depth bound — must not resolve via the \
+             override to real::cleanup: {locs:?}"
+        );
+    }
+
+    #[test]
+    fn apply_namespace_matching_lexical_nesting_still_resolves() {
+        // TN — the "control" shape: apply's namespace override happens to
+        // equal its lexical home. Must resolve correctly both before and
+        // after the fix (before: coincidentally, via the lexical fallback;
+        // after: genuinely, via the override) — proves the fix doesn't
+        // disturb the already-working common case.
+        let src = "namespace eval app {\n    proc cleanup {tag} { puts $tag }\n    apply {{} {cleanup done} ::app}\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside the apply body (line 2, col 15).
+        let locs = definition(src, 2, 15, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn apply_namespace_override_does_not_leak_past_its_own_span() {
+        // FP guard — a bareword with the SAME text, immediately outside
+        // the apply body's span, must resolve exactly as it would with no
+        // apply call in the file at all (i.e. to the lexically-nearest
+        // `lexical::cleanup`, not real::cleanup). Catches an off-by-one in
+        // the recorded span or a "last override wins globally" bug.
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts $tag }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts $tag }\n    apply {{} {cleanup done} ::real}\n    cleanup done\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the second `cleanup` (line 6, the bare call OUTSIDE the
+        // apply body, col 4).
+        let locs = definition(src, 6, 4, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 4,
+            "must resolve to lexical::cleanup, the override must not leak past its span: {locs:?}"
+        );
+    }
+
+    #[test]
+    fn two_apply_calls_with_different_namespace_overrides_never_cross_resolve() {
+        // FP guard — two independent, non-overlapping `apply` calls with
+        // different namespace overrides in the same file must each
+        // resolve to their own namespace, never the other's (catches an
+        // implementation that only tracks a single override, or picks the
+        // wrong entry when more than one exists).
+        let src = "namespace eval a {\n    proc cleanup {tag} { puts $tag }\n}\nnamespace eval b {\n    proc cleanup {tag} { puts $tag }\n}\napply {{} {cleanup 1} ::a}\napply {{} {cleanup 2} ::b}\n";
+        let analysis = analyse(src);
+        // First apply body's `cleanup` (line 6, col 11) -> ::a::cleanup (line 1).
+        let locs_a = definition(src, 6, 11, &analysis);
+        assert_eq!(locs_a.len(), 1, "{locs_a:?}");
+        assert_eq!(locs_a[0].start_line, 1);
+        // Second apply body's `cleanup` (line 7, col 11) -> ::b::cleanup (line 4).
+        let locs_b = definition(src, 7, 11, &analysis);
+        assert_eq!(locs_b.len(), 1, "{locs_b:?}");
+        assert_eq!(locs_b[0].start_line, 4);
     }
 
     #[test]

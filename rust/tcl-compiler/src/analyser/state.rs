@@ -1947,6 +1947,54 @@ mod tests {
     }
 
     #[test]
+    fn apply_with_namespace_element_records_a_namespace_override() {
+        // TP — issue #923 idx 116 Part 1 (the core mechanism): a literal
+        // `apply {{params} body ns}` must record a namespace_overrides
+        // entry spanning the body, so `tcl-lsp-core`'s command-resolution
+        // lookups can pin bareword calls inside the body to `ns` — the
+        // `Scope` subtree `reconstruct_proc_scope` builds for `ns` is
+        // rooted under body_span-less wrapper nodes the ordinary lexical
+        // walk can never reach.
+        let mut a = Analyser::new();
+        let src = "apply {{} { cleanup done } ::real}";
+        let r = a.analyse(src, "tcl");
+        assert_eq!(
+            r.namespace_overrides.len(),
+            1,
+            "{:?}",
+            r.namespace_overrides
+        );
+        let (span, ns) = &r.namespace_overrides[0];
+        assert_eq!(ns, "::real");
+        // The recorded span is the body token's raw span (opening brace
+        // included, per this codebase's lexer-span convention — the
+        // closing brace is excluded, one byte short of the token's end).
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "{ cleanup done "
+        );
+    }
+
+    #[test]
+    fn apply_without_namespace_element_does_not_record_an_override() {
+        // TN — a 2-element lambda (no namespace argument) defaults to
+        // global, which `command_resolution_namespace_at` already reports
+        // with no override present; pushing a `(span, "::")` entry would
+        // be a no-op relative to today's behaviour, but the plan
+        // deliberately still records it (uniform code path) — confirm the
+        // recorded namespace is exactly `"::"`, not skipped or wrong.
+        let mut a = Analyser::new();
+        let r = a.analyse("apply {{} { cleanup done }}", "tcl");
+        assert_eq!(
+            r.namespace_overrides.len(),
+            1,
+            "{:?}",
+            r.namespace_overrides
+        );
+        assert_eq!(r.namespace_overrides[0].1, "::");
+    }
+
+    #[test]
     fn unknown_lexer_warning_maps_to_e200() {
         // An unterminated `$arr(idx` array index makes the lexer emit a
         // "missing )" warning, which has no dedicated recovery code — it
