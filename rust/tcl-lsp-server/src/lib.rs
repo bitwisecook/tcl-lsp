@@ -3690,7 +3690,7 @@ impl Backend {
         // still identifies the method, and access-context-aware so an
         // external call resolves the exported dispatch entry only
         // (issue #945 faults 4 + 6).
-        if let Some((class_q, method, access)) = self
+        if let Some((class_q, method, _is_classmethod, access)) = self
             .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
             .await
         {
@@ -4193,7 +4193,7 @@ impl Backend {
         dialect: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Option<(String, String, core_workspace_index::MethodAccess)> {
+    ) -> Option<(String, String, bool, core_workspace_index::MethodAccess)> {
         if let Some(target) =
             core_rename::method_target_with_access(source, pos.line, pos.character, analysis)
         {
@@ -4223,16 +4223,14 @@ impl Backend {
     fn classmethod_dispatch_names(
         definers: &[&core_workspace_index::WorkspaceClass],
         inheritors: &[&core_workspace_index::WorkspaceClass],
-        method: &str,
+        is_classmethod: bool,
         dialect: &str,
     ) -> Vec<String> {
-        let is_classmethod = definers.iter().any(|wc| {
-            !wc.is_itcl(dialect)
-                && wc
-                    .methods
-                    .iter()
-                    .any(|m| m.name == method && m.kind == "classmethod")
-        });
+        // `is_classmethod` is the caller's already-resolved fact (from the
+        // cursor, or the caller's own test fixture) about which of a
+        // possibly-same-named `method` / `classmethod` pair is meant — not
+        // re-derived from workspace membership, which can't disambiguate
+        // when a class legally defines both (Codex review on #971, P2).
         if !is_classmethod {
             return Vec::new();
         }
@@ -4263,26 +4261,28 @@ impl Backend {
         current_dialect: &str,
         seed_class: &str,
         method: &str,
+        is_classmethod: bool,
     ) -> Vec<Location> {
         // The family + inheritor classes whose instances dispatch `method` to
         // the family, the workspace class oracle, and the candidate consumer
         // documents — collected under one index read.
         //
-        // `classmethod_cmd_names` carries the workspace-wide answer to "is
-        // `method` a classmethod, and if so, which class names bare-dispatch
-        // it" — a pure-consumer document (e.g. one that only calls `Factory
-        // make`) has no local `ClassDef` for `Factory`, so
+        // `classmethod_cmd_names` carries the workspace-wide answer to "given
+        // `is_classmethod` is true, which class names bare-dispatch it" — a
+        // pure-consumer document (e.g. one that only calls `Factory make`)
+        // has no local `ClassDef` for `Factory`, so
         // `core_references::obj_method_call_sites` cannot derive this itself
-        // the way the same-document path does; the workspace index's
-        // per-method `kind` (`"method"` / `"classmethod"` / `"forward"`) is
-        // the centralised source of that fact instead of guessing from the
-        // command name.
+        // the way the same-document path does.
         let (family, consumer_uris, classmethod_cmd_names) = {
             let index = self.workspace_index.read().await;
             let definers = index.method_override_family(seed_class, method);
             let inheritors = index.method_inheritor_classes(seed_class, method);
-            let classmethod_cmd_names =
-                Self::classmethod_dispatch_names(&definers, &inheritors, method, current_dialect);
+            let classmethod_cmd_names = Self::classmethod_dispatch_names(
+                &definers,
+                &inheritors,
+                is_classmethod,
+                current_dialect,
+            );
             let mut family: Vec<String> = definers
                 .iter()
                 .map(|wc| wc.qualified_name.clone())
@@ -4342,6 +4342,7 @@ impl Backend {
                         &analysis,
                         cq,
                         &method_owned,
+                        is_classmethod,
                         &classmethod_cmd_names_cl,
                     ));
                 }
@@ -4395,6 +4396,7 @@ impl Backend {
         seed_class: &str,
         method: &str,
         new_name: &str,
+        is_classmethod: bool,
         dialect: &str,
     ) -> std::collections::HashMap<Uri, Vec<TextEdit>> {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
@@ -4413,7 +4415,7 @@ impl Backend {
             let definers = index.method_override_family(seed_class, method);
             let inheritors = index.method_inheritor_classes(seed_class, method);
             let classmethod_cmd_names =
-                Self::classmethod_dispatch_names(&definers, &inheritors, method, dialect);
+                Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
             let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
             for wc in definers {
@@ -4453,6 +4455,7 @@ impl Backend {
                         &analysis,
                         cq,
                         &method_owned,
+                        is_classmethod,
                     ));
                 }
                 for cq in &inheritors {
@@ -4462,6 +4465,7 @@ impl Backend {
                         &analysis,
                         cq,
                         &method_owned,
+                        is_classmethod,
                         &classmethod_cmd_names_cl,
                     ));
                 }
@@ -4516,6 +4520,7 @@ impl Backend {
         seed_class: &str,
         method: &str,
         include_declaration: bool,
+        is_classmethod: bool,
         dialect: &str,
     ) -> Vec<Location> {
         let (by_uri, classmethod_cmd_names) = {
@@ -4523,7 +4528,7 @@ impl Backend {
             let definers = index.method_override_family(seed_class, method);
             let inheritors = index.method_inheritor_classes(seed_class, method);
             let classmethod_cmd_names =
-                Self::classmethod_dispatch_names(&definers, &inheritors, method, dialect);
+                Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
             let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
             for wc in definers {
@@ -4568,6 +4573,7 @@ impl Backend {
                         cq,
                         &method_owned,
                         include_declaration,
+                        is_classmethod,
                     ));
                 }
                 for cq in &inheritors {
@@ -4577,6 +4583,7 @@ impl Backend {
                         &analysis,
                         cq,
                         &method_owned,
+                        is_classmethod,
                         &classmethod_cmd_names_cl,
                     ));
                 }
@@ -4621,7 +4628,7 @@ impl Backend {
         include_decl: bool,
     ) -> Vec<Location> {
         let mut locations = Vec::new();
-        if let Some((seed_class, method, _access)) = self
+        if let Some((seed_class, method, is_classmethod, _access)) = self
             .resolve_method_target(&doc.text, &doc.dialect, analysis, pos)
             .await
         {
@@ -4631,6 +4638,7 @@ impl Backend {
                     &seed_class,
                     &method,
                     include_decl,
+                    is_classmethod,
                     &doc.dialect,
                 )
                 .await,
@@ -4645,6 +4653,7 @@ impl Backend {
                     &doc.dialect,
                     &seed_class,
                     &method,
+                    is_classmethod,
                 )
                 .await,
             );
@@ -9896,11 +9905,17 @@ impl LanguageServer for Backend {
         // single-document path when the family is empty (e.g. the index is
         // not yet populated) so nothing regresses.
         if core_rename::is_safe_symbol_name(&new_name)
-            && let Some((seed_class, method)) =
+            && let Some((seed_class, method, is_classmethod)) =
                 core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
         {
             let changes = self
-                .cross_file_method_rename(&seed_class, &method, &new_name, &doc.dialect)
+                .cross_file_method_rename(
+                    &seed_class,
+                    &method,
+                    &new_name,
+                    is_classmethod,
+                    &doc.dialect,
+                )
                 .await;
             if !changes.is_empty() {
                 return Ok(Some(WorkspaceEdit {
@@ -18692,6 +18707,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name() {
+        // `method make` and `classmethod make` on the same class are two
+        // distinct, independently-dispatched members (TclOO allows both:
+        // one on the instance, one on the class object) — Codex review on
+        // #971 (P2) caught that `member_ref_count`/`method_references_for_class`
+        // received only the bare name and combined `$obj make` with
+        // `Factory make` for *both* lenses. Each lens must count and
+        // resolve to *only* its own dispatch shape.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dual_make.tcl").unwrap();
+        let src = "oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return [Factory new] }\n}\nset f [Factory new]\n$f make\nFactory make\n";
+        let method_lens = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let classmethod_lens = resolve_member_lens_at_line(&backend, &uri, src, 2).await;
+
+        let method_cmd = method_lens
+            .command
+            .expect("method lens must resolve to a command");
+        assert_eq!(method_cmd.title, "1 reference", "{method_cmd:?}");
+        let method_locations = method_cmd.arguments.expect("args")[2]
+            .as_array()
+            .expect("locations array")
+            .clone();
+        assert_eq!(
+            method_locations.len(),
+            1,
+            "method lens must count only `$f make` (l5), not `Factory make` (l6): {method_locations:?}"
+        );
+
+        let classmethod_cmd = classmethod_lens
+            .command
+            .expect("classmethod lens must resolve to a command");
+        assert_eq!(classmethod_cmd.title, "1 reference", "{classmethod_cmd:?}");
+        let classmethod_locations = classmethod_cmd.arguments.expect("args")[2]
+            .as_array()
+            .expect("locations array")
+            .clone();
+        assert_eq!(
+            classmethod_locations.len(),
+            1,
+            "classmethod lens must count only `Factory make` (l6), not `$f make` (l5): {classmethod_locations:?}"
+        );
+        assert_ne!(
+            method_locations, classmethod_locations,
+            "the two lenses must resolve to different call sites"
+        );
+    }
+
+    #[tokio::test]
     async fn code_lens_resolve_for_unused_method_is_clickable_with_zero_locations() {
         // TN: a declared-but-never-dispatched method still resolves to a
         // real command (an empty peek is a valid "0 references" click
@@ -19164,6 +19227,52 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn rename_disambiguates_method_and_classmethod_of_the_same_name() {
+        // Same fixture as `code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name`,
+        // but through the production `rename` handler: renaming from the
+        // cursor on `method make`'s declaration must rewrite only the
+        // method's own declaration and its `$f make` dispatch — never the
+        // unrelated `classmethod make`'s declaration or its `Factory make`
+        // dispatch (Codex review on #971, P2).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dual_make_rename.tcl").unwrap();
+        let src = "oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return [Factory new] }\n}\nset f [Factory new]\n$f make\nFactory make\n";
+        register(&backend, &uri, src).await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                position: Position::new(1, 11), // on `make` in `method make`'s decl
+            },
+            new_name: "build".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok").expect("some");
+        let changes = edit.changes.expect("changes");
+        let edits = &changes[&uri];
+        let renamed_lines: Vec<u32> = edits
+            .iter()
+            .filter(|e| e.new_text == "build")
+            .map(|e| e.range.start.line)
+            .collect();
+        assert!(
+            renamed_lines.contains(&1),
+            "method decl (l1) must be renamed: {edits:?}"
+        );
+        assert!(
+            renamed_lines.contains(&5),
+            "`$f make` (l5) must be renamed: {edits:?}"
+        );
+        assert!(
+            !renamed_lines.contains(&2),
+            "classmethod decl (l2) must NOT be renamed: {edits:?}"
+        );
+        assert!(
+            !renamed_lines.contains(&6),
+            "`Factory make` (l6, classmethod dispatch) must NOT be renamed: {edits:?}"
+        );
+    }
+
     /// Register `animal.tcl` (`Animal::speak`) and `dog.tcl` (a `Dog` subclass
     /// that overrides `speak` and calls `$d speak`).  Returns the backend and
     /// the two URIs.
@@ -19193,7 +19302,7 @@ mod tests {
         // had no cross-file reference support at all.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", true, "tcl8.6")
+            .cross_file_method_references(&animal, "::Animal", "speak", true, false, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -19219,7 +19328,7 @@ mod tests {
         // (l2) is dropped but the `$d speak` call site (l5) stays.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", false, "tcl8.6")
+            .cross_file_method_references(&animal, "::Animal", "speak", false, false, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -19251,7 +19360,7 @@ mod tests {
         )
         .await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", false, "tcl8.6")
+            .cross_file_method_references(&animal, "::Animal", "speak", false, false, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -19287,7 +19396,7 @@ mod tests {
         )
         .await;
         let refs = backend
-            .cross_file_method_references(&factory, "::Factory", "make", false, "tcl8.6")
+            .cross_file_method_references(&factory, "::Factory", "make", false, true, "tcl8.6")
             .await;
         let sub_lines: Vec<u32> = refs
             .iter()
@@ -19306,7 +19415,7 @@ mod tests {
         // cross-file sites.
         let (backend, animal, _dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "nonexistent", true, "tcl8.6")
+            .cross_file_method_references(&animal, "::Animal", "nonexistent", true, false, "tcl8.6")
             .await;
         assert!(refs.is_empty(), "{refs:?}");
     }
@@ -19337,6 +19446,7 @@ mod tests {
                 "tcl8.6",
                 "::Factory",
                 "make",
+                true,
             )
             .await;
         assert!(
@@ -19364,6 +19474,7 @@ mod tests {
                 "tcl8.6",
                 "::Factory",
                 "make",
+                true,
             )
             .await;
         assert!(
@@ -19392,6 +19503,7 @@ mod tests {
                 "tcl8.6",
                 "::Factory",
                 "get",
+                false,
             )
             .await;
         assert!(
@@ -19424,6 +19536,7 @@ mod tests {
                 "tcl8.6",
                 "::Factory",
                 "make",
+                true,
             )
             .await;
         assert!(
@@ -19625,6 +19738,7 @@ mod tests {
                 "tcl8.6",
                 "::Animal",
                 "speak",
+                false,
             )
             .await;
         assert!(

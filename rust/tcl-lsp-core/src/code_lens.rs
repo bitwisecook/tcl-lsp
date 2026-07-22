@@ -207,9 +207,19 @@ fn emit_class_member_lenses(
 ) {
     // Reference count for one member, matching the peek exactly: the number
     // of call sites (declaration excluded) the shared resolver returns.
-    let member_ref_count = |name: &str| -> usize {
-        crate::references::method_references_for_class(source, dialect, analysis, class_q, name)
-            .map_or(0, |(_decl, calls)| calls.len())
+    // `is_classmethod` is passed explicitly rather than inferred, so a
+    // `method` and `classmethod` sharing a name each count and resolve only
+    // their own dispatch shape (Codex review on #971, P2).
+    let member_ref_count = |name: &str, is_classmethod: bool| -> usize {
+        crate::references::method_references_for_class(
+            source,
+            dialect,
+            analysis,
+            class_q,
+            name,
+            is_classmethod,
+        )
+        .map_or(0, |(_decl, calls)| calls.len())
     };
     let push_lens =
         |name_span: tcl_lexer::Span, qname: String, title: String, lenses: &mut Vec<CodeLens>| {
@@ -234,7 +244,7 @@ fn emit_class_member_lenses(
         push_lens(
             m.name_span,
             tcl_compiler::analyser::class_member_key(class_q, name, false),
-            reference_count_title(member_ref_count(name)),
+            reference_count_title(member_ref_count(name, false)),
             lenses,
         );
     }
@@ -245,7 +255,7 @@ fn emit_class_member_lenses(
         push_lens(
             m.name_span,
             tcl_compiler::analyser::class_member_key(class_q, name, true),
-            reference_count_title(member_ref_count(name)),
+            reference_count_title(member_ref_count(name, true)),
             lenses,
         );
     }
