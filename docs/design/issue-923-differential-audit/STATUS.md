@@ -31,12 +31,13 @@ pushed to this branch (§3/§6a); 6 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
-Six of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
+Seven of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
 (high, §3's `26e4ea3`), idx 10 (high, §3's `9a55b00`), idx 18 (high, §3's
 `b3cbdb1`), idx 29 (high, already resolved by idx 18's fix, pinned in
-§3's `65aaa5c`), idx 31 (high, §3's `26c6e02`); the other 79 main-wave
-findings are clustered by feature/root-cause with a priority-ordered
-table in §6b, ready for a future session to pick up efficiently. Nothing
+§3's `65aaa5c`), idx 31 (high, §3's `26c6e02`), idx 32 (high, §3's
+`77c5e97`); the other 78 main-wave findings are clustered by
+feature/root-cause with a priority-ordered table in §6b, ready for a
+future session to pick up efficiently. Nothing
 is lost — the raw data,
 the exact scripts that
 produced it, and everything needed to resume are in
@@ -167,6 +168,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `b3cbdb1` | **main-wave** idx 18 (high) | A bareword proc/class name reachable only through a wildcard `namespace import NS::*` never resolved — in-document or cross-document, regardless of how many commands the source namespace exports (the finding's own repro claimed a working single-command case broke when an unrelated second command was added; a research agent's exhaustive trace found no path where the single-command case ever worked either — a complete feature absence, not a threshold bug). Root causes: `namespace export` was never recorded anywhere in the analyser, and no resolution path (in-document `resolve_called_proc`/`resolve_class_target_at`, or cross-document `resolve_workspace_symbols`/`WorkspaceIndex`) ever consulted `namespace_imports` for a user proc/class (only a narrower registry-builtin-only path in `hover.rs` did). Fixed: new `AnalyserHookId::NamespaceExport` → `handle_namespace_export_command` → `AnalysisResult::namespace_exports`, wired through `per_item.rs` like its sibling `namespace_imports`; bareword-through-wildcard-import resolution added at the same priority tier as exact-namespace resolution, for both procs and classes, in-document and cross-document (new `WorkspaceGlobImport`/`WorkspaceNamespaceExport` + `WorkspaceIndex::resolve_wildcard_import`), gated on the source namespace actually exporting the name (an unexported sibling stays unresolved, tclsh9.0/8.6-verified `invalid command name`). Implemented via a Workflow (implement → two independent adversarial verify passes), which caught and fixed two real issues before this commit: (1) `resolve_wildcard_import` wrongly restricted candidate imports to the *calling* document — `namespace import` binds to the namespace, not the file, so a shared "imports.tcl" pattern (import statement in a third file, separate from both the call site and the export) was still unresolved; fixed by dropping the file-scoping filter (matches the pre-existing exact-import path, which is workspace-global already). (2) The same function re-scanned every workspace-wide glob import/export on *every* invocation inside the cross-document find-references hot loop — O(invocations × workspace-wide glob-import count); fixed with a new `WildcardImportIndex` per-namespace grouping built once per query, mirroring the loop's pre-existing `defined`/`links` hoisting. |
 | `65aaa5c` | **main-wave** idx 29 (high, test-only) | Found while probing an already-refuted hypothesis, this finding turned out to be the exact same root cause as idx 18. Empirically verified (built server + tclsh9.0-matched repros) that idx 18's fix already resolves both of idx 29's confirmed failure modes: a same-file decoy no longer wins over the real exported+imported target by lexicographic tie-break (`fallback_proc_by_simple_name`'s pre-existing leniency), and a cross-document TclOO class miss already resolves via idx 18's shared `workspace_command_exists` path (which covers classes exactly like procs, just not unit-tested for that case in the idx 18 diff itself). No production changes — pinned both as permanent, dedicated regression tests. |
 | `26c6e02` | **main-wave** idx 31 (high) | A proc declared twice, verbatim, in the same document (plain Tcl's own "last redefinition wins" semantics, tclsh9.0/8.6-verified — georgtree_tclopt's `tclopt.tcl` declares `::tclopt::List2array` at two line ranges) broke cross-document find-references/rename when queried from the earlier, *shadowed* declaration's own name token — go-to-definition already worked there (falls through to ordinary word-text resolution), but `resolve_workspace_symbols` only checked `all_procs.values().find(covers(name_span))`, and `all_procs` (keyed by qualified name) retains only the winning declaration's span on a duplicate insert, so the shadowed token could never match. Applying the resulting incomplete rename is worse than a no-op: the un-rewritten cross-file caller silently starts running the dead shadowed definition (still lying around under the old name) instead — demonstrated end-to-end in the finding's own repro (real program output changed, no error surfaced). Fixed with a new `AnalysisResult::proc_declaration_sites: Vec<(String, Span)>`, the flat never-deduplicated companion to `all_procs` recording every proc declaration's own name span (including shadowed ones) in source order, wired through `per_item.rs` like every other span-bearing field; `resolve_workspace_symbols` now also checks this list, resolving through `all_procs` to whichever definition currently wins. Deliberately scoped to procs only — `oo::class create`'s reopen semantics are additive in real Tcl (configures the same class object, not a fresh shadow), a materially different, unverified question this fix doesn't speculate on. The same-document path (`resolve_proc_target_at`) was already correct (confirmed with a TN regression guard). |
+| `77c5e97` | **main-wave** idx 32 (high) | A TclOO class body with 2+ separate `variable` statements (georgtree_tclopt's `::tclopt::Mpfit` declares `variable funct m ftol ...` then, separately, `variable Pars` — the same idiom recurs in all four real optimiser classes in `tclopt.tcl`) only kept the LAST statement's names as recognised instance variables — go-to-definition/hover/find-references on any name from an earlier statement returned nothing, even though tclsh9.0 proves both statements' names are simultaneously live (`variable` in a class body means "always present in every method", additive across statements, never a reset — the same declaration a `variable` command inside a method body itself makes, just issued once for the class). `apply_oo_subcommand`'s `"variable"` arm assigned `class_def.variables = sub_args.to_vec()` on every call, discarding earlier statements' names — unlike the sibling `"export"`/`"unexport"` arms right next to it, which already correctly `.extend()`. One-line fix (`=` → `.extend()`). Also confirmed (order-swap + plain-vs-`{*}`-command-head repros) that the finding's own dynamic-dispatch reference-tracking observation is a separate, pre-existing, correctly-abstained limitation, untouched here. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -304,7 +306,7 @@ from scratch:
 | `04-tcllib-audit-results-COMPLETE-25of25.json` | **Complete.** All 25 tcllib findings differentially audited: 22 CONFIRMED, 3 REFUTED. This is the source for the tcllib triage in §6. |
 | `05-main-audit-input-105.json` | The 105 findings from the other 7 corpora (SpiceGenTcl, argparse, tclopt, ticklecharts, pix, tomato, tk) selected for the second audit wave (indices 0–104). |
 | `06-main-audit-results-PARTIAL-49of105.json` | Superseded by the `COMPLETE` file below — kept for history (idx 0–48 only, the first half of the wave). |
-| `06-main-audit-results-COMPLETE-105of105.json` | **Complete.** All 105 main-wave findings (idx 0–104) differentially audited: 85 CONFIRMED, 20 REFUTED. **Triaged** — see §6b for the severity/corpus/feature breakdown and priority-ordered tables. idx 61 (critical, §3's `d825d1d`), idx 9 (high, §3's `26e4ea3`), idx 10 (high, §3's `9a55b00`), idx 18 (high, §3's `b3cbdb1`), idx 29 (high, same root cause as idx 18, pinned in §3's `65aaa5c`), and idx 31 (high, §3's `26c6e02`) are fixed; the other 79 CONFIRMED findings are open work. |
+| `06-main-audit-results-COMPLETE-105of105.json` | **Complete.** All 105 main-wave findings (idx 0–104) differentially audited: 85 CONFIRMED, 20 REFUTED. **Triaged** — see §6b for the severity/corpus/feature breakdown and priority-ordered tables. idx 61 (critical, §3's `d825d1d`), idx 9 (high, §3's `26e4ea3`), idx 10 (high, §3's `9a55b00`), idx 18 (high, §3's `b3cbdb1`), idx 29 (high, same root cause as idx 18, pinned in §3's `65aaa5c`), idx 31 (high, §3's `26c6e02`), and idx 32 (high, §3's `77c5e97`) are fixed; the other 78 CONFIRMED findings are open work. |
 | `07-remaining-tcllib-findings-14.json` | The 14 tcllib CONFIRMED findings not yet fixed (full detail: summary, failure_scenario, oracle_output, lsp_output, root_cause_hint, repro_path — repro files themselves are gone, scratchpad-only, but the hints are detailed enough to rebuild a repro in minutes). |
 | `08-research-plans-PARTIAL-8of14.json` | **Partial — 8 of 14 done.** Refined, current-code-verified fix plans for 8 of the 14 remaining tcllib findings (idx 3, 9, 105, 106, 110, 113, 116, 120), produced by a research-only agent fan-out (no file edits) that re-checked each root-cause hint against the *current* (post-merge) code and proposed concrete changes + test scenarios. idx 18, 24, 121, 122, 125, 128 do not have refined plans yet — use `07`'s `root_cause_hint` field directly for those, which is still quite detailed.
 
@@ -347,10 +349,11 @@ tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
 merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
 from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
 `wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
-REFUTED.** Of the 85 CONFIRMED: **6 fixed** (idx 61, critical — §3's
+REFUTED.** Of the 85 CONFIRMED: **7 fixed** (idx 61, critical — §3's
 `d825d1d`; idx 9, high — §3's `26e4ea3`; idx 10, high — §3's `9a55b00`;
 idx 18, high — §3's `b3cbdb1`; idx 29, high, same root cause as idx 18 —
-§3's `65aaa5c`; idx 31, high — §3's `26c6e02`), **79 remaining**.
+§3's `65aaa5c`; idx 31, high — §3's `26c6e02`; idx 32, high — §3's
+`77c5e97`), **78 remaining**.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
@@ -361,7 +364,7 @@ namespaces 11, proc_args 10, upvar 7, source 6, tcl_mathop 5, rename 4,
 package_loading 3, uplevel 3, tracing 3, aliasing 2, safe_interp 2, eval 1,
 autoindex 1.
 
-#### Priority tier 1 — critical + high (24 findings, 6 already fixed)
+#### Priority tier 1 — critical + high (24 findings, 7 already fixed)
 
 Fix these first — each is either data-loss-risk (a rename that silently
 breaks the program, idx 61) or a full-zero-results failure of a core
@@ -379,7 +382,7 @@ not a substitute.
 | 18 | high | SpiceGenTcl | namespaces | **FIXED** (`b3cbdb1`) — a bareword class/proc name reachable only through a wildcard `namespace import NS::*` never resolved (in-doc or cross-document). |
 | 29 | high | tclopt | namespaces | **FIXED** (already resolved by `b3cbdb1`'s idx 18 fix — same root cause; pinned with dedicated regression tests in `65aaa5c`). |
 | 31 | high | tclopt | tricky_indirection | **FIXED** (`26c6e02`) — references/rename from a shadowed duplicate proc declaration silently dropped cross-file callers. |
-| 32 | high | tclopt | tricky_indirection | Two related sub-questions, LSP gets them backwards from what's actually correct — read the full note. |
+| 32 | high | tclopt | tricky_indirection | **FIXED** (`77c5e97`) — a class's 2nd+ `variable` statement silently discarded the 1st's names instead of accumulating. |
 | 33 | high | tclopt | tricky_indirection | Go-to-definition/find-references fail on a bareword class/command reference gated by a runtime condition. |
 | 39 | high | tclopt | rename | `textDocument/rename`/`references` omit the target-name argument of `rename` itself as a reference site. |
 | 46 | high | ticklecharts | source | A `source` target built from a namespace variable derived through another indirection layer — go-to-definition/cross-file resolution fails. |
@@ -519,9 +522,9 @@ manual differential checks — see its own docstring for usage
 4. Pick the next finding to fix — two ready queues, both fully triaged:
    - §6a: 6 remaining tcllib findings (idx 121/122/18/125/128/24), no
      refined plan for any — use `07`'s `root_cause_hint` directly.
-   - §6b: 79 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
-     idx 29, and idx 31 are fixed so far), fully triaged into a
-     priority-ordered critical/high table (18 remaining, start here) and
+   - §6b: 78 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
+     idx 29, idx 31, and idx 32 are fixed so far), fully triaged into a
+     priority-ordered critical/high table (17 remaining, start here) and
      a feature-clustered medium/low table (61 findings, group by feature
      when fixing). Likely the higher-leverage queue given its size and
      the presence of several zero-results go-to-definition/references
