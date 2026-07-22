@@ -16,13 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl::idna::decode` command.
+//! `tcl::idna::decode` command (`cookiejar` package, bundled since Tcl 8.6).
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::idna::decode",
         traits: Traits::PURE,
-        dialects: None,
+        dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Decode a hostname from IDNA format to Unicode.",

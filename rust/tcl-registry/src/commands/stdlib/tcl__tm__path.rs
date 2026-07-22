@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl::tm::path` command.
+//! `tcl::tm::path` command (Tcl Modules, TIP 189 — added in Tcl 8.5).
 use crate::prelude::*;
 
 /// The command's subcommands.
@@ -54,7 +54,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::tm::path",
-        dialects: None,
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Manage the list of paths searched for Tcl modules.",

@@ -342,6 +342,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         tcl_process::spec(),
         tcl_process::spec_qualified(),
         tcl_unsupported_corotype::spec(),
+        tcl_unsupported_corotype::spec_qualified(),
         tcl_zipfs::spec(),
         tcl_zipfs::spec_qualified(),
         tell_::spec(),

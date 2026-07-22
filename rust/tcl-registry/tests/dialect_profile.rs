@@ -168,6 +168,27 @@ fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
              keep the mechanisms separate"
         );
     }
+    // …and never under plain tcl8.4 either: `::tcl::mathop` is TIP 174,
+    // added in Tcl 8.5 — a real tclsh 8.4 has no `::tcl` namespace at all,
+    // so 8.4 shares iRules' reasoning here even though it carries no vendor
+    // bit to key a disable-list entry off. Same three angles as iRules.
+    let reg84 = registry_for_dialect("tcl8.4");
+    let tcl84 = DialectProfile::by_name("tcl8.4");
+    for op in ["+", "eq", "tcl::mathop::+"] {
+        assert!(
+            tcl84.resolve_command(reg84, op).is_none(),
+            "{op} must not resolve under tcl8.4"
+        );
+        assert!(
+            reg84.get_for_dialect(op, DialectSet::TCL84).is_none(),
+            "{op} must not resolve via a bare mask query either under tcl8.4"
+        );
+        assert!(
+            !tcl84.is_command_disabled(op),
+            "{op}: operator heads are excluded by shape, not the ban list — \
+             keep the mechanisms separate"
+        );
+    }
 }
 
 /// The retag's false-negative fix: iRules subcommands whose *names* collide

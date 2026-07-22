@@ -566,8 +566,14 @@ fn sweep_dialect_resolution_is_consistent() {
                 );
             }
             // If *every* registered spec under this name rejects the dialect,
-            // get_for_dialect must return None (and vice-versa).
-            let any_supports = reg.specs(name).iter().any(|s| s.supports_dialect(bit));
+            // get_for_dialect must return None (and vice-versa). Use
+            // `spec_visible`, not the bare `supports_dialect` mask test:
+            // `get_for_dialect` also applies the profile's subtractive
+            // disable list and (for a profile whose operators are not
+            // command heads, e.g. tcl8.4/f5-irules) the
+            // `Traits::OPERATOR_COMMAND` exclusion, so a naive mask-only
+            // scan disagrees with it for exactly those specs.
+            let any_supports = reg.specs(name).iter().any(|s| reg.spec_visible(s, bit));
             assert_eq!(
                 for_dialect.is_some(),
                 any_supports,

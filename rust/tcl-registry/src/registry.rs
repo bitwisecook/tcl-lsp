@@ -161,7 +161,14 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
         let mut set: FxHashSet<&'static str> = FxHashSet::default();
         let mut add = |specs: Vec<CommandSpec>| {
             for spec in specs {
-                set.insert(spec.name);
+                // Normalise away a leading `::` so a spec registered only in
+                // its fully-qualified spelling (e.g.
+                // `::tcl::unsupported::corotype`, which has no separate bare
+                // registration) still matches `known_in_any_dialect`'s
+                // already-bare query — the caller strips a literal `::` head
+                // from the source text before calling in, so the set must be
+                // bare-normalised too or the two never agree.
+                set.insert(spec.name.strip_prefix("::").unwrap_or(spec.name));
             }
         };
         add(crate::commands::bpf::bpf_command_specs());
