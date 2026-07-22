@@ -1652,6 +1652,62 @@ fn bang_equals_string_condition_folds() {
     }
 }
 
+// -- TestI230InterproceduralCallSiteSeedingE2E ---------------------------
+// Issue #969: "Condition '$count & 1' is always false" fired on a genuinely
+// alternating parity check. Root cause: the interprocedural param-constant
+// seed (`params_constants_from_call_sites`) trusted a proc's parameter as a
+// compile-time literal whenever every call site *it could resolve* passed
+// the same value — but a namespaced proc's own bare-name recursive
+// self-call resolved incorrectly (namespace-blind lookup), so that call
+// site (with its necessarily-varying argument) silently vanished from the
+// evidence, leaving only the one external caller's literal `0` and folding
+// `$count & 1` to a fixed `false`. See `compilation_unit.rs`'s
+// `collect_call_site_constants` / `params_constants_from_call_sites` for the
+// full fix (also closes a second, closely-related gap: a call site
+// embedded inside a `catch` / `uplevel` body's `ArgRole::Body` argument).
+
+#[test]
+fn namespaced_recursive_proc_parity_check_does_not_fire_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ::graph {\n    proc dfs {count} {\n        if {$count & 1} {\n            set parity odd\n        } else {\n            set parity even\n        }\n        if {$count < 3} {\n            dfs [expr {$count + 1}]\n        }\n    }\n}\n::graph::dfs 0\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "recursive parity check on `count` must not fold: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn call_site_hidden_inside_catch_body_does_not_fire_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc is_even {n} {\n    if {$n % 2 == 0} { return 1 } else { return 0 }\n}\nproc main {} {\n    is_even 3\n    catch { is_even 4 }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "is_even is called with both 3 and 4 (the latter inside catch): {:?}",
+        codes(&diags)
+    );
+}
+
+/// TP control: the interprocedural seed must still fire I230 for a
+/// genuinely proc-call-invariant parameter — two callers passing the
+/// identical literal to a private helper.
+#[test]
+fn two_callers_with_uniform_literal_still_fires_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nproc caller1 {} { helper prod }\nproc caller2 {} { helper prod }\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "I230"),
+        "two callers passing the identical literal should still fold: {:?}",
+        codes(&diags)
+    );
+}
+
 // -- TestDiagnosticsTrackEdits -------------------------------------------
 
 #[test]
