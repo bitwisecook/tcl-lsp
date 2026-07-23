@@ -33,6 +33,7 @@
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
+use tcl_syntax::list::find_element;
 
 use crate::alias::{detect_interp_alias, resolve_alias};
 use crate::signature_scan::types::SignatureCommandAlias;
@@ -771,6 +772,7 @@ impl Analyser {
             // created with params; a second pass fills it in place).
             let body_text = args[2].clone();
             if self.defer_proc_bodies {
+                let safe_interp_ctx = self.safe_interp_ctx_snapshot();
                 self.deferred_bodies.push(super::per_item::DeferredBody {
                     body_text,
                     body_tok,
@@ -781,6 +783,7 @@ impl Analyser {
                     scope_name: raw_name.clone(),
                     params: params.clone(),
                     class_variables: Vec::new(),
+                    safe_interp_ctx,
                 });
             } else {
                 self.analyse_body(&body_text, body_tok, &child_path);
@@ -952,6 +955,7 @@ impl Analyser {
         // doc-comment inside the lambda body doesn't bleed to what follows.
         let saved_comment = std::mem::take(&mut self.last_comment);
         if self.defer_proc_bodies {
+            let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
                 body_text,
                 body_tok,
@@ -962,6 +966,7 @@ impl Analyser {
                 scope_name,
                 params,
                 class_variables: Vec::new(),
+                safe_interp_ctx,
             });
         } else {
             self.analyse_body(&body_text, body_tok, &child_path);
@@ -1574,14 +1579,57 @@ impl Analyser {
         if args.len() < 2 {
             return;
         }
-        if args[1] != "create" {
+        // `create` operates on the *current* namespace, with no explicit name
+        // argument; `configure NAME ...` (issue #1001 follow-up — the ensemble
+        // side of the `namespace ensemble configure -map` gap, previously
+        // silently ignored here entirely) names an *existing* ensemble
+        // command explicitly, resolved like any other command reference.
+        // Both share the same `-command`/`-map`/`-subcommands` option set.
+        let is_create = args[1] == "create";
+        let is_configure = args[1] == "configure";
+        if !is_create && !is_configure {
             return;
         }
         let ns = self.namespace_from_scope_path(scope_path);
-        if !ns.is_empty() && ns != "::" {
-            self.ensemble_namespaces.insert(ns.clone());
-        }
         let ns_prefix = ns.trim_start_matches(':').to_owned();
+
+        let (opts, opt_tokens, configure_target) = if is_create {
+            if !ns.is_empty() && ns != "::" {
+                self.ensemble_namespaces.insert(ns.clone());
+            }
+            (&args[2..], arg_tokens.get(2..).unwrap_or(&[]), None)
+        } else {
+            let Some(name) = args.get(2) else { return };
+            if crate::naming::is_dynamic_word(name) {
+                return;
+            }
+            let target = self.resolve_command_qualified_name(name, scope_path);
+            (
+                args.get(3..).unwrap_or(&[]),
+                arg_tokens.get(3..).unwrap_or(&[]),
+                Some(target),
+            )
+        };
+
+        // The ensemble's own resolved command name (issue #1001 follow-up):
+        // `-command NAME`, when present, *replaces* the default naming
+        // entirely (tclsh 8.6.14-verified: `namespace ensemble create
+        // -command ::alt` creates only `::alt`, never the enclosing
+        // namespace's own name too) — so scan for it before recording any
+        // `-map`, rather than defaulting eagerly the way `ensemble_namespaces`
+        // (a broader, over-inclusive "valid command name" recovery set) does.
+        let explicit_command = is_create
+            .then(|| {
+                opts.iter()
+                    .enumerate()
+                    .find_map(|(i, o)| (o == "-command").then(|| opts.get(i + 1)).flatten())
+            })
+            .flatten()
+            .filter(|v| !v.is_empty() && !crate::naming::is_dynamic_word(v))
+            .map(|v| qualify(&ns_prefix, v));
+        let ensemble_key = configure_target
+            .or(explicit_command)
+            .or_else(|| (is_create && !ns.is_empty() && ns != "::").then(|| ns.clone()));
 
         let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
             .registry
@@ -1593,8 +1641,6 @@ impl Analyser {
             })
             .unwrap_or_default();
 
-        let opts = &args[2..];
-        let opt_tokens = arg_tokens.get(2..).unwrap_or(&[]);
         let mut i = 0usize;
         while i < opts.len() {
             let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
@@ -1618,10 +1664,18 @@ impl Analyser {
                 }
                 // `-map {sub target sub target …}` — every *target* (an
                 // odd-indexed element) is a command the ensemble dispatches to,
-                // recorded so it is reached by references / definition / rename.
+                // recorded so it is reached by references / definition / rename
+                // — and, keyed by the ensemble's own resolved command name, so
+                // the W129 safe-interpreter gate can resolve a call through
+                // this redirect to the target (issue #1001 follow-up).
                 "-map" => {
                     if let (Some(value), Some(tok)) = (value, value_tok) {
-                        self.record_ensemble_map_targets(value, tok, scope_path);
+                        self.record_ensemble_map_targets(
+                            value,
+                            tok,
+                            scope_path,
+                            ensemble_key.as_deref(),
+                        );
                     }
                 }
                 // `-subcommands {a b c}` — each subcommand `a` dispatches to
@@ -1637,38 +1691,152 @@ impl Analyser {
         }
     }
 
-    /// The `(element, span)` pairs of a whitespace-separated list word, with
-    /// each element's span located inside the token's content (`content_offset`
-    /// skips the opening delimiter).  Shared by the ensemble `-map` /
-    /// `-subcommands` extraction; a dynamic element is left for the caller to
-    /// skip.
+    /// The `(element, span)` pairs of a list word's *top-level* Tcl-list
+    /// elements — proper brace/quote-aware splitting
+    /// ([`find_element`]), not naive whitespace splitting, so a braced
+    /// multi-word element (`{source b.tcl}`, the shape a `-map` *target*
+    /// commonly takes — see [`Self::record_ensemble_map_targets`]) comes
+    /// back as one element instead of being shredded into stray fragments
+    /// that no longer line up in pairs (codex review, #1001 follow-up: a
+    /// naive `split_whitespace` turned `-map {go {source b.tcl}}` into
+    /// `["go", "{source", "b.tcl}"]`, an unmatched three-way split that
+    /// silently dropped the pairing entirely). Each element's span is
+    /// located inside the token's content (`content_offset` skips the
+    /// opening delimiter). A malformed trailing element (unmatched
+    /// brace/quote, typically mid-edit) simply stops the scan early,
+    /// matching this codebase's established lenient-list-parsing
+    /// convention (`tcl_syntax::list::split_list_lenient`) rather than
+    /// discarding everything already parsed. Shared by the ensemble
+    /// `-map` / `-subcommands` extraction; a dynamic element is left for
+    /// the caller to skip.
     fn list_word_elements(list_text: &str, tok: Token) -> Vec<(String, Span)> {
         let content_start = tok.span.start() + u32::from(tok.content_offset);
         let mut out = Vec::new();
-        let mut search_start = 0usize;
-        for elem in list_text.split_whitespace() {
-            if let Some(rel) = list_text[search_start..].find(elem) {
-                let idx = search_start + rel;
-                let start = content_start + u32::try_from(idx).unwrap_or(0);
-                let end = start + u32::try_from(elem.len()).unwrap_or(0);
-                out.push((elem.to_owned(), Span::new(start, end)));
-                search_start = idx + elem.len();
+        let mut pos = 0usize;
+        while let Ok(Some(el)) = find_element(list_text, pos) {
+            if let Some(text) = list_text.get(el.value.clone()) {
+                let start = content_start + u32::try_from(el.value.start).unwrap_or(0);
+                let end = content_start + u32::try_from(el.value.end).unwrap_or(0);
+                out.push((text.to_string(), Span::new(start, end)));
             }
+            pos = el.next;
         }
         out
     }
 
+    /// The head word `(text, span)` of a command-prefix string — Tcl-list
+    /// parses `text` and returns just its first element, the command
+    /// actually invoked once the prefix's trailing words and the caller's
+    /// own arguments are appended (mirrors
+    /// `signature_scan::command_prefix::extract_prefix_head`'s
+    /// braced-multi-word case, applied to a string with no lexer token of
+    /// its own — a `-map` target sits *inside* another list element, not
+    /// as a distinct token). `base_start` is `text`'s own absolute start
+    /// offset in the source, so the returned span locates the head word
+    /// there, not merely within `text`. `None` for an empty or malformed
+    /// (unmatched brace/quote) prefix.
+    fn command_prefix_head(text: &str, base_start: u32) -> Option<(String, Span)> {
+        let head_el = find_element(text, 0).ok().flatten()?;
+        let head = text.get(head_el.value.clone())?;
+        if head.is_empty() {
+            return None;
+        }
+        let start = base_start + u32::try_from(head_el.value.start).ok()?;
+        let end = base_start + u32::try_from(head_el.value.end).ok()?;
+        Some((head.to_string(), Span::new(start, end)))
+    }
+
     /// Record every `-map` target (the odd elements of the `sub target …`
-    /// list) as a command reference resolved in the caller's namespace.
-    fn record_ensemble_map_targets(&mut self, list_text: &str, tok: Token, scope_path: &[usize]) {
-        for (idx, (elem, span)) in Self::list_word_elements(list_text, tok)
-            .into_iter()
-            .enumerate()
-        {
-            if idx % 2 == 1 && !crate::naming::is_dynamic_word(&elem) {
-                let resolved = self.resolve_command_qualified_name(&elem, scope_path);
-                self.push_command_reference(elem, span, resolved, None);
+    /// list) as a command reference resolved in the caller's namespace, and
+    /// — when `ensemble_key` is `Some` (the ensemble's own resolved
+    /// qualified command name, computed by [`Self::handle_namespace_ensemble`])
+    /// — also record each `sub -> target` pair into
+    /// `self.ensemble_command_maps`, so the W129 safe-interpreter gate can
+    /// resolve a call reaching a hidden command only through this ensemble's
+    /// redirect (issue #1001 follow-up; `None` when the ensemble's own name
+    /// couldn't be resolved statically, matching every other guard in this
+    /// handler).
+    ///
+    /// A `-map` target is a command name **or a command prefix** in real
+    /// Tcl (tclsh 8.6.14-verified: `-map {go {string length}}` dispatches
+    /// `myens go hello` to `string length hello`) — the command actually
+    /// invoked is the prefix's *head*; the rest are baked-in arguments, not
+    /// part of the command's identity. [`Self::command_prefix_head`]
+    /// extracts just that head (codex review, #1001 follow-up: recording
+    /// the whole multi-word target text verbatim, or worse, splitting it
+    /// on whitespace before pairing it with its subcommand at all, means
+    /// a target like `{source b.tcl}` never matches the registry's bare
+    /// `source` and W129 stays silently missed for this valid indirection
+    /// shape) — both the reference recorded below and the map entry use
+    /// only the head.
+    ///
+    /// Every `-map` value **replaces** the ensemble's entire subcommand
+    /// table in real Tcl, whether given at `create` or a later
+    /// `configure` (tclsh 8.6.14-verified: `configure myens -map {ok
+    /// puts}` after `create ... -map {bad source ok puts}` turns `myens
+    /// bad` into an "unknown or ambiguous subcommand" error, not a
+    /// leftover redirect to `source`) — codex review, #1001 follow-up:
+    /// merging new pairs into the existing cached map instead of
+    /// replacing it would leave a subcommand a later `-map` dropped still
+    /// resolving to its stale target, a false-positive risk. The cached
+    /// map for `ensemble_key` is cleared before any of its new pairs are
+    /// inserted.
+    ///
+    /// The map stores the *raw written* head text (`"source"`), not
+    /// `resolved` (the namespace-qualified form used for the reference
+    /// below) — [`Self::check_ensemble_redirect_hiding`] hands it straight
+    /// to [`Self::safe_interp_visibility_gate`], which — like the direct
+    /// literal-head case and every other indirection path this fix adds —
+    /// checks the bare written spelling against the registry, not a
+    /// namespace-qualified path. This matters concretely: a `-map` target is
+    /// namespace-qualified relative to the ensemble's own (possibly
+    /// synthetic, interp-domain-rooted) home namespace by real Tcl's own
+    /// rule (tclsh 8.6.14-verified: `-map {go source}` inside `namespace
+    /// eval myns {…}` really dispatches `go` to `::myns::source`, not the
+    /// global builtin, and raises its own unrelated `invalid command name
+    /// ::myns::source` in every interpreter, safe or not, when no such proc
+    /// exists) — using the qualified form here would make the check depend
+    /// on the interp-domain namespace model lining up with the registry's
+    /// flat, unqualified command-name keying, which it structurally can't.
+    /// The raw-text check this uses instead only fires for a target that is
+    /// unqualified or explicitly `::`-rooted, matching the shape a
+    /// `SAFE_INTERP_HIDDEN` registry command's name actually takes; a
+    /// locally shadowing `proc` by the same bare name, anywhere in the
+    /// tracked safe interpreter body, still suppresses it via the *existing*
+    /// `ctx.exposed` check inside `safe_interp_visibility_gate` (populated
+    /// by `mark_locally_defined_in_enclosing_interp`, which is namespace-
+    /// blind in exactly the same way already, for the direct-call case).
+    fn record_ensemble_map_targets(
+        &mut self,
+        list_text: &str,
+        tok: Token,
+        scope_path: &[usize],
+        ensemble_key: Option<&str>,
+    ) {
+        if let Some(key) = ensemble_key {
+            self.ensemble_command_maps
+                .entry(key.to_string())
+                .or_default()
+                .clear();
+        }
+        for pair in Self::list_word_elements(list_text, tok).chunks(2) {
+            let [(sub, _), (target, span)] = pair else {
+                continue;
+            };
+            if crate::naming::is_dynamic_word(target) {
+                continue;
             }
+            let Some((head, head_span)) = Self::command_prefix_head(target, span.start()) else {
+                continue;
+            };
+            if let Some(key) = ensemble_key {
+                self.ensemble_command_maps
+                    .entry(key.to_string())
+                    .or_default()
+                    .insert(sub.clone(), head.clone());
+            }
+            let resolved = self.resolve_command_qualified_name(&head, scope_path);
+            self.push_command_reference(head, head_span, resolved, None);
         }
     }
 
@@ -4565,6 +4733,386 @@ mod tests {
         );
     }
 
+    // -- issue #1001: W129 through `[...]` bracket-substitution indirection --
+
+    /// TP (the reported repro): `package ifneeded`'s script argument is
+    /// `ArgRole::Body`-tagged (`Structural` — runs later, via `uplevel #0`,
+    /// never the definer's frame), so a `[list apply {…} $dir]`
+    /// deferred-command idiom sitting there is genuinely invoked later —
+    /// a hidden `source` nested inside the lambda body must draw W129, the
+    /// same way it would if `apply {dir {source …}} $dir` were written
+    /// directly (no `[list …]` wrapper).
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_lambda_body_reports_hidden_source_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 package ifneeded myPackage 1.0 [list apply {dir {\n\
+                     source [file join $dir font.tcl]\n\
+                 }} $dir]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `source` nested inside a list-quoted apply lambda body \
+             (reached only via `package ifneeded`'s deferred script) warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same `[list apply {…} $x]` idiom in an `ArgRole::CommandPrefix`
+    /// position (`trace add variable … command CALLBACK`) — a different
+    /// registry role than `package ifneeded`'s `Body`, exercising the same
+    /// deferred-call resolution through a different gate.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 trace add variable x write [list apply {{a b c} {\n\
+                     exec ls\n\
+                 }} $x]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `exec` nested inside a list-quoted apply lambda body \
+             reached via a CommandPrefix (`trace add … command`) position warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `after idle [list apply {…} $x]` — the `after`/`after idle`
+    /// deferred-callback idiom the issue calls out by name.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_after_idle_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 after idle [list apply {x {\n\
+                     file delete $x\n\
+                 }} val]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `file` nested inside a list-quoted apply lambda body \
+             reached via `after idle` warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `[list source $file]` / `[list exec …]` directly — no `apply` at
+    /// all, `list` command-quoting a hidden command straight.
+    #[test]
+    fn safe_interp_w129_list_quoted_hidden_command_directly_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { after idle [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a bare `[list source …]` in a deferred-call position warns \
+             directly, with no `apply` indirection needed: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard (mirrors #954's `set data [list apply {…} value]`
+    /// non-invocation case, adapted to W129): `[list apply {…} value]`
+    /// sitting in ordinary `set` data — not a `Body` / `LambdaLiteral` /
+    /// `CommandPrefix` argument position — is never invoked, so it must
+    /// never draw W129 even though its lambda body contains a hidden
+    /// command.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_in_plain_data_is_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 set data [list apply {x { source $x }} value]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a `[list apply …]` value that is only ever stored, never \
+             invoked, must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: the exact same list-quoted-apply-with-a-hidden-command
+    /// shape, but with **no** enclosing safe interpreter at all, must not
+    /// warn — and, since this fix's whole mechanism is gated on a
+    /// non-empty `safe_interp_stack`, must not create any new scope either
+    /// (no `apply@…` proc scope, no collateral diagnostics of any other
+    /// kind) — this stays exactly as un-analysed as it was before #1001.
+    #[test]
+    fn list_quoted_apply_lambda_outside_any_safe_interp_is_untouched_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "package ifneeded myPackage 1.0 [list apply {dir {source [file join $dir x]}} $dir]\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.all_procs.is_empty(),
+            "this fix must not widen the general analyser's scope — \
+             the list-quoted lambda body stays un-analysed outside a \
+             safe-interpreter context, exactly as before #1001: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// TP: a direct nested `[…]` bracket substitution (no `list`-quoting at
+    /// all) — `set x [source b.tcl]` — is an *immediate* invocation
+    /// (bracket substitution always evaluates its content right away,
+    /// wherever it appears), so it must warn exactly like a bare top-level
+    /// `source b.tcl` statement would.
+    #[test]
+    fn safe_interp_w129_direct_nested_bracket_substitution_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { set x [source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a directly nested `[source …]` substitution warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same direct-nested shape, reached through a deeper `[…]` /
+    /// braced-body combination (`if {$c} { [exec ls] }` inside another
+    /// substitution) — pins that the fix covers arbitrary nesting depth,
+    /// not just one level.
+    #[test]
+    fn safe_interp_w129_direct_nested_bracket_substitution_deep_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { if {[catch {set y [exec ls]} err]} { puts $err } }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a deeply nested `[exec …]` substitution still warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `{*}[list source $file]` as the *whole* statement — `{*}`
+    /// expansion splices `list`'s result into this statement's own argv, so
+    /// the command's effective head becomes `source`, even though the
+    /// literal head word is the substitution text (never itself a
+    /// registry name).
+    #[test]
+    fn safe_interp_w129_expand_list_quoted_head_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { {*}[list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`{{*}}[list source …]` used as the whole statement warns \
+             on the effective (expanded) head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: `{*}$cmdList` — an opaque variable expansion. Unlike
+    /// `{*}[list source $file]`, the value isn't statically known, so this
+    /// must NOT warn (matches this codebase's "prefer a miss over a false
+    /// positive" stance for dynamic dispatch — the same policy `$cmd $file`
+    /// direct dynamic dispatch already gets).
+    #[test]
+    fn safe_interp_w129_expand_dynamic_var_head_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { set cmdList [list source b.tcl]; {*}$cmdList }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an opaque `{{*}}$var` expansion is not statically resolvable \
+             and must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: a bare dynamic dispatch via a variable (`set cmd source; $cmd
+    /// $file`) is not statically provable and must stay unflagged, matching
+    /// this codebase's existing precedent for dynamic command dispatch.
+    #[test]
+    fn safe_interp_w129_dynamic_variable_dispatch_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { set cmd source; $cmd b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "dynamic dispatch through a variable is not statically \
+             resolvable and must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `eval [list source $file]` — combining `eval` (a `Body`-role
+    /// command) with list-quoting; `eval` evaluates the built string as a
+    /// script, immediately invoking `source`.
+    #[test]
+    fn safe_interp_w129_eval_list_quoted_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { eval [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`eval [list source …]` warns on the resolved head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `uplevel [list source $file]` — the same combination via
+    /// `uplevel` instead of `eval`.
+    #[test]
+    fn safe_interp_w129_uplevel_list_quoted_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { uplevel [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`uplevel [list source …]` warns on the resolved head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: a *safe* command wrapped the same list-quoted-apply way must not
+    /// warn — this fix widens W129's recall, it must not start flagging
+    /// ordinary, allowed calls just because they are reached via `[list
+    /// apply …]`.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_safe_command_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { after idle [list apply {x { puts $x }} val] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a safe command (`puts`) reached via list-quoted apply must \
+             not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// A locally-redefined hidden-builtin name (issue #945 fault 7 follow-up
+    /// — see `safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945`)
+    /// stays callable through this fix's new indirection paths too: once
+    /// `proc source {} {…}` has run earlier in the same interpreter body,
+    /// `source` is a real, locally-defined command — independent of the
+    /// hidden-command table — so a later `[list apply {…} $x]`-nested call
+    /// to it must not warn.
+    #[test]
+    fn safe_interp_w129_redefined_command_not_flagged_through_indirection_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 proc source {} { return ok }\n\
+                 after idle [list apply {{} { source }}]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a locally-redefined name reached via list-quoted apply is \
+             callable, not hidden: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The standard safe-interpreter delegation pattern — the trusted
+    /// parent creates `interp alias s foo {} source`, bridging its *own*
+    /// (non-hidden) `source` into the child under a new name — must not
+    /// warn when `foo` is called inside the child, including through this
+    /// fix's new indirection paths: `foo` is never itself a
+    /// `SAFE_INTERP_HIDDEN` registry name, so the gate correctly leaves it
+    /// alone (rename/`interp alias` cannot resurrect a *hidden* command's
+    /// callability from within the child — confirmed against the `tcl-vm`
+    /// runtime, which resolves both only through the ordinary, hidden-
+    /// command-free lookup table).
+    #[test]
+    fn safe_interp_w129_alias_bridged_command_not_flagged_through_indirection_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp alias s foo {} source\n\
+             interp eval s { after idle [list apply {{} { foo }}] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an alias bridging a capability in from the trusted parent is \
+             not itself a hidden registry name, so it must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
     /// `namespace inscope ::x { proc foo }` runs the body in `::x`, so `foo`
     /// homes to `::x::foo` — the same namespace frame as `namespace eval`, not
     /// the caller's scope.
@@ -6460,6 +7008,366 @@ proc runs {body} {\n\
                 .is_some_and(|s| s.contains(&crate::analyser::ProcArgTrait::Body)),
             "expected NO Body trait without stub directive, got {:?}",
             proc.param_traits.get("body"),
+        );
+    }
+
+    // -- issue #1001 follow-up: safe-interp visibility survives `analyse_per_item` --
+
+    /// A **separate** gap found while investigating issue #1001, now fixed
+    /// alongside it: `analyse_per_item`'s shell/body-pass split (`per_item.rs`)
+    /// defers *every* proc/method body — including one nested inside a
+    /// tracked `interp eval` safe-interpreter body — to an isolated second
+    /// pass (`DeferredBody` / `analyse_proc_body_isolated`). Before this fix
+    /// that pass carried no `safe_interp_stack` snapshot at all, so W129
+    /// never fired for a hidden call inside *any* proc body nested in a safe
+    /// interpreter when analysed incrementally (the live LSP server's
+    /// diagnostics path always uses `analyse_per_item`) — even a
+    /// directly-written call, with no bracket-substitution indirection
+    /// whatsoever. `DeferredBody::safe_interp_ctx` (a flattened snapshot of
+    /// the stack's top entry, captured when the body is deferred and
+    /// restored in `analyse_proc_body_isolated`) closes this.
+    #[test]
+    fn safe_interp_w129_reaches_deferred_proc_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\ninterp eval s { proc f {} { source foo }; f }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred proc body warns under \
+             incremental (per-item) analysis, matching `Analyser::analyse`: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The same fix for a directly-written `apply` lambda body (also
+    /// deferred by the shell pass) rather than a `proc` body.
+    #[test]
+    fn safe_interp_w129_reaches_deferred_apply_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\ninterp eval s { apply {{} { source foo }} }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred apply-lambda body warns under \
+             incremental (per-item) analysis: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The same fix for a `TclOO` method body (also deferred by the shell pass
+    /// via a distinct push site in `oo.rs`).
+    #[test]
+    fn safe_interp_w129_reaches_deferred_method_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 oo::class create C { method m {} { source foo } }\n\
+                 [C new] m\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred TclOO method body warns under \
+             incremental (per-item) analysis: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: a deferred proc body outside any safe interpreter must not
+    /// warn — the new `safe_interp_ctx` snapshot must stay `None` and inert
+    /// for the overwhelming common case.
+    #[test]
+    fn deferred_proc_body_outside_any_safe_interp_is_untouched_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item("proc f {} { source foo }\nf\n", "tcl8.6");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// A narrower, separate limitation the `safe_interp_ctx` fix above does
+    /// **not** cover, found while adding it: a *nested* local redefinition —
+    /// `proc source {…}` written **inside** a proc body that is itself
+    /// deferred, redefining a name a *later statement in the same body* then
+    /// calls — does not suppress W129 the way an identical redefinition at
+    /// the top level of a tracked `interp eval` body already does (see
+    /// `safe_interp_w129_redefined_command_not_flagged_through_indirection_1001`,
+    /// which is unaffected — it never defers a body at all). Root cause:
+    /// `mark_locally_defined_in_enclosing_interp` also requires
+    /// `self.interp_path_stack` / `self.interpreters` to recognise the
+    /// current interpreter, and `safe_interp_ctx` only snapshots
+    /// `safe_interp_stack` (sufficient for the gate check itself, per that
+    /// field's doc) — not those two, which `analyse_proc_body_isolated`'s
+    /// fresh `Analyser` never seeds. Fixing this fully would mean threading
+    /// the interpreter identity (not just its visibility snapshot) through
+    /// `DeferredBody` too; out of scope here since the primary miss (a
+    /// hidden call inside a deferred body not warning *at all*) is what this
+    /// fix targets, and this narrower shadowing case is `SAFE_INTERP_HIDDEN`-
+    /// specific low-severity — it only means an occasional cosmetic false
+    /// positive on a rare pattern (redefining a hidden builtin's name
+    /// *inside* the very body that also calls it), never a missed real
+    /// violation. Pinned so a future contributor extending
+    /// `DeferredBody` has a red test.
+    #[test]
+    fn safe_interp_w129_nested_redefinition_inside_deferred_body_still_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 proc f {} { proc source {} { return ok }; source }\n\
+                 f\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "known narrower gap: a redefinition nested inside a deferred \
+             body doesn't suppress W129 for a later call in the same body, \
+             under per-item analysis specifically; flip this assertion if a \
+             future fix threads interpreter identity through `DeferredBody`: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Pins issue #1001's own second reported repro case verbatim:
+    /// `{*}[list apply {...} $x]` combines *two* indirection mechanisms at
+    /// once — `{*}`-expansion of this command's own effective head
+    /// (`check_indirect_hiding`'s `{*}[list HEAD ...]` resolution) *and*
+    /// the resolved head being `apply` (triggering the lambda-body
+    /// recursion into `handle_apply_command`), so the hidden `source`
+    /// nested inside the lambda body must still draw W129.
+    #[test]
+    fn safe_interp_w129_expand_list_quoted_apply_lambda_body_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { {*}[list apply {dir {source $dir/evil.tcl}} $env(HOME)] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `source` nested inside a `{{*}}[list apply ...]`-invoked \
+             lambda body warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Pins issue #1001's third reported repro case verbatim: the
+    /// `package ifneeded` deferred script followed by the actual
+    /// `package require` that triggers it — confirms the fix holds when the
+    /// deferred script is later invoked, not just when it is merely
+    /// declared.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_package_ifneeded_then_require_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 package ifneeded evil 1.0 [list apply {dir {source $dir/evil.tcl}} $env(HOME)]\n\
+                 package require evil\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "the deferred script's hidden `source` warns once `package \
+             require` is present too: {:?}",
+            r.diagnostics
+        );
+    }
+
+    // -- issue #1001 follow-up: namespace ensemble -map redirection --------
+
+    /// TP: `namespace ensemble create -command myens -map {go source}` then
+    /// `myens go ...` — the ensemble redirects `go` to the hidden `source`,
+    /// so the call must warn exactly like a direct `source` call would, even
+    /// though `myens` itself is never a registry name.
+    #[test]
+    fn safe_interp_w129_ensemble_create_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go source}\n\
+                 myens go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect to a hidden command warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same redirect declared via `namespace ensemble configure NAME
+    /// -map {...}` (previously silently ignored entirely — only `create`
+    /// was handled) rather than at `create` time.
+    #[test]
+    fn safe_interp_w129_ensemble_configure_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens\n\
+                 namespace ensemble configure myens -map {go source}\n\
+                 myens go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect declared via `configure` warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the ensemble's default naming (no `-command`, so the command is
+    /// the enclosing namespace's own name) also resolves the redirect.
+    #[test]
+    fn safe_interp_w129_ensemble_default_name_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace eval myns { namespace ensemble create -map {go source} }\n\
+                 myns go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble redirect under its default (namespace) name warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: an ensemble `-map` redirect to a *safe* command must not
+    /// warn — this fix widens W129's recall, it must not start flagging
+    /// ordinary ensemble dispatch.
+    #[test]
+    fn safe_interp_w129_ensemble_map_redirect_to_safe_command_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go puts}\n\
+                 myens go hi\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble redirect to a safe command must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: the exact same ensemble-redirect shape outside any safe
+    /// interpreter must not warn (and, since the whole mechanism is gated on
+    /// a non-empty `safe_interp_stack`, must not do anything at all).
+    #[test]
+    fn ensemble_map_redirect_outside_any_safe_interp_is_untouched_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace ensemble create -command myens -map {go source}\n\
+             myens go pkg.tcl\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: a `-map` target that is itself a multi-word command prefix
+    /// (`{source b.tcl}`, real and valid Tcl — tclsh 8.6.14-verified:
+    /// `-map {go {string length}}` dispatches `myens go x` to `string
+    /// length x`) must still resolve to its *head* command for W129,
+    /// not be dropped entirely by a naive whitespace split across the
+    /// pair boundary (codex review, #1001 follow-up).
+    #[test]
+    fn safe_interp_w129_ensemble_map_redirect_multiword_target_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go {source b.tcl}}\n\
+                 myens go\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect to a multi-word hidden-command \
+             prefix warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP/FN guard: `configure -map` *replaces* the ensemble's whole
+    /// subcommand table in real Tcl (tclsh 8.6.14-verified: a subcommand
+    /// dropped from a later `-map` becomes "unknown or ambiguous
+    /// subcommand", not a leftover redirect) — a subcommand a later
+    /// `-map` omits must stop resolving to its stale, no-longer-mapped
+    /// target instead of still drawing W129 (codex review, #1001
+    /// follow-up: merging into the cached map instead of replacing it
+    /// left the stale entry behind).
+    #[test]
+    fn safe_interp_w129_ensemble_configure_map_replaces_not_merges_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens \
+                     -map {bad source ok puts}\n\
+                 namespace ensemble configure myens -map {ok puts}\n\
+                 myens bad\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a subcommand dropped by a later `-map` must not keep warning \
+             through its stale mapping: {:?}",
+            r.diagnostics
         );
     }
 }

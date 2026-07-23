@@ -54,6 +54,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   when `apply` is reached indirectly through `[list apply {...} $x]`
   (the pkgIndex.tcl `package ifneeded ... [list apply {dir {...}} $dir]`
   idiom), even though a direct `apply {...}` call highlights fine.
+- [kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md](kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md)
+  — W129 (a command hidden in a safe interpreter) does not warn when the
+  hidden command is reached only through a `[...]` bracket substitution —
+  most importantly the `package ifneeded ... [list apply {...} $dir]`
+  deferred-command idiom.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)

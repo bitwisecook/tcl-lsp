@@ -277,6 +277,227 @@ impl Analyser {
         true
     }
 
+    /// A flattened snapshot of `self.safe_interp_stack`'s *top* entry, for
+    /// [`super::per_item::DeferredBody::safe_interp_ctx`] (issue #1001
+    /// follow-up) — see that field's doc for the full rationale. Called
+    /// wherever a proc/method/apply body is deferred for `analyse_per_item`'s
+    /// isolated second pass, so the visibility context is available for
+    /// [`super::per_item::analyse_proc_body_isolated`] to restore.
+    pub(super) fn safe_interp_ctx_snapshot(&self) -> Option<(bool, Vec<String>, Vec<String>)> {
+        let ctx = self.safe_interp_stack.last()?;
+        let mut hidden_extra: Vec<String> = ctx.hidden_extra.iter().cloned().collect();
+        hidden_extra.sort_unstable();
+        let mut exposed: Vec<String> = ctx.exposed.iter().cloned().collect();
+        exposed.sort_unstable();
+        Some((ctx.base_hidden, hidden_extra, exposed))
+    }
+
+    /// Issue #1001's two `process_command`-level extensions to
+    /// [`Self::safe_interp_visibility_gate`], combined into one call so
+    /// `process_command` stays within its line budget:
+    ///
+    /// 1. `{*}[list HEAD arg …]` as this command's own (expand-marked)
+    ///    head: Tcl expands the list `list` builds into this statement's
+    ///    own argv, so the command's *effective* head is `HEAD`, not the
+    ///    substitution text `cmd_name` holds — which never matches a
+    ///    registry name, so the literal-head gate silently no-ops for this
+    ///    shape. Resolved through the same `[list …]` command-quoting idiom
+    ///    [`Self::check_list_quoted_deferred_head`] uses; stops exactly as
+    ///    the literal-head gate does when the effective head is hidden.
+    /// 2. [`Self::check_deferred_call_safe_interp_hiding`] for this
+    ///    command's own `Body` / `LambdaLiteral` / `CommandPrefix`-role
+    ///    argument positions (the pervasive `[list apply …]`
+    ///    deferred-command idiom) — never itself a reason to stop
+    ///    processing *this* command, since each such argument is an
+    ///    independent deferred call, not this command's own head.
+    ///
+    /// Returns `true` when the caller must stop (this command's own
+    /// effective head was hidden), mirroring
+    /// `safe_interp_visibility_gate`'s contract. A no-op outside a tracked
+    /// safe-interpreter context.
+    fn check_indirect_hiding(
+        &mut self,
+        argv_texts: &[String],
+        arg_tokens_in: &[Token],
+        arg_expand_in: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        if self.safe_interp_stack.is_empty() {
+            return false;
+        }
+        let cmd_name = argv_texts[0].as_str();
+        let head_tok = arg_tokens_in[0];
+        if arg_expand_in.first().copied().unwrap_or(false)
+            && head_tok.kind == TokenType::Cmd
+            && self.check_list_quoted_deferred_head(head_tok, cmd_name, scope_path)
+        {
+            return true;
+        }
+        let args = argv_texts.get(1..).unwrap_or(&[]);
+        let arg_tokens = arg_tokens_in.get(1..).unwrap_or(&[]);
+        if self.check_ensemble_redirect_hiding(cmd_name, args, arg_tokens, scope_path) {
+            return true;
+        }
+        self.check_deferred_call_safe_interp_hiding(cmd_name, args, arg_tokens, scope_path);
+        false
+    }
+
+    /// Resolve a call through a tracked `namespace ensemble create|configure
+    /// ... -map {sub target ...}` redirect (issue #1001 follow-up — the same
+    /// theme as issue #979's interprocedural call-site gap, but for W129
+    /// rather than constant-propagation seeding, and confirmed via a
+    /// dedicated investigation to be a genuinely distinct, previously
+    /// untracked gap): `cmd_name` isn't itself a hidden registry name — it's
+    /// the ensemble's own command name (`myens`) — but if it resolves to a
+    /// tracked ensemble (`self.ensemble_command_maps`, populated by
+    /// [`Self::handle_namespace_ensemble`]) and `args[0]` (the subcommand) is
+    /// one of its mapped entries, the call's *effective* target is whatever
+    /// that entry names, which might be hidden.
+    ///
+    /// Returns `true` when the resolved target was hidden (a W129 was
+    /// already pushed), mirroring `safe_interp_visibility_gate`'s contract.
+    /// A no-op outside a tracked safe interpreter, when `cmd_name` doesn't
+    /// resolve to a tracked ensemble, or when `args[0]` isn't one of its
+    /// mapped subcommands.
+    fn check_ensemble_redirect_hiding(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if self.safe_interp_stack.is_empty() {
+            return false;
+        }
+        let Some(sub) = args.first() else {
+            return false;
+        };
+        let resolved = self.resolve_command_qualified_name(cmd_name, scope_path);
+        let target = self
+            .ensemble_command_maps
+            .get(&resolved)
+            .and_then(|m| m.get(sub).cloned());
+        let (Some(target), Some(tok)) = (target, arg_tokens.first().copied()) else {
+            return false;
+        };
+        self.safe_interp_visibility_gate(&target, tok)
+    }
+
+    /// Extend [`Self::safe_interp_visibility_gate`] through the `[list HEAD
+    /// …]` command-quoting idiom (issue #1001): the literal-head gate above
+    /// only ever sees a command whose head is written directly, so the
+    /// pervasive deferred-command idiom (`package ifneeded … [list apply
+    /// {…} $dir]`, `-command [list apply {…} $x]`, `after idle [list apply
+    /// {…} $x]`, `trace add … command [list apply {…} $x]`) — building a
+    /// callback around a dynamic value with `list` rather than writing a
+    /// literal `apply {…} $dir` — is entirely invisible to it.
+    ///
+    /// Checked only for this command's own `Body` / `LambdaLiteral` /
+    /// `CommandPrefix`-role argument positions — the exact `deferred_role`
+    /// gate the semantic-token highlighter's list-quoted-lambda recognition
+    /// uses (`deferred_role_arg_starts` in `tcl-lsp-core`'s
+    /// `semantic_tokens.rs`, from the codex-review follow-up to #954) — so a
+    /// `[list apply {…} value]` sitting in ordinary data (`set data [list
+    /// apply {…} value]`, no role at that position) is never treated as a
+    /// call; only a position the registry already marks as later
+    /// invoked/sourced is. See
+    /// `docs/kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md`
+    /// decision rule 4 for why that highlighting-only precision is
+    /// deliberately widened here rather than reused unchanged: a missed
+    /// W129 (false negative) is the worse failure mode for a security
+    /// diagnostic, unlike a spurious highlight.
+    ///
+    /// A no-op outside a tracked safe-interpreter context (the overwhelming
+    /// common case) — this never runs, and never has any side effect (no
+    /// new scope, no new diagnostic of any other kind), for ordinary code.
+    fn check_deferred_call_safe_interp_hiding(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if self.safe_interp_stack.is_empty() {
+            return;
+        }
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let mut indices: Vec<usize> = [
+            ArgRole::Body,
+            ArgRole::LambdaLiteral,
+            ArgRole::CommandPrefix,
+        ]
+        .into_iter()
+        .flat_map(|role| registry.arg_indices_for_role(cmd_name, &arg_strs, role))
+        .collect();
+        indices.sort_unstable();
+        indices.dedup();
+        for idx in indices {
+            let (Some(tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
+                continue;
+            };
+            // A whole-argument `[…]` substitution is the only shape `list`
+            // command-quoting can take here — a braced or bareword value at
+            // a deferred-call position is either a literal script (handled
+            // by the ordinary `Body`-role `analyse_body` walk) or a plain
+            // `CommandPrefix` head already resolved by
+            // `record_command_prefix_invocations`, neither of which needs
+            // this resolution.
+            if tok.kind != TokenType::Cmd {
+                continue;
+            }
+            self.check_list_quoted_deferred_head(*tok, text, scope_path);
+        }
+    }
+
+    /// Resolve one `[list HEAD arg1 arg2 …]`-shaped deferred-call argument:
+    /// gate `HEAD` for safe-interpreter visibility (issue #1001), recursing
+    /// into an `apply` lambda body via [`Self::handle_apply_command`] — the
+    /// SAME handler a literal `apply {…} $x` call dispatches to — when
+    /// `HEAD` resolves to it, so a hidden command nested inside the lambda
+    /// (the reported repro's `source` call) is caught by the ordinary,
+    /// unmodified gate the recursion's own `process_command` calls hit.
+    /// `self.safe_interp_stack` is untouched by this recursion (only
+    /// `interp eval` pushes/pops it), so the enclosing safe interpreter's
+    /// visibility context is inherited automatically — exactly as it is for
+    /// a directly-written `apply {…} $x` call already inside the same body.
+    ///
+    /// Returns `true` when `HEAD` itself was hidden (a W129 was already
+    /// pushed) so a caller checking its *own* effective head (the `{*}[list
+    /// HEAD …]` argv-expansion shape) can stop further processing the same
+    /// way the literal-head gate does.
+    fn check_list_quoted_deferred_head(
+        &mut self,
+        tok: Token,
+        text: &str,
+        scope_path: &[usize],
+    ) -> bool {
+        let Some(registry) = self.registry else {
+            return false;
+        };
+        let Some(seg) =
+            crate::signature_scan::command_prefix::list_quoted_command_segment(registry, tok, text)
+        else {
+            return false;
+        };
+        let head = seg.texts[1].clone();
+        let head_tok = seg.argv[1];
+        if self.safe_interp_visibility_gate(&head, head_tok) {
+            return true;
+        }
+        let rest_args = seg.texts.get(2..).unwrap_or(&[]);
+        if matches!(
+            self.resolve_analyser_hook(&head, rest_args),
+            Some(tcl_registry::hooks::AnalyserHookId::Apply)
+        ) {
+            let rest_tokens = seg.argv.get(2..).unwrap_or(&[]);
+            self.handle_apply_command(rest_args, rest_tokens, scope_path);
+        }
+        false
+    }
+
     /// Process a single segmented command.
     ///
     /// Walks `args` against every handler and stops at the first
@@ -328,7 +549,11 @@ impl Analyser {
         } else {
             &[]
         };
-
+        // Bracket-substitution indirection (issue #1001) invisible to the
+        // gate above — see `check_indirect_hiding`'s doc.
+        if self.check_indirect_hiding(argv_texts, arg_tokens_in, arg_expand_in, scope_path) {
+            return;
+        }
         // Record this invocation so the post-walk
         // ``emit_unresolved_command_diagnostics`` (W123) can iterate
         // every command head the analyser visited.  ``inv.range``
@@ -1694,8 +1919,27 @@ impl Analyser {
         }
         let cmd_name = seg.texts[0].clone();
         let cmd_tok = seg.argv[0];
+        // Safe-interpreter visibility gate (issue #1001): a `[…]` bracket
+        // substitution always invokes its head immediately, wherever it
+        // appears — `set x [source b.tcl]`, `if {[exec ls] ne ""} …` — so a
+        // command nested this way must pass the same gate a top-level
+        // command does (`Self::safe_interp_visibility_gate`'s doc). Every
+        // nesting depth this walker's caller
+        // (`collect_substitution_segments` / `collect_segment_recursive`)
+        // already discovers is covered for free; a no-op outside a tracked
+        // safe interpreter.
+        if self.safe_interp_visibility_gate(&cmd_name, cmd_tok) {
+            return;
+        }
         let args = seg.texts.get(1..).unwrap_or(&[]);
         let arg_tokens = seg.argv.get(1..).unwrap_or(&[]);
+        // A tracked `namespace ensemble ... -map` redirect to a hidden
+        // command (issue #1001 follow-up): `cmd_name` isn't itself a hidden
+        // registry name, but its resolved dispatch target might be — see
+        // `check_ensemble_redirect_hiding`'s doc.
+        if self.check_ensemble_redirect_hiding(&cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
         let arg_single = seg.single_token_word.get(1..).unwrap_or(&[]);
         // `emit_arity_diagnostics` expects the expand array parallel to
         // the *full* argv (head at index 0), matching `process_command`.

@@ -318,7 +318,13 @@ catch { error "oops" }       ;# W302: catch without a result variable
 Child interpreters are modelled too: a command hidden in a safe
 interpreter (`interp create -safe`) is flagged where it can never run
 (W129), and an `interp eval` into an interpreter the file never creates
-is flagged before it fails at run time (W140).
+is flagged before it fails at run time (W140). W129 follows the hidden
+command through `[...]` bracket-substitution indirection too — a direct
+nested call, `{*}` expansion, the `package ifneeded name ver [list apply
+{dir {...}} $dir]` deferred-command idiom, and a `namespace ensemble
+create`/`configure -map` redirect to a hidden target — so a hidden
+`source` reached only that way is flagged the same as a direct call, in
+both a one-shot lint and the live editor session.
 
 ```tcl
 interp create -safe s

@@ -341,6 +341,16 @@ pub struct Analyser {
     /// Namespaces where ``namespace ensemble create`` was seen —
     /// their tail names become valid commands.
     pub ensemble_namespaces: HashSet<String>,
+    /// `namespace ensemble create|configure ... -map {sub target ...}`
+    /// subcommand-to-target maps, keyed by the ensemble's own qualified
+    /// command name (`-command NAME`, or the enclosing namespace's own
+    /// qualified name when `-command` is absent — Tcl's default). Consulted
+    /// by the W129 safe-interpreter gate (issue #1001 follow-up, tracked
+    /// separately from #979's interprocedural call-site concern) so a
+    /// hidden command reached only through an ensemble redirect (`myens sub
+    /// ...` → target) is still flagged, mirroring a literal call to the
+    /// target.
+    pub ensemble_command_maps: HashMap<String, HashMap<String, String>>,
     /// Vars where ``oo::objdefine`` was applied — the per-instance
     /// method table may extend the class definition.
     pub objdefined_vars: HashSet<String>,
@@ -697,6 +707,7 @@ impl Analyser {
             cmd_command_sites: Vec::new(),
             ns_cache: HashMap::new(),
             ensemble_namespaces: HashSet::new(),
+            ensemble_command_maps: HashMap::new(),
             objdefined_vars: HashSet::new(),
             interpreters: HashMap::new(),
             dynamic_interp_ops: false,
