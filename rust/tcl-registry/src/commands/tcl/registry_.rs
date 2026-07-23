@@ -22,22 +22,103 @@
 //! crate's [`crate::registry`] module.
 use crate::prelude::*;
 
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "registry subcommand keyName ?args ...?",
-    dialects: None,
-}];
+const FORMS: &[FormSpec] = &[
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "registry option keyName ?arg arg ...?",
+        dialects: None,
+    },
+    // The optional leading `-32bit`/`-64bit` mode flag was added to the
+    // SYNOPSIS in Tcl 8.6 (registry.n, 8.6/9.0/9.1: "registry ?-mode?
+    // option keyName ?arg arg ...?", with -mode spelled out in the
+    // DESCRIPTION as "-32bit" or "-64bit"). Confirmed absent from the 8.4
+    // and 8.5 SYNOPSIS, which document only the bare form above with no
+    // leading flag mentioned anywhere in their DESCRIPTION either.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "registry ?-32bit|-64bit? option keyName ?arg arg ...?",
+        dialects: Some(DialectSet::TCL86_PLUS),
+    },
+    // Tcl 9.1 adds `tcl::registry` as a second, always-present spelling of
+    // the same command — usable without `package require registry` first
+    // (registry.n, Tcl 9.1: "Starting with Tcl 9.1, the command is also
+    // available as tcl::registry without requiring the registry package
+    // to be loaded"). Confirmed absent from the 8.4, 8.5, 8.6, and 9.0
+    // SYNOPSIS sections, which document only the bare `registry` spelling.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "tcl::registry ?-32bit|-64bit? option keyName ?arg arg ...?",
+        dialects: Some(DialectSet::TCL91),
+    },
+];
 
+/// `option` (position 0, or position 1 when a leading `-32bit`/`-64bit`
+/// mode flag is given) selects one of these seven subcommands — an
+/// identical set across 8.4 through 9.1. Real Tcl accepts any unique
+/// abbreviation of `option` (registry.n, every version: "Any unique
+/// abbreviation for option is acceptable"), and the command-level
+/// (non-subcommand) `closed_value_args` check only does exact whole-word
+/// matching with no prefix support, so listing this index there would
+/// misreport a legitimate abbreviation (e.g. `registry se keyName ...`)
+/// as an invalid value. These are completion/hover data only.
+const REGISTRY_OPTION_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "broadcast",
+        detail: "Notify the system and running programs of a registry change.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "delete",
+        detail: "Delete a value, or an entire key with its subkeys and values.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "get",
+        detail: "Return the data of a value.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "keys",
+        detail: "List the subkey names of a key, optionally filtered by pattern.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "set",
+        detail: "Create a key, or set a value's data and type (default sz).",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "type",
+        detail: "Return the type of a value.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "values",
+        detail: "List the value names of a key, optionally filtered by pattern.",
+        ..ArgValue::DEFAULT
+    },
+];
+
+/// Command spec for `registry`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "registry",
         dialects: Some(DialectSet::ALL_TCL),
-        arity: Arity::at_least(1),
+        traits: Traits::HAS_DESTRUCTIVE_OPS,
+        arity: Arity::new(2, 5),
         return_type: Some(TclType::String),
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::None,
+            dialects: None,
+        }],
         hover: Some(HoverSnippet {
-            summary: "Windows registry manipulation (Windows-only).",
+            summary: "Manipulate the Windows registry (Windows-only).",
             synopsis: &[
-                "registry broadcast keyName ?-timeout ms?",
+                "registry ?-32bit|-64bit? option keyName ?arg arg ...?",
+                "registry broadcast keyName ?-timeout milliseconds?",
                 "registry delete keyName ?valueName?",
                 "registry get keyName valueName",
                 "registry keys keyName ?pattern?",
@@ -45,12 +126,41 @@ pub fn spec() -> CommandSpec {
                 "registry type keyName valueName",
                 "registry values keyName ?pattern?",
             ],
-            snippet: "Not available in the WASM sandbox (Windows-specific) — traps with ``unsupported command: registry``.",
-            source: "Tcl man page registry.n",
-            examples: "",
-            return_value: "",
+            snippet: "Requires `package require registry` (bundled with Windows Tcl only, not auto-loaded); since Tcl 9.1 also callable as `tcl::registry` without loading the package first. `option` accepts any unique abbreviation. `keyName` is rootname, or rootname\\keypath with subkeys joined by \\; a leading pair of backslashes plus a host name reaches another machine's registry. rootname is one of HKEY_LOCAL_MACHINE, HKEY_USERS, HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_CURRENT_CONFIG, HKEY_PERFORMANCE_DATA, or HKEY_DYN_DATA. Since Tcl 8.6, an optional leading `-32bit` or `-64bit` selects which registry view to use instead of the system default. `delete` does nothing (not an error) when the key is already absent, but errors if an existing key or value cannot be removed. `get`, `keys`, `type`, and `values` error if keyName does not exist. `set` creates keyName (and valueName, if given) as needed and assumes type `sz` when type is omitted. Data is typed as binary, none, sz, expand_sz, dword, dword_big_endian, link, multi_sz, or resource_list, or an unrecognised 32-bit type code; multi_sz renders as a Tcl list, the rest as strings or exact binary data. Not available in this WASM sandbox (Windows-specific) — calling it fails with `invalid command name \"registry\"`.",
+            source: "Tcl registry(n)",
+            examples: "registry get {HKEY_CLASSES_ROOT\\.tcl} {}\nregistry set {HKEY_CURRENT_USER\\Software\\MyApp} Path $installDir\nregistry set {HKEY_CURRENT_USER\\Software\\MyApp} Port 8080 dword\nregistry keys {HKEY_LOCAL_MACHINE\\SOFTWARE}\nregistry broadcast Environment -timeout 5000",
+            return_value: "Depends on option: get returns the value's data; keys/values return a list of names; type returns the value's type; broadcast/delete/set return an empty string.",
         }),
         forms: FORMS,
+        arg_values: &[(0, REGISTRY_OPTION_VALUES)],
+        options: const {
+            &[
+                OptionSpec {
+                    name: "-32bit",
+                    value: OptionValue::flag(),
+                    detail: "Operate on the 32-bit registry view instead of the system default. Precedes option; mutually exclusive with -64bit.",
+                    dialects: Some(DialectSet::TCL86_PLUS),
+                    ..OptionSpec::DEFAULT
+                },
+                OptionSpec {
+                    name: "-64bit",
+                    value: OptionValue::flag(),
+                    detail: "Operate on the 64-bit registry view instead of the system default. Precedes option; mutually exclusive with -32bit.",
+                    dialects: Some(DialectSet::TCL86_PLUS),
+                    ..OptionSpec::DEFAULT
+                },
+                OptionSpec {
+                    name: "-timeout",
+                    value: OptionValue::Takes(OptionArg {
+                        integer: Some(IntegerDomain::Any),
+                        hint: "milliseconds",
+                        ..OptionArg::DEFAULT
+                    }),
+                    detail: "registry broadcast only: milliseconds to wait for applications to respond to the notification. Defaults to 3000.",
+                    ..OptionSpec::DEFAULT
+                },
+            ]
+        },
         ..CommandSpec::DEFAULT
     }
 }

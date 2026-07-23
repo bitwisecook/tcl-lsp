@@ -16,22 +16,65 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `pwd` command.
+//! `pwd` — return the absolute path of the current working directory.
+
 use crate::prelude::*;
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "pwd",
+    dialects: None,
+}];
+
+/// Command spec for `pwd`.
+///
+/// A plain core builtin, textually identical across Tcl 8.4 through 9.1: the
+/// bare `pwd` synopsis, the DESCRIPTION ("Returns the absolute path name of
+/// the current working directory."), the EXAMPLE, and the SEE ALSO/KEYWORDS
+/// read word-for-word the same on all five official manpages (8.4, 8.5, 8.6,
+/// 9.0, 9.1) — the only difference across them is a single British/American
+/// spelling swap ("minimises" in 8.4 vs. "minimizes" from 8.5 on) inside the
+/// EXAMPLE prose, which carries no behavioural meaning. `pwd` takes no
+/// arguments and has no options/switches in any of the five versions.
+///
+/// `dialects: None` here is deliberate, not an oversight: F5 iRules is the
+/// one modelled dialect that drops `pwd` — it is one of the 42 K36322151
+/// commands in `IRULES_DISABLED_COMMANDS` (`tcl-dialect/src/profile.rs`),
+/// the TMM event sandbox having no real per-request filesystem/cwd concept,
+/// the same reasoning that drops `cd`/`open`/`glob`/`exec`/`fcopy`/`pid` —
+/// but that exclusion is enforced generically by the iRules profile's
+/// subtractive `disabled_commands` list, not by a `CommandSpec`-level
+/// `dialects` gate — the same treatment those commands get in their own
+/// spec files; the `irules_disable_list_is_load_bearing` contract test
+/// (`tcl-registry/tests/dialect_profile.rs`) requires the bare `IRULES`
+/// mask to still admit this spec so the disable list has something to
+/// subtract. Every other modelled dialect (Expect, Tk, the EDA vendor
+/// consoles, F5 iApps, F5 tmsh, incr Tcl) hosts a real filesystem-backed Tcl
+/// and has an empty `disabled_commands` list, so `pwd` resolves there
+/// normally.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pwd",
         dialects: None,
+        traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::exact(0),
+        return_type: Some(TclType::String),
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::None,
+            dialects: None,
+        }],
         hover: Some(HoverSnippet {
-            summary: "Return current working directory",
-            synopsis: &[],
-            snippet: "",
-            source: "Tcl man page pwd.n",
-            examples: "",
-            return_value: "",
+            summary: "Return the absolute path of the current working directory.",
+            synopsis: &["pwd"],
+            snippet: "Returns the absolute path name of the current working directory. The working directory is a per-process resource shared by every interpreter and, in a threaded build, every thread — the same one `cd` changes — so the result always reflects the most recent `cd` in the process, not a per-interpreter starting point. Errors if the working directory can no longer be determined, for example if it has been deleted, unmounted, or otherwise made inaccessible while the process was running.",
+            source: "Tcl pwd(n)",
+            examples: "set tarFile [file normalize somefile.tar]\nset savedDir [pwd]\ncd /tmp\nexec tar -xf $tarFile\ncd $savedDir",
+            return_value: "The absolute path of the current working directory.",
         }),
-        traits: Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

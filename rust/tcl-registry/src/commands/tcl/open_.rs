@@ -35,12 +35,19 @@ const FORMS: &[FormSpec] = &[
 
 /// `access` (position 1) takes one of the six mode strings below, each
 /// optionally followed by a `b` (e.g. `rb`, `r+b`) to configure the
-/// channel for binary translation up front, or a Tcl list combining one
-/// of RDONLY/WRONLY/RDWR with any of the other POSIX flags (e.g. `{RDWR
-/// CREAT}`). A list value can't be checked against a flat per-word enum,
-/// so this is completion/hover data only — `open` has no
-/// `closed_value_args` entry for this position, since a legitimate
-/// multi-flag list would otherwise be misreported as an invalid value.
+/// channel for binary translation up front — added in Tcl 8.5; Tcl 8.4
+/// has no `b` suffix, and a value like `rb` is rejected there with an
+/// `illegal access mode` error (`TclGetOpenMode`, generic/tclIOUtil.c —
+/// not the similarly-named `invalid access mode` error, which is a
+/// distinct 8.4 error path for a bad flag inside the POSIX list form),
+/// so binary channels on 8.4 must call
+/// `fconfigure -translation binary` after `open` instead. `access` can
+/// also be a Tcl list combining one of RDONLY/WRONLY/RDWR with any of
+/// the other POSIX flags (e.g. `{RDWR CREAT}`). A list value can't be
+/// checked against a flat per-word enum, so this is completion/hover
+/// data only — `open` has no `closed_value_args` entry for this
+/// position, since a legitimate multi-flag list would otherwise be
+/// misreported as an invalid value.
 const ACCESS_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "r",
@@ -160,9 +167,9 @@ pub fn spec() -> CommandSpec {
                 "open fileName access permissions",
                 "open |command ?access?",
             ],
-            snippet: "Returns a channel identifier for use with read, puts, gets, close, and friends. access defaults to \"r\" (read-only) when omitted. permissions (an integer, default 0666, combined with the process umask) only matters when access creates a new file. A fileName whose first character is | instead treats the rest of the word as a command pipeline, in the same style as exec's arguments: the channel then reads the pipeline's stdout or writes its stdin depending on access, and the child process's id is available via `pid channelId`.",
+            snippet: "Returns a channel identifier for use with read, puts, gets, close, and friends. access defaults to \"r\" (read-only) when omitted. Since Tcl 8.5, any of the six mode strings may end with a trailing b (rb, r+b, …) — or the POSIX list form may include BINARY — to configure the channel for binary translation up front, equivalent to a later fconfigure -translation binary call; Tcl 8.4 has neither, so binary-safe code there must call fconfigure itself after opening. permissions (an integer, default 0666, combined with the process umask) only matters when access creates a new file. A fileName whose first character is | instead treats the rest of the word as a command pipeline, in the same style as exec's arguments: the channel then reads the pipeline's stdout or writes its stdin depending on access, and the child process's id is available via `pid channelId`.",
             source: "Tcl open(n)",
-            examples: "open $path r\nopen $path {RDWR CREAT} 0644\nopen |[list grep -c foo] r",
+            examples: "open $path r\nopen $path rb\nopen $path {RDWR CREAT} 0644\nopen |[list grep -c foo] r",
             return_value: "A channel identifier.",
         }),
         forms: FORMS,

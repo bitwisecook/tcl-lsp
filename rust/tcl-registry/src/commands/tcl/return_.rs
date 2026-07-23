@@ -21,20 +21,50 @@
 use crate::hooks::{InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
+// Tcl 8.4's SYNOPSIS is the single line `return ?-code code? ?-errorinfo
+// info? ?-errorcode code? ?string?`: only -code, -errorinfo, and
+// -errorcode are recognised, there is no generic "any option" mechanism,
+// and the trailing argument is named `string`. Tcl 8.5 replaced this with
+// three forms (`return ?result?` / `return ?-code code? ?result?` /
+// `return ?option value ...? ?result?`), renamed the trailing argument to
+// `result`, and added -level/-options as recognised options; -errorstack
+// followed in 8.6 (see the OptionSpecs below for the exact per-option
+// gates). That 8.5 shape is unchanged through 9.0 and 9.1 — 9.1's
+// return.html is byte-for-byte identical to 9.0's once the doc-anchor
+// line-number IDs are discounted.
 const FORMS: &[FormSpec] = &[
     FormSpec {
         kind: FormKind::Default,
+        // -level is Tcl 8.5+ (see the per-option gate on the `-level`
+        // OptionSpec below, and the 8.4 SYNOPSIS split immediately
+        // below this entry) — this form's own `dialects` must say so
+        // too rather than inheriting the command's unrestricted
+        // `dialects: None`, or it would claim `-level` is legal
+        // syntax in Tcl 8.4 and iRules (embedded Tcl 8.4.6), which it
+        // is not: the 8.4 manpage's SYNOPSIS/body recognise only
+        // -code/-errorinfo/-errorcode.
         synopsis: "return ?-code code? ?-level level? ?result?",
-        dialects: None,
+        dialects: Some(DialectSet::TCL85_PLUS),
+    },
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "return ?-code code? ?-errorinfo info? ?-errorcode code? ?string?",
+        dialects: Some(DialectSet::TCL84),
     },
     // F5 `return(1)`: directly inside a `when EVENT { … }` body, `return`
     // takes no arguments — `return_context_gate` below enforces this
     // structurally; this entry makes the restricted synopsis queryable
-    // (completion/hover) rather than only documented in prose. Full
-    // syntax remains valid in iRules outside an event body (e.g. inside
-    // a `proc`), which is why this narrows the *dialect*, not the
-    // command's Tcl-version gating — the first entry above still applies
-    // in iRules too.
+    // (completion/hover) rather than only documented in prose. Outside an
+    // event body (e.g. inside a `proc`) the gate doesn't fire, but iRules
+    // still only ever exposes the Tcl-8.4-shaped form above, never the
+    // fuller 8.5+ one: iRules is a genuine embedded Tcl 8.4.6 (its
+    // `f5-irules` profile in `tcl-dialect/src/profile.rs` pins
+    // signature_base/runtime_base/version_ceiling all to 8.4), so
+    // -level/-options/-errorstack can never resolve there regardless of
+    // context — their DialectSet gates can't intersect the bare IRULES
+    // availability mask (`ProfileQueries::is_option_available`). This
+    // entry narrows the *form*, not the command's own Tcl-version gating
+    // — return itself stays universal (`dialects: None` below).
     FormSpec {
         kind: FormKind::Default,
         synopsis: "return",
@@ -117,10 +147,51 @@ fn return_context_gate(args: &[&str], in_event_body: bool) -> Option<&'static st
     )
 }
 
+const SIDE_EFFECTS: &[SideEffect] = &[
+    SideEffect {
+        target: SideEffectTarget::InterpState,
+        reads: false,
+        writes: true,
+        connection_side: ConnectionSide::None,
+        dialects: None,
+    },
+    SideEffect {
+        target: SideEffectTarget::EventControl,
+        reads: false,
+        writes: true,
+        connection_side: ConnectionSide::None,
+        dialects: Some(DialectSet::IRULES),
+    },
+];
+
 /// Command spec for `return`.
+///
+/// -level and -options were added in Tcl 8.5 — absent from Tcl 8.4's
+/// single-line SYNOPSIS and body text, which recognise only -code,
+/// -errorinfo, and -errorcode. -errorstack followed in Tcl 8.6. Tcl 9.0's
+/// manpage newly documents (without newly enforcing) that -code's integer
+/// values 5–0x3fffffff are reserved for application use; the 8.4-8.6
+/// manpages give the plain "value must be an integer" wording with no
+/// such range. Tcl 9.1's return.html is byte-for-byte identical to 9.0's
+/// (bar the doc-anchor line-number IDs) — no 9.1-specific delta exists
+/// for this command.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "return",
+        // Present, unrestricted, and not in any dialect's
+        // `disabled_commands` list (only `f5-irules` has a non-empty one,
+        // and `return` isn't on it — checked against
+        // `tcl-dialect/src/profile.rs`) — a pure control-flow primitive
+        // with no filesystem/process/network access, so every dialect
+        // that hosts a real Tcl core (irules, iapps, tmsh, the EDA
+        // shells, expect, tk, itcl) carries it unmodified. Its *legal
+        // option set* still narrows per dialect/version through the
+        // individual OptionSpecs' own `dialects` gates below (enforced
+        // generically by `ProfileQueries::is_option_available`), and its
+        // *argument shape* narrows further inside an iRules event body
+        // (see `FORMS` / `return_context_gate`) — neither of which is a
+        // whole-command dialect gate.
+        dialects: None,
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
@@ -128,29 +199,18 @@ pub fn spec() -> CommandSpec {
             | Traits::NEEDS_START_CMD,
         arity: Arity::any(),
         return_type: Some(TclType::String),
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::InterpState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
-            },
-            SideEffect {
-                target: SideEffectTarget::EventControl,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: Some(DialectSet::IRULES),
-            },
-        ],
+        side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {
             summary: "Return from the current procedure/script with optional control-code metadata.",
-            synopsis: &["return ?-code code? ?-level level? ?result?"],
-            snippet: "Advanced forms can emulate `break`, `continue`, or custom return codes. In an iRules event body, `return` takes no arguments — it exits the current event invocation only.",
+            synopsis: &[
+                "return ?result?",
+                "return ?-code code? ?result?",
+                "return ?option value ...? ?result?",
+            ],
+            snippet: "With no options, immediately returns from the current procedure — or, inside a script evaluated by source, stops evaluating that script — with an empty result unless result is given. -code sets an exceptional completion code instead of the default ok; -errorinfo and -errorcode (plus -errorstack from Tcl 8.6) are honoured only when -code is error, each seeding the matching global (errorInfo/errorCode) and defaulting to Tcl's own trace or \"NONE\" when omitted. -level (Tcl 8.5+, default 1) counts call-stack levels up the code applies to; -level 0 makes this return itself complete with code immediately, which is how interp alias builds break/continue-alike commands. -options (Tcl 8.5+) merges a dict of option/value pairs in as if each had been passed directly — typically the options dict a catch just captured, to re-raise a caught error unchanged. Tcl 8.4 recognises only -code, -errorinfo, and -errorcode. In an iRules event body, return takes no arguments at all and exits only the current event invocation; outside an event body iRules still exposes just that 8.4-shaped option set, since its embedded core is Tcl 8.4.6.",
             source: "Tcl return(n); F5 return(1)",
-            examples: "",
-            return_value: "",
+            examples: "proc safeDiv {a b} {\n    if {$b == 0} {\n        return -code error \"cannot divide by zero\"\n    }\n    return [expr {$a / $b}]\n}\n\n# Re-throw a caught error unchanged, preserving errorInfo/errorCode (Tcl 8.5+)\nif {[catch {doWork} result options]} {\n    return -options $options $result\n}\n\n# Build a break-alike via -level 0 (Tcl 8.5+)\ninterp alias {} Break {} return -level 0 -code break",
+            return_value: "The result string that becomes the enclosing procedure's result (or, inside a script evaluated by source, that script's result). With -code other than the default ok, result instead becomes the payload of the resulting exceptional completion — e.g. the message text of a -code error, or the value a catch reports when it traps this return.",
         }),
         lowering_hook: Some(LoweringHookId::Return),
         inline_codegen_hook: Some(InlineCodegenHookId::Return),

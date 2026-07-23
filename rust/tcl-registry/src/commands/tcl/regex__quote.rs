@@ -16,7 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `regex::quote` — regex quoting helper alias (`::` spelling).
+//! `regex::quote` — canonical regex-quoting helper (`re_quote`,
+//! `regex_quote`, and `regexp::quote` are recognised aliases of the same
+//! idiom, `::` being the canonical spelling).
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -24,6 +26,39 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+/// Command spec for `regex::quote`, the canonical spelling of the
+/// regex-metacharacter-quoting idiom this registry recognises under four
+/// names (`regex::quote` / `re_quote` / `regex_quote` / `regexp::quote`).
+/// It is not a documented core Tcl command: Tcl ships no
+/// metacharacter-quoting builtin. `re_syntax.n` (the previous, inaccurate
+/// `source` citation below) documents regexp syntax only and never
+/// mentions a quoting command or utility, re-read directly against Tcl
+/// 8.4, 8.5, 8.6, 9.0, and 9.1 alike. The `TclCmd` alphabetical command
+/// index likewise lists no `quote`- or `regex`-prefixed command (only
+/// `regexp`/`regsub`/`re_syntax`) on all five trees: `contents.htm` for
+/// 8.4/8.5/8.6 directly, and the bare `TclCmd/` directory listing for
+/// 9.0 and 9.1, since `contents.htm`/`.html` both 404 on those two
+/// trees specifically (an index-page-only gotcha, distinct from the
+/// page-level 8.6-`.htm`-not-`.html` redirect noted in
+/// `re_quote.rs`/`regex_quote.rs`). A dedicated `quote.html`/`.htm`
+/// manpage likewise 404s on all five trees alike — 8.4, 8.5, 8.6, 9.0,
+/// and 9.1 — consistent with the `re_quote.html`/`.htm` 404 already
+/// recorded for the underscore spelling in `re_quote.rs`. `regex::quote`
+/// is the spelling the T103 (regex-injection) quick fix actually
+/// generates and inserts (`tcl_lsp_core::code_actions::REGEX_QUOTE_PROC`:
+/// `proc regex::quote {str} { regsub -all {[][{}()*+?.\\^$|]} $str
+/// {\\&} }`, arity exactly one); this spec lets the taint analyser
+/// recognise a user proc under this name — or one of its three
+/// siblings — as the same REGEX_LITERAL-quoting idiom (`tcl_compiler`'s
+/// `regex_colon_quote_suppresses_t103` test, plus the `regex_literal`
+/// and `t106_double_encoding` test modules) wherever it is called,
+/// standard Tcl or otherwise. `dialects: None` is deliberate, not an
+/// oversight: iRules excludes all four spellings, but through the
+/// profile-level subtractive `IRULES_DISABLED_COMMANDS` list
+/// (`tcl_dialect::profile` — confirmed to list all four spellings among
+/// its 50 entries), not through this field — folding `IRULES` into a
+/// dialect union here would re-admit exactly the commands that list
+/// exists to ban (see that list's own doc comment).
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regex::quote",
@@ -33,9 +68,9 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Escape regex metacharacters in a string.",
-            synopsis: &["regex::quote STRING", "regex::quote string"],
+            synopsis: &["regex::quote STRING"],
             snippet: "Returns *STRING* with all regular-expression\nmetacharacters (``[ ] { } ( ) * + ? . \\\\ ^ $ |``)\nbackslash-escaped so it can be used as a literal\npattern in ``regexp`` or ``regsub``.",
-            source: "Tcl man page re_syntax.n",
+            source: "",
             examples: "set safe_pattern [regex::quote $user_input]\nif {[regexp $safe_pattern $haystack]} { ... }",
             return_value: "Returns a regex-escaped string.",
         }),

@@ -1898,7 +1898,18 @@ mod tests {
         // summary and a manpage/source attribution. A short allowlist covers
         // internal pseudo-commands and dialect placeholders that have no user
         // documentation.
-        const HOVERLESS_OK: &[&str] = &["disabled_in_irules"];
+        // The four regex-quote spellings are internal idiom-recognition
+        // entries for the taint analyser (T103), not real Tcl commands --
+        // no manpage exists to cite (re_quote.html/.htm 404s on every
+        // tcl-lang.org tree for 8.4-9.1 alike; see re_quote.rs's own doc
+        // comment for the full explanation).
+        const HOVERLESS_OK: &[&str] = &[
+            "disabled_in_irules",
+            "re_quote",
+            "regex_quote",
+            "regex::quote",
+            "regexp::quote",
+        ];
         let reg = CommandRegistry::build_default();
         let mut missing_hover = Vec::new();
         let mut missing_source = Vec::new();
@@ -2284,10 +2295,14 @@ mod tests {
             reg.command_prefixes("regsub", &["-all", "-command", "re", "s", "cb"]),
             vec![(4, AppendedArity::AtLeast(1))],
         );
-        // `-c` is an unambiguous abbreviation of `-command`.
+        // `-c` is NOT an abbreviation of `-command`: regsub's switch table
+        // resolves with Tcl_GetIndexFromObj(..., TCL_EXACT, ...), confirmed
+        // live (tclsh 8.6.14: `regsub -c {a} aaa X y` -> `bad option "-c"`)
+        // and against the real `Tcl_RegsubObjCmd` C source. Only the exact
+        // spelling `-command` enables command-prefix mode.
         assert_eq!(
             reg.command_prefixes("regsub", &["-c", "re", "s", "cb"]),
-            vec![(3, AppendedArity::AtLeast(1))],
+            Vec::new(),
         );
         // Without `-command`, subSpec is a replacement template, not a prefix.
         assert!(
@@ -2314,10 +2329,16 @@ mod tests {
             "the namespace-unknown query form has no command prefix",
         );
 
-        // `package unknown handler` → handler(name ?requirement...?) = AtLeast(1).
+        // `package unknown handler` → handler(name requirement ?requirement
+        // ...?) = AtLeast(2): verified empirically on tclsh 8.6.14 that Tcl
+        // always appends the package name *plus* at least one requirement
+        // word, synthesizing a "0-" placeholder when `package require` was
+        // given none itself — never just the bare name, so AtLeast(2), not
+        // AtLeast(1) (see the fuller note on `package_.rs`'s `unknown`
+        // subcommand).
         assert_eq!(
             reg.command_prefixes("package", &["unknown", "handler"]),
-            vec![(1, AppendedArity::AtLeast(1))],
+            vec![(1, AppendedArity::AtLeast(2))],
         );
         assert!(
             reg.command_prefixes("package", &["unknown"]).is_empty(),

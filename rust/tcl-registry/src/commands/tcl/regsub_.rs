@@ -31,8 +31,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// are `exp` (0), `string` (1), `subSpec` (2), and the optional `varName` (3).
 /// When `varName` is present it names the variable the result is written to;
 /// resolve it as `VarWrite` dynamically (the leading-option shift means a
-/// static slot cannot place it).  Omitting `varName` (Tcl 8.7+/9 returns the
-/// substituted string instead) simply yields no `VarWrite` index.
+/// static slot cannot place it).  `varName` has always been optional — the
+/// fetched 8.4 through 9.1 manpages agree verbatim ("... or returns *string*
+/// if *varName* is not present") that omitting it returns the substituted
+/// string directly instead of writing a variable and returning the
+/// replacement count — so omitting it simply yields no `VarWrite` index,
+/// with no dialect/version gating of its own.
 fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut i = 0;
     while i < args.len() {
@@ -60,11 +64,15 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// `regsub -command ?switches? exp string cmdPrefix ?varName?` (Tcl 9.0+, TIP
-/// 463): with `-command` present, the `subSpec` positional (index `i+2` after
-/// the leading switches) is not a replacement template but a command prefix
-/// called once per match with the whole match + capture-group substrings
-/// appended — a variadic count (`AtLeast(1)`: the whole match is always
-/// passed). Without `-command`, `subSpec` is an ordinary string (no prefix).
+/// 463 "Command-Driven Substitutions for regsub"): with `-command` present,
+/// the `subSpec` positional (index `i+2` after the leading switches) is not
+/// a replacement template but a command prefix called once per match with
+/// the whole match + capture-group substrings appended — a variadic count
+/// (`AtLeast(1)`: the whole match is always passed; the number of capture
+/// groups, and hence the exact total, depends on `exp`). Without
+/// `-command`, `subSpec` is an ordinary string (no prefix). `-command` is
+/// confirmed absent from the fetched 8.4, 8.5, and 8.6 switch lists and
+/// present, identically, in the fetched 9.0 and 9.1 manpages.
 fn regsub_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
     let mut i = 0;
     let mut has_command = false;
@@ -75,9 +83,14 @@ fn regsub_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
             break;
         }
         if a.starts_with('-') {
-            // `-command` and its unambiguous abbreviations (`-c`..`-comman`);
-            // no other regsub switch begins with `-c`.
-            if a.len() >= 2 && "-command".starts_with(a) {
+            // No abbreviation: Tcl's option parser resolves regsub's switch
+            // table with `Tcl_GetIndexFromObj(..., TCL_EXACT, ...)`
+            // (confirmed in the fetched Tcl 9.0.4 `generic/tclCmdMZ.c`
+            // `Tcl_RegsubObjCmd`), and empirically in live tclsh 8.6.14:
+            // `regsub -noc {a} aaa X y` errors with `bad option "-noc"`
+            // rather than matching `-nocase`. Only the exact spelling
+            // `-command` enables command-prefix mode.
+            if a == "-command" {
                 has_command = true;
             }
             i += 1;
@@ -98,89 +111,106 @@ fn regsub_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
     }
 }
 
-/// Command spec for `regsub`.
+/// A boolean switch (`-flag`) — takes no value, available in all dialects
+/// (the common case for this file's switches; `-command` below overrides).
+const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
+    OptionSpec {
+        name,
+        value: OptionValue::flag(),
+        detail,
+        dialects: None,
+        aliases: &[],
+        min_version: None,
+    }
+}
+
+/// The `regsub` switches — confirmed byte-for-byte stable (same names, same
+/// value-taking shape, same documented behaviour) across the fetched Tcl
+/// 8.4, 8.5, 8.6, 9.0, and 9.1 manpages, with exactly one exception:
+/// `-command`, added in 9.0 (TIP 463) and absent from 8.4/8.5/8.6. `-start`
+/// is the only *universal* switch that takes a value (an `index`), but its
+/// value *grammar* is a genuine behavioural change, not merely added prose
+/// (the 8.4 manpage lacks the "same manner as ... string index" sentence
+/// 8.5 onward adds): `generic/tclCmdMZ.c`'s `Tcl_RegsubObjCmd` parses the
+/// value with plain `Tcl_GetIntFromObj` (a literal non-negative integer
+/// only; `end`/`end-N` fails) in Tcl 8.4 (`core-8-4-20`), and with
+/// `TclGetIntForIndexM` (the same `end`/`end-N` grammar `string index`
+/// uses) from 8.5 (`core-8-5-19`) through 9.1 (`core-9-1-b0`) — confirmed
+/// directly against the fetched C source at all five tags, mirroring
+/// `regexp`'s identical `-start` split (see `regexp_.rs`). See the
+/// `-start` `OptionSpec`'s `detail` text below. Every other switch besides
+/// `-command` is a boolean flag. `--` terminates option parsing.
 const OPTIONS: &[OptionSpec] = &[
-    OptionSpec {
-        name: "-nocase",
-        value: OptionValue::flag(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-expanded",
-        value: OptionValue::flag(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-line",
-        value: OptionValue::flag(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-linestop",
-        value: OptionValue::flag(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-lineanchor",
-        value: OptionValue::flag(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
-    OptionSpec {
-        name: "-all",
-        value: OptionValue::flag(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
+    flag(
+        "-nocase",
+        "Match case-insensitively: upper-case characters in string are treated as lower case when matching against exp; substitutions written into subSpec still use the original, unconverted text of string.",
+    ),
+    flag(
+        "-expanded",
+        "Ignore whitespace and # comments in exp (the (?x) embedded flag).",
+    ),
+    flag(
+        "-line",
+        "Enable newline-sensitive matching: equivalent to giving both -linestop and -lineanchor together (the (?n) embedded flag).",
+    ),
+    flag(
+        "-linestop",
+        "Make . and [^...] bracket expressions stop at a newline instead of matching through it (the (?p) embedded flag).",
+    ),
+    flag(
+        "-lineanchor",
+        "Make ^ and $ also match immediately after/before a newline, not just the start/end of the whole string (the (?w) embedded flag).",
+    ),
+    flag(
+        "-all",
+        "Replace every non-overlapping match of exp in string instead of only the first; & and \\n backreferences in subSpec are recomputed independently for each match.",
+    ),
     OptionSpec {
         name: "-start",
         value: OptionValue::value("index"),
-        detail: "",
+        detail: "Character index into string to start matching at. Tcl 8.4 accepts only a plain non-negative integer; Tcl 8.5 and later accept the fuller index syntax used by string index (e.g. end, end-N). ^ no longer anchors to the string's real start there, though \\A still does; index is clamped to the string's bounds.",
         dialects: None,
         aliases: &[],
         min_version: None,
     },
-    // `regsub -command` is Tcl 9.0+ (TIP 463).
+    // `regsub -command` is Tcl 9.0+ (TIP 463): absent from the fetched
+    // 8.4/8.5/8.6 manpages' switch lists, present — identically worded —
+    // in the fetched 9.0 and 9.1 manpages.
     OptionSpec {
         name: "-command",
         value: OptionValue::flag(),
-        detail: "Treat subSpec as a command prefix to call per match.",
+        detail: "Treat subSpec as a command prefix (a non-empty list) instead of a substitution template: & and \\n lose their special meaning. The whole match, then each capturing subexpression's match (like regexp -inline), are appended to the prefix, and the completed list is evaluated as a Tcl command whose result becomes the replacement text. Invoked once per match with -all, otherwise at most once; any error or exception from the callback becomes an error from regsub itself.",
         dialects: Some(DialectSet::TCL90_PLUS),
         aliases: &[],
         min_version: None,
     },
-    OptionSpec {
-        name: "--",
-        value: OptionValue::flag(),
-        detail: "",
-        dialects: None,
-        aliases: &[],
-        min_version: None,
-    },
+    flag(
+        "--",
+        "Ends switch parsing; the next word is treated as exp even if it begins with -.",
+    ),
 ];
 
+/// Command spec for `regsub`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
+        // Positional floor/ceiling — `exp`, `string`, `subSpec` required
+        // (3), optional `varName` (4). Confirmed identical in the fetched
+        // 8.4, 8.5, 8.6, 9.0, and 9.1 manpages' `regsub ?switches? exp
+        // string subSpec ?varName?` synopsis; `-command` (9.0+) changes how
+        // `subSpec` is interpreted, not the word count, so the range is
+        // unaffected by it.
         arity: Arity::new(3, 4),
+        // Documented return is the int replacement count (the `varName`
+        // form). The `varName`-omitted form — equally idiomatic, e.g.
+        // `set new [regsub $pat $orig $repl]` — actually returns the
+        // substituted *string* instead: a per-form refinement deferred the
+        // same way `scan`'s inline (no-`varName`) form is (see
+        // `commands/tcl/scan_.rs`). True in every fetched release from 8.4
+        // through 9.1 alike — the manpage's "returns *string* if *varName*
+        // is not present" sentence is unchanged across all five.
         return_type: Some(TclType::Int),
         // The `varName` form writes the substituted *string* to its target
         // while returning the replacement *count*.  The result is always a
@@ -197,12 +227,12 @@ pub fn spec() -> CommandSpec {
         }],
         options: OPTIONS,
         hover: Some(HoverSnippet {
-            summary: "Perform substitutions based on regular expression matching.",
+            summary: "Perform substitutions based on regular expression pattern matching.",
             synopsis: &["regsub ?switches? exp string subSpec ?varName?"],
-            snippet: "Matches *exp* against *string* and replaces the matched portion with *subSpec*. With `-all`, replaces all occurrences.\n\n**Security**: Use `--` before the pattern when it comes from a variable to prevent option injection. The *subSpec* supports `\\0`..`\\9` backreferences and `&` for the full match.",
-            source: "Tcl regsub(1)",
-            examples: "",
-            return_value: "The substituted string (Tcl 8.5+), or the count of replacements when *varName* is given.",
+            snippet: "Matches the regular expression exp (an ARE — see re_syntax) against string and replaces the matched text with subSpec. Only the first match is replaced unless -all is given, which replaces every non-overlapping match instead. Within subSpec, & or \\0 stands for the whole match and \\1 through \\9 for the text of the corresponding parenthesized subexpression; extra backslashes escape these forms, and enclosing subSpec in braces is usually safest when it needs to contain backslashes of its own.\n\nWhen varName is supplied, the substituted text is stored there and the command returns the number of replacements made; when it is omitted, the substituted string is returned directly instead. Since Tcl 9.0 (TIP 463), -command changes subSpec from a template into a command prefix: the whole match plus each capturing group's text are appended to it (as regexp -inline would return them), and the prefix is evaluated as a Tcl command whose result becomes the replacement text — useful when the substitution needs computation a plain template can't express.\n\n**Security**: put -- before exp when it comes from an untrusted variable so a leading - can't be parsed as a switch. Avoid patterns with nested unbounded quantifiers (e.g. (a+)+) against attacker-controlled input — they can trigger catastrophic backtracking (ReDoS).",
+            source: "Tcl regsub(n)",
+            examples: "regsub -all {\\mfoo\\M} $text bar text\nregsub -nocase {\\yinteresting\\y} $text {\"&\"} text\nset trimmed [regsub -all {^\\s+|\\s+$} $line {}]\nregsub -all -command {\\w+} $message {string totitle}",
+            return_value: "The substituted string, or the count of replacements made when varName is given.",
         }),
         // `exp` is an ARE pattern — drives regex sub-tokens and
         // pattern validation.
@@ -248,6 +278,34 @@ mod tests {
                 option.name == "-start",
                 "{}",
                 option.name
+            );
+        }
+    }
+
+    /// `regsub`'s option table is resolved with `Tcl_GetIndexFromObj(...,
+    /// TCL_EXACT, ...)` (Tcl 9.0.4 `generic/tclCmdMZ.c`
+    /// `Tcl_RegsubObjCmd`) — confirmed live against tclsh 8.6.14, where
+    /// `regsub -noc {a} aaa X y` errors with `bad option "-noc"` rather
+    /// than matching `-nocase`. `-command` gets no special treatment: an
+    /// abbreviation must NOT flip `regsub_command_prefixes` into
+    /// command-prefix mode, only the exact spelling may.
+    #[test]
+    fn command_prefix_resolver_requires_exact_command_spelling() {
+        // Exact `-command` at the front: `subSpec` (index 3: -command, exp,
+        // string, subSpec) is a command prefix appending >= 1 arg.
+        assert_eq!(
+            regsub_command_prefixes(&["-command", "exp", "string", "prefix"]),
+            vec![(3, AppendedArity::AtLeast(1))]
+        );
+        // Any abbreviation of `-command` is a distinct (invalid-in-real-Tcl)
+        // switch spelling, not `-command` itself, so it must resolve no
+        // command prefix at all -- an over-eager prefix match here would
+        // mismodel a script real Tcl rejects with "bad option".
+        for abbrev in ["-c", "-co", "-com", "-comm", "-comma", "-comman"] {
+            assert_eq!(
+                regsub_command_prefixes(&[abbrev, "exp", "string", "prefix"]),
+                Vec::new(),
+                "{abbrev} must not enable command-prefix mode"
             );
         }
     }
