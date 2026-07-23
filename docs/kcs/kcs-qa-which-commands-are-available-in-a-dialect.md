@@ -33,7 +33,11 @@ profile combines two things:
    `tcl::build-info`, `tcl::unsupported::corotype`, and `tcl::tm::path` are
    all reported disabled ([W002](codes/kcs-diagnostic-w002-command-disabled-in-dialect.md))
    there — each at its own real introduction release (8.5, 8.6, or 9.0)
-   once the dialect's embedded base reaches it.
+   once the dialect's embedded base reaches it. Individual `tcl::mathop`
+   operators can be gated even more precisely than the namespace itself:
+   most need only the namespace's own Tcl 8.5, but `lt`/`le`/`gt`/`ge`
+   (TIP 461, the string-ordering counterparts to `eq`/`ne` for
+   `<`/`<=`/`>`/`>=`) need Tcl 9.0, one release newer.
 2. **A disable list, for subtractive dialects.** F5 iRules embed a genuine
    Tcl 8.4.6, but the data-plane sandbox *removes* commands (`exec`,
    `file`, `socket`, `open`, `glob`, and the rest of F5's K36322151 list).

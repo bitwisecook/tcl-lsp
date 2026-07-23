@@ -668,6 +668,15 @@ tcl::build-info version             ;# W002: disabled in active dialect (availab
 tcl::tm::path add /some/dir         ;# W002: disabled in active dialect (available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1)
 ```
 
+Individual `tcl::mathop` operators can be gated even more precisely than the
+namespace itself: `lt`/`le`/`gt`/`ge` (TIP 461) need Tcl 9.0, one release
+newer than the `::tcl::` namespace's own 8.5 baseline:
+
+```tcl
+# With dialect = tcl8.6:
+::tcl::mathop::lt 1 2              ;# W002: disabled in active dialect (available in: tcl9.0, tcl9.1)
+```
+
 ### TclOO support
 
 Full TclOO class hierarchy analysis with method resolution order (MRO),
