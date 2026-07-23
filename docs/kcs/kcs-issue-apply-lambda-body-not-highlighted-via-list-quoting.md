@@ -319,6 +319,25 @@ no instances of its own:
   (`register_body_unit`) also follows `[list apply ...]` indirection
   overclaims the fix — it deliberately does not, to keep the
   correctness-sensitive analyser conservative (see decision rule 4).
+- Renaming (`rename apply myapply`) or aliasing (`interp alias {} myapply {}
+  apply`) `apply` before calling it — `myapply {x {puts $x}} 5` — defeats
+  every `LambdaLiteral`-aware consumer above, even though real Tcl treats the
+  rename/alias as fully transparent and runs the lambda exactly as it would
+  under the literal name. Confirmed at HEAD: the direct call's semantic
+  tokens split `{x {puts $x}}` into a `parameter`, a `function`, and a
+  `variable` token; both the renamed and aliased forms instead emit one
+  opaque `string` token for the whole list, identical to what an
+  unregistered command's argument would get. All eight consumers resolve a
+  segmented command's head by exact literal string against
+  `CommandRegistry::get` (a plain by-name lookup — see
+  `rust/tcl-registry/src/registry.rs`), so a renamed or aliased head simply
+  never matches `apply`'s spec. This is a different mechanism from issue
+  #973 (the analyser's `known()` predicate in `scope.rs` not gating W123's
+  existence check on deletion) — #973 is one analyser-side predicate
+  partially growing rename/alias-awareness; this registry-head lookup has
+  none at all, in any of the eight consumers. See the "Known limitations"
+  note in [the command registry design doc](../design/compiler/command-registry.md#known-limitations)
+  for the project-wide scope of this exposure (issue #1002).
 
 ## Triage checklist
 
