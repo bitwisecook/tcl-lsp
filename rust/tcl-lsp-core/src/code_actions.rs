@@ -916,20 +916,38 @@ fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) 
     out
 }
 
-/// De Morgan: `!(X && Y)` ↔ `!X || !Y`, `!(X || Y)` ↔ `!X && !Y`.
+/// De Morgan: `!(X && Y)` ↔ `!X || !Y`, `!(X || Y)` ↔ `!X && !Y` — plus the
+/// iRules word-operator equivalents (`not`/`and`/`or`, i.e.
+/// `UnaryOp::WordNot`/`BinOp::WordAnd`/`BinOp::WordOr` — issue #983's
+/// unification). This used to only recognise the symbolic forms, so it
+/// silently never offered the rewrite for a selection written in iRules'
+/// word style (`!($a and $b)`) — an inconsistent gap given the sibling
+/// `invert_comparison` rewrite in this same file already handles TIP 461's
+/// word operators (`lt`/`le`/`gt`/`ge`).
 fn demorgan_transform(sel: &str) -> Option<String> {
     let t = sel.trim();
-    // Forward: `!( X <op> Y )`.
+    let word_and = tcl_syntax::expr::ast::BinOp::WordAnd.spec().spelling;
+    let word_or = tcl_syntax::expr::ast::BinOp::WordOr.spec().spelling;
+    let word_not = tcl_syntax::expr::ast::UnaryOp::WordNot.spec().spelling;
+
+    // Forward: `!( X <op> Y )` or `not ( X <op> Y )`. The outer negation
+    // prefix and the inner operator's symbol/word spelling are independent
+    // choices in iRules — `!($a and $b)` mixes both — so each outer prefix
+    // tries every inner operator spelling, negating operands in the same
+    // style as its own prefix.
     if let Some(inner) = t.strip_prefix("!(").and_then(|s| s.strip_suffix(')')) {
-        if let Some((l, r)) = split_top_logical(inner, "&&") {
-            return Some(format!("{} || {}", negate(l.trim()), negate(r.trim())));
-        }
-        if let Some((l, r)) = split_top_logical(inner, "||") {
-            return Some(format!("{} && {}", negate(l.trim()), negate(r.trim())));
-        }
-        return None;
+        return demorgan_forward_inner(inner, word_and, word_or, negate);
     }
-    // Reverse: `!X || !Y` → `!(X && Y)`, `!X && !Y` → `!(X || Y)`.
+    if let Some(inner) = t
+        .strip_prefix(word_not)
+        .map(str::trim_start)
+        .and_then(|s| s.strip_prefix('('))
+        .and_then(|s| s.strip_suffix(')'))
+    {
+        return demorgan_forward_inner(inner, word_and, word_or, |o| negate_word(o, word_not));
+    }
+    // Reverse: `!X || !Y` → `!(X && Y)`, `!X && !Y` → `!(X || Y)` — and the
+    // word-operator equivalents (`not X or not Y` → `not (X and Y)`, …).
     if let Some((l, r)) = split_top_logical(t, "||")
         && let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!'))
     {
@@ -940,7 +958,104 @@ fn demorgan_transform(sel: &str) -> Option<String> {
     {
         return Some(format!("!({} || {})", li.trim(), ri.trim()));
     }
+    if let Some((l, r)) = split_top_logical_word(t, word_or)
+        && let (Some(li), Some(ri)) = (
+            strip_word_not(l.trim(), word_not),
+            strip_word_not(r.trim(), word_not),
+        )
+    {
+        return Some(format!(
+            "{word_not} ({} {word_and} {})",
+            li.trim(),
+            ri.trim()
+        ));
+    }
+    if let Some((l, r)) = split_top_logical_word(t, word_and)
+        && let (Some(li), Some(ri)) = (
+            strip_word_not(l.trim(), word_not),
+            strip_word_not(r.trim(), word_not),
+        )
+    {
+        return Some(format!(
+            "{word_not} ({} {word_or} {})",
+            li.trim(),
+            ri.trim()
+        ));
+    }
     None
+}
+
+/// The body of forward-direction De Morgan (`negate_op` applies whichever
+/// negation spelling matches the outer prefix that was stripped — `!` or
+/// `not`), tried against every inner connective spelling (`&&`/`||` and
+/// their word-operator equivalents `and`/`or`).
+fn demorgan_forward_inner(
+    inner: &str,
+    word_and: &str,
+    word_or: &str,
+    negate_op: impl Fn(&str) -> String,
+) -> Option<String> {
+    if let Some((l, r)) = split_top_logical(inner, "&&") {
+        return Some(format!(
+            "{} || {}",
+            negate_op(l.trim()),
+            negate_op(r.trim())
+        ));
+    }
+    if let Some((l, r)) = split_top_logical(inner, "||") {
+        return Some(format!(
+            "{} && {}",
+            negate_op(l.trim()),
+            negate_op(r.trim())
+        ));
+    }
+    if let Some((l, r)) = split_top_logical_word(inner, word_and) {
+        return Some(format!(
+            "{} {word_or} {}",
+            negate_op(l.trim()),
+            negate_op(r.trim())
+        ));
+    }
+    if let Some((l, r)) = split_top_logical_word(inner, word_or) {
+        return Some(format!(
+            "{} {word_and} {}",
+            negate_op(l.trim()),
+            negate_op(r.trim())
+        ));
+    }
+    None
+}
+
+/// Like [`split_top_logical`], but for a whitespace-delimited word operator
+/// (`and`/`or`) rather than a punctuation symbol — requires a single space
+/// on each side (via [`find_top_level`]) so the word appearing inside a
+/// longer identifier or string (`for`, `orange`, …) is never mistaken for
+/// the operator.
+fn split_top_logical_word<'a>(expr: &'a str, word: &str) -> Option<(&'a str, &'a str)> {
+    let needle = format!(" {word} ");
+    let pos = find_top_level(expr, &needle)?;
+    Some((&expr[..pos], &expr[pos + needle.len()..]))
+}
+
+/// Negate a word-style operand: `$a` → `not $a`, `not $a` → `$a`, a bare
+/// `!`-prefixed operand also collapses (mixed-style input) — mirrors
+/// [`negate`] but for iRules' `not` spelling.
+fn negate_word(operand: &str, word_not: &str) -> String {
+    let o = operand.trim();
+    if let Some(rest) = o.strip_prefix('!') {
+        return rest.trim().to_string();
+    }
+    if let Some(rest) = strip_word_not(o, word_not) {
+        return rest.trim().to_string();
+    }
+    format!("{word_not} {o}")
+}
+
+/// `Some(rest)` when `operand` is `"<word_not> rest"` — a word-boundary
+/// check (a required space after `word_not`) so `notify_x` is never
+/// mistaken for a negated `x`.
+fn strip_word_not<'a>(operand: &'a str, word_not: &str) -> Option<&'a str> {
+    operand.strip_prefix(word_not)?.strip_prefix(' ')
 }
 
 /// Negate an operand: `$a` → `!$a`, `!$a` → `$a`, `($a && $b)` → `!($a && $b)`.

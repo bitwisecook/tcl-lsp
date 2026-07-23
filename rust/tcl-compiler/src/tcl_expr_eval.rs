@@ -2160,8 +2160,13 @@ mod tests {
     fn math_min_max_preserve_int_width() {
         assert_eq!(eval_str("min(3, 1, 2)"), Some(TclValue::Int(1)));
         assert_eq!(eval_str("max(3, 1, 2)"), Some(TclValue::Int(3)));
-        // Mixed int/float → float result.
-        assert_eq!(eval_str("min(1, 2.5)"), Some(TclValue::Float(1.0)));
+        // Adversarial-review finding: a mixed int/float call returns the
+        // *winning* argument's own value, preserving its type — it does not
+        // widen to float just because a float appeared among the operands.
+        // `min(1, 2.5)` is `1` (an Int, since 1 wins), not `1.0` (confirmed
+        // tclsh8.6/9.0); `max(1, 2.5)` is `2.5` (a Float, since 2.5 wins).
+        assert_eq!(eval_str("min(1, 2.5)"), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("max(1, 2.5)"), Some(TclValue::Float(2.5)));
     }
 
     #[test]
@@ -2207,11 +2212,20 @@ mod tests {
     }
 
     #[test]
-    fn math_isqrt_integer_only() {
+    fn math_isqrt_accepts_float_truncating_first() {
         assert_eq!(eval_str("isqrt(16)"), Some(TclValue::Int(4)));
         assert_eq!(eval_str("isqrt(17)"), Some(TclValue::Int(4)));
-        // Float arg → None.
-        assert_eq!(eval_str("isqrt(4.0)"), None);
+        // Adversarial-review finding: a `Float` operand used to fall to
+        // `tcl_syntax::expr::mathfunc::dispatch`'s catch-all `None` (treated
+        // as a domain error) even though real Tcl accepts one, truncating
+        // toward zero first (`expr {isqrt(4.0)}` -> `2`, `isqrt(4.9)` -> `2`
+        // same as `isqrt(4)`; confirmed tclsh8.6/9.0) — this const-folder
+        // must fold the same value the real interpreter evaluates to, or a
+        // W-series "simplify this constant expression" fix would propose a
+        // wrong replacement.
+        assert_eq!(eval_str("isqrt(4.0)"), Some(TclValue::Int(2)));
+        assert_eq!(eval_str("isqrt(4.9)"), Some(TclValue::Int(2)));
+        assert_eq!(eval_str("isqrt(-1.0)"), None); // domain error, same as isqrt(-1)
     }
 
     #[test]

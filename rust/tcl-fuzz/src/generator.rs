@@ -666,13 +666,25 @@ impl Gen {
             // Bitwise operators reject floating-point operands outright.
             "&" | "|" | "^" => format!("int({left}) {op} int({right})"),
             // A negative shift count is a hard error in both engines, unlike
-            // a negative arithmetic operand — force it non-negative.
-            "<<" | ">>" => format!("int({left}) {op} abs(int({right}))"),
+            // a negative arithmetic operand — force it non-negative. The
+            // count must also be bounded, not just sign-guarded: `right` is
+            // itself an arbitrary nested `expr(depth+1)`, which can be
+            // another `**`/`<<`/`>>` node, so an unbounded count can reach
+            // magnitudes (~1e5+) that make bignum shift/stringification take
+            // multiple seconds in both engines — a generator-caused hang,
+            // not a VM divergence. `% 64` keeps the count in-range for a
+            // real shift while still exercising the operator.
+            "<<" | ">>" => format!("int({left}) {op} (abs(int({right})) % 64)"),
             // `**` errors on `0 ** negative` and on a negative base with a
             // non-integer exponent (`domain error`) — forcing a non-negative
             // base and a non-negative integer exponent avoids both without
-            // narrowing coverage of the operator itself.
-            "**" => format!("abs({left}) {op} int(abs({right}))"),
+            // narrowing coverage of the operator itself. The exponent is
+            // additionally bounded to `% 20` for the same reason as the
+            // shift count above: an unbounded nested exponent can make the
+            // result's digit count explode (`2**300000` alone takes ~7s on
+            // a real `tclsh`), which is a hang risk independent of, and
+            // compounding with, chained `**` nesting.
+            "**" => format!("abs({left}) {op} (int(abs({right})) % 20)"),
             _ => format!("({left}) {op} ({right})"),
         }
     }
@@ -786,6 +798,52 @@ mod tests {
                 "seed {seed}: un-qualified loop counter reappeared:\n{src}"
             );
         }
+    }
+
+    /// Adversarial-review finding: `**`/`<<`/`>>` guarded operand *sign*
+    /// (never negative) but not *magnitude*. Since `left`/`right` are
+    /// arbitrary nested `expr(depth+1)` calls — which can themselves be
+    /// another `**`/`<<`/`>>` node — an unbounded exponent/shift-count could
+    /// reach magnitudes that make bignum exponentiation/shift and its
+    /// decimal stringification take multiple seconds in both engines
+    /// (confirmed directly against a real `tclsh8.6`: `2**300000` and
+    /// `1<<300000` each take ~7s), a generator-caused hang that shows up as
+    /// a spurious `Timeout`/`StatusMismatch` finding, not a real VM bug.
+    ///
+    /// A live `tclsh` sweep isn't a reliable regression guard here: the
+    /// magnitude collision that triggers the hang is probabilistic (an
+    /// adversarial-review simulation found it in ~1.6% of expression-root
+    /// draws), so a seed sweep small enough to run as a fast unit test can
+    /// pass on the *old*, unbounded code purely by chance — this asserts
+    /// the actual generated Tcl source instead: every `**` exponent operand
+    /// is deterministically reduced by `% 20` and every `<<`/`>>` count
+    /// operand by `% 64`, which bounds the operand to a small range no
+    /// matter how large the sub-expression feeding it evaluates to.
+    #[test]
+    fn power_and_shift_operands_are_magnitude_bounded() {
+        let cfg = GenConfig {
+            max_depth: 4,
+            max_stmts: 16,
+            max_expr_depth: 4,
+            ..GenConfig::default()
+        };
+        let corpus: Vec<String> = (0..400u64).map(|s| generate(s, &cfg)).collect();
+        assert!(
+            corpus.iter().any(|s| s.contains("**")),
+            "no `**` was ever generated in this sweep"
+        );
+        assert!(
+            corpus.iter().any(|s| s.contains("<<") || s.contains(">>")),
+            "no `<<`/`>>` was ever generated in this sweep"
+        );
+        assert!(
+            corpus.iter().any(|s| s.contains("% 20)")),
+            "`**` exponent is no longer bounded by `% 20` — magnitude hang risk reintroduced"
+        );
+        assert!(
+            corpus.iter().any(|s| s.contains("% 64)")),
+            "`<<`/`>>` count is no longer bounded by `% 64` — magnitude hang risk reintroduced"
+        );
     }
 
     #[test]

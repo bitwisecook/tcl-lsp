@@ -30,7 +30,7 @@
 //! `make xtask-check`:
 //!
 //! - the **source of truth** is [`tcl_registry`]'s core Tcl command specs
-//!   (`required_package == None`, available in Tcl 9.0);
+//!   (`required_package == None`, available at Tcl 9.0 or later);
 //! - the **backed** set is scanned from the runtime source
 //!   (`register_builtin(b"…")`), canonicalised on a leading `::`, plus the
 //!   [`HANDLER_EXTRA`] list for commands backed natively outside that literal
@@ -211,7 +211,50 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
 /// `RUST_ISSUE_007`. Allow-listed so the gate stays green while they are
 /// implemented one by one; removing a name here (as it gains a handler) is the
 /// visible progress marker. Names are canonical (no leading `::`). Kept sorted.
-const KNOWN_UNBACKED: &[(&str, &str)] = &[];
+///
+/// The Tcl 9.1 entries below (everything but `tcl::zipfs`/`zipfs`) only
+/// became visible to this gate once `core_commands()`'s `TCL90`→`TCL90_PLUS`
+/// fix stopped silently excluding every 9.1-only-gated command (adversarial
+/// review of PR #1008) — they were always genuinely unbacked, just invisible
+/// to the check before that fix.
+const KNOWN_UNBACKED: &[(&str, &str)] = &[
+    (
+        "divmod",
+        "TIP 745 (Tcl 9.1) combined quotient/remainder list command; not yet implemented in runtime/rust",
+    ),
+    (
+        "frexp",
+        "TIP 745 (Tcl 9.1) IEEE-754 mantissa/exponent split; not yet implemented in runtime/rust",
+    ),
+    (
+        "lfilter",
+        "Tcl 9.1 list-filter command; not yet implemented in runtime/rust",
+    ),
+    (
+        "modf",
+        "TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust",
+    ),
+    (
+        "remquo",
+        "TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; not yet implemented in runtime/rust",
+    ),
+    (
+        "tcl::zipfs",
+        "Tcl 9 zipfs archive-filesystem ensemble; not yet implemented in runtime/rust",
+    ),
+    (
+        "timer",
+        "Tcl 9.1 timer command; not yet implemented in runtime/rust",
+    ),
+    (
+        "unicode",
+        "Tcl 9.1 Unicode-introspection ensemble; not yet implemented in runtime/rust",
+    ),
+    (
+        "zipfs",
+        "Tcl 9 zipfs archive-filesystem ensemble; not yet implemented in runtime/rust",
+    ),
+];
 
 /// Strip a single leading `::` so a registry name (`tcl::build-info`,
 /// `tcl::process`) and the scanned handler / classification names
@@ -298,19 +341,35 @@ enum Status {
 }
 
 /// The core Tcl commands the runtime must back: `tcl-registry`'s built-in
-/// (`required_package == None`) command specs that are available in **Tcl 9.0**
-/// (the runtime's target). The dialect filter drops the tcl-family commands
-/// modelled only for the embedded/EDA dialects (F5 iRules/iApps, Expect, the EDA
-/// tools) — `readFile`, `foreachLine`, `disabled_in_irules`, … — which the core
-/// runtime is not expected to provide. `None` dialects means "all dialects".
-/// Namespaced ensemble *implementation* commands (`::tcl::…`) stay in the set so
-/// their classification is explicit.
+/// (`required_package == None`) command specs that are available at **Tcl
+/// 9.0 or later** (the runtime's target — `runtime/rust` also backs TIP 745
+/// (Tcl 9.1) `::tcl::mathfunc::*` commands like `gamma`/`cbrt`/`fma`, so the
+/// gate must consider a 9.1-only-gated command "core" too, or a regression
+/// in that backing would go undetected). The dialect filter drops the
+/// tcl-family commands modelled only for the embedded/EDA dialects (F5
+/// iRules/iApps, Expect, the EDA tools) — `readFile`, `foreachLine`,
+/// `disabled_in_irules`, … — which the core runtime is not expected to
+/// provide. `None` dialects means "all dialects". Namespaced ensemble
+/// *implementation* commands (`::tcl::…`) stay in the set so their
+/// classification is explicit.
+///
+/// Adversarial-review finding: this used to check `d.contains(TCL90)` — a
+/// single-version bit that a `TCL91`-only gate (like TIP 745's) never has
+/// set, since 9.1-only is a *distinct* bit from 9.0, not a superset of it.
+/// That silently dropped every 9.1-only-gated command from this set
+/// entirely — not "classified as a gap", genuinely invisible to the gate.
+/// `intersects(TCL90_PLUS)` is the established idiom this repo already uses
+/// elsewhere for "is this gate compatible with dialect X or later"
+/// (`tcl-registry`'s `registry.rs`/`profile_queries.rs`).
 fn core_commands() -> BTreeSet<String> {
     use tcl_dialect::DialectSet;
     tcl_registry::commands::tcl::tcl_command_specs()
         .iter()
         .filter(|s| s.required_package.is_none())
-        .filter(|s| s.dialects.is_none_or(|d| d.contains(DialectSet::TCL90)))
+        .filter(|s| {
+            s.dialects
+                .is_none_or(|d| d.intersects(DialectSet::TCL90_PLUS))
+        })
         .map(|s| s.name.to_string())
         .collect()
 }
@@ -390,7 +449,7 @@ fn render_report(core: &BTreeSet<String>, backed: &BTreeSet<String>) -> String {
          > The gate (`make xtask-check`) fails on drift, on any `UNCLASSIFIED`\n\
          > command, or on a stale classification entry (`RUST_ISSUE_006`).\n\n\
          Source of truth: `tcl-registry` core command specs (`required_package == None`),\n\
-         restricted to those available in Tcl 9.0. Backing: a `register_builtin`\n\
+         restricted to those available at Tcl 9.0 or later. Backing: a `register_builtin`\n\
          handler in `runtime/rust/`, a native non-`register_builtin` registration\n\
          (TclOO metaclass, per-object `my`), an embedded-init.tcl (stdlib) fallback,\n\
          or an explicit *not required* classification.\n\n\
@@ -489,4 +548,81 @@ pub fn run(check: bool) -> Result<ExitCode> {
         core.len()
     );
     Ok(ExitCode::SUCCESS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{HANDLER_EXTRA, KNOWN_UNBACKED, NOT_REQUIRED, STDLIB, Status, canon, classify};
+    use super::{core_commands, render_report, scan_handlers};
+    use crate::util::repo_root;
+    use std::collections::BTreeSet;
+
+    /// The drift guard this module's own `--check` flag enforces, run
+    /// directly as a unit test (mirroring the `committed_X_matches_generated`
+    /// pattern every sibling generator in this crate already has —
+    /// adversarial-review finding: this file had none, unlike
+    /// `gen_zed_queries.rs`/`gen_editor_catalogs.rs`/`gen_ai.rs`/etc). Fails
+    /// if `docs/generated/wasm-command-backing.md` is stale relative to the
+    /// live registry + runtime scan, or if any core command is genuinely
+    /// unaccounted for.
+    #[test]
+    fn committed_wasm_command_backing_matches_generated() {
+        let root = repo_root();
+        let core = core_commands();
+        let backed = scan_handlers(&root).expect("scan runtime/rust for register_builtin calls");
+        let report = render_report(&core, &backed);
+        let committed = std::fs::read_to_string(root.join(super::REPORT_PATH))
+            .expect("reading docs/generated/wasm-command-backing.md");
+        assert_eq!(
+            committed, report,
+            "docs/generated/wasm-command-backing.md is stale — run `cargo xtask command-backing`"
+        );
+    }
+
+    /// Every core command must be backed or classified — an `Unclassified`
+    /// result here is exactly the drift-gate failure `--check` reports as
+    /// a genuinely new gap.
+    #[test]
+    fn every_core_command_is_backed_or_classified() {
+        let root = repo_root();
+        let core = core_commands();
+        let backed = scan_handlers(&root).expect("scan runtime/rust for register_builtin calls");
+        let gaps: Vec<&String> = core
+            .iter()
+            .filter(|n| matches!(classify(n, &backed), Status::Unclassified))
+            .collect();
+        assert!(
+            gaps.is_empty(),
+            "unclassified core commands (add a register_builtin handler, or classify in \
+             command_backing.rs): {gaps:?}"
+        );
+    }
+
+    /// No classification list entry names a command that's stopped being
+    /// "core" (dropped from the registry) or that's since gained a real
+    /// runtime handler (a stale, now-redundant classification) — the same
+    /// staleness `--check` reports.
+    #[test]
+    fn no_classification_entry_is_stale() {
+        let root = repo_root();
+        let core = core_commands();
+        let backed = scan_handlers(&root).expect("scan runtime/rust for register_builtin calls");
+        let core_canon: BTreeSet<&str> = core.iter().map(|n| canon(n)).collect();
+        for (n, _) in HANDLER_EXTRA {
+            assert!(
+                core_canon.contains(n),
+                "`{n}` in HANDLER_EXTRA is classified but not a core registry command"
+            );
+        }
+        for (n, _) in STDLIB.iter().chain(NOT_REQUIRED).chain(KNOWN_UNBACKED) {
+            assert!(
+                core_canon.contains(n),
+                "`{n}` is classified but not a core registry command"
+            );
+            assert!(
+                !backed.contains(*n),
+                "`{n}` is classified but now has a runtime handler — remove the classification"
+            );
+        }
+    }
 }

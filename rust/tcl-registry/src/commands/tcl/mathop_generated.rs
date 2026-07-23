@@ -119,3 +119,78 @@ fn leak(s: String) -> &'static str {
 fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
     &*v.leak()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::specs;
+    use crate::prelude::DialectSet;
+
+    /// Adversarial-review finding: `specs()`'s translation from
+    /// `OperatorSpec` to `CommandSpec` (`push_spellings`/`to_registry_arity`)
+    /// had no test of its own — only `tcl_syntax::expr::operators`'s layer-1
+    /// unit tests exercised `spec()`/`mathop_shape`, never this file's own
+    /// plumbing. A future bug in `push_spellings`'s dialect/arity conversion
+    /// (an off-by-one, an accidentally-dropped prefix, a mis-mapped
+    /// `since_to_dialects`-style arm) could land here undetected.
+    ///
+    /// Directly reproduces issue #984's exact regression: `lt`/`le`/`gt`/`ge`
+    /// (TIP 461, Tcl 9.0+) must be present in all three spellings and gated
+    /// to `TCL90_PLUS`; `&&`/`||`/`@` (never real `tcl::mathop` commands in
+    /// any released Tcl) must be absent in every spelling.
+    #[test]
+    fn tip461_present_and_gated_bogus_entries_absent() {
+        let all = specs();
+        for op in ["lt", "le", "gt", "ge"] {
+            for name in [
+                op.to_string(),
+                format!("tcl::mathop::{op}"),
+                format!("::tcl::mathop::{op}"),
+            ] {
+                let spec = all
+                    .iter()
+                    .find(|s| s.name == name)
+                    .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathop registry data"));
+                assert_eq!(
+                    spec.dialects,
+                    Some(DialectSet::TCL90_PLUS),
+                    "{name:?} should be gated to TCL90_PLUS (TIP 461)"
+                );
+            }
+        }
+        for bogus in ["&&", "||", "@", "tcl::mathop::&&", "::tcl::mathop::@"] {
+            assert!(
+                !all.iter().any(|s| s.name == bogus),
+                "{bogus:?} is not a real tcl::mathop command and must not be in the registry"
+            );
+        }
+    }
+
+    /// `max`/`min` are `expr` math functions, not `tcl::mathop` grammar
+    /// operators (see the module doc's #984 note) — and the iRules-only word
+    /// operators (`and`/`or`/`contains`/…) have no command form at all
+    /// (`mathop_shape: None`). Neither family should ever appear here.
+    #[test]
+    fn mathfuncs_and_irules_word_operators_have_no_mathop_command_form() {
+        let all = specs();
+        for absent in ["max", "min", "and", "or", "contains", "not"] {
+            assert!(
+                !all.iter().any(|s| s.name == absent),
+                "{absent:?} has no ::tcl::mathop command form and must not be in this registry"
+            );
+        }
+    }
+
+    /// An ordinary, always-available arithmetic operator is present in all
+    /// three spellings, ungated (`dialects: None`).
+    #[test]
+    fn ordinary_operator_present_in_all_three_spellings_ungated() {
+        let all = specs();
+        for name in ["+", "tcl::mathop::+", "::tcl::mathop::+"] {
+            let spec = all
+                .iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathop registry data"));
+            assert_eq!(spec.dialects, None, "{name:?} should be ungated");
+        }
+    }
+}

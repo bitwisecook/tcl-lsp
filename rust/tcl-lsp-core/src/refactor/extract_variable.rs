@@ -48,15 +48,46 @@ fn expr_op_spellings() -> &'static [&'static str] {
     })
 }
 
-/// `true` when `text` contains a whitespace-delimited binary operator.
+/// `true` when `text` contains a whitespace-delimited binary operator
+/// outside of a quoted string or a nested `(…)`/`{…}`/`[…]` substitution.
 ///
-/// A whitespace-delimited operator has a single whitespace byte on
-/// each side (`\s OP \s`); this scans for ` OP ` with single ASCII
-/// spaces.
+/// A whitespace-delimited operator has a single whitespace byte on each
+/// side (`\s OP \s`); this scans for ` OP ` with single ASCII spaces,
+/// skipping any byte range inside a `"…"` word or inside nested
+/// brackets/braces/parens. Without the quote check, an ordinary string
+/// selection like `"salt and pepper"` matched the iRules `and` word
+/// operator as if it were a real operator token, wrapping a plain string
+/// in `[expr {…}]` — which then fails at runtime (`"salt"` isn't a valid
+/// `expr` bareword).
 fn looks_like_expr(text: &str) -> bool {
-    expr_op_spellings()
-        .iter()
-        .any(|op| text.contains(&format!(" {op} ")))
+    let bytes = text.as_bytes();
+    let mut depth = 0i32;
+    let mut in_quotes = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => {
+                i += 2;
+                continue;
+            }
+            b'"' => in_quotes = !in_quotes,
+            b'(' | b'{' | b'[' if !in_quotes => depth += 1,
+            b')' | b'}' | b']' if !in_quotes => depth -= 1,
+            b' ' if !in_quotes && depth == 0 => {
+                let rest = &text[i + 1..];
+                let hit = expr_op_spellings().iter().any(|op| {
+                    rest.strip_prefix(op)
+                        .is_some_and(|after| after.starts_with(' '))
+                });
+                if hit {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
 }
 
 /// Extract the selection `[start_off, end_off)` into a `set` assignment.
@@ -203,5 +234,41 @@ mod tests {
             "{:?}",
             r2.apply("puts $a lt $b")
         );
+    }
+
+    /// Adversarial-review finding: `expr_op_spellings()` includes the
+    /// iRules word operators (`and`/`or`/`contains`/…), and an ordinary
+    /// quoted string containing one of those words as English prose must
+    /// NOT be mistaken for a real operator token — `set myvar "salt and
+    /// pepper"` is already valid, wrapping it in `expr {…}` breaks it.
+    #[test]
+    fn quoted_string_containing_operator_words_is_not_wrapped_in_expr() {
+        let source = r#"puts "salt and pepper""#;
+        let li = LineIndex::new(source);
+        let r = extract_variable(source, 5, 22, "seasoning", &li).expect("result");
+        let applied = r.apply(source);
+        assert!(
+            applied.contains(r#"set seasoning "salt and pepper""#),
+            "{applied:?}"
+        );
+        assert!(!applied.contains("[expr"), "{applied:?}");
+    }
+
+    /// A word-operator spelling nested inside a brace-quoted argument
+    /// (depth > 0) is not a real top-level operator token — a plain
+    /// command call like `helper {a and b} $x` must not be wrapped in
+    /// `expr {…}` just because "and" appears somewhere inside its braces.
+    #[test]
+    fn braced_word_operator_at_nonzero_depth_does_not_trigger_expr_wrap() {
+        let source = "puts helper {a and b} $x";
+        let li = LineIndex::new(source);
+        // selection of `helper {a and b} $x` (cols 5..24).
+        let r = extract_variable(source, 5, 24, "result", &li).expect("result");
+        let applied = r.apply(source);
+        assert!(
+            applied.contains("set result helper {a and b} $x"),
+            "{applied:?}"
+        );
+        assert!(!applied.contains("[expr"), "{applied:?}");
     }
 }

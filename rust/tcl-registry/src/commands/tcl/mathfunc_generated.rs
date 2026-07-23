@@ -135,3 +135,78 @@ fn leak(s: String) -> &'static str {
 fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
     &*v.leak()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::specs;
+    use crate::prelude::DialectSet;
+
+    /// Adversarial-review finding: this file's own translation from
+    /// `MathFuncSpec` to `CommandSpec` (`push_spellings`/`since_to_dialects`/
+    /// `to_registry_arity`) had no test of its own — only
+    /// `tcl_syntax::expr::mathfunc`'s layer-1 unit tests exercised
+    /// `added_in()`/`dispatch()`, never this file's own plumbing. Confirms,
+    /// via a direct `specs()` query (not a full `CommandRegistry`), that
+    /// this repo's first-ever mathfunc hover/completion data is actually
+    /// present and gated correctly for names issue #983/#985's follow-ups
+    /// specifically care about.
+    #[test]
+    fn tip745_function_present_and_gated_to_tcl91() {
+        for name in ["tcl::mathfunc::gamma", "::tcl::mathfunc::gamma"] {
+            let spec = specs()
+                .into_iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathfunc registry data"));
+            assert_eq!(
+                spec.dialects,
+                Some(DialectSet::TCL91),
+                "{name:?} (TIP 745) should be gated to TCL91"
+            );
+        }
+    }
+
+    #[test]
+    fn tip521_function_present_and_gated_to_tcl90_plus() {
+        for name in ["tcl::mathfunc::isnan", "::tcl::mathfunc::isnan"] {
+            let spec = specs()
+                .into_iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathfunc registry data"));
+            assert_eq!(
+                spec.dialects,
+                Some(DialectSet::TCL90_PLUS),
+                "{name:?} (TIP 521) should be gated to TCL90_PLUS"
+            );
+        }
+    }
+
+    /// `abs` is an 8.4-vintage `expr` function, but the `::tcl::mathfunc`
+    /// *command* table itself is a TIP 232 (8.5) mechanism — so its command
+    /// form is never gated looser than `TCL85_PLUS`, even though `expr
+    /// {abs(...)}` itself works back to 8.4 (see the module doc's note on
+    /// `since_to_dialects`).
+    #[test]
+    fn tcl84_function_command_form_gated_no_looser_than_tcl85_plus() {
+        for name in ["tcl::mathfunc::abs", "::tcl::mathfunc::abs"] {
+            let spec = specs()
+                .into_iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathfunc registry data"));
+            assert_eq!(spec.dialects, Some(DialectSet::TCL85_PLUS), "{name:?}");
+        }
+    }
+
+    /// Unlike `mathop_generated.rs`'s operators, a bare `abs`/`gamma`/… is
+    /// not a math-function command spelling at all (see the module doc) —
+    /// only the two namespace-qualified forms should ever appear.
+    #[test]
+    fn no_bare_spelling_is_registered() {
+        let all = specs();
+        for bare in ["abs", "gamma", "isnan", "min", "max"] {
+            assert!(
+                !all.iter().any(|s| s.name == bare),
+                "{bare:?} (bare, unqualified) must not be a tcl::mathfunc registry entry"
+            );
+        }
+    }
+}

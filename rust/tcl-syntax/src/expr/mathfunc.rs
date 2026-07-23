@@ -474,6 +474,23 @@ fn finite_round_to_i64(f: f64) -> Option<i64> {
     finite_trunc_to_i64(rounded)
 }
 
+/// The exact integer square root of a non-negative `i`, `isqrt`'s core.
+///
+/// Float `sqrt` is only an estimate: a near-2^62 operand rounds up in the
+/// i64→f64 conversion and lands the estimate one too high vs C's exact
+/// `mp_sqrt` (oracle: `isqrt(4611686018427387903)` is `2147483647`, not
+/// `2^31`) — correct the float estimate to the exact integer square root.
+fn exact_isqrt(i: i64) -> i64 {
+    let mut r = (i as f64).sqrt() as i64;
+    while r > 0 && r.checked_mul(r).is_none_or(|sq| sq > i) {
+        r -= 1;
+    }
+    while (r + 1).checked_mul(r + 1).is_some_and(|sq| sq <= i) {
+        r += 1;
+    }
+    r
+}
+
 fn has_nan(vals: &[Num]) -> bool {
     vals.iter()
         .any(|v| matches!(v, Num::Float(f) if f.is_nan()))
@@ -495,14 +512,20 @@ fn min_max(name: &str, vals: &[Num]) -> Option<Num> {
         };
         Some(Num::Int(r))
     } else {
-        let mut best = vals[0].as_f64();
-        for v in &vals[1..] {
-            let f = v.as_f64();
-            if (name == "min" && f < best) || (name == "max" && f > best) {
-                best = f;
+        // At least one argument is a `Float`, but the *winner* need not be —
+        // real Tcl returns the winning argument's own value, preserving its
+        // type (`expr {min(3, 5.5)}` is `3`, an int, not `3.0`): compare
+        // numerically via `as_f64()`, but keep `best` as the original `Num`
+        // rather than re-widening it, so an `Int` winner stays an `Int`.
+        let mut best = vals[0];
+        for &v in &vals[1..] {
+            if (name == "min" && v.as_f64() < best.as_f64())
+                || (name == "max" && v.as_f64() > best.as_f64())
+            {
+                best = v;
             }
         }
-        Some(Num::Float(best))
+        Some(best)
     }
 }
 
@@ -694,22 +717,14 @@ fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
         },
         "ceil" => Some(Num::Float(v.as_f64().ceil())),
         "floor" => Some(Num::Float(v.as_f64().floor())),
+        // A `Float` operand is truncated toward zero first, then the exact
+        // integer square root is taken (oracle: `isqrt(9.5)` is `3`, same as
+        // `isqrt(9)`; `isqrt(-1.0)` is a domain error, same as `isqrt(-1)`;
+        // confirmed tclsh8.6/9.0) — real Tcl accepts a float operand here,
+        // it isn't `Int`-only.
         "isqrt" => match v {
-            Num::Int(i) if i >= 0 => {
-                // Float sqrt is only an estimate: a near-2^62 operand rounds
-                // up in the i64→f64 conversion and lands the estimate one too
-                // high vs C's exact `mp_sqrt` (oracle:
-                // `isqrt(4611686018427387903)` is 2147483647, not 2^31).
-                // Correct to the exact integer square root.
-                let mut r = (i as f64).sqrt() as i64;
-                while r > 0 && r.checked_mul(r).is_none_or(|sq| sq > i) {
-                    r -= 1;
-                }
-                while (r + 1).checked_mul(r + 1).is_some_and(|sq| sq <= i) {
-                    r += 1;
-                }
-                Some(Num::Int(r))
-            }
+            Num::Int(i) if i >= 0 => Some(Num::Int(exact_isqrt(i))),
+            Num::Float(f) if f >= 0.0 => finite_trunc_to_i64(f).map(exact_isqrt).map(Num::Int),
             _ => None,
         },
         _ => None,
@@ -744,6 +759,23 @@ mod tests {
         assert_eq!(
             dispatch("min", &[Num::Int(5), Num::Float(2.5)]),
             Some(Num::Float(2.5))
+        );
+        // Adversarial-review finding: a mixed-type call whose *winner* is
+        // the `Int` operand must return that `Int` unchanged, not a
+        // re-widened `Float` — real Tcl preserves the winning argument's
+        // own type (`expr {min(3, 5.5)}` is `3`, not `3.0`; confirmed
+        // tclsh8.6/9.0). The case above (`min(5, 2.5)`) doesn't catch this:
+        // its winner is already the `Float` operand, so widening the
+        // non-winning side is invisible there.
+        assert_eq!(
+            dispatch("min", &[Num::Int(3), Num::Float(5.5)]),
+            Some(Num::Int(3)),
+            "min(3, 5.5): the int operand wins and must stay an Int, not become 3.0"
+        );
+        assert_eq!(
+            dispatch("max", &[Num::Int(9), Num::Float(2.5)]),
+            Some(Num::Int(9)),
+            "max(9, 2.5): the int operand wins and must stay an Int, not become 9.0"
         );
         assert_eq!(dispatch("max", &[Num::Int(5), Num::Float(f64::NAN)]), None);
         assert_eq!(dispatch("min", &[Num::Float(f64::NAN), Num::Int(5)]), None);
@@ -780,6 +812,27 @@ mod tests {
             dispatch("isinf", &[Num::Float(f64::NAN)]),
             Some(Num::Int(0))
         );
+    }
+
+    #[test]
+    fn isqrt_accepts_a_float_operand() {
+        // Adversarial-review finding: `isqrt` only matched `Num::Int`, so a
+        // `Num::Float` operand fell to the catch-all `_ => None` — treated
+        // as a domain error even though real Tcl accepts a float here,
+        // truncating it toward zero first (confirmed tclsh8.6/9.0):
+        //   expr {isqrt(9.0)}      -> 3
+        //   expr {isqrt(9.5)}      -> 3   (truncates to 9, same as isqrt(9))
+        //   expr {isqrt(15.9999)}  -> 3   (truncates to 15, not 16)
+        //   expr {isqrt(16.0)}     -> 4
+        //   expr {isqrt(-1.0)}     -> domain error, same as isqrt(-1)
+        assert_eq!(dispatch("isqrt", &[Num::Float(9.0)]), Some(Num::Int(3)));
+        assert_eq!(dispatch("isqrt", &[Num::Float(9.5)]), Some(Num::Int(3)));
+        assert_eq!(dispatch("isqrt", &[Num::Float(15.9999)]), Some(Num::Int(3)));
+        assert_eq!(dispatch("isqrt", &[Num::Float(16.0)]), Some(Num::Int(4)));
+        assert_eq!(dispatch("isqrt", &[Num::Float(0.5)]), Some(Num::Int(0)));
+        assert_eq!(dispatch("isqrt", &[Num::Float(-1.0)]), None);
+        assert_eq!(dispatch("isqrt", &[Num::Float(f64::INFINITY)]), None);
+        assert_eq!(dispatch("isqrt", &[Num::Float(f64::NAN)]), None);
     }
 
     #[test]
