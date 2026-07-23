@@ -110,6 +110,13 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("dict", "for", H::DictFor),
         ("dict", "update", H::DictUpdate),
         ("dict", "with", H::DictWith),
+        // The standalone `::tcl::dict::*` spellings (issue #923 idx 105) now
+        // carry each subcommand's own analyser hook too (Codex review, PR
+        // #1020), so `::tcl::dict::for {k v} $d {…}` is analysed like `dict
+        // for` — landing as a *command-level* stamp on the qualified spec.
+        ("::tcl::dict::for", "", H::DictFor),
+        ("::tcl::dict::update", "", H::DictUpdate),
+        ("::tcl::dict::with", "", H::DictWith),
         // `cmd_name != "interp" || args[0] != "alias"` in
         // crate::alias's detectors, dispatched by handle_interp_alias.
         ("interp", "alias", H::InterpAlias),
