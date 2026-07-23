@@ -398,3 +398,32 @@ fn my_dispatch_resolves_when_class_extended_via_separate_oo_define() {
         "must resolve to the Helper method declaration on line 4"
     );
 }
+
+/// idx 70 (differential-audit main audit wave, high severity, pix corpus):
+/// the real, unmodified `docs/pixdoc.tcl` shape — a parallel/lock-step
+/// multi-list `foreach dirName {...} name {...} {...}` followed, ~300
+/// lines later, by a wholly unrelated `foreach name {...}` reusing the
+/// same bare name. `handle_foreach_command` only ever bound the *first*
+/// varList, so the first loop's own `name` was never a tracked variable at
+/// all — go-to-definition on any `$name` use inside the first loop's body
+/// silently resolved to the coincidentally same-named second loop instead,
+/// ~300 lines away in the wrong part of the file.
+#[test]
+fn multi_list_foreach_name_resolves_to_its_own_loop_not_a_later_unrelated_one() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "foreach dirName {src src {src core}} name {alpha beta gamma} {\n    puts \"$dirName $name\"\n    if {$name eq \"pixutils\"} { puts skip }\n}\nforeach name {examples color changes} {\n    puts $name.ruff\n}\n",
+    );
+    // Line 1: `    puts "$dirName $name"` — cursor on the first loop's own
+    // `$name` read (column 21).
+    let result = lsp.definition(&uri, 1, 21);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        0,
+        "must resolve to the first loop's own `name` clause (line 0), not the unrelated second loop (line 4): {locs:?}"
+    );
+}

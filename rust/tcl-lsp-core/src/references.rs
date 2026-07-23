@@ -2544,6 +2544,48 @@ mod tests {
     }
 
     #[test]
+    fn references_for_a_multi_list_foreach_second_varlist_now_reach_every_use() {
+        // Issue #923 idx 70 (main audit wave, high severity, pix corpus):
+        // before the `handle_foreach_command` fix, the first loop's own
+        // `name` (the second varList of `foreach dirName {...} name {...}
+        // {...}`) was never bound at all, so `references()` from *any* use
+        // inside the first loop's body fell through to whatever *other*
+        // same-named `VarDef` existed anywhere in the flat top-level scope
+        // — here, a second, later, textually unrelated `foreach name
+        // {...}` — returning only that second loop's own 2 spans and
+        // omitting every actual first-loop span, including the query site
+        // itself. `foreach` (like `if`/`set`) introduces no new analyser
+        // scope (correctly modelling Tcl's lack of block scoping), so at
+        // the top level these two loops' `name` genuinely share one global
+        // storage cell — same as any two sequential top-level `set name
+        // ...` statements — so the fully correct fixed reference set spans
+        // *both* loops, not just the first: the bug was under-reporting
+        // (missing the first loop's spans entirely), not over-reporting.
+        let src = "foreach dirName {src src {src core}} name {alpha beta gamma} {\n    puts \"$dirName $name\"\n    if {$name eq \"pixutils\"} { puts skip }\n}\nforeach name {examples color changes} {\n    puts $name.ruff\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the first loop's own `$name` read (line 1, col 21) —
+        // the exact query shape the finding's own repro used.
+        let refs = references(src, "tcl", 1, 21, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&0),
+            "the first loop's own `name` decl (line 0) must no longer be missing: {refs:?}"
+        );
+        assert!(
+            lines.contains(&1),
+            "the query site itself (line 1): {refs:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the first loop's other in-body use (line 2): {refs:?}"
+        );
+        assert!(
+            lines.contains(&4) && lines.contains(&5),
+            "the second loop shares the same global cell (no block scoping) so its spans stay unified too: {refs:?}"
+        );
+    }
+
+    #[test]
     fn references_do_not_include_unexported_sibling_wildcard_call_same_document() {
         // FP guard — the unexported sibling must not surface as a reference
         // through the wildcard import either.

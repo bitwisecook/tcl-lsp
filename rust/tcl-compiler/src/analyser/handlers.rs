@@ -2169,12 +2169,15 @@ impl Analyser {
         }
     }
 
-    /// Handle `foreach var list body` (and the `foreach_in_collection`
-    /// dialect variant, whose spec carries the same hook).
+    /// Handle `foreach varList1 list1 ?varList2 list2 ...? body` (and the
+    /// `foreach_in_collection` dialect variant, whose spec carries the same
+    /// hook).
     ///
-    /// Defines the loop-variable list in the active scope, then
-    /// recurses into the body so vars defined inside the loop land
-    /// in the enclosing scope.
+    /// Defines every `varListN` (the registry's own arity spec,
+    /// `Arity::stepped(3, Arity::UNLIMITED, 2)`, documents an unlimited
+    /// number of `varList`/`list` pairs, tclsh 8.6/9.0-verified — issue
+    /// #923 idx 70) in the active scope, then recurses into the body so
+    /// vars defined inside the loop land in the enclosing scope.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Foreach`].
     pub fn handle_foreach_command(
@@ -2186,8 +2189,14 @@ impl Analyser {
         if args.len() < 3 {
             return false;
         }
-        if let Some(tok) = arg_tokens.first() {
-            self.define_vars_from_list(&args[0], *tok, scope_path);
+        // Every `varList` sits at an even index, paired with its `list` at
+        // the next odd index; the final argument (odd count, since each
+        // pair contributes 2 and the body adds 1 more) is always the body,
+        // so this walks pairs only up to (not including) the last index.
+        for i in (0..args.len() - 1).step_by(2) {
+            if let Some(tok) = arg_tokens.get(i) {
+                self.define_vars_from_list(&args[i], *tok, scope_path);
+            }
         }
         // The body is always the last argument; recurse so vars
         // defined inside the loop land in the enclosing scope.
@@ -6097,6 +6106,76 @@ mod tests {
         assert_eq!(k.definition_span, span(8, 9));
         assert_eq!(v.definition_span, span(10, 11));
         assert!(k.definition_span.start() < v.definition_span.start());
+    }
+
+    #[test]
+    fn handle_foreach_defines_every_varlist_in_the_multi_list_lock_step_form() {
+        // Issue #923 idx 70 (main audit wave, high severity, pix corpus):
+        // `foreach varList1 list1 varList2 list2 ... body` — the parallel/
+        // lock-step multi-list form (docs/pixdoc.tcl's real shape:
+        // `foreach dirName {...} name {...} {...}`) — is fully static,
+        // unambiguous, standard Tcl (tclsh 8.6/9.0-verified) and is even
+        // arity-validated by the registry's own `foreach` spec
+        // (`Arity::stepped(3, Arity::UNLIMITED, 2)`, stride 2). Previously
+        // only the *first* varList (`args[0]`) was ever bound — every
+        // subsequent varList/list pair's names were silently dropped, so
+        // `name` was never registered as a local at all.
+        let mut a = Analyser::new();
+        let handled = a.handle_foreach_command(
+            &[
+                "dirName".to_string(),
+                "{src src {src core}}".to_string(),
+                "name".to_string(),
+                "{alpha beta gamma}".to_string(),
+                "puts $dirName-$name".to_string(),
+            ],
+            &[
+                esc_tok(span(8, 15)),
+                str_tok(span(16, 37)),
+                esc_tok(span(38, 42)),
+                str_tok(span(43, 62)),
+                str_tok(span(63, 90)),
+            ],
+            &[],
+        );
+        assert!(handled);
+        assert!(a.result.global_scope.variables.contains_key("dirName"));
+        assert!(
+            a.result.global_scope.variables.contains_key("name"),
+            "the second varList's own loop variable must be bound too, not silently dropped"
+        );
+    }
+
+    #[test]
+    fn handle_foreach_multi_list_form_binds_a_third_pair_too() {
+        // FN guard — the fix must generalise past exactly 2 pairs (a
+        // hardcoded "first + second" special case would still miss a
+        // 3-or-more-pair `foreach`, equally legal Tcl).
+        let mut a = Analyser::new();
+        a.handle_foreach_command(
+            &[
+                "a".to_string(),
+                "{1 2}".to_string(),
+                "b".to_string(),
+                "{3 4}".to_string(),
+                "c".to_string(),
+                "{5 6}".to_string(),
+                "puts $a$b$c".to_string(),
+            ],
+            &[
+                esc_tok(span(0, 1)),
+                str_tok(span(2, 7)),
+                esc_tok(span(8, 9)),
+                str_tok(span(10, 15)),
+                esc_tok(span(16, 17)),
+                str_tok(span(18, 23)),
+                str_tok(span(24, 35)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("a"));
+        assert!(a.result.global_scope.variables.contains_key("b"));
+        assert!(a.result.global_scope.variables.contains_key("c"));
     }
 
     #[test]

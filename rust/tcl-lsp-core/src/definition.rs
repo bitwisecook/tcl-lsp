@@ -1867,6 +1867,39 @@ mod tests {
         assert_eq!(locs[0].start_character, 5);
     }
 
+    // foreach multi-list lock-step form (issue #923 idx 70): `foreach
+    // varList1 list1 varList2 list2 ... body` binds every varList, not
+    // just the first.
+
+    #[test]
+    fn multi_list_foreach_name_resolves_to_its_own_loop_not_an_unrelated_later_one() {
+        // The finding's own demonstrated in-vivo failure mode on the real,
+        // unmodified pix corpus file (docs/pixdoc.tcl) — a *second*
+        // `foreach` reusing the bare name `name` (a wholly unrelated,
+        // later loop) previously "won" by being the only `VarDef` named
+        // `name` anywhere in the flat top-level scope, since the first
+        // loop's own `name` (the second varList of a `foreach dirName
+        // {...} name {...} {...}` multi-list form) was never bound at
+        // all. tclsh9.0/8.6 both prove `name` inside the first loop's body
+        // is that loop's own variable, never reaching the second loop.
+        let src = "foreach dirName {src src {src core}} name {alpha beta gamma} {\n    puts \"$dirName $name\"\n    if {$name eq \"pixutils\"} { puts skip }\n}\nforeach name {examples color changes} {\n    puts $name.ruff\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the first loop's own `$name` read (line 1, col 21).
+        let locs = definition(src, 1, 21, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 0,
+            "must resolve to the first loop's own `name` clause (line 0), not the unrelated second loop (line 4): {locs:?}"
+        );
+        assert_eq!(locs[0].start_character, 37);
+
+        // Same wrong-location bug reproduced from a second usage inside
+        // the same loop body (line 2, `if {$name eq ...}`).
+        let locs2 = definition(src, 2, 10, &analysis);
+        assert_eq!(locs2.len(), 1, "{locs2:?}");
+        assert_eq!(locs2[0].start_line, 0, "{locs2:?}");
+    }
+
     // namespace-aware proc resolution (C Tcl `Tcl_FindCommand` order)
 
     #[test]
