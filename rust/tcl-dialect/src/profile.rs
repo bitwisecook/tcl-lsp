@@ -97,7 +97,6 @@ const LIBS_TCL86_PLUS: &[LibraryPin] = &[
 /// a dialect *shape* fact, not a K36322151 ban.)
 const IRULES_DISABLED_COMMANDS: &[&str] = &[
     "::tcl::build-info",
-    "::tcl::unsupported::corotype",
     "auto_execok",
     "auto_import",
     "auto_load",
@@ -141,7 +140,6 @@ const IRULES_DISABLED_COMMANDS: &[&str] = &[
     "tcl_findLibrary",
     "tell",
     "time",
-    "timerate",
     "unknown",
     "unload",
     "update",

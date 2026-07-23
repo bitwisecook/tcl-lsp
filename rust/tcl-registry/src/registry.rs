@@ -3155,6 +3155,19 @@ mod tests {
             "error",
             "continue",
             "break",
+            // `throw type message` (Tcl 8.6+) — `cmd_throw`
+            // (`tcl-vm/src/cmd_try.rs`) takes its two already-substituted
+            // arguments, validates `type` as a non-empty Tcl list, and
+            // builds its return-options dict directly with no eval
+            // fallback of any kind (it never touches `vm`), structurally
+            // identical to `cmd_error` in this respect. See
+            // `commands/tcl/throw_.rs`.
+            "throw",
+            // `::tcl::unsupported::corotype coroName` — a flat lookup into
+            // the coroutine table (`tcl-vm/src/cmd_coro.rs::cmd_corotype`):
+            // no eval fallback, no `Frame` of its own. See
+            // `commands/tcl/tcl_unsupported_corotype.rs`.
+            "::tcl::unsupported::corotype",
         ]
         .into_iter()
         .collect();
