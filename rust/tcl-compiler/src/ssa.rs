@@ -1189,47 +1189,6 @@ pub fn uses_of(
                     }
                 }
             }
-            // A `Plain`-body-kind `ArgRole::Body` argument (e.g. `interp
-            // eval`'s script) is *not* excluded by `structural_body_indices`
-            // above — that only covers `Structural` bodies (a definition
-            // scope like `oo::class`). Unlike `if`/`while`/`catch`, whose
-            // bodies get flattened into this function's own CFG, this one
-            // stays opaque (its target interpreter is unknowable to static
-            // analysis), so `scan_command_words` above scanned it as
-            // ordinary value text: it finds every `$var` read but has no
-            // notion of the body's *own* `set NAME ...` writes. Drop
-            // whatever the body locally assigns from the reads just
-            // collected, so a plain write-then-read entirely inside the
-            // opaque body doesn't look like a read with no visible
-            // definition anywhere (issue #923: `interp eval $s { set x 1;
-            // expr {$x + 1} }` false-fired W210 on `x`). Scoped to names the
-            // body *itself* assigns, not a full nested dataflow pass — a
-            // conservative narrowing, not a soundness claim: a genuine
-            // read-before-set entirely inside the body goes undetected
-            // (this statement's own reads are opaque to the outer CFG
-            // either way), and the rare case of the same name denoting both
-            // the outer interpreter handle and an unrelated inner local
-            // (`interp eval $x { set x 1 }`) drops that outer read too —
-            // both are false-negative directions, never new false
-            // positives.
-            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-            for idx in
-                registry.arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
-            {
-                let Some(body_text) = args.get(idx) else {
-                    continue;
-                };
-                for seg in crate::segmenter::segment_commands(body_text) {
-                    if seg.texts.first().map(String::as_str) == Some("set")
-                        && let Some(name_word) = seg.texts.get(1)
-                    {
-                        let name = normalise_var_name(name_word);
-                        if !name.is_empty() {
-                            vars_found.remove(name);
-                        }
-                    }
-                }
-            }
         }
 
         // A non-lowered (glob/regexp/fall-through) `switch` is kept opaque as a
