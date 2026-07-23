@@ -31,7 +31,7 @@ pushed to this branch (§3/§6a); 6 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
-Eighteen of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
+Nineteen of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
 (high, §3's `26e4ea3`), idx 10 (high, §3's `9a55b00`), idx 18 (high, §3's
 `b3cbdb1`), idx 29 (high, already resolved by idx 18's fix, pinned in
 §3's `65aaa5c`), idx 31 (high, §3's `26c6e02`), idx 32 (high, §3's
@@ -40,7 +40,8 @@ Eighteen of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
 `2fb4921`), idx 52 (high, §3's `15267af`), idx 56 (high, §3's `8b1e88f`),
 idx 63 (high, partial — §3's `6d429dc`), idx 68 (high, §3's `440572f`),
 idx 70 (high, §3's `a8971ac`), idx 71 (high, §3's `70f0c99`), idx 76
-(high, §3's `7c1a154`), idx 77 (high, §3's `476b7a2`); the other 67
+(high, §3's `7c1a154`), idx 77 (high, §3's `476b7a2`), idx 84 (high,
+partial — §3's `e178f29`); the other 66
 main-wave findings are clustered by feature/root-cause with a
 priority-ordered table in
 §6b, ready for a future session to pick up efficiently. Nothing
@@ -186,6 +187,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `70f0c99` | **main-wave** idx 71 (high) | `textDocument/references` dropped every call site in the *same* document a query was issued from whenever that document has no local declaration to anchor on (a proc reached only through a `source`d-in or workspace-sibling declaration) — `cross_document_references` unconditionally excludes the current document from its workspace-index lookup, assuming the (empty, in this case) single-document pass already covers it. Real corpus shape: nico-robert/pix's `test_context.test` sources `data_b64.test` then calls `isEqual` bare, twice; both of its own calls were invisible to find-references. Mirrored the identical fix pattern rename's "M8" consumer-document fallback already uses (resolve through the workspace oracle with an empty exclude-URI): `cross_document_references`'s body is now shared via a new `gather_reference_targets(..., exclude_uri)` helper, and a new sibling `workspace_resolved_references` calls it with `exclude_uri = ""` instead of the current URI, used whenever the single-document pass finds nothing local to anchor on. The `.test`-extension half of this finding was already fixed by idx 10. |
 | `7c1a154` | **main-wave** idx 76 (high) | The finding's own headline hypothesis (LSP guessing the wrong class among structurally-similar TclOO classes for a genuinely dynamic `switch`-dispatched call) is REFUTED — the LSP already correctly abstains there. Tracing why uncovered a distinct CONFIRMED gap on the exact same class (nico-robert/tomato's real classes all use idx 52's two-block `oo::class create` + separate `oo::define` convention): a definite, single-target `my methodName` internal-dispatch call had no hover at all, even though go-to-definition/find-references already resolved it (cursor-shape-driven, via `enclosing_class_at`/`method_dispatch_definition`) — hover only had the word-match-driven `class_member_hover_text`, gated on `ClassDef::linked_members` (idx 113's `oo::Helpers::link` idiom only), which a plain un-linked `my` call never populates. Fixed with a new `inst == "my"` branch in `hover_with_profile`, mirroring `instance_method_definition`'s existing one, resolving via `enclosing_class_at` and rendering through the existing `obj_method_hover_text`. |
 | `476b7a2` | **main-wave** idx 77 (high) | The entire CFG/SSA dataflow diagnostic family (W210 read-before-set, W211 unused-variable, W220 dead-store, W233, interval-bounds, unused-param, constant-branch) silently never ran on any TclOO/snit method body — `emit_cfg_ssa_diagnostics_with_cu`'s per-function loop only ever iterated `cu.procedures`, never `cu.methods`. Real corpus crash: nico-robert/tomato's `Vector3d.tcl::* {type}` reads `$other`, a variable belonging to a sibling method, never bound in `*`'s own scope — tclsh8.6/9.0.4 both crash with `can't read "other"` the instant `*` runs on an object operand; the identical shape inside a plain `proc` already fired W210. Fixed with a new `emit_method_body_diagnostics` loop over `cu.methods`, threading two suppression sets into `extra_known_defined`/`cross_event_vars` (both verified empirically against false positives): `MethodDef::instance_vars` (TclOO auto-binds class-level `variable` names in every method with no visible statement in the body) and `MethodDef::params` (a method's own params — `emit_read_before_set_diagnostics`/`emit_return_phi_undef_w210` both special-case a real parameter via a separate `ir_module.procedures` lookup a method's qualified name is never in). Full existing tcl-compiler suite (4540 tests) re-verified clean, confirming no false positives across the corpus of existing TclOO-shaped tests. |
+| `e178f29` | **main-wave** idx 84 (high, partial) | `namespace ensemble configure` (as opposed to `create`) was entirely invisible to `handle_namespace_ensemble` (`if args[1] != "create" { return; }`), so the real `tk/library/systray.tcl` (and `print.tcl`/`fileicon.tcl`/`accessibility.tcl`) idiom of splicing `systray`/`sysnotify` into the pre-existing, registry-builtin `tk` ensemble via `namespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]` drew 5 false W001 diagnostics and risked wrong go-to-definition/hover navigation to an unrelated same-tail-name decoy. Fixed: `handle_namespace_ensemble` now also accepts `configure NAME ?opts?` (NAME resolved the same namespace-aware way a `-map` target already is, not a blind prefix); a new `dict_merge_literal_tail` (mirrors idx 110's `cmd_fragments`/`descend_token`/`segments_from_tree` idiom) narrowly recognises the real `dict merge ARG {literal}` splice shape and extracts the literal tail's own pairs, since naively word-splitting the *whole* dynamic value's raw text (as the pre-existing per-element-only `is_dynamic_word` guard would have allowed) produces actively wrong subcommand/target pairs and spurious command references — caught by a dedicated safety test before shipping; a new `statically_mapped_ensemble_subcommand_known` (validity.rs) wires the already-populated `ensemble_subcommand_targets` (idx 106) into W001 for the first time, alongside the pre-existing `dynamic_ensemble_subcommand_known` (idx 105's `implementation_namespace` mechanism, confirmed inapplicable to `tk systray`'s genuine 2-level nesting). Deliberately not fixed, and confirmed via a probe to be a separate, general, pre-existing limitation rather than idx-84-specific: the finding's 3rd-word case (`tk systray create`/`configure`/`exists`/`destroy`) still risks wrong navigation, since `instance_method_at_cursor`'s ensemble-subcommand check requires exactly one token immediately before the cursor word and can't engage for a 3-word shape at all — the identical risk already reproduces today against the long-registered `tk busy <subcommand>` entry. See the dedicated note after this table. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -366,7 +368,7 @@ tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
 merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
 from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
 `wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
-REFUTED.** Of the 85 CONFIRMED: **18 fixed** (idx 61, critical — §3's
+REFUTED.** Of the 85 CONFIRMED: **19 fixed** (idx 61, critical — §3's
 `d825d1d`; idx 9, high — §3's `26e4ea3`; idx 10, high — §3's `9a55b00`;
 idx 18, high — §3's `b3cbdb1`; idx 29, high, same root cause as idx 18 —
 §3's `65aaa5c`; idx 31, high — §3's `26c6e02`; idx 32, high — §3's
@@ -375,7 +377,8 @@ idx 18, high — §3's `b3cbdb1`; idx 29, high, same root cause as idx 18 —
 52, high — §3's `15267af`; idx 56, high — §3's `8b1e88f`; idx 63, high,
 partial — §3's `6d429dc`; idx 68, high — §3's `440572f`; idx 70, high —
 §3's `a8971ac`; idx 71, high — §3's `70f0c99`; idx 76, high — §3's
-`7c1a154`; idx 77, high — §3's `476b7a2`), **67 remaining**.
+`7c1a154`; idx 77, high — §3's `476b7a2`; idx 84, high, partial — §3's
+`e178f29`), **66 remaining**.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
@@ -386,7 +389,7 @@ namespaces 11, proc_args 10, upvar 7, source 6, tcl_mathop 5, rename 4,
 package_loading 3, uplevel 3, tracing 3, aliasing 2, safe_interp 2, eval 1,
 autoindex 1.
 
-#### Priority tier 1 — critical + high (24 findings, 18 already fixed)
+#### Priority tier 1 — critical + high (24 findings, 19 already fixed)
 
 Fix these first — each is either data-loss-risk (a rename that silently
 breaks the program, idx 61) or a full-zero-results failure of a core
@@ -417,7 +420,7 @@ not a substitute.
 | 76 | high | tomato | tclOO | **FIXED** (`7c1a154`) — the headline "wrong class guessed" hypothesis is REFUTED (correct abstention); tracing it found hover had no resolution path at all for a plain `my methodName` call, unlike already-working go-to-definition/references. |
 | 77 | high | tomato | tclOO | **FIXED** (`476b7a2`) — the whole CFG/SSA dataflow diagnostic family (W210 and siblings) never ran on any TclOO/snit method body; the crash-causing unbound `$other` read now flags. |
 | 79 | high | tomato | proc_args | **INVESTIGATED, NOT FIXED** (session of 2026-07-23) — see the dedicated note right after this table for why: the audit's own "definition/hover resolve, references/rename don't" framing is now stale (idx 113 already narrowed `lookup_class_member` to require `link`, so definition/hover now *also* abstain on this shape), but the underlying rename-safety risk it flagged is still real and a sound fix needs receiver-type inference this campaign doesn't have. |
-| 84 | high | tk | namespaces | `tk/library/systray.tcl` (and print.tcl, fileicon.tcl, accessibility.tcl) splices a namespace-qualified name dynamically; resolution fails. |
+| 84 | high | tk | namespaces | **PARTIALLY FIXED** (`e178f29`) — `namespace ensemble configure` (as opposed to `create`) was invisible to the analyser, so the real `tk/library/systray.tcl` (and `print.tcl`/`fileicon.tcl`/`accessibility.tcl`) idiom of splicing `systray`/`sysnotify` onto the pre-existing `tk` ensemble drew 5 false W001s and risked wrong go-to-definition/hover navigation for the 2-word shape; both now fixed. The 3rd-word case (`tk systray create`/…) remains open — a separate, general, pre-existing limitation, not idx-84-specific; see the dedicated note after this table. |
 | 86 | high | tk | rename | `tk/library/accessibility.tcl`'s `foreach wtype {...} { rename ::$wtype ::tk::ac... }` loop-generated rename targets aren't tracked. |
 | 90 | high | tk | safe_interp | `tk/library/safetk.tcl` declares a throwaway 0-arg `proc ::safe::loadTk {}` stub then redefines it with the real signature later — arity/definition tracking picks the wrong one. |
 | 94 | high | tk | tricky_indirection | `tearoff.tcl`'s `-tearoffcommand`/`cget`/`upvar`-adjacent indirection mechanics both reproduce, need a combined fix. |
@@ -493,6 +496,101 @@ session:
 Left open for a future session with more room to design the safety-gate
 direction carefully — not attempted lightly, and not silently: this note is
 that record.
+
+**idx 84, in detail (partially fixed — `CONFIGURE`-tracking landed, 3rd-word
+navigation deliberately deferred):** the finding's own repro is real:
+`tk/library/systray.tcl:481-483` (and `print.tcl:1451-1452`,
+`fileicon.tcl:9322-9323`, `accessibility.tcl:1274-1275`) splice
+`systray`/`sysnotify` into the built-in `tk` ensemble via `namespace
+ensemble configure tk -map [dict merge [namespace ensemble configure tk
+-map] {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]` — a
+**`CONFIGURE`**, not `CREATE`, statement on a *pre-existing*,
+registry-builtin ensemble. `handle_namespace_ensemble` bailed immediately
+unless `args[1] == "create"`, so this idiom (and the `-map`/`-subcommands`
+recording idx 106 built for exactly this purpose) was entirely invisible.
+Two consequences, both confirmed via tclsh9.0/8.6: (1) W001 fired 5 false
+"Unknown subcommand" diagnostics on 100%-legitimate `tk systray`/`tk
+sysnotify` calls; (2) go-to-definition/hover on the 2-word shape (`tk
+systray`, `tk sysnotify`) fell through to `fallback_proc_by_simple_name`
+and could silently resolve to an unrelated same-tail-name decoy proc
+elsewhere in the workspace (proven with two independent decoys), or — with
+no decoy present — simply abstained despite the mapping being a literal,
+static, in-source fact.
+
+Fixed, both consequences, for the `CONFIGURE` shape (`e178f29`):
+`handle_namespace_ensemble` now also accepts `configure NAME ?opts?`,
+resolving `NAME` the same namespace-aware way a `-map` target already is
+(`resolve_command_qualified_name`, not a blind prefix — `configure`'s
+ensemble is a *reference* to something pre-existing, not a fresh
+declaration the way `create`'s default is); a dynamic `NAME` abstains. The
+real idiom's `-map` value is itself one whole dynamic `[dict merge ...
+{literal}]` substitution, not a literal list — the pre-existing
+per-*element* `is_dynamic_word` guard doesn't protect a whole-value
+dynamic, and naively word-splitting the expression's raw text on
+whitespace produces actively wrong subcommand/target pairs (fragments of
+`dict`/`merge`/`namespace`/`ensemble`/`configure`/the ensemble name itself
+land at odd indices and get recorded as bogus command references) — worse
+than abstaining. Caught by a dedicated safety-regression test *before* it
+shipped (asserts no spurious reference is recorded from an unrecognised
+dynamic shape). New `Analyser::dict_merge_literal_tail` (mirroring idx
+110's `cmd_fragments`/`descend_token`/`segments_from_tree` idiom for
+descending a `[...]` `Cmd`-kind token) recognises exactly `dict merge ARG
+{literal}` — deliberately narrow, matching the idx 110 precedent: does not
+recognise `dict set`/`dict replace`/`concat`/a helper proc, or `dict
+merge` with more than 2 operands — and extracts the literal tail's own
+pairs, which are statically known regardless of what `ARG` (typically a
+self-referential query of the ensemble's current map) evaluates to.
+Separately, `AnalysisResult::ensemble_subcommand_targets` was already
+populated for definition/hover/references navigation (idx 106) but was
+**never consulted by W001 at all** — new
+`Analyser::statically_mapped_ensemble_subcommand_known` (validity.rs),
+checked alongside the pre-existing `dynamic_ensemble_subcommand_known`
+(idx 105's `implementation_namespace` mechanism, confirmed inapplicable
+here — see the finding's own `root_cause_hint`: `tk systray`'s genuine
+2-level nesting doesn't fit that field's single-hop `<ns>::<subcommand>`
+convention).
+
+**Deliberately not attempted, and confirmed to be a separate, general,
+pre-existing issue, not idx-84-specific:** the finding's *3rd-word* case —
+`tk systray create`/`configure`/`exists`/`destroy` — is unaffected by the
+above; cursor-on-"create" still risks the same wrong-navigation. Root
+cause: `instance_method_at_cursor`'s ensemble-subcommand check requires
+the word immediately before the cursor word to be *exactly one token* (so
+`tk systray` → head=`"tk"`, sub=`"systray"` matches, but for `tk systray
+create` the text before "create" is `"tk systray"`, two tokens, so the
+check returns `None` and falls through to the generic call-resolution path
+regardless of what `ensemble_subcommand_targets` contains). A probe this
+session confirmed this is **not** specific to `systray`/`sysnotify`: the
+identical risk already reproduces today against the long-registered,
+pre-existing `tk busy <subcommand>` entry (`tk busy hold .win` with a
+decoy `::decoy::hold` proc resolves to the decoy, unchanged by this fix) —
+a general limitation of the single-predecessor-token design for any
+3-word-or-more ensemble dispatch, not something `handle_namespace_ensemble`'s
+`CREATE`/`CONFIGURE` gap caused or this fix's scope covers. A sound fix
+needs `instance_method_at_cursor`/`ensemble_subcommand_target` to walk
+back through *multiple* predecessor tokens, chaining through
+`ensemble_subcommand_targets` recursively (`"tk"` → `"systray"` → resolve
+`::tk::systray`, then `::tk::systray` → `"create"` → …) — a materially
+larger, more invasive change than warranted for one finding, left open for
+a future session (same "investigate, document, defer" treatment as idx 79
+above).
+
+Also considered and **rejected** for this session: statically registering
+`systray`/`sysnotify` as flat `SubCommand` entries in `tk_cmd.rs`
+(mirroring `busy`/`fontchooser`), which would additionally suppress W001
+for a *plain consumer* script that calls `tk systray create` without ever
+containing the splice statement itself (the realistic common case — Tk's
+own C/library bootstrap does the splice, invisible to the LSP). Not done:
+this session's own methodology requires verifying every registry fact
+(arity, synopsis) against a real tclsh/Tk oracle, and no live
+Tk-with-display environment is available in this sandbox (the finding's
+own `lsp_output` notes the identical constraint for its `no_bootstrap_repro.tcl`
+case: "LSP-only since real Tk/display isn't available in this sandbox") —
+guessing `tk sysnotify`/`tk systray`'s exact arity from memory and shipping
+it as an unverified registry fact risks a false arity diagnostic for real
+users, a worse failure mode than the narrower, but fully oracle-grounded,
+`CONFIGURE`-tracking fix actually shipped. Left as a documented, low-risk
+follow-up for a session with Tk oracle access.
 
 #### Priority tier 2 — medium + low (60 + 1 = 61 findings), grouped by feature for clustering
 
@@ -615,12 +713,12 @@ manual differential checks — see its own docstring for usage
 4. Pick the next finding to fix — two ready queues, both fully triaged:
    - §6a: 6 remaining tcllib findings (idx 121/122/18/125/128/24), no
      refined plan for any — use `07`'s `root_cause_hint` directly.
-   - §6b: 67 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
+   - §6b: 66 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
      idx 29, idx 31, idx 32, idx 33, idx 39, idx 46, idx 52, idx 56, idx
-     63, idx 68, idx 70, idx 71, idx 76, and idx 77 are fixed — idx 46
-     and idx 63 only partially, see their §3/§6b rows for what's still
-     open — so far), fully triaged into a priority-ordered critical/high
-     table (6 remaining, start here) and a feature-clustered medium/low
+     63, idx 68, idx 70, idx 71, idx 76, idx 77, and idx 84 are fixed —
+     idx 46, idx 63, and idx 84 only partially, see their §3/§6b rows for
+     what's still open — so far), fully triaged into a priority-ordered
+     critical/high table (5 remaining, start here) and a feature-clustered medium/low
      table (61 findings, group by feature when fixing). Likely the
      higher-leverage queue given its size and the presence of several
      zero-results go-to-definition/references failures on common
@@ -641,7 +739,7 @@ manual differential checks — see its own docstring for usage
    crate manifest does; running this (or `df`/`du`) from a `rust/`-relative
    cwd silently no-ops (the path just doesn't exist there) and looks like
    cleanup happened when it didn't — confirmed the hard way this session.
-7. Both queues (§6a's 6 tcllib findings, §6b's 67 main-wave findings) are
+7. Both queues (§6a's 6 tcllib findings, §6b's 66 main-wave findings) are
    independent — fix from whichever queue makes sense, no need to exhaust
    one before starting the other. Keep this document's counts current as
    findings get fixed: move a finished idx out of §6a/§6b's tables and into
