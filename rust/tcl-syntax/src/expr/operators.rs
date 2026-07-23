@@ -817,4 +817,59 @@ mod tests {
             );
         }
     }
+
+    /// Drift guard for `tcl-lexer`'s hand-typed operator-spelling tables
+    /// (`MULTI_OPS`/`is_single_op`/`irules_ops` in `expr_lexer.rs`).
+    /// `tcl-lexer` sits *below* `tcl-syntax` in the dependency graph (see
+    /// this crate's own architecture doc comment), so those tables can't
+    /// derive from `ALL_BIN_OPS`/`ALL_UNARY_OPS` directly — this proves,
+    /// from this (the higher) side of the boundary, that the lexer still
+    /// tokenises every operator spelling this module knows about as a
+    /// single `Operator` token, catching the day a new `BinOp`/`UnaryOp`
+    /// variant lands here without a matching lexer update.
+    #[test]
+    fn tcl_lexer_recognises_every_operator_spelling_as_one_operator_token() {
+        let check = |spelling: &str, dialects: Option<DialectSet>| {
+            let dialect = (dialects == Some(DialectSet::IRULES)).then_some("f5-irules");
+            let tokens = tcl_lexer::tokenise_expr(spelling, dialect);
+            assert_eq!(
+                tokens.len(),
+                1,
+                "{spelling:?}: expected exactly one token, got {tokens:?}"
+            );
+            assert_eq!(
+                tokens[0].kind,
+                tcl_lexer::ExprTokenType::Operator,
+                "{spelling:?}: tcl-lexer didn't tokenise this as an Operator"
+            );
+            assert_eq!(tokens[0].text, spelling);
+        };
+        for &op in ALL_BIN_OPS {
+            let spec = op.spec();
+            check(spec.spelling, spec.dialects);
+        }
+        for &op in ALL_UNARY_OPS {
+            let spec = op.spec();
+            check(spec.spelling, spec.dialects);
+        }
+    }
+
+    /// Drift guard for `tcl-lexer`'s `math_functions()` — the set
+    /// `tcl-lsp-core::semantic_tokens` reads to decide which `Function`-kind
+    /// expr tokens get the "known math function" modifier. Found this list
+    /// missing every TIP 521 (9.0) / TIP 745 (9.1) addition (under-
+    /// classifying `expr {gamma(2.5)}`/`expr {isfinite($x)}` in a 9.1
+    /// document) — this guard is what would have caught it at the time.
+    #[test]
+    fn tcl_lexer_recognises_every_mathfunc_name() {
+        let known = tcl_lexer::expr_math_functions();
+        for spec in super::super::mathfunc::all() {
+            assert!(
+                known.contains(spec.name),
+                "{}: tcl-lexer's math_functions() doesn't know this name (added_in {:?})",
+                spec.name,
+                spec.since
+            );
+        }
+    }
 }

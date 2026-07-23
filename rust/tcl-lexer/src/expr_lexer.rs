@@ -105,12 +105,81 @@ fn p(n: usize) -> u32 {
 /// the compiler) can check for shadowed functions. In the lexer
 /// itself, any identifier not in the `Bool` or `Operator` sets
 /// becomes `Function` regardless (the default fallback).
+///
+/// `tcl-lexer` sits below `tcl-syntax` in the dependency graph (see
+/// `tcl-syntax`'s own architecture doc comment), so this can't derive from
+/// `tcl_syntax::expr::mathfunc::ALL_NAMES` directly — the two lists are kept
+/// in sync by `tcl-syntax`'s own drift-guard test
+/// (`expr::operators::tests::tcl_lexer_recognises_every_mathfunc_name`), which
+/// fails the moment this list and `mathfunc::all()` disagree. Was missing
+/// TIP 521 (9.0) and TIP 745 (9.1)'s additions until that guard caught it —
+/// a real gap (`tcl-lsp-core::semantic_tokens` reads this set to decide
+/// which `Function`-kind expr tokens get the "known math function"
+/// modifier, so `expr {gamma(2.5)}`/`expr {isfinite($x)}` were previously
+/// under-classified in a 9.1-dialect document).
 #[must_use]
 pub fn math_functions() -> HashSet<&'static str> {
     [
-        "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double", "entier",
-        "exp", "floor", "fmod", "hypot", "int", "isinf", "isnan", "isqrt", "log", "log10", "max",
-        "min", "pow", "rand", "round", "sin", "sinh", "sqrt", "srand", "tan", "tanh", "wide",
+        "abs",
+        "acos",
+        "asin",
+        "atan",
+        "atan2",
+        "bool",
+        "ceil",
+        "cos",
+        "cosh",
+        "double",
+        "entier",
+        "exp",
+        "floor",
+        "fmod",
+        "hypot",
+        "int",
+        "isinf",
+        "isnan",
+        "isqrt",
+        "log",
+        "log10",
+        "max",
+        "min",
+        "pow",
+        "rand",
+        "round",
+        "sin",
+        "sinh",
+        "sqrt",
+        "srand",
+        "tan",
+        "tanh",
+        "wide",
+        // TIP 521 (Tcl 9.0): floating-point classification.
+        "isfinite",
+        "isnormal",
+        "issubnormal",
+        "isunordered",
+        // TIP 745 (Tcl 9.1): the C99 math function batch.
+        "acosh",
+        "asinh",
+        "atanh",
+        "cbrt",
+        "copysign",
+        "dim",
+        "erf",
+        "erfc",
+        "exp2",
+        "expm1",
+        "fma",
+        "gamma",
+        "ldexp",
+        "lgamma",
+        "log1p",
+        "log2",
+        "logb",
+        "nextafter",
+        "remainder",
+        "signbit",
+        "trunc",
     ]
     .into_iter()
     .collect()
