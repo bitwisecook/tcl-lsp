@@ -257,14 +257,13 @@
 ; Operators
 (unpack) @operator
 
-["**" "/" "*" "%" "+" "-"
- "<<" ">>"
- ">" "<" ">=" "<="
- "==" "!="
- "eq" "ne"
- "in" "ni"
- "&" "^" "|"
- "&&" "||"
+[
+    "!" "!=" "%" "&" "&&" "*"
+    "**" "+" "-" "/" "<" "<<"
+    "<=" "==" ">" ">=" ">>" "^"
+    "and" "contains" "ends_with" "eq" "equals" "in"
+    "matches_glob" "matches_regex" "ne" "ni" "not" "or"
+    "starts_with" "|" "||" "~"
 ] @operator
 
 ; Punctuation
