@@ -4120,6 +4120,14 @@ impl Backend {
     /// definition sites in other documents when
     /// `include_declaration`.  Returns `Location`s resolved
     /// against their defining documents.
+    ///
+    /// Excludes the current document (`uri`) throughout — correct only when
+    /// the single-document provider already covers it, i.e. `uri` holds a
+    /// local declaration of the symbol. When it doesn't (a pure-consumer
+    /// document whose only trace of the symbol is a `source`d-in or
+    /// workspace-sibling declaration), use
+    /// [`Self::workspace_resolved_references`] instead, which is identical
+    /// but excludes nothing.
     async fn cross_document_references(
         &self,
         uri: &Uri,
@@ -4127,6 +4135,58 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         include_declaration: bool,
+    ) -> Vec<Location> {
+        self.gather_reference_targets(
+            uri,
+            source,
+            analysis,
+            pos,
+            include_declaration,
+            uri.as_str(),
+        )
+        .await
+    }
+
+    /// Consumer-document references fallback (mirrors rename's "M8"
+    /// pattern, [`Self::add_workspace_resolved_rename_edits`]): the
+    /// cursor's command has no local declaration in the current document,
+    /// so the single-document reference pass found nothing to anchor on —
+    /// not a genuine zero-references case, since
+    /// [`Self::cross_document_references`]'s exclusion of the current
+    /// document assumes that pass already covers it (issue #923 idx 71:
+    /// nico-robert/pix's `test_context.test` `source`s `data_b64.test` for
+    /// `isEqual`/`getbase64`, then calls them bare — every one of
+    /// `test_context.test`'s *own* call sites, including the one the
+    /// cursor sits on, was silently dropped). Resolves through the
+    /// workspace oracle and gathers every reference the index knows,
+    /// current-document call sites included.
+    async fn workspace_resolved_references(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        self.gather_reference_targets(uri, source, analysis, pos, include_declaration, "")
+            .await
+    }
+
+    /// Shared core of [`Self::cross_document_references`] /
+    /// [`Self::workspace_resolved_references`]: every invocation, name-link,
+    /// and (when `include_declaration`) definition site the workspace index
+    /// has for the symbol at `pos`, excluding `exclude_uri` — the caller's
+    /// own document URI for the ordinary case, or `""` (matching no real
+    /// document) to exclude nothing, mirroring
+    /// [`core_rename::workspace_symbol_rename_edits`]'s identical trick.
+    async fn gather_reference_targets(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+        exclude_uri: &str,
     ) -> Vec<Location> {
         self.refresh_source_rehoming().await;
         let symbols = self
@@ -4149,19 +4209,19 @@ impl Backend {
                 // such a declaration.
                 t.extend(
                     index
-                        .linked_invocations_of(qualified, uri.as_str())
+                        .linked_invocations_of(qualified, exclude_uri)
                         .into_iter()
                         .map(|i| (i.uri.clone(), i.range)),
                 );
-                t.extend(index.link_target_spans(qualified, uri.as_str()));
+                t.extend(index.link_target_spans(qualified, exclude_uri));
                 if include_declaration {
                     // Match the declaration sites by *qualified* name — a same
                     // simple name in an unrelated namespace/file is a different
                     // symbol and must not be surfaced as this one's declaration.
-                    for p in index.proc_definitions_qualified(qualified, uri.as_str()) {
+                    for p in index.proc_definitions_qualified(qualified, exclude_uri) {
                         t.push((p.uri.clone(), p.name_span));
                     }
-                    for c in index.class_definitions_qualified(qualified, uri.as_str()) {
+                    for c in index.class_definitions_qualified(qualified, exclude_uri) {
                         t.push((c.uri.clone(), c.name_span));
                     }
                 }
@@ -4202,16 +4262,24 @@ impl Backend {
         })
         .await
         .unwrap_or_default();
+        // A pure-consumer document (issue #923 idx 71) has no local
+        // declaration to anchor the single-document pass on, so an empty
+        // `ranges` here does not mean "genuinely zero" — see
+        // `workspace_resolved_references`'s own doc.
         let mut locations: Vec<Location> = ranges
-            .into_iter()
+            .iter()
             .map(|r| Location {
                 uri: uri.clone(),
-                range: lift_lsp_range(r),
+                range: lift_lsp_range(*r),
             })
             .collect();
-        let cross = self
-            .cross_document_references(uri, text, analysis, position, false)
-            .await;
+        let cross = if ranges.is_empty() {
+            self.workspace_resolved_references(uri, text, analysis, position, false)
+                .await
+        } else {
+            self.cross_document_references(uri, text, analysis, position, false)
+                .await
+        };
         locations.extend(cross);
         dedup_locations(&mut locations);
         locations
@@ -8492,7 +8560,14 @@ impl LanguageServer for Backend {
             message: format!("references worker panicked: {err}").into(),
             data: None,
         })?;
-        // Current-document hits.
+        // Current-document hits. Empty here does not necessarily mean
+        // genuinely zero: a pure-consumer document (issue #923 idx 71 —
+        // the cursor's proc/class has no local declaration, only a
+        // `source`d-in or workspace-sibling one) leaves the single-document
+        // pass with nothing to anchor on even though this very document's
+        // own call sites (including the one under the cursor) are real
+        // references — see `workspace_resolved_references`'s own doc.
+        let local_found_nothing = ranges.is_empty();
         let mut locations: Vec<Location> = ranges
             .into_iter()
             .map(|r| Location {
@@ -8501,10 +8576,17 @@ impl LanguageServer for Backend {
             })
             .collect();
         // Cross-document call sites (and, when requested,
-        // sibling-document definition sites).
-        let cross = self
-            .cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
-            .await;
+        // sibling-document definition sites). A pure-consumer document
+        // (issue #923 idx 71) resolves through the workspace oracle without
+        // excluding the current document, so its own call sites aren't
+        // silently dropped alongside it.
+        let cross = if local_found_nothing {
+            self.workspace_resolved_references(&uri, &doc.text, &analysis, pos, include_decl)
+                .await
+        } else {
+            self.cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
+                .await
+        };
         locations.extend(cross);
         // Cross-document TclOO method sites: when the cursor names a method
         // (its declaration inside a class body, or an `$obj method` / `my
@@ -18339,6 +18421,92 @@ mod tests {
             .await;
         assert_eq!(cross.len(), 2, "{cross:?}");
         assert!(cross.iter().all(|l| l.uri == consumer));
+    }
+
+    /// Issue #923 idx 71 (main audit wave, high severity, pix corpus):
+    /// reduces nico-robert/pix's `test_context.test` (`source [file join
+    /// [file dirname [info script]] data_b64.test]`, then calls `isEqual`
+    /// bare) to its literal-`source` control shape — the finding's own
+    /// control repro (`71_control`) proved the identical bug reproduces
+    /// with a trivial `source b.tcl`, no `[info script]` at all. `a.tcl`
+    /// sources `b.tcl` (which declares `helper`) and calls `helper` twice
+    /// itself; `c.tcl` calls it once more. `a.tcl` has no local declaration
+    /// of `helper` to anchor `cross_document_references`'s exclusion of
+    /// the current document on, so both of `a.tcl`'s own calls — including
+    /// the one under the cursor — were previously dropped entirely.
+    #[tokio::test]
+    async fn workspace_resolved_references_reaches_the_current_documents_own_calls() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        let c = Uri::from_str("file:///c.tcl").unwrap();
+        let b_src = "proc helper {} {}\n";
+        register(&backend, &b, b_src).await;
+        let a_src = "source b.tcl\nhelper\nhelper\n";
+        register(&backend, &a, a_src).await;
+        register(&backend, &c, "helper\n").await;
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(a_src, "tcl8.6").clone()
+        };
+        // Cursor on a.tcl's own first `helper` call (line 1).
+        let refs = backend
+            .workspace_resolved_references(&a, a_src, &analysis, Position::new(1, 3), true)
+            .await;
+        let a_hits = refs.iter().filter(|l| l.uri == a).count();
+        assert_eq!(
+            a_hits, 2,
+            "both of a.tcl's own calls must be reached, not just the sourced-in decl: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b),
+            "b.tcl's declaration must still be reached: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == c),
+            "c.tcl's call must still be reached: {refs:?}"
+        );
+    }
+
+    /// End-to-end analogue of the test above, through the real
+    /// `textDocument/references` handler — proving the handler picks the
+    /// workspace-resolved fallback automatically (no caller-side branching
+    /// needed) whenever the single-document pass finds nothing local to
+    /// anchor on.
+    #[tokio::test]
+    async fn references_handler_reaches_own_calls_in_a_pure_consumer_document() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a2.tcl").unwrap();
+        let b = Uri::from_str("file:///b2.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        let a_src = "source b2.tcl\nhelper\nhelper\n";
+        register(&backend, &a, a_src).await;
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: a.clone() },
+                position: Position::new(1, 3), // on a.tcl's own first `helper` call
+            },
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let refs = backend
+            .references(params)
+            .await
+            .expect("ok")
+            .expect("some references");
+        let a_hits: Vec<_> = refs.iter().filter(|l| l.uri == a).collect();
+        assert_eq!(
+            a_hits.len(),
+            2,
+            "both of a.tcl's own calls must be reached: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b),
+            "b.tcl's declaration must still be reached: {refs:?}"
+        );
     }
 
     /// idx 31 (differential-audit main audit wave, high severity): a proc

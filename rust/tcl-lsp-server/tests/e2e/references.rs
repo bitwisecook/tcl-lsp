@@ -470,6 +470,35 @@ fn references_unify_a_procs_global_alias_with_the_callers_canonical_set() {
     );
 }
 
+/// idx 71 (differential-audit main audit wave, high severity, pix corpus):
+/// reduces nico-robert/pix's `test_context.test` (`source [file join [file
+/// dirname [info script]] data_b64.test]`, then calls `isEqual` bare) to a
+/// literal-`source` control shape — the finding's own control repro proved
+/// the identical bug reproduces with a trivial `source lib.tcl`, no
+/// `[info script]` at all. `main.tcl` sources `lib.tcl` (which declares
+/// `helper`) and calls `helper` itself; `main.tcl` has no local declaration
+/// of `helper` to anchor `cross_document_references`'s exclusion of the
+/// current document on, so the call under the cursor — in the very
+/// document the query was issued from — was previously dropped entirely,
+/// returning only `lib.tcl`'s declaration.
+#[test]
+fn references_reach_the_current_documents_own_call_when_it_has_no_local_declaration() {
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(&lib_uri, "proc helper {} {}\n");
+    let main_uri = unique_uri("tcl");
+    let main_src = "source lib.tcl\nhelper\n";
+    lsp.open_ready(&main_uri, main_src);
+    // Cursor on main.tcl's own `helper` call (line 1).
+    let lines = start_lines(&lsp.references(&main_uri, 1, 0, true));
+    assert!(
+        lines.contains(&1),
+        "main.tcl's own call site must be reached, not just lib.tcl's decl: {lines:?}"
+    );
+    assert!(lines.contains(&0), "lib.tcl's decl (line 0): {lines:?}");
+    assert_eq!(lines.len(), 2, "{lines:?}");
+}
+
 /// idx 63 (differential-audit main audit wave, high severity): a `my
 /// methodName` call written inside a `switch` arm body is a genuine,
 /// statically-known call site (tclsh9.0/8.6-verified) — the real corpus
