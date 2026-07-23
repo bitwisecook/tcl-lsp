@@ -4957,6 +4957,12 @@ impl Interp {
     /// `interp create -safe`. The Safe Base's re-aliasing of `source`/`load`/
     /// `file` is a follow-up (needs cross-interp aliases).
     pub(crate) fn make_safe(&mut self) {
+        // Pinned against real tclsh 8.6.14 (`interp create -safe s; s hidden`):
+        // `after` / `vwait` are deliberately NOT on this list — confirmed
+        // present and callable inside a real safe child (`s eval {info
+        // commands after}` returns `after`). An earlier version of this list
+        // incorrectly hid them, which would have broken legitimate
+        // safe-interp code using `after idle`/`after cancel`.
         const UNSAFE: &[&[u8]] = &[
             b"exec",
             b"exit",
@@ -4970,8 +4976,6 @@ impl Interp {
             b"file",
             b"fconfigure",
             b"encoding",
-            b"after",
-            b"vwait",
         ];
         for &c in UNSAFE {
             self.hide_command(c);

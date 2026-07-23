@@ -1927,6 +1927,12 @@ impl Vm {
     /// Hidden commands move to `hidden_commands`, invocable via
     /// `interp invokehidden` and restorable with `interp expose`.
     fn make_safe(&mut self) {
+        // Pinned against real tclsh 8.6.14 (`interp create -safe s; s hidden`):
+        // `after` / `vwait` are deliberately NOT on this list — confirmed
+        // present and callable inside a real safe child (`s eval {info
+        // commands after}` returns `after`). An earlier version of this list
+        // incorrectly hid them, which would have broken legitimate
+        // safe-interp code using `after idle`/`after cancel`.
         const UNSAFE: &[&str] = &[
             "exec",
             "exit",
@@ -1940,8 +1946,6 @@ impl Vm {
             "file",
             "fconfigure",
             "encoding",
-            "after",
-            "vwait",
         ];
         // The host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe` unsets
         // os/osVersion/machine/user) plus our backend-introspection keys, so a
