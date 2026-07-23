@@ -769,7 +769,7 @@ fn rename_var(
         // [`build_var_ref_replacement`].
         let replacement = build_var_ref_replacement(source, r, new_name);
         edits.push(TextEdit {
-            range: span_to_range(source, line_index, r),
+            range: span_to_range(source, line_index, var_ref_edit_span(source, r)),
             new_text: replacement,
         });
     }
@@ -1215,6 +1215,41 @@ pub fn workspace_symbol_rename_edits(
     ))
 }
 
+/// Extend a `${name}` reference span to cover its own closing
+/// brace when the lexer's recorded span stops one byte short of it.
+///
+/// `tcl-lexer`'s `Var` token span deliberately excludes the closing
+/// `}` for a non-degenerate braced name — `${a{b}}` names `a{b}`,
+/// whose content can legitimately end in `}` itself, so the span
+/// convention leaves the outer delimiter unconsumed rather than risk
+/// misreading it as content (see `SourceMap::token_text`'s doc). That
+/// makes `span` unsafe to use directly as a rename *edit range*:
+/// `build_var_ref_replacement` already emits a self-closed `${new}`
+/// string, so replacing only the short span leaves the source's own
+/// original `}` sitting right after it, corrupting `${new}` into
+/// `${new}}` (issue #923 idx 95 — this broke `tk.tcl`'s `${dir}view`
+/// idiom badly enough to fail to parse post-rename). Mirrors
+/// `token_text`'s own degenerate-`${}`-empty-name check so this never
+/// mis-fires on a span that already legitimately includes the brace.
+fn var_ref_edit_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
+    let start = span.start() as usize;
+    let end = span.end() as usize;
+    let bytes = source.as_bytes();
+    if start >= bytes.len() || end > bytes.len() {
+        return span;
+    }
+    let Some(after_prefix) = source[start..end].strip_prefix("${") else {
+        return span;
+    };
+    if after_prefix == "}" {
+        return span;
+    }
+    if bytes.get(end) == Some(&b'}') {
+        return tcl_lexer::Span::new(span.start(), span.end() + 1);
+    }
+    span
+}
+
 /// Build a replacement string for a variable reference span.
 ///
 /// The reference span covers the full Var token (`$x`,
@@ -1324,6 +1359,41 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    /// Apply every edit's `(range, new_text)` back onto `source` — the
+    /// same thing an editor does — sorted back-to-front so earlier byte
+    /// offsets stay valid as later edits are spliced in. Some tests below
+    /// use this to check the *result*, not just that `new_text` looks
+    /// right in isolation: idx 95's own bug (a rename edit range short by
+    /// one byte) shipped uncaught precisely because every prior brace-ref
+    /// test only asserted `new_text`, never applied it.
+    fn apply_edits(source: &str, edits: &[TextEdit]) -> String {
+        let line_index = LineIndex::new(source);
+        let mut spans: Vec<(usize, usize, &str)> = edits
+            .iter()
+            .map(|e| {
+                let start = crate::definition::byte_offset_at(
+                    &line_index,
+                    source,
+                    e.range.start_line,
+                    e.range.start_character,
+                ) as usize;
+                let end = crate::definition::byte_offset_at(
+                    &line_index,
+                    source,
+                    e.range.end_line,
+                    e.range.end_character,
+                ) as usize;
+                (start, end, e.new_text.as_str())
+            })
+            .collect();
+        spans.sort_by(|a, b| b.0.cmp(&a.0));
+        let mut result = source.to_string();
+        for (start, end, new_text) in spans {
+            result.replace_range(start..end, new_text);
+        }
+        result
     }
 
     #[test]
@@ -1614,6 +1684,109 @@ mod tests {
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(texts.contains(&"y"), "{texts:?}");
         assert!(texts.contains(&"${y}"), "{texts:?}");
+    }
+
+    #[test]
+    fn var_ref_edit_span_extends_the_ordinary_braced_form() {
+        let src = "${x}";
+        // The lexer's own span for a non-degenerate name stops one byte
+        // short of the closing `}` (see `var_ref_edit_span`'s doc).
+        assert_eq!(
+            var_ref_edit_span(src, tcl_lexer::Span::new(0, 3)),
+            tcl_lexer::Span::new(0, 4)
+        );
+    }
+
+    #[test]
+    fn var_ref_edit_span_leaves_the_degenerate_empty_name_span_untouched() {
+        // `${}` immediately followed by a literal (unrelated) `}` — the
+        // pathological case that would fool a naive "does the next byte
+        // look like `}`" check. The lexer already extends `${}`'s own
+        // span to include its closing brace, so `var_ref_edit_span` must
+        // recognise the degenerate case and stop, not also swallow the
+        // following literal `}` into the edit range.
+        let src = "${}}";
+        assert_eq!(
+            var_ref_edit_span(src, tcl_lexer::Span::new(0, 3)),
+            tcl_lexer::Span::new(0, 3)
+        );
+    }
+
+    #[test]
+    fn var_ref_edit_span_extends_a_tcl9_nested_brace_name() {
+        // `${a{b}}` names `a{b}` (Tcl 9's brace-nesting rule) — the span
+        // stops before the *outer* `}`, one byte short, same as the
+        // ordinary case.
+        let src = "${a{b}}";
+        assert_eq!(
+            var_ref_edit_span(src, tcl_lexer::Span::new(0, 6)),
+            tcl_lexer::Span::new(0, 7)
+        );
+    }
+
+    #[test]
+    fn var_ref_edit_span_leaves_non_braced_forms_untouched() {
+        let src = "$x";
+        let span = tcl_lexer::Span::new(0, 2);
+        assert_eq!(var_ref_edit_span(src, span), span);
+    }
+
+    #[test]
+    fn var_ref_edit_span_leaves_an_unterminated_reference_untouched() {
+        // No closing brace anywhere in the source to extend to.
+        let src = "${x";
+        let span = tcl_lexer::Span::new(0, 3);
+        assert_eq!(var_ref_edit_span(src, span), span);
+    }
+
+    #[test]
+    fn rename_array_variable_applying_the_braced_index_edit_does_not_duplicate_the_closing_brace() {
+        let src = "set arr(0) 1\nputs ${arr(0)}\n";
+        let analysis = analyse(src);
+        // Cursor on `arr` inside `${arr(0)}` (line 1, col 7).
+        let edits = rename(src, "tcl", 1, 7, "data", &analysis, None);
+        assert_eq!(apply_edits(src, &edits), "set data(0) 1\nputs ${data(0)}\n");
+    }
+
+    #[test]
+    fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace() {
+        // Issue #923 idx 95. The `Var` token's own lexer span for a
+        // non-degenerate `${name}` form stops one byte short of the
+        // closing `}` (`${a{b}}` names `a{b}`, whose content can itself
+        // legitimately end in `}` — see `var_ref_edit_span`'s doc), so
+        // using that raw span as the *edit range* (rather than just for
+        // matching/reference bookkeeping) left the source's own original
+        // `}` sitting right after the replacement once applied, silently
+        // corrupting `${x}` into `${y}}`. `rename_var_preserves_braced_reference_form`
+        // above already pins `new_text`; this applies the edit for real.
+        let src = "set x 1\nputs ${x}\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 1, 7, "y", &analysis, None);
+        assert_eq!(apply_edits(src, &edits), "set y 1\nputs ${y}\n");
+    }
+
+    #[test]
+    fn rename_var_applying_the_dir_view_idiom_edit_produces_valid_tcl() {
+        // The real `tk/library/tk.tcl:594-596` idiom this finding traces
+        // through (`$w ${dir}view scroll ...`, subcommand synthesized by
+        // concatenating `$dir` with literal `view`): renaming `dir`
+        // previously produced `$w ${direction}}view ...` once applied —
+        // tclsh8.6/9.0 both fail to even parse the enclosing proc ("extra
+        // characters after close-brace"), since the stray extra `}` shifts
+        // Tcl's own brace-counting scan for where the proc body ends.
+        let src = "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
+        let edits = rename(src, "tcl", 1, 9, "direction", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("${direction}view"),
+            "expected a single, correctly-closed brace: {applied}"
+        );
+        assert!(
+            !applied.contains("${direction}}view"),
+            "must not duplicate the closing brace: {applied}"
+        );
     }
 
     #[test]
