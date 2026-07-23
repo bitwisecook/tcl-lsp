@@ -21,16 +21,90 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "variable name",
-    dialects: None,
-}];
+const FORMS: &[FormSpec] = &[
+    // Tcl 8.6 dropped the `if (objc < 2) Tcl_WrongNumArgs(...)` guard that
+    // `Tcl_VariableObjCmd` (generic/tclVar.c) has in 8.4/8.5, splitting the
+    // SYNOPSIS into these two lines and making a bare `variable` call a
+    // legal no-op — confirmed against the upstream source at tags
+    // core-8-6-14/core-9-0-1/core-9-1-a1 (no guard) vs
+    // core-8-4-20/core-8-5-19 (guard present), and empirically against
+    // tclsh 8.6.14 (`catch {variable}` -> 0). Expect, Synopsys, and
+    // Cadence embed that 8.6-based Tcl core
+    // (`DialectSet::expr_grammar_base_version`), so they follow this pair
+    // of forms too.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "variable name",
+        dialects: Some(
+            DialectSet::TCL86_PLUS
+                .union(DialectSet::EXPECT)
+                .union(DialectSet::SYNOPSYS)
+                .union(DialectSet::CADENCE),
+        ),
+    },
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "variable ?name value...?",
+        dialects: Some(
+            DialectSet::TCL86_PLUS
+                .union(DialectSet::EXPECT)
+                .union(DialectSet::SYNOPSYS)
+                .union(DialectSet::CADENCE),
+        ),
+    },
+    // Tcl 8.4 and 8.5 require at least one `name`: `Tcl_VariableObjCmd`
+    // opens with `if (objc < 2) Tcl_WrongNumArgs(...)` in both versions,
+    // so a bare `variable` is a hard "wrong # args" error there (matching
+    // those versions' manpage SYNOPSIS, one combined `variable ?name
+    // value...? name ?value?` line). iRules, iApps, tmsh, and the
+    // Xilinx/Quartus/Mentor EDA shells embed an 8.4- or 8.5-based Tcl core
+    // (`DialectSet::expr_grammar_base_version`), so they inherit the same
+    // requirement.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "variable ?name value...? name ?value?",
+        dialects: Some(
+            DialectSet::TCL84
+                .union(DialectSet::TCL85)
+                .union(DialectSet::IRULES)
+                .union(DialectSet::IAPPS)
+                .union(DialectSet::TMSH)
+                .union(DialectSet::XILINX)
+                .union(DialectSet::QUARTUS)
+                .union(DialectSet::MENTOR),
+        ),
+    },
+];
 
 /// Command spec for `variable`.
+///
+/// Tcl 8.4 and 8.5 share a byte-identical variable.n: a single-line
+/// SYNOPSIS `variable ?name value...? name ?value?`, and
+/// `Tcl_VariableObjCmd` (generic/tclVar.c) opens with `if (objc < 2)
+/// Tcl_WrongNumArgs(...)`, so at least one `name` is required there. Tcl
+/// 8.6 restructured the SYNOPSIS into two lines (`variable name` /
+/// `variable ?name value...?`) and dropped that argument-count guard, so a
+/// bare `variable` call became a legal no-op from 8.6 onward — the one
+/// substantive behavioural delta found across the five versions audited
+/// here; every other DESCRIPTION sentence is identical in substance across
+/// all five, occasionally just reworded (e.g. how the text contrasts
+/// `variable` with `global`). Tcl 9.0's variable.html differs from 8.6's
+/// only in NAME-line capitalisation and doc-anchor formatting; Tcl 9.1's is
+/// byte-for-byte identical to 9.0's.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
+        // Present, unrestricted, and absent from every dialect's
+        // `disabled_commands` list (only `f5-irules` has a non-empty one,
+        // and `variable` isn't on it — checked against
+        // `tcl-dialect/src/profile.rs`); no dialect pack under
+        // `tcl-registry/src/commands/` (irules/, iapps/, tk/, expect/, the
+        // eda_*/ vendor packs, itcl/, bpf/) defines its own `variable`
+        // spec either, so every dialect inherits this one unmodified.
+        // Only the minimum argument count narrows per Tcl version —
+        // captured on the individual FORMS entries above, not as a
+        // whole-command dialect gate.
+        dialects: None,
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -39,10 +113,20 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_SCOPE_ALIAS
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::FRAME_HASH_BUILTIN,
-        // `variable ?name value ...? name ?value?` — zero args is a valid
-        // no-op (C `Tcl_VariableObjCmd` has no `Tcl_WrongNumArgs`), so bare
-        // `variable` must not draw E002.  Verified against tclsh 9.0.4:
-        // `catch {variable}` → 0.
+        // `variable ?name value...? name ?value?` — Tcl 8.6+ (and
+        // Expect/Synopsys/Cadence, which embed that 8.6-family core)
+        // accept zero args as a no-op: `Tcl_VariableObjCmd`
+        // (generic/tclVar.c) has had no `Tcl_WrongNumArgs` call since 8.6
+        // (confirmed against tclsh 8.6.14: `catch {variable}` -> 0, and
+        // against the upstream source at
+        // core-8-6-14/core-9-0-1/core-9-1-a1). Tcl 8.4 and 8.5 (and
+        // iRules/iApps/tmsh/Xilinx/Quartus/Mentor, which embed that older
+        // core) open with `if (objc < 2) Tcl_WrongNumArgs(...)` instead
+        // (confirmed against core-8-4-20/core-8-5-19), so a bare
+        // `variable` is a hard "wrong # args" error there. `Arity` has no
+        // per-dialect variant, so this keeps the loosest (8.6+) bound
+        // here rather than false-positiving E002 on the modern/common
+        // case; see FORMS above for the version-split synopsis text.
         arity: Arity::any(),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
@@ -55,12 +139,12 @@ pub fn spec() -> CommandSpec {
             dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "create and initialize a namespace variable",
+            summary: "Create and initialize a namespace variable, or link to one from inside a procedure.",
             synopsis: &["variable name", "variable ?name value...?"],
-            snippet: "This command is normally used within a namespace eval command to create one or more variables within a namespace.",
-            source: "Tcl man page variable.n",
-            examples: "",
-            return_value: "",
+            snippet: "Normally used inside a namespace eval body to create one or more variables in a namespace: each name is initialized with the value that follows it, and the value for the final name is optional. A name that does not yet exist is created — initialized if value is given, left undefined otherwise; an existing variable is updated only when value is given, and left unchanged otherwise. name is usually unqualified, creating the variable in the current namespace, but a name with namespace qualifiers creates it in the namespace it names. A declared-but-undefined variable is visible to namespace which but not to info exists. Used inside a procedure body, variable instead creates a local variable linked to the corresponding namespace variable (and so listed by info vars) — like global, but resolved relative to the current namespace rather than always the global (::) one; any value given still initializes or updates the linked namespace variable itself. name can never address a single array element: reference the whole array with no value, then populate its elements afterward with set or array set. Tcl 8.4 and 8.5 require at least one name argument — a bare variable with none is a \"wrong # args\" error there. Tcl 8.6 dropped that requirement, so a bare variable call is a legal no-op from 8.6 onward.",
+            source: "Tcl variable(n)",
+            examples: "namespace eval foo {\n    variable bar 12345\n}\n\nnamespace eval someNS {\n    variable someAry\n    array set someAry {\n        someName  someValue\n        otherName otherValue\n    }\n}\n\nnamespace eval foo {\n    proc spong {} {\n        variable bar\n        puts \"bar is $bar\"\n        variable ::someNS::someAry\n        parray someAry\n    }\n}",
+            return_value: "The empty string.",
         }),
         lowering_hook: Some(LoweringHookId::Variable),
         forms: FORMS,
