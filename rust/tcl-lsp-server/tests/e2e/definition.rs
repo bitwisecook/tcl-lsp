@@ -487,3 +487,26 @@ fn foreach_rename_reinstall_idiom_resolves_to_the_wrapper_not_the_stale_original
         "must resolve to the wrapper's own `proc ::$wtype` declaration (line 5) inside the loop, not the stale original `proc button` (line 0): {locs:?}"
     );
 }
+
+/// idx 90 (differential-audit main audit wave, high severity): `tcl::OptProc`
+/// had no `AnalyserHookId` at all, so go-to-definition from a real call
+/// site fell through to nothing (the stub proc's stale, unresolved
+/// `ProcDef` never got overwritten).
+#[test]
+fn opt_proc_call_site_resolves_to_its_declaration_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "package require opt\n::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n",
+    );
+    // Line 2: `greet foo` — cursor on "greet".
+    let result = lsp.definition(&uri, 2, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        1,
+        "must resolve to the tcl::OptProc declaration (line 1): {locs:?}"
+    );
+}

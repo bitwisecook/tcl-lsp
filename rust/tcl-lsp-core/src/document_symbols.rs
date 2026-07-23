@@ -1231,4 +1231,16 @@ mod tests {
         assert!(find(&symbols, "button").is_some(), "{all:?}");
         assert!(find(&symbols, "entry").is_some(), "{all:?}");
     }
+
+    #[test]
+    fn opt_proc_outline_shows_the_real_args_only_signature() {
+        // TP — issue #923 idx 90: before the fix, the missing analyser hook
+        // left the stub's `{}`-arity `ProcDef` in place, so the outline
+        // showed an empty (or missing) signature instead of the real
+        // `(args)` one.
+        let src = "::tcl::OptProc greet {child -use -display} { return $child }\n";
+        let symbols = document_symbols(src, "tcl8.6");
+        let greet = find(&symbols, "greet").expect("greet symbol");
+        assert_eq!(greet.detail.as_deref(), Some("(args)"), "{greet:?}");
+    }
 }

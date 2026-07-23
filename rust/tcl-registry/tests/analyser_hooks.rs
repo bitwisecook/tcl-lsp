@@ -128,6 +128,12 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("rename", "", H::Rename),
         ("oo::define", "", H::OoDefine),
         ("oo::objdefine", "", H::OoObjdefine),
+        // No former per-handler guard — `tcl::OptProc` (the `opt`
+        // package's automatic-option-parsing proc definer) never had a
+        // hook at all until issue #923 idx 90 added one, so `all_procs`
+        // kept the stub's `{}`-arity `ProcDef` for every real
+        // redefinition.
+        ("tcl::OptProc", "", H::OptProc),
         // handle_package_command matched `args[0]` require / provide.
         ("package", "require", H::PackageRequire),
         ("package", "provide", H::PackageProvide),
@@ -234,6 +240,9 @@ fn command_table_effect_stamps_match_the_former_name_matches() {
         // `"interp" =>` + `args[0] == "alias"` — AliasCreate,
         // tclInterp.c; the effect rides the `alias` subcommand.
         ("interp", "alias", E::CreatesAliases),
+        // No former name match — `tcl::OptProc` genuinely defines a
+        // procedure (issue #923 idx 90), same as `proc` itself.
+        ("tcl::OptProc", "", E::DefinesProcedure),
     ]
     .into_iter()
     .collect();

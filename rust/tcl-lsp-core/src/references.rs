@@ -3439,4 +3439,19 @@ mod tests {
             "bare var receiver wrongly matched: {sites:?}"
         );
     }
+
+    // tcl::OptProc — the `opt` package's automatic-option-parsing proc
+    // definer (issue #923 idx 90): the missing analyser hook previously left
+    // the call site unreachable from the declaration.
+
+    #[test]
+    fn references_from_opt_proc_declaration_reach_the_call_site() {
+        let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
+        let analysis = analyse(src);
+        // Line 0 — cursor on "greet" right after `::tcl::OptProc` (col 15).
+        let refs = references(src, "tcl", 0, 15, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(lines.contains(&1), "call site missing: {refs:?}");
+    }
 }

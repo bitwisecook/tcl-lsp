@@ -3485,3 +3485,24 @@ fn method_body_instance_variable_and_own_parameter_reads_stay_clean_end_to_end()
         codes(&diags)
     );
 }
+
+/// idx 90 (differential-audit main audit wave, high severity): `tcl::OptProc`
+/// (the `opt` package's automatic-option-parsing proc definer) had no
+/// `AnalyserHookId` at all, so `all_procs` kept the stub's `{}`-arity
+/// `ProcDef` — every real call falsely drew "wrong number of arguments"
+/// (E003). tclsh9.0/8.6-verified: the runtime always installs
+/// `::proc $name args {...}`, so any call arity is legitimate.
+#[test]
+fn opt_proc_real_call_draws_no_false_arity_diagnostic_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "package require opt\n::tcl::OptProc greet {child -use -display} { return $child }\ngreet a b c\n",
+    );
+    assert!(
+        !has_code(&diags, "E003") && !has_code(&diags, "W123"),
+        "a real tcl::OptProc call must never draw a false arity or unknown-command diagnostic: {:?}",
+        codes(&diags)
+    );
+}

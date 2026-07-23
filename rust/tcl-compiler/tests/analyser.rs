@@ -201,6 +201,141 @@ mod proc_analysis {
 }
 
 // ===========================================================================
+// `tcl::OptProc` — the `opt` package's automatic-option-parsing proc
+// definer (issue #923 idx 90). Runtime mechanism (tclsh9.0/8.6-verified):
+// installs `::proc $name args {...}` unconditionally — the real Tcl-level
+// signature is always the single `args` catch-all, regardless of what
+// `optlist` declares; `optlist`'s own descriptor words are bound as local
+// variables in the body by `::tcl::OptKeyParse`, with a leading `-` on a
+// flag descriptor stripped for the bound name.
+// ===========================================================================
+mod opt_proc_definer {
+    use super::*;
+
+    #[test]
+    fn records_proc_with_real_args_only_arity() {
+        // TP — the analyser must record the *real* Tcl-level signature,
+        // never `optlist`'s own descriptor words.
+        let r = Analyser::new().analyse(
+            "tcl::OptProc greet {child -use -display} { return $child }",
+            D,
+        );
+        let proc = r.all_procs.get("::greet").expect("greet recorded");
+        assert_eq!(
+            proc.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["args"],
+            "the real Tcl-level signature is always the single args catch-all"
+        );
+    }
+
+    #[test]
+    fn fully_qualified_spelling_also_registers() {
+        // TP — real corpus code commonly writes this fully qualified;
+        // `resolve_analyser_hook` must resolve it identically to the bare
+        // spelling (issue #923 idx 90).
+        let r = Analyser::new().analyse(
+            "::tcl::OptProc greet {child -use -display} { return $child }",
+            D,
+        );
+        assert!(r.all_procs.contains_key("::greet"), "{:?}", r.all_procs);
+    }
+
+    #[test]
+    fn call_with_any_arity_draws_no_wrong_arg_count_diagnostic() {
+        // TP — the finding's own headline claim: every real call
+        // previously misreported "wrong number of arguments" because the
+        // stub proc's `{}`-arity `ProcDef` was never overwritten.
+        let src = "tcl::OptProc greet {child -use -display} { return $child }\ngreet a b c d\n";
+        assert!(!fires(src, D, "E003"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn optlist_flag_descriptor_dash_is_stripped_for_the_bound_local() {
+        // TP — `::tcl::OptKeyParse` binds `-use`/`-display` as `use`/
+        // `display`, never with the leading dash.
+        let src =
+            "tcl::OptProc greet {child -use -display} { return \"$use $display\" }\ngreet a\n";
+        assert!(
+            !fires(src, D, "W210"),
+            "use/display must resolve as bound locals, not read-before-set: {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn args_catch_all_is_readable_in_the_body() {
+        // TP — `$args` still holds the whole original argument list after
+        // `OptKeyParse` runs, so a body reference to it (inspecting
+        // leftovers) is legitimate, not a false read-before-set.
+        let src = "tcl::OptProc greet {child} { return $args }\ngreet a\n";
+        assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn dash_stripped_local_does_not_collide_with_its_own_optlist_declaration() {
+        // FN guard: a naive anchor for the synthetic `args` binding (this
+        // idiom writes no literal `args` word anywhere) could collide with
+        // another symbol's own span and silently hide it — every
+        // optlist-derived local must still resolve to its own name, not
+        // `args` (issue #923 idx 90 regression: the fix's first attempt
+        // anchored `args` to the whole `optlist` word, which swallowed
+        // every one of its own descriptor sub-spans).
+        let r = Analyser::new().analyse(
+            "tcl::OptProc greet {child -use -display} { return $child }",
+            D,
+        );
+        let scope = &r.global_scope.children[0];
+        assert!(
+            scope.variables.contains_key("child"),
+            "{:?}",
+            scope.variables
+        );
+        assert!(scope.variables.contains_key("use"), "{:?}", scope.variables);
+        assert!(
+            scope.variables.contains_key("display"),
+            "{:?}",
+            scope.variables
+        );
+        assert!(
+            scope.variables.contains_key("args"),
+            "{:?}",
+            scope.variables
+        );
+    }
+
+    #[test]
+    fn unrelated_proc_still_gets_real_arity_checked() {
+        // FP guard: the fix must not loosen arity checking for ordinary
+        // procs elsewhere in the same document.
+        let src = "proc real {a b} { return [+ $a $b] }\nreal 1\n";
+        assert!(fires(src, D, "E002"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn plain_double_proc_redefinition_still_last_definition_wins() {
+        // TN — control: an ordinary double-`proc` redefinition (unrelated
+        // to `tcl::OptProc`) is unaffected by any of this fix's changes.
+        let r = Analyser::new().analyse(
+            "proc greet {} { return 1 }\nproc greet {x} { return $x }\n",
+            D,
+        );
+        let proc = r.all_procs.get("::greet").expect("greet recorded");
+        assert_eq!(
+            proc.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["x"],
+            "last definition wins: {:?}",
+            proc.params
+        );
+    }
+}
+
+// ===========================================================================
 // Variable definitions across scopes.
 // ===========================================================================
 mod variable_analysis {

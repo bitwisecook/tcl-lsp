@@ -903,6 +903,202 @@ impl Analyser {
         true
     }
 
+    /// `tcl::OptProc name optlist body` — the `opt` package's automatic-
+    /// option-parsing proc definer (issue #923 idx 90).
+    ///
+    /// At runtime this installs a REAL proc via `uplevel 1 [list ::proc
+    /// $name args ...]` — the Tcl-level formal parameter is always the
+    /// single literal word `args` (any call arity is accepted; `optlist`
+    /// itself is never arity-checked). `optlist`'s own descriptor entries
+    /// (`{child -use -display}`) share `proc`'s own `{name default}` /
+    /// bare-`name` list shape, so [`parse_param_list`] applies directly —
+    /// but they are bound as LOCAL VARIABLES inside the body by
+    /// `::tcl::OptKeyParse`, with a leading `-` on a flag descriptor
+    /// STRIPPED for the bound name (tclsh9.0/8.6-verified: `-use`/
+    /// `-display` bind as `use`/`display`, never with the dash).
+    ///
+    /// Mirrors [`Self::handle_proc_command`]'s register/scope/walk glue
+    /// largely as a separate function rather than a shared abstraction —
+    /// the two definers' arity/local-binding stories diverge enough
+    /// (`ProcDef.params` is `[args]` here, never `optlist`'s own entries)
+    /// that factoring out a shared helper would need as many branches as
+    /// duplicating the glue outright.
+    pub fn handle_opt_proc_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        if args.len() < 3 || arg_tokens.len() < 3 {
+            return false;
+        }
+
+        let raw_name = &args[0];
+        let name_tok = arg_tokens[0];
+        let resolved_name = self
+            .resolve_dynamic_word(
+                raw_name,
+                Some(name_tok),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .unwrap_or_else(|| raw_name.clone());
+        let ns_prefix = self.command_resolution_namespace(scope_path);
+        let qualified = qualify(&ns_prefix, &resolved_name);
+        let simple = crate::naming::key_tail(&qualified).to_string();
+        let name_span = name_tok.span;
+        let body_tok = arg_tokens[2];
+        let body_span = body_tok.span;
+
+        self.emit_w113_proc_shadows_builtin(&resolved_name, &qualified, name_span);
+        self.emit_w314_no_absolute_name(raw_name, name_span);
+
+        let (real_params, opt_locals) = Self::opt_proc_params(&args[1]);
+
+        let mut doc = std::mem::take(&mut self.last_comment);
+        if doc.is_empty() && args.len() >= 3 {
+            doc = super::utils::extract_body_docstring(&args[2]);
+        }
+
+        // Combined list — the real `args` catch-all plus every
+        // optlist-derived local — feeds hover/param-trait inference and
+        // the body's own local-variable scope (never `ProcDef.params`,
+        // which stays `[args]`-only for correct arity).
+        let mut combined_params = real_params.clone();
+        combined_params.extend(opt_locals.iter().cloned());
+
+        let body_text = &args[2];
+        let param_traits = self.infer_proc_param_traits(&combined_params, body_text);
+
+        let proc = ProcDef {
+            name: simple,
+            qualified_name: qualified.clone(),
+            params: real_params,
+            name_span,
+            body_span,
+            doc,
+            param_traits,
+        };
+
+        self.result
+            .all_procs
+            .insert(qualified.clone(), proc.clone());
+        self.result
+            .proc_declaration_sites
+            .push((qualified.clone(), name_span));
+        let simple_key = proc.name.clone();
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.procs.insert(simple_key.clone(), proc);
+        }
+        self.mark_locally_defined_in_enclosing_interp(&simple_key);
+
+        if body_tok.kind == TokenType::Str {
+            let proc_scope_idx = {
+                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+                    .expect("scope_path resolved when registering proc must still resolve");
+                let mut child =
+                    super::types::Scope::new(super::types::ScopeKind::Proc, raw_name.clone());
+                child.body_span = Some(body_span);
+                parent.children.push(child);
+                parent.children.len() - 1
+            };
+            let mut child_path = path.clone();
+            child_path.push(proc_scope_idx);
+
+            // Bind the real `args` catch-all — a body reference to
+            // `$args` (inspecting leftovers `::tcl::OptKeyParse` didn't
+            // consume) is legitimate, exactly like an ordinary proc's own
+            // `args` parameter. No literal `args` word is ever written for
+            // this idiom, so — unlike an ordinary proc's own parameters,
+            // each anchored to its own written span — there is no sensible
+            // non-synthetic span to anchor it to: `name_tok` collides with
+            // the proc *name*'s own span (`$args` hover would resolve to
+            // the declaration token instead of `greet`), and the whole
+            // `optlist` word collides with every one of its own descriptor
+            // sub-spans (`child`'s / `-use`'s own hover would resolve to
+            // `args` instead). A zero-width span at the `optlist` word's
+            // own opening brace sits before any descriptor's span starts,
+            // so it collides with neither.
+            let params_tok = arg_tokens[1];
+            let args_span = Span::new(params_tok.span.start(), params_tok.span.start());
+            self.define_var("args", params_tok, &child_path, false, Some(args_span));
+            // Bind every optlist-derived local, anchored to its own
+            // descriptor's span (dash included — the written token, not a
+            // byte-sliced substring) so go-to-definition / references /
+            // rename on the parameter land on the real declaration.
+            let param_spans = param_name_spans_for_token(&self.source, params_tok);
+            for (i, p) in opt_locals.iter().enumerate() {
+                self.define_var(
+                    &p.name,
+                    name_tok,
+                    &child_path,
+                    false,
+                    param_spans.get(i).copied(),
+                );
+            }
+
+            let saved_comment = std::mem::take(&mut self.last_comment);
+            let body_text = args[2].clone();
+            if self.defer_proc_bodies {
+                self.deferred_bodies.push(super::per_item::DeferredBody {
+                    body_text,
+                    body_tok,
+                    scope_path: child_path.clone(),
+                    is_method: false,
+                    oo_global_resolution: false,
+                    namespace: ns_prefix.clone(),
+                    scope_name: raw_name.clone(),
+                    params: combined_params,
+                    class_variables: Vec::new(),
+                });
+            } else {
+                self.analyse_body(&body_text, body_tok, &child_path);
+            }
+
+            self.last_comment = saved_comment;
+        }
+
+        true
+    }
+
+    /// Split `tcl::OptProc`'s `optlist` argument into `(real_params,
+    /// opt_locals)` (issue #923 idx 90): the real, arity-relevant Tcl-level
+    /// signature — always the single catch-all `args`, regardless of what
+    /// `optlist` declares — and `optlist`'s own descriptors, dash-stripped
+    /// to the LOCAL VARIABLE name `::tcl::OptKeyParse` actually binds at
+    /// runtime (used only for local-variable binding in the body, never
+    /// for arity). A pure text transform — no analyser state needed — kept
+    /// out of [`Self::handle_opt_proc_command`] purely to stay within the
+    /// line-count lint.
+    fn opt_proc_params(
+        optlist_text: &str,
+    ) -> (
+        Vec<crate::signature_scan::types::ParamDef>,
+        Vec<crate::signature_scan::types::ParamDef>,
+    ) {
+        let real_params = vec![crate::signature_scan::types::ParamDef {
+            name: "args".to_string(),
+            has_default: false,
+            default_value: None,
+        }];
+        let opt_locals: Vec<crate::signature_scan::types::ParamDef> =
+            parse_param_list(optlist_text)
+                .into_iter()
+                .map(|p| crate::signature_scan::types::ParamDef {
+                    name: p
+                        .name
+                        .strip_prefix('-')
+                        .map(str::to_string)
+                        .unwrap_or(p.name),
+                    has_default: p.has_default,
+                    default_value: p.default_value,
+                })
+                .collect();
+        (real_params, opt_locals)
+    }
+
     /// Split an `apply` call's lambda-literal first argument
     /// (`{{params} body ?ns?}`) into its list elements — `(token, text)`
     /// pairs carrying absolute source spans, in declaration order (params,

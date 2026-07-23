@@ -4704,4 +4704,25 @@ mod tests {
         let h = hover(src, 1, 4, &analysis, Some(&reg)).expect("hover");
         assert!(h.value.contains("listbox curselection"), "{}", h.value);
     }
+
+    // tcl::OptProc — the `opt` package's automatic-option-parsing proc
+    // definer (issue #923 idx 90): hover on either the declaration or a
+    // call site must show the real `args`-only signature, never
+    // `optlist`'s own literal text.
+
+    #[test]
+    fn opt_proc_declaration_and_call_site_both_hover_the_real_args_only_signature() {
+        let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
+        let analysis = analyse(src);
+        // Line 0 — cursor on "greet" right after `::tcl::OptProc` (col 15).
+        let decl = hover(src, 0, 15, &analysis, None).expect("hover on decl");
+        assert!(
+            decl.value.contains("greet") && decl.value.contains("args"),
+            "{}",
+            decl.value
+        );
+        // Line 1 — cursor on the `greet foo` call site (col 0).
+        let call = hover(src, 1, 0, &analysis, None).expect("hover on call site");
+        assert_eq!(decl.value, call.value, "decl and call site must agree");
+    }
 }

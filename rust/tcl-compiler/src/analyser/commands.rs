@@ -841,10 +841,23 @@ impl Analyser {
 
     /// Resolve the [`AnalyserHookId`] for a command head, mirroring the
     /// retired per-handler guards exactly: the head must be the spec's
-    /// own spelling — a `::`-qualified head resolves no hook (the
-    /// literal guards never matched one, and `CommandRegistry::get`'s
-    /// leading-`::` fallback must not widen the dispatch) — and a
-    /// subcommand word must match its `SubCommand` name exactly.
+    /// own spelling — a `::`-qualified spelling of a **bareword** global
+    /// command (`::proc`, `::namespace`, …) resolves no hook (the literal
+    /// guards never matched one, and `CommandRegistry::get`'s leading-`::`
+    /// fallback must not widen *that* dispatch) — and a subcommand word
+    /// must match its `SubCommand` name exactly.
+    ///
+    /// A **namespaced** registry spelling (`tcl::OptProc`, `oo::define`) is
+    /// different: real corpus code commonly writes it fully qualified
+    /// (`::tcl::OptProc`, issue #923 idx 90), and `get`'s single-`::`-strip
+    /// fallback resolves that to the exact same spec either way — an exact
+    /// match, never the naive tail-matching the guard above exists to rule
+    /// out. Allowed only when the bareword tail *itself* still contains a
+    /// `::` (so `::proc` → `proc`, no embedded `::`, stays blocked; `::tcl
+    /// ::OptProc` → `tcl::OptProc`, embedded `::`, is allowed) — hooks
+    /// stamped before this distinction existed keep their exact prior
+    /// behaviour; only a namespaced spec's own qualified spelling gains
+    /// coverage.
     ///
     /// Outside an `analyse*` run (unit harnesses drive handlers on a
     /// bare `Analyser::new()`) the shared core registry stands in for
@@ -854,7 +867,9 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
     ) -> Option<tcl_registry::hooks::AnalyserHookId> {
-        if cmd_name.starts_with("::") {
+        if let Some(bare) = cmd_name.strip_prefix("::")
+            && !bare.contains("::")
+        {
             return None;
         }
         let registry = self.registry.unwrap_or_else(fallback_registry);
@@ -910,6 +925,7 @@ impl Analyser {
             // Early-return families: the handler owns the whole command
             // (including its body walk) when it returns `true`.
             Hook::Proc => self.handle_proc_command(args, arg_tokens, arg_single, scope_path),
+            Hook::OptProc => self.handle_opt_proc_command(args, arg_tokens, arg_single, scope_path),
             // `interp eval path { … }` — the child interpreter's script is
             // analysed in an isolated scope; a `{}`/multi-word/dynamic shape
             // falls through to the generic body walk in the current scope.
@@ -2300,6 +2316,9 @@ impl Analyser {
             match self.resolve_analyser_hook(&cmd_name, args) {
                 Some(Hook::Proc) => {
                     self.handle_proc_command(args, arg_tokens, arg_single, scope_path);
+                }
+                Some(Hook::OptProc) => {
+                    self.handle_opt_proc_command(args, arg_tokens, arg_single, scope_path);
                 }
                 Some(Hook::OoDefine) => {
                     self.handle_oo_define_command(&cmd_name, args, arg_tokens, scope_path);
@@ -3710,11 +3729,6 @@ mod tests {
 
         // Unstamped head: no handler family.
         assert_eq!(a.resolve_analyser_hook("puts", &args(&["hi"])), None);
-        // The literal guards never matched a qualified spelling.
-        assert_eq!(
-            a.resolve_analyser_hook("::proc", &args(&["p", "a", "b"])),
-            None
-        );
         // Command-level stamp.
         assert_eq!(
             a.resolve_analyser_hook("proc", &args(&["p", "a", "b"])),
@@ -3742,6 +3756,28 @@ mod tests {
         assert_eq!(
             a.resolve_analyser_hook("dict", &args(&["for", "{k v}", "$d", "{}"])),
             Some(H::DictFor)
+        );
+        // A **namespaced** registry spelling is different (issue #923 idx
+        // 90): real corpus code commonly writes `::tcl::OptProc` fully
+        // qualified, and `CommandRegistry::get`'s single-`::`-strip
+        // fallback resolves that to the exact same spec either way — an
+        // exact match, never the naive tail-matching the bareword guard
+        // above exists to rule out. Both spellings resolve identically…
+        assert_eq!(
+            a.resolve_analyser_hook("tcl::OptProc", &args(&["p", "{a}", "{}"])),
+            Some(H::OptProc)
+        );
+        assert_eq!(
+            a.resolve_analyser_hook("::tcl::OptProc", &args(&["p", "{a}", "{}"])),
+            Some(H::OptProc)
+        );
+        // …while a `::`-qualified spelling of a genuinely bareword global
+        // command is still blocked — the guard narrows on "does the
+        // bareword tail itself contain `::`", not merely "starts with
+        // `::`", so this pinned case keeps its exact prior behaviour.
+        assert_eq!(
+            a.resolve_analyser_hook("::proc", &args(&["p", "a", "b"])),
+            None
         );
     }
 

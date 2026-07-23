@@ -3245,4 +3245,19 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 5);
     }
+
+    // tcl::OptProc — the `opt` package's automatic-option-parsing proc
+    // definer (issue #923 idx 90): a call site must resolve to the real
+    // `tcl::OptProc` declaration, never a stale stub.
+
+    #[test]
+    fn opt_proc_call_site_resolves_to_its_declaration() {
+        let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
+        let analysis = analyse(src);
+        // Line 1: `greet foo` — cursor on "greet".
+        let locs = definition(src, 1, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{locs:?}");
+        assert_eq!(locs[0].start_character, 15, "{locs:?}");
+    }
 }
