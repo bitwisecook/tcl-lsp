@@ -320,8 +320,52 @@ impl Analyser {
         }
         let args = argv_texts.get(1..).unwrap_or(&[]);
         let arg_tokens = arg_tokens_in.get(1..).unwrap_or(&[]);
+        if self.check_ensemble_redirect_hiding(cmd_name, args, arg_tokens, scope_path) {
+            return true;
+        }
         self.check_deferred_call_safe_interp_hiding(cmd_name, args, arg_tokens, scope_path);
         false
+    }
+
+    /// Resolve a call through a tracked `namespace ensemble create|configure
+    /// ... -map {sub target ...}` redirect (issue #1001 follow-up — the same
+    /// theme as issue #979's interprocedural call-site gap, but for W129
+    /// rather than constant-propagation seeding, and confirmed via a
+    /// dedicated investigation to be a genuinely distinct, previously
+    /// untracked gap): `cmd_name` isn't itself a hidden registry name — it's
+    /// the ensemble's own command name (`myens`) — but if it resolves to a
+    /// tracked ensemble (`self.ensemble_command_maps`, populated by
+    /// [`Self::handle_namespace_ensemble`]) and `args[0]` (the subcommand) is
+    /// one of its mapped entries, the call's *effective* target is whatever
+    /// that entry names, which might be hidden.
+    ///
+    /// Returns `true` when the resolved target was hidden (a W129 was
+    /// already pushed), mirroring `safe_interp_visibility_gate`'s contract.
+    /// A no-op outside a tracked safe interpreter, when `cmd_name` doesn't
+    /// resolve to a tracked ensemble, or when `args[0]` isn't one of its
+    /// mapped subcommands.
+    fn check_ensemble_redirect_hiding(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if self.safe_interp_stack.is_empty() {
+            return false;
+        }
+        let Some(sub) = args.first() else {
+            return false;
+        };
+        let resolved = self.resolve_command_qualified_name(cmd_name, scope_path);
+        let target = self
+            .ensemble_command_maps
+            .get(&resolved)
+            .and_then(|m| m.get(sub).cloned());
+        let (Some(target), Some(tok)) = (target, arg_tokens.first().copied()) else {
+            return false;
+        };
+        self.safe_interp_visibility_gate(&target, tok)
     }
 
     /// Extend [`Self::safe_interp_visibility_gate`] through the `[list HEAD
@@ -1874,6 +1918,13 @@ impl Analyser {
         }
         let args = seg.texts.get(1..).unwrap_or(&[]);
         let arg_tokens = seg.argv.get(1..).unwrap_or(&[]);
+        // A tracked `namespace ensemble ... -map` redirect to a hidden
+        // command (issue #1001 follow-up): `cmd_name` isn't itself a hidden
+        // registry name, but its resolved dispatch target might be — see
+        // `check_ensemble_redirect_hiding`'s doc.
+        if self.check_ensemble_redirect_hiding(&cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
         let arg_single = seg.single_token_word.get(1..).unwrap_or(&[]);
         // `emit_arity_diagnostics` expects the expand array parallel to
         // the *full* argv (head at index 0), matching `process_command`.

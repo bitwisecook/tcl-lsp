@@ -1574,14 +1574,57 @@ impl Analyser {
         if args.len() < 2 {
             return;
         }
-        if args[1] != "create" {
+        // `create` operates on the *current* namespace, with no explicit name
+        // argument; `configure NAME ...` (issue #1001 follow-up — the ensemble
+        // side of the `namespace ensemble configure -map` gap, previously
+        // silently ignored here entirely) names an *existing* ensemble
+        // command explicitly, resolved like any other command reference.
+        // Both share the same `-command`/`-map`/`-subcommands` option set.
+        let is_create = args[1] == "create";
+        let is_configure = args[1] == "configure";
+        if !is_create && !is_configure {
             return;
         }
         let ns = self.namespace_from_scope_path(scope_path);
-        if !ns.is_empty() && ns != "::" {
-            self.ensemble_namespaces.insert(ns.clone());
-        }
         let ns_prefix = ns.trim_start_matches(':').to_owned();
+
+        let (opts, opt_tokens, configure_target) = if is_create {
+            if !ns.is_empty() && ns != "::" {
+                self.ensemble_namespaces.insert(ns.clone());
+            }
+            (&args[2..], arg_tokens.get(2..).unwrap_or(&[]), None)
+        } else {
+            let Some(name) = args.get(2) else { return };
+            if crate::naming::is_dynamic_word(name) {
+                return;
+            }
+            let target = self.resolve_command_qualified_name(name, scope_path);
+            (
+                args.get(3..).unwrap_or(&[]),
+                arg_tokens.get(3..).unwrap_or(&[]),
+                Some(target),
+            )
+        };
+
+        // The ensemble's own resolved command name (issue #1001 follow-up):
+        // `-command NAME`, when present, *replaces* the default naming
+        // entirely (tclsh 8.6.14-verified: `namespace ensemble create
+        // -command ::alt` creates only `::alt`, never the enclosing
+        // namespace's own name too) — so scan for it before recording any
+        // `-map`, rather than defaulting eagerly the way `ensemble_namespaces`
+        // (a broader, over-inclusive "valid command name" recovery set) does.
+        let explicit_command = is_create
+            .then(|| {
+                opts.iter()
+                    .enumerate()
+                    .find_map(|(i, o)| (o == "-command").then(|| opts.get(i + 1)).flatten())
+            })
+            .flatten()
+            .filter(|v| !v.is_empty() && !crate::naming::is_dynamic_word(v))
+            .map(|v| qualify(&ns_prefix, v));
+        let ensemble_key = configure_target
+            .or(explicit_command)
+            .or_else(|| (is_create && !ns.is_empty() && ns != "::").then(|| ns.clone()));
 
         let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
             .registry
@@ -1593,8 +1636,6 @@ impl Analyser {
             })
             .unwrap_or_default();
 
-        let opts = &args[2..];
-        let opt_tokens = arg_tokens.get(2..).unwrap_or(&[]);
         let mut i = 0usize;
         while i < opts.len() {
             let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
@@ -1618,10 +1659,18 @@ impl Analyser {
                 }
                 // `-map {sub target sub target …}` — every *target* (an
                 // odd-indexed element) is a command the ensemble dispatches to,
-                // recorded so it is reached by references / definition / rename.
+                // recorded so it is reached by references / definition / rename
+                // — and, keyed by the ensemble's own resolved command name, so
+                // the W129 safe-interpreter gate can resolve a call through
+                // this redirect to the target (issue #1001 follow-up).
                 "-map" => {
                     if let (Some(value), Some(tok)) = (value, value_tok) {
-                        self.record_ensemble_map_targets(value, tok, scope_path);
+                        self.record_ensemble_map_targets(
+                            value,
+                            tok,
+                            scope_path,
+                            ensemble_key.as_deref(),
+                        );
                     }
                 }
                 // `-subcommands {a b c}` — each subcommand `a` dispatches to
@@ -1659,16 +1708,62 @@ impl Analyser {
     }
 
     /// Record every `-map` target (the odd elements of the `sub target …`
-    /// list) as a command reference resolved in the caller's namespace.
-    fn record_ensemble_map_targets(&mut self, list_text: &str, tok: Token, scope_path: &[usize]) {
-        for (idx, (elem, span)) in Self::list_word_elements(list_text, tok)
-            .into_iter()
-            .enumerate()
-        {
-            if idx % 2 == 1 && !crate::naming::is_dynamic_word(&elem) {
-                let resolved = self.resolve_command_qualified_name(&elem, scope_path);
-                self.push_command_reference(elem, span, resolved, None);
+    /// list) as a command reference resolved in the caller's namespace, and
+    /// — when `ensemble_key` is `Some` (the ensemble's own resolved
+    /// qualified command name, computed by [`Self::handle_namespace_ensemble`])
+    /// — also record each `sub -> target` pair into
+    /// `self.ensemble_command_maps`, so the W129 safe-interpreter gate can
+    /// resolve a call reaching a hidden command only through this ensemble's
+    /// redirect (issue #1001 follow-up; `None` when the ensemble's own name
+    /// couldn't be resolved statically, matching every other guard in this
+    /// handler).
+    ///
+    /// The map stores the *raw written* target text (`"source"`), not
+    /// `resolved` (the namespace-qualified form used for the reference
+    /// below) — [`Self::check_ensemble_redirect_hiding`] hands it straight
+    /// to [`Self::safe_interp_visibility_gate`], which — like the direct
+    /// literal-head case and every other indirection path this fix adds —
+    /// checks the bare written spelling against the registry, not a
+    /// namespace-qualified path. This matters concretely: a `-map` target is
+    /// namespace-qualified relative to the ensemble's own (possibly
+    /// synthetic, interp-domain-rooted) home namespace by real Tcl's own
+    /// rule (tclsh 8.6.14-verified: `-map {go source}` inside `namespace
+    /// eval myns {…}` really dispatches `go` to `::myns::source`, not the
+    /// global builtin, and raises its own unrelated `invalid command name
+    /// ::myns::source` in every interpreter, safe or not, when no such proc
+    /// exists) — using the qualified form here would make the check depend
+    /// on the interp-domain namespace model lining up with the registry's
+    /// flat, unqualified command-name keying, which it structurally can't.
+    /// The raw-text check this uses instead only fires for a target that is
+    /// unqualified or explicitly `::`-rooted, matching the shape a
+    /// `SAFE_INTERP_HIDDEN` registry command's name actually takes; a
+    /// locally shadowing `proc` by the same bare name, anywhere in the
+    /// tracked safe interpreter body, still suppresses it via the *existing*
+    /// `ctx.exposed` check inside `safe_interp_visibility_gate` (populated
+    /// by `mark_locally_defined_in_enclosing_interp`, which is namespace-
+    /// blind in exactly the same way already, for the direct-call case).
+    fn record_ensemble_map_targets(
+        &mut self,
+        list_text: &str,
+        tok: Token,
+        scope_path: &[usize],
+        ensemble_key: Option<&str>,
+    ) {
+        for pair in Self::list_word_elements(list_text, tok).chunks(2) {
+            let [(sub, _), (target, span)] = pair else {
+                continue;
+            };
+            if crate::naming::is_dynamic_word(target) {
+                continue;
             }
+            if let Some(key) = ensemble_key {
+                self.ensemble_command_maps
+                    .entry(key.to_string())
+                    .or_default()
+                    .insert(sub.clone(), target.clone());
+            }
+            let resolved = self.resolve_command_qualified_name(target, scope_path);
+            self.push_command_reference(target.clone(), *span, resolved, None);
         }
     }
 
@@ -6929,6 +7024,121 @@ proc runs {body} {\n\
                 .any(|d| d.code == tcl_core_types::DiagCode::W129),
             "the deferred script's hidden `source` warns once `package \
              require` is present too: {:?}",
+            r.diagnostics
+        );
+    }
+
+    // -- issue #1001 follow-up: namespace ensemble -map redirection --------
+
+    /// TP: `namespace ensemble create -command myens -map {go source}` then
+    /// `myens go ...` — the ensemble redirects `go` to the hidden `source`,
+    /// so the call must warn exactly like a direct `source` call would, even
+    /// though `myens` itself is never a registry name.
+    #[test]
+    fn safe_interp_w129_ensemble_create_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go source}\n\
+                 myens go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect to a hidden command warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same redirect declared via `namespace ensemble configure NAME
+    /// -map {...}` (previously silently ignored entirely — only `create`
+    /// was handled) rather than at `create` time.
+    #[test]
+    fn safe_interp_w129_ensemble_configure_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens\n\
+                 namespace ensemble configure myens -map {go source}\n\
+                 myens go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect declared via `configure` warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the ensemble's default naming (no `-command`, so the command is
+    /// the enclosing namespace's own name) also resolves the redirect.
+    #[test]
+    fn safe_interp_w129_ensemble_default_name_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace eval myns { namespace ensemble create -map {go source} }\n\
+                 myns go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble redirect under its default (namespace) name warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: an ensemble `-map` redirect to a *safe* command must not
+    /// warn — this fix widens W129's recall, it must not start flagging
+    /// ordinary ensemble dispatch.
+    #[test]
+    fn safe_interp_w129_ensemble_map_redirect_to_safe_command_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go puts}\n\
+                 myens go hi\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble redirect to a safe command must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: the exact same ensemble-redirect shape outside any safe
+    /// interpreter must not warn (and, since the whole mechanism is gated on
+    /// a non-empty `safe_interp_stack`, must not do anything at all).
+    #[test]
+    fn ensemble_map_redirect_outside_any_safe_interp_is_untouched_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace ensemble create -command myens -map {go source}\n\
+             myens go pkg.tcl\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
             r.diagnostics
         );
     }
