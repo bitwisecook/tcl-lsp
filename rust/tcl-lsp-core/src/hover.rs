@@ -330,6 +330,7 @@ pub fn hover_with_profile(
     }
 
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
 
     // `$obj method` dispatch — when the cursor sits on the
     // method-name token of an instance-method call and the
@@ -340,6 +341,28 @@ pub fn hover_with_profile(
         crate::definition::instance_method_at_cursor(source, line, character)
         && let Some(class_q) =
             crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
+        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, registry)
+    {
+        return Some(Hover::markdown(text));
+    }
+
+    // `my method` internal dispatch — mirrors
+    // `crate::definition::instance_method_definition`'s own `inst == "my"`
+    // branch: unlike `$obj method`, `my`'s receiver isn't an instance
+    // *variable* (`receiver_instance_class` above only resolves those), it
+    // means "the class whose body lexically encloses this call", found via
+    // `enclosing_class_at`. Without this, a definite, single-target `my
+    // methodName` call had no hover at all — go-to-definition and
+    // find-references already resolved it (issue #923 idx 76: the
+    // finding's own headline hypothesis, an ambiguous `switch`-dispatched
+    // `[$obj GetType]` guess, is REFUTED — the LSP correctly abstains
+    // there — but tracing it uncovered this genuinely CONFIRMED gap on the
+    // exact same class, reproducing identically whether or not the class
+    // is split across a separate `oo::define` block).
+    if let Some((inst, method, _)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+        && inst == "my"
+        && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
         && let Some(text) = obj_method_hover_text(analysis, class_q, &method, registry)
     {
         return Some(Hover::markdown(text));
@@ -367,7 +390,6 @@ pub fn hover_with_profile(
     // builtin, this yields nothing and the registry hover below wins — a
     // proc in an unrelated namespace must not hijack builtin hover.  A
     // non-builtin word keeps the lenient (deterministic) tail fallback.
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(hover) = proc_hover_at(analysis, source, cursor_offset, &word, registry) {
         return Some(hover);
     }
@@ -4520,6 +4542,56 @@ mod tests {
         assert!(h.value.contains("**method**"), "{}", h.value);
         assert!(h.value.contains("C::realMethod"), "{}", h.value);
         assert!(h.value.contains("linked from `shortcut`"), "{}", h.value);
+    }
+
+    // `my method` internal-dispatch hover (issue #923 idx 76)
+
+    #[test]
+    fn my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class() {
+        // TP — issue #923 idx 76 (main audit wave, high severity, tomato
+        // corpus): a definite, single-target `my methodName` call had NO
+        // hover at all, unlike a `link`-exposed bareword sibling call
+        // (idx 113) or `$obj method` — go-to-definition and find-references
+        // already resolved this exact shape (they use
+        // `enclosing_class_at`/`method_dispatch_definition` directly,
+        // cursor-shape-driven; hover had no equivalent path, only the
+        // word-match-driven `class_member_hover_text`, gated on
+        // `linked_members`, which a plain un-linked `my` call never
+        // populates).
+        let src = "oo::class create geo::Plane {\n    method GetType {} { return Plane }\n    method WhichAmI {} { return [my GetType] }\n}\n";
+        let analysis = analyse(src);
+        // Line 2: `    method WhichAmI {} { return [my GetType] }` — cursor
+        // on `GetType` inside `my GetType` (col 38).
+        let h = hover(src, 2, 38, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("::geo::Plane::GetType"), "{}", h.value);
+    }
+
+    #[test]
+    fn my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define() {
+        // TP — issue #923 idx 76's own CONFIRMED repro shape: exactly
+        // idx 52's two-block `oo::class create` + separate `oo::define`
+        // pattern (all 9 of tomato's real classes use this convention —
+        // constructor in `create`, every method including the dispatched-on
+        // one in a later `define`), reproduced here for hover specifically
+        // (definition/references already covered by idx 52's own tests).
+        let src = "oo::class create geo::Plane {\n    constructor {args} {}\n}\noo::define geo::Plane {\n    method GetType {} { return Plane }\n    method WhichAmI {} { return [my GetType] }\n}\n";
+        let analysis = analyse(src);
+        // Line 5: `    method WhichAmI {} { return [my GetType] }` — cursor
+        // on `GetType` inside `my GetType` (col 38).
+        let h = hover(src, 5, 38, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("::geo::Plane::GetType"), "{}", h.value);
+    }
+
+    #[test]
+    fn my_dispatch_hover_abstains_for_an_undefined_method() {
+        // TN — `my` dispatching to a method the class genuinely doesn't
+        // have must not fabricate a hover.
+        let src = "oo::class create C {\n    method twice {} { return [my nope] }\n}\n";
+        let analysis = analyse(src);
+        // Line 1, cursor on `nope` inside `my nope` (col 34).
+        assert!(hover(src, 1, 34, &analysis, None).is_none());
     }
 
     #[test]
