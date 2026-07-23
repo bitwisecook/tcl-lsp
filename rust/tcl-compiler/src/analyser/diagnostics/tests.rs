@@ -2238,6 +2238,57 @@ fn same_file_rename_reestablished_after_deletion_checks_new_arity() {
     );
 }
 
+// Issue #1007 — a `rename` / `interp alias` deletion recorded *inside* a
+// proc body that's never called is conditional: it may never execute, so
+// it must not supersede a fact established outside that body.
+// `fact_superseded_by_deletion` previously reused `fact_in_effect`
+// (call-site order-gating) to also decide whether the *deletion itself*
+// was in effect, which only asks whether the call is order-gated against
+// its own top-level/body status — never whether the deletion's own
+// offset sits inside a different, possibly-never-invoked body. Fixed by
+// adding the same `offset_is_inside_any_definition_body` guard the W123
+// pass's `fact_live_for_call` already applies for the identical question
+// (issue #973). All cases confirmed against tclsh 8.6.14.
+
+#[test]
+fn e003_fp_issue_1007_conditional_deletion_never_triggered_proc_stays_live() {
+    let src = "proc target {a b} {}\nproc maybeDelete {} { rename target {} }\ntarget 1 2\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn e003_tp_issue_1007_conditional_deletion_never_triggered_still_checks_arity() {
+    // `maybeDelete` is never called, so `target` keeps its original 2-arg
+    // signature — an over-applied call must still fire E003, not
+    // silently abstain as if the name were permanently gone.
+    let src = "proc target {a b} {}\nproc maybeDelete {} { rename target {} }\ntarget 1 2 3\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E003".to_owned()]);
+}
+
+#[test]
+fn e003_tn_issue_1007_unconditional_deletion_before_call_stays_dead() {
+    // Regression guard: an *unconditional* (top-level) deletion must
+    // still permanently kill the name — the fix only exempts deletions
+    // recorded inside a body.
+    let src = "proc target {a b} {}\nrename target {}\ntarget 1 2\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn e003_tp_issue_1007_call_before_later_unconditional_deletion_still_checked() {
+    // Regression guard: the already-correct call-site order gating for a
+    // top-level, unconditional deletion is untouched by this fix.
+    let src = "proc target {a b} {}\ntarget 1 2 3\nrename target {}\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E003".to_owned()]);
+}
+
+#[test]
+fn e003_tp_issue_1007_alias_conditional_deletion_never_triggered_still_checks_arity() {
+    // Same fix, `interp alias` deletion form.
+    let src = "proc target {a b} {}\ninterp alias {} short {} target\nproc maybeDelete {} { interp alias {} short {} }\nshort 1 2 3\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E003".to_owned()]);
+}
+
 #[test]
 fn same_file_rename_target_reestablished_after_further_rename_checks_new_arity() {
     // `rename target target_orig` moves `target`'s identity onward (like

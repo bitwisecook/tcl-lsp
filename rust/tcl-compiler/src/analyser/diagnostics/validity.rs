@@ -1840,15 +1840,28 @@ impl Analyser {
     /// (confirmed against tclsh 9.0.4: `proc p {} {}`, `rename p {}`,
     /// `proc p {a b} {}`, `p 1 2` succeeds — the second `proc` overrides
     /// the deletion).
+    ///
+    /// A deletion recorded *inside* a proc/class/method body is itself
+    /// conditional — it executes only if and when that body is ever
+    /// invoked, which the textual load-order gate can't know — so it
+    /// never supersedes anything (issue #1007: confirmed against tclsh
+    /// 8.6.14 that `proc p {a b} {}`, `proc maybeDelete {} { rename p {}
+    /// }`, `p 1 2 3` still fails "wrong # args" against `p`'s original
+    /// 2-arg signature, since `maybeDelete` is never called and the
+    /// `rename` never runs). Mirrors the equivalent guard
+    /// [`Self::fact_live_for_call`] applies for the same question in the
+    /// W123 pass (see issue #973).
     fn fact_superseded_by_deletion(
         &self,
         name: &str,
         fact_off: u32,
         cand: &PendingUserCallArity,
     ) -> bool {
-        self.deleted_commands
-            .get(name)
-            .is_some_and(|&del_off| del_off > fact_off && Self::fact_in_effect(cand, del_off))
+        self.deleted_commands.get(name).is_some_and(|&del_off| {
+            del_off > fact_off
+                && !self.result.offset_is_inside_any_definition_body(del_off)
+                && Self::fact_in_effect(cand, del_off)
+        })
     }
 
     /// Chase `cand.cmd_name` (as it resolves at `cand.ns`) through
