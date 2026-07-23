@@ -650,10 +650,25 @@ fn build_assertion(cmd: &str, args: &[String]) -> Vec<String> {
 
 /// Build request-setup lines based on path conditions (`_build_request_setup`).
 fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
+    // The alternation used to hardcode a bare "matches", which never
+    // matched real iRules syntax at all — the actual word operators are
+    // `matches_glob`/`matches_regex` (`tcl_syntax::expr::ast::BinOp`'s
+    // `MatchesGlob`/`MatchesRegex`), so a condition like
+    // `HTTP::uri matches_glob "/api/*"` silently fell through to the
+    // bare-value fallback below (or no hint at all) instead of extracting
+    // "/api/*". Derived from `BinOp` rather than hand-typed again so this
+    // can't drift a second time.
+    let uri_ops = [
+        tcl_syntax::expr::ast::BinOp::StrEq.as_str(),
+        tcl_syntax::expr::ast::BinOp::StartsWith.as_str(),
+        tcl_syntax::expr::ast::BinOp::MatchesGlob.as_str(),
+        tcl_syntax::expr::ast::BinOp::MatchesRegex.as_str(),
+    ]
+    .join("|");
     let host_re = Regex::new(r#"eq\s+"([^"]+)""#).expect("valid regex");
     let host_bare_re = Regex::new(r"eq\s+(\S+)").expect("valid regex");
-    let uri_re = Regex::new(r#"(?:eq|starts_with|matches)\s+"([^"]+)""#).expect("valid regex");
-    let uri_bare_re = Regex::new(r"(?:eq|starts_with|matches)\s+(\S+)").expect("valid regex");
+    let uri_re = Regex::new(&format!(r#"(?:{uri_ops})\s+"([^"]+)""#)).expect("valid regex");
+    let uri_bare_re = Regex::new(&format!(r"(?:{uri_ops})\s+(\S+)")).expect("valid regex");
     let header_re = Regex::new(r#"HTTP::header\s+"?([^"\s]+)"?"#).expect("valid regex");
 
     let mut host_hint: Option<String> = None;
@@ -956,4 +971,55 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
     );
     out.push('}');
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn if_cond(condition: &str) -> Value {
+        json!({"kind": "if", "condition": condition})
+    }
+
+    /// The URI-hint regex used to hardcode a bare "matches" alternative,
+    /// which never matches real iRules syntax — the actual word operators
+    /// are `matches_glob`/`matches_regex`. A condition using either used to
+    /// fall straight through to the "/" default instead of extracting the
+    /// real pattern.
+    #[test]
+    fn uri_hint_extracts_matches_glob_and_matches_regex() {
+        let cond = if_cond(r#"[HTTP::uri] matches_glob "/api/*""#);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        assert!(
+            lines.iter().any(|l| l.contains(r#"-uri "/api/*""#)),
+            "{lines:?}"
+        );
+
+        let cond = if_cond(r#"[HTTP::uri] matches_regex "^/api/.*$""#);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        assert!(
+            lines.iter().any(|l| l.contains(r#"-uri "^/api/.*$""#)),
+            "{lines:?}"
+        );
+    }
+
+    /// Regression guard: `eq`/`starts_with` (already working before this
+    /// fix) must keep working now that the alternation is built from
+    /// `BinOp` spellings instead of hand-typed.
+    #[test]
+    fn uri_hint_still_extracts_eq_and_starts_with() {
+        let cond = if_cond(r#"[HTTP::uri] eq "/login""#);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        assert!(
+            lines.iter().any(|l| l.contains(r#"-uri "/login""#)),
+            "{lines:?}"
+        );
+
+        let cond = if_cond(r#"[HTTP::uri] starts_with "/admin""#);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        assert!(
+            lines.iter().any(|l| l.contains(r#"-uri "/admin""#)),
+            "{lines:?}"
+        );
+    }
 }

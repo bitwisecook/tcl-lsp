@@ -307,15 +307,35 @@ impl Gen {
 
     fn while_stmt(&mut self, depth: u32) {
         // Bounded: a fresh counter var counts up to a small literal.
+        //
+        // The counter name is qualified by `depth` — a hardcoded `_w` used
+        // to collide across nesting levels, which was a genuine (if rare)
+        // infinite-loop generator bug, not just a divergence risk: an inner
+        // `while` also named `_w` resets the shared counter to 0 on every
+        // outer iteration, so the outer loop's own `incr _w` (which only
+        // ever sees the inner loop's fixed exit value + 1) can end up never
+        // reaching the outer bound at all. Found via the differential
+        // fuzzer's own generator running against a real `tclsh` while
+        // verifying issue #983's mathfunc/operator additions — same-depth
+        // sequential loops still safely reuse the same name, since they
+        // never overlap in time.
         let n = 1 + self.rng.below(4);
-        let _ = writeln!(self.out, "set _w 0\nwhile {{$_w < {n}}} {{");
+        let _ = writeln!(self.out, "set _w{depth} 0\nwhile {{$_w{depth} < {n}}} {{");
         self.block(depth + 1);
-        self.out.push_str("incr _w\n}\n");
+        let _ = writeln!(self.out, "incr _w{depth}\n}}");
     }
 
     fn for_stmt(&mut self, depth: u32) {
+        // Qualified by `depth` for the same nesting-collision reason as
+        // `while_stmt` above (a `for` loop's own condition/increment clauses
+        // make a bare collision self-correcting rather than an infinite
+        // loop, but it still silently truncates the outer loop's iteration
+        // count — still worth avoiding rather than documenting as fine).
         let n = 1 + self.rng.below(4);
-        let _ = writeln!(self.out, "for {{set _f 0}} {{$_f < {n}}} {{incr _f}} {{");
+        let _ = writeln!(
+            self.out,
+            "for {{set _f{depth} 0}} {{$_f{depth} < {n}}} {{incr _f{depth}}} {{"
+        );
         self.block(depth + 1);
         self.out.push_str("}\n");
     }
@@ -600,16 +620,25 @@ impl Gen {
     /// A (possibly nested) expression. Division/modulo guard against a zero
     /// divisor so both engines agree on the (non-error) result. The leaves mix
     /// integers, floats, and variable reads; a fraction of interior nodes are
-    /// string-relational (`eq`/`ne`/`in`/`ni`) so those operators are exercised
-    /// (`RUST_ISSUE_064`).
+    /// string-relational (`eq`/`ne`/`in`/`ni`/TIP 461 `lt`/`le`/`gt`/`ge`) so
+    /// those operators are exercised (`RUST_ISSUE_064`), and a fraction are a
+    /// builtin math-function call (see [`Self::mathfunc_call`]).
+    ///
+    /// Issue #983's plan: this operator list used to be missing every TIP 461
+    /// string-ordering word and every bitwise/shift symbol (`&`/`|`/`^`/`<<`/
+    /// `>>`) and `**` entirely — a real fuzz-coverage gap, since none of that
+    /// operator surface was ever differentially tested.
     fn expr(&mut self, depth: u32) -> String {
         if depth >= self.config.max_expr_depth || self.rng.chance(1, 2) {
             return self.expr_leaf();
         }
         // A minority of interior nodes are string/list relational (`eq`/`ne`/
-        // `in`/`ni`), which take word operands rather than nested arithmetic.
+        // `in`/`ni`/`lt`/`le`/`gt`/`ge`), which take word operands rather
+        // than nested arithmetic.
         if self.rng.chance(1, 5) {
-            let op = *self.rng.pick(&["eq", "ne", "in", "ni"]);
+            let op = *self
+                .rng
+                .pick(&["eq", "ne", "in", "ni", "lt", "le", "gt", "ge"]);
             let left = self.nonempty_word();
             return match op {
                 // `in`/`ni` test membership in a list literal.
@@ -617,8 +646,12 @@ impl Gen {
                 _ => format!("{{{left}}} {op} {{{}}}", self.nonempty_word()),
             };
         }
+        if self.rng.chance(1, 6) {
+            return self.mathfunc_call();
+        }
         let op = *self.rng.pick(&[
-            "+", "-", "*", "/", "%", "<", ">", "<=", ">=", "==", "!=", "&&", "||",
+            "+", "-", "*", "/", "%", "<", ">", "<=", ">=", "==", "!=", "&&", "||", "**", "&", "|",
+            "^", "<<", ">>",
         ]);
         let left = self.expr(depth + 1);
         let right = self.expr(depth + 1);
@@ -630,7 +663,77 @@ impl Gen {
             "/" | "%" => {
                 format!("int({left}) {op} (int({right}) == 0 ? 1 : int({right}))")
             }
+            // Bitwise operators reject floating-point operands outright.
+            "&" | "|" | "^" => format!("int({left}) {op} int({right})"),
+            // A negative shift count is a hard error in both engines, unlike
+            // a negative arithmetic operand — force it non-negative.
+            "<<" | ">>" => format!("int({left}) {op} abs(int({right}))"),
+            // `**` errors on `0 ** negative` and on a negative base with a
+            // non-integer exponent (`domain error`) — forcing a non-negative
+            // base and a non-negative integer exponent avoids both without
+            // narrowing coverage of the operator itself.
+            "**" => format!("abs({left}) {op} int(abs({right}))"),
             _ => format!("({left}) {op} ({right})"),
+        }
+    }
+
+    /// A call to a builtin `::tcl::mathfunc` — until now the generator never
+    /// emitted a single one, leaving that whole command-table dispatch path
+    /// (and its TIP 232 override semantics) completely unexercised by the
+    /// differential fuzzer.
+    ///
+    /// Deliberately scoped to:
+    /// - functions available by Tcl 9.0 only. The differential fuzzer's
+    ///   default reference is `tclsh9.0` (see `main.rs`); a TIP 745 (Tcl 9.1)
+    ///   function like `cbrt`/`trunc`/`asinh` would be a guaranteed
+    ///   divergence against that reference (it simply doesn't exist there),
+    ///   not a real bug — that would make every generated occurrence a false
+    ///   finding.
+    /// - operands transformed so the call can never raise a domain/range
+    ///   error itself (verified against `tclsh8.6` for every Tcl 8.4/8.5
+    ///   function here across a matrix of representative operand values,
+    ///   including negative/zero/fractional): every argument is a plain
+    ///   `expr_leaf()` (a var read or a small bounded literal), so none of
+    ///   `hypot`/`atan2`/`isunordered`/`max`/`min`/the arity-1 set below can
+    ///   ever see anything but a small finite double.
+    fn mathfunc_call(&mut self) -> String {
+        const ARITY1: &[&str] = &[
+            "abs",
+            "ceil",
+            "floor",
+            "round",
+            "sin",
+            "cos",
+            "tan",
+            "sinh",
+            "cosh",
+            "tanh",
+            "atan",
+            "int",
+            "double",
+            "wide",
+            "bool",
+            "isfinite",
+            "isinf",
+            "isnan",
+            "isnormal",
+            "issubnormal",
+        ];
+        const ARITY2: &[&str] = &["hypot", "atan2", "max", "min", "isunordered"];
+        if self.rng.chance(1, 6) {
+            // `fmod` needs the same guarded non-zero divisor as `/`/`%`.
+            let a = self.expr_leaf();
+            let b = self.expr_leaf();
+            format!("fmod({a}, (({b}) == 0 ? 1 : ({b})))")
+        } else if self.rng.chance(1, 2) {
+            let f = *self.rng.pick(ARITY2);
+            let a = self.expr_leaf();
+            let b = self.expr_leaf();
+            format!("{f}({a}, {b})")
+        } else {
+            let f = *self.rng.pick(ARITY1);
+            let a = self.expr_leaf();
+            format!("{f}({a})")
         }
     }
 
@@ -656,6 +759,33 @@ mod tests {
         let cfg = GenConfig::default();
         assert_eq!(generate(42, &cfg), generate(42, &cfg));
         assert_ne!(generate(1, &cfg), generate(2, &cfg));
+    }
+
+    /// Regression: `while`/`for` counters used to be a flat `_w`/`_f`
+    /// regardless of nesting depth, so a `while` nested inside another
+    /// `while` reset the *same* counter on every outer iteration — a
+    /// genuine infinite loop, not just a divergence risk (found by actually
+    /// running the generator's output through a real `tclsh` while
+    /// verifying issue #983's mathfunc/operator additions below — seed 127
+    /// under a deepened `GenConfig` hung indefinitely). Depth-qualifying
+    /// the name (`_w0`, `_w1`, …) fixes it structurally: nested loops can
+    /// never share a counter, so this checks the old un-qualified form
+    /// never reappears.
+    #[test]
+    fn while_and_for_counters_are_depth_qualified() {
+        let cfg = GenConfig {
+            max_depth: 5,
+            max_stmts: 20,
+            max_expr_depth: 4,
+            ..GenConfig::default()
+        };
+        for seed in 0..500u64 {
+            let src = generate(seed, &cfg);
+            assert!(
+                !src.contains("set _w 0") && !src.contains("set _f 0"),
+                "seed {seed}: un-qualified loop counter reappeared:\n{src}"
+            );
+        }
     }
 
     #[test]
@@ -744,5 +874,65 @@ mod tests {
                 .any(|p| s.contains(&format!("puts [{p}")))
         });
         assert!(proc_called, "no generated proc was ever called");
+    }
+
+    /// Issue #983's plan: `expr()`'s operator menu used to omit the TIP 461
+    /// string-ordering words, every bitwise/shift symbol, and `**` entirely,
+    /// and the generator never emitted a single `::tcl::mathfunc` call — all
+    /// real fuzz-coverage gaps (that whole surface went differentially
+    /// untested). Proves each newly-added production actually gets generated
+    /// (not dead code) over a decent seed sweep, mirroring
+    /// `broadened_grammar_is_exercised` above.
+    #[test]
+    fn expr_and_mathfunc_additions_are_exercised() {
+        let cfg = GenConfig {
+            max_depth: 4,
+            max_stmts: 16,
+            max_expr_depth: 4,
+            ..GenConfig::default()
+        };
+        let corpus: Vec<String> = (0..1500).map(|s| generate(s, &cfg)).collect();
+        for op in ["lt", "le", "gt", "ge"] {
+            assert!(
+                corpus.iter().any(|s| s.contains(&format!(" {op} "))),
+                "TIP 461 operator never generated: {op:?}"
+            );
+        }
+        for op in ["**", "<<", ">>"] {
+            assert!(
+                corpus.iter().any(|s| s.contains(op)),
+                "operator never generated: {op:?}"
+            );
+        }
+        // `&`/`|` search on `& int(`/`| int(` rather than the bare symbol:
+        // the bitwise shape always renders as `int(...) & int(...)` with no
+        // extra parens around the right operand, whereas `&&`/`||` (already
+        // in the pre-existing pool) render as `(...) && (...)` — a nested
+        // right operand starting with `int(` would make the bare `&`/`|`
+        // substring check a false pass via `&&`/`||` instead.
+        for op in ["& int(", "| int(", "^ int("] {
+            assert!(
+                corpus.iter().any(|s| s.contains(op)),
+                "operator never generated: {op:?}"
+            );
+        }
+        for func in [
+            "abs(", "sin(", "hypot(", "atan2(", "max(", "min(", "fmod(", "isnan(", "bool(",
+        ] {
+            assert!(
+                corpus.iter().any(|s| s.contains(func)),
+                "mathfunc call never generated: {func:?}"
+            );
+        }
+        // Every TIP 745 (Tcl 9.1) function must never appear: the
+        // differential fuzzer's default reference is `tclsh9.0`, which
+        // doesn't have them, so generating one would be a guaranteed false
+        // finding rather than a real bug.
+        for func in ["cbrt(", "trunc(", "asinh(", "acosh(", "exp2(", "gamma("] {
+            assert!(
+                !corpus.iter().any(|s| s.contains(func)),
+                "TIP 745 (9.1-only) function must never be generated: {func:?}"
+            );
+        }
     }
 }

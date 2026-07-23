@@ -27,6 +27,11 @@
 //! conditions, spans, and messages are asserted against the captured golden output —
 //! only the emission *order* may differ (Rust sorts diagnostics by source
 //! position; emitted in pass order).
+//!
+//! [`CONVERTIBLE_CODES`]/[`conversion_for`] are `pub` (re-exported at the
+//! crate root) so `tcl-mcp`'s `find-legacy` MCP tool can share this table
+//! instead of hand-duplicating it in `tcl-mcp/diagnostics.json` — the two
+//! used to carry byte-identical copies of the same 6 codes and hint strings.
 
 use serde::Serialize;
 use tcl_cli_support::{OutputTarget, combine_sources, ensure_ascii, read_input_documents};
@@ -36,12 +41,13 @@ use tcl_lexer::LineIndex;
 use crate::cli::InputArgs;
 
 /// Diagnostic codes with a known mechanical modernisation.
-const CONVERTIBLE_CODES: [&str; 6] = ["W100", "W104", "W110", "W304", "IRULE2001", "IRULE5001"];
+pub const CONVERTIBLE_CODES: [&str; 6] = ["W100", "W104", "W110", "W304", "IRULE2001", "IRULE5001"];
 
 /// The modernisation hint shown per code. Codes not
 /// in this table fall back to `"modernise"` (the default;
 /// every convertible code is present, so the fallback is unreachable in practice).
-fn conversion_for(code: &str) -> &'static str {
+#[must_use]
+pub fn conversion_for(code: &str) -> &'static str {
     match code {
         "W100" => "Unbraced expr -> braced expr",
         "W104" => "String concat for lists -> lappend",

@@ -174,22 +174,6 @@
       ]
     }
   ],
-  "convertible_codes": [
-    "W100",
-    "W104",
-    "W110",
-    "W304",
-    "IRULE2001",
-    "IRULE5001"
-  ],
-  "conversion_map": {
-    "W100": "Unbraced expr -> braced expr",
-    "W104": "String concat for lists -> lappend",
-    "W110": "== / != for strings -> eq / ne",
-    "W304": "Missing -- option terminator -> add --",
-    "IRULE2001": "Deprecated matchclass -> class match",
-    "IRULE5001": "Ungated log in hot event -> add debug gating"
-  },
   "prefix_rules": [
     {
       "prefix": "E",

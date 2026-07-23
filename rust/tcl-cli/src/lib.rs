@@ -37,6 +37,9 @@ mod tui;
 
 /// Structured KCS help lookup for embedders (the native MCP `help` tool).
 pub use commands::help::help_json;
+/// The `find-legacy` convertible-code table, shared with the native MCP
+/// `find-legacy` tool so the two don't hand-duplicate the same 6 codes.
+pub use commands::misc::{CONVERTIBLE_CODES, conversion_for};
 
 use std::ffi::OsString;
 use std::process::ExitCode;

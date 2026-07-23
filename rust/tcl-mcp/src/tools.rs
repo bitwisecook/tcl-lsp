@@ -563,17 +563,17 @@ fn find_legacy(args: &Value) -> Value {
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let sm = SourceMap::new(source);
-    let meta = crate::diag_meta::meta();
+    // Shared with `tcl-cli`'s `find-legacy` verb (`tcl_cli::CONVERTIBLE_CODES`/
+    // `conversion_for`) rather than a second hand-duplicated copy of the same
+    // 6-code table — the two used to be byte-identical but independently
+    // maintained.
     let patterns: Vec<Value> = analysis
         .diagnostics
         .iter()
-        .filter(|d| meta.convertible_codes.contains(d.code.as_str()))
+        .filter(|d| tcl_cli::CONVERTIBLE_CODES.contains(&d.code.as_str()))
         .map(|d| {
             let mut obj = diag_to_json(d, &sm);
-            let conversion = meta
-                .conversion_map
-                .get(d.code.as_str())
-                .map_or("modernise", String::as_str);
+            let conversion = tcl_cli::conversion_for(d.code.as_str());
             obj.as_object_mut()
                 .expect("json object")
                 .insert("conversion".to_owned(), json!(conversion));
@@ -581,6 +581,30 @@ fn find_legacy(args: &Value) -> Value {
         })
         .collect();
     json!({ "total": patterns.len(), "patterns": patterns })
+}
+
+#[cfg(test)]
+mod find_legacy_tests {
+    use super::*;
+
+    /// The MCP `find-legacy` tool had no test at all before this — the
+    /// convertible-code/conversion-hint table it reads used to be a private
+    /// copy in this crate's own `diagnostics.json`; now it comes from
+    /// `tcl_cli` directly, so this is also a regression guard against that
+    /// convergence silently losing the conversion hint.
+    #[test]
+    fn reports_unbraced_expr_with_its_conversion_hint() {
+        let source = "proc check {a b} {\n    set total [expr $a + $b]\n    return $total\n}\n";
+        let result = find_legacy(&json!({ "source": source }));
+        let total = result["total"].as_u64().expect("total is a number");
+        assert!(total >= 1, "{result}");
+        let patterns = result["patterns"].as_array().expect("patterns array");
+        let w100 = patterns
+            .iter()
+            .find(|p| p["code"] == "W100")
+            .unwrap_or_else(|| panic!("no W100 pattern in {result}"));
+        assert_eq!(w100["conversion"], "Unbraced expr -> braced expr");
+    }
 }
 
 // ── Registry info tools ───────────────────────────────────────────────
