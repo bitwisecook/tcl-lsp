@@ -460,3 +460,66 @@ fn command_probe_navigates_without_asserting_existence_945() {
         "a probe of an absent command asserts nothing: {diags:?}"
     );
 }
+
+// -- issue #923 idx 94: eval/uplevel argument-position indirect dispatch ----
+//
+// A bare `$var` body of an `eval`/`uplevel` call (as opposed to `$var`
+// sitting at a command's own *head* position, fault 1's shape above)
+// dynamically evaluates $var's value as a script at runtime — the same
+// flow-sensitive constant-dispatch settlement this file already covers,
+// just reached through a different registration site
+// (`dispatch_one_body_argument`'s new `TokenType::Var` branch).
+
+#[test]
+fn eval_of_a_list_computed_var_rewrites_the_defining_literal_and_executes_923_idx94() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // The finding's own minimal repro: `set cmdD [list greetD World]; eval
+    // $cmdD` — real tclsh9.0/8.6-verified to print "D World".
+    let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 0, 6, "greetRenamed");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let renamed_src = apply_lsp_edits(src, &for_uri);
+    assert!(
+        renamed_src.contains("[list greetRenamed World]"),
+        "the `greetD` word inside the `list` call follows the rename:\n{renamed_src}"
+    );
+    assert!(
+        renamed_src.contains("eval $cmdD"),
+        "the `$cmdD` dispatch site itself is never rewritten:\n{renamed_src}"
+    );
+    // The issue's validation bar: the transformed output must EXECUTE — the
+    // old edit set left `[list greetD World]` stale (only the declaration
+    // was rewritten) and died with `invalid command name "greetD"`.
+    if let Some(out) = run_tclsh(&renamed_src) {
+        assert_eq!(
+            out, "D World",
+            "eval $cmdD still dispatches to the renamed proc"
+        );
+    } else {
+        eprintln!("skipping tclsh execution leg: no tclsh (set TCL_LSP_TCLSH)");
+    }
+}
+
+#[test]
+fn eval_of_a_dynamic_unresolvable_var_body_produces_no_edits_923_idx94() {
+    // TN — regression guard: a genuinely dynamic eval body (piped through
+    // `gets`, no provable constant origin) must not surface a false
+    // "safe" rename that only rewrites the unrelated declaration while
+    // silently leaving an indirect dispatch nobody warned about.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc target {} { return hi }\nset cmd [gets stdin]\neval $cmd\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 0, 6, "renamed");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    assert_eq!(
+        for_uri.len(),
+        1,
+        "only the declaration should rewrite — no evidence the dynamic \
+         eval body ever reaches `target`: {for_uri:?}"
+    );
+}

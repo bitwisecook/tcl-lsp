@@ -1567,6 +1567,37 @@ impl Analyser {
                 scope_path,
             );
         }
+        // A bare `$var` body (`eval $cmd`, `uplevel #0 $cmd …`) dynamically
+        // evaluates $var's value as a script at runtime — its first word is
+        // the command actually dispatched, exactly the same "value is a
+        // command prefix" shape `{*}$cmd` already gets via `head_expanded`
+        // (issue #923 idx 94). `analyse_body` above only ever recurses a
+        // literal `Str` body, so this site was previously invisible to
+        // `command_invocations` entirely (missed by references/rename,
+        // unlike hover/go-to-definition's independent cursor-token walk) —
+        // record it the same way `record_var_or_cmd_command_site` records a
+        // command's own `$cmd`-headed dispatch, for `settle_const_dispatches`
+        // to resolve in the CFG/SSA phase. Guarded to a "pure" reference
+        // (`var_name == raw`) so a composite word like `${cmd}Suffix` (a
+        // literal-concatenated value, not $cmd's own value) is left alone.
+        if body_tok.kind == TokenType::Var {
+            let sm = tcl_lexer::SourceMap::new(&self.source);
+            let raw = sm.token_text(body_tok);
+            let var_name = raw
+                .split_once('}')
+                .map_or(raw, |(name, _)| name)
+                .to_string();
+            if var_name == raw {
+                let ns = self.command_resolution_namespace(scope_path);
+                self.pending_const_dispatches
+                    .push(super::state::ConstDispatchSite {
+                        var_name,
+                        span: body_tok.span,
+                        ns,
+                        head_expanded: true,
+                    });
+            }
+        }
         // When the body runs in a scoped command environment, record its
         // region (so the post-walk W123 pass and the LSP providers can
         // resolve the scoped heads by position) and push the environment

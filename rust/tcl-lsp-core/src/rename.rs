@@ -1388,7 +1388,7 @@ mod tests {
                 (start, end, e.new_text.as_str())
             })
             .collect();
-        spans.sort_by(|a, b| b.0.cmp(&a.0));
+        spans.sort_by_key(|s| std::cmp::Reverse(s.0));
         let mut result = source.to_string();
         for (start, end, new_text) in spans {
             result.replace_range(start..end, new_text);

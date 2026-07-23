@@ -1959,6 +1959,118 @@ mod rename {
 }
 
 // ===========================================================================
+// EvalUplevelIndirectDispatch — issue #923 idx 94: a bare `$var` body of an
+// `ArgRole::Body`-marked argument (`eval $cmd`, `uplevel #0 $cmd …`)
+// dynamically evaluates $var's value as a script at runtime, whose first
+// word is the command actually dispatched — previously invisible to
+// `command_invocations` (found by hover/go-to-definition via an independent
+// cursor-token walk, missed by references/rename).
+// ===========================================================================
+mod eval_uplevel_indirect_dispatch {
+    use super::*;
+
+    fn invocations(
+        src: &str,
+    ) -> Vec<tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
+        Analyser::new().analyse(src, D).command_invocations.clone()
+    }
+
+    #[test]
+    fn eval_of_a_list_computed_var_resolves_the_real_head() {
+        // TP — the finding's own minimal repro: `eval $cmdD` where `$cmdD`
+        // is built via `[list greetD World]` — a computed value, not a
+        // simple lexical literal the *lowering*-phase's simpler const-map
+        // can fold (see `try_lower_eval_static`'s `const_map_lookup`), so
+        // only the analyser's own flow-sensitive SSA-based
+        // `settle_const_dispatches` can resolve it. Real tclsh9.0/8.6-
+        // verified: `eval $cmdD` dispatches to `greetD World`.
+        let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
+        let invs = invocations(src);
+        assert!(
+            invs.iter()
+                .any(|i| i.indirect && i.resolved_qualified_name.as_deref() == Some("::greetD")),
+            "expected an indirect invocation resolving to ::greetD: {invs:?}"
+        );
+        // The `greetD` word inside `[list greetD World]` is also a
+        // separate, *direct*, rename-writable invocation at its own span
+        // (byte 45..51, `&src[45..51] == "greetD"`) — the actual command
+        // name as written, not just the `$cmdD` dispatch anchor.
+        assert!(
+            invs.iter().any(|i| !i.indirect
+                && i.rename_safe
+                && i.range == tcl_lexer::Span::new(45, 51)
+                && i.resolved_qualified_name.as_deref() == Some("::greetD")),
+            "expected a direct, rename-safe invocation anchored on greetD's own word: {invs:?}"
+        );
+    }
+
+    #[test]
+    fn uplevel_hash_zero_of_a_var_headed_script_resolves_the_real_head() {
+        // TP — the real `tk/library/tearoff.tcl` `MenuDup`-analogue shape:
+        // `uplevel #0 $cmd [list $w $newMenu]`. `$cmd`'s own value is the
+        // command name; the trailing `[list …]` argument supplies its
+        // arguments (uplevel concatenates all its post-level arguments into
+        // one script). tclsh9.0/8.6-verified: dispatches to `target`.
+        let src =
+            "proc target {a b} {puts \"$a-$b\"}\nset cmd target\nuplevel #0 $cmd [list x y]\n";
+        let invs = invocations(src);
+        assert!(
+            invs.iter()
+                .any(|i| i.indirect && i.resolved_qualified_name.as_deref() == Some("::target")),
+            "expected an indirect invocation resolving to ::target: {invs:?}"
+        );
+    }
+
+    #[test]
+    fn plain_eval_of_a_braced_literal_body_is_unaffected() {
+        // TN — control check: the ordinary literal-body `eval {…}` shape
+        // (handled entirely by `analyse_body`'s existing `Str`-token path)
+        // must keep resolving exactly as before; the new `Var`-token branch
+        // is additive, not a replacement.
+        let src = "proc target {} { return hi }\neval { target }\n";
+        let invs = invocations(src);
+        assert!(
+            invs.iter()
+                .any(|i| !i.indirect && i.resolved_qualified_name.as_deref() == Some("::target")),
+            "expected a direct (non-indirect) invocation resolving to ::target: {invs:?}"
+        );
+    }
+
+    #[test]
+    fn genuinely_dynamic_eval_body_stays_unresolved() {
+        // TN — regression guard: a value with no provable constant origin
+        // (piped through `gets`) must still abstain — no invocation
+        // recorded, matching the analyser's existing conservative default.
+        let src = "proc target {} { return hi }\nset cmd [gets stdin]\neval $cmd\n";
+        let invs = invocations(src);
+        assert!(
+            !invs
+                .iter()
+                .any(|i| i.resolved_qualified_name.as_deref() == Some("::target")),
+            "a genuinely dynamic eval body must not resolve: {invs:?}"
+        );
+    }
+
+    #[test]
+    fn resolves_identically_inside_a_proc_body() {
+        // TN (confirms a hypothesis in the finding's own root-cause hint is
+        // moot): the auditor flagged "worth checking whether per-proc
+        // FunctionUnits reach settle_one_site with usable SSA/def-use data
+        // the same way the top-level unit does" as a second, compounding
+        // gap. Empirically it isn't one — `function_unit_at`/
+        // `const_contributors` have no top-level-vs-proc special-casing,
+        // and this resolves identically to the top-level repro above.
+        let src = "proc greetD {n} {puts \"D $n\"}\nproc caller {} {\n    set cmdD [list greetD World]\n    eval $cmdD\n}\n";
+        let invs = invocations(src);
+        assert!(
+            invs.iter()
+                .any(|i| i.indirect && i.resolved_qualified_name.as_deref() == Some("::greetD")),
+            "expected an indirect invocation resolving to ::greetD even inside a proc body: {invs:?}"
+        );
+    }
+}
+
+// ===========================================================================
 // TestW123UnresolvedCommand — unknown-command detection.
 // ===========================================================================
 mod unresolved_command {

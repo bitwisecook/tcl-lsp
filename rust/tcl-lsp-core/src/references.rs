@@ -2728,20 +2728,30 @@ mod tests {
     }
 
     #[test]
-    fn references_do_not_treat_a_dynamic_bareword_body_as_a_static_call() {
-        // FP guard — a single-token `$var`/`[cmd]` body (already exempted
-        // from W105 for a different, documented reason: it's a
-        // script-valued reference, not an inline literal) must NOT be
-        // treated as a static bareword call to a command literally named
-        // `$cb` — it stays exactly as unresolved/dynamic as before.
+    fn references_resolve_a_constant_var_body_through_its_real_value_not_its_literal_text() {
+        // Was an FP guard against treating `$cb` as a static call to a
+        // command literally *named* `$cb` — that concern still holds (this
+        // test's own name reflects it), but real tclsh9.0/8.6-verified
+        // behavior is that `if {1} $cb` (a bare-`$var` `if`-body, evaluated
+        // as a script exactly like `eval`/`uplevel`'s bodies) genuinely
+        // calls `foo` when `$cb` holds that constant value — printing
+        // "CALLED" for a `proc foo {} { puts CALLED }`. Issue #923 idx 94
+        // wires up exactly this dispatch (`dispatch_one_body_argument`'s
+        // `TokenType::Var` branch, generic across every `ArgRole::Body`
+        // argument, not just `eval`/`uplevel`'s), so `foo`'s own reference
+        // set correctly grows to include this call site — the failure mode
+        // this test now guards is a *literal* `$cb`-named command
+        // reference ever appearing, which never happens (there is no such
+        // command in `all_procs` to resolve to).
         let src = "proc foo {} { return 1 }\nset cb foo\nif {1} $cb\n";
         let analysis = analyse(src);
         let refs = references(src, "tcl", 0, 6, &analysis, true);
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(
-            !lines.contains(&2),
-            "a dynamic $var body must not be recorded as a call to a literal '$cb': {refs:?}"
+            lines.contains(&2),
+            "`if {{1}} $cb` really does dispatch to `foo` (tclsh9.0/8.6-verified) \
+             and must be found: {refs:?}"
         );
     }
 
@@ -3453,5 +3463,23 @@ mod tests {
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(lines.contains(&1), "call site missing: {refs:?}");
+    }
+
+    #[test]
+    fn references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var() {
+        // Issue #923 idx 94: the finding's own minimal repro — `eval $cmdD`
+        // where `$cmdD` is built via `[list greetD World]` — previously
+        // returned only the declaration; the call site living inside
+        // `eval $cmdD` was invisible.
+        let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
+        let analysis = analyse(src);
+        // Line 0 — cursor on `greetD`'s declaration name (col 6).
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&1),
+            "the `greetD` word inside `[list greetD World]` must be reachable too: {refs:?}"
+        );
     }
 }
