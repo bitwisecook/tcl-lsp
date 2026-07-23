@@ -982,6 +982,28 @@ impl AnalysisResult {
             .chain(self.all_classes.values().map(|c| c.body_span))
             .any(|span| span.start() <= off && off < span.end())
     }
+
+    /// The qualified name of the *innermost* recorded proc or class
+    /// definition whose body contains offset `off`, or `None` when `off`
+    /// isn't inside any recorded definition body.  Bodies can nest (a
+    /// `proc` written inside another proc's or a class's body), so this
+    /// picks the smallest enclosing span rather than an arbitrary match —
+    /// the definition whose body most tightly wraps `off` is the one that
+    /// actually runs when the call at `off` executes.
+    #[must_use]
+    pub fn enclosing_definition_qualified_name(&self, off: u32) -> Option<&str> {
+        self.all_procs
+            .values()
+            .map(|p| (p.qualified_name.as_str(), p.body_span))
+            .chain(
+                self.all_classes
+                    .values()
+                    .map(|c| (c.qualified_name.as_str(), c.body_span)),
+            )
+            .filter(|(_, span)| span.start() <= off && off < span.end())
+            .min_by_key(|(_, span)| span.end() - span.start())
+            .map(|(qn, _)| qn)
+    }
 }
 
 /// `package provide NAME ?VERSION?` record.

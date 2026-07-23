@@ -10554,3 +10554,63 @@ fn w123_fp_issue_1006_rename_target_deletion_inside_never_triggered_body_resolve
     let src = "proc helper {} { return 1 }\nrename helper ha2\nproc maybeDelete {} { rename ha2 {} }\nproc caller {} { ha2 }\n";
     assert_eq!(w123_codes(src), Vec::<String>::new());
 }
+
+// `fact_live_for_call`'s body-call escape hatch, Codex PR #1014 review
+// comment #2 (`unresolved.rs:260`): a call *inside* a proc/class body
+// carries no execution-order meaning from its own textual position — it
+// was wrongly treated as automatically after every top-level deletion, so
+// a body call whose enclosing definition demonstrably ran before a later
+// deletion still drew a spurious W123. Confirmed against tclsh 8.6.14
+// throughout.
+
+#[test]
+fn w123_fp_issue_1009_codex_review_body_call_before_later_deletion_resolves() {
+    // FP guard (the confirmed regression): `caller`'s own top-level
+    // invocation runs before `rename helper {}`, so the `helper` call
+    // inside its body must still resolve — confirmed against tclsh 8.6.14
+    // (the script prints "ok" and exits 0).
+    let src = "proc helper {} {}\nproc caller {} { helper }\ncaller\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_1009_codex_review_deleted_before_definition_still_flags() {
+    // TP regression: `helper` is deleted *before* `caller` is even
+    // defined, with no re-establishment — the body call must still draw
+    // W123 (confirmed against tclsh 8.6.14: `invalid command name
+    // "helper"`).
+    let src = "proc helper {} {}\nrename helper {}\nproc caller {} { helper }\ncaller\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_tp_issue_1009_codex_review_deleted_between_definition_and_call_still_flags() {
+    // TP regression: `helper` is deleted *after* `caller` is defined but
+    // *before* `caller` is ever invoked — the body call must still draw
+    // W123 (confirmed against tclsh 8.6.14: `invalid command name
+    // "helper"`, even though `caller`'s own definition predates the
+    // deletion).
+    let src = "proc helper {} {}\nproc caller {} { helper }\nrename helper {}\ncaller\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_fp_issue_1009_codex_review_method_body_call_before_later_deletion_resolves() {
+    // FP guard, TclOO variant: a method body call before a later
+    // unconditional deletion of the command it calls must also resolve —
+    // confirmed against tclsh 8.6.14 (the script prints "ok" and exits 0).
+    let src = "proc helper {} { return hi }\noo::class create Widget {\n    method run {} { helper }\n}\nWidget create w1\nw1 run\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_1009_codex_review_escape_hatch_requires_specific_enclosing_call() {
+    // FN guard: an unrelated proc's top-level invocation must not "lend"
+    // liveness to a different, never-invoked enclosing definition — only
+    // `unrelated` is called at the top level before the deletion, `caller`
+    // itself never is, so the `helper` call inside `caller`'s body must
+    // still draw W123 (the same base shape the original #973 fix already
+    // covers when there is no competing top-level call at all).
+    let src = "proc helper {} {}\nproc caller {} { helper }\nproc unrelated {} { return 1 }\nunrelated\nrename helper {}\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}

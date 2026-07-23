@@ -167,6 +167,113 @@ fn const_dispatch_still_references_a_proc_reestablished_after_deletion_1009() {
     );
 }
 
+// Issue #1009, Codex PR #1014 review follow-up — two confirmed false
+// positives found in review after the original #1009/#1006/#973 fixes
+// landed:
+//
+// 1. `scope.rs`'s `finalise_invocation_resolutions` picked between a local
+//    and a global candidate using a *file-end-only* deletion check, so a
+//    namespaced local call textually before a later unconditional
+//    deletion wrongly lost to the global candidate.
+// 2. `fact_live_for_call` treated *any* call inside a proc/class body as
+//    automatically after every top-level deletion, drawing a spurious
+//    W123 even when the enclosing definition's own top-level invocation
+//    demonstrably ran before that deletion.
+//
+// Both confirmed against tclsh 8.6.14 (see the unit tests alongside
+// `finalise_invocation_resolutions` and `fact_live_for_call` for the exact
+// repros run under a real interpreter).
+
+// These two use `references` rather than `definition`: go-to-definition's
+// own call-site resolver (`tcl-lsp-core::definition::resolve_called_proc`)
+// is a namespace-visibility check with no deletion tracking of its own, so
+// it always prefers a namespace-visible local proc regardless of a later
+// `rename` — it does not exercise `finalise_invocation_resolutions`'s fix.
+// `references` does: it matches a call site against a definition via
+// `resolved_qualified_name` (`tcl-lsp-core::references`), the exact field
+// this fix corrects.
+
+#[test]
+fn local_call_before_later_deletion_is_a_reference_to_the_local_definition_codex_1009() {
+    // TP: `foo::caller`'s own top-level invocation (line 5) runs before
+    // `rename foo::bar {}` (line 6), so the `bar` call inside its body
+    // must be a reference to the *local* `::foo::bar` (line 2), not the
+    // global `bar` (line 0).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    proc caller {} { return [bar] }\n}\nfoo::caller\nrename foo::bar {}\n";
+    lsp.open_ready(&uri, src);
+    let local_refs = start_lines(&lsp.references(&uri, 2, 9, false));
+    assert!(
+        local_refs.contains(&3),
+        "the call before the deletion must reference the local definition: {local_refs:?}"
+    );
+    let global_refs = start_lines(&lsp.references(&uri, 0, 5, false));
+    assert!(
+        !global_refs.contains(&3),
+        "the call must not also reference the global definition: {global_refs:?}"
+    );
+}
+
+#[test]
+fn local_call_after_deletion_is_a_reference_to_the_global_definition_issue_973() {
+    // FN guard / regression: `foo::caller` is only ever invoked (line 6,
+    // after `rename foo::bar {}` on line 3) — the local `bar` is genuinely
+    // gone by the time the call executes, so it must be a reference to
+    // the global `bar` (line 0), not the local one (line 2). Guards
+    // against #973's original fix regressing.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    rename foo::bar {}\n    proc caller {} { return [bar] }\n}\nfoo::caller\n";
+    lsp.open_ready(&uri, src);
+    // Driven by `resolved_qualified_name` resolving to the global `::bar`:
+    // before this fix it stayed `::foo::bar`, and `invocation_references_named`
+    // would not have matched this query at all (`call_ns` ("foo") differs
+    // from the global definition's own namespace ("")).
+    let global_refs = start_lines(&lsp.references(&uri, 0, 5, false));
+    assert!(
+        global_refs.contains(&4),
+        "a call genuinely after the deletion must reference the global definition: {global_refs:?}"
+    );
+}
+
+#[test]
+fn body_call_before_later_deletion_draws_no_w123_codex_1009() {
+    // FP guard (the confirmed regression): `caller`'s own top-level
+    // invocation runs before `rename helper {}`, so the `helper` call
+    // inside its body must draw no W123 — confirmed against tclsh 8.6.14
+    // (the script runs to completion).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {} {}\nproc caller {} { helper }\ncaller\nrename helper {}\n";
+    lsp.open_ready(&uri, src);
+    let diags = lsp.await_diagnostics(&uri);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.get("code").and_then(Value::as_str) == Some("W123")),
+        "a body call before a later deletion must not draw W123: {diags:?}"
+    );
+}
+
+#[test]
+fn body_call_deleted_before_definition_still_draws_w123_issue_973() {
+    // TP regression: `helper` is deleted before `caller` is even defined,
+    // with no re-establishment — the body call must still draw W123
+    // (confirmed against tclsh 8.6.14: `invalid command name "helper"`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {} {}\nrename helper {}\nproc caller {} { helper }\ncaller\n";
+    lsp.open_ready(&uri, src);
+    let diags = lsp.await_diagnostics(&uri);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.get("code").and_then(Value::as_str) == Some("W123")),
+        "helper was deleted before caller was even defined: {diags:?}"
+    );
+}
+
 #[test]
 fn branch_joined_dispatch_definition_offers_both_targets_945() {
     let mut lsp = Lsp::tcl();

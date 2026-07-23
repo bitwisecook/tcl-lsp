@@ -78,11 +78,75 @@ suite("Issue #945 resolution model", () => {
       new vscode.Position(0, 5),
     )) as vscode.Location[];
 
-    const lines = (locations ?? []).map((l) => l.range.start.line);
+    // Same-document hits only: a sibling fixture left open by an earlier
+    // test in this suite (`issue945ConstDispatch.tcl`) shares this file's
+    // `target`/`$cmd` shape but without the deletion, and legitimately
+    // surfaces its own live references under cross-document search — those
+    // must not be mistaken for this fixture's dead dispatch.
+    const lines = (locations ?? [])
+      .filter((l) => l.uri.toString() === docUri.toString())
+      .map((l) => l.range.start.line);
     assert.ok(
       !lines.includes(2) && !lines.includes(3),
       `a proc deleted with no re-establishment must draw no reference from ` +
         `the dead $cmd dispatch ("set cmd target" / "$cmd"): ${JSON.stringify(lines)}`,
+    );
+  });
+
+  // Codex PR #1014 review follow-up — two confirmed false positives found
+  // in review after the #1009/#1006/#973 fixes landed. Both confirmed
+  // against tclsh 8.6.14; deep TP/FP/TN coverage lives in the analyser and
+  // native e2e suites (see `fact_live_for_call` / `finalise_invocation_resolutions`
+  // unit tests and `rust/tcl-lsp-server/tests/e2e/issue945.rs`); these
+  // prove the fixes reach a real VS Code session.
+
+  test("body call before a later deletion draws no W123 (Codex review)", async () => {
+    const docUri = getDocUri("issue1009CodexBodyCallBeforeDeletion.tcl");
+    await activate(docUri);
+
+    // `caller`'s own top-level invocation (line 2) runs before `rename
+    // helper {}` (line 3), so the `helper` call inside its body must not
+    // draw W123 — confirmed against tclsh 8.6.14 (the script runs to
+    // completion).
+    const diags = vscode.languages.getDiagnostics(docUri);
+    assert.ok(
+      !diags.some((d) => String(d.code) === "W123"),
+      `a body call before a later deletion must not draw W123: ${JSON.stringify(diags.map((d) => d.code))}`,
+    );
+  });
+
+  test("namespaced local call before a later deletion is a reference to the local definition (Codex review)", async () => {
+    const docUri = getDocUri("issue1009CodexLocalCallBeforeDeletion.tcl");
+    await activate(docUri);
+
+    // `foo::caller`'s own top-level invocation (line 5) runs before
+    // `rename foo::bar {}` (line 6), so the `bar` call inside its body
+    // must reference the local `::foo::bar` (line 2 — `bar` at col 9),
+    // not the global `bar` (line 0 — `bar` at col 5).
+    const localRefs = ((await vscode.commands.executeCommand(
+      "vscode.executeReferenceProvider",
+      docUri,
+      new vscode.Position(2, 9),
+    )) ?? []) as vscode.Location[];
+    const localLines = localRefs
+      .filter((l) => l.uri.toString() === docUri.toString())
+      .map((l) => l.range.start.line);
+    assert.ok(
+      localLines.includes(3),
+      `the call before the deletion must reference the local definition: ${JSON.stringify(localLines)}`,
+    );
+
+    const globalRefs = ((await vscode.commands.executeCommand(
+      "vscode.executeReferenceProvider",
+      docUri,
+      new vscode.Position(0, 5),
+    )) ?? []) as vscode.Location[];
+    const globalLines = globalRefs
+      .filter((l) => l.uri.toString() === docUri.toString())
+      .map((l) => l.range.start.line);
+    assert.ok(
+      !globalLines.includes(3),
+      `the call must not also reference the global definition: ${JSON.stringify(globalLines)}`,
     );
   });
 

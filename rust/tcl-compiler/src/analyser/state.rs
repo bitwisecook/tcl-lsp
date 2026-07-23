@@ -293,6 +293,20 @@ pub struct Analyser {
     /// [`Self::rename_offsets`]), instead of still validating it against
     /// a definition that's no longer callable under that name.
     pub deleted_commands: HashMap<String, u32>,
+    /// Earliest source offset, among this file's recorded command
+    /// invocations, of a *top-level* (not inside any proc/class body) call
+    /// resolving to each qualified name — keyed by `resolved_qualified_name`.
+    /// Populated once by [`Self::finalise_invocation_resolutions`] from the
+    /// already-settled `command_invocations`, and consulted by
+    /// [`Self::fact_live_for_call`] when the call site under test is itself
+    /// nested inside a body: a proven top-level invocation of the
+    /// *enclosing* definition that ran before a later unconditional
+    /// deletion means that invocation's own nested calls already resolved
+    /// (issue #1009 Codex review: `proc helper {}`, `proc caller {} {
+    /// helper }`, `caller`, `rename helper {}` resolves in real Tcl —
+    /// confirmed against tclsh 8.6.14 — because `caller`'s own top-level
+    /// invocation runs before the rename).
+    pub(super) top_level_call_offsets: HashMap<String, u32>,
     /// Static `namespace path {…}` declarations: ``declaring namespace →
     /// raw path entries`` (each declaration replaces the whole path, as in
     /// C Tcl, so the lexically-last one wins). Entries are stored as
@@ -688,6 +702,7 @@ impl Analyser {
             alias_offsets: HashMap::new(),
             rename_offsets: HashMap::new(),
             deleted_commands: HashMap::new(),
+            top_level_call_offsets: HashMap::new(),
             namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
             pending_const_dispatches: Vec::new(),

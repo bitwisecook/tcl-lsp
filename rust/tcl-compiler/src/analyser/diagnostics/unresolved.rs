@@ -247,6 +247,22 @@ impl Analyser {
     /// `command_invocations` question — `const_dispatch.rs`'s constant-
     /// `$cmd` settlement (issue #1009) — reuse this rather than
     /// reimplementing it.
+    ///
+    /// A call *inside* a body carries no execution-order meaning from its
+    /// own textual position — it runs whenever the enclosing definition is
+    /// invoked, not when its text was written — so a call there falls back
+    /// to a narrower, still-sound question: does [`Self::top_level_call_offsets`]
+    /// record a *top-level* invocation of the innermost enclosing
+    /// definition ([`super::super::types::AnalysisResult::enclosing_definition_qualified_name`])
+    /// that provably ran before the deletion? If so, that invocation's own
+    /// nested calls already resolved (issue #1009 Codex review: `proc
+    /// helper {}`, `proc caller {} { helper }`, `caller`, `rename helper
+    /// {}` resolves in real Tcl — confirmed against tclsh 8.6.14 — because
+    /// `caller`'s own top-level call runs before the rename). Absent such
+    /// proof (the enclosing definition is never called at the top level in
+    /// this file, or only after the deletion), the existing conservative
+    /// default holds: an unconditional top-level deletion is in effect for
+    /// every call inside any body.
     pub(super) fn fact_live_for_call(&self, qualified: &str, fact_off: u32, call_off: u32) -> bool {
         let Some(&del_off) = self.deleted_commands.get(qualified) else {
             return true;
@@ -257,7 +273,13 @@ impl Analyser {
         if self.offset_is_inside_definition_body(del_off) {
             return true;
         }
-        !self.offset_is_inside_definition_body(call_off) && call_off <= del_off
+        if !self.offset_is_inside_definition_body(call_off) {
+            return call_off <= del_off;
+        }
+        self.result
+            .enclosing_definition_qualified_name(call_off)
+            .and_then(|qn| self.top_level_call_offsets.get(qn))
+            .is_some_and(|&t| t < del_off)
     }
 
     /// The tail set for a "known command" map whose own fact is still
