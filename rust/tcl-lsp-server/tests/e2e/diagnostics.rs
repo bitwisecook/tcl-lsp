@@ -1243,6 +1243,47 @@ fn w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
+// Issue #923 idx 18 (tcllib): the standard `upvar N $fvar ...` +
+// `uplevel N $script` "custom control structure" idiom false-fires W210
+// whenever the proc performing the upvar/uplevel is one call-hop away from
+// the literal call site — real tcllib repro:
+// `modules/page/util_flow.tcl`'s `::page::util::flow` wrapper `proc`
+// (which hands its own params to a snit type's constructor, which does the
+// actual `upvar`/`uplevel` work). tclsh9.0/8.6-verified the minimal
+// wrapper/worker shape below runs cleanly.
+
+#[test]
+fn w210_silent_for_upvar_proc_reached_through_a_wrapper_923_idx18() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc wrapper {fvar nvar script} {\n    real_worker $fvar $nvar $script\n}\nwrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_silent_across_a_two_hop_wrapper_chain_923_idx18() {
+    // The fixed-point propagation must reach an N-hop chain, not just one
+    // hop: `outer_wrapper` calls `middle_wrapper` (itself only a
+    // transitively-discovered upvar proc), which calls `real_worker`
+    // directly.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc middle_wrapper {fvar nvar script} {\n    real_worker $fvar $nvar $script\n}\nproc outer_wrapper {fvar nvar script} {\n    middle_wrapper $fvar $nvar $script\n}\nouter_wrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_still_fires_when_wrapper_does_not_pass_its_own_params_through_923_idx18() {
+    // TN — `unrelated_wrapper` calls the known upvar proc `real_worker`
+    // with literal args ("x"/"y"), not its own parameters passed through
+    // unchanged. tclsh9.0/8.6-verified this genuinely errors ("can't read
+    // \"myf\": no such variable"), so it must still warn.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc unrelated_wrapper {a b c} {\n    real_worker x y $c\n}\nunrelated_wrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
+    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
 // -- W307: a variable used in command position ---------------------------
 
 #[test]
