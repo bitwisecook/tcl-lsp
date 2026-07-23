@@ -340,14 +340,13 @@ fn test_property_lens_zero_when_unused() {
 }
 
 #[test]
-fn test_property_method_and_class_all_get_lenses_constructor_does_not_issue_992() {
+fn test_property_method_constructor_and_class_all_get_lenses_issue_992() {
     // Repro from issue #992: a class with a `property`, a `constructor`, and
-    // a `method` gets exactly three lenses — the class itself, the property,
-    // and the method — with the constructor intentionally excluded (a
-    // constructor is invoked positionally, `Widget new`/`create`, never
-    // dispatched by name, so "N references" has no obvious meaning for it;
-    // out of scope for this fix per the issue's own "Constructors /
-    // destructors" discussion).
+    // a `method` gets a lens for every one of them — the class itself, the
+    // property, the constructor, and the method. The constructor's lens is
+    // scoped to the next-chain relationship (issue #992's own "Constructors
+    // / destructors" follow-up), not a general dispatch count, so it reads
+    // "0 references" here (nothing chains into it).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
@@ -357,8 +356,8 @@ fn test_property_method_and_class_all_get_lenses_constructor_does_not_issue_992(
     let ls = lenses(&mut lsp, &uri);
     assert_eq!(
         ls.len(),
-        3,
-        "class + property + method, no constructor: {ls:?}"
+        4,
+        "class + property + constructor + method: {ls:?}"
     );
 
     let class_lens = resolve_member_lens_on_line(&mut lsp, &ls, 1);
@@ -368,16 +367,44 @@ fn test_property_method_and_class_all_get_lenses_constructor_does_not_issue_992(
     assert_eq!(property_lens["title"], json!("0 references"), "{ls:?}");
     assert_eq!(property_lens["command"], json!("tcl-lsp.showReferences"));
 
-    // No lens anchored on line 3 — the `constructor` declaration.
-    assert!(
-        !ls.iter()
-            .any(|l| l["range"]["start"]["line"].as_i64() == Some(3)),
-        "constructor must not get a lens: {ls:?}"
-    );
+    let constructor_lens = resolve_member_lens_on_line(&mut lsp, &ls, 3);
+    assert_eq!(constructor_lens["title"], json!("0 references"), "{ls:?}");
+    assert_eq!(constructor_lens["command"], json!("tcl-lsp.showReferences"));
 
     let method_lens = resolve_member_lens_on_line(&mut lsp, &ls, 4);
     assert_eq!(method_lens["title"], json!("1 reference"), "{ls:?}");
     assert_eq!(method_lens["command"], json!("tcl-lsp.showReferences"));
+}
+
+#[test]
+fn test_constructor_lens_counts_and_resolves_subclass_next_chain() {
+    // TP for issue #992's own follow-up: a subclass constructor chaining to
+    // its superclass's via `next` is a name-independent but still
+    // meaningful reference — the superclass constructor's lens must count
+    // it and resolve to a clickable command, the same as every other lens
+    // kind.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n}\n",
+    );
+    let ls = lenses(&mut lsp, &uri);
+    // `Base`'s constructor is on line 1.
+    let command = resolve_member_lens_on_line(&mut lsp, &ls, 1);
+    assert_eq!(command["title"], json!("1 reference"), "{ls:?}");
+    assert_eq!(
+        command["command"],
+        json!("tcl-lsp.showReferences"),
+        "constructor lens resolved to an inert command: {command:?}"
+    );
+    // The lens count must equal Find All References (declaration excluded)
+    // on the `constructor` keyword (`    constructor` → col 4).
+    let refs = match lsp.references(&uri, 1, 4, false) {
+        Value::Array(a) => a,
+        _ => Vec::new(),
+    };
+    assert_eq!(refs.len(), 1, "peek disagrees with lens: {refs:?}");
 }
 
 // -- TestDocumentLinks ---------------------------------------------------

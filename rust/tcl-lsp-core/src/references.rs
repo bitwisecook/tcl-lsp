@@ -314,7 +314,64 @@ pub fn references(
         return out;
     }
 
+    // `constructor` / `destructor` keyword — the next-chain reference story
+    // (issue #992); neither has a name to dispatch on, so no `my`/`$obj`
+    // call-site scan applies the way it does for a method.
+    if let Some(out) = constructor_or_destructor_references(&ctx, &word) {
+        return out;
+    }
+
     Vec::new()
+}
+
+/// Build references for a `constructor` / `destructor` keyword: when the
+/// cursor sits inside a class body on the keyword token of that class's own
+/// *effective* declaration (the last `constructor`, or the single
+/// `destructor`), surface its declaration plus every `next`/`nextto` site —
+/// in *any* class — whose MRO target resolves to it
+/// ([`constructor_next_chain_references`] / [`destructor_next_chain_references`]).
+///
+/// A cursor on a shadowed (non-last) `constructor` declaration resolves to
+/// nothing here — `oo::configurable` allows several, but only the last is
+/// ever reachable, so an earlier one has no reference story worth surfacing.
+fn constructor_or_destructor_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    } = *ctx;
+    if word != "constructor" && word != "destructor" {
+        return None;
+    }
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let class_def = analysis
+        .all_classes
+        .values()
+        .find(|cd| cd.body_span.start() < cursor_offset && cursor_offset < cd.body_span.end())?;
+    let name_span = if word == "constructor" {
+        class_def.constructors.last().map(|c| c.name_span)
+    } else {
+        class_def.destructor.as_ref().map(|d| d.name_span)
+    }?;
+    if !(name_span.start() <= cursor_offset && cursor_offset <= name_span.end()) {
+        return None;
+    }
+    let (decl_span, call_spans) = if word == "constructor" {
+        constructor_next_chain_references(source, dialect, analysis, &class_def.qualified_name)
+    } else {
+        destructor_next_chain_references(source, dialect, analysis, &class_def.qualified_name)
+    }?;
+    Some(build_member_ranges(
+        source,
+        line_index,
+        decl_span,
+        call_spans,
+        include_declaration,
+    ))
 }
 
 /// Shared immutable inputs for the per-kind reference resolvers, so each
@@ -815,6 +872,95 @@ pub fn method_next_dispatch_spans(
     scan_next_dispatch_sites(source, dialect, m.body_span)
 }
 
+/// Canonicalise a written class name (`nextto`'s argument) to the qualified
+/// form keyed in `analysis.all_classes`, owner-aware — the same resolution
+/// `definition.rs`'s go-to-definition `next`/`nextto` handling uses (kept as
+/// a separate copy rather than shared: it is a two-line wrapper around the
+/// registry's own `resolve_class_name`, so a cross-module `pub(crate)`
+/// promotion would cost more than it saves). Falls back to the written name
+/// when nothing resolves, so the caller's MRO lookup simply finds no match.
+fn canonicalise_class_name(analysis: &AnalysisResult, owner: &str, name: &str) -> String {
+    let tail_index =
+        tcl_compiler::analyser::class_hierarchy::build_tail_index(analysis.all_classes.keys());
+    tcl_compiler::analyser::class_hierarchy::resolve_class_name(
+        name,
+        owner,
+        |n| analysis.all_classes.contains_key(n),
+        &tail_index,
+    )
+    .unwrap_or_else(|| name.to_owned())
+}
+
+/// Every `next` / `nextto` call site — across every other class in this
+/// document — whose target resolves (via the class hierarchy's MRO) to
+/// `class_q`'s own effective constructor: a subclass constructor chaining
+/// up to its superclass's is a name-independent but still meaningful
+/// "referenced by an overriding subclass" relationship (issue #992), the
+/// constructor counterpart of [`method_next_dispatch_spans`]. Constructors
+/// have no name-based dispatch, so this next-chain scan is the *whole*
+/// reference story for one — no `my`/`$obj` call-site scan applies, unlike
+/// [`method_references_for_class`]. Returns `None` when `class_q` declares
+/// no explicit constructor.
+pub(crate) fn constructor_next_chain_references(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    let class_def = analysis.all_classes.get(class_q)?;
+    let decl_span = class_def.constructors.last()?.name_span;
+    let hierarchy = analysis.class_hierarchy();
+    let mut call_spans = Vec::new();
+    for (other_q, other_cd) in &analysis.all_classes {
+        if other_q == class_q {
+            continue;
+        }
+        let Some(ctor) = other_cd.constructors.last() else {
+            continue;
+        };
+        for (span, target) in scan_next_dispatch_sites_with_target(source, dialect, ctor.body_span)
+        {
+            let start_from = target.map(|t| canonicalise_class_name(analysis, other_q, &t));
+            if hierarchy.constructor_next_provider(other_q, start_from.as_deref(), source)
+                == Some(class_q)
+            {
+                call_spans.push(span);
+            }
+        }
+    }
+    Some((decl_span, call_spans))
+}
+
+/// The destructor counterpart of [`constructor_next_chain_references`].
+/// Returns `None` when `class_q` declares no explicit destructor.
+pub(crate) fn destructor_next_chain_references(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    let class_def = analysis.all_classes.get(class_q)?;
+    let decl_span = class_def.destructor.as_ref()?.name_span;
+    let hierarchy = analysis.class_hierarchy();
+    let mut call_spans = Vec::new();
+    for (other_q, other_cd) in &analysis.all_classes {
+        if other_q == class_q {
+            continue;
+        }
+        let Some(dtor) = &other_cd.destructor else {
+            continue;
+        };
+        for (span, target) in scan_next_dispatch_sites_with_target(source, dialect, dtor.body_span)
+        {
+            let start_from = target.map(|t| canonicalise_class_name(analysis, other_q, &t));
+            if hierarchy.destructor_next_provider(other_q, start_from.as_deref()) == Some(class_q) {
+                call_spans.push(span);
+            }
+        }
+    }
+    Some((decl_span, call_spans))
+}
+
 /// The external `$obj method` / bare `objcmd method` call sites for `method`
 /// on instances of `class_q` **within `source`**, independent of whether
 /// `class_q` is *defined* in this document.
@@ -1027,33 +1173,57 @@ fn scan_my_method_region(
 /// exactly like [`scan_my_method_region`] / [`scan_obj_method_region`] — a
 /// `next` inside an `if` / `while` / `foreach` / `switch` / `try` / `catch`
 /// body is found too (issue #957's general form).
+///
+/// Thin wrapper over [`scan_next_dispatch_sites_with_target`] that drops the
+/// `nextto` target argument — a method's `next`/`nextto` is flagged as a
+/// reference purely by presence, never MRO-resolved, so the target is
+/// irrelevant here (unlike the constructor/destructor next-chain resolvers,
+/// which need it to disambiguate `nextto`).
 fn scan_next_dispatch_sites(
     source: &str,
     dialect: &str,
     body: tcl_lexer::Span,
 ) -> Vec<tcl_lexer::Span> {
-    let mut out: Vec<tcl_lexer::Span> = Vec::new();
+    scan_next_dispatch_sites_with_target(source, dialect, body)
+        .into_iter()
+        .map(|(span, _target)| span)
+        .collect()
+}
+
+/// [`scan_next_dispatch_sites`], but paired with `nextto`'s target-class
+/// argument as written (`None` for plain `next`, which takes no argument, or
+/// for a malformed `nextto` with no argument token). Feeds the
+/// constructor/destructor next-chain resolvers
+/// ([`constructor_next_chain_references`] / [`destructor_next_chain_references`]),
+/// which must know *which* class a `nextto` names to decide whether it
+/// chains to the class under a given lens.
+fn scan_next_dispatch_sites_with_target(
+    source: &str,
+    dialect: &str,
+    body: tcl_lexer::Span,
+) -> Vec<(tcl_lexer::Span, Option<String>)> {
+    let mut out = Vec::new();
     if body.is_empty() {
         return out;
     }
     let (start, end) = strip_outer_braces(source, body);
     if start < end {
-        scan_next_dispatch_region(source, dialect, start, end, 0, &mut out);
+        scan_next_dispatch_region_with_target(source, dialect, start, end, 0, &mut out);
     }
     out
 }
 
-/// Segment `source[start..end]` and append the head-token span of every
-/// `next` / `nextto` command, recursing per [`nested_dispatch_regions`].
-/// `depth` guards against runaway recursion — see
-/// [`MAX_DISPATCH_SCAN_DEPTH`].
-fn scan_next_dispatch_region(
+/// Segment `source[start..end]` and append the head-token span (plus
+/// `nextto`'s target argument, when present) of every `next` / `nextto`
+/// command, recursing per [`nested_dispatch_regions`]. `depth` guards
+/// against runaway recursion — see [`MAX_DISPATCH_SCAN_DEPTH`].
+fn scan_next_dispatch_region_with_target(
     source: &str,
     dialect: &str,
     start: usize,
     end: usize,
     depth: u32,
-    out: &mut Vec<tcl_lexer::Span>,
+    out: &mut Vec<(tcl_lexer::Span, Option<String>)>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     if start >= end || end > source.len() || depth > MAX_DISPATCH_SCAN_DEPTH {
@@ -1071,12 +1241,29 @@ fn scan_next_dispatch_region(
             if h_end <= source.len() && h_start < h_end {
                 let h = &source[h_start..h_end];
                 if h == "next" || h == "nextto" {
-                    out.push(head.span);
+                    let target =
+                        (h == "nextto")
+                            .then(|| cmd.argv.get(1))
+                            .flatten()
+                            .and_then(|tok| {
+                                let (a_start, a_end) =
+                                    (tok.span.start() as usize, tok.span.end() as usize);
+                                (a_end <= source.len() && a_start < a_end)
+                                    .then(|| source[a_start..a_end].to_owned())
+                            });
+                    out.push((head.span, target));
                 }
             }
         }
         for (inner_start, inner_end) in nested_dispatch_regions(source, dialect, cmd) {
-            scan_next_dispatch_region(source, dialect, inner_start, inner_end, depth + 1, out);
+            scan_next_dispatch_region_with_target(
+                source,
+                dialect,
+                inner_start,
+                inner_end,
+                depth + 1,
+                out,
+            );
         }
     }
 }
@@ -2004,6 +2191,87 @@ mod tests {
                 .any(|r| r.start_line == 5 && r.start_character > 15),
             "expected the `next` dispatch among refs: {refs:?}",
         );
+    }
+
+    // Constructor / destructor next-chain references (issue #992).
+
+    #[test]
+    fn constructor_next_chain_reference_from_direct_subclass() {
+        // `Sub`'s constructor calls plain `next`, chaining to `Base`'s —
+        // cursor on `Base`'s own `constructor` keyword must surface that
+        // chain as a reference.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n}\n";
+        let analysis = analyse(src);
+        // `constructor` keyword on line 1, col 4.
+        let refs = references(src, "tcl", 1, 6, &analysis, true);
+        // decl (line 1) + the `next` call site (line 5).
+        assert_eq!(refs.len(), 2, "{refs:?}");
+        assert!(refs.iter().any(|r| r.start_line == 5), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_skips_non_overriding_subclass() {
+        // `Sub` inherits `Base`'s constructor outright (declares none of its
+        // own) — nothing to chain, so `Base`'s constructor stays unreferenced.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_not_counted_without_next() {
+        // `Sub` declares its own constructor but never calls `next` — a
+        // legitimate full override, not a chain.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { set x 1 }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_skips_ancestor_with_no_own_constructor() {
+        // `Mid` declares no constructor of its own; `Sub`'s `next` must
+        // still reach `Base` (the actual MRO-effective provider), not `Mid`.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Mid {\n    superclass Base\n}\noo::class create Sub {\n    superclass Mid\n    constructor {} { next }\n}\n";
+        let analysis = analyse(src);
+        // `Base`'s constructor (line 1) picks up the chain.
+        let base_refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert_eq!(base_refs.len(), 1, "{base_refs:?}");
+        assert_eq!(base_refs[0].start_line, 8, "{base_refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_via_nextto_explicit_target() {
+        // `nextto Grandparent` jumps past `Base` even though `Base` also has
+        // an effective constructor — only `Grandparent` picks up a reference.
+        let src = "oo::class create Grandparent {\n    constructor {} { }\n}\noo::class create Base {\n    superclass Grandparent\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { nextto Grandparent }\n}\n";
+        let analysis = analyse(src);
+        let grandparent_refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert_eq!(grandparent_refs.len(), 1, "{grandparent_refs:?}");
+        let base_refs = references(src, "tcl", 4, 6, &analysis, false);
+        assert!(base_refs.is_empty(), "{base_refs:?}");
+    }
+
+    #[test]
+    fn destructor_next_chain_reference_from_direct_subclass() {
+        let src = "oo::class create Base {\n    destructor { }\n}\noo::class create Sub {\n    superclass Base\n    destructor { next }\n}\n";
+        let analysis = analyse(src);
+        // `destructor` keyword on line 1, col 4.
+        let refs = references(src, "tcl", 1, 5, &analysis, true);
+        assert_eq!(refs.len(), 2, "{refs:?}");
+        assert!(refs.iter().any(|r| r.start_line == 5), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_shadowed_by_a_later_redeclaration_has_no_references() {
+        // `oo::configurable` allows several constructors; only the last is
+        // ever effective. A cursor on the shadowed first one resolves to
+        // nothing (it has no reference story worth surfacing).
+        let src = "oo::class create C {\n    constructor {} { }\n    constructor {} { }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 6, &analysis, true);
+        assert!(refs.is_empty(), "{refs:?}");
     }
 
     #[test]

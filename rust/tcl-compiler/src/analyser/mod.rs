@@ -82,5 +82,5 @@ pub use tcl_syntax::mro::{self, MroError, build_mro_map, tcloo_linearise};
 pub use types::{
     AnalysisResult, ClassDef, CodeFix, DefinedSymbol, Diagnostic, MethodDef, ObjectMethodDef,
     ProcArgTrait, ProcDef, PropertyDef, Scope, ScopeKind, Severity, StubFlags, UnknownProcInfo,
-    VarDef, class_member_key, class_property_key,
+    VarDef, class_constructor_key, class_destructor_key, class_member_key, class_property_key,
 };
