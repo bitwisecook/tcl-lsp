@@ -9082,6 +9082,17 @@ mod w114_unwrap_fix {
         assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
     }
 
+    /// TIP 461's `lt`/`le`/`gt`/`ge` share the exact same numeric-
+    /// normalisation risk as `eq`/`ne` (issue #983/#986: this guard used to
+    /// be a hand-typed 4-entry list that only named `eq`/`ne`/`in`/`ni`,
+    /// missing these four entirely — a live safety gap in an *automatic*
+    /// code fix, not just a cosmetic one).
+    #[test]
+    fn tip461_string_ordering_context_gets_no_fix() {
+        let d = w114_for("set s 007\nif {[expr {$s}] lt \"010\"} {}\n");
+        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+    }
+
     #[test]
     fn multi_group_expr_arguments_get_no_fix() {
         // `[expr {a} {b}]` concatenates its arguments — not one braced

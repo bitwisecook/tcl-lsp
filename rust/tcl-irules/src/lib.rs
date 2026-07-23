@@ -114,15 +114,29 @@ fn tables() -> &'static Tables {
 /// (strips the leading/trailing characters `{}"'[](),`).
 const STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
 
-/// `class match`/`search` comparison operators.
-const CLASS_OPERATORS: &[&str] = &[
-    "equals",
-    "starts_with",
-    "ends_with",
-    "contains",
-    "matches_glob",
-    "matches_regex",
-];
+/// Whether `word` is a `class match`/`search` comparison operator — the six
+/// iRules word operators that are string/pattern comparisons, not logical
+/// connectives (`and`/`or`, `tcl_syntax::expr::ast::BinOp::WordAnd`/
+/// `WordOr`, are a distinct, unrelated iRules word-operator family this
+/// command doesn't accept). `word` should already be lowercased by the
+/// caller (`class match`'s operator words are case-insensitive there).
+///
+/// Enum-referenced against `tcl_syntax::expr::ast::BinOp` (issue #983/#986's
+/// unification) rather than a raw string list: a rename of one of these
+/// variants is now a compile error here, not a silent drift.
+fn is_class_operator(word: &str) -> bool {
+    use tcl_syntax::expr::ast::BinOp;
+    [
+        BinOp::Contains,
+        BinOp::StartsWith,
+        BinOp::EndsWith,
+        BinOp::StrEquals,
+        BinOp::MatchesGlob,
+        BinOp::MatchesRegex,
+    ]
+    .iter()
+    .any(|op| op.as_str() == word)
+}
 
 /// `persist` heads that are type keywords, not a profile-name reference.
 const PERSIST_NON_REFERENCE_KEYWORDS: &[&str] = &[
@@ -200,9 +214,7 @@ fn resolve_class_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
                 idx += 1;
             }
             idx += 1; // skip the ITEM argument
-            if idx >= args.len()
-                || !CLASS_OPERATORS.contains(&args[idx].to_ascii_lowercase().as_str())
-            {
+            if idx >= args.len() || !is_class_operator(&args[idx].to_ascii_lowercase()) {
                 return Vec::new();
             }
             idx += 1; // skip the operator

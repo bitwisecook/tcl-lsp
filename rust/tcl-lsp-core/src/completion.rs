@@ -1660,11 +1660,6 @@ fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Ve
     items
 }
 
-/// Math operators that the registry registers as commands
-/// (Tcl 9's `tcl::mathop` exposes them as commands) but that
-/// don't make sense as completion items at a command position.
-const SKIP_BUILTIN_NAMES: &[&str] = &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="];
-
 /// Map a usage count to its sort bucket (lower is better).
 fn usage_bucket(count: usize) -> u8 {
     match count {
@@ -1725,7 +1720,12 @@ fn builtin_completions(
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
-        .filter(|n| !SKIP_BUILTIN_NAMES.iter().any(|skip| skip == n))
+        .filter(|n| {
+            !registry.get(n).is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::prelude::Traits::OPERATOR_COMMAND)
+            })
+        })
         .filter(|n| profile.resolve_command(registry, n).is_some())
         // Tk commands (`required_package == "Tk"`) are only offered once Tk
         // is loaded — see the `tk_loaded` computation in `completions` — and
@@ -2356,6 +2356,25 @@ mod tests {
             assert!(
                 !labels.contains(op),
                 "math operator `{op}` should be filtered out; got {labels:?}",
+            );
+        }
+    }
+
+    /// Issue #986: `SKIP_BUILTIN_NAMES` only ever named the 10 symbolic
+    /// operators, so word-form mathop commands (`eq`/`ne`/`in`/`ni`, and the
+    /// 9.0+ `lt`/`le`/`gt`/`ge`) leaked through as completion suggestions —
+    /// a nonsensical "did you mean `eq`?" at a command position.
+    #[test]
+    fn builtin_completion_skips_word_form_operators() {
+        let src = "\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 0, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        for op in &["eq", "ne", "in", "ni", "lt", "le", "gt", "ge"] {
+            assert!(
+                !labels.contains(op),
+                "word-form operator `{op}` should be filtered out; got {labels:?}",
             );
         }
     }

@@ -27,10 +27,26 @@ use crate::code_actions::ActionKind;
 /// Whitespace-delimited binary operators that mark an arithmetic /
 /// logical expression which must be wrapped in `[expr { … }]` so the
 /// resulting `set` stays a valid two-argument call.
-const EXPR_OPS: &[&str] = &[
-    "**", "==", "!=", "<=", ">=", "&&", "||", "eq", "ne", "in", "ni", "+", "-", "*", "/", "%", "<",
-    ">",
-];
+///
+/// Every [`BinOp`](tcl_syntax::expr::ast::BinOp) variant is, by
+/// construction, a genuine infix binary operator — derived from
+/// `tcl_syntax::expr::operators::ALL_BIN_OPS` (issue #983's unification)
+/// rather than a hand-typed 17-entry list that used to miss the bitwise/
+/// shift symbols (`<<`/`>>`/`&`/`|`/`^`), the TIP 461 string-ordering words
+/// (`lt`/`le`/`gt`/`ge`), and every iRules word operator (`contains`/
+/// `starts_with`/…). That wasn't just a missed suggestion: selecting
+/// `$a << 2` and extracting it produced `set myvar $a << 2` — a 4-argument
+/// `set` call, which is a Tcl runtime error (`set` takes 1 or 2 args), not
+/// merely a semantic difference.
+fn expr_op_spellings() -> &'static [&'static str] {
+    static OPS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    OPS.get_or_init(|| {
+        tcl_syntax::expr::operators::ALL_BIN_OPS
+            .iter()
+            .map(|op| op.spec().spelling)
+            .collect()
+    })
+}
 
 /// `true` when `text` contains a whitespace-delimited binary operator.
 ///
@@ -38,7 +54,9 @@ const EXPR_OPS: &[&str] = &[
 /// each side (`\s OP \s`); this scans for ` OP ` with single ASCII
 /// spaces.
 fn looks_like_expr(text: &str) -> bool {
-    EXPR_OPS.iter().any(|op| text.contains(&format!(" {op} ")))
+    expr_op_spellings()
+        .iter()
+        .any(|op| text.contains(&format!(" {op} ")))
 }
 
 /// Extract the selection `[start_off, end_off)` into a `set` assignment.
@@ -159,5 +177,31 @@ mod tests {
         let r = extract_variable(source, 5, 12, "sum", &li).expect("result");
         let applied = r.apply(source);
         assert!(applied.contains("set sum [expr {$a + $b}]"), "{applied:?}");
+    }
+
+    /// Issue #983/#986: `EXPR_OPS` used to be a hand-typed 17-entry list
+    /// missing every bitwise/shift symbol and every TIP 461 string-ordering
+    /// word — a genuinely broken (not just suboptimal) output, since the
+    /// unwrapped `set myvar $a << $b` is a 4-argument `set` call (a Tcl
+    /// runtime error, `set` takes 1 or 2 args).
+    #[test]
+    fn bitwise_and_tip461_expressions_are_wrapped_in_expr() {
+        let li = LineIndex::new("puts $a << $b");
+        let r = extract_variable("puts $a << $b", 5, 13, "shifted", &li).expect("result");
+        assert!(
+            r.apply("puts $a << $b")
+                .contains("set shifted [expr {$a << $b}]"),
+            "{:?}",
+            r.apply("puts $a << $b")
+        );
+
+        let li2 = LineIndex::new("puts $a lt $b");
+        let r2 = extract_variable("puts $a lt $b", 5, 13, "ordered", &li2).expect("result");
+        assert!(
+            r2.apply("puts $a lt $b")
+                .contains("set ordered [expr {$a lt $b}]"),
+            "{:?}",
+            r2.apply("puts $a lt $b")
+        );
     }
 }

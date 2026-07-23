@@ -973,23 +973,32 @@ fn split_top_logical<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> 
     None
 }
 
+/// Every comparison operator spelling paired with its inverse — derived
+/// from `BinOp::inverse()` (`tcl_syntax::expr::operators`, issue #983's
+/// unification) rather than a hand-typed list, which used to be missing
+/// the TIP 461 string-ordering four (`lt`/`le`/`gt`/`ge`) entirely: the
+/// "Invert comparison" quick fix never even offered itself for a selection
+/// containing one of those. Order doesn't matter for correctness — each
+/// needle is matched as a *space-delimited* unit (`find_top_level` looks
+/// for `" op "`), so e.g. `" < "` and `" <= "` can never collide as
+/// substrings of each other regardless of which is tried first.
+fn comparison_inversions() -> &'static [(&'static str, &'static str)] {
+    static OPS: std::sync::OnceLock<Vec<(&'static str, &'static str)>> = std::sync::OnceLock::new();
+    OPS.get_or_init(|| {
+        tcl_syntax::expr::operators::ALL_BIN_OPS
+            .iter()
+            .filter_map(|op| {
+                let inv = op.inverse()?;
+                Some((op.spec().spelling, inv.spec().spelling))
+            })
+            .collect()
+    })
+}
+
 /// Invert the (single) top-level comparison operator in `sel`.
 fn invert_comparison(sel: &str) -> Option<String> {
-    // Operator inversions, longest-first so `==` wins over `=`.
-    const OPS: &[(&str, &str)] = &[
-        ("==", "!="),
-        ("!=", "=="),
-        ("<=", ">"),
-        (">=", "<"),
-        ("eq", "ne"),
-        ("ne", "eq"),
-        ("ni", "in"),
-        ("in", "ni"),
-        ("<", ">="),
-        (">", "<="),
-    ];
     let t = sel.trim();
-    for (from, to) in OPS {
+    for (from, to) in comparison_inversions() {
         // Require the operator to be surrounded by spaces so `$a == $b` matches
         // but a bare `<` inside a name doesn't; word ops need word boundaries.
         let needle = format!(" {from} ");

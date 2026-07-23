@@ -1658,14 +1658,47 @@ fn single_braced_group(body: &str) -> Option<&str> {
     (depth == 0).then(|| &body[1..body.len() - 1])
 }
 
-/// True when `text` contains a standalone `eq` / `ne` / `in` / `ni`
-/// word — the expr string-comparison operators whose verdict a nested
-/// `expr`'s numeric normalisation can influence.  Deliberately scans
-/// the whole outer expression (a coarse, conservative over-match).
+/// The word-form `expr` operators whose verdict a nested `expr`'s numeric
+/// normalisation can influence — string equality (`eq`/`ne`), string
+/// ordering (`lt`/`le`/`gt`/`ge`, TIP 461), and list membership (`in`/`ni`).
+/// Derived from `tcl_syntax::expr::operators` (issue #983's unification):
+/// every `BinOp` whose mathop shape is a string-only `BoolChain`/`NeBinary`,
+/// or `Membership` — rather than a hand-typed 4-entry list that used to
+/// miss `lt`/`le`/`gt`/`ge` entirely, a real gap since those four share
+/// exactly the same numeric-normalisation risk `eq`/`ne` already guarded
+/// against (`{[expr {$x}] lt "007"}` could have its verdict silently
+/// flipped by W114's unwrap fix the same way `==`'s can).
+fn string_comparison_op_spellings() -> &'static [&'static str] {
+    use tcl_syntax::expr::operators::{ALL_BIN_OPS, OperatorShape};
+    static OPS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    OPS.get_or_init(|| {
+        ALL_BIN_OPS
+            .iter()
+            .filter_map(|op| {
+                let spec = op.spec();
+                let is_string_family = matches!(
+                    spec.mathop_shape,
+                    Some(
+                        OperatorShape::BoolChain { string_only: true }
+                            | OperatorShape::NeBinary { string_only: true }
+                            | OperatorShape::Membership { .. }
+                    )
+                );
+                is_string_family.then_some(spec.spelling)
+            })
+            .collect()
+    })
+}
+
+/// True when `text` contains a standalone word from
+/// [`string_comparison_op_spellings`] — the expr string-comparison
+/// operators whose verdict a nested `expr`'s numeric normalisation can
+/// influence.  Deliberately scans the whole outer expression (a coarse,
+/// conservative over-match).
 fn contains_string_comparison_word(text: &str) -> bool {
     let bytes = text.as_bytes();
     let is_word_byte = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
-    for op in ["eq", "ne", "in", "ni"] {
+    for op in string_comparison_op_spellings() {
         let mut from = 0;
         while let Some(pos) = text.get(from..).and_then(|t| t.find(op)) {
             let at = from + pos;

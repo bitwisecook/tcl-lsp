@@ -907,6 +907,13 @@ fn reduce_unary(
     }
 
     // `!(x <cmp> y)` → inverted comparison, and DeMorgan for `!(a && b)`.
+    // `BinOp::inverse()` (tcl_syntax::expr::operators, issue #983's
+    // unification) is the single source for which comparison inverts to
+    // which — used to be a local 8-arm match missing the TIP 461
+    // string-ordering four (`lt`/`le`/`gt`/`ge`) and list membership
+    // (`in`/`ni`), so `!(x lt y)`/`!(x in list)` never simplified even
+    // though the same total-order/negation identity holds for them as for
+    // the numeric/string-eq forms already covered.
     if matches!(op, UnaryOp::Not | UnaryOp::WordNot)
         && let ExprNode::Binary {
             op: inner_op,
@@ -914,7 +921,7 @@ fn reduce_unary(
             right,
         } = operand
     {
-        if let Some(new_op) = invert_comparison_op(*inner_op) {
+        if let Some(new_op) = inner_op.inverse() {
             return Some(ExprNode::Binary {
                 op: new_op,
                 left: left.clone(),
@@ -939,21 +946,6 @@ fn reduce_unary(
     }
 
     None
-}
-
-/// Return the opposite comparison operator, or `None` for non-comparisons.
-fn invert_comparison_op(op: BinOp) -> Option<BinOp> {
-    match op {
-        BinOp::Eq => Some(BinOp::Ne),
-        BinOp::Ne => Some(BinOp::Eq),
-        BinOp::Lt => Some(BinOp::Ge),
-        BinOp::Ge => Some(BinOp::Lt),
-        BinOp::Gt => Some(BinOp::Le),
-        BinOp::Le => Some(BinOp::Gt),
-        BinOp::StrEq => Some(BinOp::StrNe),
-        BinOp::StrNe => Some(BinOp::StrEq),
-        _ => None,
-    }
 }
 
 /// De Morgan operator flip: `&&` ↔ `||`, otherwise `None`.
