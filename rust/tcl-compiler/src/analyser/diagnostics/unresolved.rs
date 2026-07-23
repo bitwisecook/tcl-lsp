@@ -637,7 +637,8 @@ impl Analyser {
         // `rename ::tcl::mathfunc::sin {}`, must not resolve here either —
         // confirmed against tclsh 9.0.4).
         if resolution_candidates.iter().any(|cand| {
-            known.registry_names.contains(cand) && !self.qualified_name_deleted_before(cand, range.start())
+            known.registry_names.contains(cand)
+                && !self.qualified_name_deleted_before(cand, range.start())
         }) {
             return true;
         }

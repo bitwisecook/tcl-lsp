@@ -2467,7 +2467,11 @@ fn barrier_body_locally_sets(
         .filter_map(|idx| args.get(idx))
         .flat_map(|body_text| crate::segmenter::segment_commands(body_text))
         .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
-        .filter_map(|seg| seg.texts.get(1).map(|w| crate::naming::normalise_var_name(w).to_owned()))
+        .filter_map(|seg| {
+            seg.texts
+                .get(1)
+                .map(|w| crate::naming::normalise_var_name(w).to_owned())
+        })
         .any(|name| name == var)
 }
 
