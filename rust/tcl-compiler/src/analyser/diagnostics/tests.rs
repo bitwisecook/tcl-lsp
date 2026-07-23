@@ -2238,6 +2238,57 @@ fn same_file_rename_reestablished_after_deletion_checks_new_arity() {
     );
 }
 
+// Issue #1007 — a `rename` / `interp alias` deletion recorded *inside* a
+// proc body that's never called is conditional: it may never execute, so
+// it must not supersede a fact established outside that body.
+// `fact_superseded_by_deletion` previously reused `fact_in_effect`
+// (call-site order-gating) to also decide whether the *deletion itself*
+// was in effect, which only asks whether the call is order-gated against
+// its own top-level/body status — never whether the deletion's own
+// offset sits inside a different, possibly-never-invoked body. Fixed by
+// adding the same `offset_is_inside_any_definition_body` guard the W123
+// pass's `fact_live_for_call` already applies for the identical question
+// (issue #973). All cases confirmed against tclsh 8.6.14.
+
+#[test]
+fn e003_fp_issue_1007_conditional_deletion_never_triggered_proc_stays_live() {
+    let src = "proc target {a b} {}\nproc maybeDelete {} { rename target {} }\ntarget 1 2\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn e003_tp_issue_1007_conditional_deletion_never_triggered_still_checks_arity() {
+    // `maybeDelete` is never called, so `target` keeps its original 2-arg
+    // signature — an over-applied call must still fire E003, not
+    // silently abstain as if the name were permanently gone.
+    let src = "proc target {a b} {}\nproc maybeDelete {} { rename target {} }\ntarget 1 2 3\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E003".to_owned()]);
+}
+
+#[test]
+fn e003_tn_issue_1007_unconditional_deletion_before_call_stays_dead() {
+    // Regression guard: an *unconditional* (top-level) deletion must
+    // still permanently kill the name — the fix only exempts deletions
+    // recorded inside a body.
+    let src = "proc target {a b} {}\nrename target {}\ntarget 1 2\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn e003_tp_issue_1007_call_before_later_unconditional_deletion_still_checked() {
+    // Regression guard: the already-correct call-site order gating for a
+    // top-level, unconditional deletion is untouched by this fix.
+    let src = "proc target {a b} {}\ntarget 1 2 3\nrename target {}\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E003".to_owned()]);
+}
+
+#[test]
+fn e003_tp_issue_1007_alias_conditional_deletion_never_triggered_still_checks_arity() {
+    // Same fix, `interp alias` deletion form.
+    let src = "proc target {a b} {}\ninterp alias {} short {} target\nproc maybeDelete {} { interp alias {} short {} }\nshort 1 2 3\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E003".to_owned()]);
+}
+
 #[test]
 fn same_file_rename_target_reestablished_after_further_rename_checks_new_arity() {
     // `rename target target_orig` moves `target`'s identity onward (like
@@ -5138,6 +5189,56 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
     );
 }
 
+// Issue #1010 (site 4) — `emit_cmd_command_diagnostics`'s constructor
+// recognition (`[Cls new] method`) typed the result as `Object(Cls)`
+// even when `Cls` was renamed or deleted away with no later
+// re-establishment, producing a misleading "unknown method" W308 that
+// implies `Cls` exists. Confirmed against tclsh 8.6.14 that the
+// constructor call itself fails "invalid command name" first — fixed so
+// the dispatch instead falls back to the conservative "non-literal,
+// cannot statically analyze" (W307), with W123 on `Cls` itself as the
+// real, primary diagnostic.
+//
+// `harvest_constructor_object_types` (the `set x [Cls new]` variable-
+// assignment sibling of this same check) is fixed the same way, but a
+// deeper, independent source in `type_infer.rs`'s `constructor_object_type`
+// still separately types `x` as `Object(Cls)` for that shape via the SSA
+// type lattice, so `$x method` there still draws the same misleading
+// W308 — tracked as a follow-up (that fix needs a call-site offset
+// threaded into a foundational, flow-insensitive type-inference helper,
+// a larger and riskier change than this session's other gate-only fixes).
+
+#[test]
+fn w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307() {
+    let src =
+        "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\n[Dog new] fly";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        !codes.contains("W308"),
+        "a deleted class must not draw the misleading 'unknown method' W308; got {codes:?}"
+    );
+    assert!(
+        codes.contains("W123"),
+        "the deleted class itself must draw W123 as the real diagnostic; got {codes:?}"
+    );
+}
+
+#[test]
+fn w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method() {
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\n[Dog new] fly";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a class re-established after deletion must still resolve its constructor normally; got {:?}",
+        r.diagnostics,
+    );
+}
+
 /// Object-`of` constructor typing — the W307/W308 item.  Each
 /// case asserts the exact set of expected diagnostic codes.
 fn w30x_codes(src: &str) -> Vec<String> {
@@ -6139,6 +6240,37 @@ foo$suffix
     assert!(
         !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 should be suppressed when partial interpolation resolves to a known proc; got {:?}",
+        r.diagnostics,
+    );
+}
+
+// Issue #1010 (site 1) — `resolve_interpolated_w123_diagnostics` deleted an
+// already-correct W123 for an interpolated command head (`foo$suffix`)
+// once SCCP folded it to a known-but-dead proc name, with no deletion
+// gate at all. Fixed by reusing `fact_live_for_call` per candidate.
+// Confirmed against tclsh 8.6.14.
+
+#[test]
+fn w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged() {
+    let src = "proc foo_hi {} {}\nrename foo_hi {}\nset suffix _hi\nfoo$suffix\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "an interpolated head folding to a deleted proc must still draw W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_issue_1010_interpolated_head_folds_to_reestablished_proc_resolves() {
+    let src =
+        "proc foo_hi {} {}\nrename foo_hi {}\nproc foo_hi {} {}\nset suffix _hi\nfoo$suffix\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a proc re-established after deletion must still resolve; got {:?}",
         r.diagnostics,
     );
 }
@@ -7381,6 +7513,38 @@ fn analyse_no_w307_for_static_known_command() {
     assert!(
         w307s.is_empty(),
         "W307 must be suppressed when var holds known command name; got {:?}",
+        r.diagnostics,
+    );
+}
+
+// Issue #1010 (site 2) — `is_known_command` (used by `w307_site_suppressed`)
+// suppressed W307 whenever SCCP proved a dynamic-dispatch value equalled
+// a proc/class name, with no deletion gate — so a variable holding a
+// renamed-or-deleted-away command (no later re-establishment) still
+// silenced the real "invalid command name" hazard. Fixed by threading
+// the dispatch site's own offset through and reusing `fact_live_for_call`.
+// Confirmed against tclsh 8.6.14.
+
+#[test]
+fn w307_tp_issue_1010_dispatch_value_is_deleted_proc_stays_flagged() {
+    let src = "proc target {} {}\nrename target {}\nproc foo {} { set cmd target\n$cmd hello }";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
+        "a dispatch value equalling a deleted proc must still draw W307; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w307_fp_issue_1010_dispatch_value_is_reestablished_proc_resolves() {
+    let src = "proc target {} {}\nrename target {}\nproc target {} {}\nproc foo {} { set cmd target\n$cmd hello }";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
+        "a proc re-established after deletion must still suppress W307; got {:?}",
         r.diagnostics,
     );
 }
@@ -9197,6 +9361,106 @@ fn colon_named_proc_resolves_from_bare_calls_not_written_runs() {
 
 // -- M7: command names carried in variables / dispatch tables ------------
 
+// Issue #1009 — the constant-`$cmd` dispatch settlement's `known` /
+// `user_defined` closures resolved through a proc/class/alias/rename
+// target that was renamed or deleted away, with no later
+// re-establishment, exactly like the pre-#973 bug in `scope.rs`. Fixed
+// by reusing `fact_live_for_call` (widened to `pub(super)` so this
+// sibling pass can call it) with the dispatch site's own offset as the
+// call site. Confirmed this never caused a W123 false negative (the
+// pass runs after W123 already fired), but did poison the
+// `resolved_qualified_name` these invocations carry for hover /
+// go-to-definition / find-references / rename-tracking. All cases
+// confirmed against tclsh 8.6.14 (deletion semantics are identical
+// whether a command is invoked literally or via a variable).
+
+fn const_dispatch_target(src: &str) -> Option<(String, Option<String>)> {
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let dispatch = u32::try_from(src.rfind("$cmd").unwrap()).unwrap();
+    r.command_invocations
+        .into_iter()
+        .find(|i| i.range.start() == dispatch && i.indirect)
+        .map(|i| (i.name, i.resolved_qualified_name))
+}
+
+#[test]
+fn const_dispatch_tp_issue_1009_proc_deleted_no_reestablishment_does_not_resolve() {
+    let src = "proc target {} {}\nrename target {}\nset cmd target\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        None,
+        "a $cmd dispatch to a deleted proc with no re-establishment must not resolve"
+    );
+}
+
+#[test]
+fn const_dispatch_fp_issue_1009_proc_reestablished_after_deletion_resolves() {
+    let src = "proc target {} {}\nrename target {}\nproc target {} {}\nset cmd target\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("target".to_owned(), Some("::target".to_owned())))
+    );
+}
+
+#[test]
+fn const_dispatch_tn_issue_1009_proc_no_deletion_still_resolves() {
+    let src = "proc target {} {}\nset cmd target\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("target".to_owned(), Some("::target".to_owned())))
+    );
+}
+
+#[test]
+fn const_dispatch_tp_issue_1009_class_deleted_no_reestablishment_does_not_resolve() {
+    let src = "oo::class create Target\nrename Target {}\nset cmd Target\n$cmd\n";
+    assert_eq!(const_dispatch_target(src), None);
+}
+
+#[test]
+fn const_dispatch_tp_issue_1009_rename_target_deleted_no_reestablishment_does_not_resolve() {
+    let src = "proc helper {} {}\nrename helper ha2\nrename ha2 {}\nset cmd ha2\n$cmd\n";
+    assert_eq!(const_dispatch_target(src), None);
+}
+
+#[test]
+fn const_dispatch_fp_issue_1009_rename_target_no_deletion_still_resolves() {
+    let src = "proc helper {} {}\nrename helper ha2\nset cmd ha2\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("ha2".to_owned(), Some("::ha2".to_owned())))
+    );
+}
+
+#[test]
+fn const_dispatch_tp_issue_1009_alias_deleted_no_reestablishment_does_not_resolve() {
+    let src = "proc target {} {}\ninterp alias {} short {} target\ninterp alias {} short {}\nset cmd short\n$cmd\n";
+    assert_eq!(const_dispatch_target(src), None);
+}
+
+#[test]
+fn const_dispatch_fp_issue_1009_alias_no_deletion_still_resolves() {
+    let src = "proc target {} {}\ninterp alias {} short {} target\nset cmd short\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("short".to_owned(), Some("::short".to_owned())))
+    );
+}
+
+#[test]
+fn const_dispatch_fp_issue_1009_deletion_inside_never_triggered_body_still_resolves() {
+    // Same conditional-body guard #1006/#1007 already apply — a deletion
+    // recorded inside a proc that's never called must not disqualify the
+    // dispatch (tclsh: calling nothing that invokes `maybeDelete` leaves
+    // `target` live).
+    let src = "proc target {} {}\nproc maybeDelete {} { rename target {} }\nset cmd target\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("target".to_owned(), Some("::target".to_owned())))
+    );
+}
+
 #[test]
 fn const_cmd_head_records_a_reference_to_the_dispatched_proc_m7() {
     let mut a = Analyser::new();
@@ -9555,6 +9819,45 @@ fn dispatch_table_value_abstains_when_the_table_is_not_consumed_m7() {
     assert!(
         !r.command_invocations.iter().any(|i| i.name == "do_add"),
         "{:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+// Issue #1010 (site 3) — `emit_dispatch_table_command_references`'s
+// `known` closure synthesized a "live reference" for a dispatch-table
+// literal even when the proc/class it named was renamed or deleted away
+// with no later re-establishment. Fixed by reusing `fact_live_for_call`
+// with the table entry's own position as the call site. Confirmed
+// against tclsh 8.6.14.
+
+#[test]
+fn dispatch_table_tp_issue_1010_deleted_proc_draws_no_reference() {
+    let src = "proc do_add {a b} {}\nrename do_add {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.command_invocations.iter().any(|i| i.name == "do_add"),
+        "a deleted proc with no re-establishment must draw no reference: {:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn dispatch_table_fp_issue_1010_reestablished_proc_still_references() {
+    let src = "proc do_add {a b} {}\nrename do_add {}\nproc do_add {a b} {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.command_invocations
+            .iter()
+            .any(|i| i.name == "do_add" && i.resolved_qualified_name.as_deref() == Some("::do_add")),
+        "a proc re-established after deletion must still be referenced: {:?}",
         r.command_invocations
             .iter()
             .map(|i| (&i.name, i.range.start()))
@@ -10081,6 +10384,131 @@ fn w004_later_version_options_never_leak_into_supersets() {
     }
 }
 
+// Issue #973 — a proc / class / rename / alias target that was renamed or
+// deleted away, with no later re-establishment under the same name, must
+// not still read as "known" for W123: calling it fails "invalid command
+// name" in real Tcl. `finalise_invocation_resolutions`'s `known` predicate
+// (scope.rs) and `build_w123_known_names` (unresolved.rs — the pass that
+// actually decides W123) both gated deletion only for registry builtins /
+// aliases / rename targets, never for user procs or classes themselves.
+//
+// Fixed by extending the same "was this fact re-established after its
+// last deletion" question the arity resolver's `fact_superseded_by_deletion`
+// already answers for E002/E003 (see
+// `same_file_rename_reestablished_after_deletion_checks_new_arity` above)
+// to the proc/class checks here — `fact_live_for_call` in unresolved.rs —
+// with the same call-site + conditional-body awareness
+// `qualified_name_deleted_before` already gives registry builtins: a
+// deletion recorded inside a proc/class/method body is conditional (it
+// executes only if that body is ever invoked) and a top-level call
+// textually before a later deletion still resolves. All cases below
+// confirmed against tclsh 8.6.14.
+fn w123_codes(src: &str) -> Vec<String> {
+    let mut a = Analyser::new();
+    a.analyse(src, "tcl8.6")
+        .diagnostics
+        .into_iter()
+        .filter(|d| d.code == DiagCode::W123)
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+#[test]
+fn w123_fp_issue_973_proc_call_before_rename_resolves() {
+    let src = "proc helper {} { return 1 }\nproc caller {} { helper }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_973_proc_deleted_via_rename_no_reestablishment() {
+    // The exact shape from issue #973's repro.
+    let src = "\
+namespace eval ::a {
+    proc helper {} { return 1 }
+}
+rename ::a::helper {}
+namespace eval ::a {
+    proc caller {} { helper }
+}
+";
+    assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_fp_issue_973_proc_reestablished_after_deletion_resolves() {
+    let src = "proc helper {} { return 1 }\nrename helper {}\nproc helper {} { return 2 }\nproc caller {} { helper }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_973_class_deleted_via_rename_no_reestablishment() {
+    let src = "oo::class create Helper\nrename Helper {}\nproc caller {} { Helper new }\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_fp_issue_973_class_call_before_rename_resolves() {
+    let src = "oo::class create Helper\nproc caller {} { Helper new }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_973_class_reestablished_after_deletion_resolves() {
+    let src = "oo::class create Helper\nrename Helper {}\noo::class create Helper\nproc caller {} { Helper new }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_973_interp_alias_deleted_no_reestablishment() {
+    let src = "proc target {} {}\ninterp alias {} short {} target\ninterp alias {} short {}\nproc caller {} { short }\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_fp_issue_973_interp_alias_call_before_deletion_resolves() {
+    let src = "proc target {} {}\ninterp alias {} short {} target\nproc caller {} { short }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_973_interp_alias_reestablished_after_deletion_resolves() {
+    let src = "\
+proc target {} {}
+proc target2 {} {}
+interp alias {} short {} target
+interp alias {} short {}
+interp alias {} short {} target2
+proc caller {} { short }
+";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_973_rename_to_new_name_call_to_old_name_stays_unknown() {
+    // A rename that *moves* the name (not a deletion) leaves the old name
+    // permanently gone — must stay unknown, same as before this fix.
+    let src = "proc helper {} { return 1 }\nrename helper newhelper\nproc caller {} { helper }\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_fp_issue_973_top_level_call_before_later_proc_deletion_resolves() {
+    // A top-level call textually before a *later* same-file deletion still
+    // resolves — order matters at top level (tclsh: `proc helper {} {};
+    // helper; rename helper {}` succeeds).
+    let src = "proc helper {} { return 1 }\nhelper\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_973_deletion_inside_never_triggered_proc_body_resolves() {
+    // A `rename` recorded inside a proc body that's never called is
+    // conditional — it never executes, so the name stays live (tclsh:
+    // calling `caller` without ever calling `maybeDelete` succeeds).
+    let src = "proc helper {} { return 1 }\nproc maybeDelete {} { rename helper {} }\nproc caller {} { helper }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
 #[test]
 fn vendor_command_inherited_options_resolve_cleanly() {
     // expect_after's options inherit the command's EXPECT gate — under the
@@ -10091,4 +10519,98 @@ fn vendor_command_inherited_options_resolve_cleanly() {
         !codes.iter().any(|c| c == "W004"),
         "inherited expect options must resolve under expect, got {codes:?}"
     );
+}
+
+// Issue #1006 — the W123 alias / rename-target checks used file-end-only
+// gating (`fact_live_at_file_end`, no call site or conditional-body
+// awareness), unlike the proc/class checks #973 already made call-site-
+// and conditional-aware (`fact_live_for_call`). Fixed by replacing the
+// plain `alias_names` / `rename_target_names` tail `HashSet`s'
+// contribution to resolution with `alias_defs_by_tail` /
+// `rename_defs_by_tail` (mirroring `proc_defs_by_tail` /
+// `class_defs_by_tail`), checked per call site the same way. All cases
+// confirmed against tclsh 8.6.14.
+
+#[test]
+fn w123_fp_issue_1006_alias_call_before_later_deletion_resolves() {
+    let src = "proc target {} { return 1 }\ninterp alias {} short {} target\nshort\ninterp alias {} short {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1006_alias_deletion_inside_never_triggered_body_resolves() {
+    let src = "proc target {} { return 1 }\ninterp alias {} short {} target\nproc maybeDelete {} { interp alias {} short {} }\nproc caller {} { short }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1006_rename_target_call_before_later_deletion_resolves() {
+    let src = "proc helper {} { return 1 }\nrename helper ha2\nha2\nrename ha2 {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1006_rename_target_deletion_inside_never_triggered_body_resolves() {
+    let src = "proc helper {} { return 1 }\nrename helper ha2\nproc maybeDelete {} { rename ha2 {} }\nproc caller {} { ha2 }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+// `fact_live_for_call`'s body-call escape hatch, Codex PR #1014 review
+// comment #2 (`unresolved.rs:260`): a call *inside* a proc/class body
+// carries no execution-order meaning from its own textual position — it
+// was wrongly treated as automatically after every top-level deletion, so
+// a body call whose enclosing definition demonstrably ran before a later
+// deletion still drew a spurious W123. Confirmed against tclsh 8.6.14
+// throughout.
+
+#[test]
+fn w123_fp_issue_1009_codex_review_body_call_before_later_deletion_resolves() {
+    // FP guard (the confirmed regression): `caller`'s own top-level
+    // invocation runs before `rename helper {}`, so the `helper` call
+    // inside its body must still resolve — confirmed against tclsh 8.6.14
+    // (the script prints "ok" and exits 0).
+    let src = "proc helper {} {}\nproc caller {} { helper }\ncaller\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_1009_codex_review_deleted_before_definition_still_flags() {
+    // TP regression: `helper` is deleted *before* `caller` is even
+    // defined, with no re-establishment — the body call must still draw
+    // W123 (confirmed against tclsh 8.6.14: `invalid command name
+    // "helper"`).
+    let src = "proc helper {} {}\nrename helper {}\nproc caller {} { helper }\ncaller\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_tp_issue_1009_codex_review_deleted_between_definition_and_call_still_flags() {
+    // TP regression: `helper` is deleted *after* `caller` is defined but
+    // *before* `caller` is ever invoked — the body call must still draw
+    // W123 (confirmed against tclsh 8.6.14: `invalid command name
+    // "helper"`, even though `caller`'s own definition predates the
+    // deletion).
+    let src = "proc helper {} {}\nproc caller {} { helper }\nrename helper {}\ncaller\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
+}
+
+#[test]
+fn w123_fp_issue_1009_codex_review_method_body_call_before_later_deletion_resolves() {
+    // FP guard, TclOO variant: a method body call before a later
+    // unconditional deletion of the command it calls must also resolve —
+    // confirmed against tclsh 8.6.14 (the script prints "ok" and exits 0).
+    let src = "proc helper {} { return hi }\noo::class create Widget {\n    method run {} { helper }\n}\nWidget create w1\nw1 run\nrename helper {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_tp_issue_1009_codex_review_escape_hatch_requires_specific_enclosing_call() {
+    // FN guard: an unrelated proc's top-level invocation must not "lend"
+    // liveness to a different, never-invoked enclosing definition — only
+    // `unrelated` is called at the top level before the deletion, `caller`
+    // itself never is, so the `helper` call inside `caller`'s body must
+    // still draw W123 (the same base shape the original #973 fix already
+    // covers when there is no competing top-level call at all).
+    let src = "proc helper {} {}\nproc caller {} { helper }\nproc unrelated {} { return 1 }\nunrelated\nrename helper {}\n";
+    assert_eq!(w123_codes(src), vec!["W123".to_string()]);
 }

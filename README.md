@@ -337,6 +337,21 @@ Analysis is file-aware where Tcl semantics demand it: in a `pkgIndex.tcl` the
 treated as already defined, so reading it is not flagged read-before-set
 (`W210`) — while the same read in an ordinary file still is.
 
+A proc, class, `rename` target, or `interp alias` that was renamed or
+deleted away (`rename NAME {}`, an `interp alias {} NAME {}` deletion) with
+no later re-establishment under the same name draws W123 wherever it's
+still called — calling it fails `invalid command name` at runtime just
+like a name that was never defined. The check is call-site and
+conditional-body aware: a call that runs before the deletion, or a
+deletion recorded inside a proc/method body that might never execute,
+does not draw the warning.
+
+```tcl
+proc helper {} { return 1 }
+rename helper {}
+proc caller {} { helper }      ;# W123: helper was deleted, never re-established
+```
+
 ### Completions
 
 Context-aware completions for commands, subcommands, variables, proc names

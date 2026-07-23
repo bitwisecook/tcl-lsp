@@ -42,10 +42,21 @@ use crate::analyser::types::Severity;
 /// the deduplicated candidate list for "did you mean…?" suggestions.
 struct W123KnownNames {
     registry_names: HashSet<String>,
-    proc_tail_names: HashSet<String>,
-    class_tail_names: HashSet<String>,
-    alias_names: HashSet<String>,
-    rename_target_names: HashSet<String>,
+    /// Per-tail proc definitions (qualified name, establishing offset) —
+    /// a tail may match several qualified names (same simple name in
+    /// different namespaces), each with its own deletion history, so
+    /// resolution checks every one for a call-site-specific live match
+    /// (issue #973) rather than a plain tail-membership test.
+    proc_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
+    /// [`Self::proc_defs_by_tail`]'s twin for classes.
+    class_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
+    /// [`Self::proc_defs_by_tail`]'s twin for `interp alias` targets
+    /// (issue #1006 — previously a plain tail `HashSet`, checked only at
+    /// file-end granularity via `fact_live_at_file_end`).
+    alias_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
+    /// [`Self::proc_defs_by_tail`]'s twin for static `rename OLD NEW`
+    /// targets (issue #1006, same history as `alias_defs_by_tail`).
+    rename_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
     ensemble_cmds: HashSet<String>,
     stub_names: HashSet<String>,
     /// Final `::`-segment of each literal (non-conjectured) `namespace
@@ -54,6 +65,32 @@ struct W123KnownNames {
     /// call matching one of these resolves to the imported command.
     import_pattern_tails: Vec<String>,
     candidates: Vec<String>,
+}
+
+/// Group `(qualified_name, establishing_offset)` pairs by their
+/// `::`-tail — shared by the proc and class def maps in
+/// [`Analyser::build_w123_known_names`] (issue #973) and its siblings
+/// (`var_command.rs`'s `build_w307_known_names` / interpolated-W123
+/// resolution, issue #1010): a tail may match several qualified names
+/// (the same simple name in different namespaces), each kept with its
+/// own offset for a later per-call live check
+/// ([`Analyser::fact_live_for_call`]). `pub(super)` (not private) so
+/// those sibling passes reuse it rather than reimplementing the same
+/// grouping loop.
+pub(super) fn group_defs_by_tail<'a>(
+    entries: impl Iterator<Item = (&'a String, u32)>,
+) -> HashMap<String, Vec<(String, u32)>> {
+    let mut map: HashMap<String, Vec<(String, u32)>> = HashMap::new();
+    for (qn, off) in entries {
+        if let Some((_, tail)) = qn.rsplit_once("::")
+            && !tail.is_empty()
+        {
+            map.entry(tail.to_string())
+                .or_default()
+                .push((qn.clone(), off));
+        }
+    }
+    map
 }
 
 impl Analyser {
@@ -150,6 +187,122 @@ impl Analyser {
         self.emit_w123_for_invocations(&known, emit_w123);
     }
 
+    /// Whether `qualified`'s establishing fact — an `interp alias`
+    /// (`alias_offsets`) or a `rename` target (`rename_offsets`), recorded
+    /// at `fact_off` — is still live at file end: no `rename NAME {}` /
+    /// `interp alias {} NAME {}` deletion of `qualified` itself has a
+    /// *later* offset recorded in `deleted_commands` (issue #973: a
+    /// rename/alias target that was later renamed away must not still
+    /// count as known — calling it fails "invalid command name" in real
+    /// Tcl, confirmed against tclsh 8.6.14).
+    ///
+    /// File-end granularity, not per-call-site — the alias / rename
+    /// candidate sets this feeds have no call site to gate against, unlike
+    /// [`Self::qualified_name_deleted_before`] (registry builtins) or
+    /// [`Self::fact_live_for_call`] (procs / classes, which — unlike an
+    /// alias or rename target — can have namesakes across namespaces, so
+    /// resolution needs the specific qualified name each call resolves
+    /// against, not just a bare tail). `deleted_commands` holds only the
+    /// last-seen deletion offset per name, which — since the walk visits
+    /// statements in source order — is always the most recent one, so a
+    /// name re-established after its deletion (a fresh `rename` or
+    /// `interp alias` under the same name) reads as live again.
+    ///
+    /// `pub(super)`: also reused by `var_command.rs`'s
+    /// `compute_factory_object_ranges` (issue #1010), whose
+    /// `is_object_returning_head` predicate classifies a bare command
+    /// head with no specific call site in hand — the same file-end
+    /// question, not [`Self::fact_live_for_call`]'s per-call one.
+    pub(super) fn fact_live_at_file_end(&self, qualified: &str, fact_off: u32) -> bool {
+        self.deleted_commands
+            .get(qualified)
+            .is_none_or(|&del_off| fact_off > del_off)
+    }
+
+    /// Whether `qualified`'s establishing fact — recorded at `fact_off` —
+    /// is still in effect for a call at `call_off`. Unlike
+    /// [`Self::fact_live_at_file_end`] (used for aliases / rename targets,
+    /// whose candidate sets have no call site to gate against), a proc or
+    /// class *definition* has one real fact per qualified name that a
+    /// specific call resolves against, so this additionally applies the
+    /// same call-site + conditional-body awareness
+    /// [`Self::qualified_name_deleted_before`] already gives registry
+    /// builtins (issue #973's "conditional deletion never triggered" and
+    /// "call textually before a later deletion" cases — confirmed against
+    /// tclsh 8.6.14 that both still resolve):
+    ///
+    /// - No recorded deletion, or the fact was re-established *after* the
+    ///   last one (`fact_off` postdates `del_off`) — live.
+    /// - A deletion recorded inside a proc/class/method body is
+    ///   conditional — it executes only if that body is ever invoked,
+    ///   which the textual load-order gate can't know — so it never
+    ///   disqualifies.
+    /// - Otherwise the deletion is unconditional (top level) and in
+    ///   effect for every call inside *any* body (the whole file loads —
+    ///   running every top-level statement, including the deletion —
+    ///   before any body ever runs) and, for a top-level call, only once
+    ///   the call's own textual position is after it.
+    ///
+    /// `pub(super)` (not private) so sibling passes over the same
+    /// `command_invocations` question — `const_dispatch.rs`'s constant-
+    /// `$cmd` settlement (issue #1009) — reuse this rather than
+    /// reimplementing it.
+    ///
+    /// A call *inside* a body carries no execution-order meaning from its
+    /// own textual position — it runs whenever the enclosing definition is
+    /// invoked, not when its text was written — so a call there falls back
+    /// to a narrower, still-sound question: does [`Self::top_level_call_offsets`]
+    /// record a *top-level* invocation of the innermost enclosing
+    /// definition ([`super::super::types::AnalysisResult::enclosing_definition_qualified_name`])
+    /// that provably ran before the deletion? If so, that invocation's own
+    /// nested calls already resolved (issue #1009 Codex review: `proc
+    /// helper {}`, `proc caller {} { helper }`, `caller`, `rename helper
+    /// {}` resolves in real Tcl — confirmed against tclsh 8.6.14 — because
+    /// `caller`'s own top-level call runs before the rename). Absent such
+    /// proof (the enclosing definition is never called at the top level in
+    /// this file, or only after the deletion), the existing conservative
+    /// default holds: an unconditional top-level deletion is in effect for
+    /// every call inside any body.
+    pub(super) fn fact_live_for_call(&self, qualified: &str, fact_off: u32, call_off: u32) -> bool {
+        let Some(&del_off) = self.deleted_commands.get(qualified) else {
+            return true;
+        };
+        if del_off <= fact_off {
+            return true;
+        }
+        if self.offset_is_inside_definition_body(del_off) {
+            return true;
+        }
+        if !self.offset_is_inside_definition_body(call_off) {
+            return call_off <= del_off;
+        }
+        self.result
+            .enclosing_definition_qualified_name(call_off)
+            .and_then(|qn| self.top_level_call_offsets.get(qn))
+            .is_some_and(|&t| t < del_off)
+    }
+
+    /// The tail set for a "known command" map whose own fact is still
+    /// live at file end — shared by `alias_names` and
+    /// `rename_target_names` in [`Self::build_w123_known_names`] (both
+    /// ask the identical [`Self::fact_live_at_file_end`] question, just
+    /// against a different qualified-name / establishing-offset map).
+    fn live_tail_names<'a>(
+        &self,
+        names: impl Iterator<Item = &'a String>,
+        offsets: &HashMap<String, u32>,
+    ) -> HashSet<String> {
+        names
+            .filter(|qn| {
+                offsets
+                    .get(qn.as_str())
+                    .is_some_and(|&off| self.fact_live_at_file_end(qn, off))
+            })
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect()
+    }
+
     /// Build the [`W123KnownNames`] sets consulted by the unresolved-command
     /// pass: registry names enabled in the active dialect, user proc / class /
     /// alias / ensemble simple-name tails, inline-stub names, and the
@@ -185,58 +338,76 @@ impl Analyser {
         // suppression set so users who declared a stub for a
         // command don't get spurious W123s.
         let stub_names: HashSet<String> = super::utils::scan_stub_command_names(&self.source);
+        // These two tail sets feed only the "did you mean…?" candidate
+        // list below — resolution itself uses `proc_defs_by_tail` /
+        // `class_defs_by_tail` (built further down), which check each
+        // matching qualified name's own deletion history per call site
+        // (`fact_live_for_call`). Filtering by `fact_live_at_file_end`
+        // here keeps a proc/class with no live definition anywhere in the
+        // file (deleted, never re-established) from being suggested as a
+        // fix for an unrelated typo.
         let proc_tail_names: HashSet<String> = self
             .result
             .all_procs
-            .keys()
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .iter()
+            .filter(|(qn, def)| self.fact_live_at_file_end(qn, def.name_span.start()))
+            .filter_map(|(qn, _)| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
             .filter(|s| !s.is_empty())
             .collect();
         let class_tail_names: HashSet<String> = self
             .result
             .all_classes
-            .keys()
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .iter()
+            .filter(|(qn, def)| self.fact_live_at_file_end(qn, def.name_span.start()))
+            .filter_map(|(qn, _)| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
             .filter(|s| !s.is_empty())
             .collect();
-        // An alias whose most recent action (by offset) in the file is a
-        // deletion (`interp alias {} name {}`) is no longer a callable
-        // command — `command_aliases` itself is never pruned on deletion
-        // (a later re-declaration of the same name must still win, and this
-        // whole-file set has no per-call-site position to gate against), so
-        // check `deleted_commands` here directly. This mirrors the same-file
-        // arity resolver's `fact_in_effect` convention for deleted aliases,
-        // just at file-end granularity rather than per call site.
-        let alias_names: HashSet<String> = self
-            .result
-            .command_aliases
-            .keys()
-            .filter(|qn| {
-                self.deleted_commands
-                    .get(qn.as_str())
-                    .is_none_or(|&del_off| self.alias_offsets.get(qn.as_str()) > Some(&del_off))
-            })
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
-            .filter(|s| !s.is_empty())
-            .collect();
-        // A static `rename OLD NEW` binds `NEW` to whatever `OLD` denoted —
-        // `NEW` is a callable command from the rename onward, so calls to it
-        // must not draw W123 (the same-file arity resolver already validates
-        // them against `OLD`'s signature via `renamed_commands`). Deletion is
-        // order-gated exactly like `alias_names` above: a `NEW` whose most
-        // recent action in the file is a deletion (`rename NEW {}`, or `NEW`
-        // renamed away again) is no longer callable at file end.
-        let rename_target_names: HashSet<String> = self
-            .renamed_commands
-            .keys()
-            .filter(|qn| {
-                self.deleted_commands
-                    .get(qn.as_str())
-                    .is_none_or(|&del_off| self.rename_offsets.get(qn.as_str()) > Some(&del_off))
-            })
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
-            .filter(|s| !s.is_empty())
-            .collect();
+        // Grouped by tail (unfiltered by deletion — the per-call live check
+        // in `w123_invocation_resolves` does that, since a top-level call
+        // textually before a later deletion, or a deletion recorded inside
+        // a never-triggered proc/class body, must still resolve; see
+        // `fact_live_for_call`). A tail may match several qualified names
+        // (the same simple name in different namespaces), each tracked
+        // with its own establishing offset.
+        let proc_defs_by_tail = group_defs_by_tail(
+            self.result
+                .all_procs
+                .iter()
+                .map(|(qn, def)| (qn, def.name_span.start())),
+        );
+        let class_defs_by_tail = group_defs_by_tail(
+            self.result
+                .all_classes
+                .iter()
+                .map(|(qn, def)| (qn, def.name_span.start())),
+        );
+        // These two tail sets feed only the "did you mean…?" candidate list
+        // below (same convention as `proc_tail_names` / `class_tail_names`
+        // above) — resolution itself uses `alias_defs_by_tail` /
+        // `rename_defs_by_tail` (built further down), issue #1006.
+        let alias_names =
+            self.live_tail_names(self.result.command_aliases.keys(), &self.alias_offsets);
+        let rename_target_names =
+            self.live_tail_names(self.renamed_commands.keys(), &self.rename_offsets);
+        // Grouped by tail, unfiltered by deletion — same per-call live
+        // check as `proc_defs_by_tail` / `class_defs_by_tail` (issue
+        // #1006: an alias/rename-target call textually before a later
+        // deletion, or a deletion recorded inside a never-triggered
+        // proc/class body, must still resolve; previously these two were
+        // plain tail `HashSet`s checked only via `fact_live_at_file_end`
+        // — file-end granularity, no call site or conditional-body
+        // awareness).
+        let alias_defs_by_tail = group_defs_by_tail(
+            self.result
+                .command_aliases
+                .keys()
+                .filter_map(|qn| self.alias_offsets.get(qn).map(|&off| (qn, off))),
+        );
+        let rename_defs_by_tail = group_defs_by_tail(
+            self.renamed_commands
+                .keys()
+                .filter_map(|qn| self.rename_offsets.get(qn).map(|&off| (qn, off))),
+        );
         let ensemble_cmds: HashSet<String> = self
             .ensemble_namespaces
             .iter()
@@ -288,10 +459,10 @@ impl Analyser {
 
         W123KnownNames {
             registry_names,
-            proc_tail_names,
-            class_tail_names,
-            alias_names,
-            rename_target_names,
+            proc_defs_by_tail,
+            class_defs_by_tail,
+            alias_defs_by_tail,
+            rename_defs_by_tail,
             ensemble_cmds,
             stub_names,
             import_pattern_tails,
@@ -448,10 +619,25 @@ impl Analyser {
         if name.contains("::") || name.starts_with('$') || name.starts_with('[') {
             return true;
         }
-        if known.proc_tail_names.contains(name)
-            || known.class_tail_names.contains(name)
-            || known.alias_names.contains(name)
-            || known.rename_target_names.contains(name)
+        // A tail may match several qualified names (the same simple name
+        // in different namespaces) — resolve if *any* of them has a fact
+        // still live for this specific call (issue #973 for procs/classes,
+        // issue #1006 for aliases/rename targets: a name renamed or
+        // deleted away, with no later re-establishment, must not resolve
+        // here; `fact_live_for_call` also keeps a top-level call textually
+        // before a later deletion, and a deletion recorded inside a
+        // never-triggered proc/class body, correctly resolving).
+        let tail_has_live_def = |defs_by_tail: &HashMap<String, Vec<(String, u32)>>| {
+            defs_by_tail.get(name).is_some_and(|defs| {
+                defs.iter().any(|(qualified, fact_off)| {
+                    self.fact_live_for_call(qualified, *fact_off, range.start())
+                })
+            })
+        };
+        if tail_has_live_def(&known.proc_defs_by_tail)
+            || tail_has_live_def(&known.class_defs_by_tail)
+            || tail_has_live_def(&known.alias_defs_by_tail)
+            || tail_has_live_def(&known.rename_defs_by_tail)
             || known.ensemble_cmds.contains(name)
             || known.stub_names.contains(name)
         {
@@ -479,10 +665,16 @@ impl Analyser {
             return true;
         }
         // Absolute-form fallback — ``cmd`` may be defined as ``::cmd`` in
-        // the global namespace.
-        if self.result.all_procs.contains_key(&format!("::{name}"))
-            || self.result.all_classes.contains_key(&format!("::{name}"))
-        {
+        // the global namespace. Same per-call deletion gate as the
+        // proc/class tail check above (issue #973): a `::cmd` renamed or
+        // deleted away, with no later re-establishment, must not resolve
+        // here either.
+        let absolute = format!("::{name}");
+        if self.result.all_procs.get(&absolute).is_some_and(|def| {
+            self.fact_live_for_call(&absolute, def.name_span.start(), range.start())
+        }) || self.result.all_classes.get(&absolute).is_some_and(|def| {
+            self.fact_live_for_call(&absolute, def.name_span.start(), range.start())
+        }) {
             return true;
         }
         // A command bound by `CLASS create NAME` (or a registry

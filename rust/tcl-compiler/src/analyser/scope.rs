@@ -33,13 +33,15 @@
 //! tracking maps (``const_strings``, ``regex_vars``, ``ns_cache``,
 //! ``result.regex_patterns``).
 
+use std::collections::{HashMap, HashSet};
+
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
 
 use super::state::Analyser;
-use super::types::{Scope, ScopeKind, VarDef};
+use super::types::{ClassDef, ProcDef, Scope, ScopeKind, VarDef};
 
 /// Ancestor path enumerator: yields the active scope's path and
 /// each of its proper ancestors back to the root, longest first.
@@ -232,6 +234,129 @@ pub fn lookup_var_in_namespace<'a>(
     walk("::", root, target_ns, base_name)
 }
 
+/// Bundles the field-disjoint borrows [`Analyser::finalise_invocation_resolutions`]'s
+/// call-site "is `qualified` known, for a call at `call_off`?" predicate
+/// needs, and the small body/enclosing-definition/liveness helpers it's
+/// built from — extracted so the loop that builds and consults it doesn't
+/// blow that function's line budget. `A` is left generic over the
+/// alias-map value type (only `contains_key` is used) so this doesn't need
+/// to name `command_aliases`'s value type explicitly.
+struct KnownPredicateCtx<'a, A> {
+    builtins: &'a HashSet<String>,
+    renamed_away: &'a HashSet<String>,
+    procs: &'a HashMap<String, ProcDef>,
+    classes: &'a HashMap<String, ClassDef>,
+    aliases: &'a HashMap<String, A>,
+    renames: &'a HashMap<String, String>,
+    alias_offsets: &'a HashMap<String, u32>,
+    rename_offsets: &'a HashMap<String, u32>,
+    deleted_commands: &'a HashMap<String, u32>,
+    top_level_call_offsets: &'a HashMap<String, u32>,
+}
+
+impl<A> KnownPredicateCtx<'_, A> {
+    /// Whether byte offset `off` falls inside any proc/class body recorded
+    /// so far — a local restatement of
+    /// `AnalysisResult::offset_is_inside_any_definition_body` over the
+    /// field-disjoint borrows above, since a method call on `result` (the
+    /// whole struct) would conflict with the `&mut
+    /// result.command_invocations` borrow the caller's loop holds.
+    fn offset_inside_any_body(&self, off: u32) -> bool {
+        self.procs
+            .values()
+            .any(|p| p.body_span.start() <= off && off < p.body_span.end())
+            || self
+                .classes
+                .values()
+                .any(|c| c.body_span.start() <= off && off < c.body_span.end())
+    }
+
+    /// The qualified name of the innermost proc/class body containing
+    /// `off`, mirroring `AnalysisResult::enclosing_definition_qualified_name`
+    /// for the same borrow-splitting reason as `offset_inside_any_body`.
+    fn enclosing_definition(&self, off: u32) -> Option<&str> {
+        self.procs
+            .values()
+            .map(|p| (p.qualified_name.as_str(), p.body_span))
+            .chain(
+                self.classes
+                    .values()
+                    .map(|c| (c.qualified_name.as_str(), c.body_span)),
+            )
+            .filter(|(_, span)| span.start() <= off && off < span.end())
+            .min_by_key(|(_, span)| span.end() - span.start())
+            .map(|(qn, _)| qn)
+    }
+
+    /// Whether `qualified`'s fact — a proc/class definition, a `rename`
+    /// target, or an `interp alias` target, established at `fact_off` — is
+    /// still live *for a call at `call_off`*: no `rename NAME {}` / `interp
+    /// alias {} NAME {}` deletion of `qualified` itself has been recorded
+    /// *after* that offset (issue #973: a proc/class/rename/alias target
+    /// that was later renamed away must not still count as known —
+    /// calling it fails "invalid command name" in real Tcl, confirmed
+    /// against tclsh 8.6.14). Mirrors `fact_superseded_by_deletion` in
+    /// `diagnostics/validity.rs` (the arity resolver's answer to the same
+    /// "most recent fact: live definition or deletion?" question) rather
+    /// than re-deriving it: a name deleted and then re-established under
+    /// the same name (a fresh `proc`, `rename`, or `interp alias`) is live
+    /// again, so only a deletion that postdates this specific fact's own
+    /// establishing offset disqualifies it. `deleted_commands` stores only
+    /// the last-seen deletion offset per name, which — since the walk
+    /// visits statements in source order — is always the most recent one.
+    ///
+    /// Call-site and conditional-body aware the same way
+    /// [`Analyser::fact_live_for_call`] is (the W123 pass's answer to the
+    /// identical question) — a namespaced local candidate must not lose to
+    /// the global one just because *some later* deletion exists, when this
+    /// specific call runs before it; issue #1009 Codex review: `proc bar
+    /// {}`, `namespace eval foo { proc bar {}; proc caller {} { bar } }`,
+    /// `foo::caller`, `rename foo::bar {}` still resolves `bar` (called
+    /// from `foo::caller`, before the rename) to `::foo::bar`, not the
+    /// global `::bar` — confirmed against tclsh 8.6.14 — because
+    /// `foo::caller`'s own top-level invocation already ran before the
+    /// rename.
+    fn live_for_call(&self, qualified: &str, fact_off: u32, call_off: u32) -> bool {
+        let Some(&del_off) = self.deleted_commands.get(qualified) else {
+            return true;
+        };
+        if del_off <= fact_off {
+            return true;
+        }
+        if self.offset_inside_any_body(del_off) {
+            return true;
+        }
+        if !self.offset_inside_any_body(call_off) {
+            return call_off <= del_off;
+        }
+        self.enclosing_definition(call_off)
+            .and_then(|qn| self.top_level_call_offsets.get(qn))
+            .is_some_and(|&t| t < del_off)
+    }
+
+    fn known(&self, qualified: &str, call_off: u32) -> bool {
+        self.procs
+            .get(qualified)
+            .is_some_and(|p| self.live_for_call(qualified, p.name_span.start(), call_off))
+            || self
+                .classes
+                .get(qualified)
+                .is_some_and(|c| self.live_for_call(qualified, c.name_span.start(), call_off))
+            || (self.aliases.contains_key(qualified)
+                && self
+                    .alias_offsets
+                    .get(qualified)
+                    .is_none_or(|&off| self.live_for_call(qualified, off, call_off)))
+            || (self.renames.contains_key(qualified)
+                && self
+                    .rename_offsets
+                    .get(qualified)
+                    .is_none_or(|&off| self.live_for_call(qualified, off, call_off)))
+            || (self.builtins.contains(qualified.trim_start_matches(':'))
+                && !self.renamed_away.contains(qualified))
+    }
+}
+
 impl Analyser {
     /// Resolve the current scope path to a borrow of the active
     /// [`Scope`] inside [`Self::result`]. Convenience wrapper
@@ -388,6 +513,48 @@ impl Analyser {
     /// (`graphs`, `minify`) find no same-file definition either way, and
     /// the cross-file reference matchers treat the field as a candidate,
     /// not ground truth.
+    /// Registry builtin names renamed away (`rename puts ::a::p`) or
+    /// deleted (`rename puts ""` / an `interp alias` deletion) anywhere in
+    /// the file — no longer callable under their original name (C raises
+    /// `invalid command name`), so the registry name must not count as
+    /// existing. Gates only [`Self::finalise_invocation_resolutions`]'s
+    /// registry-builtin clause; user procs/classes keep that function's
+    /// whole-file semantics (a proc/class's own deletion is instead gated
+    /// per qualified name, via `deleted_commands` directly).
+    fn renamed_away_builtin_names(&self) -> std::collections::HashSet<String> {
+        self.result
+            .renamed_commands
+            .values()
+            .cloned()
+            .chain(self.deleted_commands.keys().cloned())
+            .collect()
+    }
+
+    /// Build [`Analyser::top_level_call_offsets`]: the earliest offset,
+    /// among the walk's recorded invocations, of a call whose own site is
+    /// *not* inside any proc/class body — grouped by resolved qualified
+    /// name.  Read by [`Self::finalise_invocation_resolutions`]'s
+    /// `live_for_call` and by [`Self::fact_live_for_call`] as the "was the
+    /// enclosing definition itself invoked before the deletion" escape
+    /// hatch for a call nested inside a body (issue #1009 Codex review).
+    fn compute_top_level_call_offsets(&self) -> HashMap<String, u32> {
+        let mut offsets: HashMap<String, u32> = HashMap::new();
+        for inv in &self.result.command_invocations {
+            let Some(qualified) = inv.resolved_qualified_name.as_deref() else {
+                continue;
+            };
+            let call_off = inv.range.start();
+            if self.result.offset_is_inside_any_definition_body(call_off) {
+                continue;
+            }
+            offsets
+                .entry(qualified.to_string())
+                .and_modify(|off| *off = (*off).min(call_off))
+                .or_insert(call_off);
+        }
+        offsets
+    }
+
     pub(super) fn finalise_invocation_resolutions(&mut self) {
         // Populate the per-dialect builtin-name cache before splitting field
         // borrows below (`builtin_command_names` needs `&mut self`).
@@ -412,19 +579,18 @@ impl Analyser {
         // consumers (definition / hover / signature help) can honour a
         // `namespace path` the same way call-site settling does.
         self.result.namespace_paths.clone_from(&paths);
-        // A builtin renamed away (`rename puts ::a::p`) or deleted
-        // (`rename puts ""` / alias deletion) is no longer callable under
-        // its original name — C raises `invalid command name` — so the
-        // registry name must not count as existing. (User procs keep the
-        // whole-file semantics documented above; this gates only the
-        // builtin clause.)
-        let renamed_away: std::collections::HashSet<String> = self
-            .result
-            .renamed_commands
-            .values()
-            .cloned()
-            .chain(self.deleted_commands.keys().cloned())
-            .collect();
+        // Earliest top-level (non-body) call-site offset per resolved
+        // qualified name, from the invocations the walk has already
+        // recorded — computed before the mutable loop below so
+        // `live_for_call`'s body-call escape hatch (issue #1009 Codex
+        // review) can consult it, and cached on `self` so the later W123 /
+        // const-dispatch / variable-command passes' `Self::fact_live_for_call`
+        // calls reuse the same map instead of rebuilding it.
+        self.top_level_call_offsets = self.compute_top_level_call_offsets();
+        let renamed_away = self.renamed_away_builtin_names();
+        let deleted_commands = &self.deleted_commands;
+        let rename_offsets = &self.rename_offsets;
+        let top_level_call_offsets = &self.top_level_call_offsets;
         let result = &mut self.result;
         let (procs, classes, aliases, renames) = (
             &result.all_procs,
@@ -432,13 +598,22 @@ impl Analyser {
             &result.command_aliases,
             &result.renamed_commands,
         );
-        let known = |qualified: &str| {
-            procs.contains_key(qualified)
-                || classes.contains_key(qualified)
-                || aliases.contains_key(qualified)
-                || renames.contains_key(qualified)
-                || (builtins.contains(qualified.trim_start_matches(':'))
-                    && !renamed_away.contains(qualified))
+        let alias_offsets = &result.alias_offsets;
+        // See `KnownPredicateCtx` (module level, above `impl Analyser`) for
+        // the call-site + conditional-body-aware "is `qualified` known?"
+        // predicate this builds — extracted out of this function to stay
+        // within the line budget.
+        let known_ctx = KnownPredicateCtx {
+            builtins,
+            renamed_away: &renamed_away,
+            procs,
+            classes,
+            aliases,
+            renames,
+            alias_offsets,
+            rename_offsets,
+            deleted_commands,
+            top_level_call_offsets,
         };
         for inv in &mut result.command_invocations {
             // Absolute names are exact — the sole candidate is the name itself.
@@ -487,8 +662,9 @@ impl Analyser {
                 let candidates = crate::naming::command_resolution_candidates(&ns, path, &rel);
                 inv.resolution_candidates.clone_from(&candidates);
                 let global = format!("::tcl::mathfunc::{}", inv.name);
+                let call_off = inv.range.start();
                 let winner = candidates.into_iter().find(|c| {
-                    known(c)
+                    known_ctx.known(c, call_off)
                         || (*c == global
                             && crate::tcl_expr_eval::is_known_mathfunc_in_dialect(
                                 &inv.name, dialect,
@@ -528,7 +704,10 @@ impl Analyser {
             // defined in another file cannot settle correctly here.
             inv.resolution_candidates =
                 crate::naming::command_resolution_candidates(&ns, path, &inv.name);
-            if let Some(winner) = crate::naming::resolve_command_with(&ns, path, &inv.name, &known)
+            let call_off = inv.range.start();
+            let known_here = |c: &str| known_ctx.known(c, call_off);
+            if let Some(winner) =
+                crate::naming::resolve_command_with(&ns, path, &inv.name, &known_here)
                 && winner != resolved
             {
                 inv.resolved_qualified_name = Some(winner);
@@ -1794,6 +1973,82 @@ mod tests {
         assert_eq!(
             lookup_var_in_namespace(&root, "::", "v").map(|v| v.definition_span),
             Some(span(0, 1))
+        );
+    }
+
+    // `finalise_invocation_resolutions`'s local-vs-global candidate choice,
+    // Codex PR #1014 review comment #1 (`scope.rs:463`): the "known"
+    // predicate compared only the final deletion offset against the
+    // candidate's own establishing offset, never the call site, so a
+    // namespaced local call textually *before* a later unconditional
+    // deletion wrongly lost to the global candidate. Confirmed against
+    // tclsh 8.6.14 throughout.
+
+    #[test]
+    fn local_call_before_later_deletion_resolves_local_not_global_codex_1009() {
+        // TP (the confirmed regression): `foo::caller`'s own top-level
+        // invocation runs before `rename foo::bar {}`, so its `bar` call
+        // must still resolve to the local `::foo::bar`, not the global
+        // `::bar` — confirmed against tclsh 8.6.14 (prints "local").
+        let mut a = Analyser::new();
+        let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    proc caller {} { return [bar] }\n}\nfoo::caller\nrename foo::bar {}\n";
+        let r = a.analyse(src, "tcl8.6");
+        let bar_call = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "bar" && !i.indirect)
+            .expect("bar call recorded");
+        assert_eq!(
+            bar_call.resolved_qualified_name.as_deref(),
+            Some("::foo::bar"),
+            "a call before the deletion must still resolve to the local candidate"
+        );
+    }
+
+    #[test]
+    fn local_call_after_deletion_still_falls_back_to_global_issue_973() {
+        // FN guard / regression: unlike the case above, `foo::caller` is
+        // only ever invoked (at the top level) *after* `rename foo::bar
+        // {}` runs, so the local `bar` is genuinely gone by the time the
+        // call executes — it must still fall back to the global `::bar`
+        // (issue #973's original fix must not regress).
+        let mut a = Analyser::new();
+        let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    rename foo::bar {}\n    proc caller {} { return [bar] }\n}\nfoo::caller\n";
+        let r = a.analyse(src, "tcl8.6");
+        let bar_call = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "bar" && !i.indirect)
+            .expect("bar call recorded");
+        assert_eq!(
+            bar_call.resolved_qualified_name.as_deref(),
+            Some("::bar"),
+            "a call genuinely after the deletion must fall back to the global candidate"
+        );
+    }
+
+    #[test]
+    fn escape_hatch_requires_the_specific_enclosing_definitions_own_top_level_call() {
+        // FN guard: an unrelated proc's top-level invocation elsewhere in
+        // the file must not "lend" liveness to a different enclosing
+        // definition that is itself never invoked — the escape hatch must
+        // key off the *specific* body's own top-level call, not just
+        // "some call happened somewhere before the deletion". `foo::bar`
+        // is deleted, and `foo::caller` (the only body that calls it) is
+        // never invoked anywhere — only the unrelated `baz::unrelated` is
+        // — so the `bar` call must fall back to the global `::bar`.
+        let mut a = Analyser::new();
+        let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    proc caller {} { return [bar] }\n}\nnamespace eval baz {\n    proc unrelated {} { return 1 }\n}\nbaz::unrelated\nrename foo::bar {}\n";
+        let r = a.analyse(src, "tcl8.6");
+        let bar_call = r
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "bar" && !i.indirect)
+            .expect("bar call recorded");
+        assert_eq!(
+            bar_call.resolved_qualified_name.as_deref(),
+            Some("::bar"),
+            "foo::caller is never invoked, so the escape hatch must not apply"
         );
     }
 }

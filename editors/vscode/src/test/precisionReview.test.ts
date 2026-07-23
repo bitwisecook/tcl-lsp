@@ -48,19 +48,27 @@ function withCode(diags: vscode.Diagnostic[], code: string): vscode.Diagnostic[]
 suite("Diagnostics precision review", () => {
   const docUri = getDocUri("precisionReview.tcl");
 
-  test("rename target is known; vacated name draws W128", async () => {
+  test("rename target is known; vacated name draws both W128 and W123", async () => {
     await activate(docUri);
     const diags = await waitForDiagnostics(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W128"),
     });
-    assert.strictEqual(
-      withCode(diags, "W123").length,
-      0,
+    // `ua2` (line 5) is the rename target — must not be an unknown command.
+    assert.ok(
+      !withCode(diags, "W123").some((d) => d.range.start.line === 5),
       "the rename target `ua2` must not be an unknown command",
     );
+    // `user_args` (line 6) is the vacated source name — issue #973 (confirmed
+    // against tclsh 8.6.14): it fails "invalid command name" just like any
+    // other unresolved command, so it draws the generic W123 alongside the
+    // specific "renamed or deleted" W128 hint.
     const w128 = withCode(diags, "W128");
     assert.strictEqual(w128.length, 1, "the vacated `user_args` draws exactly one W128");
     assert.strictEqual(w128[0].range.start.line, 6);
+    assert.ok(
+      withCode(diags, "W123").some((d) => d.range.start.line === 6),
+      "the vacated `user_args` now also draws W123 (issue #973)",
+    );
   });
 
   test("W210 range is tight on the nested $missing read", async () => {
