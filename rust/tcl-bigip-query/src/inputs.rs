@@ -168,7 +168,7 @@ pub fn parse_json(source: &str, uri: &str) -> Result<Value, QueryError> {
     let parsed: serde_json::Value = serde_json::from_str(source).map_err(|e| {
         QueryError::eval(format!("{uri}: invalid JSON ({} at line {})", e, e.line()))
     })?;
-    Ok(json_to_value(&parsed))
+    Ok(json_to_value(&parsed, 0))
 }
 
 // JSON Lines (NDJSON)
@@ -197,7 +197,7 @@ pub fn parse_jsonl(text: &str, source: &str) -> Result<Value, QueryError> {
                 e.column()
             ))
         })?;
-        out.push(json_to_value(&parsed));
+        out.push(json_to_value(&parsed, 0));
     }
     Ok(Value::List(out))
 }

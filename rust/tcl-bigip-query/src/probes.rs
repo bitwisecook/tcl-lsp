@@ -419,7 +419,7 @@ fn spki_to_pem(spki_der: &[u8]) -> String {
 #[cfg(feature = "probes")]
 pub(crate) fn x509_eq(left: &Value, right: &Value) -> bool {
     let (Value::Object(l), Value::Object(r)) = (as_dict(left), as_dict(right)) else {
-        return crate::value::py_eq(left, right);
+        return crate::value::py_eq(left, right, 0);
     };
     let lfp = dict_str(&l, "fingerprint_sha256");
     let rfp = dict_str(&r, "fingerprint_sha256");

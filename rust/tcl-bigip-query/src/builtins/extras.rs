@@ -155,7 +155,7 @@ fn bi_http_body_json(args: &[Value]) -> Result<Value, QueryError> {
         return Ok(Value::Null);
     }
     match serde_json::from_str::<serde_json::Value>(&body) {
-        Ok(j) => Ok(crate::builtins::json_to_value(&j)),
+        Ok(j) => Ok(crate::builtins::json_to_value(&j, 0)),
         Err(e) => Err(QueryError::builtin(format!(
             "http_body_json: invalid JSON ({e})"
         ))),
