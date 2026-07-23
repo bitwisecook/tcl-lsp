@@ -307,7 +307,10 @@ its own tracked issue.
 
 - `rust/tcl-compiler/src/analyser/handlers.rs` (suffixed `_1001`) —
   `safe_interp_w129_list_quoted_apply_lambda_body_reports_hidden_source_1001`
-  (the reported repro), `safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001`,
+  (the reported repro), `safe_interp_w129_expand_list_quoted_apply_lambda_body_1001`
+  and `safe_interp_w129_list_quoted_apply_package_ifneeded_then_require_1001`
+  (issue #1001's own second and third repro cases, pinned verbatim),
+  `safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001`,
   `safe_interp_w129_list_quoted_apply_after_idle_1001`,
   `safe_interp_w129_list_quoted_hidden_command_directly_1001` (no `apply`),
   `safe_interp_w129_list_quoted_apply_in_plain_data_is_not_flagged_1001` (FP

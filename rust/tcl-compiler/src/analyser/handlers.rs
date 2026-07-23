@@ -6881,4 +6881,55 @@ proc runs {body} {\n\
             r.diagnostics
         );
     }
+
+    /// Pins issue #1001's own second reported repro case verbatim:
+    /// `{*}[list apply {...} $x]` combines *two* indirection mechanisms at
+    /// once — `{*}`-expansion of this command's own effective head
+    /// (`check_indirect_hiding`'s `{*}[list HEAD ...]` resolution) *and*
+    /// the resolved head being `apply` (triggering the lambda-body
+    /// recursion into `handle_apply_command`), so the hidden `source`
+    /// nested inside the lambda body must still draw W129.
+    #[test]
+    fn safe_interp_w129_expand_list_quoted_apply_lambda_body_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { {*}[list apply {dir {source $dir/evil.tcl}} $env(HOME)] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `source` nested inside a `{{*}}[list apply ...]`-invoked \
+             lambda body warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Pins issue #1001's third reported repro case verbatim: the
+    /// `package ifneeded` deferred script followed by the actual
+    /// `package require` that triggers it — confirms the fix holds when the
+    /// deferred script is later invoked, not just when it is merely
+    /// declared.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_package_ifneeded_then_require_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 package ifneeded evil 1.0 [list apply {dir {source $dir/evil.tcl}} $env(HOME)]\n\
+                 package require evil\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "the deferred script's hidden `source` warns once `package \
+             require` is present too: {:?}",
+            r.diagnostics
+        );
+    }
 }
