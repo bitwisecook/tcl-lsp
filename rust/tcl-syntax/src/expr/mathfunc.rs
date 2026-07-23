@@ -154,6 +154,288 @@ pub fn added_in(name: &str) -> Option<MathFuncSince> {
     Some(since)
 }
 
+/// Static facts about one `expr` math function — the string-keyed
+/// counterpart to `operators::OperatorSpec` (math functions are open and
+/// overridable via `::tcl::mathfunc::*`, TIP 232, so there's no closed enum
+/// to attach metadata to). This is the fact table `mathfunc_generated.rs`
+/// (layer 2) reads for hover/completion; it carries no behavior of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MathFuncSpec {
+    /// Function name, matched verbatim (mathfunc lookup is case-sensitive).
+    pub name: &'static str,
+    /// The release this function first appeared in.
+    pub since: MathFuncSince,
+    /// Argument-count contract.
+    pub arity: super::operators::CommandArity,
+    /// Whether the operand accepts Tcl boolean words (`true`/`yes`/…) — see
+    /// [`accepts_boolean_operand`].
+    pub accepts_boolean_operand: bool,
+    /// A one-line human summary for hover text.
+    pub summary: &'static str,
+}
+
+/// Static metadata for math function `name`, or `None` when `name` isn't a
+/// built-in `expr` function in any release — the single source layer 2
+/// (`mathfunc_generated.rs`) reads to build hover/completion `CommandSpec`s.
+/// Split into one helper per release (mirroring [`added_in`]'s own grouping)
+/// purely to stay under clippy's function-length lint.
+#[must_use]
+pub fn spec(name: &str) -> Option<MathFuncSpec> {
+    spec_tcl84(name)
+        .or_else(|| spec_tcl85(name))
+        .or_else(|| spec_tcl90(name))
+        .or_else(|| spec_tcl91(name))
+}
+
+/// All built-in `expr` math functions, in a fixed (declaration) order —
+/// the completeness anchor for consumers that need to enumerate every
+/// function (layer 2's generator, completion, editor-generator sweeps).
+#[must_use]
+pub fn all() -> Vec<MathFuncSpec> {
+    ALL_NAMES
+        .iter()
+        .map(|&n| spec(n).expect("name is in spec()'s own tables"))
+        .collect()
+}
+
+/// Every name [`spec`] recognises, in declaration order — kept in one place
+/// so [`all`] can't drift from the four `spec_tcl8x`/`spec_tcl9x` helpers.
+const ALL_NAMES: &[&str] = &[
+    "abs",
+    "acos",
+    "asin",
+    "atan",
+    "atan2",
+    "ceil",
+    "cos",
+    "cosh",
+    "double",
+    "exp",
+    "floor",
+    "fmod",
+    "hypot",
+    "int",
+    "log",
+    "log10",
+    "pow",
+    "rand",
+    "round",
+    "sin",
+    "sinh",
+    "sqrt",
+    "srand",
+    "tan",
+    "tanh",
+    "wide",
+    "bool",
+    "entier",
+    "isqrt",
+    "max",
+    "min",
+    "isfinite",
+    "isinf",
+    "isnan",
+    "isnormal",
+    "issubnormal",
+    "isunordered",
+    "acosh",
+    "asinh",
+    "atanh",
+    "cbrt",
+    "copysign",
+    "dim",
+    "erf",
+    "erfc",
+    "exp2",
+    "expm1",
+    "fma",
+    "gamma",
+    "ldexp",
+    "lgamma",
+    "log1p",
+    "log2",
+    "logb",
+    "nextafter",
+    "remainder",
+    "signbit",
+    "trunc",
+];
+
+/// The 8.4 fixed C function table (`tclExecute.c`).
+fn spec_tcl84(name: &str) -> Option<MathFuncSpec> {
+    use super::operators::CommandArity as Arity;
+    // Each arm's first element is the `'static` spelling itself — `name`
+    // (the parameter) borrows from the caller, so the `MathFuncSpec.name`
+    // field (which must outlive `'static`) has to come from the match arm's
+    // own literal, not from `name` directly.
+    let (name, arity, summary) = match name {
+        "abs" => ("abs", Arity::exact(1), "absolute value"),
+        "acos" => ("acos", Arity::exact(1), "arc cosine"),
+        "asin" => ("asin", Arity::exact(1), "arc sine"),
+        "atan" => ("atan", Arity::exact(1), "arc tangent"),
+        "atan2" => ("atan2", Arity::exact(2), "arc tangent of y/x"),
+        "ceil" => ("ceil", Arity::exact(1), "ceiling (round up)"),
+        "cos" => ("cos", Arity::exact(1), "cosine"),
+        "cosh" => ("cosh", Arity::exact(1), "hyperbolic cosine"),
+        "double" => ("double", Arity::exact(1), "convert to floating point"),
+        "exp" => ("exp", Arity::exact(1), "exponential (e^x)"),
+        "floor" => ("floor", Arity::exact(1), "floor (round down)"),
+        "fmod" => ("fmod", Arity::exact(2), "floating-point remainder"),
+        "hypot" => ("hypot", Arity::exact(2), "hypotenuse (sqrt(x*x + y*y))"),
+        "int" => ("int", Arity::exact(1), "convert to integer (truncating)"),
+        "log" => ("log", Arity::exact(1), "natural logarithm"),
+        "log10" => ("log10", Arity::exact(1), "base-10 logarithm"),
+        "pow" => ("pow", Arity::exact(2), "exponentiation (x^y)"),
+        "rand" => ("rand", Arity::exact(0), "pseudo-random number in [0, 1)"),
+        "round" => ("round", Arity::exact(1), "round to nearest integer"),
+        "sin" => ("sin", Arity::exact(1), "sine"),
+        "sinh" => ("sinh", Arity::exact(1), "hyperbolic sine"),
+        "sqrt" => ("sqrt", Arity::exact(1), "square root"),
+        "srand" => ("srand", Arity::exact(1), "seed the random number generator"),
+        "tan" => ("tan", Arity::exact(1), "tangent"),
+        "tanh" => ("tanh", Arity::exact(1), "hyperbolic tangent"),
+        "wide" => (
+            "wide",
+            Arity::exact(1),
+            "convert to a wide (64-bit) integer",
+        ),
+        _ => return None,
+    };
+    Some(MathFuncSpec {
+        name,
+        since: MathFuncSince::Tcl84,
+        arity,
+        accepts_boolean_operand: false,
+        summary,
+    })
+}
+
+/// TIP 232 (8.5): the `::tcl::mathfunc` command scheme, plus `bool` /
+/// `entier` / `isqrt` / `min` / `max`.
+fn spec_tcl85(name: &str) -> Option<MathFuncSpec> {
+    use super::operators::CommandArity as Arity;
+    let (name, arity, summary) = match name {
+        "bool" => ("bool", Arity::exact(1), "convert to boolean"),
+        "entier" => (
+            "entier",
+            Arity::exact(1),
+            "convert to an arbitrary-precision integer",
+        ),
+        "isqrt" => ("isqrt", Arity::exact(1), "integer square root"),
+        "max" => ("max", Arity::at_least(1), "largest of the arguments"),
+        "min" => ("min", Arity::at_least(1), "smallest of the arguments"),
+        _ => return None,
+    };
+    Some(MathFuncSpec {
+        name,
+        since: MathFuncSince::Tcl85,
+        arity,
+        accepts_boolean_operand: name == "bool",
+        summary,
+    })
+}
+
+/// TIP 521 (9.0): floating-point classification.
+fn spec_tcl90(name: &str) -> Option<MathFuncSpec> {
+    use super::operators::CommandArity as Arity;
+    let (name, summary) = match name {
+        "isfinite" => (
+            "isfinite",
+            "true if the value is finite (not infinite or NaN)",
+        ),
+        "isinf" => (
+            "isinf",
+            "true if the value is positive or negative infinity",
+        ),
+        "isnan" => ("isnan", "true if the value is NaN (not a number)"),
+        "isnormal" => (
+            "isnormal",
+            "true if the value is a normal floating-point number",
+        ),
+        "issubnormal" => (
+            "issubnormal",
+            "true if the value is a subnormal (denormal) number",
+        ),
+        "isunordered" => (
+            "isunordered",
+            "true if either argument is NaN (they cannot be ordered)",
+        ),
+        _ => return None,
+    };
+    let arity = if name == "isunordered" {
+        Arity::exact(2)
+    } else {
+        Arity::exact(1)
+    };
+    Some(MathFuncSpec {
+        name,
+        since: MathFuncSince::Tcl90,
+        arity,
+        accepts_boolean_operand: false,
+        summary,
+    })
+}
+
+/// TIP 745 (9.1): the C99 math function batch.
+fn spec_tcl91(name: &str) -> Option<MathFuncSpec> {
+    use super::operators::CommandArity as Arity;
+    let (name, arity, summary) = match name {
+        "acosh" => ("acosh", Arity::exact(1), "inverse hyperbolic cosine"),
+        "asinh" => ("asinh", Arity::exact(1), "inverse hyperbolic sine"),
+        "atanh" => ("atanh", Arity::exact(1), "inverse hyperbolic tangent"),
+        "cbrt" => ("cbrt", Arity::exact(1), "cube root"),
+        "copysign" => (
+            "copysign",
+            Arity::exact(2),
+            "magnitude of x with the sign of y",
+        ),
+        "dim" => (
+            "dim",
+            Arity::exact(2),
+            "positive difference (max(x - y, 0))",
+        ),
+        "erf" => ("erf", Arity::exact(1), "error function"),
+        "erfc" => ("erfc", Arity::exact(1), "complementary error function"),
+        "exp2" => ("exp2", Arity::exact(1), "base-2 exponential (2^x)"),
+        "expm1" => ("expm1", Arity::exact(1), "exp(x) - 1, accurate for small x"),
+        "fma" => (
+            "fma",
+            Arity::exact(3),
+            "fused multiply-add (x*y + z, one rounding)",
+        ),
+        "gamma" => ("gamma", Arity::exact(1), "gamma function"),
+        "ldexp" => ("ldexp", Arity::exact(2), "x * 2^exp"),
+        "lgamma" => (
+            "lgamma",
+            Arity::exact(1),
+            "natural log of the absolute value of gamma(x)",
+        ),
+        "log1p" => ("log1p", Arity::exact(1), "log(1 + x), accurate for small x"),
+        "log2" => ("log2", Arity::exact(1), "base-2 logarithm"),
+        "logb" => ("logb", Arity::exact(1), "unbiased base-2 exponent"),
+        "nextafter" => (
+            "nextafter",
+            Arity::exact(2),
+            "next representable value after x, toward y",
+        ),
+        "remainder" => ("remainder", Arity::exact(2), "IEEE remainder of x/y"),
+        "signbit" => (
+            "signbit",
+            Arity::exact(1),
+            "true if the sign bit of x is set",
+        ),
+        "trunc" => ("trunc", Arity::exact(1), "truncate toward zero"),
+        _ => return None,
+    };
+    Some(MathFuncSpec {
+        name,
+        since: MathFuncSince::Tcl91,
+        arity,
+        accepts_boolean_operand: false,
+        summary,
+    })
+}
+
 /// `isunordered(x, y)` — 1 if either operand is NaN (they cannot be ordered),
 /// else 0 (C's `ExprIsUnorderedFunc`). Integers convert to finite doubles.
 fn is_unordered(vals: &[Num]) -> Option<Num> {
@@ -737,6 +1019,46 @@ mod tests {
             "log1p", "log2", "logb", "trunc",
         ] {
             assert_eq!(dispatch(name, &[Num::Float(f64::NAN)]), None, "{name}(NaN)");
+        }
+    }
+
+    #[test]
+    fn spec_agrees_with_added_in_for_every_name() {
+        for &name in ALL_NAMES {
+            let s = spec(name).unwrap_or_else(|| panic!("spec({name}) is None"));
+            assert_eq!(s.name, name);
+            assert_eq!(
+                Some(s.since),
+                added_in(name),
+                "{name}: spec().since disagrees with added_in()"
+            );
+        }
+        assert_eq!(spec("not_a_real_function"), None);
+        assert_eq!(all().len(), ALL_NAMES.len());
+    }
+
+    #[test]
+    fn spec_arity_matches_dispatch_shape() {
+        use super::super::operators::CommandArity;
+
+        assert_eq!(spec("sqrt").unwrap().arity, CommandArity::exact(1));
+        assert_eq!(spec("atan2").unwrap().arity, CommandArity::exact(2));
+        assert_eq!(spec("fma").unwrap().arity, CommandArity::exact(3));
+        assert_eq!(spec("rand").unwrap().arity, CommandArity::exact(0));
+        assert_eq!(spec("max").unwrap().arity, CommandArity::at_least(1));
+        assert_eq!(spec("min").unwrap().arity, CommandArity::at_least(1));
+        assert_eq!(spec("isunordered").unwrap().arity, CommandArity::exact(2));
+        assert_eq!(spec("ldexp").unwrap().arity, CommandArity::exact(2));
+    }
+
+    #[test]
+    fn spec_accepts_boolean_operand_matches_the_standalone_query() {
+        for &name in ALL_NAMES {
+            assert_eq!(
+                spec(name).unwrap().accepts_boolean_operand,
+                accepts_boolean_operand(name),
+                "{name}"
+            );
         }
     }
 }
