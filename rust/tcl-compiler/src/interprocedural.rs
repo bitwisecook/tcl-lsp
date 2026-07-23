@@ -701,9 +701,6 @@ fn collect_instance_var_writes(
                 collect_instance_var_writes(next, ivars, out, depth + 1);
                 collect_instance_var_writes(body, ivars, out, depth + 1);
             }
-            Statement::While { body, .. } => {
-                collect_instance_var_writes(body, ivars, out, depth + 1)
-            }
             Statement::Foreach {
                 iterators, body, ..
             } => {
@@ -760,7 +757,9 @@ fn collect_instance_var_writes(
                     collect_instance_var_writes(db, ivars, out, depth + 1);
                 }
             }
-            Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
+            Statement::While { body, .. }
+            | Statement::Block { body, .. }
+            | Statement::UpFrame { body, .. } => {
                 collect_instance_var_writes(body, ivars, out, depth + 1);
             }
             _ => {}
