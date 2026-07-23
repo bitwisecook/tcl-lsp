@@ -33,6 +33,7 @@
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
+use tcl_syntax::list::find_element;
 
 use crate::alias::{detect_interp_alias, resolve_alias};
 use crate::signature_scan::types::SignatureCommandAlias;
@@ -1690,25 +1691,59 @@ impl Analyser {
         }
     }
 
-    /// The `(element, span)` pairs of a whitespace-separated list word, with
-    /// each element's span located inside the token's content (`content_offset`
-    /// skips the opening delimiter).  Shared by the ensemble `-map` /
-    /// `-subcommands` extraction; a dynamic element is left for the caller to
-    /// skip.
+    /// The `(element, span)` pairs of a list word's *top-level* Tcl-list
+    /// elements — proper brace/quote-aware splitting
+    /// ([`find_element`]), not naive whitespace splitting, so a braced
+    /// multi-word element (`{source b.tcl}`, the shape a `-map` *target*
+    /// commonly takes — see [`Self::record_ensemble_map_targets`]) comes
+    /// back as one element instead of being shredded into stray fragments
+    /// that no longer line up in pairs (codex review, #1001 follow-up: a
+    /// naive `split_whitespace` turned `-map {go {source b.tcl}}` into
+    /// `["go", "{source", "b.tcl}"]`, an unmatched three-way split that
+    /// silently dropped the pairing entirely). Each element's span is
+    /// located inside the token's content (`content_offset` skips the
+    /// opening delimiter). A malformed trailing element (unmatched
+    /// brace/quote, typically mid-edit) simply stops the scan early,
+    /// matching this codebase's established lenient-list-parsing
+    /// convention (`tcl_syntax::list::split_list_lenient`) rather than
+    /// discarding everything already parsed. Shared by the ensemble
+    /// `-map` / `-subcommands` extraction; a dynamic element is left for
+    /// the caller to skip.
     fn list_word_elements(list_text: &str, tok: Token) -> Vec<(String, Span)> {
         let content_start = tok.span.start() + u32::from(tok.content_offset);
         let mut out = Vec::new();
-        let mut search_start = 0usize;
-        for elem in list_text.split_whitespace() {
-            if let Some(rel) = list_text[search_start..].find(elem) {
-                let idx = search_start + rel;
-                let start = content_start + u32::try_from(idx).unwrap_or(0);
-                let end = start + u32::try_from(elem.len()).unwrap_or(0);
-                out.push((elem.to_owned(), Span::new(start, end)));
-                search_start = idx + elem.len();
+        let mut pos = 0usize;
+        while let Ok(Some(el)) = find_element(list_text, pos) {
+            if let Some(text) = list_text.get(el.value.clone()) {
+                let start = content_start + u32::try_from(el.value.start).unwrap_or(0);
+                let end = content_start + u32::try_from(el.value.end).unwrap_or(0);
+                out.push((text.to_string(), Span::new(start, end)));
             }
+            pos = el.next;
         }
         out
+    }
+
+    /// The head word `(text, span)` of a command-prefix string — Tcl-list
+    /// parses `text` and returns just its first element, the command
+    /// actually invoked once the prefix's trailing words and the caller's
+    /// own arguments are appended (mirrors
+    /// `signature_scan::command_prefix::extract_prefix_head`'s
+    /// braced-multi-word case, applied to a string with no lexer token of
+    /// its own — a `-map` target sits *inside* another list element, not
+    /// as a distinct token). `base_start` is `text`'s own absolute start
+    /// offset in the source, so the returned span locates the head word
+    /// there, not merely within `text`. `None` for an empty or malformed
+    /// (unmatched brace/quote) prefix.
+    fn command_prefix_head(text: &str, base_start: u32) -> Option<(String, Span)> {
+        let head_el = find_element(text, 0).ok().flatten()?;
+        let head = text.get(head_el.value.clone())?;
+        if head.is_empty() {
+            return None;
+        }
+        let start = base_start + u32::try_from(head_el.value.start).ok()?;
+        let end = base_start + u32::try_from(head_el.value.end).ok()?;
+        Some((head.to_string(), Span::new(start, end)))
     }
 
     /// Record every `-map` target (the odd elements of the `sub target …`
@@ -1722,7 +1757,32 @@ impl Analyser {
     /// couldn't be resolved statically, matching every other guard in this
     /// handler).
     ///
-    /// The map stores the *raw written* target text (`"source"`), not
+    /// A `-map` target is a command name **or a command prefix** in real
+    /// Tcl (tclsh 8.6.14-verified: `-map {go {string length}}` dispatches
+    /// `myens go hello` to `string length hello`) — the command actually
+    /// invoked is the prefix's *head*; the rest are baked-in arguments, not
+    /// part of the command's identity. [`Self::command_prefix_head`]
+    /// extracts just that head (codex review, #1001 follow-up: recording
+    /// the whole multi-word target text verbatim, or worse, splitting it
+    /// on whitespace before pairing it with its subcommand at all, means
+    /// a target like `{source b.tcl}` never matches the registry's bare
+    /// `source` and W129 stays silently missed for this valid indirection
+    /// shape) — both the reference recorded below and the map entry use
+    /// only the head.
+    ///
+    /// Every `-map` value **replaces** the ensemble's entire subcommand
+    /// table in real Tcl, whether given at `create` or a later
+    /// `configure` (tclsh 8.6.14-verified: `configure myens -map {ok
+    /// puts}` after `create ... -map {bad source ok puts}` turns `myens
+    /// bad` into an "unknown or ambiguous subcommand" error, not a
+    /// leftover redirect to `source`) — codex review, #1001 follow-up:
+    /// merging new pairs into the existing cached map instead of
+    /// replacing it would leave a subcommand a later `-map` dropped still
+    /// resolving to its stale target, a false-positive risk. The cached
+    /// map for `ensemble_key` is cleared before any of its new pairs are
+    /// inserted.
+    ///
+    /// The map stores the *raw written* head text (`"source"`), not
     /// `resolved` (the namespace-qualified form used for the reference
     /// below) — [`Self::check_ensemble_redirect_hiding`] hands it straight
     /// to [`Self::safe_interp_visibility_gate`], which — like the direct
@@ -1753,6 +1813,12 @@ impl Analyser {
         scope_path: &[usize],
         ensemble_key: Option<&str>,
     ) {
+        if let Some(key) = ensemble_key {
+            self.ensemble_command_maps
+                .entry(key.to_string())
+                .or_default()
+                .clear();
+        }
         for pair in Self::list_word_elements(list_text, tok).chunks(2) {
             let [(sub, _), (target, span)] = pair else {
                 continue;
@@ -1760,14 +1826,17 @@ impl Analyser {
             if crate::naming::is_dynamic_word(target) {
                 continue;
             }
+            let Some((head, head_span)) = Self::command_prefix_head(target, span.start()) else {
+                continue;
+            };
             if let Some(key) = ensemble_key {
                 self.ensemble_command_maps
                     .entry(key.to_string())
                     .or_default()
-                    .insert(sub.clone(), target.clone());
+                    .insert(sub.clone(), head.clone());
             }
-            let resolved = self.resolve_command_qualified_name(target, scope_path);
-            self.push_command_reference(target.clone(), *span, resolved, None);
+            let resolved = self.resolve_command_qualified_name(&head, scope_path);
+            self.push_command_reference(head, head_span, resolved, None);
         }
     }
 
@@ -7240,6 +7309,64 @@ proc runs {body} {\n\
                 .iter()
                 .any(|d| d.code == tcl_core_types::DiagCode::W129),
             "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: a `-map` target that is itself a multi-word command prefix
+    /// (`{source b.tcl}`, real and valid Tcl — tclsh 8.6.14-verified:
+    /// `-map {go {string length}}` dispatches `myens go x` to `string
+    /// length x`) must still resolve to its *head* command for W129,
+    /// not be dropped entirely by a naive whitespace split across the
+    /// pair boundary (codex review, #1001 follow-up).
+    #[test]
+    fn safe_interp_w129_ensemble_map_redirect_multiword_target_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go {source b.tcl}}\n\
+                 myens go\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect to a multi-word hidden-command \
+             prefix warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP/FN guard: `configure -map` *replaces* the ensemble's whole
+    /// subcommand table in real Tcl (tclsh 8.6.14-verified: a subcommand
+    /// dropped from a later `-map` becomes "unknown or ambiguous
+    /// subcommand", not a leftover redirect) — a subcommand a later
+    /// `-map` omits must stop resolving to its stale, no-longer-mapped
+    /// target instead of still drawing W129 (codex review, #1001
+    /// follow-up: merging into the cached map instead of replacing it
+    /// left the stale entry behind).
+    #[test]
+    fn safe_interp_w129_ensemble_configure_map_replaces_not_merges_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens \
+                     -map {bad source ok puts}\n\
+                 namespace ensemble configure myens -map {ok puts}\n\
+                 myens bad\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a subcommand dropped by a later `-map` must not keep warning \
+             through its stale mapping: {:?}",
             r.diagnostics
         );
     }
