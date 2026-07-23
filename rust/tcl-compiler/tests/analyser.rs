@@ -1938,6 +1938,25 @@ mod rename {
     }
 
     #[test]
+    fn foreach_over_a_braced_list_element_is_not_mis_split_on_whitespace() {
+        // Codex review (PR #1020): the literal-`foreach` simulation parsed
+        // its value with `split_whitespace`, so a braced element `{bar baz}`
+        // in `foreach c {a {bar baz}} { proc ::$c {} {} }` was mis-sliced
+        // into `{bar` + `baz}` and the re-dispatched `proc` created bogus
+        // commands `::{bar` / `::baz}`. Parsed as a real Tcl list, that value
+        // is exactly two elements — `a` and `bar baz` — so no brace-fragment
+        // proc is ever recorded.
+        let procs = Analyser::new()
+            .analyse("foreach c {a {bar baz}} { proc ::$c {} {} }\n", D)
+            .all_procs;
+        assert!(
+            !procs.keys().any(|k| k.contains('{') || k.contains('}')),
+            "no brace-fragment proc from a mis-split braced element: {:?}",
+            procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn proc_parameter_is_not_constant_folded() {
         // FN (expected, documented — explicitly out of scope per idx 3's
         // research plan: closing this needs interprocedural single-

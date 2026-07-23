@@ -2517,7 +2517,7 @@ impl Analyser {
     /// `list_text`) is the narrow, fully-literal shape
     /// [`Self::simulate_remaining_foreach_iterations`] can simulate: a
     /// single plain identifier (not itself dynamic, not a multi-name list)
-    /// bound to a whitespace-separated list of literal (non-dynamic)
+    /// bound to a Tcl-list-valued sequence of literal (non-dynamic)
     /// elements. Returns `(var, elements)`.
     fn literal_foreach_binding(
         var_list_text: &str,
@@ -2528,7 +2528,20 @@ impl Analyser {
         if vars.next().is_some() || crate::naming::is_dynamic_word(var) {
             return None;
         }
-        let elements: Vec<String> = list_text.split_whitespace().map(str::to_owned).collect();
+        // Parse the value as a real Tcl list, not `split_whitespace`: a
+        // braced element like `{bar baz}` in `foo {bar baz}` is a *single*
+        // list element (`bar baz`), and whitespace-splitting would mis-slice
+        // it into `{bar` + `baz}` and bind the loop var to those bogus
+        // fragments — the re-dispatched `rename`/`proc` handlers would then
+        // invent command facts for `{bar`/`baz}` and miss the real `bar baz`
+        // iteration (Codex review, PR #1020). A malformed list (unbalanced
+        // brace/quote) is not a valid `foreach` value at all — real Tcl
+        // errors on it — so `split_list`'s `Err` means abstain entirely.
+        let elements: Vec<String> = tcl_syntax::list::split_list(list_text)
+            .ok()?
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect();
         if elements.is_empty() || elements.iter().any(|e| crate::naming::is_dynamic_word(e)) {
             return None;
         }
