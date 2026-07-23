@@ -1870,9 +1870,7 @@ fn count_eq_ne_ops_at(node: &ExprNode, depth: u32) -> usize {
                 + count_eq_ne_ops_at(true_branch, depth + 1)
                 + count_eq_ne_ops_at(false_branch, depth + 1)
         }
-        ExprNode::Call { args, .. } => {
-            args.iter().map(|a| count_eq_ne_ops_at(a, depth + 1)).sum()
-        }
+        ExprNode::Call { args, .. } => args.iter().map(|a| count_eq_ne_ops_at(a, depth + 1)).sum(),
         _ => 0,
     }
 }

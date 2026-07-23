@@ -522,7 +522,12 @@ fn simplify_node_once(
             false_branch,
         } => ExprNode::Ternary {
             condition: Box::new(simplify_node_once(condition, true, numeric, depth + 1)),
-            true_branch: Box::new(simplify_node_once(true_branch, bool_context, numeric, depth + 1)),
+            true_branch: Box::new(simplify_node_once(
+                true_branch,
+                bool_context,
+                numeric,
+                depth + 1,
+            )),
             false_branch: Box::new(simplify_node_once(
                 false_branch,
                 bool_context,
@@ -1441,7 +1446,8 @@ fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
     match node {
         ExprNode::Command { .. } => true,
         ExprNode::Binary { left, right, .. } => {
-            expr_has_command_subst_at(left, depth + 1) || expr_has_command_subst_at(right, depth + 1)
+            expr_has_command_subst_at(left, depth + 1)
+                || expr_has_command_subst_at(right, depth + 1)
         }
         ExprNode::Unary { operand, .. } => expr_has_command_subst_at(operand, depth + 1),
         ExprNode::Ternary {
@@ -1453,9 +1459,7 @@ fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
                 || expr_has_command_subst_at(true_branch, depth + 1)
                 || expr_has_command_subst_at(false_branch, depth + 1)
         }
-        ExprNode::Call { args, .. } => {
-            args.iter().any(|a| expr_has_command_subst_at(a, depth + 1))
-        }
+        ExprNode::Call { args, .. } => args.iter().any(|a| expr_has_command_subst_at(a, depth + 1)),
         ExprNode::Literal { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. }

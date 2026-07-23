@@ -825,10 +825,14 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
                 TaintLattice::clean()
             }
         }
-        ExprNode::Binary { left, right, .. } => {
-            expr_command_taint(left, uses, taints, ctx, depth + 1)
-                .join(expr_command_taint(right, uses, taints, ctx, depth + 1))
-        }
+        ExprNode::Binary { left, right, .. } => expr_command_taint(
+            left,
+            uses,
+            taints,
+            ctx,
+            depth + 1,
+        )
+        .join(expr_command_taint(right, uses, taints, ctx, depth + 1)),
         ExprNode::Unary { operand, .. } => {
             expr_command_taint(operand, uses, taints, ctx, depth + 1)
         }
@@ -838,8 +842,20 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
             false_branch,
             ..
         } => expr_command_taint(condition, uses, taints, ctx, depth + 1)
-            .join(expr_command_taint(true_branch, uses, taints, ctx, depth + 1))
-            .join(expr_command_taint(false_branch, uses, taints, ctx, depth + 1)),
+            .join(expr_command_taint(
+                true_branch,
+                uses,
+                taints,
+                ctx,
+                depth + 1,
+            ))
+            .join(expr_command_taint(
+                false_branch,
+                uses,
+                taints,
+                ctx,
+                depth + 1,
+            )),
         ExprNode::Call { args, .. } => args.iter().fold(TaintLattice::clean(), |acc, a| {
             acc.join(expr_command_taint(a, uses, taints, ctx, depth + 1))
         }),

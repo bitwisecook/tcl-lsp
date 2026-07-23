@@ -745,9 +745,9 @@ fn expr_references_var_at(node: &ExprNode, var: &str, depth: u32) -> bool {
                 || expr_references_var_at(true_branch, var, depth + 1)
                 || expr_references_var_at(false_branch, var, depth + 1)
         }
-        ExprNode::Call { args, .. } => {
-            args.iter().any(|a| expr_references_var_at(a, var, depth + 1))
-        }
+        ExprNode::Call { args, .. } => args
+            .iter()
+            .any(|a| expr_references_var_at(a, var, depth + 1)),
         _ => false,
     }
 }

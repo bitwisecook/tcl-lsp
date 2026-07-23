@@ -708,8 +708,7 @@ mod tests {
     fn deeply_nested_dict_set_and_unset_survive() {
         const DEPTH: usize = 2_000;
         let keys: Vec<Value> = (0..DEPTH).map(|_| Value::string("k")).collect();
-        let set =
-            set_path(&Value::empty(), &keys, Value::string("v")).expect("set_path survives");
+        let set = set_path(&Value::empty(), &keys, Value::string("v")).expect("set_path survives");
         let mut cur = set.clone();
         for _ in 0..DEPTH {
             let ps = pairs(&cur).expect("valid dict at every level");

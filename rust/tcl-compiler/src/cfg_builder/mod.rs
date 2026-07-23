@@ -2205,7 +2205,10 @@ mod tests {
             "try (with finally) propagates continue",
         );
         assert_eq!(
-            escaping_loop_jumps(&lower_module("try { puts x } on error {} { break }").top_level, 0),
+            escaping_loop_jumps(
+                &lower_module("try { puts x } on error {} { break }").top_level,
+                0
+            ),
             (true, false),
             "a break in a try handler body propagates",
         );

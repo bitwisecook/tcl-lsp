@@ -3551,8 +3551,7 @@ mod tests {
             v = Value::list(vec![v]);
         }
         let path: Vec<Value> = (0..DEPTH).map(|_| Value::int(0)).collect();
-        let result =
-            lset_descend(&v, &path, Value::string("new")).expect("lset_descend survives");
+        let result = lset_descend(&v, &path, Value::string("new")).expect("lset_descend survives");
         let mut cur = result;
         for _ in 0..DEPTH {
             let items = cur.as_list().expect("valid list at every level");

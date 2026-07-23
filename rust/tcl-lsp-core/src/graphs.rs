@@ -125,7 +125,13 @@ fn scope_to_value(
     for child in &scope.children {
         match child.kind {
             ScopeKind::Namespace => {
-                children.push(scope_to_value(child, analysis, line_index, source, depth + 1));
+                children.push(scope_to_value(
+                    child,
+                    analysis,
+                    line_index,
+                    source,
+                    depth + 1,
+                ));
             }
             ScopeKind::Proc => {
                 // The proc's parameters all share the proc-name token's span,

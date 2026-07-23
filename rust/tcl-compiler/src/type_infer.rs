@@ -384,9 +384,7 @@ fn infer_expr_type(
         // Math-function calls resolve through the expr-function table
         // — `sqrt($x)` is Double, `int(...)` is Int, etc.,
         // where they previously degraded to overdefined.
-        ExprNode::Call { function, args, .. } => {
-            expr_call_type(function, args, var_types, depth)
-        }
+        ExprNode::Call { function, args, .. } => expr_call_type(function, args, var_types, depth),
 
         // Command substitutions and raw/unrecognised expression text
         // need the registry (or runtime context) to resolve. Without it

@@ -566,12 +566,7 @@ fn build_method_summaries(
         // impure even though the write looks like a plain local `set`.
         let mut written_ivars: HashSet<String> = HashSet::new();
         if !method.instance_vars.is_empty() {
-            collect_instance_var_writes(
-                &method.body,
-                &method.instance_vars,
-                &mut written_ivars,
-                0,
-            );
+            collect_instance_var_writes(&method.body, &method.instance_vars, &mut written_ivars, 0);
         }
 
         // `local_pure` is the authoritative local-impurity signal (the
@@ -706,7 +701,9 @@ fn collect_instance_var_writes(
                 collect_instance_var_writes(next, ivars, out, depth + 1);
                 collect_instance_var_writes(body, ivars, out, depth + 1);
             }
-            Statement::While { body, .. } => collect_instance_var_writes(body, ivars, out, depth + 1),
+            Statement::While { body, .. } => {
+                collect_instance_var_writes(body, ivars, out, depth + 1)
+            }
             Statement::Foreach {
                 iterators, body, ..
             } => {
@@ -1369,7 +1366,12 @@ fn scan_call_statement(
 /// entered here) keeps the same `depth`; recursing into a nested body
 /// (`UpFrame`/`Block`'s inner statements, or any control-flow body via
 /// [`scan_control_flow_statement`]) passes `depth + 1`.
-fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
+fn scan_statement(
+    stmt: &crate::ir::Statement,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+    depth: u32,
+) {
     use crate::ir::Statement;
     let ScanCtx { params, .. } = ctx;
     match stmt {

@@ -208,7 +208,10 @@ mod tests {
             let g = RecursionGuard::enter(&mut counter, limit).unwrap();
             assert_eq!(g.depth(), 1);
         }
-        assert_eq!(counter, 0, "the counter must return to 0 once the guard drops");
+        assert_eq!(
+            counter, 0,
+            "the counter must return to 0 once the guard drops"
+        );
     }
 
     #[test]

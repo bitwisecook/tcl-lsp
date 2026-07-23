@@ -805,12 +805,10 @@ fn realistic_stack_object() {
 /// well before the crash floor.
 #[test]
 fn deeply_recursive_method_errors_instead_of_crashing() {
-    let (ok, res, _) = run(
-        "oo::class create C { \
+    let (ok, res, _) = run("oo::class create C { \
            method go {n} { if {$n <= 0} { return done }; return [my go [expr {$n-1}]] } \
          }; \
-         C create obj; obj go 1000",
-    );
+         C create obj; obj go 1000");
     assert!(!ok, "expected a catchable error, got {res:?}");
     assert!(
         res.contains("too many nested evaluations"),

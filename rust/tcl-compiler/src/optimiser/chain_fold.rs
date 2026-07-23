@@ -111,7 +111,12 @@ fn protected_vars(
 /// chain never crosses a control-flow boundary, so each body is folded
 /// independently). `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
-fn fold_script(ctx: &mut PassContext<'_>, script: &Script, protected: &HashSet<String>, depth: u32) {
+fn fold_script(
+    ctx: &mut PassContext<'_>,
+    script: &Script,
+    protected: &HashSet<String>,
+    depth: u32,
+) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
