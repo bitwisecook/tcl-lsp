@@ -243,3 +243,46 @@ fn moderately_nested_backref_repeat_is_unaffected() {
         "moderate backref repeat should still match the whole subject"
     );
 }
+
+/// Regression coverage for a review finding on the #996 fix itself:
+/// `Matcher::dissect_repeat`'s depth-cap fallback approximates a nested
+/// capture's span by dissecting the remaining range as a single unit — but
+/// originally did so by recursing into `dissect` with a depth already past
+/// `MAX_DISSECT_DEPTH`, so `dissect`'s own top-of-function guard tripped
+/// immediately and the capture was left `None` instead of getting the
+/// documented approximate span. `(x)*` past the 256-iteration cap must still
+/// report *some* span for capture 1, not an unset one.
+#[test]
+fn capture_past_dissect_cap_gets_approximate_span_not_unset() {
+    let re = Regex::compile_str("(x)*", REG_ADVANCED).expect("compiles");
+    let subject = cps(&"x".repeat(300));
+    let got = re.exec(&subject, 0, 0).expect("(x)* matches 300 x's");
+    assert_eq!(
+        got[0],
+        Some(Span { start: 0, end: 300 }),
+        "whole match spans the subject"
+    );
+    assert!(
+        got[1].is_some(),
+        "capture 1 must get an approximate span past the dissect depth cap, not be left unset"
+    );
+}
+
+/// Regression coverage for a review finding on the #996 fix itself: capping
+/// `Bt::m_backref`'s recursion at `MAX_BT_DEPTH` (256) made an anchored
+/// quantified backreference spuriously fail to match ordinary input needing
+/// more than 256 repetitions — 300 repeated characters is unremarkable real
+/// text, not a pathological input. `m_backref` no longer recurses once per
+/// repetition (it counts repetitions with a loop instead), so this must
+/// match regardless of how far past the old cap the repeat count goes.
+#[test]
+fn backref_repeat_past_old_cap_still_matches() {
+    let re = Regex::compile_str("(a)\\1*$", REG_ADVANCED).expect("compiles");
+    let subject = cps(&"a".repeat(300));
+    let got = re.exec(&subject, 0, 0);
+    assert_eq!(
+        got.map(|c| c[0]),
+        Some(Some(Span { start: 0, end: 300 })),
+        "(a)\\1*$ must match a 300-character run of the same character"
+    );
+}

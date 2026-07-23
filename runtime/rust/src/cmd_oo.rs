@@ -54,18 +54,21 @@ use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
 
 /// Maximum superclass/mixin linearisation depth for [`Interp::linearize_class`]
-/// / [`Interp::gather_class_props`] (issue #996). Mirrors
-/// `tcl_syntax::mro::MAX_MRO_DEPTH` — that module fixed the identical
-/// algorithm (TclOO's DFS + late-placement) in the *diagnostics* linearizer
-/// under the internal tracking label RUST_ISSUE_076; this is the equivalent
-/// fix for this runtime's live TclOO method-dispatch/introspection path.
-/// Confirmed crash reproduction (this sweep): a deep `mixin` chain
-/// (`oo::class create C$i { mixin C[i-1] }`) SIGABRTs between depth 100-150
-/// on a 256 KiB stack, and still crashes at depth 2000 on a 1 MiB stack. 1024
-/// — the same value `tcl_syntax::mro` settled on for this exact construct —
-/// is far past any real class hierarchy and comfortably under both measured
-/// crash thresholds, with margin to spare for a smaller WASM host stack.
-const MAX_MRO_DEPTH: RecursionLimit = RecursionLimit(1024);
+/// / [`Interp::gather_class_props`] (issue #996). `tcl_syntax::mro::MAX_MRO_DEPTH`
+/// fixed the identical algorithm (TclOO's DFS + late-placement) in the
+/// *diagnostics* linearizer under the internal tracking label RUST_ISSUE_076,
+/// settling on 1024 there — but that pass runs on a host-controlled analysis
+/// stack, not this runtime's live call stack. Confirmed crash reproduction
+/// (this sweep): a deep `mixin` chain (`oo::class create C$i { mixin C[i-1]
+/// }`) SIGABRTs between depth 100-150 on a 256 KiB stack, and still crashes
+/// at depth 2000 on a 1 MiB stack, so 1024 would not actually stop the crash
+/// on a small-stack embedding (a caught P1 review finding on the fix that
+/// first introduced this guard). 64 — the same cap `MAX_ARRAY_INDEX_DEPTH` /
+/// `MAX_SCAN_PARTS_DEPTH` / `MAX_RESOLVE_PARTS_DEPTH` settled on for the same
+/// crash class elsewhere in this crate — is comfortably under the measured
+/// 100-150 floor, with margin for a smaller WASM host stack, and still far
+/// past any real class hierarchy.
+const MAX_MRO_DEPTH: RecursionLimit = RecursionLimit(64);
 
 /// Maximum total mixin/superclass node visits across one linearisation call
 /// ([`Interp::class_precedence`]'s `linearize_class` walk, or one
@@ -7775,7 +7778,7 @@ mod tests {
     /// (matching that confirmed-still-crashing depth) and drives both fixed
     /// functions over the whole thing via `info class call` and `info class
     /// properties -all`; the assertion is that both complete at all, not
-    /// what they return — `MAX_MRO_DEPTH` (1024) means the reported
+    /// what they return — `MAX_MRO_DEPTH` (64) means the reported
     /// precedence/property set is legitimately truncated for a hierarchy
     /// this deep, the same graceful "just stop descending" degradation the
     /// pre-existing `path`/`seen` cycle guards already apply to a malformed

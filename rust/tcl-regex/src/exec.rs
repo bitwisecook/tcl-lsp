@@ -482,8 +482,19 @@ impl<'a> Matcher<'a> {
             // ever called) — only a capture nested this deep inside a single
             // repeat gets an approximate span instead of the exact final
             // iteration's.
+            //
+            // The recursive walk that got us here is *this repeat's own
+            // iteration count* — unrelated to how deeply `sub` itself is
+            // structurally nested — so `sub`'s one-off dissection over the
+            // approximated span gets a fresh depth budget (0) rather than
+            // inheriting the exhausted counter. Passing `depth + 1` here (a
+            // caught review bug) made `dissect`'s own top-of-function guard
+            // trip immediately, silently leaving the capture unset instead of
+            // recording the documented approximation; `sub`'s own structural
+            // depth is independently bounded by this same cap one level at a
+            // time, same as the ordinary top-down walk.
             if lo < hi {
-                self.dissect(sub, lo, hi, depth + 1, caps);
+                self.dissect(sub, lo, hi, 0, caps);
             }
             return;
         }
@@ -831,12 +842,25 @@ impl Bt<'_> {
     }
 
     // Threads the full backref-repeat state (subno/min/max/pref/count/pos/hi)
-    // plus the continuation; bundling into a struct would obscure the recursion.
+    // plus the continuation; bundling into a struct would obscure the loop.
     //
-    // `depth` guards this against the same unbounded-recursion class as
-    // `m`/`m_seq`/`m_repeat`/`m_star` (issue #996): a quantified
-    // backreference like `\1*` recurses once per repetition, independent of
-    // any other function in this `impl` — see [`MAX_BT_DEPTH`].
+    // `depth` still guards entry against unrelated deep nesting from the rest
+    // of the pattern (e.g. this backref sitting inside many levels of
+    // alternation/grouping) — see [`MAX_BT_DEPTH`] — but repetition itself no
+    // longer recurses. A quantified backreference like `\1*` always matches
+    // the same fixed `text` at every repetition (unlike `m_star`'s general
+    // sub-pattern, which can have its own nested choice points per
+    // iteration), so the whole repeat has no internal backtracking of its
+    // own: greedily counting how far `text` repeats from `pos` and then
+    // trying the continuation at each candidate stop count (longest-first for
+    // greedy, shortest-first for lazy) is exactly equivalent to the original
+    // one-native-frame-per-repetition recursion, without its native-stack
+    // cost. This fixes a correctness regression the original recursive form
+    // introduced (issue #996 follow-up, caught in review): capping recursion
+    // depth at [`MAX_BT_DEPTH`] (256) made an anchored pattern like
+    // `(a)\1*$` spuriously fail to match ordinary, non-pathological input —
+    // a run of 300 repeated characters is unremarkable in real text — instead
+    // of merely bounding native stack use on truly pathological input.
     #[allow(clippy::too_many_arguments)]
     fn m_backref(
         &self,
@@ -865,18 +889,27 @@ impl Bt<'_> {
         }
         let l = text.len();
         let nocase = self.cflags & REG_ICASE != 0;
-        let one = pos + l <= hi && chr_eq(&self.subj[pos..pos + l], &text, nocase);
-        let can_more = (max >= DUPINF || count < max) && one;
-        let can_stop = count >= min;
-        let more = |k: &mut dyn FnMut(usize) -> bool| {
-            can_more && self.m_backref(subno, min, max, pref, count + 1, pos + l, hi, depth + 1, k)
+        // Greedily count the maximum further repetitions possible from `pos`,
+        // capped by `max` (DUPINF means unbounded).
+        let mut max_reps = 0i32;
+        let mut p = pos;
+        while (max >= DUPINF || count + max_reps < max)
+            && p + l <= hi
+            && chr_eq(&self.subj[p..p + l], &text, nocase)
+        {
+            max_reps += 1;
+            p += l;
+        }
+        let try_stop = |reps: i32, k: &mut dyn FnMut(usize) -> bool| {
+            count + reps >= min && k(pos + reps as usize * l)
         };
-        // See `m_repeat`: the arms differ only in short-circuit order, which is
-        // load-bearing (greedy vs lazy, plus capture side effects).
-        #[allow(clippy::match_same_arms)]
+        // Greedy tries the most repetitions first and backs off; lazy tries
+        // the fewest first and adds more — mirroring `m_star`/`m_repeat`'s
+        // short-circuit order (load-bearing: capture side effects happen in
+        // `k`, called at most once per candidate, in this exact order).
         match pref {
-            Pref::Longer => more(k) || (can_stop && k(pos)),
-            Pref::Shorter => (can_stop && k(pos)) || more(k),
+            Pref::Longer => (0..=max_reps).rev().any(|reps| try_stop(reps, k)),
+            Pref::Shorter => (0..=max_reps).any(|reps| try_stop(reps, k)),
         }
     }
 }
