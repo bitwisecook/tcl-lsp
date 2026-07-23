@@ -638,6 +638,28 @@ mod tests {
         assert!(qnames.contains("::C::method::color"), "{qnames:?}");
     }
 
+    #[test]
+    fn lens_counts_each_name_independently_in_a_multi_name_property_declaration() {
+        // `property x y` declares two independent properties from one command
+        // (verified structurally by `extract_property_defs`'s own
+        // `property_subcommand_records_multiple_names` test) — each name must
+        // get its own lens with its own independently-counted `my <name>`
+        // dispatch sites, not a shared or merged count.
+        let src = "oo::class create Widget {\n    property x y\n    method bump {} { my x ; my y ; my y }\n}\n";
+        let analysis = analyse90(src);
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let x_lens = lenses
+            .iter()
+            .find(|l| l.qname == "::Widget::property::x")
+            .expect("x lens");
+        let y_lens = lenses
+            .iter()
+            .find(|l| l.qname == "::Widget::property::y")
+            .expect("y lens");
+        assert_eq!(x_lens.command_title, "1 reference", "{lenses:?}");
+        assert_eq!(y_lens.command_title, "2 references", "{lenses:?}");
+    }
+
     // workspace-index: cross-document reference counts
 
     #[test]
