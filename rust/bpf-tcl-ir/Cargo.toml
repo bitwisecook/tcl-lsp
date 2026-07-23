@@ -32,5 +32,11 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
 
+[dev-dependencies]
+# Only for the operator-completeness test in `lower.rs`: iterating
+# `ALL_BIN_OPS`/`ALL_UNARY_OPS` to prove every variant either lowers or hits
+# `BpfDiag::OutOfSubset`, never silently mishandled — issue #983's plan.
+tcl-syntax = { path = "../tcl-syntax" }
+
 [lints]
 workspace = true

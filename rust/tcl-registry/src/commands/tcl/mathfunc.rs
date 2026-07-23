@@ -16,21 +16,24 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Tcl `expr` syntax: the AST ([`ast`]) and the precedence-climbing (Pratt)
-//! parser ([`parser`]), shared by the LSP/compiler (const-fold + codegen) and
-//! the runtime (the `expr` evaluator over its numeric tower). The expression
-//! *lexer* is [`tcl_lexer::tokenise_expr`]; the tower-aware *evaluator* and the
-//! compiler's const-fold evaluator are consumer-specific (they own the value
-//! type) and live with each consumer.
-
-pub mod ast;
-pub mod eval;
-pub mod mathfunc;
-pub mod operators;
-pub mod parser;
-
-pub use ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
-pub use eval::{ExprOps, NumericCompare, eval};
-pub use mathfunc::MathFuncSpec;
-pub use operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorShape, OperatorSpec};
-pub use parser::parse_expr;
+//! `tcl::mathfunc` — namespace of `expr` math-function commands.
+use crate::prelude::*;
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "tcl::mathfunc",
+        traits: Traits::PURE,
+        // TIP 232 added the namespace (and this command-table mechanism)
+        // in Tcl 8.5 — see mathfunc_generated.rs's module docs for why
+        // that's the floor for every function regardless of when its own
+        // `expr` grammar entry appeared.
+        dialects: Some(DialectSet::TCL85_PLUS),
+        arity: Arity::at_least(0),
+        return_type: Some(TclType::Numeric),
+        hover: Some(HoverSnippet::brief(
+            "Mathematical function commands.",
+            &["tcl::mathfunc::name ?arg ...?"],
+            "Tcl mathfunc(1)",
+        )),
+        ..CommandSpec::DEFAULT
+    }
+}

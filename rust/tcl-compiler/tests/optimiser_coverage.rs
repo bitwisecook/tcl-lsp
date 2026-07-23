@@ -1620,6 +1620,27 @@ fn invert_logic_via_o110() {
     assert!(optimised("if {!!$x} { puts yes }", TCL).contains("if {$x}"));
 }
 
+/// The `!(x <cmp> y)` inversion used to be a local 8-arm match covering only
+/// `==`/`!=`/`<`/`>=`/`>`/`<=`/`eq`/`ne`, missing the TIP 461 string-ordering
+/// four (`lt`/`le`/`gt`/`ge`) and list membership (`in`/`ni`) entirely — a
+/// missed simplification, not a correctness bug, since the negation identity
+/// holds for both (a total order for `lt`/etc., a direct definitional
+/// negation for `in`/`ni`) exactly like it does for the forms already
+/// covered. Now derived from `BinOp::inverse()`
+/// (`tcl_syntax::expr::operators`, issue #983's unification), which covers
+/// all fourteen comparison operators.
+#[test]
+fn invert_logic_covers_tip461_and_membership_operators() {
+    const TCL9: &str = "tcl9.0";
+    assert!(optimised("set v [expr {!($a lt $b)}]", TCL9).contains("$a ge $b"));
+    assert!(optimised("set v [expr {!($a le $b)}]", TCL9).contains("$a gt $b"));
+    assert!(optimised("set v [expr {!($a gt $b)}]", TCL9).contains("$a le $b"));
+    assert!(optimised("set v [expr {!($a ge $b)}]", TCL9).contains("$a lt $b"));
+    assert!(optimised("set v [expr {!($a eq $b)}]", TCL9).contains("$a ne $b"));
+    assert!(optimised("set v [expr {!($a in $b)}]", TCL9).contains("$a ni $b"));
+    assert!(optimised("set v [expr {!($a ni $b)}]", TCL9).contains("$a in $b"));
+}
+
 // ===========================================================================
 // apply_optimisations / find_optimisations — edge cases
 // ===========================================================================

@@ -5,6 +5,14 @@
 #
 # Source: compiler/registry/
 #
+# `tooling.irule_test.codegen_registry_data` no longer exists (Python was
+# fully retired from this codebase) -- there is no regeneration step. The
+# `tcl::mathop::{&&,||,@}` entries below (bogus operators, never real Tcl
+# commands -- see rust/tcl-registry/src/commands/tcl/mathop_generated.rs)
+# and the missing `tcl::mathop::{lt,le,gt,ge}` entries (real Tcl 9.0+
+# TIP 461 operators) were hand-fixed for issue #984 to match the registry.
+# The rest of this file's data has not been re-audited against the registry.
+#
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 
 namespace eval ::tmm {
@@ -17,7 +25,6 @@ namespace eval ::tmm {
         !=
         %
         &
-        &&
         *
         **
         +
@@ -28,7 +35,6 @@ namespace eval ::tmm {
         ::tcl::mathop::!=
         ::tcl::mathop::%
         ::tcl::mathop::&
-        ::tcl::mathop::&&
         ::tcl::mathop::*
         ::tcl::mathop::**
         ::tcl::mathop::+
@@ -41,7 +47,6 @@ namespace eval ::tmm {
         ::tcl::mathop::>
         ::tcl::mathop::>=
         ::tcl::mathop::>>
-        ::tcl::mathop::@
         ::tcl::mathop::^
         ::tcl::mathop::eq
         ::tcl::mathop::in
@@ -50,7 +55,6 @@ namespace eval ::tmm {
         ::tcl::mathop::ne
         ::tcl::mathop::ni
         ::tcl::mathop::|
-        ::tcl::mathop::||
         ::tcl::mathop::~
         ::tcl::unsupported::corotype
         <
@@ -60,7 +64,6 @@ namespace eval ::tmm {
         >
         >=
         >>
-        @
         ^
         auto_execok
         auto_import
@@ -144,7 +147,6 @@ namespace eval ::tmm {
         tcl::mathop::!=
         tcl::mathop::%
         tcl::mathop::&
-        tcl::mathop::&&
         tcl::mathop::*
         tcl::mathop::**
         tcl::mathop::+
@@ -157,7 +159,6 @@ namespace eval ::tmm {
         tcl::mathop::>
         tcl::mathop::>=
         tcl::mathop::>>
-        tcl::mathop::@
         tcl::mathop::^
         tcl::mathop::eq
         tcl::mathop::in
@@ -166,7 +167,6 @@ namespace eval ::tmm {
         tcl::mathop::ne
         tcl::mathop::ni
         tcl::mathop::|
-        tcl::mathop::||
         tcl::mathop::~
         tcl_findLibrary
         tell
@@ -200,7 +200,6 @@ namespace eval ::tmm {
         winfo
         wm
         |
-        ||
         ~
     }
 
@@ -209,6 +208,10 @@ namespace eval ::tmm {
 
     variable _gen_post84_commands {
         ::tcl::idna
+        ::tcl::mathop::ge
+        ::tcl::mathop::gt
+        ::tcl::mathop::le
+        ::tcl::mathop::lt
         ::tcl::process
         classvariable
         coroinject
@@ -216,12 +219,16 @@ namespace eval ::tmm {
         coroutine
         dict
         foreachLine
+        ge
+        gt
         lassign
+        le
         ledit
         lmap
         lpop
         lremove
         lseq
+        lt
         my
         next
         nextto
@@ -237,6 +244,10 @@ namespace eval ::tmm {
         self
         tailcall
         tcl::idna
+        tcl::mathop::ge
+        tcl::mathop::gt
+        tcl::mathop::le
+        tcl::mathop::lt
         tcl::process
         throw
         try

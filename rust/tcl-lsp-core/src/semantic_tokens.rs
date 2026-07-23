@@ -389,7 +389,7 @@ fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
     }) || is_language_keyword_sub_keyword(name);
     if is_keyword {
         TokenKind::Keyword
-    } else if is_operator_command(name) {
+    } else if is_operator_command(name, registry) {
         // A bare operator used as a command head (`+ 3 4`, `tcl::mathop`
         // style).
         TokenKind::Operator
@@ -400,13 +400,20 @@ fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
     }
 }
 
-/// `true` when `name` is one of the recognised operator command heads
-/// (`+ - * / > >= < <= == !=`).
-fn is_operator_command(name: &str) -> bool {
-    matches!(
-        name,
-        "+" | "-" | "*" | "/" | ">" | ">=" | "<" | "<=" | "==" | "!="
-    )
+/// `true` when `name` is one of the recognised `::tcl::mathop` operator
+/// command heads (`+`, `in`, `eq`, `lt`, …) — the registry's
+/// `Traits::OPERATOR_COMMAND` on `name`'s spec, already correctly and
+/// exhaustively populated for every mathop-shaped operator by
+/// `tcl_syntax::expr::operators` (issue #983's unification). Previously a
+/// 10-symbol hand-typed list (`+ - * / > >= < <= == !=`) that missed every
+/// word-form operator (`eq`/`ne`/`in`/`ni`/`lt`/`le`/`gt`/`ge`) and every
+/// bitwise/shift symbol (`%`/`**`/`<<`/`>>`/`&`/`|`/`^`/`~`/`!`) entirely —
+/// issue #986.
+fn is_operator_command(name: &str, registry: &CommandRegistry) -> bool {
+    registry.get(name).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::prelude::Traits::OPERATOR_COMMAND)
+    })
 }
 
 /// Extra "this argument names a written variable" positions for commands the
@@ -8404,6 +8411,25 @@ mod tests {
         // `+ 3 4` — the operator head is `operator`, not `function`.
         let ks = kinds("+ 3 4\n", "tcl", &reg());
         assert_eq!(ks.first(), Some(&(TokenKind::Operator as u32)), "{ks:?}");
+    }
+
+    /// Issue #986: `is_operator_command`'s old 10-symbol hand-typed list
+    /// missed every word-form comparison operator entirely — `eq 1 1` (a
+    /// bare `::tcl::mathop::eq` invocation via `namespace import`) was
+    /// classified as `function`, not `operator`. Also covers the TIP 461
+    /// `lt`/`le`/`gt`/`ge` mathop commands (9.0+), which never had *any*
+    /// classification anywhere before Phase B/D of this same unification.
+    #[test]
+    fn word_form_operator_command_heads_classified_as_operator() {
+        for op in ["eq", "ne", "in", "ni", "lt", "le", "gt", "ge"] {
+            let src = format!("{op} 1 1\n");
+            let ks = kinds(&src, "tcl9.0", &reg());
+            assert_eq!(
+                ks.first(),
+                Some(&(TokenKind::Operator as u32)),
+                "{op}: {ks:?}"
+            );
+        }
     }
 
     #[test]

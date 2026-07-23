@@ -426,6 +426,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4398,6 +4399,7 @@ name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "libm",
  "num-bigint",
  "num-integer",
  "num-traits",
@@ -5685,6 +5687,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]

@@ -99,6 +99,8 @@ mod lsearch_;
 mod lseq;
 mod lset;
 mod lsort_;
+mod mathfunc;
+mod mathfunc_generated;
 mod mathop;
 mod mathop_generated;
 mod memory;
@@ -188,6 +190,8 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
     specs.extend(tcl_specs_m_through_z());
     // The `tcl::mathop` operator ensemble (every spelling).
     specs.extend(mathop_generated::specs());
+    // The `tcl::mathfunc` math-function ensemble (both qualified spellings).
+    specs.extend(mathfunc_generated::specs());
     // Simple named commands not yet implemented. (`vec!` — the spec
     // table is past clippy's stack-array size threshold.)
     specs.extend(vec![
@@ -296,6 +300,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
 /// [`tcl_specs_a_through_l`].
 fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
     vec![
+        mathfunc::spec(),
         mathop::spec(),
         namespace_::spec(),
         oo_abstract::spec(),

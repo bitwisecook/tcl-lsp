@@ -83,6 +83,24 @@ const GRAMMAR_NODE_WORDS: &[&str] = &[
     "switch",
 ];
 
+/// `expr` operator spellings the vendored tree-sitter-tcl grammar (rev pinned
+/// in `rust/zed-query-check/vendor/REV`) tokenises as dedicated anonymous
+/// grammar symbols inside its `unpack`/operator production — confirmed by
+/// grepping that grammar's generated `parser.c` symbol table. Only these may
+/// appear in a `[ "…" ] @operator` literal-token list; a tree-sitter query
+/// listing any other string there is a `QueryError` (`NodeType`), since the
+/// grammar has no such anonymous token to match. Everything else `tcl-syntax`
+/// knows about as an operator — the TIP 461 string-ordering four (`lt`/`le`/
+/// `gt`/`ge`, added in Tcl 9.0, newer than this grammar rev) and every iRules
+/// word operator (`contains`, `and`, …, which this generic Tcl grammar has no
+/// knowledge of at all) — parses as a plain `simple_word` and must be matched
+/// by content instead, the same way `@boolean`'s `"true"`/`"false"` already
+/// are below.
+const GRAMMAR_LITERAL_OPERATOR_TOKENS: &[&str] = &[
+    "!", "!=", "%", "&", "&&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>",
+    "^", "eq", "in", "ne", "ni", "|", "||", "~",
+];
+
 /// The profile's registry: `build_default` plus its on-demand command
 /// packs, stamped with the profile so mask queries apply its subtractive
 /// rules (§9 — the iRules disable list and operator-head exclusion).
@@ -193,6 +211,28 @@ fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
     b
 }
 
+/// Every `expr` operator spelling available under `dialects`, for the
+/// generated `@operator` bucket — derived from `tcl_syntax::expr::operators`
+/// (issue #983's unification) rather than the dialect-blind static list this
+/// replaces, which was missing the TIP 461 string-ordering four (`lt`/`le`/
+/// `gt`/`ge`) and the unary `!`/`~` entirely, and — unlike every other
+/// bucket in this file, each already scoped per-`DialectSet` via
+/// [`classify`] — never included the iRules word operators (`contains`,
+/// `matches_regex`, …) for the `irules` target at all.
+fn operator_spellings(dialects: DialectSet) -> BTreeSet<String> {
+    tcl_syntax::expr::operators::ALL_BIN_OPS
+        .iter()
+        .map(|op| op.spec())
+        .chain(
+            tcl_syntax::expr::operators::ALL_UNARY_OPS
+                .iter()
+                .map(|op| op.spec()),
+        )
+        .filter(|spec| spec.dialects.is_none_or(|d| d.intersects(dialects)))
+        .map(|spec| spec.spelling.to_owned())
+        .collect()
+}
+
 /// Render a sorted set as `#any-of?` argument tokens, wrapped at 6 per line
 /// with 4-space continuation indent.
 fn render_any_of(names: &BTreeSet<String>) -> String {
@@ -216,6 +256,10 @@ fn render_any_of(names: &BTreeSet<String>) -> String {
 /// buckets for one language's dialect set.
 fn render(reg: &CommandRegistry, dialects: DialectSet) -> String {
     let b = classify(reg, dialects);
+    let (literal_ops, word_ops): (BTreeSet<String>, BTreeSet<String>) =
+        operator_spellings(dialects)
+            .into_iter()
+            .partition(|op| GRAMMAR_LITERAL_OPERATOR_TOKENS.contains(&op.as_str()));
     format!(
         r#"; Tcl-family highlights for Zed
 ;
@@ -297,18 +341,20 @@ fn render(reg: &CommandRegistry, dialects: DialectSet) -> String {
 (command
   name: (simple_word) @function)
 
-; Operators
+; Operators recognised as dedicated tokens by the vendored tree-sitter-tcl
+; grammar
 (unpack) @operator
 
-["**" "/" "*" "%" "+" "-"
- "<<" ">>"
- ">" "<" ">=" "<="
- "==" "!="
- "eq" "ne"
- "in" "ni"
- "&" "^" "|"
- "&&" "||"
+[
+{literal_ops}
 ] @operator
+
+; Word-shaped operators (TIP 461 string-ordering, iRules words) the vendored
+; grammar parses as a plain word rather than a dedicated token — matched by
+; content, like `@boolean` below.
+((simple_word) @operator
+  (#any-of? @operator
+{word_ops}))
 
 ; Punctuation
 ["{{" "}}" "[" "]" ";"] @punctuation.bracket
@@ -316,6 +362,8 @@ fn render(reg: &CommandRegistry, dialects: DialectSet) -> String {
         control = render_any_of(&b.control),
         keyword = render_any_of(&b.keyword),
         builtin = render_any_of(&b.builtin),
+        literal_ops = render_any_of(&literal_ops),
+        word_ops = render_any_of(&word_ops),
     )
 }
 
@@ -425,6 +473,59 @@ mod tests {
             irules > tcl,
             "iRules ({irules}) should exceed plain Tcl ({tcl}) once F5 commands load"
         );
+    }
+
+    /// Issue #983/#986: the `@operator` bucket used to be a dialect-blind
+    /// static list missing the TIP 461 string-ordering four (`lt`/`le`/
+    /// `gt`/`ge`) and the unary `!`/`~` entirely, and never included the
+    /// iRules word operators for the `irules` target at all — unlike every
+    /// other bucket in this file, each already scoped per-`DialectSet`.
+    #[test]
+    fn operator_spellings_are_dialect_scoped_and_complete() {
+        let tcl_ops = operator_spellings(DialectSet::TK_AND_TCL);
+        for op in ["lt", "le", "gt", "ge", "!", "~", "eq", "ne", "in", "ni"] {
+            assert!(tcl_ops.contains(op), "tcl: missing {op:?}: {tcl_ops:?}");
+        }
+        // iRules word operators are dialect-*identity* gated (`Some(IRULES)`
+        // per operators.rs), so they must not leak into the plain-Tcl bucket.
+        for op in [
+            "contains",
+            "starts_with",
+            "matches_regex",
+            "and",
+            "or",
+            "not",
+        ] {
+            assert!(
+                !tcl_ops.contains(op),
+                "tcl: should not contain the iRules-only {op:?}: {tcl_ops:?}"
+            );
+        }
+
+        let irules_ops = operator_spellings(DialectSet::ALL_TCL.union(DialectSet::IRULES));
+        for op in [
+            "contains",
+            "starts_with",
+            "ends_with",
+            "equals",
+            "matches_glob",
+            "matches_regex",
+            "and",
+            "or",
+            "not",
+        ] {
+            assert!(
+                irules_ops.contains(op),
+                "irules: missing {op:?}: {irules_ops:?}"
+            );
+        }
+        // Every base-grammar operator is still present for iRules too.
+        for op in ["lt", "le", "gt", "ge", "eq", "ne", "in", "ni", "+", "**"] {
+            assert!(
+                irules_ops.contains(op),
+                "irules: missing base op {op:?}: {irules_ops:?}"
+            );
+        }
     }
 
     #[test]

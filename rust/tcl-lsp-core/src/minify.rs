@@ -3183,9 +3183,35 @@ fn is_expr_op_byte(b: u8) -> bool {
 }
 
 /// Whether `tok` is a Tcl expr word-operator needing surrounding
-/// whitespace (`eq`, `ne`, `in`, `ni`).
+/// whitespace (`eq`, `ne`, `in`, `ni`, the TIP 461 `lt`/`le`/`gt`/`ge`, the
+/// iRules word operators, …).
+///
+/// Derived from `tcl_syntax::expr::operators` (issue #983's unification)
+/// rather than a hand-typed 4-entry list that used to miss every other
+/// word-form operator — `lt`/`le`/`gt`/`ge` in particular, since they were
+/// never classified as an operator *anywhere* until this same unification
+/// effort added them to the registry. Not a confirmed corruption bug today
+/// (the `is_word_token(prev) && is_word_token(cur)` branch at this
+/// function's call site already independently forces the needed space for
+/// every operand-adjacent case), but this function's own contract — "is
+/// this a word operator" — was simply wrong for those spellings, and
+/// relying on a second, unstated heuristic to paper over it is fragile.
 fn is_word_op(tok: &str) -> bool {
-    matches!(tok, "eq" | "ne" | "in" | "ni")
+    static OPS: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
+        std::sync::OnceLock::new();
+    OPS.get_or_init(|| {
+        tcl_syntax::expr::operators::ALL_BIN_OPS
+            .iter()
+            .map(|op| op.spec().spelling)
+            .chain(
+                tcl_syntax::expr::operators::ALL_UNARY_OPS
+                    .iter()
+                    .map(|op| op.spec().spelling),
+            )
+            .filter(|s| s.as_bytes().first().is_some_and(u8::is_ascii_alphabetic))
+            .collect()
+    })
+    .contains(tok)
 }
 
 /// Whether `tok` is a "word" (identifier / number / variable /
@@ -3666,6 +3692,19 @@ mod tests {
         check(
             "if {$a eq $b} {\n    puts hi\n}\n",
             "if {$a eq $b} {puts hi}",
+        );
+    }
+
+    /// Issue #983/#986: `is_word_op` used to only recognise `eq`/`ne`/`in`/
+    /// `ni`, so a TIP 461 `lt` (unlike `eq`) relied entirely on the
+    /// separate `is_word_token(prev) && is_word_token(cur)` heuristic to
+    /// keep its surrounding whitespace — this proves the now-correct
+    /// classification doesn't regress that spacing.
+    #[test]
+    fn keeps_tip461_word_operator_spacing() {
+        check(
+            "if {$a lt $b} {\n    puts hi\n}\n",
+            "if {$a lt $b} {puts hi}",
         );
     }
 

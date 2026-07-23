@@ -38,51 +38,27 @@ use tcl_syntax::naming::qualifier_segments;
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
-/// Every math function — registered as `::tcl::mathfunc::<name>`. Most forward
-/// to the shared [`dispatch`]; `rand`/`srand` are handled inline (interp state).
-const MATHFUNCS: &[&str] = &[
-    "abs",
-    "acos",
-    "asin",
-    "atan",
-    "atan2",
-    "bool",
-    "ceil",
-    "cos",
-    "cosh",
-    "double",
-    "entier",
-    "exp",
-    "floor",
-    "fmod",
-    "hypot",
-    "int",
-    "isqrt",
-    "isfinite",
-    "isinf",
-    "isnan",
-    "isnormal",
-    "issubnormal",
-    "isunordered",
-    "log",
-    "log10",
-    "max",
-    "min",
-    "pow",
-    "rand",
-    "round",
-    "sin",
-    "sinh",
-    "sqrt",
-    "srand",
-    "tan",
-    "tanh",
-    "wide",
-];
+/// Every math function name — registered as `::tcl::mathfunc::<name>`. Most
+/// forward to the shared [`dispatch`]; `rand`/`srand` are handled inline
+/// (interp state).
+///
+/// Derived from `tcl_syntax::expr::mathfunc::all()` (issue #983's
+/// unification) rather than a hand-typed list — that list had gone stale,
+/// missing the entire TIP 745 (Tcl 9.1) C99 batch even though `dispatch()`
+/// (the function this loop wires every one of these names up to) already
+/// implemented all of them: `::tcl::mathfunc::gamma` and its 20 siblings
+/// were simply never registered as commands, an "invalid command name"
+/// error rather than a working call.
+fn mathfunc_names() -> Vec<&'static str> {
+    tcl_syntax::expr::mathfunc::all()
+        .into_iter()
+        .map(|spec| spec.name)
+        .collect()
+}
 
 /// Register `::tcl::mathfunc::*`.
 pub fn install(interp: &mut Interp) {
-    for name in MATHFUNCS {
+    for name in mathfunc_names() {
         let mut full = b"::tcl::mathfunc::".to_vec();
         full.extend_from_slice(name.as_bytes());
         interp.register_builtin(&full, mathfunc);
@@ -181,13 +157,20 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `(min, max)` argument count for a math function (`max` = `None` ⇒ unbounded).
 /// Every name reaching the builtin is registered, so unknowns can't occur; the
 /// default is the unary `(1, 1)`.
+/// A function's `(min, max)` argument count — derived from
+/// `tcl_syntax::expr::mathfunc::spec` (issue #983's unification) rather than
+/// a hand-typed match, which — like [`mathfunc_names`] — had gone stale for
+/// the TIP 745 batch: several of those functions are 2- or 3-argument
+/// (`copysign`, `dim`, `ldexp`, `nextafter`, `remainder` take 2; `fma` takes
+/// 3), and the old fallback arm (`_ => (1, Some(1))`) would have wrongly
+/// rejected a correct call to any of them once they were registered.
+/// Unknown names fall back to `(1, Some(1))` too — unreachable for any name
+/// [`mathfunc_names`] actually registers, since both read the same table.
 fn arity(name: &str) -> (usize, Option<usize>) {
-    match name {
-        "min" | "max" => (1, None),
-        "atan2" | "hypot" | "fmod" | "pow" | "isunordered" => (2, Some(2)),
-        "rand" => (0, Some(0)),
-        _ => (1, Some(1)),
-    }
+    let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
+        return (1, Some(1));
+    };
+    (usize::from(spec.arity.min), spec.arity.max.map(usize::from))
 }
 
 /// `{not enough|too many} arguments for math function "NAME"` with
@@ -317,6 +300,40 @@ mod tests {
             assert_eq!(
                 i.result_bytes(),
                 b"domain error: argument not in valid range"
+            );
+        });
+    }
+
+    /// `mathfunc_names()`/`arity()` used to be hand-typed and missed the
+    /// entire TIP 745 (9.1) C99 batch — `dispatch()` already implemented
+    /// every one of these, but `install()` never registered a command for
+    /// any of them, so `::tcl::mathfunc::gamma` was "invalid command name"
+    /// rather than a working call. Proves both the 1-arg and multi-arg
+    /// (`copysign`/`fma`) cases now work as real commands, with the correct
+    /// derived arity — the very fix this crate's own drift-gate cleanup
+    /// (issue #983) exists to have caught.
+    #[test]
+    fn tip745_functions_are_registered_commands_with_correct_arity() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::gamma 5"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"24.0");
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::cbrt 27"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"3.0");
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::copysign 3 -1"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"-3.0");
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::fma 2 3 4"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"10.0");
+            // Wrong arity on a 2-arg TIP 745 function is a real arity error,
+            // not a silent `(1, Some(1))` fallback mis-check.
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::copysign 3"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"not enough arguments for math function \"copysign\""
+            );
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::copysign 3 -1 2"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"too many arguments for math function \"copysign\""
             );
         });
     }
