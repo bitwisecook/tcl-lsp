@@ -527,50 +527,68 @@ fn get_at(items: &[Value], i: isize) -> Value {
         .unwrap_or_else(Value::empty)
 }
 
-/// Recursively set the element at index `path` of `list` to `value`, returning
-/// the new (sub)list — the shared core of `INST_LSET_LIST` / `INST_LSET_FLAT`
-/// (C's `TclLsetList` / `TclLsetFlat`). An empty `path` replaces the whole value
+/// Set the element at index `path` of `list` to `value`, returning the new
+/// (sub)list — the shared core of `INST_LSET_LIST` / `INST_LSET_FLAT` (C's
+/// `TclLsetList` / `TclLsetFlat`), and the runtime `lset` builtin's fallback
+/// (`cmd_list.rs::cmd_lset`). An empty `path` replaces the whole value
 /// (`lset x {} v` == `set x v`); each index is `end`/`end±N`-aware, with range
 /// `0..=len` where `len` appends a fresh (possibly nested) slot. Error messages
 /// match tclsh 9.0 (the reference standard).
+///
+/// Issue #996: this used to recurse once per path segment natively, with no
+/// depth cap — trivially inflated via a long flat index path (`INST_LSET_FLAT`
+/// / `lset listVar {*}[lrepeat 100000 0] v`). Empirically (a throwaway
+/// `zzz_probe_depth lset <depth>` harness, deleted before this fix landed),
+/// unguarded input overflowed the native stack (SIGABRT) between depth 1800
+/// and 2000 on a 2 MiB thread. Rewritten iteratively — an explicit
+/// work-stack instead of one native call per index — which eliminates the
+/// native-stack risk entirely rather than just capping it: walk down `path`
+/// recording each level's element vector and the index being set (or
+/// appended to), then rebuild bottom-up. This is on the hot bytecode path
+/// (`INST_LSET_LIST`/`INST_LSET_FLAT`), so the signature (and its two
+/// `exec.rs` callers) is unchanged.
 pub(crate) fn lset_descend(
     list: &Value,
     path: &[Value],
     value: Value,
 ) -> Result<Value, Completion<Value>> {
-    let Some((spec, rest)) = path.split_first() else {
-        // No (more) indices: `lset` is `set` — the value replaces the list.
-        return Ok(value);
-    };
-    let elems = match list.as_list() {
-        Ok(e) => e,
-        Err(e) => return Err(err(e.message)),
-    };
-    let len = elems.len();
-    let spec_str = spec.to_str();
-    let Some(idx) = crate::command::resolve_index(&spec_str, len) else {
-        return Err(err(format!(
-            "bad index \"{spec_str}\": must be integer?[+-]integer? or end?[+-]integer?"
-        )));
-    };
-    if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) > len {
-        return Err(err(format!("index \"{spec_str}\" out of range")));
+    let mut frames: Vec<(Vec<Value>, usize)> = Vec::with_capacity(path.len());
+    let mut cur = list.clone();
+    for spec in path {
+        let elems = match cur.as_list() {
+            Ok(e) => e,
+            Err(e) => return Err(err(e.message)),
+        };
+        let len = elems.len();
+        let spec_str = spec.to_str();
+        let Some(idx) = crate::command::resolve_index(&spec_str, len) else {
+            return Err(err(format!(
+                "bad index \"{spec_str}\": must be integer?[+-]integer? or end?[+-]integer?"
+            )));
+        };
+        if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) > len {
+            return Err(err(format!("index \"{spec_str}\" out of range")));
+        }
+        let idx = usize::try_from(idx).unwrap_or(0);
+        let appending = idx == len;
+        let child = if appending {
+            Value::list(Vec::new())
+        } else {
+            elems[idx].clone()
+        };
+        frames.push(((*elems).clone(), idx));
+        cur = child;
     }
-    let idx = usize::try_from(idx).unwrap_or(0);
-    let appending = idx == len;
-    let child = if appending {
-        Value::list(Vec::new())
-    } else {
-        elems[idx].clone()
-    };
-    let new_child = lset_descend(&child, rest, value)?;
-    let mut out: Vec<Value> = (*elems).clone();
-    if appending {
-        out.push(new_child);
-    } else {
-        out[idx] = new_child;
+    let mut new_value = value;
+    for (mut out, idx) in frames.into_iter().rev() {
+        if idx == out.len() {
+            out.push(new_value);
+        } else {
+            out[idx] = new_value;
+        }
+        new_value = Value::list(out);
     }
-    Ok(Value::list(out))
+    Ok(new_value)
 }
 
 /// Sublist `[lo..=hi]` clamped to bounds; empty when the range is empty.
@@ -3378,7 +3396,8 @@ impl Vm {
 #[cfg(test)]
 mod tests {
     use super::{
-        brace_safe, char_find, dict_set_path, dict_unset_path, imm_index, quote_for_script,
+        brace_safe, char_find, dict_set_path, dict_unset_path, imm_index, lset_descend,
+        quote_for_script,
     };
     use crate::value::Value;
     use tcl_bytecode::INDEX_END;
@@ -3499,5 +3518,73 @@ mod tests {
         let outer = Value::list(vec![s("a"), inner]);
         let nested = dict_unset_path(&outer, &[s("a"), s("b")]).unwrap();
         assert_eq!(top_pairs(&nested), [("a".into(), "c 2".into())]);
+    }
+
+    /// Regression coverage for issue #996: `lset_descend` recurses once per
+    /// index in `lset`'s (possibly nested) index path, with no depth cap
+    /// before this fix — it backs the compiled `INST_LSET_LIST`/
+    /// `INST_LSET_FLAT` opcodes, so a flat index path is trivially inflated
+    /// via `lset listVar {*}[lrepeat 100000 0] v`. Empirically (a
+    /// throwaway `zzz_probe_depth lset <depth>` harness, deleted before
+    /// this fix landed), unguarded input overflowed the native stack
+    /// (SIGABRT) between depth 1800 and 2000 on a 2 MiB thread (`cargo
+    /// test`'s per-test default). Rewritten iteratively (no depth cap at
+    /// all); 2000 is comfortably past that crash range, and the result is
+    /// checked for exact correctness at this depth (descending back down
+    /// the same index path lands on the value that was set), not merely
+    /// survival.
+    ///
+    /// Deliberately NOT 50,000+: constructing (and, at the end of this
+    /// test, dropping) a `Value::list` chain nested that deep is its own,
+    /// unrelated native-stack risk — `Value` has no custom `Drop` impl, so
+    /// the compiler-generated recursive drop glue walks the same chain
+    /// (empirically, SIGABRT between depth 3500 and 4000 on a 2 MiB thread
+    /// for construction+drop alone, independent of any operation performed
+    /// on the value). That is a separate, genuinely unbounded-depth concern
+    /// in `Value`'s representation itself, not in `lset_descend`'s
+    /// now-iterative logic — out of scope for this fix.
+    #[test]
+    fn deeply_nested_lset_survives_and_is_correct() {
+        const DEPTH: usize = 2_000;
+        let mut v = Value::string("orig");
+        for _ in 0..DEPTH {
+            v = Value::list(vec![v]);
+        }
+        let path: Vec<Value> = (0..DEPTH).map(|_| Value::int(0)).collect();
+        let result = lset_descend(&v, &path, Value::string("new")).expect("lset_descend survives");
+        let mut cur = result;
+        for _ in 0..DEPTH {
+            let items = cur.as_list().expect("valid list at every level");
+            assert_eq!(items.len(), 1);
+            cur = items[0].clone();
+        }
+        assert_eq!(&*cur.to_str(), "new");
+    }
+
+    /// A moderately nested `lset` index path (well within realistic use) is
+    /// byte-for-byte unaffected by the iterative rewrite.
+    #[test]
+    fn moderately_nested_lset_matches_previous_behavior() {
+        let n = Value::int;
+        // Set an existing element two levels deep.
+        let list = Value::list(vec![
+            Value::list(vec![n(1), n(2)]),
+            Value::list(vec![n(3), n(4)]),
+        ]);
+        let updated = lset_descend(&list, &[n(1), n(0)], n(99)).unwrap();
+        assert_eq!(&*updated.to_str(), "{1 2} {99 4}");
+
+        // An empty path replaces the whole value (`lset x {} v` == `set x v`).
+        let replaced = lset_descend(&list, &[], Value::string("whole")).unwrap();
+        assert_eq!(&*replaced.to_str(), "whole");
+
+        // `idx == len` appends a fresh slot.
+        let flat = Value::list(vec![n(1), n(2)]);
+        let appended = lset_descend(&flat, &[n(2)], n(3)).unwrap();
+        assert_eq!(&*appended.to_str(), "1 2 3");
+
+        // Out-of-range and non-numeric indices still error.
+        assert!(lset_descend(&flat, &[n(5)], n(0)).is_err());
+        assert!(lset_descend(&flat, &[Value::string("bogus")], n(0)).is_err());
     }
 }

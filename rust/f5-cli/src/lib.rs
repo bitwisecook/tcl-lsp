@@ -49,13 +49,37 @@ where
     T: Into<OsString> + Clone,
 {
     let cli = Cli::parse_from(args);
-    match dispatch(&cli.command) {
+    match run_on_generous_stack(cli.command) {
         Ok(code) => ExitCode::from(code),
         Err(err) => {
             tcl_cli_support::chrome::eprint_error(format!("{err:#}"));
             ExitCode::from(2)
         }
     }
+}
+
+/// Stack budget for the dedicated worker thread every verb runs on.
+///
+/// Matches `WORKER_STACK_SIZE` in `tcl-lsp-server`/`tcl-mcp`/`tcl-cli`'s
+/// entry points — see `tcl-lsp-server/src/main.rs`'s doc comment for the
+/// full rationale. Short version: `irule minify` (`commands::irule`) runs
+/// `tcl_lsp_core::minify`, which calls straight into
+/// `tcl_compiler::analyser::Analyser::analyse` on caller-supplied Tcl
+/// source — the same depth-capped-but-stack-hungry recursion chain that
+/// crashed `tcl-lsp-server` in issue #996. The OS-provided main-thread
+/// stack this binary would otherwise inherit is outside this crate's
+/// control (8 MiB by default on Linux, far less guaranteed elsewhere), so
+/// every verb runs on an explicitly-sized thread instead.
+const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
+
+/// Run `dispatch` on a dedicated thread with [`WORKER_STACK_SIZE`] of stack.
+fn run_on_generous_stack(command: Command) -> anyhow::Result<u8> {
+    std::thread::Builder::new()
+        .stack_size(WORKER_STACK_SIZE)
+        .spawn(move || dispatch(&command))
+        .expect("failed to spawn the f5-query CLI worker thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 // One flat arm per top-level verb; splitting this dispatch would obscure it.

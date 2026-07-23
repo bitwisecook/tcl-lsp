@@ -1152,7 +1152,7 @@ fn scan_my_method_region(
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     let source = ctx.source;
-    if start >= end || end > source.len() || depth > MAX_DISPATCH_SCAN_DEPTH {
+    if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;
     }
     let region = &source[start..end];
@@ -1249,7 +1249,7 @@ fn scan_next_dispatch_region_with_target(
     out: &mut Vec<(tcl_lexer::Span, Option<String>)>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    if start >= end || end > source.len() || depth > MAX_DISPATCH_SCAN_DEPTH {
+    if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;
     }
     let body_text = &source[start..end];
@@ -1664,7 +1664,7 @@ fn scan_obj_method_region(
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
     let source = ctx.source;
-    if start >= end || end > source.len() || depth > MAX_DISPATCH_SCAN_DEPTH {
+    if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;
     }
     let region = &source[start..end];
@@ -1738,7 +1738,7 @@ fn strip_outer_braces(source: &str, span: tcl_lexer::Span) -> (usize, usize) {
 /// own `MAX_BODY_DEPTH` (`tcl_compiler::analyser::commands`): a guard against
 /// a stack overflow on pathologically nested / generated / minified Tcl, not
 /// a limit any hand-written script should ever approach.
-const MAX_DISPATCH_SCAN_DEPTH: u32 = 256;
+const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// Every nested region reachable from one segmented command that a
 /// dispatch scan (`my` / `next` / `nextto` / `$obj method` call-site search)

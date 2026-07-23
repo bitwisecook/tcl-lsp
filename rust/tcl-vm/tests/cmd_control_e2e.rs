@@ -1236,3 +1236,62 @@ fn try_handler_var_bind_array_on_scalar_should_fail() {
     );
     assert_eq!(msg, "can't set \"x(y)\": variable isn't array");
 }
+
+// ===========================================================================
+// Native-stack safety (issue #996) — the runtime `if`/`while`/`for` fallback
+// (this file) recurses on the host stack via `Vm::eval_source` when driven
+// through a computed command name (`set c if; $c ...`, defeating the
+// compiled fast path — see this file's module doc comment). Confirmed
+// empirically: before `NATIVE_EVAL_SOURCE_DEPTH_LIMIT`, this reliably
+// overflowed the stack (SIGABRT) between depth 50 and 60 on a 2 MiB thread.
+// ===========================================================================
+
+/// Deep dynamic-dispatch `if` nesting returns a catchable error instead of
+/// crashing the process. 100 is comfortably past both the measured 50-60
+/// crash range and `NATIVE_EVAL_SOURCE_DEPTH_LIMIT` (16).
+#[test]
+fn deeply_nested_dynamic_if_errors_instead_of_crashing() {
+    const DEPTH: usize = 100;
+    let mut src = "set c if\n".to_owned();
+    for _ in 0..DEPTH {
+        src.push_str("$c {1} {\n");
+    }
+    src.push_str("set done 1\n");
+    for _ in 0..DEPTH {
+        src.push_str("}\n");
+    }
+    let (ok, result, _) = run(&src);
+    assert!(!ok, "expected a catchable error, got ok with: {result}");
+    assert_eq!(result, "too many nested evaluations (infinite loop?)");
+}
+
+/// A shallow dynamic-dispatch `if` (well under the safety net) still runs
+/// normally — the safety net must not fire on realistic nesting depths.
+#[test]
+fn shallow_dynamic_if_still_runs() {
+    assert_eq!(run("set c if\n$c {1} {\n    set done 1\n}\n").1, "1");
+}
+
+/// `CONTROL_FALLBACK_DEPTH_LIMIT` is scoped to `cmd_control.rs`'s runtime
+/// fallback specifically (see that constant's doc comment) — ordinary
+/// nested `[…]` command substitution, unrelated to this file's fallback
+/// commands, must not be affected by it. An earlier version of this fix
+/// capped `Vm::eval_source` itself (the shared mechanism command
+/// substitution also uses) and broke exactly this: 45 real nested
+/// substitutions is far more than any realistic iRule needs, comfortably
+/// past what the earlier, wrongly-scoped fix would have allowed, and
+/// nowhere near where pure substitution recursion actually becomes
+/// dangerous (empirically safe to at least depth 1000 on a 2 MiB thread).
+#[test]
+fn deeply_nested_command_substitution_is_unaffected() {
+    const DEPTH: usize = 45;
+    let mut src = String::new();
+    for _ in 0..DEPTH {
+        src.push_str("[subst {");
+    }
+    src.push('1');
+    for _ in 0..DEPTH {
+        src.push_str("}]");
+    }
+    assert_eq!(run(&format!("set x {src}\n")).1, "1");
+}

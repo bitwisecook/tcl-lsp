@@ -1415,7 +1415,7 @@ fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<St
 /// `ArgRole::Body` arguments (`catch { catch { catch { … } } }` and similar) —
 /// defensive against a pathological or generated nesting depth; real code
 /// never approaches it.
-const MAX_CALL_SITE_BODY_DEPTH: u32 = 16;
+const MAX_CALL_SITE_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(16);
 
 /// Invariant context [`record_call_site_evidence`] threads unchanged through
 /// its recursion into nested `ArgRole::Body` arguments — grouped into one
@@ -1551,7 +1551,7 @@ fn record_call_site_evidence(
             by_idx.entry(i).or_default().unknown = true;
         }
     }
-    if depth >= MAX_CALL_SITE_BODY_DEPTH {
+    if MAX_CALL_SITE_BODY_DEPTH.exceeded(depth + 1) {
         return;
     }
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();

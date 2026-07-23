@@ -45,6 +45,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_registry::events::EventRegistry;
 
 use crate::compilation_unit::FunctionUnit;
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ir::{Statement, when_event_name};
 
 /// Variable summary for a single ``when`` event handler.
@@ -197,27 +198,35 @@ pub(crate) fn scan_info_exists(text: &str, out: &mut HashSet<String>) {
 /// Walk an expression for embedded command substitutions / raw text and scan
 /// each for `info exists` reads (branch conditions hold the `[info exists …]`
 /// as a `Command` node).
-fn scan_expr_info_exists(node: &crate::expr_ast::ExprNode, out: &mut HashSet<String>) {
+fn scan_expr_info_exists(node: &crate::expr_ast::ExprNode, out: &mut HashSet<String>, depth: u32) {
     use crate::expr_ast::ExprNode;
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — a collector
+    // that returns the `info exists` reads gathered so far is the safe
+    // fallback (reads buried deeper than the cap go unrecorded; never a
+    // crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Command { text, .. } | ExprNode::Raw { text } => scan_info_exists(text, out),
         ExprNode::Binary { left, right, .. } => {
-            scan_expr_info_exists(left, out);
-            scan_expr_info_exists(right, out);
+            scan_expr_info_exists(left, out, depth + 1);
+            scan_expr_info_exists(right, out, depth + 1);
         }
-        ExprNode::Unary { operand, .. } => scan_expr_info_exists(operand, out),
+        ExprNode::Unary { operand, .. } => scan_expr_info_exists(operand, out, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            scan_expr_info_exists(condition, out);
-            scan_expr_info_exists(true_branch, out);
-            scan_expr_info_exists(false_branch, out);
+            scan_expr_info_exists(condition, out, depth + 1);
+            scan_expr_info_exists(true_branch, out, depth + 1);
+            scan_expr_info_exists(false_branch, out, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for a in args {
-                scan_expr_info_exists(a, out);
+                scan_expr_info_exists(a, out, depth + 1);
             }
         }
         _ => {}
@@ -289,7 +298,7 @@ fn extract_event_summary(event: &str, fu: &FunctionUnit) -> EventVarSummary {
             }
         }
         if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
-            scan_expr_info_exists(condition, &mut uses_v0);
+            scan_expr_info_exists(condition, &mut uses_v0, 0);
         }
     }
 
@@ -306,6 +315,31 @@ mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
+
+    /// Regression coverage for issue #996: `scan_expr_info_exists` recurses
+    /// once per `ExprNode` level with no depth cap before this fix. A tree
+    /// built directly is unbounded (the Pratt parser caps its own output at
+    /// 256) and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
+    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns
+    /// at all.
+    #[test]
+    fn deeply_nested_scan_expr_info_exists_survives() {
+        use crate::expr_ast::{ExprNode, UnaryOp};
+        let mut node = ExprNode::Command {
+            text: "[info exists x]".into(),
+            start: 0,
+            end: 15,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let mut out = HashSet::new();
+        scan_expr_info_exists(&node, &mut out, 0);
+    }
 
     fn cu(source: &str) -> CompilationUnit {
         // `when` is registry-resolved.  This

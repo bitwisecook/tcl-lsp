@@ -791,3 +791,43 @@ fn realistic_stack_object() {
         "2 b 1"
     );
 }
+
+// ===========================================================================
+// Recursive method dispatch — issue #996 (native-stack safety).
+// ===========================================================================
+
+/// A recursive method call (or `next`/mixin chain) is a genuine native Rust
+/// call per level (`TclOO` method dispatch bypasses the proc trampoline that
+/// makes ordinary recursive `proc` calls native-stack-free) — empirically,
+/// unguarded recursion overflowed the native stack (SIGABRT) between depth
+/// 45 and 48 on a 2 MiB thread (`cargo test`'s per-test default).
+/// `OO_DISPATCH_DEPTH_LIMIT` (20) now turns that into a catchable error
+/// well before the crash floor.
+#[test]
+fn deeply_recursive_method_errors_instead_of_crashing() {
+    let (ok, res, _) = run("oo::class create C { \
+           method go {n} { if {$n <= 0} { return done }; return [my go [expr {$n-1}]] } \
+         }; \
+         C create obj; obj go 1000");
+    assert!(!ok, "expected a catchable error, got {res:?}");
+    assert!(
+        res.contains("too many nested evaluations"),
+        "unexpected error: {res:?}"
+    );
+}
+
+/// A moderately recursive method (well under `OO_DISPATCH_DEPTH_LIMIT`)
+/// still runs normally — the safety net must not fire on realistic
+/// recursion depths.
+#[test]
+fn moderately_recursive_method_still_runs() {
+    assert_eq!(
+        result(
+            "oo::class create C { \
+               method go {n} { if {$n <= 0} { return done }; return [my go [expr {$n-1}]] } \
+             }; \
+             C create obj; obj go 10"
+        ),
+        "done"
+    );
+}

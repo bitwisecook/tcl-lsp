@@ -164,6 +164,29 @@ fn auto_qualify_differential_against_tclsh() {
 // pkgIndex.tcl parsing — pure cases + differential against pkg_mkIndex.
 // ---------------------------------------------------------------------------
 
+/// Regression coverage for issue #996: `collect_source_targets` recurses
+/// once per `[...]`/`{...}`/`"..."` wrapper word, with no depth cap
+/// before this fix (`MAX_SOURCE_TARGET_SCAN_DEPTH`). 2000 nested `[list
+/// ...]` wrappers is comfortably past that cap (256); the assertion is
+/// that parsing returns at all, not what it returns.
+#[test]
+fn parse_pkg_index_survives_deeply_nested_source_wrapper() {
+    const DEPTH: usize = 2000;
+    let mut body = String::from("source $dir/x.tcl");
+    for _ in 0..DEPTH {
+        body = format!("[list {body}]");
+    }
+    let content = format!("package ifneeded p 1.0 {body}");
+    let dir = Path::new("/pkg");
+    let _ = parse_pkg_index(
+        &content,
+        dir,
+        &dir.join("pkgIndex.tcl"),
+        &always_exists,
+        &no_tcl_files,
+    );
+}
+
 #[test]
 fn parse_pkg_index_standard_form() {
     // The canonical `pkg_mkIndex` output shape.

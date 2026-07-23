@@ -1133,7 +1133,7 @@ impl Analyser {
         let mut info = UnknownProcInfo::default();
 
         for stmt in &module.top_level.statements {
-            walk_unknown_stmt(stmt, &first_param, &mut info);
+            walk_unknown_stmt(stmt, &first_param, &mut info, 0);
         }
 
         info
@@ -1160,14 +1160,28 @@ pub(super) fn parse_oo_define_inline(
     apply_oo_subcommand(grammar, args, arg_tokens, class_def);
 }
 
+/// Depth cap for [`walk_unknown_stmt`]'s recursion over nested `if`/`for`/
+/// `while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame` bodies —
+/// issue #996. Transitively bounded today via `MAX_LOWER_NEST_DEPTH`
+/// (every `Script` this walk sees was built by `crate::lowering`, which
+/// already caps its own construction at 256), capped here independently
+/// for defence-in-depth and consistency with every other full-tree walker
+/// in this crate.
+const MAX_UNKNOWN_STMT_WALK_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
+
 /// Inspect a single IR statement for unknown-proc dispatch
 /// markers.
 ///
 /// Recurses through control-flow bodies (`if` clauses, `for` /
 /// `while` / `foreach` bodies, `try` / `catch` bodies) so a
 /// ``switch`` arm or ``exec`` call buried inside a guard or
-/// loop is still detected.
-fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProcInfo) {
+/// loop is still detected. `depth` is `stmt`'s own nesting level — see
+/// [`MAX_UNKNOWN_STMT_WALK_DEPTH`].
+fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProcInfo, depth: u32) {
+    if MAX_UNKNOWN_STMT_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     match stmt {
         Statement::Switch {
             subject,
@@ -1200,7 +1214,7 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
             for arm in arms {
                 if let Some(body) = &arm.body {
                     for inner in &body.statements {
-                        walk_unknown_stmt(inner, first_param, info);
+                        walk_unknown_stmt(inner, first_param, info, depth + 1);
                     }
                 }
             }
@@ -1219,12 +1233,12 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
         } => {
             for clause in clauses {
                 for inner in &clause.body.statements {
-                    walk_unknown_stmt(inner, first_param, info);
+                    walk_unknown_stmt(inner, first_param, info, depth + 1);
                 }
             }
             if let Some(body) = else_body {
                 for inner in &body.statements {
-                    walk_unknown_stmt(inner, first_param, info);
+                    walk_unknown_stmt(inner, first_param, info, depth + 1);
                 }
             }
         }
@@ -1235,7 +1249,7 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
         | Statement::Block { body, .. }
         | Statement::UpFrame { body, .. } => {
             for inner in &body.statements {
-                walk_unknown_stmt(inner, first_param, info);
+                walk_unknown_stmt(inner, first_param, info, depth + 1);
             }
         }
         Statement::Try {
@@ -1245,16 +1259,16 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
             ..
         } => {
             for inner in &body.statements {
-                walk_unknown_stmt(inner, first_param, info);
+                walk_unknown_stmt(inner, first_param, info, depth + 1);
             }
             for handler in handlers {
                 for inner in &handler.body.statements {
-                    walk_unknown_stmt(inner, first_param, info);
+                    walk_unknown_stmt(inner, first_param, info, depth + 1);
                 }
             }
             if let Some(body) = finally_body {
                 for inner in &body.statements {
-                    walk_unknown_stmt(inner, first_param, info);
+                    walk_unknown_stmt(inner, first_param, info, depth + 1);
                 }
             }
         }
@@ -2253,6 +2267,42 @@ mod tests {
             has_default: false,
             default_value: None,
         }
+    }
+
+    /// Regression coverage for issue #996: `walk_unknown_stmt` recurses
+    /// once per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/
+    /// `switch`/`Block`/`UpFrame` body, with no depth cap of its own
+    /// before this fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+    /// (256) by the lowering pass today, so this is defence-in-depth /
+    /// consistency with every other full-tree walker in this crate, not a
+    /// currently-reproducible crash. 1000 levels of *source* nesting is
+    /// comfortably past this new cap; the assertion is that
+    /// `extract_unknown_proc_info` returns at all, not what it returns.
+    /// Spawns its own big-stack thread since the lexer/CST/segmenter
+    /// stages upstream of `walk_unknown_stmt`'s own new cap still walk the
+    /// full un-truncated source nesting before lowering's cap trims it —
+    /// same rationale as `structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn extract_unknown_proc_info_survives_deep_nesting() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut body = String::new();
+        for _ in 0..DEPTH {
+            body.push_str("if {1} {\n");
+        }
+        body.push_str("exec ls\n");
+        for _ in 0..DEPTH {
+            body.push_str("}\n");
+        }
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let mut a = Analyser::new();
+                let _ = a.extract_unknown_proc_info(&body, &[param("cmd"), param("args")]);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]

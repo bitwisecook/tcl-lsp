@@ -136,7 +136,7 @@ fn truthiness_and_ordering() {
         std::cmp::Ordering::Less
     );
     // Equality: 1 == 1.0, True == 1
-    assert!(value::py_eq(&Value::Int(1), &Value::Float(1.0)));
-    assert!(value::py_eq(&Value::Bool(true), &Value::Int(1)));
-    assert!(!value::py_eq(&s("1"), &Value::Int(1)));
+    assert!(value::py_eq(&Value::Int(1), &Value::Float(1.0), 0));
+    assert!(value::py_eq(&Value::Bool(true), &Value::Int(1), 0));
+    assert!(!value::py_eq(&s("1"), &Value::Int(1), 0));
 }

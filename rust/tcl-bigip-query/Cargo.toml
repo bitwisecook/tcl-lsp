@@ -29,6 +29,10 @@ authors.workspace = true
 
 [dependencies]
 tcl-bigip = { path = "../tcl-bigip" }
+# The shared native-stack safety-net primitive (issue #996) — see
+# `value.rs`'s `MAX_VALUE_WALK_DEPTH`. Dependency-free leaf crate, so it
+# stays wasm-safe for the report/console build too.
+tcl-core-types = { path = "../tcl-core-types" }
 # The real Tcl tokeniser, for parsing the architecture-manifest DSL (device /
 # link / zone / interface / dns-zone / maps). Core lexer only (no `html`), so it
 # stays wasm-safe for the report/console build.

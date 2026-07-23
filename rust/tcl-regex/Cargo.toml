@@ -45,6 +45,7 @@ description = "Pure-Rust implementation of Tcl 9's Henry-Spencer Advanced Regula
 
 [dependencies]
 tcl-cmd-core = { path = "../tcl-cmd-core", optional = true }
+tcl-core-types = { path = "../tcl-core-types" }
 
 [features]
 # Implement `tcl_cmd_core::regex::RegexEngine` so the shared command plumbing

@@ -40,6 +40,8 @@ use core::ffi::c_char;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
+use tcl_core_types::RecursionLimit;
+
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
 use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
@@ -415,7 +417,7 @@ pub(crate) struct CoroContext {
     exc: ExceptionState,
     error_line: u32,
     arg_lines: Vec<u32>,
-    eval_depth: usize,
+    eval_depth: u32,
     oo: crate::cmd_oo::OoExec,
 }
 
@@ -689,7 +691,7 @@ pub struct InterpState {
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
     /// accumulate.
-    eval_depth: Cell<usize>,
+    eval_depth: Cell<u32>,
     /// Count of commands dispatched (`info cmdcount`).
     cmd_count: Cell<u64>,
     /// The code an `exit` requested, if any. `exit` does **not** terminate the
@@ -810,6 +812,53 @@ impl Default for LimitSet {
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 const RECURSION_LIMIT: usize = 1000;
+
+/// A native-stack safety net over **every** script-body evaluation —
+/// control-flow bodies (`if`/`while`/`for`/`foreach`/…), proc bodies,
+/// `eval`/`uplevel`/`source`, and command substitution — checked against
+/// [`Interp::eval_depth`] in [`Interp::eval_script_mode`], independently of
+/// [`RECURSION_LIMIT`]/[`Interp::recursion_limit`] (issue #996).
+///
+/// This is a genuinely different concern from `recursion_limit`:
+/// `recursion_limit` is the user-configurable, Tcl-visible `interp
+/// recursionlimit` budget (bounding *proc-call* nesting only, matching C
+/// Tcl's `iPtr->numLevels`), whereas this crate's interpreter is a
+/// tree-walking evaluator — unlike C Tcl's bytecode-compiled control
+/// structures (which execute via a flat instruction loop, no per-nesting-
+/// level native recursion), *every* nested body here costs one more group
+/// of native Rust stack frames (`eval_command` → command dispatch →
+/// `eval_control_body`/`run_proc` → `eval_framed`/`eval_shared_located_body`
+/// → `eval_script_mode`, recursively). C Tcl has no equivalent native-stack
+/// hazard for compiled control flow, so there is no directly-analogous
+/// upstream constant to match here.
+///
+/// Empirically measured on this crate's native (non-WASM) build, run on a
+/// plain 2 MiB thread stack (`cargo test`'s per-test default — the same
+/// class of ambient stack budget that made issue #996 reproducible for the
+/// analyser): unguarded nested `foreach` bodies overflow the stack (SIGABRT)
+/// between depth 200 and 250, and — more surprisingly — plain unbounded
+/// recursive *proc calls* overflow **before ever reaching the existing
+/// `RECURSION_LIMIT` of 1000**, meaning that pre-existing, purely
+/// Tcl-semantic cap was never actually a safe backstop against a native
+/// crash on an ordinary thread stack, let alone the smaller stack a WASM
+/// host may give this module (this crate is `#[cfg(not(target_arch =
+/// "wasm32"))]`-agnostic and, per this crate's `Cargo.toml`, "eventually
+/// builds for wasm32 as a cdylib" — a WASM host's stack budget is entirely
+/// outside this crate's control, unlike a native embedding where a caller
+/// can choose to run `eval_str` on a generously-sized thread the way
+/// `tcl-lsp-server`/`tcl-debugger`/etc. do).
+///
+/// 128 is deliberately conservative — comfortably under half the measured
+/// 2 MiB-stack crash threshold, so it holds real margin even against a
+/// meaningfully smaller WASM stack, while still being far more headroom
+/// than realistic (even generated/templated) Tcl needs: legitimate scripts
+/// essentially never combine proc-call depth, control-flow nesting, and
+/// command-substitution nesting to a combined total anywhere near 128.
+/// Tripping it raises the same catchable `"too many nested evaluations
+/// (infinite loop?)"` error `RECURSION_LIMIT` uses — the failure mode is
+/// conceptually identical (too much nesting), just caught earlier for
+/// native-safety reasons independent of the user-configurable budget.
+const NATIVE_EVAL_DEPTH_LIMIT: RecursionLimit = RecursionLimit(128);
 
 /// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
 /// reports: a decimal that overflows `i64` is "too large to represent", a
@@ -3720,6 +3769,13 @@ impl Interp {
         owned: Option<CmdFrame>,
         advance_shared: bool,
     ) -> Code {
+        // Native-stack safety net — see `NATIVE_EVAL_DEPTH_LIMIT`'s doc
+        // comment (issue #996). Checked before incrementing / doing any
+        // other setup, so bailing out here needs no unwind: `owned` (not
+        // yet pushed) simply drops normally.
+        if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
+            return self.error(b"too many nested evaluations (infinite loop?)");
+        }
         self.eval_depth.set(self.eval_depth.get() + 1);
         let pushed = owned.is_some();
         let owns_frame = pushed || advance_shared;
@@ -6421,6 +6477,76 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    /// Regression coverage for issue #996 in this runtime specifically: a
+    /// tree-walking interpreter recurses natively (`eval_command` → command
+    /// dispatch → `eval_control_body`/`run_proc` → `eval_script_mode`,
+    /// recursively) for every nested control-flow body or proc call, unlike
+    /// C Tcl's bytecode-compiled control structures. Empirically, on this
+    /// crate's native build under `cargo test`'s ~2 MiB per-test stack:
+    /// unguarded nested `foreach` bodies overflowed (SIGABRT) between depth
+    /// 200 and 250, and unbounded recursive proc calls overflowed *before
+    /// ever reaching* the pre-existing `RECURSION_LIMIT` of 1000 — i.e. that
+    /// cap was never actually a safe backstop against a native crash. See
+    /// `NATIVE_EVAL_DEPTH_LIMIT`'s doc comment for the full rationale.
+    #[test]
+    fn deeply_nested_foreach_errors_instead_of_crashing() {
+        leak_free(|i| {
+            // 300 is comfortably past the measured 200-250 crash range and
+            // past NATIVE_EVAL_DEPTH_LIMIT (128); the assertion is that this
+            // *returns* a catchable error rather than aborting the process.
+            let mut src = String::new();
+            for _ in 0..300 {
+                src.push_str("foreach x {1} {\n");
+            }
+            src.push_str("set done 1\n");
+            for _ in 0..300 {
+                src.push_str("}\n");
+            }
+            assert_eq!(i.eval_str(src.as_bytes()), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"too many nested evaluations (infinite loop?)"
+            );
+        });
+    }
+
+    /// A moderately nested `foreach` (well under `NATIVE_EVAL_DEPTH_LIMIT`)
+    /// still runs to completion — the safety net must not fire on realistic
+    /// nesting depths.
+    #[test]
+    fn moderately_nested_foreach_still_runs() {
+        leak_free(|i| {
+            let mut src = String::new();
+            for _ in 0..50 {
+                src.push_str("foreach x {1} {\n");
+            }
+            src.push_str("set done 1\n");
+            for _ in 0..50 {
+                src.push_str("}\n");
+            }
+            assert_eq!(i.eval_str(src.as_bytes()), Code::Ok);
+            assert_eq!(i.eval_str(b"set done"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+        });
+    }
+
+    /// A recursive proc with no base case relies purely on a recursion cap
+    /// to terminate. Before `NATIVE_EVAL_DEPTH_LIMIT`, this overflowed the
+    /// native stack well before the pre-existing `RECURSION_LIMIT` (1000)
+    /// was ever reached — a real, unguarded crash on ordinary recursive Tcl
+    /// code, not just pathological control-flow nesting.
+    #[test]
+    fn unbounded_proc_recursion_errors_instead_of_crashing() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"proc r {} { r }"), Code::Ok);
+            assert_eq!(i.eval_str(b"r"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"too many nested evaluations (infinite loop?)"
+            );
+        });
     }
 
     #[test]

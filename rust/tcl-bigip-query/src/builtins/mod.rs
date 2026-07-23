@@ -48,7 +48,7 @@ use regex::Regex;
 use crate::errors::QueryError;
 use crate::eval::EvalContext;
 use crate::jsonfmt;
-use crate::value::{self, Value};
+use crate::value::{self, MAX_VALUE_WALK_DEPTH, Value};
 
 mod encoding;
 pub(crate) use encoding::json_to_value;
@@ -451,17 +451,27 @@ pub(crate) fn object_entries(v: &Value, name: &str) -> Result<Vec<(String, Value
 }
 
 /// Coerce a value to a JSON-shaped value.
+///
+/// `depth` is the nesting level of this call (0 at the top); past
+/// [`MAX_VALUE_WALK_DEPTH`] this returns `Value::Null` in place of the
+/// over-deep subtree instead of recursing further — issue #996.
 #[must_use]
-pub(crate) fn to_jsonable(v: &Value) -> Value {
+pub(crate) fn to_jsonable(v: &Value, depth: u32) -> Value {
+    if MAX_VALUE_WALK_DEPTH.exceeded(depth) {
+        return Value::Null;
+    }
     match v {
         Value::Null | Value::Bool(_) | Value::Int(_) | Value::Float(_) | Value::Str(_) => v.clone(),
         Value::PathRef(p) => Value::Str(p.full_path.clone()),
-        Value::List(items) | Value::Stream(items) => {
-            Value::List(items.iter().map(to_jsonable).collect())
-        }
+        Value::List(items) | Value::Stream(items) => Value::List(
+            items
+                .iter()
+                .map(|item| to_jsonable(item, depth + 1))
+                .collect(),
+        ),
         Value::Object(map) => Value::Object(
             map.iter()
-                .map(|(k, val)| (k.clone(), to_jsonable(val)))
+                .map(|(k, val)| (k.clone(), to_jsonable(val, depth + 1)))
                 .collect(),
         ),
         Value::ObjectRef(o) => {
@@ -469,7 +479,7 @@ pub(crate) fn to_jsonable(v: &Value) -> Value {
             keys.sort();
             let mut m = IndexMap::new();
             for k in keys {
-                m.insert(k.clone(), to_jsonable(&o.fields[k]));
+                m.insert(k.clone(), to_jsonable(&o.fields[k], depth + 1));
             }
             Value::Object(m)
         }
@@ -519,11 +529,21 @@ pub(crate) fn value_children(v: &Value) -> Vec<(Value, Value)> {
 pub(crate) fn all_paths(v: &Value, only_leaves: bool) -> Vec<Vec<Value>> {
     let mut out = Vec::new();
     let mut prefix = Vec::new();
-    walk_paths(v, &mut prefix, only_leaves, &mut out);
+    walk_paths(v, &mut prefix, only_leaves, &mut out, 0);
     out
 }
 
-fn walk_paths(cur: &Value, prefix: &mut Vec<Value>, only_leaves: bool, out: &mut Vec<Vec<Value>>) {
+/// `depth` is the nesting level of this call (0 at the top); past
+/// [`MAX_VALUE_WALK_DEPTH`] this stops descending into `cur`'s children —
+/// the paths collected so far still stand — rather than recursing further
+/// (issue #996).
+fn walk_paths(
+    cur: &Value,
+    prefix: &mut Vec<Value>,
+    only_leaves: bool,
+    out: &mut Vec<Vec<Value>>,
+    depth: u32,
+) {
     if !prefix.is_empty() {
         if only_leaves {
             if !is_container(cur) {
@@ -533,9 +553,12 @@ fn walk_paths(cur: &Value, prefix: &mut Vec<Value>, only_leaves: bool, out: &mut
             out.push(prefix.clone());
         }
     }
+    if MAX_VALUE_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for (key, child) in value_children(cur) {
         prefix.push(key);
-        walk_paths(&child, prefix, only_leaves, out);
+        walk_paths(&child, prefix, only_leaves, out, depth + 1);
         prefix.pop();
     }
 }
@@ -603,13 +626,26 @@ pub(crate) fn coerce_path_list(
 }
 
 /// Set the value at a path, creating intermediate containers as needed.
+///
+/// `depth` is the nesting level of this call (0 at the top), which for this
+/// function is the index into `path` rather than `value`'s own nesting —
+/// `path` is itself query-built and unbounded (e.g. `range(1000000)` alone
+/// builds a path far longer than any real document nests). Past
+/// [`MAX_VALUE_WALK_DEPTH`] this returns [`QueryError::Builtin`] instead of
+/// descending further (issue #996).
 pub(crate) fn set_at_path(
     value: Value,
     path: &[Value],
     new_value: Value,
+    depth: u32,
 ) -> Result<Value, QueryError> {
     if path.is_empty() {
         return Ok(new_value);
+    }
+    if MAX_VALUE_WALK_DEPTH.exceeded(depth) {
+        return Err(QueryError::builtin(
+            "setpath: path nests too deeply".to_string(),
+        ));
     }
     let head = &path[0];
     let rest = &path[1..];
@@ -631,7 +667,7 @@ pub(crate) fn set_at_path(
                 other => scalar_key_str(other),
             };
             let sub = map.get(&key).cloned().unwrap_or(Value::Null);
-            let placed = set_at_path(sub, rest, new_value)?;
+            let placed = set_at_path(sub, rest, new_value, depth + 1)?;
             // `IndexMap::insert` updates an existing key in place (keeping its
             // position) and appends a new one — matching dict insertion order.
             map.insert(key, placed);
@@ -659,7 +695,7 @@ pub(crate) fn set_at_path(
             }
             let u = idx as usize;
             let sub = items[u].clone();
-            items[u] = set_at_path(sub, rest, new_value)?;
+            items[u] = set_at_path(sub, rest, new_value, depth + 1)?;
             Ok(Value::List(items))
         }
         other => Err(QueryError::builtin(format!(
@@ -671,14 +707,26 @@ pub(crate) fn set_at_path(
 }
 
 /// Delete the value at a path.
-pub(crate) fn delete_at_path(value: Value, path: &[Value]) -> Value {
+///
+/// `depth` is the nesting level of this call (0 at the top), tracking
+/// `path`'s index like [`set_at_path`]'s does — `path` is itself
+/// query-built and unbounded. Past [`MAX_VALUE_WALK_DEPTH`] this stops
+/// descending and returns `value` unchanged rather than recursing further
+/// (issue #996): failing to apply a pathologically-deep delete is a safe
+/// no-op, never data corruption.
+pub(crate) fn delete_at_path(value: Value, path: &[Value], depth: u32) -> Value {
     if path.is_empty() {
         return Value::Null;
+    }
+    if MAX_VALUE_WALK_DEPTH.exceeded(depth) {
+        return value;
     }
     let head = &path[0];
     let rest = &path[1..];
     match value {
-        Value::ObjectRef(o) => delete_at_path(Value::Object(o.fields.clone()), path),
+        // Re-dispatches on the *same* path element in `Object` form — not a
+        // path descent, so `depth` does not advance here.
+        Value::ObjectRef(o) => delete_at_path(Value::Object(o.fields.clone()), path, depth),
         Value::Object(mut map) => {
             let key = match head {
                 Value::Str(s) => s.clone(),
@@ -691,7 +739,7 @@ pub(crate) fn delete_at_path(value: Value, path: &[Value]) -> Value {
                 map.shift_remove(&key);
             } else {
                 let sub = map.get(&key).cloned().unwrap_or(Value::Null);
-                map.insert(key, delete_at_path(sub, rest));
+                map.insert(key, delete_at_path(sub, rest, depth + 1));
             }
             Value::Object(map)
         }
@@ -711,7 +759,7 @@ pub(crate) fn delete_at_path(value: Value, path: &[Value]) -> Value {
                 items.remove(u);
             } else {
                 let sub = items[u].clone();
-                items[u] = delete_at_path(sub, rest);
+                items[u] = delete_at_path(sub, rest, depth + 1);
             }
             Value::List(items)
         }
@@ -780,17 +828,29 @@ pub(crate) fn flatten_value(value: &Value, depth: i64) -> Result<Vec<Value>, Que
             "flatten: depth must be non-negative, got {depth}"
         )));
     }
-    Ok(flatten_go(&items, depth))
+    Ok(flatten_go(&items, depth, 0))
 }
 
-fn flatten_go(seq: &[Value], remaining: i64) -> Vec<Value> {
-    if remaining == 0 {
+/// `remaining` is the caller-facing `flatten` argument's own countdown
+/// (levels still to flatten); `native_depth` is this call's actual native
+/// recursion depth (0 at the top), which does not track `remaining` — the
+/// two only coincide when the input nests exactly as deep as the caller
+/// asked to flatten. A huge `remaining` (`flatten(1000000)` is a one-line
+/// query) does not by itself bound recursion; the *value*'s own nesting
+/// does, and that is fully generator-controlled. Past
+/// [`MAX_VALUE_WALK_DEPTH`] this stops descending — the untouched subtree
+/// is returned as-is, exactly like hitting `remaining == 0` — rather than
+/// recursing further (issue #996).
+fn flatten_go(seq: &[Value], remaining: i64, native_depth: u32) -> Vec<Value> {
+    if remaining == 0 || MAX_VALUE_WALK_DEPTH.exceeded(native_depth) {
         return seq.to_vec();
     }
     let mut out = Vec::new();
     for item in seq {
         match item {
-            Value::List(s) | Value::Stream(s) => out.extend(flatten_go(s, remaining - 1)),
+            Value::List(s) | Value::Stream(s) => {
+                out.extend(flatten_go(s, remaining - 1, native_depth + 1));
+            }
             other => out.push(other.clone()),
         }
     }
@@ -1344,7 +1404,7 @@ fn bi_tostring(args: &[Value]) -> Result<Value, QueryError> {
         Value::Float(f) => Ok(Value::Str(jsonfmt::py_float_repr(*f))),
         composite
         @ (Value::List(_) | Value::Stream(_) | Value::Object(_) | Value::ObjectRef(_)) => Ok(
-            Value::Str(jsonfmt::to_compact_sorted(&to_jsonable(composite))),
+            Value::Str(jsonfmt::to_compact_sorted(&to_jsonable(composite, 0))),
         ),
         other => Err(QueryError::builtin(format!(
             "tostring: cannot stringify {}",
@@ -1497,5 +1557,152 @@ mod add_tests {
     #[test]
     fn any_float_makes_the_sum_float() {
         assert!((as_float(add(vec![Value::Int(2), Value::Float(0.5)])) - 2.5).abs() < f64::EPSILON);
+    }
+}
+
+/// Regression coverage for issue #996: `to_jsonable`, `walk_paths`
+/// (`all_paths`), `set_at_path`, `delete_at_path`, and `flatten_go`
+/// (`flatten_value`) each recurse once per nested `Value`/path level, with
+/// no depth cap before this fix. All are reachable with a fully
+/// generator-controlled nesting depth: `tojson`/`debug`/`stderr` on deeply
+/// nested `fromjson` input, `paths`/`leaf_paths` on the same, `setpath`
+/// with a `range()`-built path far longer than any real document nests,
+/// `del`/`delpaths` likewise, and `flatten` with a value nested deeper than
+/// its own numeric `depth` argument bounds.
+#[cfg(test)]
+mod recursion_tests {
+    use super::*;
+
+    /// A list nested `depth` levels deep, wrapping a single `Int(0)` leaf.
+    fn deep_nested_list(depth: usize) -> Value {
+        let mut v = Value::Int(0);
+        for _ in 0..depth {
+            v = Value::List(vec![v]);
+        }
+        v
+    }
+
+    /// An object nested `depth` levels deep under key `"a"`, wrapping a
+    /// single `Int(0)` leaf — `{"a": {"a": ... {"a": 0} ...}}`.
+    fn deep_nested_object(depth: usize) -> Value {
+        let mut v = Value::Int(0);
+        for _ in 0..depth {
+            let mut m = IndexMap::new();
+            m.insert("a".to_string(), v);
+            v = Value::Object(m);
+        }
+        v
+    }
+
+    /// A path of `depth` `Str("a")` keys, matching [`deep_nested_object`]'s
+    /// shape one key per level.
+    fn deep_path(depth: usize) -> Vec<Value> {
+        (0..depth).map(|_| Value::Str("a".to_string())).collect()
+    }
+
+    const DEPTH: usize = 5000;
+
+    /// Run *f* on a worker thread with a 256 MiB stack (mirroring
+    /// `tests/hardening.rs`'s `with_big_stack`). Building — and, at scope
+    /// end, dropping — a several-thousand-level-deep `Value` costs one
+    /// native stack frame per level, since `Value`'s derived `Clone`/`Drop`
+    /// have no depth cap of their own (unlike the guarded functions under
+    /// test here), so the fixture itself needs more room than the harness's
+    /// default ~2 MiB per-test thread provides — independently of whether
+    /// the guard is correct.
+    fn with_big_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn(f)
+            .expect("spawn worker thread")
+            .join()
+            .expect("worker thread did not panic / overflow")
+    }
+
+    #[test]
+    fn deeply_nested_value_to_jsonable_does_not_crash() {
+        with_big_stack(|| {
+            let v = deep_nested_list(DEPTH);
+            let _ = to_jsonable(&v, 0);
+        });
+    }
+
+    #[test]
+    fn moderately_nested_value_to_jsonable_is_unchanged() {
+        let v = deep_nested_list(3);
+        let out = to_jsonable(&v, 0);
+        assert_eq!(jsonfmt::to_compact(&out), "[[[0]]]");
+    }
+
+    #[test]
+    fn deeply_nested_value_all_paths_does_not_crash() {
+        with_big_stack(|| {
+            let v = deep_nested_object(DEPTH);
+            let paths = all_paths(&v, false);
+            // Descent stops at the cap, so far fewer than DEPTH paths come back.
+            assert!(paths.len() < DEPTH);
+        });
+    }
+
+    #[test]
+    fn moderately_nested_value_all_paths_is_unchanged() {
+        let v = deep_nested_object(3);
+        let paths = all_paths(&v, true); // leaf paths only
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].len(), 3);
+    }
+
+    #[test]
+    fn deeply_nested_setpath_path_returns_error_not_crash() {
+        let path = deep_path(DEPTH);
+        let result = set_at_path(Value::Null, &path, Value::Int(1), 0);
+        assert!(result.is_err(), "expected a clean error past the depth cap");
+    }
+
+    #[test]
+    fn moderately_nested_setpath_path_is_unchanged() {
+        let path = deep_path(3);
+        let out = set_at_path(Value::Null, &path, Value::Int(1), 0).expect("well under the cap");
+        assert_eq!(jsonfmt::to_compact(&out), r#"{"a":{"a":{"a":1}}}"#);
+    }
+
+    #[test]
+    fn deeply_nested_delete_at_path_does_not_crash() {
+        with_big_stack(|| {
+            let value = deep_nested_object(DEPTH);
+            let path = deep_path(DEPTH);
+            let _ = delete_at_path(value, &path, 0);
+        });
+    }
+
+    #[test]
+    fn moderately_nested_delete_at_path_is_unchanged() {
+        let value = deep_nested_object(3);
+        let path = deep_path(3);
+        let out = delete_at_path(value, &path, 0);
+        // The innermost "a": 0 is removed, leaving empty objects nested up.
+        assert_eq!(jsonfmt::to_compact(&out), r#"{"a":{"a":{}}}"#);
+    }
+
+    #[test]
+    fn deeply_nested_flatten_does_not_crash() {
+        with_big_stack(|| {
+            let v = deep_nested_list(DEPTH);
+            // `remaining` (the caller-facing `flatten` depth argument) is
+            // huge — the actual recursion is bounded by the value's own
+            // nesting, which is what the new native-depth guard protects.
+            let _ = flatten_go(std::slice::from_ref(&v), i64::MAX, 0);
+        });
+    }
+
+    #[test]
+    fn moderately_nested_flatten_is_unchanged() {
+        let v = Value::List(vec![
+            Value::List(vec![Value::Int(1), Value::Int(2)]),
+            Value::Int(3),
+        ]);
+        let out = flatten_value(&v, 1).expect("flatten(1)");
+        let rendered: Vec<String> = out.iter().map(jsonfmt::to_compact).collect();
+        assert_eq!(rendered, vec!["1", "2", "3"]);
     }
 }

@@ -42,6 +42,22 @@ use tcl_lexer::Span;
 use crate::codegen::emit::Emit;
 use crate::ir::{IfClause, Script, Statement};
 
+/// Depth cap for this walk's recursion over nested `if`/`while`/`for` —
+/// issue #996. Unlike `loop_depth` (which tracks *loop* nesting only, for
+/// `break`/`continue` validity, and never increments for `if`), this counts
+/// **every** structurally-recursive level so purely `if`-nested input is
+/// bounded too. Not currently reachable from any wired-up production path
+/// (`structured::walk` has no caller yet — this module is WASM-backend
+/// infrastructure ahead of its integration), but guarded the same way as
+/// every other recursive-descent walker in this crate rather than left
+/// unaudited. 256 matches the convention used elsewhere in this crate
+/// (`analyser::commands::MAX_BODY_DEPTH`,
+/// `lowering::MAX_LOWER_NEST_DEPTH`, `optimiser::MAX_OPTIMISER_WALK_DEPTH`)
+/// since, when wired up, this runs on the native compiler's side (emitting
+/// WASM, not executing inside it) — the same big-stack entry points already
+/// fixed for issue #996 apply.
+const MAX_STRUCTURED_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+
 /// Whether straight-line control falls through to the next statement, or the
 /// statement transferred control elsewhere (so the rest of its script is dead).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -56,27 +72,55 @@ enum Flow {
 /// Walk `script` (using `source` for eval-fallback command text), driving `emit`
 /// with the recovered structured control flow.
 pub fn walk<E: Emit>(emit: &mut E, script: &Script, source: &str) {
-    walk_script(emit, script, source, 0);
+    walk_script(emit, script, source, 0, 0);
 }
 
 /// Emit each statement of `script` in order, stopping after one diverges (its
 /// successors are dead code). `loop_depth` is the number of structurally
 /// enclosing loops whose break/continue scope is open — `break`/`continue` are
-/// realised structurally only when inside one (`> 0`).
-fn walk_script<E: Emit>(emit: &mut E, script: &Script, source: &str, loop_depth: u32) {
+/// realised structurally only when inside one (`> 0`). `depth` is this script's
+/// total structural nesting level — see [`MAX_STRUCTURED_DEPTH`].
+fn walk_script<E: Emit>(emit: &mut E, script: &Script, source: &str, loop_depth: u32, depth: u32) {
     for stmt in &script.statements {
-        if walk_stmt(emit, stmt, source, loop_depth) == Flow::Diverged {
+        if walk_stmt(emit, stmt, source, loop_depth, depth) == Flow::Diverged {
             break;
         }
     }
 }
 
-fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: &str, loop_depth: u32) -> Flow {
+fn walk_stmt<E: Emit>(
+    emit: &mut E,
+    stmt: &Statement,
+    source: &str,
+    loop_depth: u32,
+    depth: u32,
+) -> Flow {
+    // Native-stack safety net — see `MAX_STRUCTURED_DEPTH`'s doc comment
+    // (issue #996). Past the cap, an `if`/`while`/`for` degrades to the
+    // same whole-construct eval-fallback every other unstructured
+    // statement kind already uses below, instead of recursing further.
+    if MAX_STRUCTURED_DEPTH.exceeded(depth)
+        && matches!(
+            stmt,
+            Statement::If { .. } | Statement::While { .. } | Statement::For { .. }
+        )
+    {
+        emit.emit_command(slice(source, stmt.span()));
+        return Flow::Normal;
+    }
     match stmt {
         Statement::If {
             clauses, else_body, ..
         } => {
-            emit_if(emit, clauses, else_body.as_ref(), source, loop_depth);
+            emit_if(
+                emit,
+                clauses,
+                else_body.as_ref(),
+                source,
+                loop_depth,
+                depth,
+                stmt.span(),
+            );
             Flow::Normal
         }
 
@@ -86,7 +130,7 @@ fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: &str, loop_depth: 
             ..
         } => {
             let cond = condition_text(source, *condition_span);
-            emit_loop(emit, opt(cond), body, None, source, loop_depth);
+            emit_loop(emit, opt(cond), body, None, source, loop_depth, depth);
             Flow::Normal
         }
 
@@ -98,10 +142,10 @@ fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: &str, loop_depth: 
             ..
         } => {
             // The init clause runs once, in the enclosing scope.
-            walk_script(emit, init, source, loop_depth);
+            walk_script(emit, init, source, loop_depth, depth);
             let cond = condition_text(source, *condition_span);
             let step = condition_text(source, *next_span);
-            emit_loop(emit, opt(cond), body, opt(step), source, loop_depth);
+            emit_loop(emit, opt(cond), body, opt(step), source, loop_depth, depth);
             Flow::Normal
         }
 
@@ -142,29 +186,60 @@ fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: &str, loop_depth: 
 }
 
 /// Emit an `if`/`elseif`/`else` chain, desugaring `elseif` into nested
-/// `if`/`else` so the backend sees only the two-armed primitive.
+/// `if`/`else` so the backend sees only the two-armed primitive. `depth` is
+/// this level's structural nesting — see [`MAX_STRUCTURED_DEPTH`]. Each
+/// `elseif` link recurses via a self-call (one native stack frame per
+/// clause) independently of body nesting, so it consumes `depth` budget the
+/// same way a nested body does — a pathologically long `elseif` chain is
+/// exactly as dangerous as pathologically deep body nesting. `full_span` is
+/// the *enclosing* `Statement::If`'s whole span (`if` through the final
+/// close brace), kept only for the depth-cap fallback below.
+#[allow(clippy::too_many_arguments)] // one context threaded through a recursive emit
 fn emit_if<E: Emit>(
     emit: &mut E,
     clauses: &[IfClause],
     else_body: Option<&Script>,
     source: &str,
     loop_depth: u32,
+    depth: u32,
+    full_span: Span,
 ) {
     let Some((first, rest)) = clauses.split_first() else {
         return; // malformed `if` with no clauses — nothing to emit.
     };
 
     emit.begin_if(condition_text(source, first.condition_span));
-    walk_script(emit, &first.body, source, loop_depth);
+    walk_script(emit, &first.body, source, loop_depth, depth + 1);
 
     if !rest.is_empty() {
-        // Remaining `elseif` clauses become a nested `if` in the `else` arm.
         emit.begin_else();
-        emit_if(emit, rest, else_body, source, loop_depth);
+        if MAX_STRUCTURED_DEPTH.exceeded(depth + 1) {
+            // Native-stack safety net — see `MAX_STRUCTURED_DEPTH`'s doc
+            // comment (issue #996). Re-running the *whole* original
+            // if/elseif/else construct as one eval-fallback here (rather
+            // than recursing into `emit_if` for `rest`) is semantically
+            // correct: by construction this branch only runs when every
+            // earlier clause's condition was false, so re-testing them
+            // (cheap, and — same assumption every other eval-fallback in
+            // this module already makes — side-effect-free) reaches
+            // exactly the same outcome as evaluating just the remainder.
+            emit.emit_command(slice(source, full_span));
+        } else {
+            // Remaining `elseif` clauses become a nested `if` in the `else` arm.
+            emit_if(
+                emit,
+                rest,
+                else_body,
+                source,
+                loop_depth,
+                depth + 1,
+                full_span,
+            );
+        }
         emit.end_if();
     } else if let Some(eb) = else_body {
         emit.begin_else();
-        walk_script(emit, eb, source, loop_depth);
+        walk_script(emit, eb, source, loop_depth, depth + 1);
         emit.end_if();
     } else {
         emit.end_if();
@@ -173,6 +248,7 @@ fn emit_if<E: Emit>(
 
 /// Drive the [`Emit`] loop protocol for a `while`/`for`. `step` is the `for`
 /// *next* clause (a single eval-fallback), absent for `while`.
+#[allow(clippy::too_many_arguments)] // one context threaded through a recursive emit
 fn emit_loop<E: Emit>(
     emit: &mut E,
     cond: Option<&str>,
@@ -180,11 +256,12 @@ fn emit_loop<E: Emit>(
     step: Option<&str>,
     source: &str,
     loop_depth: u32,
+    depth: u32,
 ) {
     emit.begin_loop();
     emit.loop_test(cond);
     emit.begin_loop_body();
-    walk_script(emit, body, source, loop_depth + 1);
+    walk_script(emit, body, source, loop_depth + 1, depth + 1);
     emit.end_loop_body();
     if let Some(step_text) = step {
         // The `next` clause is evaluated as a script each iteration; a single
@@ -281,6 +358,65 @@ mod tests {
         let mut rec = Recorder::default();
         walk(&mut rec, &module.top_level, src);
         rec.0
+    }
+
+    /// Regression coverage for issue #996: `walk_stmt`/`emit_if`/`emit_loop`'s
+    /// recursion over nested `if`/`while`/`for` (and `emit_if`'s own
+    /// self-recursive `elseif`-chain walk) is now capped at
+    /// `MAX_STRUCTURED_DEPTH` (256). `lower_to_ir` (called by `events`) has
+    /// its own matching cap and barriers past it first in this end-to-end
+    /// path, so this proves the *whole* pipeline survives deep nesting
+    /// rather than isolating this module's cap specifically — same caveat
+    /// as the optimiser passes' equivalent test
+    /// (`optimiser::manager::tests::deeply_nested_if_survives_full_optimiser_pipeline`).
+    /// Spawns its own big-stack thread since `structured::walk` has no
+    /// production caller yet to inherit a big stack from — matching that
+    /// test's rationale too.
+    #[test]
+    fn deeply_nested_if_survives_structured_walk() {
+        const DEPTH: usize = 400;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set done 1\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = events(&src);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    /// A long `elseif` chain is a *different* recursion shape from nested
+    /// bodies: `emit_if` recurses once per `elseif` link via a self-call,
+    /// independently of `MAX_LOWER_NEST_DEPTH` (which bounds source
+    /// *nesting* depth, not chain *length* — `lowering` does not barrier
+    /// this). Confirms `emit_if`'s own chain-position depth budget (issue
+    /// #996) catches this shape too, not just nested bodies.
+    #[test]
+    fn very_long_elseif_chain_survives_structured_walk() {
+        const LINKS: usize = 2000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = "if {0} {\n    set done 1\n}".to_owned();
+        for _ in 0..LINKS {
+            src.push_str(" elseif {0} {\n    set done 1\n}");
+        }
+        src.push_str(" else {\n    set done 1\n}\n");
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = events(&src);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]

@@ -26,6 +26,7 @@ use tcl_lexer::backslash_subst;
 
 use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp, render_expr};
 use crate::tcl_expr_eval::{Env, TclValue, eval_tcl_expr_with_octal};
 
@@ -190,14 +191,25 @@ impl CodegenCtx<'_> {
     /// Emit a `Binary` expression — short-circuits `&&` / `||`
     /// (with synthetic labels) and falls back to exprStk for
     /// operators without a direct opcode.
-    fn emit_expr_binary(&mut self, node: &ExprNode, op: BinOp, left: &ExprNode, right: &ExprNode) {
+    ///
+    /// `depth` is the `Binary` node's own `ExprNode` nesting level; the
+    /// operands are emitted one level deeper (issue #996 — `emit_expr`
+    /// guards the cap).
+    fn emit_expr_binary(
+        &mut self,
+        node: &ExprNode,
+        op: BinOp,
+        left: &ExprNode,
+        right: &ExprNode,
+        depth: u32,
+    ) {
         match op {
             BinOp::And => {
                 let false_lbl = self.fresh_label("and_f");
                 let end_lbl = self.fresh_label("and_end");
-                self.emit_expr(left);
+                self.emit_expr_at(left, depth + 1);
                 self.emit(Op::JUMP_FALSE4, vec![Operand::Label(false_lbl.clone())]);
-                self.emit_expr(right);
+                self.emit_expr_at(right, depth + 1);
                 self.emit(Op::JUMP_FALSE4, vec![Operand::Label(false_lbl.clone())]);
                 self.push_lit("1");
                 self.emit(Op::JUMP4, vec![Operand::Label(end_lbl.clone())]);
@@ -208,9 +220,9 @@ impl CodegenCtx<'_> {
             BinOp::Or => {
                 let true_lbl = self.fresh_label("or_t");
                 let end_lbl = self.fresh_label("or_end");
-                self.emit_expr(left);
+                self.emit_expr_at(left, depth + 1);
                 self.emit(Op::JUMP_TRUE4, vec![Operand::Label(true_lbl.clone())]);
-                self.emit_expr(right);
+                self.emit_expr_at(right, depth + 1);
                 self.emit(Op::JUMP_TRUE4, vec![Operand::Label(true_lbl.clone())]);
                 self.push_lit("0");
                 self.emit(Op::JUMP4, vec![Operand::Label(end_lbl.clone())]);
@@ -220,8 +232,8 @@ impl CodegenCtx<'_> {
             }
             _ => {
                 if let Some(bc) = Op::from_binop(op) {
-                    self.emit_expr(left);
-                    self.emit_expr(right);
+                    self.emit_expr_at(left, depth + 1);
+                    self.emit_expr_at(right, depth + 1);
                     self.emit(bc, vec![]);
                 } else {
                     self.push_lit(&render_expr(node));
@@ -232,7 +244,28 @@ impl CodegenCtx<'_> {
     }
 
     /// `false` and the context requires numeric coercion.
+    ///
+    /// Public entry point: the top of an expression tree is nesting depth
+    /// `0` (issue #996 — the recursion cap lives in [`Self::emit_expr_at`]).
     pub fn emit_expr(&mut self, node: &ExprNode) -> bool {
+        self.emit_expr_at(node, 0)
+    }
+
+    /// Depth-carrying core of [`Self::emit_expr`] — see that method's
+    /// contract. `depth` is this node's `ExprNode` nesting level.
+    fn emit_expr_at(&mut self, node: &ExprNode, depth: u32) -> bool {
+        // Native-stack safety net (issue #996). Past the cap, stop recursing
+        // (and stop the const-folding walk below, which itself descends the
+        // whole subtree): push a placeholder so the stack contract — exactly
+        // one value left on TOS — still holds, and report a non-canonical
+        // (possibly-string) result so any caller stays conservative. Only
+        // reachable from an `ExprNode` tree nested past 256 levels, which the
+        // Pratt parser never produces (it caps at `MAX_EXPR_DEPTH`, degrading
+        // to `Raw`); this guards any test-only or future direct-tree caller.
+        if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+            self.push_lit("0");
+            return false;
+        }
         // Codegen-time constant folding, mirroring C Tcl's compile-time expr
         // folding: a compound subexpression whose value is a constant integer
         // collapses to a single `push`. Recursion makes this fire on constant
@@ -277,13 +310,13 @@ impl CodegenCtx<'_> {
             }
 
             ExprNode::Binary { op, left, right } => {
-                self.emit_expr_binary(node, *op, left, right);
+                self.emit_expr_binary(node, *op, left, right, depth);
                 true
             }
 
             ExprNode::Unary { op, operand } => {
                 if let Some(bc) = Op::from_unaryop(*op) {
-                    self.emit_expr(operand);
+                    self.emit_expr_at(operand, depth + 1);
                     self.emit(bc, vec![]);
                 } else {
                     self.push_lit(&render_expr(node));
@@ -299,12 +332,12 @@ impl CodegenCtx<'_> {
             } => {
                 let false_lbl = self.fresh_label("tern_f");
                 let end_lbl = self.fresh_label("tern_end");
-                self.emit_expr(condition);
+                self.emit_expr_at(condition, depth + 1);
                 self.emit(Op::JUMP_FALSE4, vec![Operand::Label(false_lbl.clone())]);
-                self.emit_expr(true_branch);
+                self.emit_expr_at(true_branch, depth + 1);
                 self.emit(Op::JUMP4, vec![Operand::Label(end_lbl.clone())]);
                 self.place_label(&false_lbl);
-                self.emit_expr(false_branch);
+                self.emit_expr_at(false_branch, depth + 1);
                 self.place_label(&end_lbl);
                 false
             }
@@ -327,7 +360,7 @@ impl CodegenCtx<'_> {
             ExprNode::Call { function, args, .. } => {
                 self.push_lit(&format!("tcl::mathfunc::{function}"));
                 for arg in args {
-                    self.emit_expr(arg);
+                    self.emit_expr_at(arg, depth + 1);
                 }
                 // invokeStk1 has a 1-byte operand; switch to invokeStk4 when
                 // arg_count exceeds u8 to avoid truncation.
@@ -914,6 +947,53 @@ mod tests {
         let ops = opcodes(&ctx);
         assert!(ops.contains(&Op::ADD));
         assert!(ops.contains(&Op::MULT));
+    }
+
+    /// Regression coverage for issue #996: `emit_expr` / `emit_expr_binary`
+    /// recurse once per `ExprNode` operator-tree level, with no depth cap
+    /// before this fix. The Pratt parser caps *its* output at 256 levels, but
+    /// a tree built directly (as every unit test in this module does) is
+    /// unbounded, and empirically this walker overflowed the native stack
+    /// (SIGABRT) in the low thousands of levels on a 2 MiB thread
+    /// (`cargo test`'s per-test default). 3000 is comfortably past that crash
+    /// range and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that
+    /// emission returns at all. Uses nested `Ternary` (never constant-
+    /// foldable) so this exercises `emit_expr`'s *own* recursion in
+    /// isolation, not the separate whole-subtree const-fold walk.
+    #[test]
+    fn deeply_nested_expr_emission_survives() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
+        let mut node = lit("0");
+        for _ in 0..3000 {
+            node = ExprNode::Ternary {
+                condition: Box::new(var("x")),
+                true_branch: Box::new(node),
+                false_branch: Box::new(lit("0")),
+            };
+        }
+        // Returns without overflowing the native stack.
+        let _ = ctx.emit_expr(&node);
+    }
+
+    /// Companion to `deeply_nested_expr_emission_survives`: a moderately
+    /// nested tree (well under `MAX_EXPR_NODE_DEPTH`) must emit exactly the
+    /// same bytecode as before — the cap changes nothing for realistic
+    /// input. A 100-deep nested `-` chain still emits 100 `UMINUS` ops.
+    #[test]
+    fn moderate_depth_expr_emission_unchanged() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
+        let mut node = var("x");
+        for _ in 0..100 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Neg,
+                operand: Box::new(node),
+            };
+        }
+        ctx.emit_expr(&node);
+        let uminus = opcodes(&ctx).iter().filter(|&&op| op == Op::UMINUS).count();
+        assert_eq!(uminus, 100);
     }
 
     #[test]

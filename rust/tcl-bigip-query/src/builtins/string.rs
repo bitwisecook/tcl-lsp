@@ -65,7 +65,7 @@ fn bi_contains(args: &[Value]) -> Result<Value, QueryError> {
             Value::PathRef(p) => Value::Str(p.full_path.clone()),
             other => other.clone(),
         };
-        value::py_eq(&a, &b)
+        value::py_eq(&a, &b, 0)
     };
     match value {
         Value::Str(s) => Ok(Value::Bool(s.contains(&as_str(needle, "contains", 2)?))),

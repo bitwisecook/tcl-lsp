@@ -41,6 +41,7 @@ description = "Bytecode VM executing Tcl 9 bytecode (TCLVM)"
 name = "tcl_vm"
 
 [dependencies]
+tcl-core-types = { path = "../tcl-core-types" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }

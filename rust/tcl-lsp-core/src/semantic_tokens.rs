@@ -3878,7 +3878,7 @@ fn push_span_entries(
 
 /// Maximum body / expr / command-substitution recursion depth — guards
 /// against pathological nesting.
-const MAX_TOKEN_RECURSION: u32 = 32;
+const MAX_TOKEN_RECURSION: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(32);
 
 /// Emit the command-head token, splitting a namespace-qualified head
 /// (`oo::class`, `::set`) into a `namespace` token for the leading
@@ -4026,7 +4026,7 @@ fn collect_case_list(
     spec: &'static tcl_registry::CaseListSpec,
     regexp: bool,
 ) {
-    if depth > MAX_TOKEN_RECURSION {
+    if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
     let full_source = ctx.full_source;
@@ -4141,7 +4141,7 @@ fn collect_case_list(
 /// as the interprocedural/param-trait/declaration fixes for issue #954's
 /// follow-up).
 fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth: u32) {
-    if depth > MAX_TOKEN_RECURSION {
+    if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
     let full_source = ctx.full_source;
@@ -4496,7 +4496,7 @@ fn collect_script(
     depth: u32,
     deferred_role: bool,
 ) {
-    if depth > MAX_TOKEN_RECURSION {
+    if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
     let full_source = ctx.full_source;
@@ -5144,7 +5144,7 @@ fn scan_loop_vars(
     handles: &mut ObjectClassMap,
     depth: u32,
 ) {
-    if depth > MAX_TOKEN_RECURSION {
+    if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
     for seg in segment_commands_with_offset_and_config(
@@ -5263,7 +5263,7 @@ fn scan_snit_handles(
     handles: &mut ObjectClassMap,
     depth: u32,
 ) {
-    if depth > MAX_TOKEN_RECURSION {
+    if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
     for seg in segment_commands_with_offset_and_config(

@@ -100,8 +100,23 @@ impl ServerHandler for TclMcp {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// Every Tokio worker thread's stack budget — see the matching constant
+/// and doc comment in `tcl-lsp-server/src/main.rs` for why this must be
+/// generous: the analyser's and CFG builder's depth-capped recursions
+/// (256 levels) need more stack than Tokio's 2 MiB worker-thread default
+/// provides, and MCP tool handlers run analysis the same way the LSP
+/// server does (issue #996).
+const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(WORKER_STACK_SIZE)
+        .build()?
+        .block_on(serve())
+}
+
+async fn serve() -> Result<(), Box<dyn std::error::Error>> {
     let service = TclMcp.serve(stdio()).await?;
     service.waiting().await?;
     Ok(())

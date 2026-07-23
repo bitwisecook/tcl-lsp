@@ -35,6 +35,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, TokenType};
 
 use crate::compilation_unit::CompilationUnit;
+use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::expr_parser::parse_expr;
 use crate::ir::{Script, Statement};
@@ -57,24 +58,28 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // conflict with the `&mut ctx` report calls below.
     let source = ctx.source;
     let mut spans: Vec<Span> = Vec::new();
-    collect_statement_spans(&cu.ir_module.top_level, &mut spans);
+    collect_statement_spans(&cu.ir_module.top_level, &mut spans, 0);
     for proc in cu.ir_module.procedures.values() {
-        collect_statement_spans(&proc.body, &mut spans);
+        collect_statement_spans(&proc.body, &mut spans, 0);
     }
     for span in spans {
         let Some(slice) = source.get(span.start() as usize..span.end() as usize) else {
             continue;
         };
         for cmd in segment_commands_with_offset(slice, span.start()) {
-            apply_to_command(ctx, &cmd);
+            apply_to_command(ctx, &cmd, 0);
         }
     }
 }
 
 /// Collect every statement's span, recursing through control-flow bodies
 /// so commands nested in `if` / `for` / `while` / `switch` / `try`
-/// bodies are reached.
-fn collect_statement_spans(script: &Script, out: &mut Vec<Span>) {
+/// bodies are reached. `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
+fn collect_statement_spans(script: &Script, out: &mut Vec<Span>, depth: u32) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for stmt in &script.statements {
         out.push(stmt.span());
         match stmt {
@@ -82,34 +87,34 @@ fn collect_statement_spans(script: &Script, out: &mut Vec<Span>) {
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    collect_statement_spans(&c.body, out);
+                    collect_statement_spans(&c.body, out, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    collect_statement_spans(b, out);
+                    collect_statement_spans(b, out, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                collect_statement_spans(init, out);
-                collect_statement_spans(next, out);
-                collect_statement_spans(body, out);
+                collect_statement_spans(init, out, depth + 1);
+                collect_statement_spans(next, out, depth + 1);
+                collect_statement_spans(body, out, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
-            | Statement::Foreach { body, .. } => collect_statement_spans(body, out),
+            | Statement::Foreach { body, .. } => collect_statement_spans(body, out, depth + 1),
             Statement::Try {
                 body,
                 handlers,
                 finally_body,
                 ..
             } => {
-                collect_statement_spans(body, out);
+                collect_statement_spans(body, out, depth + 1);
                 for h in handlers {
-                    collect_statement_spans(&h.body, out);
+                    collect_statement_spans(&h.body, out, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    collect_statement_spans(fb, out);
+                    collect_statement_spans(fb, out, depth + 1);
                 }
             }
             Statement::Switch {
@@ -117,11 +122,11 @@ fn collect_statement_spans(script: &Script, out: &mut Vec<Span>) {
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        collect_statement_spans(b, out);
+                        collect_statement_spans(b, out, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    collect_statement_spans(b, out);
+                    collect_statement_spans(b, out, depth + 1);
                 }
             }
             _ => {}
@@ -131,7 +136,14 @@ fn collect_statement_spans(script: &Script, out: &mut Vec<Span>) {
 
 /// Emit O128 for any end-offset index in `cmd`, then recurse into the
 /// command's nested `[…]` substitutions.
-fn apply_to_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
+fn apply_to_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand, depth: u32) {
+    // Native-stack safety net (issue #996): recurses into nested `[…]`
+    // substitutions inside a command word, a genuinely unbounded axis. Past
+    // the cap, stop descending — the only effect is that O128 opportunities
+    // buried deeper than the cap go unreported; never a crash.
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        return;
+    }
     emit_for_command(ctx, cmd);
     for (idx, tok) in cmd.argv.iter().enumerate() {
         if cmd.single_token_word.get(idx).copied() != Some(true) {
@@ -149,7 +161,7 @@ fn apply_to_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
         };
         let base = tok.span.start() + 1;
         for nested in segment_commands_with_offset(inner, base) {
-            apply_to_command(ctx, &nested);
+            apply_to_command(ctx, &nested, depth + 1);
         }
     }
 }
@@ -359,6 +371,65 @@ mod tests {
             .get(opt.span.start() as usize..opt.span.end() as usize)?
             .to_owned();
         Some((slice, opt.replacement))
+    }
+
+    /// Regression coverage for issue #996: `collect_statement_spans`
+    /// recurses once per nested `if`/`for`/`while`/`foreach`/`catch`/
+    /// `try`/`switch` body, with no depth cap of its own before this fix.
+    /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the
+    /// lowering pass today, so this is defence-in-depth / consistency with
+    /// every other full-tree walker in this crate, not a
+    /// currently-reproducible crash. 1000 levels of source nesting is
+    /// comfortably past this new cap; the assertion is that `run_pass`
+    /// returns at all, not what it returns. Spawns its own big-stack
+    /// thread since the lexer/CST/segmenter stages upstream of the
+    /// lowering cap still walk the full un-truncated source nesting before
+    /// that cap trims it — same rationale as
+    /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn deeply_nested_if_survives_collect_statement_spans() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("lindex $L [expr {[llength $L] - 1}]\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = run_pass(&src);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    /// Regression coverage for issue #996: `apply_to_command` recurses once
+    /// per nested `[cmd …]` substitution inside a single command word (Tier
+    /// 1B) — a genuinely unbounded axis, independent of the statement-tree
+    /// nesting cap. Empirically it overflowed the native stack (SIGABRT) in
+    /// the low thousands of levels on a 2 MiB thread. Segment a
+    /// `foo [a [a [… [x] …]]]` word directly and drive the pass on it (the
+    /// nesting lives in one argument word, so it never reaches lowering's
+    /// statement-tree cap). 3000 is past the crash range and past
+    /// `MAX_BRACKET_TEXT_DEPTH` (256); the assertion is that it returns.
+    #[test]
+    fn deeply_nested_apply_to_command_survives() {
+        let reg = registry();
+        let mut deep = "x".to_owned();
+        for _ in 0..3000 {
+            deep = format!("a [{deep}]");
+        }
+        let source = format!("foo [{deep}]");
+        let mut ctx = PassContext::new(&source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&reg);
+        for cmd in segment_commands_with_offset(&source, 0) {
+            apply_to_command(&mut ctx, &cmd, 0);
+        }
     }
 
     #[test]

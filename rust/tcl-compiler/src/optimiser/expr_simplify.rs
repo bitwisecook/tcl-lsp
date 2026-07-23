@@ -72,23 +72,35 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     use super::helpers::expr_simplify::operand_types;
     let procedures = &cu.ir_module.procedures;
     let top_numeric = operand_types(&cu.top_level);
-    walk_script(ctx, &cu.ir_module.top_level, Some(&top_numeric), procedures);
+    walk_script(
+        ctx,
+        &cu.ir_module.top_level,
+        Some(&top_numeric),
+        procedures,
+        0,
+    );
     for (qname, proc) in &cu.ir_module.procedures {
         let numeric = cu.procedures.get(qname).map(operand_types);
-        walk_script(ctx, &proc.body, numeric.as_ref(), procedures);
+        walk_script(ctx, &proc.body, numeric.as_ref(), procedures, 0);
     }
 }
 
 type Procedures = std::collections::HashMap<String, crate::ir::Procedure>;
 
+/// `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn walk_script(
     ctx: &mut PassContext<'_>,
     script: &Script,
     numeric: NumericCtx<'_>,
     procedures: &Procedures,
+    depth: u32,
 ) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, numeric, procedures);
+        walk_statement(ctx, stmt, numeric, procedures, depth);
     }
 }
 
@@ -97,6 +109,7 @@ fn walk_statement(
     stmt: &Statement,
     numeric: NumericCtx<'_>,
     procedures: &Procedures,
+    depth: u32,
 ) {
     match stmt {
         Statement::ExprEval { span, expr, .. } => {
@@ -111,35 +124,35 @@ fn walk_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, &c.body, numeric, procedures);
+                walk_script(ctx, &c.body, numeric, procedures, depth + 1);
             }
             if let Some(body) = else_body {
-                walk_script(ctx, body, numeric, procedures);
+                walk_script(ctx, body, numeric, procedures, depth + 1);
             }
         }
         Statement::While { body, .. } | Statement::Catch { body, .. } => {
-            walk_script(ctx, body, numeric, procedures);
+            walk_script(ctx, body, numeric, procedures, depth + 1);
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, init, numeric, procedures);
-            walk_script(ctx, body, numeric, procedures);
-            walk_script(ctx, next, numeric, procedures);
+            walk_script(ctx, init, numeric, procedures, depth + 1);
+            walk_script(ctx, body, numeric, procedures, depth + 1);
+            walk_script(ctx, next, numeric, procedures, depth + 1);
         }
-        Statement::Foreach { body, .. } => walk_script(ctx, body, numeric, procedures),
+        Statement::Foreach { body, .. } => walk_script(ctx, body, numeric, procedures, depth + 1),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, numeric, procedures);
+            walk_script(ctx, body, numeric, procedures, depth + 1);
             for h in handlers {
-                walk_script(ctx, &h.body, numeric, procedures);
+                walk_script(ctx, &h.body, numeric, procedures, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, numeric, procedures);
+                walk_script(ctx, fb, numeric, procedures, depth + 1);
             }
         }
         Statement::Switch {
@@ -147,11 +160,11 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b, numeric, procedures);
+                    walk_script(ctx, b, numeric, procedures, depth + 1);
                 }
             }
             if let Some(db) = default_body {
-                walk_script(ctx, db, numeric, procedures);
+                walk_script(ctx, db, numeric, procedures, depth + 1);
             }
         }
         _ => {}

@@ -99,6 +99,19 @@ use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr};
 use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
+/// Depth cap for [`minify_body`]'s recursion over nested control-flow
+/// bodies, `[…]` command substitutions, and `expr` bodies — issue #996.
+/// Threaded through every function on the path back to `minify_body`
+/// (`render_command`, `reconstruct_arg`/`reconstruct_raw`,
+/// `minify_switch_case_list`, `minify_lambda_literal`,
+/// `compress_expr`/`tokenise_expr`).
+///
+/// Same reasoning and value as
+/// [`crate::formatting::engine::MAX_FORMAT_DEPTH`] (this crate is also
+/// reachable from a WASM host with no stack-size guarantee, via
+/// `bigip-query-wasm`) — see that constant's doc comment.
+const MAX_MINIFY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
+
 /// One argument accumulated while parsing a command.
 struct Arg {
     tokens: Vec<Token>,
@@ -490,7 +503,7 @@ impl MinifyResult {
 /// Minify a Tcl source string for the given dialect (default tier).
 #[must_use]
 pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
-    minify_body(source, dialect, registry)
+    minify_body(source, dialect, registry, 0)
 }
 
 /// Aggressive minification: apply the compiler's optimiser
@@ -547,7 +560,7 @@ pub fn minify_tcl_aggressive(
     symbol_map.string_aliases = str_aliases;
 
     // Phase 3: minify whitespace.
-    let minified = minify_body(&renamed, dialect, registry);
+    let minified = minify_body(&renamed, dialect, registry, 0);
 
     MinifyResult {
         source: minified,
@@ -572,12 +585,20 @@ pub fn minify_tcl_compact(
     registry: &CommandRegistry,
 ) -> (String, SymbolMap) {
     let (renamed, symbol_map) = compact_names(source, dialect, isolated, registry);
-    let minified = minify_body(&renamed, dialect, registry);
+    let minified = minify_body(&renamed, dialect, registry, 0);
     (minified, symbol_map)
 }
 
-/// Minify a Tcl script body (top-level or inside braces).
-fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
+/// Minify a Tcl script body (top-level or inside braces). `depth` is this
+/// body's nesting level — see [`MAX_MINIFY_DEPTH`].
+fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
+    // Native-stack safety net — see `MAX_MINIFY_DEPTH`'s doc comment
+    // (issue #996). Past the cap, leave this (deeply nested) body
+    // unminified rather than recursing further, matching the existing
+    // give-up-gracefully fallback just below for an unparseable body.
+    if MAX_MINIFY_DEPTH.exceeded(depth) {
+        return source.to_owned();
+    }
     let sm = SourceMap::new(source);
     let Ok(tokens) = Lexer::new(source).tokenise_all() else {
         return source.to_owned();
@@ -591,7 +612,7 @@ fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry) -> Strin
     // Render each command, abbreviating ensemble subcommands.
     let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
     for cmd_args in &commands {
-        let mut arg_strs = render_command(&sm, cmd_args, dialect, registry);
+        let mut arg_strs = render_command(&sm, cmd_args, dialect, registry, depth);
         if arg_strs.len() >= 2 {
             arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect);
         }
@@ -2417,6 +2438,7 @@ fn render_command(
     cmd_args: &[Arg],
     dialect: &str,
     registry: &CommandRegistry,
+    depth: u32,
 ) -> Vec<String> {
     let cmd_name = cmd_args
         .first()
@@ -2436,18 +2458,27 @@ fn render_command(
         if body_indices.contains(&i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
             let minified = if is_case_list {
-                minify_switch_case_list(inner, dialect, registry)
+                minify_switch_case_list(inner, dialect, registry, depth + 1)
             } else {
-                minify_body(inner, dialect, registry)
+                minify_body(inner, dialect, registry, depth + 1)
             };
             out.push(format!("{{{minified}}}"));
         } else if lambda_indices.contains(&i) && single_braced {
-            out.push(minify_lambda_literal(sm, arg.tokens[0], dialect, registry));
+            out.push(minify_lambda_literal(
+                sm,
+                arg.tokens[0],
+                dialect,
+                registry,
+                depth + 1,
+            ));
         } else if expr_indices.contains(&i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
-            out.push(format!("{{{}}}", compress_expr(inner, dialect, registry)));
+            out.push(format!(
+                "{{{}}}",
+                compress_expr(inner, dialect, registry, depth + 1)
+            ));
         } else {
-            out.push(reconstruct_arg(sm, arg, dialect, registry));
+            out.push(reconstruct_arg(sm, arg, dialect, registry, depth));
         }
     }
     out
@@ -2476,6 +2507,7 @@ fn minify_lambda_literal(
     tok: Token,
     dialect: &str,
     registry: &CommandRegistry,
+    depth: u32,
 ) -> String {
     let source = sm.source();
     let fallback = || format!("{{{}}}", sm.token_text(tok));
@@ -2485,7 +2517,7 @@ fn minify_lambda_literal(
     let Some(body) = elems.body.as_deref() else {
         return fallback();
     };
-    let minified_body = minify_body(body, dialect, registry);
+    let minified_body = minify_body(body, dialect, registry, depth);
     let mut parts = vec![
         tcl_syntax::list::list_element(&elems.params),
         tcl_syntax::list::list_element(&minified_body),
@@ -2540,6 +2572,7 @@ fn reconstruct_raw(
     dialect: &str,
     registry: &CommandRegistry,
     in_quotes: bool,
+    depth: u32,
 ) -> String {
     match tok.kind {
         // Inside a double-quoted word the caller re-wraps the arg in `"…"`, so a
@@ -2547,7 +2580,10 @@ fn reconstruct_raw(
         // emit it verbatim, not brace-wrapped as `{$}` (`RUST_ISSUE_103`).
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
-        TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), dialect, registry)),
+        TokenType::Cmd => format!(
+            "[{}]",
+            minify_body(sm.token_text(tok), dialect, registry, depth + 1)
+        ),
         TokenType::Var => {
             // Keep `${var}` when the next token would otherwise extend the
             // variable name.  Beyond name characters, `(` (array index) and `:`
@@ -2627,7 +2663,13 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild the source text of an argument from its tokens.
-fn reconstruct_arg(sm: &SourceMap, arg: &Arg, dialect: &str, registry: &CommandRegistry) -> String {
+fn reconstruct_arg(
+    sm: &SourceMap,
+    arg: &Arg,
+    dialect: &str,
+    registry: &CommandRegistry,
+    depth: u32,
+) -> String {
     let mut raw = String::new();
     for (idx, &tok) in arg.tokens.iter().enumerate() {
         // The next token within the *same* word can extend a preceding
@@ -2643,6 +2685,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &Arg, dialect: &str, registry: &CommandR
             dialect,
             registry,
             arg.is_quoted,
+            depth,
         ));
     }
     if arg.is_quoted && !can_strip_quotes(&raw) {
@@ -2691,7 +2734,12 @@ fn skip_switch_options(args: &[&str]) -> usize {
 
 /// Minify the content of a `switch` braced case list, recursively
 /// minifying each braced body.
-fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
+fn minify_switch_case_list(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    depth: u32,
+) -> String {
     let sm = SourceMap::new(source);
     let Ok(tokens) = Lexer::new(source).tokenise_all() else {
         return source.to_owned();
@@ -2725,7 +2773,7 @@ fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegist
         } else {
             words.last().is_some_and(|w| w.2)
         };
-        let raw = reconstruct_raw(&sm, tok, None, dialect, registry, word_quoted);
+        let raw = reconstruct_raw(&sm, tok, None, dialect, registry, word_quoted, depth);
         if starting_new_word {
             words.push((raw, tok.kind == TokenType::Str, word_quoted, tok));
         } else {
@@ -2758,7 +2806,7 @@ fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegist
         if body_inner == "-" && *body_raw == "-" {
             parts.push(format!("{pattern} -"));
         } else if *body_braced {
-            let minified = minify_body(body_inner, dialect, registry);
+            let minified = minify_body(body_inner, dialect, registry, depth);
             parts.push(format!("{pattern} {{{minified}}}"));
         } else if *body_quoted {
             parts.push(format!("{pattern} \"{body_raw}\""));
@@ -2785,8 +2833,13 @@ enum ExprTok {
 /// Remove unnecessary whitespace inside an `expr` body, keeping
 /// spaces only around word-operators and between adjacent word
 /// tokens. (no AST shrinking).
-fn strip_expr_whitespace(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
-    let toks = tokenise_expr(text, dialect, registry);
+fn strip_expr_whitespace(
+    text: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    depth: u32,
+) -> String {
+    let toks = tokenise_expr(text, dialect, registry, depth);
     let rendered: Vec<String> = toks
         .iter()
         .filter_map(|t| match t {
@@ -2812,9 +2865,9 @@ fn strip_expr_whitespace(text: &str, dialect: &str, registry: &CommandRegistry) 
 /// Compress and shrink an `expr` body: strip whitespace, then try
 /// AST transforms (De Morgan / comparison inversion / double
 /// negation) and keep whichever is shorter.
-fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
-    let compressed = strip_expr_whitespace(text, dialect, registry);
-    let shrunk = shrink_expr_ast(&compressed, dialect, registry);
+fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
+    let compressed = strip_expr_whitespace(text, dialect, registry, depth);
+    let shrunk = shrink_expr_ast(&compressed, dialect, registry, depth);
     if shrunk.len() < compressed.len() {
         shrunk
     } else {
@@ -2823,7 +2876,7 @@ fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> Strin
 }
 
 /// AST-based expression shrinking.
-fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
+fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
     let node = parse_expr(text, Some(dialect));
     if matches!(node, ExprNode::Raw { .. }) {
         return text.to_owned();
@@ -2833,7 +2886,7 @@ fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry) -> Str
         return text.to_owned();
     }
     let rendered = render_expr(&shrunk);
-    strip_expr_whitespace(&rendered, dialect, registry)
+    strip_expr_whitespace(&rendered, dialect, registry, depth)
 }
 
 /// The logical complement of a comparison / membership operator,
@@ -3016,7 +3069,12 @@ fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
 
 /// Tokenise an `expr` body, with a catch-all so no character is
 /// dropped.
-fn tokenise_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> Vec<ExprTok> {
+fn tokenise_expr(
+    text: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    nest_depth: u32,
+) -> Vec<ExprTok> {
     let bytes = text.as_bytes();
     let n = bytes.len();
     let mut out = Vec::new();
@@ -3068,7 +3126,7 @@ fn tokenise_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> Vec<E
             let inner = &text[start + 1..end];
             out.push(ExprTok::Cmd(format!(
                 "[{}]",
-                minify_body(inner, dialect, registry)
+                minify_body(inner, dialect, registry, nest_depth + 1)
             )));
         } else if c == b'$' {
             let start = i;
@@ -3146,6 +3204,38 @@ mod tests {
     fn min(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         minify_tcl(src, "tcl8.6", &registry)
+    }
+
+    /// Regression coverage for issue #996: `minify_body`'s recursive
+    /// descent (shared with `render_command`, `reconstruct_arg`/
+    /// `reconstruct_raw`, `minify_switch_case_list`, `minify_lambda_literal`,
+    /// `compress_expr`/`tokenise_expr`) is now capped at `MAX_MINIFY_DEPTH`
+    /// (128), mirroring `formatting::engine`'s `MAX_FORMAT_DEPTH` and the
+    /// same empirical crash-range reasoning documented there (this
+    /// recursion's per-level shape is close enough not to warrant a
+    /// separate calibration run). 2000 is comfortably past the cap; the
+    /// assertion is that minifying returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_if_survives_minify() {
+        const DEPTH: usize = 2000;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set done 1\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        let _ = min(&src);
+    }
+
+    /// A moderately nested body (well under `MAX_MINIFY_DEPTH`) still
+    /// minifies normally — the safety net must not fire on realistic
+    /// nesting depths.
+    #[test]
+    fn moderately_nested_if_still_minifies() {
+        let out = min("if {1} {\nif {2} {\nset x 1\n}\n}\n");
+        assert!(out.contains("set x 1"), "{out:?}");
     }
 
     #[test]

@@ -549,8 +549,21 @@ fn walk_assign_or_incr(stmt: &Statement, state: &mut EscapeState) -> bool {
     }
 }
 
-/// Walk *stmts* with the standard escape-rule transfer functions.
-fn walk(stmts: &[Statement], state: &mut EscapeState) {
+/// Depth cap for [`walk`]'s recursion over nested `if`/`for`/`while`/
+/// `foreach`/`catch`/`try`/`switch`/`Block` bodies — issue #996.
+/// Transitively bounded today via `MAX_LOWER_NEST_DEPTH` (every `Script`
+/// this walk sees was built by `crate::lowering`, which already caps its
+/// own construction at 256), capped here independently for
+/// defence-in-depth and consistency with every other full-tree walker in
+/// this crate.
+const MAX_ESCAPE_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+
+/// Walk *stmts* with the standard escape-rule transfer functions. `depth`
+/// is the nesting level of `stmts` — see [`MAX_ESCAPE_WALK_DEPTH`].
+fn walk(stmts: &[Statement], state: &mut EscapeState, depth: u32) {
+    if MAX_ESCAPE_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for stmt in stmts {
         if state.dynamic_barrier() {
             return;
@@ -577,10 +590,10 @@ fn walk(stmts: &[Statement], state: &mut EscapeState) {
             } => {
                 for c in clauses {
                     apply_expr_scan(Some(&c.condition), state);
-                    walk(&c.body.statements, state);
+                    walk(&c.body.statements, state, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    walk(&b.statements, state);
+                    walk(&b.statements, state, depth + 1);
                 }
             }
             Statement::For {
@@ -590,16 +603,16 @@ fn walk(stmts: &[Statement], state: &mut EscapeState) {
                 body,
                 ..
             } => {
-                walk(&init.statements, state);
+                walk(&init.statements, state, depth + 1);
                 apply_expr_scan(Some(condition), state);
-                walk(&next.statements, state);
-                walk(&body.statements, state);
+                walk(&next.statements, state, depth + 1);
+                walk(&body.statements, state, depth + 1);
             }
             Statement::While {
                 condition, body, ..
             } => {
                 apply_expr_scan(Some(condition), state);
-                walk(&body.statements, state);
+                walk(&body.statements, state, depth + 1);
             }
             Statement::Foreach {
                 iterators, body, ..
@@ -607,21 +620,21 @@ fn walk(stmts: &[Statement], state: &mut EscapeState) {
                 for it in iterators {
                     apply_value_scan(&it.list_arg, state);
                 }
-                walk(&body.statements, state);
+                walk(&body.statements, state, depth + 1);
             }
-            Statement::Catch { body, .. } => walk(&body.statements, state),
+            Statement::Catch { body, .. } => walk(&body.statements, state, depth + 1),
             Statement::Try {
                 body,
                 handlers,
                 finally_body,
                 ..
             } => {
-                walk(&body.statements, state);
+                walk(&body.statements, state, depth + 1);
                 for h in handlers {
-                    walk(&h.body.statements, state);
+                    walk(&h.body.statements, state, depth + 1);
                 }
                 if let Some(f) = finally_body {
-                    walk(&f.statements, state);
+                    walk(&f.statements, state, depth + 1);
                 }
             }
             Statement::Switch {
@@ -629,11 +642,11 @@ fn walk(stmts: &[Statement], state: &mut EscapeState) {
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        walk(&b.statements, state);
+                        walk(&b.statements, state, depth + 1);
                     }
                 }
                 if let Some(d) = default_body {
-                    walk(&d.statements, state);
+                    walk(&d.statements, state, depth + 1);
                 }
             }
             Statement::Block { body, tokens, .. } => {
@@ -641,7 +654,7 @@ fn walk(stmts: &[Statement], state: &mut EscapeState) {
                     let args = synthesise_eval_args(tokens.as_ref());
                     handle_barrier("eval", &args, state);
                 } else {
-                    walk(&body.statements, state);
+                    walk(&body.statements, state, depth + 1);
                 }
             }
             // Assignment / incr arms handled by `walk_assign_or_incr`
@@ -665,7 +678,7 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
 ) -> ProcEscapeSummary {
     let known = collect_known_names(params, body);
     let mut state = EscapeState::new(known);
-    walk(&body.statements, &mut state);
+    walk(&body.statements, &mut state, 0);
     let frame_needed =
         state.dynamic_barrier() || state.tags.values().any(|t| *t == EscapeTag::Frame);
     // Tentative pure_leaf — the interprocedural fixpoint can only
@@ -709,6 +722,41 @@ mod tests {
     fn analyse(src: &str) -> ProcEscapeSummary {
         let m = lower_to_ir(src, &reg());
         analyse_script(&m.top_level, std::iter::empty::<String>())
+    }
+
+    /// Regression coverage for issue #996: `walk` recurses once per
+    /// nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`Block`
+    /// body, with no depth cap of its own before this fix. Transitively
+    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today,
+    /// so this is defence-in-depth / consistency with every other
+    /// full-tree walker in this crate, not a currently-reproducible
+    /// crash. 1000 levels of source nesting is comfortably past this new
+    /// cap; the assertion is that `analyse_script` returns at all, not
+    /// what it returns. Spawns its own big-stack thread since the
+    /// lexer/CST/segmenter stages upstream of the lowering cap still walk
+    /// the full un-truncated source nesting before that cap trims it —
+    /// same rationale as
+    /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn deeply_nested_if_survives_escape_walk() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set x 1\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = analyse(&src);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]

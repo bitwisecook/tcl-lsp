@@ -46,10 +46,26 @@ use std::io::Read;
 
 use digest::Digest;
 use flate2::read::{DeflateDecoder, ZlibDecoder};
+use tcl_core_types::RecursionLimit;
 
 use crate::aes_cfb::{Aes, cfb_decrypt};
 
 const BLOCK: usize = 16;
+
+/// Maximum nesting depth of `OpenPGP` Compressed Data (tag 8) packets
+/// [`extract_literal`] will unwrap before giving up — issue #996:
+/// `extract_literal` recurses natively once per nested Compressed Data
+/// packet, fully attacker/generator-controlled via a crafted `.ucs`/`.scf`
+/// archive, with no cap before this fix. A legitimate BIG-IP UCS never
+/// nests Compressed Data more than one level deep (SEIPD → one Compressed
+/// Data → Literal Data); 16 is deliberately generous relative to that (a
+/// handful of levels of headroom for any oddly-repacked archive) while
+/// staying small enough to be cheap to check and to leave comfortable
+/// margin on the smallest stack this code runs on — the in-browser
+/// `bigip-report-gen/wasm` target, whose host-controlled stack budget this
+/// repo does not control (unlike the native `bigip-report-gen` CLI, which
+/// this repo's own entry point could give a generous stack, WASM cannot).
+const MAX_COMPRESSED_PACKET_DEPTH: RecursionLimit = RecursionLimit(16);
 
 /// The message could not be parsed or uses an unsupported feature, or
 /// decryption failed (almost always a wrong passphrase). A single type
@@ -382,12 +398,23 @@ fn inflate<R: Read>(mut dec: R) -> Result<Vec<u8>, OpenPgpError> {
 }
 
 /// Unwrap Compressed (tag 8) / Literal (tag 11) packets to the payload.
-fn extract_literal(data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
+///
+/// `depth` is the nesting level of this call (0 at the top); past
+/// [`MAX_COMPRESSED_PACKET_DEPTH`] this returns [`OpenPgpError`] instead of
+/// unwrapping another Compressed Data packet, so pathologically deep
+/// Compressed Data nesting in a crafted archive fails cleanly rather than
+/// overflowing the native stack.
+fn extract_literal(data: &[u8], depth: u32) -> Result<Vec<u8>, OpenPgpError> {
     for (tag, body) in parse_packets(data)? {
         if tag == 8 {
+            if MAX_COMPRESSED_PACKET_DEPTH.exceeded(depth) {
+                return Err(OpenPgpError::new(
+                    "OpenPGP message nests Compressed Data packets too deeply (malformed or hostile archive)",
+                ));
+            }
             // Compressed Data: [algo][compressed...]
             let algo = at(&body, 0)?;
-            return extract_literal(&decompress(algo, &body[1..])?);
+            return extract_literal(&decompress(algo, &body[1..])?, depth + 1);
         }
         if tag == 11 {
             // Literal Data: [format][namelen][name][mtime(4)][payload]
@@ -522,5 +549,97 @@ pub fn decrypt_symmetric(data: &[u8], passphrase: &[u8]) -> Result<Vec<u8>, Open
             "legacy SED packet (no MDC) is unsupported by the bundled decryptor — install gpg/gpg2 to decrypt this archive",
         ));
     }
-    extract_literal(&decrypt_seipd(&enc_body, cipher_id, &session_key)?)
+    extract_literal(&decrypt_seipd(&enc_body, cipher_id, &session_key)?, 0)
+}
+
+#[cfg(test)]
+mod recursion_tests {
+    use super::*;
+
+    /// New-format packet body-length header (RFC 4880 §4.2.2), the encode
+    /// side of [`read_new_length`] — used only to build synthetic packets
+    /// for the tests below.
+    fn encode_new_length(len: usize) -> Vec<u8> {
+        if len < 192 {
+            vec![u8::try_from(len).expect("checked len < 192")]
+        } else if len < 8384 {
+            let l = len - 192;
+            vec![
+                u8::try_from(192 + (l >> 8)).expect("checked l < 8192, so 192 + (l>>8) < 224"),
+                u8::try_from(l & 0xFF).expect("masked to a byte"),
+            ]
+        } else {
+            let b = u32::try_from(len)
+                .expect("test lengths fit u32")
+                .to_be_bytes();
+            vec![255, b[0], b[1], b[2], b[3]]
+        }
+    }
+
+    /// A new-format `OpenPGP` packet with the given tag and body.
+    fn new_format_packet(tag: u8, body: &[u8]) -> Vec<u8> {
+        let mut out = vec![0xC0 | tag];
+        out.extend(encode_new_length(body.len()));
+        out.extend_from_slice(body);
+        out
+    }
+
+    /// A minimal Literal Data packet (tag 11) wrapping `payload`.
+    fn literal_packet(payload: &[u8]) -> Vec<u8> {
+        let mut body = vec![b't', 0]; // format 't' (text), zero-length name
+        body.extend_from_slice(&[0u8; 4]); // mtime
+        body.extend_from_slice(payload);
+        new_format_packet(11, &body)
+    }
+
+    /// Wrap `inner` in one Compressed Data packet (tag 8) using algorithm 0
+    /// ("uncompressed" — [`decompress`] passes it through byte-for-byte), so
+    /// nested test packets can be built without a real compressor.
+    fn compressed_wrap(inner: &[u8]) -> Vec<u8> {
+        let mut body = Vec::with_capacity(inner.len() + 1);
+        body.push(0); // algo 0: uncompressed passthrough
+        body.extend_from_slice(inner);
+        new_format_packet(8, &body)
+    }
+
+    /// A Literal Data packet wrapped in `levels` nested Compressed Data
+    /// packets.
+    fn nested_compressed(levels: usize, payload: &[u8]) -> Vec<u8> {
+        let mut cur = literal_packet(payload);
+        for _ in 0..levels {
+            cur = compressed_wrap(&cur);
+        }
+        cur
+    }
+
+    /// Regression coverage for issue #996: `extract_literal` recurses
+    /// natively once per nested Compressed Data (tag 8) packet, with no
+    /// depth cap before this fix — depth is fully attacker/generator
+    /// controlled via a crafted `.ucs`/`.scf` archive, reachable from the
+    /// native `bigip-report-gen` CLI and the in-browser
+    /// `bigip-report-gen/wasm` target alike. 5000 nested Compressed Data
+    /// packets is comfortably past `MAX_COMPRESSED_PACKET_DEPTH` (16); the
+    /// assertion is that `extract_literal` returns a clean error rather
+    /// than crashing, not what the error says.
+    #[test]
+    fn deeply_nested_compressed_packets_return_error_not_crash() {
+        const DEPTH: usize = 5000;
+        let packet = nested_compressed(DEPTH, b"payload");
+        let result = extract_literal(&packet, 0);
+        assert!(
+            result.is_err(),
+            "expected a clean error past the depth cap, not a crash"
+        );
+    }
+
+    /// A handful of nested Compressed Data packets (well under
+    /// `MAX_COMPRESSED_PACKET_DEPTH`) still unwraps to the literal payload
+    /// exactly as before this fix — the safety net must not fire on
+    /// realistic nesting depths (a real BIG-IP UCS nests at most one level).
+    #[test]
+    fn moderately_nested_compressed_packets_still_extract_literal() {
+        let packet = nested_compressed(3, b"hello");
+        let extracted = extract_literal(&packet, 0).expect("well under the cap");
+        assert_eq!(extracted, b"hello");
+    }
 }

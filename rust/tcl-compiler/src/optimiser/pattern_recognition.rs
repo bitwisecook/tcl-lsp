@@ -54,14 +54,14 @@ use super::{Optimisation, PassContext};
 /// Run the pattern-recognition pass.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let top_ints = int_var_names(&cu.top_level);
-    walk_script(ctx, &cu.ir_module.top_level, &top_ints);
+    walk_script(ctx, &cu.ir_module.top_level, &top_ints, 0);
     for (qname, proc) in &cu.ir_module.procedures {
         let ints = cu
             .procedures
             .get(qname)
             .map(int_var_names)
             .unwrap_or_default();
-        walk_script(ctx, &proc.body, &ints);
+        walk_script(ctx, &proc.body, &ints, 0);
     }
     // O128 — end-offset index rewrites (its own segment-level walk over
     // the same source).
@@ -98,10 +98,15 @@ fn lattice_is_int(t: &TypeLattice) -> bool {
     t.kind() == TypeKind::Known && t.tcl_type() == Some(TclType::Int)
 }
 
-fn walk_script(ctx: &mut PassContext<'_>, script: &Script, int_vars: &HashSet<String>) {
+/// `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
+fn walk_script(ctx: &mut PassContext<'_>, script: &Script, int_vars: &HashSet<String>, depth: u32) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     detect_multi_set_packing(ctx, script);
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, int_vars);
+        walk_statement(ctx, stmt, int_vars, depth);
     }
 }
 
@@ -243,7 +248,12 @@ fn emit_set_pack(
     }
 }
 
-fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSet<String>) {
+fn walk_statement(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    int_vars: &HashSet<String>,
+    depth: u32,
+) {
     match stmt {
         Statement::AssignExpr {
             span, name, expr, ..
@@ -261,34 +271,34 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSe
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, &c.body, int_vars);
+                walk_script(ctx, &c.body, int_vars, depth + 1);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, b, int_vars);
+                walk_script(ctx, b, int_vars, depth + 1);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, init, int_vars);
-            walk_script(ctx, next, int_vars);
-            walk_script(ctx, body, int_vars);
+            walk_script(ctx, init, int_vars, depth + 1);
+            walk_script(ctx, next, int_vars, depth + 1);
+            walk_script(ctx, body, int_vars, depth + 1);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, body, int_vars),
+        | Statement::Foreach { body, .. } => walk_script(ctx, body, int_vars, depth + 1),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, int_vars);
+            walk_script(ctx, body, int_vars, depth + 1);
             for h in handlers {
-                walk_script(ctx, &h.body, int_vars);
+                walk_script(ctx, &h.body, int_vars, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, int_vars);
+                walk_script(ctx, fb, int_vars, depth + 1);
             }
         }
         Statement::Switch {
@@ -296,11 +306,11 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSe
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b, int_vars);
+                    walk_script(ctx, b, int_vars, depth + 1);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, b, int_vars);
+                walk_script(ctx, b, int_vars, depth + 1);
             }
         }
         _ => {}

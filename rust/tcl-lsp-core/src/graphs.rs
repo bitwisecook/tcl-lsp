@@ -89,7 +89,11 @@ fn scope_to_value(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
     source: &str,
+    depth: u32,
 ) -> Value {
+    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+        return json!({ "kind": scope.kind.as_str(), "name": scope.name });
+    }
     let mut procs: Vec<&ProcDef> = scope.procs.values().collect();
     procs.sort_by_key(|p| p.name_span.start());
     let proc_values: Vec<Value> = procs
@@ -121,7 +125,13 @@ fn scope_to_value(
     for child in &scope.children {
         match child.kind {
             ScopeKind::Namespace => {
-                children.push(scope_to_value(child, analysis, line_index, source));
+                children.push(scope_to_value(
+                    child,
+                    analysis,
+                    line_index,
+                    source,
+                    depth + 1,
+                ));
             }
             ScopeKind::Proc => {
                 // The proc's parameters all share the proc-name token's span,
@@ -206,16 +216,27 @@ fn collect_var_values(
 }
 
 /// Count variables with a definition site across the whole scope tree.
-fn count_variables(scope: &Scope) -> usize {
-    scope.variables.len() + scope.children.iter().map(count_variables).sum::<usize>()
+fn count_variables(scope: &Scope, depth: u32) -> usize {
+    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+        return 0;
+    }
+    scope.variables.len()
+        + scope
+            .children
+            .iter()
+            .map(|c| count_variables(c, depth + 1))
+            .sum::<usize>()
 }
 
 /// Count namespace scopes across the whole scope tree.
-fn count_namespaces(scope: &Scope) -> usize {
+fn count_namespaces(scope: &Scope, depth: u32) -> usize {
+    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+        return 0;
+    }
     scope
         .children
         .iter()
-        .map(|c| usize::from(c.kind == ScopeKind::Namespace) + count_namespaces(c))
+        .map(|c| usize::from(c.kind == ScopeKind::Namespace) + count_namespaces(c, depth + 1))
         .sum()
 }
 
@@ -231,6 +252,7 @@ pub fn symbol_graph(source: &str, dialect: &str) -> Value {
         &result,
         &line_index,
         source,
+        0,
     )];
 
     // proc_references: every proc's deduped call sites, source-ordered keys.
@@ -266,8 +288,8 @@ pub fn symbol_graph(source: &str, dialect: &str) -> Value {
         .collect();
 
     let total_procs = result.all_procs.len();
-    let total_variables = count_variables(&result.global_scope);
-    let total_namespaces = count_namespaces(&result.global_scope);
+    let total_variables = count_variables(&result.global_scope, 0);
+    let total_namespaces = count_namespaces(&result.global_scope, 0);
 
     json!({
         "scopes": scopes,
@@ -1016,4 +1038,34 @@ pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &st
             "function_count": functions.len(),
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fmt::Write as _;
+
+    /// Regression coverage for issue #996: `scope_to_value`,
+    /// `count_variables`, and `count_namespaces` recurse once per nested
+    /// namespace scope, with no depth cap before this fix
+    /// (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested `namespace eval`
+    /// levels is past the point (confirmed empirically: 100+) where
+    /// unguarded namespace-scope recursion overflows `cargo test`'s bare
+    /// ~2 MiB per-test default — namespace nesting costs meaningfully more
+    /// native stack per level than `if`-nesting does. The assertion is
+    /// that `symbol_graph` returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_namespaces_survive_symbol_graph() {
+        const DEPTH: usize = 80;
+        let mut source = String::new();
+        for i in 0..DEPTH {
+            let _ = writeln!(source, "namespace eval ns{i} {{");
+        }
+        source.push_str("proc leaf {} { return 1 }\n");
+        for _ in 0..DEPTH {
+            source.push_str("}\n");
+        }
+        let graph = symbol_graph(&source, "tcl8.6");
+        assert!(graph.get("scopes").is_some());
+    }
 }

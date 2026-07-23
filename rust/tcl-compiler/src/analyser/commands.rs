@@ -31,6 +31,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{AppendedArity, ArgRole, CommandRegistry};
 
+use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::parsing::syntax::descend::{descend_command, descend_token};
 use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
@@ -54,7 +55,7 @@ type CollectedHead = (String, Span, Option<usize>, Option<AppendedArity>);
 /// diagnostics worker and the `tcl diag` / `lint` / `validate` CLIs. At
 /// the cap we stop descending into further nested bodies (the diagnostics
 /// already collected stand); no real source nests anywhere near this.
-const MAX_BODY_DEPTH: u32 = 256;
+const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// The borrowed word-level view of one command, threaded into the
 /// dispatch-site diagnostic emitter ([`Analyser::emit_dispatch_site_diagnostics`]).
@@ -116,10 +117,30 @@ impl Analyser {
             return;
         }
         self.body_depth += 1;
-        if self.body_depth > MAX_BODY_DEPTH {
-            // stop descending before the recursive body walk
-            // overflows the stack. Restore the depth and return — the
-            // diagnostics collected up to this nesting level still stand.
+        if MAX_BODY_DEPTH.exceeded(self.body_depth) {
+            // Stop descending before the recursive body walk overflows the
+            // stack — the diagnostics collected up to this nesting level
+            // still stand. Report it as a diagnostic (once per walk, not
+            // once per nested body past the cap) rather than truncating
+            // silently: tclsh's own recursion limit raises a catchable
+            // "too many nested evaluations (infinite loop?)" error at this
+            // point rather than continuing quietly, and a process abort is
+            // never the right failure mode either way (issue #996).
+            if !self.structure_only && !self.e207_emitted {
+                self.e207_emitted = true;
+                self.result.diagnostics.push(Diagnostic {
+                    code: DiagCode::E207,
+                    span: body_tok.span,
+                    message: format!(
+                        "nesting depth exceeds the analysis limit ({} levels) — \
+                         diagnostics for this body and anything nested inside it are not \
+                         collected",
+                        MAX_BODY_DEPTH.0
+                    ),
+                    severity: Severity::Error,
+                    fixes: Vec::new(),
+                });
+            }
             self.body_depth -= 1;
             return;
         }
@@ -1727,7 +1748,11 @@ impl Analyser {
         // through the `SourceMap`); resolve + push afterwards so the
         // immutable source borrow has ended.
         let (heads, expr_toks) = {
-            let sm = SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let mut heads: Vec<CollectedHead> = Vec::new();
             let mut expr_toks: Vec<Token> = Vec::new();
             // `arg_tok` is the *merged* argv token.  For a compound word
@@ -1786,7 +1811,11 @@ impl Analyser {
         let config = self.lexer_config();
         let mut nested: Vec<SegmentedCommand> = Vec::new();
         {
-            let sm = SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             for arg_tok in arg_tokens_in {
                 let start = arg_tok.span.start() as usize;
                 let end = arg_tok.span.end() as usize;
@@ -1830,6 +1859,7 @@ impl Analyser {
                                     seg,
                                     config,
                                     &mut nested,
+                                    0,
                                 );
                             }
                         }
@@ -1870,7 +1900,11 @@ impl Analyser {
         let config = self.lexer_config();
         let mut nested: Vec<SegmentedCommand> = Vec::new();
         {
-            let sm = SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             for idx in expr_indices {
                 // Only a *braced* expr arg is opaque to the bare-`Cmd` walk;
                 // an unbraced `[…]` expr arg is itself a `Cmd` token already
@@ -2108,7 +2142,11 @@ impl Analyser {
     fn record_invocations_from_expr_token(&mut self, expr_tok: Token, scope_path: &[usize]) {
         let config = self.lexer_config();
         let (heads, expr_toks) = {
-            let sm = SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let mut heads: Vec<CollectedHead> = Vec::new();
             let mut expr_toks: Vec<Token> = Vec::new();
             collect_expr_substitutions(
@@ -2293,7 +2331,11 @@ impl Analyser {
         });
         match cmd_tok.kind {
             TokenType::Var => {
-                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
                 // A composite head whose first token is a *braced* variable
                 // (`${ns}::define::[…]`) merges into one Var word token, so the
                 // raw text spans the whole word.  The dispatched variable is
@@ -2339,7 +2381,11 @@ impl Analyser {
                 });
             }
             TokenType::Cmd => {
-                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
                 let cmd_text = sm.token_text(cmd_tok).to_string();
                 let method_name = args.first().cloned();
                 self.cmd_command_sites.push(super::state::CmdCommandSite {
@@ -2910,12 +2956,29 @@ fn collect_substitution_segments(
     config: LexerConfig,
     out: &mut Vec<SegmentedCommand>,
 ) {
+    // Entry point: the outermost `[…]` substitution is bracket-nesting depth
+    // 0 (issue #996 — the recursion cap lives in `collect_segment_recursive`,
+    // which this and `collect_substitution_segments_at` mutually recurse
+    // with).
+    collect_substitution_segments_at(sm, registry, cmd_tok, config, out, 0);
+}
+
+fn collect_substitution_segments_at(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    cmd_tok: Token,
+    config: LexerConfig,
+    out: &mut Vec<SegmentedCommand>,
+    depth: u32,
+) {
     if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
         return;
     }
     let descended = descend_token(sm, cmd_tok, config);
     for seg in segments_from_tree(descended.tree(), sm) {
-        collect_segment_recursive(sm, registry, seg, config, out);
+        // A substitution's segments sit at the same nesting level as the
+        // substitution itself; `collect_segment_recursive` enforces the cap.
+        collect_segment_recursive(sm, registry, seg, config, out, depth);
     }
 }
 
@@ -2930,11 +2993,22 @@ fn collect_segment_recursive(
     seg: SegmentedCommand,
     config: LexerConfig,
     out: &mut Vec<SegmentedCommand>,
+    depth: u32,
 ) {
+    // Native-stack safety net (issue #996): this and
+    // `collect_substitution_segments_at` mutually recurse once per nested
+    // `[…]` substitution / registry-resolved body inside a single word's raw
+    // text — a genuinely unbounded axis. Past the cap, record this command
+    // but stop descending into its nested substitutions/bodies: commands
+    // buried deeper than the cap go unanalysed, never a crash.
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        out.push(seg);
+        return;
+    }
     // Nested ``[…]`` substitutions in any word of this command.
     for tok in &seg.all_tokens {
         if tok.kind == TokenType::Cmd {
-            collect_substitution_segments(sm, registry, *tok, config, out);
+            collect_substitution_segments_at(sm, registry, *tok, config, out, depth + 1);
         }
     }
     // Registry-resolved body arguments (`[if {$c} {string index …}]`):
@@ -2950,7 +3024,7 @@ fn collect_segment_recursive(
         let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
         for body in descend_command(registry, sm, seg.name(), &args, &arg_tokens, config) {
             for inner in segments_from_tree(body.descended.tree(), sm) {
-                collect_segment_recursive(sm, Some(registry), inner, config, out);
+                collect_segment_recursive(sm, Some(registry), inner, config, out, depth + 1);
             }
         }
     }
@@ -3053,6 +3127,22 @@ fn top_level_cmd_subst_regions(text: &str) -> Vec<(usize, &str)> {
 /// adds the enclosing token's source-span start to obtain an
 /// absolute offset.
 pub(crate) fn scan_nested_command_heads(text: &str) -> Vec<(String, u32)> {
+    // Entry point: the outermost word's raw text is bracket-nesting depth 0
+    // (issue #996 — the recursion cap lives in
+    // [`scan_nested_command_heads_at`]).
+    scan_nested_command_heads_at(text, 0)
+}
+
+fn scan_nested_command_heads_at(text: &str, rec_depth: u32) -> Vec<(String, u32)> {
+    // Native-stack safety net (issue #996): this self-recurses once per
+    // nested `[…]` substitution inside a single word's raw text — a genuinely
+    // unbounded axis. Past the cap, return what's been found so far: nested
+    // heads buried deeper than the cap go unreported, never a crash.
+    // (`rec_depth` is named apart from the local `[`/`{`-matching `depth`
+    // counters below, which track bracket balance, not native recursion.)
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(rec_depth) {
+        return Vec::new();
+    }
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
@@ -3103,7 +3193,7 @@ pub(crate) fn scan_nested_command_heads(text: &str) -> Vec<(String, u32)> {
                     // Recurse into the inner text — nested ``[...]``
                     // substitutions inside this one also produce
                     // invocations.
-                    for (name, off_in_inner) in scan_nested_command_heads(inner) {
+                    for (name, off_in_inner) in scan_nested_command_heads_at(inner, rec_depth + 1) {
                         out.push((name, inner_start_u32 + off_in_inner));
                     }
                     i = j + 1;
@@ -3184,6 +3274,102 @@ mod tests {
     /// select — including the subcommand-level stamps.  Runs on a bare
     /// `Analyser::new()`, which also exercises the shared
     /// [`fallback_registry`] path the unit harnesses rely on.
+    /// `if {1} { if {1} { ... } }`, `depth` levels deep, wrapped in a `proc`
+    /// body.
+    fn nested_if_source(depth: u32) -> String {
+        let mut source = String::from("proc deepnest {} {\n");
+        for _ in 0..depth {
+            source.push_str("if {1} {\n");
+        }
+        for _ in 0..depth {
+            source.push_str("}\n");
+        }
+        source.push_str("}\n");
+        source
+    }
+
+    /// Run `analyse` on a dedicated thread with a generous stack.
+    ///
+    /// `cargo test` runs each `#[test]` on its own thread with the platform
+    /// default stack size (~2 MiB on Linux) — the same undersized budget
+    /// that caused issue #996's crash in the first place (Tokio's default
+    /// worker-thread stack is the same size). A test that walks source
+    /// nested past [`MAX_BODY_DEPTH`] needs the same generous, explicit
+    /// stack production code now gets via `tokio::runtime::Builder::
+    /// thread_stack_size` (`tcl-lsp-server`/`tcl-mcp`) and `std::thread::
+    /// Builder::stack_size` (the `tcl` CLI) — otherwise the test harness
+    /// itself hits the bug this suite exists to catch.
+    fn analyse_on_big_stack(source: String, dialect: &str) -> super::super::types::AnalysisResult {
+        let dialect = dialect.to_owned();
+        std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || Analyser::new().analyse(&source, &dialect))
+            .expect("spawn big-stack test thread")
+            .join()
+            .expect("analyse on big-stack thread panicked")
+    }
+
+    #[test]
+    fn depth_exactly_at_cap_emits_no_e207() {
+        // The wrapping `proc` body is itself one level of `body_depth`, so
+        // `MAX_BODY_DEPTH - 1` nested `if`s is what brings body_depth to
+        // exactly `MAX_BODY_DEPTH`.
+        let source = nested_if_source(MAX_BODY_DEPTH.0 - 1);
+        let res = analyse_on_big_stack(source, "tcl9.0");
+        assert!(
+            !res.diagnostics.iter().any(|d| d.code == DiagCode::E207),
+            "depth == MAX_BODY_DEPTH must not trip the cap: {:?}",
+            res.diagnostics.iter().map(|d| d.code).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn depth_one_past_cap_emits_e207_exactly_once() {
+        let source = nested_if_source(MAX_BODY_DEPTH.0);
+        let res = analyse_on_big_stack(source, "tcl9.0");
+        let e207_count = res
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E207)
+            .count();
+        assert_eq!(
+            e207_count, 1,
+            "depth == MAX_BODY_DEPTH + 1 must trip the cap exactly once, got {e207_count}"
+        );
+    }
+
+    #[test]
+    fn depth_far_past_cap_still_emits_e207_exactly_once() {
+        // Not flooded: the cap trips at the same nesting level every time
+        // (once body_depth cannot go higher), so it must still be exactly
+        // one diagnostic at 2000 levels, not one per level past the cap.
+        let source = nested_if_source(2000);
+        let res = analyse_on_big_stack(source, "tcl9.0");
+        let e207_count = res
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E207)
+            .count();
+        assert_eq!(
+            e207_count, 1,
+            "2000 levels must still trip the cap exactly once, got {e207_count}"
+        );
+    }
+
+    #[test]
+    fn shallow_nesting_never_emits_e207() {
+        // False-positive guard: ordinary, hand-written nesting must never
+        // draw E207.
+        let source = nested_if_source(10);
+        let mut a = Analyser::new();
+        let res = a.analyse(&source, "tcl9.0");
+        assert!(
+            !res.diagnostics.iter().any(|d| d.code == DiagCode::E207),
+            "shallow nesting must never emit E207: {:?}",
+            res.diagnostics.iter().map(|d| d.code).collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn resolve_analyser_hook_mirrors_the_retired_name_guards() {
         use tcl_registry::hooks::AnalyserHookId as H;
@@ -3396,6 +3582,42 @@ mod tests {
             out,
             vec![("outer".to_string(), 1), ("inner".to_string(), 8)]
         );
+    }
+
+    /// Regression coverage for issue #996: `scan_nested_command_heads`
+    /// self-recurses once per nested `[…]` substitution inside a single
+    /// word's raw text (Tier 1B), and `collect_segment_recursive` /
+    /// `collect_substitution_segments` mutually recurse the same way. Both
+    /// were genuinely unbounded before this fix, independent of the
+    /// statement-tree `MAX_BODY_DEPTH` cap, and empirically overflowed the
+    /// native stack (SIGABRT) in the low thousands of levels on a 2 MiB
+    /// thread. 3000 is past that crash range and past `MAX_BRACKET_TEXT_DEPTH`
+    /// (256); the assertion is that each returns.
+    #[test]
+    fn deeply_nested_command_head_scans_survive() {
+        // `[a [a [a … [a x] … ]]]` nested bracket substitutions drive the
+        // direct Tier 1B text scanner.
+        let mut brackets = "x".to_owned();
+        for _ in 0..3000 {
+            brackets = format!("[a {brackets}]");
+        }
+        let _ = scan_nested_command_heads(&brackets);
+
+        // `a [a [a … [x] … ]]` — each level is a literal-headed command whose
+        // argument holds the next `[…]` substitution — drives the
+        // `collect_segment_recursive` / `collect_substitution_segments` mutual
+        // recursion directly (isolated from the full analyser pipeline).
+        let mut nested = "x".to_owned();
+        for _ in 0..3000 {
+            nested = format!("a [{nested}]");
+        }
+        let config = LexerConfig::for_dialect("tcl8.6");
+        let sm = SourceMap::new(&nested);
+        let reg = CommandRegistry::build_default();
+        let mut out = Vec::new();
+        for seg in crate::segmenter::segment_commands_with_offset_and_config(&nested, 0, config) {
+            collect_segment_recursive(&sm, Some(&reg), seg, config, &mut out, 0);
+        }
     }
 
     #[test]

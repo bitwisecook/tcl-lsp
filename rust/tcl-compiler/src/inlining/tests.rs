@@ -64,6 +64,44 @@ fn has_inline_binding(stmts: &[Statement]) -> bool {
     })
 }
 
+/// Regression coverage for issue #996: `tally_calls`,
+/// `has_irreturn_in_unsafe_scope`, and `walk_local_writes` each recurse
+/// once per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/
+/// `Block`/`UpFrame` body, with no depth cap of their own before this
+/// fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the
+/// lowering pass today, so this is defence-in-depth / consistency with
+/// every other full-tree walker in this crate, not a
+/// currently-reproducible crash. 1000 levels of source nesting is
+/// comfortably past this new cap; the assertion is that `inline_module`
+/// returns at all, not what it returns. Spawns its own big-stack thread
+/// since the lexer/CST/segmenter stages upstream of the lowering cap
+/// still walk the full un-truncated source nesting before that cap trims
+/// it — same rationale as
+/// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+#[test]
+fn deeply_nested_if_survives_inlining_walks() {
+    const DEPTH: usize = 1000;
+    const STACK_SIZE: usize = 64 * 1024 * 1024;
+    let mut body = "proc ::deep {} {\n".to_owned();
+    for _ in 0..DEPTH {
+        body.push_str("if {1} {\n");
+    }
+    body.push_str("set x 1\n");
+    for _ in 0..DEPTH {
+        body.push_str("}\n");
+    }
+    body.push_str("}\n::deep\n");
+    std::thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(move || {
+            let module = module_for(&body);
+            let _ = inline_module_default(module);
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
 // v0 / verbatim tests
 
 #[test]

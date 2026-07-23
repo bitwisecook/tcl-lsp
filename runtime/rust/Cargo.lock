@@ -115,6 +115,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "tcl-core-types",
  "tcl-dialect",
  "thiserror",
 ]
@@ -128,6 +129,7 @@ name = "tcl-regex"
 version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
+ "tcl-core-types",
 ]
 
 [[package]]
@@ -136,6 +138,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "tcl-cmd-core",
+ "tcl-core-types",
  "tcl-host-native",
  "tcl-lexer",
  "tcl-platform",

@@ -245,6 +245,13 @@ pub struct Analyser {
     /// Body-nesting depth — incremented on entry to a braced
     /// body. Used for top-level-only command checks.
     pub body_depth: u32,
+    /// Whether **E207** (nesting depth exceeds the analysis limit — see
+    /// `commands::MAX_BODY_DEPTH`) has already been emitted for this walk.
+    /// The depth cap trips once per nested body past the limit — on
+    /// pathologically deep input that could be hundreds of bodies — so this
+    /// flags it emitted at most once rather than flooding
+    /// `result.diagnostics` with duplicates that all say the same thing.
+    pub(super) e207_emitted: bool,
     /// Stack of active scoped command environments — pushed while walking a
     /// command body whose spec carries a
     /// [`body_scope`](tcl_registry::CommandSpec::body_scope) (e.g. inside a
@@ -448,6 +455,39 @@ pub struct Analyser {
     /// per command) cost ``O(log N)`` instead of ``O(N)`` per
     /// call.  ``None`` outside an active analysis run.
     pub line_offsets: Option<Vec<usize>>,
+    /// Cached [`tcl_lexer::LineIndex`] over [`Self::source`], precomputed
+    /// once at the top of [`Self::analyse`] / [`Self::analyse_chunked`] /
+    /// [`Self::analyse_commands`] (alongside [`Self::line_offsets`]).
+    ///
+    /// Every recursive-body handler needs a [`tcl_lexer::SourceMap`] to
+    /// resolve token text / positions; before this cache existed, each of
+    /// the ~14 call sites called `SourceMap::new(&self.source)`, which
+    /// rescans the **entire document** to rebuild the line index from
+    /// scratch. Called once per command at every nesting level, that
+    /// turned an `O(document size)` per-command cost into `O(document
+    /// size × nesting depth)` overall — a genuine, severe (though
+    /// non-crashing) `DoS`: deeply-nested or merely large documents could
+    /// take many seconds even where the recursion depth itself stayed
+    /// safely under the analyser's caps (issue #996). Use
+    /// [`Self::source_map`] instead of `SourceMap::new(&self.source)` —
+    /// cloning a [`tcl_lexer::LineIndex`] is one allocation plus a copy of
+    /// its line-start offsets (`O(line count)`), not a document rescan.
+    ///
+    /// [`Self::source`] is a `pub` field that plenty of unit tests (and, in
+    /// principle, any other consumer) assign directly rather than through
+    /// [`Self::analyse`], so this cache can legitimately go stale relative
+    /// to it. [`Self::cached_line_index_source_len`] guards that: a length
+    /// mismatch means the cache doesn't describe the current `source`, and
+    /// [`Self::source_map`] falls back to a fresh scan rather than trusting
+    /// it. This is a cheap, not perfect, staleness check (same length,
+    /// different content, set outside `analyse` would slip through) — good
+    /// enough because every real entry point keeps the two in lock-step;
+    /// only direct test-only field pokes can desync them, and those change
+    /// the length in every case in this codebase's test suite.
+    pub(super) cached_line_index: tcl_lexer::LineIndex,
+    /// `self.source.len()` at the point [`Self::cached_line_index`] was
+    /// built — see that field's doc comment.
+    pub(super) cached_line_index_source_len: usize,
     /// Candidate E002 / E003 arity diagnostics, W004
     /// (dialect-invalid-option) diagnostics, **and** W001 (unknown
     /// subcommand) diagnostics collected during the command walk, as
@@ -655,6 +695,37 @@ impl Analyser {
         tcl_lexer::LexerConfig::from_grammar(self.profile.grammar)
     }
 
+    /// A [`tcl_lexer::SourceMap`] over [`Self::source`], built from the
+    /// cached [`Self::cached_line_index`] rather than rescanning the
+    /// document. Use this instead of `SourceMap::new(&self.source)` in any
+    /// handler that runs once per command (i.e. potentially once per
+    /// nesting level) — see the doc comment on [`Self::cached_line_index`]
+    /// for why the naive rescan is a real `DoS`, not just an inefficiency.
+    ///
+    /// Falls back to a fresh `SourceMap::new(source)` scan when
+    /// `cached_line_index_len != source.len()` — see
+    /// [`Self::cached_line_index`]'s doc comment for why the cache can be
+    /// stale and why a length mismatch is how this detects it.
+    ///
+    /// A free function taking the fields explicitly, **not** a `&self`
+    /// method: a method call always borrows all of `self`, which would tie
+    /// up `self.result` for the returned `SourceMap`'s whole lifetime and
+    /// break the many call sites that build a map and later push a
+    /// diagnostic in the same scope. Called as
+    /// `Analyser::source_map(&self.source, &self.cached_line_index,
+    /// self.cached_line_index_source_len)`.
+    pub(super) fn source_map<'src>(
+        source: &'src str,
+        cached_line_index: &tcl_lexer::LineIndex,
+        cached_line_index_len: usize,
+    ) -> tcl_lexer::SourceMap<'src> {
+        if source.len() == cached_line_index_len {
+            tcl_lexer::SourceMap::with_line_index(source, cached_line_index.clone())
+        } else {
+            tcl_lexer::SourceMap::new(source)
+        }
+    }
+
     /// The active dialect's canonical name — the string that round-trips
     /// through configuration and the providers (`self.profile.name`).
     #[must_use]
@@ -706,6 +777,7 @@ impl Analyser {
             builtin_dialect: None,
             conditional_depth: 0,
             body_depth: 0,
+            e207_emitted: false,
             body_scope_stack: Vec::new(),
             command_aliases: HashMap::new(),
             renamed_commands: HashMap::new(),
@@ -735,6 +807,8 @@ impl Analyser {
             deep_param_traits: false,
             stub_overlay: None,
             line_offsets: None,
+            cached_line_index: tcl_lexer::LineIndex::new(""),
+            cached_line_index_source_len: 0,
             pending_arity: Vec::new(),
             pending_user_call_arity: Vec::new(),
             pending_ctor_arity: Vec::new(),
@@ -942,6 +1016,8 @@ impl Analyser {
         // ``apply_preceding_noqa`` (which runs per command and
         // would otherwise be ``O(N)`` per call).
         self.line_offsets = Some(compute_line_offsets(source));
+        self.cached_line_index = tcl_lexer::LineIndex::new(source);
+        self.cached_line_index_source_len = source.len();
         // The recovery known-command universe (registry + this document's
         // own procs/classes/aliases) — see `recovery_known_commands`. Stored
         // on `self` so the per-command E100/E201/E202/E203 detectors below
@@ -1201,7 +1277,11 @@ impl Analyser {
     /// every *other* message maps to the catch-all E200.
     fn emit_lexer_warning_diagnostics(&mut self) {
         let lexer = tcl_lexer::Lexer::with_source_map(
-            tcl_lexer::SourceMap::new(&self.source),
+            Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            ),
             self.lexer_config(),
         );
         let Ok((_tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
@@ -1292,6 +1372,8 @@ impl Analyser {
             &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
+        self.cached_line_index = tcl_lexer::LineIndex::new(source);
+        self.cached_line_index_source_len = source.len();
 
         // Whole-file scoped environment (tclpkg manifests) — same seeding as
         // `analyse`, spanning every chunk's walk.
@@ -1370,6 +1452,8 @@ impl Analyser {
             &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
+        self.cached_line_index = tcl_lexer::LineIndex::new(source);
+        self.cached_line_index_source_len = source.len();
 
         // Stub-directive pre-scan + overlay, matching ``analyse`` so command
         // resolution (W123 / W307 / param-trait inference) sees the same stub
@@ -1670,6 +1754,9 @@ impl Analyser {
         self.seed_scope_path.clear();
         self.recovery_known_commands.clear();
         self.line_offsets = None;
+        self.cached_line_index = tcl_lexer::LineIndex::new("");
+        self.cached_line_index_source_len = 0;
+        self.e207_emitted = false;
         self.defer_proc_bodies = false;
         self.deferred_bodies.clear();
         self.cu_override = None;

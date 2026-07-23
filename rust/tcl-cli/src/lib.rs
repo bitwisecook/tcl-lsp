@@ -56,13 +56,38 @@ where
     T: Into<OsString> + Clone,
 {
     let cli = Cli::parse_from(args);
-    match dispatch(&cli.command) {
+    match run_on_generous_stack(cli.command) {
         Ok(code) => ExitCode::from(code),
         Err(err) => {
             tcl_cli_support::chrome::eprint_error(format!("{err:#}"));
             ExitCode::from(2)
         }
     }
+}
+
+/// Stack budget for the dedicated worker thread every verb runs on.
+///
+/// Matches `WORKER_STACK_SIZE` in `tcl-lsp-server`/`tcl-mcp`'s `main.rs` —
+/// see the doc comment there for the full rationale. Short version: the
+/// analyser's and CFG builder's depth-capped recursions
+/// (`tcl_compiler::analyser::commands::MAX_BODY_DEPTH` /
+/// `tcl_compiler::cfg_builder::MAX_LOWER_DEPTH`, both 256) bound the number
+/// of stack frames but not how much stack those frames need, and the
+/// OS-provided main-thread stack this binary would otherwise inherit is
+/// outside this crate's control — 8 MiB by default on Linux, but as little
+/// as 1 MiB on Windows, or whatever a container's `ulimit -s` happens to
+/// be. Running every verb on an explicitly-sized thread makes the CLI's
+/// crash behaviour independent of the ambient environment (issue #996).
+const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
+
+/// Run `dispatch` on a dedicated thread with [`WORKER_STACK_SIZE`] of stack.
+fn run_on_generous_stack(command: Command) -> anyhow::Result<u8> {
+    std::thread::Builder::new()
+        .stack_size(WORKER_STACK_SIZE)
+        .spawn(move || dispatch(&command))
+        .expect("failed to spawn the tcl CLI worker thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 /// Dispatch a parsed command to its handler.

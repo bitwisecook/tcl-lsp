@@ -490,7 +490,7 @@ impl CfgBuilder {
             return block_name.to_owned();
         }
         if let Some((break_target, continue_target)) = self.loop_stack.last().cloned() {
-            let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps(stmt);
+            let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps(stmt, 0);
             if can_break || can_continue {
                 let escape = SwitchEscape {
                     can_break,

@@ -2690,7 +2690,11 @@ before this value so it is treated as data, not an option."
     /// raw `self.source[..]` slice would introduce.  Returns
     /// `None` when the extracted text is empty.
     pub(super) fn var_name_from_token(&self, tok: tcl_lexer::Token) -> Option<String> {
-        let sm = tcl_lexer::SourceMap::new(&self.source);
+        let sm = Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let text = sm.token_text(tok);
         if text.is_empty() {
             return None;
@@ -2898,7 +2902,11 @@ in the active dialect ({}).",
         let end = if let Some(next_tok) = arg_tokens.get(flag_idx + consumed) {
             next_tok.span.start()
         } else {
-            let sm = tcl_lexer::SourceMap::new(&self.source);
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             tcl_lexer::word_closer_offset(&sm, last_tok).map_or(last_tok.span.end(), |c| c + 1)
         };
         vec![super::types::CodeFix {

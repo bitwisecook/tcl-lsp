@@ -70,7 +70,6 @@ use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
 use rustc_hash::FxHashSet;
-use tcl_lexer::SourceMap;
 
 use helpers::{
     build_undef_suppression, collect_defined_vars, collect_existence_guards, globals_read_by_procs,
@@ -532,7 +531,11 @@ impl Analyser {
     ///
     /// Lines come from the [`SourceMap`] over `self.source`.
     pub fn dedupe_diagnostics(&mut self) {
-        let sm = SourceMap::new(&self.source);
+        let sm = Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let mut e101_lines: FxHashSet<u32> = FxHashSet::default();
         let mut w124_lines: FxHashSet<u32> = FxHashSet::default();
         for d in &self.result.diagnostics {

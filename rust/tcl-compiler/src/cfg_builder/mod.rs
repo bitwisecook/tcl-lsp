@@ -175,7 +175,7 @@ pub(crate) struct CfgBuilder {
     inline_eval_spans: Vec<tcl_lexer::Span>,
     /// Current `lower_script` recursion depth, bounded by [`MAX_LOWER_DEPTH`]
     /// so deeply-nested bodies cannot overflow the stack.
-    depth: usize,
+    depth: u32,
 }
 
 /// Maximum nesting depth for the recursive `lower_script` descent.
@@ -187,7 +187,7 @@ pub(crate) struct CfgBuilder {
 /// treat the over-deep script as a non-fall-through tail, yielding a
 /// truncated-but-valid CFG instead of a crash. No real source nests
 /// anywhere near this.
-const MAX_LOWER_DEPTH: usize = 256;
+const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 impl CfgBuilder {
     fn new(inline_loops: bool) -> Self {
@@ -706,7 +706,7 @@ impl CfgBuilder {
     /// overflow.
     fn lower_script(&mut self, script: &Script, block_name: &str) -> Option<String> {
         self.depth += 1;
-        if self.depth > MAX_LOWER_DEPTH {
+        if MAX_LOWER_DEPTH.exceeded(self.depth) {
             self.depth -= 1;
             return None;
         }
@@ -1596,7 +1596,15 @@ pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
 /// complete normally (`return`/`error`/`exit`/`tailcall`, or `break`/`continue`
 /// itself): a jump after it is dead code that never executes, so it must not
 /// create a spurious loop-exit edge.
-pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
+/// `depth` is the nesting level of `script` — reuses [`MAX_LOWER_DEPTH`]
+/// (this walk is mutually recursive with [`switch_escaping_jumps`], and
+/// both are transitively bounded today via the same cap `lower_script`
+/// already builds every `Script` under, so this is defence-in-depth /
+/// consistency with that cap rather than a currently-reachable path).
+pub(crate) fn escaping_loop_jumps(script: &Script, depth: u32) -> (bool, bool) {
+    if MAX_LOWER_DEPTH.exceeded(depth) {
+        return (false, false);
+    }
     let mut can_break = false;
     let mut can_continue = false;
     for stmt in &script.statements {
@@ -1620,23 +1628,23 @@ pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
                 clauses, else_body, ..
             } => {
                 for clause in clauses {
-                    let (b, c) = escaping_loop_jumps(&clause.body);
+                    let (b, c) = escaping_loop_jumps(&clause.body, depth + 1);
                     can_break |= b;
                     can_continue |= c;
                 }
                 if let Some(eb) = else_body {
-                    let (b, c) = escaping_loop_jumps(eb);
+                    let (b, c) = escaping_loop_jumps(eb, depth + 1);
                     can_break |= b;
                     can_continue |= c;
                 }
             }
             Statement::Switch { .. } => {
-                let (b, c) = switch_escaping_jumps(stmt);
+                let (b, c) = switch_escaping_jumps(stmt, depth);
                 can_break |= b;
                 can_continue |= c;
             }
             Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
-                let (b, c) = escaping_loop_jumps(body);
+                let (b, c) = escaping_loop_jumps(body, depth + 1);
                 can_break |= b;
                 can_continue |= c;
             }
@@ -1646,16 +1654,16 @@ pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
                 finally_body,
                 ..
             } => {
-                let (b, c) = escaping_loop_jumps(body);
+                let (b, c) = escaping_loop_jumps(body, depth + 1);
                 can_break |= b;
                 can_continue |= c;
                 for h in handlers {
-                    let (b, c) = escaping_loop_jumps(&h.body);
+                    let (b, c) = escaping_loop_jumps(&h.body, depth + 1);
                     can_break |= b;
                     can_continue |= c;
                 }
                 if let Some(fb) = finally_body {
-                    let (b, c) = escaping_loop_jumps(fb);
+                    let (b, c) = escaping_loop_jumps(fb, depth + 1);
                     can_break |= b;
                     can_continue |= c;
                 }
@@ -1674,7 +1682,8 @@ pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
 }
 
 /// `(can_break, can_continue)` over all bodies of an opaque `switch`.
-pub(crate) fn switch_escaping_jumps(stmt: &Statement) -> (bool, bool) {
+/// `depth` is `stmt`'s own nesting level — see [`escaping_loop_jumps`].
+pub(crate) fn switch_escaping_jumps(stmt: &Statement, depth: u32) -> (bool, bool) {
     let Statement::Switch {
         arms, default_body, ..
     } = stmt
@@ -1684,13 +1693,13 @@ pub(crate) fn switch_escaping_jumps(stmt: &Statement) -> (bool, bool) {
     let mut can_break = false;
     let mut can_continue = false;
     if let Some(default) = default_body {
-        let (b, c) = escaping_loop_jumps(default);
+        let (b, c) = escaping_loop_jumps(default, depth + 1);
         can_break |= b;
         can_continue |= c;
     }
     for arm in arms {
         if let Some(body) = &arm.body {
-            let (b, c) = escaping_loop_jumps(body);
+            let (b, c) = escaping_loop_jumps(body, depth + 1);
             can_break |= b;
             can_continue |= c;
         }
@@ -2186,22 +2195,25 @@ mod tests {
         // enclosing loop; `catch { break }` absorbs it (yields code 3). Confirmed
         // against tclsh 9.0.3.
         assert_eq!(
-            escaping_loop_jumps(&lower_module("try { break }").top_level),
+            escaping_loop_jumps(&lower_module("try { break }").top_level, 0),
             (true, false),
             "try propagates break",
         );
         assert_eq!(
-            escaping_loop_jumps(&lower_module("try { continue } finally { }").top_level),
+            escaping_loop_jumps(&lower_module("try { continue } finally { }").top_level, 0),
             (false, true),
             "try (with finally) propagates continue",
         );
         assert_eq!(
-            escaping_loop_jumps(&lower_module("try { puts x } on error {} { break }").top_level),
+            escaping_loop_jumps(
+                &lower_module("try { puts x } on error {} { break }").top_level,
+                0
+            ),
             (true, false),
             "a break in a try handler body propagates",
         );
         assert_eq!(
-            escaping_loop_jumps(&lower_module("catch { break }").top_level),
+            escaping_loop_jumps(&lower_module("catch { break }").top_level, 0),
             (false, false),
             "catch absorbs break (does not propagate)",
         );
@@ -2213,21 +2225,57 @@ mod tests {
         // is dead code and must not be collected as an escaping jump (else it
         // forges a spurious loop-exit edge).
         assert_eq!(
-            escaping_loop_jumps(&lower_module("error bad\nbreak").top_level),
+            escaping_loop_jumps(&lower_module("error bad\nbreak").top_level, 0),
             (false, false),
             "dead break after error is not collected",
         );
         assert_eq!(
-            escaping_loop_jumps(&lower_module("return\ncontinue").top_level),
+            escaping_loop_jumps(&lower_module("return\ncontinue").top_level, 0),
             (false, false),
             "dead continue after return is not collected",
         );
         // A live jump before dead code IS collected (and stops the scan there).
         assert_eq!(
-            escaping_loop_jumps(&lower_module("break\nset x 1").top_level),
+            escaping_loop_jumps(&lower_module("break\nset x 1").top_level, 0),
             (true, false),
             "live break is collected",
         );
+    }
+
+    /// Regression coverage for issue #996: `escaping_loop_jumps` and the
+    /// mutually-recursive `switch_escaping_jumps` recurse once per nested
+    /// `if`/`switch`/`Block`/`UpFrame`/`try` body, with no depth cap of
+    /// their own before this fix. Transitively bounded to
+    /// `MAX_LOWER_DEPTH` (256) by the lowering pass today, so this is
+    /// defence-in-depth / consistency with every other full-tree walker in
+    /// this crate, not a currently-reproducible crash. 1000 levels of
+    /// source nesting is comfortably past this new cap; the assertion is
+    /// that `escaping_loop_jumps` returns at all, not what it returns.
+    /// Spawns its own big-stack thread since the lexer/CST/segmenter
+    /// stages upstream of the lowering cap still walk the full
+    /// un-truncated source nesting before that cap trims it — same
+    /// rationale as
+    /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn deeply_nested_if_survives_escaping_loop_jumps() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("break\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = escaping_loop_jumps(&lower_module(&src).top_level, 0);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     fn find_call_defs<'a>(func: &'a Function, command: &str) -> Option<&'a [String]> {

@@ -125,6 +125,10 @@ User-facing compiler troubleshooting and how-tos live in
   labels, and peephole optimisation.
 - [wasm-codegen.md](wasm-codegen.md) — WASM codegen pipeline: scan,
   imports, per-command dispatch, and runtime interop contract.
+- [recursive-descent-depth-limits.md](recursive-descent-depth-limits.md) —
+  why deeply-nested Tcl source could crash the analyser (issue #996): the
+  depth-cap + generous-stack-budget model every recursive-descent walker
+  needs, the inventory of guarded walkers, and the known gaps.
 
 ## Side-effects and effect classification
 

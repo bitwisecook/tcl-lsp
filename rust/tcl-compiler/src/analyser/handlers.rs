@@ -404,7 +404,11 @@ impl Analyser {
         match tok.kind {
             TokenType::Str | TokenType::Esc => Some(text.to_string()),
             TokenType::Var => {
-                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
                 let var_name = sm.token_text(tok);
                 self.lookup_const_string(var_name, scope_path)
                     .map(str::to_string)
@@ -3375,7 +3379,11 @@ impl Analyser {
                 // resolved as a substitution branch.
             }
             TokenType::Var => {
-                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
                 let var_name = sm.token_text(tok).to_string();
                 if let Some((const_val, def_span)) =
                     self.lookup_const_string_with_span(&var_name, scope_path)
@@ -3512,11 +3520,14 @@ impl Analyser {
         single_token: bool,
         scope_path: &[usize],
     ) -> Option<usize> {
-        use tcl_lexer::SourceMap;
         if !single_token {
             return None;
         }
-        let sm = SourceMap::new(&self.source);
+        let sm = Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         match tok.kind {
             TokenType::Str => {
                 let inner = sm.token_text(tok);

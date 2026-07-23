@@ -29,6 +29,20 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+/// Cap on [`tcl_compiler::analyser::Scope`]-tree walking depth shared by
+/// every LSP feature provider that recurses over `scope.children`
+/// (document symbols, go-to-definition, the symbol graph, inlay hints,
+/// the inline-variable refactor). Mirrors the compiler analyser's own
+/// `MAX_BODY_DEPTH`: since a `Scope` node is created only for a
+/// `namespace`/`proc`/`method` body, and the analyser already caps body
+/// nesting at that same value, the tree these walkers see can never
+/// exceed it in practice — this cap is defence-in-depth against a scope
+/// tree built or received some other way, and keeps every consumer from
+/// needing its own copy of the same constant. See
+/// `docs/design/compiler/recursive-descent-depth-limits.md`.
+pub(crate) const MAX_SCOPE_WALK_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
+
 pub mod bigip;
 pub mod call_hierarchy;
 pub mod code_actions;

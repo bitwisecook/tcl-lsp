@@ -33,6 +33,30 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use super::config::FormatterConfig;
 
+/// Depth cap for [`format_body`]'s (and [`format_switch_body`]'s) recursion
+/// over nested control-flow bodies — issue #996. Reuses their existing
+/// `indent_level` parameter as the depth signal rather than threading a
+/// separate one: `indent_level` already increments by exactly one per
+/// nested body, the same shape the depth cap needs.
+///
+/// This crate is consumed both by binaries that run formatting on a
+/// generously-sized dedicated thread (`tcl-lsp-server`, the `tcl` CLI,
+/// `f5-cli`) and, via `bigip-query-wasm`, from a WASM host whose stack
+/// budget is outside this crate's control — so, like
+/// `tcl_runtime::interp::NATIVE_EVAL_DEPTH_LIMIT`, this must be safe on a
+/// small ambient stack, not just a generously-sized one.
+///
+/// Empirically measured on this crate's native build, run on a plain 2 MiB
+/// thread stack (`cargo test`'s per-test default): unguarded nested `if`
+/// bodies overflow the stack (SIGABRT) between depth 800 and 1200 — a much
+/// larger margin than the analyser's or the optimiser passes' (this
+/// recursion's per-level frame cost is lighter), but 128 is kept
+/// consistent with the same conservative reasoning used for the WASM
+/// runtime: comfortably safe even against a meaningfully smaller WASM
+/// stack, while still far more headroom than realistic (even
+/// generated/templated) Tcl needs to format.
+const MAX_FORMAT_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
+
 /// What kind of argument this is for formatting purposes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ArgKind {
@@ -1347,6 +1371,13 @@ pub(crate) fn format_body(
     registry: &CommandRegistry,
     indent_level: usize,
 ) -> String {
+    // Native-stack safety net — see `MAX_FORMAT_DEPTH`'s doc comment
+    // (issue #996). Past the cap, leave this (deeply nested) body
+    // unformatted rather than recursing further, matching the existing
+    // give-up-gracefully fallback just below for an unparseable body.
+    if MAX_FORMAT_DEPTH.exceeded(u32::try_from(indent_level).unwrap_or(u32::MAX)) {
+        return source.to_owned();
+    }
     let sm = SourceMap::new(source);
     let Ok(tokens) =
         Lexer::with_source_map(SourceMap::new(source), config.lexer_config).tokenise_all()
@@ -1549,6 +1580,38 @@ mod tests {
     fn fmt_with(src: &str, config: &FormatterConfig) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, config, &registry)
+    }
+
+    /// Regression coverage for issue #996: `format_body` recurses once per
+    /// nested control-flow body. Empirically, unguarded nested `if` bodies
+    /// overflowed the native stack (SIGABRT) between depth 800 and 1200 on
+    /// a 2 MiB thread (`cargo test`'s per-test default). 2000 is
+    /// comfortably past both that crash range and `MAX_FORMAT_DEPTH` (128);
+    /// the assertion is that formatting returns at all, not what it
+    /// returns — past the cap, `format_body` leaves the excess nesting
+    /// unformatted rather than crashing.
+    #[test]
+    fn deeply_nested_if_survives_formatting() {
+        const DEPTH: usize = 2000;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set done 1\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        let _ = fmt(&src);
+    }
+
+    /// A moderately nested body (well under `MAX_FORMAT_DEPTH`) still
+    /// formats normally — the safety net must not fire on realistic
+    /// nesting depths.
+    #[test]
+    fn moderately_nested_if_still_formats() {
+        let src = "if {1} {\nif {2} {\nset x 1\n}\n}\n";
+        let out = fmt(src);
+        assert!(out.contains("set x 1"), "{out:?}");
     }
 
     #[test]
