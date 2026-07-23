@@ -2932,12 +2932,26 @@ in the active dialect ({}).",
         if !contains_gated_word(expr_text) {
             return;
         }
-        let Some(base) = self.w003_gates() else {
+        let Some((base, is_irules)) = self.w003_gates() else {
             return;
         };
 
+        // Both the parse and the re-tokenise below force the `f5-irules`
+        // dialect rather than the active one (issue #985): the lexer's
+        // iRules word-operator recognition (`contains`, `and`, …) is
+        // itself gated on the tokenisation dialect, so under any other
+        // dialect these words would lex as plain `Word` tokens, the parse
+        // below would never see a `Binary`/`Unary` application of them,
+        // and it would fall back to `ExprNode::Raw` — silently hiding the
+        // exact misuse this check exists to catch. `f5-irules` is a
+        // strict superset of every other dialect's operator vocabulary
+        // (it recognises everything `lt`/`in`/`**`/etc. does, plus the 9
+        // iRules words), so forcing it here never misparses an expression
+        // that would otherwise parse; the real pass/fail gate decision
+        // below still keys on the active dialect's actual `(base,
+        // is_irules)` facts, not this parsing dialect.
         let trimmed = expr_text.trim();
-        let parsed = crate::parse_expr(trimmed, Some(self.dialect()));
+        let parsed = crate::parse_expr(trimmed, Some("f5-irules"));
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
@@ -2946,18 +2960,18 @@ in the active dialect ({}).",
         // level: every gated-keyword `Operator` token here
         // corresponds 1:1 to a `Binary` node the parse above just
         // confirmed is real (a successful parse consumes the whole
-        // token stream, and `in`/`ni`/`lt`/`le`/`gt`/`ge` are not
-        // valid prefix/atom tokens — the only way one is consumed is
-        // as a genuine infix application). This gives an exact
-        // per-occurrence span directly from `ExprToken::start/end`
+        // token stream, and `in`/`ni`/`lt`/`le`/`gt`/`ge`/the iRules
+        // words are not valid prefix/atom tokens — the only way one is
+        // consumed is as a genuine infix application). This gives an
+        // exact per-occurrence span directly from `ExprToken::start/end`
         // without adding source-position fields to `ExprNode::Binary`
         // (which recursive/optimiser/codegen consumers across the
         // compiler pattern-match on by name, not span).
-        let (tokens, _) = tcl_lexer::tokenise_expr_checked(trimmed, Some(self.dialect()));
+        let (tokens, _) = tcl_lexer::tokenise_expr_checked(trimmed, Some("f5-irules"));
         let gated: Vec<(&tcl_lexer::ExprToken, &'static str)> = tokens
             .iter()
             .filter(|t| t.kind == tcl_lexer::ExprTokenType::Operator)
-            .filter_map(|t| gated_operator_name(&t.text, base).map(|name| (t, name)))
+            .filter_map(|t| gated_operator_name(&t.text, base, is_irules).map(|name| (t, name)))
             .collect();
         if gated.is_empty() {
             return;
@@ -3073,15 +3087,22 @@ in the active dialect ({}).",
         if !contains_gated_word(joined_text) {
             return;
         }
-        let Some(base) = self.w003_gates() else {
+        let Some((base, is_irules)) = self.w003_gates() else {
             return;
         };
-        let parsed = crate::parse_expr(joined_text.trim(), Some(self.dialect()));
+        // Forced to `f5-irules` for the same reason as the braced-argument
+        // path (issue #985): under any other dialect the tokeniser lexes
+        // the iRules words (`contains`, `and`, …) as plain `Word`s rather
+        // than operators, so the parse below would never see a valid
+        // infix application and would fall back to `ExprNode::Raw`,
+        // silently skipping this whole check. The real gate decision below
+        // still uses the active dialect's actual `(base, is_irules)`.
+        let parsed = crate::parse_expr(joined_text.trim(), Some("f5-irules"));
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
         for (word, tok) in args.iter().zip(arg_tokens.iter()) {
-            let Some(op_name) = gated_operator_name(word, base) else {
+            let Some(op_name) = gated_operator_name(word, base, is_irules) else {
                 continue;
             };
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -3102,12 +3123,15 @@ in the active dialect ({}).",
         }
     }
 
-    /// The active dialect's `expr`-grammar base version, or `None` when the
-    /// dialect string has no documented one (nothing for W003 to check —
-    /// see [`gated_operator_name`], which does the real per-operator
-    /// version comparison against this).
-    fn w003_gates(&self) -> Option<tcl_dialect::TclVersion> {
-        tcl_dialect::DialectProfile::by_name(self.dialect()).expr_grammar_base
+    /// The active dialect's `expr`-grammar base version and iRules
+    /// identity, or `None` when the dialect string has no documented base
+    /// version (nothing for W003 to check — see [`gated_operator_name`],
+    /// which does the real per-operator gate comparison against this).
+    fn w003_gates(&self) -> Option<(tcl_dialect::TclVersion, bool)> {
+        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
+        profile
+            .expr_grammar_base
+            .map(|base| (base, profile.is_irules()))
     }
 }
 
@@ -3294,10 +3318,22 @@ struct GatedExprOp {
     /// Word-shaped (`in`/`lt`) operators need identifier-boundary matching in
     /// the prefilter; symbolic ones (`**`) match on any occurrence.
     word_shaped: bool,
-    /// The oldest Tcl release whose `expr` grammar parses this operator.
-    min_version: tcl_dialect::TclVersion,
+    /// What must hold for this operator to be valid: a minimum `expr`-grammar
+    /// version, or (issue #985) iRules dialect identity.
+    gate: ExprOpGate,
     /// The TIP citation surfaced in the W003 message.
     tip: &'static str,
+}
+
+/// What a [`GatedExprOp`] requires of the active dialect.
+#[derive(Clone, Copy)]
+enum ExprOpGate {
+    /// The dialect's `expr`-grammar base version must be at least this.
+    MinVersion(tcl_dialect::TclVersion),
+    /// The dialect must *be* iRules (identity, not a version threshold) —
+    /// these 9 word operators (`contains`, `and`, …) have no
+    /// `::tcl::mathop` form and exist in no other dialect at any version.
+    IrulesOnly,
 }
 
 /// The TIP citation string for `spelling`'s W003 message — the one fact a
@@ -3307,23 +3343,30 @@ fn w003_tip_string(spelling: &str) -> &'static str {
     match spelling {
         "**" => "Tcl 8.5+ (TIP 123)",
         "in" | "ni" => "Tcl 8.5+ (TIP 201)",
+        "and" | "or" | "not" | "contains" | "starts_with" | "ends_with" | "equals"
+        | "matches_glob" | "matches_regex" => "the iRules/BIG-IP Tcl dialect",
         // "lt" | "le" | "gt" | "ge", and the fallback `gated_expr_ops()`
         // itself guarantees no other spelling ever reaches this function.
         _ => "Tcl 9.0+ (TIP 461)",
     }
 }
 
-/// The version-gated `expr` operators (`in`/`ni`/`**` from 8.5; the string
-/// comparison words `lt`/`le`/`gt`/`ge` from 9.0) — every `BinOp` whose
+/// The dialect-gated `expr` operators: version-gated (`in`/`ni`/`**` from
+/// 8.5; the string comparison words `lt`/`le`/`gt`/`ge` from 9.0) — every
+/// `BinOp` whose
 /// [`tcl_syntax::expr::operators::OperatorSpec::expr_grammar_min_version`]
-/// is `Some(_)`. Computed once (not `const`: `OperatorSpec` isn't cheaply
-/// iterable in a const context) and cached for the process lifetime — W003
-/// only calls into this after its own text prefilter narrows to expressions
-/// that already contain a gated keyword, so this never runs on a hot path.
+/// is `Some(_)` — plus (issue #985) the 9 iRules-only word operators, every
+/// `BinOp`/`UnaryOp` whose `OperatorSpec::dialects` is exactly
+/// `Some(DialectSet::IRULES)`. Computed once (not `const`: `OperatorSpec`
+/// isn't cheaply iterable in a const context) and cached for the process
+/// lifetime — W003 only calls into this after its own text prefilter narrows
+/// to expressions that already contain a gated keyword, so this never runs
+/// on a hot path.
 fn gated_expr_ops() -> &'static [GatedExprOp] {
     static TABLE: std::sync::OnceLock<Vec<GatedExprOp>> = std::sync::OnceLock::new();
     TABLE.get_or_init(|| {
-        tcl_syntax::expr::operators::ALL_BIN_OPS
+        use tcl_registry::prelude::DialectSet;
+        let version_gated = tcl_syntax::expr::operators::ALL_BIN_OPS
             .iter()
             .filter_map(|op| {
                 let spec = op.spec();
@@ -3331,11 +3374,33 @@ fn gated_expr_ops() -> &'static [GatedExprOp] {
                 Some(GatedExprOp {
                     op: spec.spelling,
                     word_shaped: spec.spelling.as_bytes()[0].is_ascii_alphabetic(),
-                    min_version,
+                    gate: ExprOpGate::MinVersion(min_version),
                     tip: w003_tip_string(spec.spelling),
                 })
-            })
-            .collect()
+            });
+        let irules_bin = tcl_syntax::expr::operators::ALL_BIN_OPS
+            .iter()
+            .filter_map(|op| {
+                let spec = op.spec();
+                (spec.dialects == Some(DialectSet::IRULES)).then(|| GatedExprOp {
+                    op: spec.spelling,
+                    word_shaped: true,
+                    gate: ExprOpGate::IrulesOnly,
+                    tip: w003_tip_string(spec.spelling),
+                })
+            });
+        let irules_un = tcl_syntax::expr::operators::ALL_UNARY_OPS
+            .iter()
+            .filter_map(|op| {
+                let spec = op.spec();
+                (spec.dialects == Some(DialectSet::IRULES)).then(|| GatedExprOp {
+                    op: spec.spelling,
+                    word_shaped: true,
+                    gate: ExprOpGate::IrulesOnly,
+                    tip: w003_tip_string(spec.spelling),
+                })
+            });
+        version_gated.chain(irules_bin).chain(irules_un).collect()
     })
 }
 
@@ -3367,12 +3432,24 @@ pub(super) fn contains_gated_word(text: &str) -> bool {
 }
 
 /// The gated operator name for `word` under a dialect whose `expr`-grammar
-/// base version is `base` — `None` when `word` isn't one of the
-/// dialect-gated keywords, or `base` already satisfies its minimum version.
-fn gated_operator_name(word: &str, base: tcl_dialect::TclVersion) -> Option<&'static str> {
+/// base version is `base` and whose iRules-identity is `is_irules` — `None`
+/// when `word` isn't one of the dialect-gated keywords, or the active
+/// dialect already satisfies its gate (version threshold met, or the
+/// dialect *is* iRules for an iRules-only word).
+fn gated_operator_name(
+    word: &str,
+    base: tcl_dialect::TclVersion,
+    is_irules: bool,
+) -> Option<&'static str> {
     gated_expr_ops()
         .iter()
-        .find(|g| g.op == word && base < g.min_version)
+        .find(|g| {
+            g.op == word
+                && match g.gate {
+                    ExprOpGate::MinVersion(min) => base < min,
+                    ExprOpGate::IrulesOnly => !is_irules,
+                }
+        })
         .map(|g| g.op)
 }
 

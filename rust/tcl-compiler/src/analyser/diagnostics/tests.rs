@@ -10044,6 +10044,73 @@ fn w003_bpf_accepts_both_tips_on_its_tcl_9_runtime() {
     assert!(w003_hits("if {$x lt $y} { puts hi }", "bpf").is_empty());
 }
 
+/// Issue #985: the 9 iRules word operators (`contains`, `and`, …) used to
+/// evaluate with zero warning outside the iRules dialect — the lexer's word-
+/// operator recognition, the parser, and the runtime evaluator
+/// (`tcl_expr_eval.rs`'s `apply_irules_string_op`) all treat them as valid
+/// regardless of dialect, so `if {$x contains "foo"}` silently ran (and
+/// silently misbehaved, since core Tcl has no such operator) in every
+/// non-iRules dialect. W003 now flags every one of them, the same family
+/// that already flags TIP 201 (`in`/`ni`) and TIP 461 (`lt`/`le`/`gt`/`ge`).
+#[test]
+fn w003_fires_on_irules_word_operators_outside_irules() {
+    for (src, op) in [
+        (r#"if {$x contains "foo"} { puts hi }"#, "contains"),
+        (r#"if {$x starts_with "foo"} { puts hi }"#, "starts_with"),
+        (r#"if {$x ends_with "foo"} { puts hi }"#, "ends_with"),
+        (r#"if {$x equals "foo"} { puts hi }"#, "equals"),
+        (r#"if {$x matches_glob "foo*"} { puts hi }"#, "matches_glob"),
+        (
+            r#"if {$x matches_regex "foo.*"} { puts hi }"#,
+            "matches_regex",
+        ),
+        ("if {$a and $b} { puts hi }", "and"),
+        ("if {$a or $b} { puts hi }", "or"),
+        ("if {not $a} { puts hi }", "not"),
+    ] {
+        let hits = w003_hits(src, "tcl9.0");
+        assert_eq!(hits.len(), 1, "{src}: {hits:?}");
+        assert_eq!(hits[0].0, op, "{src}");
+        assert!(
+            hits[0].1.message.contains("iRules"),
+            "{}: {}",
+            src,
+            hits[0].1.message
+        );
+        // No safe mechanical rewrite exists for these — unlike `in`/`lt`,
+        // there is no portable Tcl expression these fold into.
+        assert!(hits[0].1.fixes.is_empty(), "{src}");
+    }
+}
+
+#[test]
+fn w003_silent_on_irules_word_operators_inside_irules() {
+    for src in [
+        r#"if {$x contains "foo"} { puts hi }"#,
+        r#"if {$x starts_with "foo"} { puts hi }"#,
+        r#"if {$x ends_with "foo"} { puts hi }"#,
+        r#"if {$x equals "foo"} { puts hi }"#,
+        r#"if {$x matches_glob "foo*"} { puts hi }"#,
+        r#"if {$x matches_regex "foo.*"} { puts hi }"#,
+        "if {$a and $b} { puts hi }",
+        "if {$a or $b} { puts hi }",
+        "if {not $a} { puts hi }",
+    ] {
+        assert!(w003_hits(src, "f5-irules").is_empty(), "{src}");
+    }
+}
+
+#[test]
+fn w003_fires_on_irules_word_operator_in_unbraced_multiword_expr() {
+    // Exercises `emit_w003_dialect_invalid_expr_words`, the sibling path for
+    // `expr`'s unbraced multi-word form (see
+    // `w003_fires_on_unbraced_multiword_expr_at_a_tight_span` above).
+    let hits = w003_hits("expr $a contains $b", "tcl9.0");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].0, "contains");
+    assert!(w003_hits("expr $a contains $b", "f5-irules").is_empty());
+}
+
 // Option-gating semantics (dialect-profile-model.md §5.2, Milestone 4):
 // intersects membership + version ceiling, replacing the old `contains`
 // rule that silently dropped inherited vendor options and never gated a
