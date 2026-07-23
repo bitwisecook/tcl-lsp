@@ -26,7 +26,8 @@ LSP Features (all editors) (5):
   APL (iApp Presentation Language) support: Semantic highlighting, cross-file diagnostics, and embedded Tcl support for
 F5 iApp APL (Application Presentation Language) files.
   Code Lens: Reference counts shown above each proc, class, TclOO method, classmethod,
-and property definition. Click the lens to find all references.
+property, constructor, and destructor definition. Click the lens to find
+all references.
   Compiler Explorer: Interactive web panel showing bytecode disassembly, AST, IR, and compiler passes, plus a structured WebAssembly disassembly view with click-to-source navigation, call and branch target cross-linking, control-flow arrows, and labelled structural ops.
   Folding: Code folding for procs, namespaces, event handlers, and braced blocks.
   Template Snippets: 16 built-in Tcl and iRules code templates insertable from the command palette.
