@@ -43,6 +43,32 @@
 //! like the proc / class lenses, so it resolves to a clickable
 //! `tcl-lsp.showReferences` command the same way (issue #956).
 //!
+//! Per-property reference-count lenses: each `property` declaration gets
+//! the same treatment, sourced from
+//! [`crate::references::property_references_for_class`] instead — a
+//! class-local `my <property>` scan, since properties have no `$obj
+//! property` dispatch shape and no inheritance model. Carries a
+//! `{class}::property::{name}` qname
+//! ([`tcl_compiler::analyser::class_property_key`]) so it resolves through
+//! the same click-to-references flow (issue #992).
+//!
+//! Constructor / destructor next-chain lenses: a class's own explicit
+//! `constructor` / `destructor` also gets a lens, but a conventional
+//! dispatch-count has no general meaning for either (both are invoked
+//! positionally — `ClassName new`/`create`/`destroy` — never by name). The
+//! one name-independent relationship that *is* meaningful: an overriding
+//! subclass's own constructor/destructor chaining up to this one via
+//! `next` / `nextto`. Sourced from
+//! [`crate::references::constructor_next_chain_references`] /
+//! [`crate::references::destructor_next_chain_references`], which resolve
+//! the chain through the full class hierarchy (via
+//! [`tcl_compiler::analyser::class_hierarchy::ClassHierarchy::constructor_next_provider`]
+//! / `destructor_next_provider`), not just the immediate superclass.
+//! Carries a `{class}::constructor` / `{class}::destructor` qname
+//! ([`tcl_compiler::analyser::class_constructor_key`] /
+//! `class_destructor_key`) for the same click-to-references flow (issue
+//! #992).
+//!
 //! Cross-document reference counts: when the
 //! caller threads a [`crate::workspace_index::WorkspaceIndex`]
 //! and the document's URI, the proc / class lens count
@@ -56,6 +82,9 @@
 //!   object's class needs whole-workspace instance-type flow the index
 //!   does not yet carry.  Proc / class lenses do fold in cross-document
 //!   command-head call sites via the workspace index.
+//! * Constructor / destructor next-chain counts are current-document only
+//!   too, for the same reason: a subclass declared in a sibling document
+//!   that `next`-chains to a superclass defined here is not counted.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -180,22 +209,29 @@ pub fn code_lenses(
     lenses
 }
 
-/// Emit per-member reference-count lenses for every method and classmethod
-/// in `class_def`.  The count for each member is the number of call sites
-/// [`references::method_references_for_class`] resolves — the single source
-/// of truth also used by Find All References and rename — so the lens title
-/// and the peek can never drift.  That resolver covers intra-class
-/// `my method` dispatch, external `$obj method` sites (resolved through the
-/// analyser's `instance_classes` variable-type tracking), and the call sites
-/// of any subclass that inherits (does not override) this definition.
+/// Emit per-member reference-count lenses for every method, classmethod, and
+/// property in `class_def`.  The count for a method / classmethod is the
+/// number of call sites [`references::method_references_for_class`]
+/// resolves; for a property it's [`references::property_references_for_class`]
+/// instead (a class-local `my <property>` scan — properties have no `$obj
+/// property` dispatch shape and no inheritance model).  Both are the same
+/// single source of truth also used by Find All References and rename, so
+/// the lens title and the peek can never drift.  The method/classmethod
+/// resolver covers intra-class `my method` dispatch, external `$obj method`
+/// sites (resolved through the analyser's `instance_classes` variable-type
+/// tracking), and the call sites of any subclass that inherits (does not
+/// override) this definition.
 ///
 /// Each lens carries a `{class}::method::{name}` / `{class}::classmethod::{name}`
-/// `qname` ([`tcl_compiler::analyser::class_member_key`]) — the same
+/// / `{class}::property::{name}` `qname`
+/// ([`tcl_compiler::analyser::class_member_key`] /
+/// [`tcl_compiler::analyser::class_property_key`]) — the same
 /// `qname`-present shape as the proc / class lenses — so the server's
 /// `code_lens_resolve` treats it as resolvable and attaches the *clickable*
 /// `tcl-lsp.showReferences` command instead of leaving it an inert bare
 /// title (issue #956: the `#724` "reference is not active" defect,
-/// previously fixed for proc/class lenses, recurring for methods).
+/// previously fixed for proc/class lenses, recurring for methods; issue
+/// #992 extends the same treatment to properties).
 fn emit_class_member_lenses(
     source: &str,
     dialect: &str,
@@ -256,6 +292,56 @@ fn emit_class_member_lenses(
             m.name_span,
             tcl_compiler::analyser::class_member_key(class_q, name, true),
             reference_count_title(member_ref_count(name, true)),
+            lenses,
+        );
+    }
+    for (name, p) in &class_def.properties {
+        if p.name_span.is_empty() {
+            continue;
+        }
+        let count = crate::references::property_references_for_class(
+            source, dialect, analysis, class_q, name,
+        )
+        .map_or(0, |(_decl, calls)| calls.len());
+        push_lens(
+            p.name_span,
+            tcl_compiler::analyser::class_property_key(class_q, name),
+            reference_count_title(count),
+            lenses,
+        );
+    }
+    // Constructor / destructor next-chain lenses (issue #992): unlike a
+    // method/classmethod/property, neither has a name to dispatch on, so a
+    // conventional reference count has no general meaning — the one
+    // meaningful, name-independent relationship is an overriding subclass's
+    // own constructor/destructor chaining up to this one via `next`/`nextto`.
+    // Only a class that declares its own effective constructor/destructor
+    // gets one of these lenses, same "declared members only" rule as every
+    // other lens kind.
+    if let Some(ctor) = class_def.constructors.last()
+        && !ctor.name_span.is_empty()
+    {
+        let count = crate::references::constructor_next_chain_references(
+            source, dialect, analysis, class_q,
+        )
+        .map_or(0, |(_decl, calls)| calls.len());
+        push_lens(
+            ctor.name_span,
+            tcl_compiler::analyser::class_constructor_key(class_q),
+            reference_count_title(count),
+            lenses,
+        );
+    }
+    if let Some(dtor) = &class_def.destructor
+        && !dtor.name_span.is_empty()
+    {
+        let count =
+            crate::references::destructor_next_chain_references(source, dialect, analysis, class_q)
+                .map_or(0, |(_decl, calls)| calls.len());
+        push_lens(
+            dtor.name_span,
+            tcl_compiler::analyser::class_destructor_key(class_q),
+            reference_count_title(count),
             lenses,
         );
     }
@@ -525,6 +611,182 @@ mod tests {
         assert_eq!(qnames.len(), 2, "{lenses:?}");
         assert!(qnames.contains("::C::method::foo"), "{qnames:?}");
         assert!(qnames.contains("::C::classmethod::foo"), "{qnames:?}");
+    }
+
+    // property-member lenses (issue #992)
+
+    /// `property` is Tcl 9.0+ — the shared `analyse()` helper above fixes the
+    /// dialect at 8.6, so these tests analyse at 9.0 directly (mirrors
+    /// `rename.rs`'s property-rename tests).
+    fn analyse90(source: &str) -> AnalysisResult {
+        let mut a = Analyser::new();
+        a.analyse(source, "tcl9.0").clone()
+    }
+
+    #[test]
+    fn lens_counts_property_my_dispatch_within_class_body() {
+        // A property's auto-generated accessor dispatches through `my
+        // <property>`, exactly like a method — `bump` reads/writes `size`
+        // twice, so its lens must read "2 references" the same way a
+        // twice-dispatched method would (`lens_counts_method_calls_within_class_body`).
+        let src = "oo::class create Widget {\n    property size -get {return $mySize} -set {set mySize $value}\n    method bump {} { my size ; my size }\n}\n";
+        let analysis = analyse90(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let size_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("size lens");
+        assert_eq!(size_lens.command_title, "2 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_reports_zero_for_unused_property() {
+        let src = "oo::class create Widget {\n    property size\n}\n";
+        let analysis = analyse90(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let size_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("size lens");
+        assert_eq!(size_lens.command_title, "0 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn property_lens_carries_class_property_key_qname() {
+        let src = "oo::class create Widget {\n    property size\n}\n";
+        let analysis = analyse90(src);
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let size_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("size lens");
+        assert_eq!(
+            size_lens.qname,
+            tcl_compiler::analyser::class_property_key("::Widget", "size"),
+            "{lenses:?}"
+        );
+        assert!(!size_lens.qname.is_empty(), "empty qname stays inert");
+    }
+
+    #[test]
+    fn property_qname_never_collides_with_a_same_named_method() {
+        // FP guard mirroring `method_and_classmethod_qnames_never_collide_on_same_name`:
+        // methods and properties are independent tables, so a `property
+        // color` and a `method color` on the same class must still get two
+        // distinct, disambiguated lenses.
+        let src = "oo::class create C {\n    property color\n    method color {} {}\n}\n";
+        let analysis = analyse90(src);
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let qnames: std::collections::HashSet<&str> = lenses
+            .iter()
+            .filter(|l| l.range.start_line == 1 || l.range.start_line == 2)
+            .map(|l| l.qname.as_str())
+            .collect();
+        assert_eq!(qnames.len(), 2, "{lenses:?}");
+        assert!(qnames.contains("::C::property::color"), "{qnames:?}");
+        assert!(qnames.contains("::C::method::color"), "{qnames:?}");
+    }
+
+    #[test]
+    fn lens_counts_each_name_independently_in_a_multi_name_property_declaration() {
+        // `property x y` declares two independent properties from one command
+        // (verified structurally by `extract_property_defs`'s own
+        // `property_subcommand_records_multiple_names` test) — each name must
+        // get its own lens with its own independently-counted `my <name>`
+        // dispatch sites, not a shared or merged count.
+        let src = "oo::class create Widget {\n    property x y\n    method bump {} { my x ; my y ; my y }\n}\n";
+        let analysis = analyse90(src);
+        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let x_lens = lenses
+            .iter()
+            .find(|l| l.qname == "::Widget::property::x")
+            .expect("x lens");
+        let y_lens = lenses
+            .iter()
+            .find(|l| l.qname == "::Widget::property::y")
+            .expect("y lens");
+        assert_eq!(x_lens.command_title, "1 reference", "{lenses:?}");
+        assert_eq!(y_lens.command_title, "2 references", "{lenses:?}");
+    }
+
+    // constructor / destructor next-chain lenses (issue #992)
+
+    #[test]
+    fn constructor_lens_counts_subclass_next_chain() {
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n}\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let base_ctor_lens = lenses
+            .iter()
+            .find(|l| l.qname == "::Base::constructor")
+            .expect("Base constructor lens");
+        assert_eq!(base_ctor_lens.command_title, "1 reference", "{lenses:?}");
+        // `Sub` also declares its own constructor, so it gets a lens too —
+        // nothing chains *into* Sub's, so it reads zero.
+        let sub_ctor_lens = lenses
+            .iter()
+            .find(|l| l.qname == "::Sub::constructor")
+            .expect("Sub constructor lens");
+        assert_eq!(sub_ctor_lens.command_title, "0 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn destructor_lens_counts_subclass_next_chain() {
+        let src = "oo::class create Base {\n    destructor { }\n}\noo::class create Sub {\n    superclass Base\n    destructor { next }\n}\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let base_dtor_lens = lenses
+            .iter()
+            .find(|l| l.qname == "::Base::destructor")
+            .expect("Base destructor lens");
+        assert_eq!(base_dtor_lens.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
+    fn constructor_lens_reports_zero_when_no_subclass_chains() {
+        let src = "oo::class create Base {\n    constructor {} { }\n}\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let ctor_lens = lenses
+            .iter()
+            .find(|l| l.qname == "::Base::constructor")
+            .expect("constructor lens");
+        assert_eq!(ctor_lens.command_title, "0 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn class_with_no_explicit_constructor_or_destructor_gets_neither_lens() {
+        let src = "oo::class create Plain {\n    method use {} {}\n}\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        assert!(
+            lenses
+                .iter()
+                .all(|l| !l.qname.ends_with("::constructor") && !l.qname.ends_with("::destructor")),
+            "{lenses:?}"
+        );
+    }
+
+    #[test]
+    fn constructor_lens_carries_class_constructor_key_qname() {
+        let src = "oo::class create Bar {\n    constructor {} { }\n}\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let ctor_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("constructor lens");
+        assert_eq!(
+            ctor_lens.qname,
+            tcl_compiler::analyser::class_constructor_key("::Bar"),
+            "{lenses:?}"
+        );
     }
 
     // workspace-index: cross-document reference counts

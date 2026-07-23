@@ -396,9 +396,22 @@ dispatch, and `next` / `nextto` super-dispatch — including calls nested in a
 (any combination, arbitrarily deep). A `classmethod` dispatches on the
 class's own command rather than an instance, so it is found through every
 bare `ClassName method` call, including from a subclass's own command when
-the subclass inherits (does not override) the classmethod. Expr math
-functions resolve to their backing proc, so a `proc ::tcl::mathfunc::foo` is
-found (and renamed) from every `foo(...)` used inside `expr`.
+the subclass inherits (does not override) the classmethod. A `property`
+(`oo::configurable`'s `property name -get {...} -set {...}` form) is found
+through every `my <property>` dispatch inside the class body — properties
+have no `$obj property` dispatch shape or inheritance model, so this is a
+class-local scan. Expr math functions resolve to their backing proc, so a
+`proc ::tcl::mathfunc::foo` is found (and renamed) from every `foo(...)`
+used inside `expr`.
+
+A `constructor` or `destructor` is invoked positionally
+(`ClassName new`/`create`/`destroy`), never dispatched by name, so it has no
+general reference story the way a method does — but an overriding
+subclass's own constructor/destructor chaining up to it via `next` /
+`nextto` is still a name-independent reference, and code lens / find
+references surface it, resolved through the full class hierarchy (skipping
+an intermediate ancestor that declares no constructor/destructor of its
+own).
 
 A class is found through every use of its name, not only `<Class> new`. A
 `superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class

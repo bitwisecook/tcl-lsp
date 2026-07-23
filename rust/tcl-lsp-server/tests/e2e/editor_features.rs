@@ -289,6 +289,124 @@ fn test_find_references_on_classmethod_finds_bare_class_command_dispatch() {
     );
 }
 
+#[test]
+fn test_property_lens_counts_my_dispatch_and_resolves_clickable() {
+    // TP mirroring `test_method_lens_counts_external_obj_dispatch_issue_864`:
+    // a `property`'s auto-generated accessor is dispatched via `my <name>`,
+    // just like a method, so its lens must count those sites and resolve to
+    // a clickable command the same way (issue #992).
+    // `property` is Tcl 9.0+, so pin the dialect via the in-source directive
+    // (shifts every line below down by one).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\noo::class create Widget {\n    property size -get {return $mySize} -set {set mySize $value}\n    method bump {} { my size ; my size }\n}\n",
+    );
+    let ls = lenses(&mut lsp, &uri);
+    // `property size` is on line 2 (0-based).
+    let command = resolve_member_lens_on_line(&mut lsp, &ls, 2);
+    assert_eq!(command["title"], json!("2 references"), "{ls:?}");
+    assert_eq!(
+        command["command"],
+        json!("tcl-lsp.showReferences"),
+        "property lens resolved to an inert command: {command:?}"
+    );
+    // The lens count must equal Find All References (declaration excluded) on
+    // the `size` property-name token (`    property size` → col 13).
+    let refs = match lsp.references(&uri, 2, 13, false) {
+        Value::Array(a) => a,
+        _ => Vec::new(),
+    };
+    assert_eq!(refs.len(), 2, "peek disagrees with lens: {refs:?}");
+}
+
+#[test]
+fn test_property_lens_zero_when_unused() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\noo::class create Widget {\n    property size\n}\n",
+    );
+    let ls = lenses(&mut lsp, &uri);
+    let command = resolve_member_lens_on_line(&mut lsp, &ls, 2);
+    assert_eq!(command["title"], json!("0 references"), "{ls:?}");
+    assert_eq!(
+        command["command"],
+        json!("tcl-lsp.showReferences"),
+        "{command:?}"
+    );
+}
+
+#[test]
+fn test_property_method_constructor_and_class_all_get_lenses_issue_992() {
+    // Repro from issue #992: a class with a `property`, a `constructor`, and
+    // a `method` gets a lens for every one of them — the class itself, the
+    // property, the constructor, and the method. The constructor's lens is
+    // scoped to the next-chain relationship (issue #992's own "Constructors
+    // / destructors" follow-up), not a general dispatch count, so it reads
+    // "0 references" here (nothing chains into it).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\noo::class create Widget {\n    property size -get {return $mySize} -set {set mySize $value}\n    constructor {} { set mySize 10 }\n    method use {} { return 1 }\n}\nset w [Widget new]\n$w use\n",
+    );
+    let ls = lenses(&mut lsp, &uri);
+    assert_eq!(
+        ls.len(),
+        4,
+        "class + property + constructor + method: {ls:?}"
+    );
+
+    let class_lens = resolve_member_lens_on_line(&mut lsp, &ls, 1);
+    assert_eq!(class_lens["title"], json!("1 reference"), "{ls:?}");
+
+    let property_lens = resolve_member_lens_on_line(&mut lsp, &ls, 2);
+    assert_eq!(property_lens["title"], json!("0 references"), "{ls:?}");
+    assert_eq!(property_lens["command"], json!("tcl-lsp.showReferences"));
+
+    let constructor_lens = resolve_member_lens_on_line(&mut lsp, &ls, 3);
+    assert_eq!(constructor_lens["title"], json!("0 references"), "{ls:?}");
+    assert_eq!(constructor_lens["command"], json!("tcl-lsp.showReferences"));
+
+    let method_lens = resolve_member_lens_on_line(&mut lsp, &ls, 4);
+    assert_eq!(method_lens["title"], json!("1 reference"), "{ls:?}");
+    assert_eq!(method_lens["command"], json!("tcl-lsp.showReferences"));
+}
+
+#[test]
+fn test_constructor_lens_counts_and_resolves_subclass_next_chain() {
+    // TP for issue #992's own follow-up: a subclass constructor chaining to
+    // its superclass's via `next` is a name-independent but still
+    // meaningful reference — the superclass constructor's lens must count
+    // it and resolve to a clickable command, the same as every other lens
+    // kind.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n}\n",
+    );
+    let ls = lenses(&mut lsp, &uri);
+    // `Base`'s constructor is on line 1.
+    let command = resolve_member_lens_on_line(&mut lsp, &ls, 1);
+    assert_eq!(command["title"], json!("1 reference"), "{ls:?}");
+    assert_eq!(
+        command["command"],
+        json!("tcl-lsp.showReferences"),
+        "constructor lens resolved to an inert command: {command:?}"
+    );
+    // The lens count must equal Find All References (declaration excluded)
+    // on the `constructor` keyword (`    constructor` → col 4).
+    let refs = match lsp.references(&uri, 1, 4, false) {
+        Value::Array(a) => a,
+        _ => Vec::new(),
+    };
+    assert_eq!(refs.len(), 1, "peek disagrees with lens: {refs:?}");
+}
+
 // -- TestDocumentLinks ---------------------------------------------------
 
 #[test]

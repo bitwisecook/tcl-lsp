@@ -479,6 +479,34 @@ pub fn class_member_key(class_qualified: &str, name: &str, is_classmethod: bool)
     }
 }
 
+/// Stable composite key naming a class's `property`: `{class}::property::{name}`.
+/// Properties are a third, independent member table — never a `method` or
+/// `classmethod` — so this never collides with [`class_member_key`]'s output;
+/// same round-trip rationale (item-tree diff, code-lens `codeLens/resolve`).
+#[must_use]
+pub fn class_property_key(class_qualified: &str, name: &str) -> String {
+    format!("{class_qualified}::property::{name}")
+}
+
+/// Stable composite key naming a class's own effective `constructor`:
+/// `{class}::constructor`.  Unlike a method or property there is exactly one
+/// dispatch-reachable constructor per class (`oo::configurable` allows
+/// several to be *declared*, but only the last is ever effective — see
+/// [`crate::analyser::class_hierarchy::ClassHierarchy::constructor_provider`]),
+/// so this carries no `{name}` suffix; same round-trip rationale as
+/// [`class_member_key`] / [`class_property_key`].
+#[must_use]
+pub fn class_constructor_key(class_qualified: &str) -> String {
+    format!("{class_qualified}::constructor")
+}
+
+/// The `destructor` counterpart of [`class_constructor_key`]:
+/// `{class}::destructor`.
+#[must_use]
+pub fn class_destructor_key(class_qualified: &str) -> String {
+    format!("{class_qualified}::destructor")
+}
+
 /// One per-object method added by an `oo::objdefine` (issue #945
 /// fault 5): the method declaration plus the **objdefine site's**
 /// receiver offset, the anchor a consumer resolves to a variable

@@ -309,12 +309,78 @@ pub fn references(
         return out;
     }
 
+    // `constructor` / `destructor` keyword — the next-chain reference story
+    // (issue #992); neither has a name to dispatch on, so no `my`/`$obj`
+    // call-site scan applies the way it does for a method. Tried *before*
+    // the ordinary class-member lookup below: a class may legally also
+    // declare a `method`/`property` literally named `constructor` or
+    // `destructor` (the keyword form and a same-named ordinary member are
+    // independent), and `class_member_references`'s cursor-outside-any-span
+    // fallback (see `resolve_member_span`) would otherwise claim a cursor
+    // sitting on the special keyword token for that unrelated same-named
+    // member instead (Codex review on #1011, P2). This resolver only ever
+    // matches when the cursor sits strictly on the keyword's own name span,
+    // so trying it first never steals a real member reference.
+    if let Some(out) = constructor_or_destructor_references(&ctx, &word) {
+        return out;
+    }
+
     // Class-member references (cursor inside a class body on a member name).
     if let Some(out) = class_member_references(&ctx, &word) {
         return out;
     }
 
     Vec::new()
+}
+
+/// Build references for a `constructor` / `destructor` keyword: when the
+/// cursor sits inside a class body on the keyword token of that class's own
+/// *effective* declaration (the last `constructor`, or the single
+/// `destructor`), surface its declaration plus every `next`/`nextto` site —
+/// in *any* class — whose MRO target resolves to it
+/// ([`constructor_next_chain_references`] / [`destructor_next_chain_references`]).
+///
+/// A cursor on a shadowed (non-last) `constructor` declaration resolves to
+/// nothing here — `oo::configurable` allows several, but only the last is
+/// ever reachable, so an earlier one has no reference story worth surfacing.
+fn constructor_or_destructor_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+    } = *ctx;
+    if word != "constructor" && word != "destructor" {
+        return None;
+    }
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let class_def = analysis
+        .all_classes
+        .values()
+        .find(|cd| cd.body_span.start() < cursor_offset && cursor_offset < cd.body_span.end())?;
+    let name_span = if word == "constructor" {
+        class_def.constructors.last().map(|c| c.name_span)
+    } else {
+        class_def.destructor.as_ref().map(|d| d.name_span)
+    }?;
+    if !(name_span.start() <= cursor_offset && cursor_offset <= name_span.end()) {
+        return None;
+    }
+    let (decl_span, call_spans) = if word == "constructor" {
+        constructor_next_chain_references(source, dialect, analysis, &class_def.qualified_name)
+    } else {
+        destructor_next_chain_references(source, dialect, analysis, &class_def.qualified_name)
+    }?;
+    Some(build_member_ranges(
+        source,
+        line_index,
+        decl_span,
+        call_spans,
+        include_declaration,
+    ))
 }
 
 /// Shared immutable inputs for the per-kind reference resolvers, so each
@@ -757,6 +823,35 @@ pub(crate) fn method_references_for_class(
     Some((decl_span, call_spans))
 }
 
+/// Resolve a property's declaration span plus every `my <property>` call
+/// site — the property counterpart of [`method_references_for_class`], and
+/// the single source of truth the code lens and the reference peek both
+/// defer to so their counts can never drift.  Properties have no `$obj
+/// property` dispatch shape and no inheritance model (confirmed against
+/// tclsh 9.0.4), so a class-local `my <name>` scan — the same matcher
+/// [`scan_my_method_sites`] uses for methods — is the whole story; a
+/// property's own `property <name>` declaration is never itself a `my
+/// <name>` call site, so there's no declaration span to skip. Returns
+/// `None` when `class_q` has no property named `property`.
+pub(crate) fn property_references_for_class(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    property: &str,
+) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    let class_def = analysis.all_classes.get(class_q)?;
+    let decl_span = class_def.properties.get(property)?.name_span;
+    let call_spans = scan_my_method_sites(
+        source,
+        dialect,
+        &collect_member_bodies(class_def),
+        property,
+        None,
+    );
+    Some((decl_span, call_spans))
+}
+
 /// The `next` / `nextto` super-dispatch spans inside `class_q`'s own `method`
 /// body — polymorphic **references** to `method`.  Kept out of
 /// [`method_references_for_class`] because that set also drives *rename*, and
@@ -784,6 +879,109 @@ pub fn method_next_dispatch_spans(
         return Vec::new();
     };
     scan_next_dispatch_sites(source, dialect, m.body_span)
+}
+
+/// Canonicalise a written class name (`nextto`'s argument) to the qualified
+/// form keyed in `analysis.all_classes`, owner-aware — the same resolution
+/// `definition.rs`'s go-to-definition `next`/`nextto` handling uses (kept as
+/// a separate copy rather than shared: it is a two-line wrapper around the
+/// registry's own `resolve_class_name`, so a cross-module `pub(crate)`
+/// promotion would cost more than it saves). Falls back to the written name
+/// when nothing resolves, so the caller's MRO lookup simply finds no match.
+fn canonicalise_class_name(analysis: &AnalysisResult, owner: &str, name: &str) -> String {
+    let tail_index =
+        tcl_compiler::analyser::class_hierarchy::build_tail_index(analysis.all_classes.keys());
+    tcl_compiler::analyser::class_hierarchy::resolve_class_name(
+        name,
+        owner,
+        |n| analysis.all_classes.contains_key(n),
+        &tail_index,
+    )
+    .unwrap_or_else(|| name.to_owned())
+}
+
+/// Every `next` / `nextto` call site — across every other class in this
+/// document — whose target resolves (via the class hierarchy's MRO) to
+/// `class_q`'s own effective constructor: a subclass constructor chaining
+/// up to its superclass's is a name-independent but still meaningful
+/// "referenced by an overriding subclass" relationship (issue #992), the
+/// constructor counterpart of [`method_next_dispatch_spans`]. Constructors
+/// have no name-based dispatch, so this next-chain scan is the *whole*
+/// reference story for one — no `my`/`$obj` call-site scan applies, unlike
+/// [`method_references_for_class`]. Returns `None` when `class_q` declares
+/// no explicit constructor.
+///
+/// Not gated by `DefinerFamily` (Codex review on #1011, P1): `next` /
+/// `nextto` and the MRO this walks (`ClassHierarchy::mro_map`, built by
+/// `tcloo_linearise` for every `ClassDef` alike) are `TclOO`-specific —
+/// Snit / [incr Tcl] classes have different chaining models the registry
+/// doesn't even register a `next`/`nextto` command for. This is not a new
+/// gap: [`method_next_dispatch_spans`] / [`ClassHierarchy::next_provider`]
+/// have run unconditionally across every definer family since they were
+/// introduced, with no existing itcl/Snit exclusion (unlike
+/// `find_obj_method_call_sites`'s classmethod dispatch-shape check, which
+/// *does* consult `is_itcl_class` for an unrelated concern). Gating only
+/// the constructor/destructor path here would be an inconsistent partial
+/// fix, not a real one — a proper fix scopes the whole next/nextto
+/// reference system by family, out of scope for this change.
+pub(crate) fn constructor_next_chain_references(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    let class_def = analysis.all_classes.get(class_q)?;
+    let decl_span = class_def.constructors.last()?.name_span;
+    let hierarchy = analysis.class_hierarchy();
+    let mut call_spans = Vec::new();
+    for (other_q, other_cd) in &analysis.all_classes {
+        if other_q == class_q {
+            continue;
+        }
+        let Some(ctor) = other_cd.constructors.last() else {
+            continue;
+        };
+        for (span, target) in scan_next_dispatch_sites_with_target(source, dialect, ctor.body_span)
+        {
+            let start_from = target.map(|t| canonicalise_class_name(analysis, other_q, &t));
+            if hierarchy.constructor_next_provider(other_q, start_from.as_deref(), source)
+                == Some(class_q)
+            {
+                call_spans.push(span);
+            }
+        }
+    }
+    Some((decl_span, call_spans))
+}
+
+/// The destructor counterpart of [`constructor_next_chain_references`].
+/// Returns `None` when `class_q` declares no explicit destructor.
+pub(crate) fn destructor_next_chain_references(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    let class_def = analysis.all_classes.get(class_q)?;
+    let decl_span = class_def.destructor.as_ref()?.name_span;
+    let hierarchy = analysis.class_hierarchy();
+    let mut call_spans = Vec::new();
+    for (other_q, other_cd) in &analysis.all_classes {
+        if other_q == class_q {
+            continue;
+        }
+        let Some(dtor) = &other_cd.destructor else {
+            continue;
+        };
+        for (span, target) in scan_next_dispatch_sites_with_target(source, dialect, dtor.body_span)
+        {
+            let start_from = target.map(|t| canonicalise_class_name(analysis, other_q, &t));
+            if hierarchy.destructor_next_provider(other_q, start_from.as_deref()) == Some(class_q) {
+                call_spans.push(span);
+            }
+        }
+    }
+    Some((decl_span, call_spans))
 }
 
 /// The external `$obj method` / bare `objcmd method` call sites for `method`
@@ -998,33 +1196,57 @@ fn scan_my_method_region(
 /// exactly like [`scan_my_method_region`] / [`scan_obj_method_region`] — a
 /// `next` inside an `if` / `while` / `foreach` / `switch` / `try` / `catch`
 /// body is found too (issue #957's general form).
+///
+/// Thin wrapper over [`scan_next_dispatch_sites_with_target`] that drops the
+/// `nextto` target argument — a method's `next`/`nextto` is flagged as a
+/// reference purely by presence, never MRO-resolved, so the target is
+/// irrelevant here (unlike the constructor/destructor next-chain resolvers,
+/// which need it to disambiguate `nextto`).
 fn scan_next_dispatch_sites(
     source: &str,
     dialect: &str,
     body: tcl_lexer::Span,
 ) -> Vec<tcl_lexer::Span> {
-    let mut out: Vec<tcl_lexer::Span> = Vec::new();
+    scan_next_dispatch_sites_with_target(source, dialect, body)
+        .into_iter()
+        .map(|(span, _target)| span)
+        .collect()
+}
+
+/// [`scan_next_dispatch_sites`], but paired with `nextto`'s target-class
+/// argument as written (`None` for plain `next`, which takes no argument, or
+/// for a malformed `nextto` with no argument token). Feeds the
+/// constructor/destructor next-chain resolvers
+/// ([`constructor_next_chain_references`] / [`destructor_next_chain_references`]),
+/// which must know *which* class a `nextto` names to decide whether it
+/// chains to the class under a given lens.
+fn scan_next_dispatch_sites_with_target(
+    source: &str,
+    dialect: &str,
+    body: tcl_lexer::Span,
+) -> Vec<(tcl_lexer::Span, Option<String>)> {
+    let mut out = Vec::new();
     if body.is_empty() {
         return out;
     }
     let (start, end) = strip_outer_braces(source, body);
     if start < end {
-        scan_next_dispatch_region(source, dialect, start, end, 0, &mut out);
+        scan_next_dispatch_region_with_target(source, dialect, start, end, 0, &mut out);
     }
     out
 }
 
-/// Segment `source[start..end]` and append the head-token span of every
-/// `next` / `nextto` command, recursing per [`nested_dispatch_regions`].
-/// `depth` guards against runaway recursion — see
-/// [`MAX_DISPATCH_SCAN_DEPTH`].
-fn scan_next_dispatch_region(
+/// Segment `source[start..end]` and append the head-token span (plus
+/// `nextto`'s target argument, when present) of every `next` / `nextto`
+/// command, recursing per [`nested_dispatch_regions`]. `depth` guards
+/// against runaway recursion — see [`MAX_DISPATCH_SCAN_DEPTH`].
+fn scan_next_dispatch_region_with_target(
     source: &str,
     dialect: &str,
     start: usize,
     end: usize,
     depth: u32,
-    out: &mut Vec<tcl_lexer::Span>,
+    out: &mut Vec<(tcl_lexer::Span, Option<String>)>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     if start >= end || end > source.len() || depth > MAX_DISPATCH_SCAN_DEPTH {
@@ -1042,12 +1264,31 @@ fn scan_next_dispatch_region(
             if h_end <= source.len() && h_start < h_end {
                 let h = &source[h_start..h_end];
                 if h == "next" || h == "nextto" {
-                    out.push(head.span);
+                    // `texts` is the segmenter's already-*decoded* per-word
+                    // reconstruction — unlike `argv`'s token span (which
+                    // covers a braced/quoted word's raw delimiters per this
+                    // codebase's body-span convention, e.g. `{Grandparent`
+                    // for `nextto {Grandparent}`, dropping only the closer),
+                    // `texts[1]` is plain `"Grandparent"` regardless of
+                    // whether the target was written bare, braced, or
+                    // quoted. Slicing the raw span instead left a literal
+                    // `{`/`"` in the target text, which
+                    // `canonicalise_class_name` could never resolve to a
+                    // real class (Codex review on #1011, P2).
+                    let target = (h == "nextto").then(|| cmd.texts.get(1).cloned()).flatten();
+                    out.push((head.span, target));
                 }
             }
         }
         for (inner_start, inner_end) in nested_dispatch_regions(source, dialect, cmd) {
-            scan_next_dispatch_region(source, dialect, inner_start, inner_end, depth + 1, out);
+            scan_next_dispatch_region_with_target(
+                source,
+                dialect,
+                inner_start,
+                inner_end,
+                depth + 1,
+                out,
+            );
         }
     }
 }
@@ -1125,7 +1366,7 @@ fn find_class_member_references(
         // merges them) disambiguates by which declaration's own span the
         // cursor sits on rather than a fixed priority — see
         // `resolve_member_span`.
-        let (kind, member_span) = resolve_member_span(class_def, word, cursor_offset)?;
+        let (kind, _) = resolve_member_span(class_def, word, cursor_offset)?;
         if matches!(kind, MemberSel::Method | MemberSel::ClassMethod) {
             let is_classmethod = kind == MemberSel::ClassMethod;
             // Methods / classmethods: defer to the shared resolver — the *same*
@@ -1155,21 +1396,16 @@ fn find_class_member_references(
             ));
             return Some((decl, calls));
         }
-        // Properties: no `$obj prop` dispatch and no inheritance model, so a
-        // class-local `my <prop>` scan is the whole story — the same
-        // intra-class `my <name>` matcher [`scan_my_method_sites`] uses for
-        // methods (recursing into `[...]` substitutions and same-frame
-        // control-flow / `eval` bodies), just with no declaration span to
-        // skip: a property's declaration is `property <name>` in the
-        // definer body, never itself a `my <name>` call site.
-        let call_spans = scan_my_method_sites(
+        // Properties: defer to the shared resolver — the *same* one the code
+        // lens counts with — so the peek and the lens can never drift, just
+        // like the method / classmethod branch above.
+        return property_references_for_class(
             source,
             dialect,
-            &collect_member_bodies(class_def),
+            analysis,
+            &class_def.qualified_name,
             word,
-            None,
         );
-        return Some((member_span, call_spans));
     }
     None
 }
@@ -1980,6 +2216,122 @@ mod tests {
                 .any(|r| r.start_line == 5 && r.start_character > 15),
             "expected the `next` dispatch among refs: {refs:?}",
         );
+    }
+
+    // Constructor / destructor next-chain references (issue #992).
+
+    #[test]
+    fn constructor_next_chain_reference_from_direct_subclass() {
+        // `Sub`'s constructor calls plain `next`, chaining to `Base`'s —
+        // cursor on `Base`'s own `constructor` keyword must surface that
+        // chain as a reference.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n}\n";
+        let analysis = analyse(src);
+        // `constructor` keyword on line 1, col 4.
+        let refs = references(src, "tcl", 1, 6, &analysis, true);
+        // decl (line 1) + the `next` call site (line 5).
+        assert_eq!(refs.len(), 2, "{refs:?}");
+        assert!(refs.iter().any(|r| r.start_line == 5), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_skips_non_overriding_subclass() {
+        // `Sub` inherits `Base`'s constructor outright (declares none of its
+        // own) — nothing to chain, so `Base`'s constructor stays unreferenced.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_not_counted_without_next() {
+        // `Sub` declares its own constructor but never calls `next` — a
+        // legitimate full override, not a chain.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { set x 1 }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_skips_ancestor_with_no_own_constructor() {
+        // `Mid` declares no constructor of its own; `Sub`'s `next` must
+        // still reach `Base` (the actual MRO-effective provider), not `Mid`.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Mid {\n    superclass Base\n}\noo::class create Sub {\n    superclass Mid\n    constructor {} { next }\n}\n";
+        let analysis = analyse(src);
+        // `Base`'s constructor (line 1) picks up the chain.
+        let base_refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert_eq!(base_refs.len(), 1, "{base_refs:?}");
+        assert_eq!(base_refs[0].start_line, 8, "{base_refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_via_nextto_explicit_target() {
+        // `nextto Grandparent` jumps past `Base` even though `Base` also has
+        // an effective constructor — only `Grandparent` picks up a reference.
+        let src = "oo::class create Grandparent {\n    constructor {} { }\n}\noo::class create Base {\n    superclass Grandparent\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { nextto Grandparent }\n}\n";
+        let analysis = analyse(src);
+        let grandparent_refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert_eq!(grandparent_refs.len(), 1, "{grandparent_refs:?}");
+        let base_refs = references(src, "tcl", 4, 6, &analysis, false);
+        assert!(base_refs.is_empty(), "{base_refs:?}");
+    }
+
+    #[test]
+    fn constructor_next_chain_reference_via_braced_nextto_target() {
+        // Regression (Codex review on #1011, P2): `nextto {Grandparent}` (a
+        // braced target, functionally identical to the bare form) must
+        // resolve exactly like `constructor_next_chain_reference_via_nextto_explicit_target`'s
+        // bare `nextto Grandparent` — the decoded word, not the raw
+        // delimited span, is what gets resolved against the class map.
+        let src = "oo::class create Grandparent {\n    constructor {} { }\n}\noo::class create Base {\n    superclass Grandparent\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { nextto {Grandparent} }\n}\n";
+        let analysis = analyse(src);
+        let grandparent_refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert_eq!(grandparent_refs.len(), 1, "{grandparent_refs:?}");
+        let base_refs = references(src, "tcl", 4, 6, &analysis, false);
+        assert!(base_refs.is_empty(), "{base_refs:?}");
+    }
+
+    #[test]
+    fn destructor_next_chain_reference_from_direct_subclass() {
+        let src = "oo::class create Base {\n    destructor { }\n}\noo::class create Sub {\n    superclass Base\n    destructor { next }\n}\n";
+        let analysis = analyse(src);
+        // `destructor` keyword on line 1, col 4.
+        let refs = references(src, "tcl", 1, 5, &analysis, true);
+        assert_eq!(refs.len(), 2, "{refs:?}");
+        assert!(refs.iter().any(|r| r.start_line == 5), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_shadowed_by_a_later_redeclaration_has_no_references() {
+        // `oo::configurable` allows several constructors; only the last is
+        // ever effective. A cursor on the shadowed first one resolves to
+        // nothing (it has no reference story worth surfacing).
+        let src = "oo::class create C {\n    constructor {} { }\n    constructor {} { }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 6, &analysis, true);
+        assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_keyword_resolves_its_own_next_chain_even_with_a_same_named_method() {
+        // Regression (Codex review on #1011, P2): a class can also declare a
+        // `method` literally named `constructor` — an independent, ordinary
+        // member sharing a name with the special keyword form. A cursor on
+        // the special `constructor` keyword must still resolve its own
+        // next-chain story, not fall through to the unrelated same-named
+        // method's (ordinary) references.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n    method constructor {} { }\n}\n";
+        let analysis = analyse(src);
+        // `Base`'s `constructor` keyword, line 1.
+        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert_eq!(
+            refs.len(),
+            1,
+            "must resolve the next-chain, not the unrelated same-named method: {refs:?}"
+        );
+        assert_eq!(refs[0].start_line, 5, "{refs:?}");
     }
 
     #[test]
