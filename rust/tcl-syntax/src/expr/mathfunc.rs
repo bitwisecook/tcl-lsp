@@ -70,13 +70,20 @@ pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
     match name {
         "min" | "max" => min_max(name, args),
         "sqrt" | "exp" | "log" | "log10" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan"
-        | "sinh" | "cosh" | "tanh" => unary_float(name, args),
-        "atan2" | "hypot" | "fmod" | "pow" => binary_float(name, args),
+        | "sinh" | "cosh" | "tanh" | "acosh" | "asinh" | "atanh" | "cbrt" | "erf" | "erfc"
+        | "exp2" | "expm1" | "gamma" | "lgamma" | "log1p" | "log2" | "logb" | "trunc" => {
+            unary_float(name, args)
+        }
+        "atan2" | "hypot" | "fmod" | "pow" | "copysign" | "dim" | "nextafter" | "remainder" => {
+            binary_float(name, args)
+        }
         "abs" | "int" | "entier" | "wide" | "double" | "bool" | "round" | "ceil" | "floor"
-        | "isqrt" | "isinf" | "isnan" | "isfinite" | "isnormal" | "issubnormal" => {
+        | "isqrt" | "isinf" | "isnan" | "isfinite" | "isnormal" | "issubnormal" | "signbit" => {
             type_conv(name, args)
         }
         "isunordered" => is_unordered(args),
+        "ldexp" => ldexp_fn(args),
+        "fma" => fma_fn(args),
         _ => None,
     }
 }
@@ -235,6 +242,23 @@ fn unary_float(name: &str, vals: &[Num]) -> Option<Num> {
         "sinh" => f64::sinh,
         "cosh" => f64::cosh,
         "tanh" => f64::tanh,
+        // TIP 745 (Tcl 9.1) C99 batch: `std` covers these directly.
+        "acosh" => f64::acosh,
+        "asinh" => f64::asinh,
+        "atanh" => f64::atanh,
+        "cbrt" => f64::cbrt,
+        "exp2" => f64::exp2,
+        "expm1" => f64::exp_m1,
+        "log1p" => f64::ln_1p,
+        "log2" => f64::log2,
+        "trunc" => f64::trunc,
+        // TIP 745: `std` has no equivalent, so these route through the
+        // portable `libm` port (see the crate-level dependency note).
+        "erf" => libm::erf,
+        "erfc" => libm::erfc,
+        "gamma" => libm::tgamma,
+        "lgamma" => libm::lgamma,
+        "logb" => logb_impl,
         _ => return None,
     };
     let arg = vals[0].as_f64();
@@ -242,11 +266,29 @@ fn unary_float(name: &str, vals: &[Num]) -> Option<Num> {
         return None;
     }
     let r = f(arg);
-    // A NaN result from a non-NaN argument is a domain error (e.g. `sqrt(-1)`).
+    // A NaN result from a non-NaN argument is a domain error (e.g. `sqrt(-1)`,
+    // `gamma` at a non-positive integer — `libm::tgamma` already returns NaN
+    // there, matching Tcl's own `CheckDoubleResult` domain-error path).
     if r.is_nan() {
         None
     } else {
         Some(Num::Float(r))
+    }
+}
+
+/// C99 `logb`: the unbiased base-2 exponent as a float. `0.0`/infinities are
+/// poles (Tcl's `CheckDoubleResult` accepts the resulting `-Inf`/`+Inf` since
+/// they're range, not domain, errors); `libm::ilogb` handles subnormals
+/// exactly via the raw exponent bits, unlike a `log2().floor()` estimate.
+fn logb_impl(x: f64) -> f64 {
+    if x == 0.0 {
+        f64::NEG_INFINITY
+    } else if x.is_infinite() {
+        f64::INFINITY
+    } else if x.is_nan() {
+        f64::NAN
+    } else {
+        f64::from(libm::ilogb(x))
     }
 }
 
@@ -262,9 +304,58 @@ fn binary_float(name: &str, vals: &[Num]) -> Option<Num> {
         "hypot" => f64::hypot,
         "fmod" => |a, b| a % b,
         "pow" => f64::powf,
+        // TIP 745: `copysign` is a `std` method; `dim` (C `fdim`),
+        // `nextafter`, and `remainder` have no `std` equivalent.
+        "copysign" => f64::copysign,
+        "dim" => libm::fdim,
+        "nextafter" => libm::nextafter,
+        "remainder" => libm::remainder,
         _ => return None,
     };
     let r = f(vals[0].as_f64(), vals[1].as_f64());
+    if r.is_nan() {
+        None
+    } else {
+        Some(Num::Float(r))
+    }
+}
+
+/// `ldexp(x, exp)` (TIP 745) — unlike every other binary math function, C's
+/// `ldexp` takes a genuine `int` exponent (Tcl's `ExprBinaryDIFunc` reads it
+/// with `Tcl_GetIntFromObj`, which rejects a double operand outright), so
+/// this doesn't fit the `binary_float` `fn(f64, f64) -> f64` shape.
+fn ldexp_fn(vals: &[Num]) -> Option<Num> {
+    if vals.len() != 2 {
+        return None;
+    }
+    let Num::Int(exp) = vals[1] else {
+        return None;
+    };
+    let m = vals[0].as_f64();
+    if m.is_nan() {
+        return None;
+    }
+    let exp_i32 = i32::try_from(exp).ok()?;
+    let r = libm::ldexp(m, exp_i32);
+    if r.is_nan() {
+        None
+    } else {
+        Some(Num::Float(r))
+    }
+}
+
+/// `fma(x, y, z)` (TIP 745) — the one ternary `expr` math function, computed
+/// via the portable `libm` fused multiply-add so results stay identical
+/// across every backend (native, WASM, eBPF) regardless of hardware FMA
+/// support.
+fn fma_fn(vals: &[Num]) -> Option<Num> {
+    if vals.len() != 3 {
+        return None;
+    }
+    if has_nan(vals) {
+        return None;
+    }
+    let r = libm::fma(vals[0].as_f64(), vals[1].as_f64(), vals[2].as_f64());
     if r.is_nan() {
         None
     } else {
@@ -296,6 +387,14 @@ fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
         "issubnormal" => Some(Num::Int(i64::from(
             v.as_f64().classify() == core::num::FpCategory::Subnormal,
         ))),
+        // TIP 745: `signbit` reads the sign bit directly (matches C's
+        // `signbit()`, which is well-defined on NaN and never a domain
+        // error) — an integer operand's sign stands in for the bit test
+        // since Tcl's own `ExprSignBitFunc` special-cases each numeric type.
+        "signbit" => Some(Num::Int(i64::from(match v {
+            Num::Int(i) => i < 0,
+            Num::Float(f) => f.is_sign_negative(),
+        }))),
         _ if matches!(v, Num::Float(f) if f.is_nan()) => None,
         "abs" => match v {
             Num::Int(i) => i.checked_abs().map(Num::Int),
@@ -440,5 +539,204 @@ mod tests {
     fn unknown_and_arity() {
         assert_eq!(dispatch("frobnicate", &[Num::Int(1)]), None);
         assert_eq!(dispatch("sqrt", &[Num::Int(1), Num::Int(2)]), None); // wrong arity
+    }
+
+    /// `added_in()` and `dispatch()` must agree on exactly which names are
+    /// implemented — the live drift bug this phase closes (previously
+    /// `added_in()` claimed Tcl 9.1 support for 21 functions `dispatch()`
+    /// didn't implement at all). For every name `added_in()` recognises
+    /// (except `rand`/`srand`, the caller's responsibility), `dispatch()`
+    /// must produce a real value for at least one in-domain argument list —
+    /// not just "some arity returns `None`", which a merely-missing arm
+    /// would also satisfy.
+    #[test]
+    fn added_in_and_dispatch_agree() {
+        const ALL_NAMES: &[&str] = &[
+            "abs",
+            "acos",
+            "acosh",
+            "asin",
+            "asinh",
+            "atan",
+            "atan2",
+            "atanh",
+            "bool",
+            "cbrt",
+            "ceil",
+            "copysign",
+            "cos",
+            "cosh",
+            "dim",
+            "double",
+            "entier",
+            "erf",
+            "erfc",
+            "exp",
+            "exp2",
+            "expm1",
+            "floor",
+            "fma",
+            "fmod",
+            "gamma",
+            "hypot",
+            "int",
+            "isfinite",
+            "isinf",
+            "isnan",
+            "isnormal",
+            "isqrt",
+            "issubnormal",
+            "isunordered",
+            "ldexp",
+            "lgamma",
+            "log",
+            "log10",
+            "log1p",
+            "log2",
+            "logb",
+            "max",
+            "min",
+            "nextafter",
+            "pow",
+            "rand",
+            "remainder",
+            "round",
+            "signbit",
+            "sin",
+            "sinh",
+            "sqrt",
+            "srand",
+            "tan",
+            "tanh",
+            "trunc",
+            "wide",
+        ];
+        for &name in ALL_NAMES {
+            if name == "rand" || name == "srand" {
+                continue;
+            }
+            assert!(
+                added_in(name).is_some(),
+                "{name}: missing from added_in() — test's own name list is stale"
+            );
+            let in_domain_args = in_domain_args_for(name);
+            assert!(
+                dispatch(name, &in_domain_args).is_some(),
+                "{name}: added_in() claims support but dispatch({name}, {in_domain_args:?}) is None"
+            );
+        }
+    }
+
+    /// A safely in-domain argument list for `name`, sized to its real arity
+    /// — used only by the agreement test above.
+    fn in_domain_args_for(name: &str) -> Vec<Num> {
+        match name {
+            "atan2" | "hypot" | "fmod" | "pow" | "copysign" | "dim" | "nextafter"
+            | "isunordered" => {
+                vec![Num::Float(1.5), Num::Float(2.5)]
+            }
+            "remainder" => vec![Num::Float(5.0), Num::Float(3.0)],
+            "ldexp" => vec![Num::Float(1.5), Num::Int(4)],
+            "fma" => vec![Num::Float(2.0), Num::Float(3.0), Num::Float(4.0)],
+            "min" | "max" => vec![Num::Int(1), Num::Int(2)],
+            "acosh" | "log" | "log10" | "log2" | "logb" => vec![Num::Float(2.0)],
+            "atanh" | "asin" | "acos" => vec![Num::Float(0.5)],
+            "log1p" => vec![Num::Float(1.0)],
+            "gamma" | "lgamma" => vec![Num::Float(5.0)],
+            "isqrt" => vec![Num::Int(9)],
+            _ => vec![Num::Float(1.5)],
+        }
+    }
+
+    #[test]
+    fn tip745_c99_batch() {
+        // Domain-safe spot checks (values chosen so no platform-dependent
+        // ULP drift can flip a NaN/finite boundary).
+        assert_eq!(dispatch("acosh", &[Num::Int(1)]), Some(Num::Float(0.0)));
+        assert!(dispatch("acosh", &[Num::Float(0.5)]).is_none()); // domain: x < 1
+        assert_eq!(dispatch("asinh", &[Num::Int(0)]), Some(Num::Float(0.0)));
+        assert_eq!(dispatch("atanh", &[Num::Int(0)]), Some(Num::Float(0.0)));
+        assert!(dispatch("atanh", &[Num::Int(2)]).is_none()); // domain: |x| > 1
+        assert_eq!(dispatch("cbrt", &[Num::Int(-8)]), Some(Num::Float(-2.0)));
+        assert_eq!(
+            dispatch("copysign", &[Num::Float(3.0), Num::Float(-1.0)]),
+            Some(Num::Float(-3.0))
+        );
+        assert_eq!(
+            dispatch("dim", &[Num::Float(1.0), Num::Float(5.0)]),
+            Some(Num::Float(0.0))
+        );
+        assert_eq!(
+            dispatch("dim", &[Num::Float(5.0), Num::Float(1.0)]),
+            Some(Num::Float(4.0))
+        );
+        assert_eq!(dispatch("erf", &[Num::Int(0)]), Some(Num::Float(0.0)));
+        assert_eq!(dispatch("erfc", &[Num::Int(0)]), Some(Num::Float(1.0)));
+        assert_eq!(dispatch("exp2", &[Num::Int(10)]), Some(Num::Float(1024.0)));
+        assert_eq!(dispatch("expm1", &[Num::Int(0)]), Some(Num::Float(0.0)));
+        assert_eq!(
+            dispatch("fma", &[Num::Float(2.0), Num::Float(3.0), Num::Float(4.0)]),
+            Some(Num::Float(10.0))
+        );
+        // `gamma(n) == (n-1)!` for positive integers.
+        assert_eq!(dispatch("gamma", &[Num::Int(5)]), Some(Num::Float(24.0)));
+        // `gamma(0)` is a pole approached from both sides (`1/x`-like): C's
+        // `tgamma` returns `+Inf` with a *range* error there, which Tcl's
+        // `CheckDoubleResult` silently accepts (only a NaN result, as at the
+        // negative-integer poles below, is a domain error).
+        assert_eq!(
+            dispatch("gamma", &[Num::Int(0)]),
+            Some(Num::Float(f64::INFINITY))
+        );
+        assert!(dispatch("gamma", &[Num::Int(-1)]).is_none()); // domain: negative-integer pole
+        assert_eq!(
+            dispatch("ldexp", &[Num::Float(1.5), Num::Int(4)]),
+            Some(Num::Float(24.0))
+        );
+        assert_eq!(dispatch("ldexp", &[Num::Float(1.5), Num::Float(4.0)]), None); // exponent must be int
+        assert_eq!(dispatch("lgamma", &[Num::Int(1)]), Some(Num::Float(0.0)));
+        // Unlike `gamma`, `lgamma` is `+Inf` (accepted, not a domain error) at
+        // *every* integer pole, including the negative ones — verified
+        // against real `tclsh9.1` (`lgamma(-1)` => `Inf`, not an error).
+        assert_eq!(
+            dispatch("lgamma", &[Num::Int(-1)]),
+            Some(Num::Float(f64::INFINITY))
+        );
+        assert_eq!(dispatch("log1p", &[Num::Int(0)]), Some(Num::Float(0.0)));
+        assert_eq!(dispatch("log2", &[Num::Int(8)]), Some(Num::Float(3.0)));
+        assert_eq!(dispatch("logb", &[Num::Int(8)]), Some(Num::Float(3.0)));
+        assert_eq!(
+            dispatch("logb", &[Num::Float(0.0)]),
+            Some(Num::Float(f64::NEG_INFINITY))
+        );
+        assert_eq!(
+            dispatch("logb", &[Num::Float(f64::INFINITY)]),
+            Some(Num::Float(f64::INFINITY))
+        );
+        assert!(
+            dispatch("nextafter", &[Num::Float(1.0), Num::Float(2.0)])
+                .unwrap()
+                .as_f64()
+                > 1.0
+        );
+        assert_eq!(
+            dispatch("remainder", &[Num::Float(5.0), Num::Float(3.0)]),
+            Some(Num::Float(-1.0))
+        );
+        assert_eq!(dispatch("signbit", &[Num::Float(-1.0)]), Some(Num::Int(1)));
+        assert_eq!(dispatch("signbit", &[Num::Float(1.0)]), Some(Num::Int(0)));
+        assert_eq!(dispatch("signbit", &[Num::Int(-5)]), Some(Num::Int(1)));
+        assert_eq!(dispatch("trunc", &[Num::Float(3.7)]), Some(Num::Float(3.0)));
+        assert_eq!(
+            dispatch("trunc", &[Num::Float(-3.7)]),
+            Some(Num::Float(-3.0))
+        );
+        // NaN input is a domain error for every unary/binary member of the batch.
+        for name in [
+            "acosh", "asinh", "atanh", "cbrt", "erf", "erfc", "exp2", "expm1", "gamma", "lgamma",
+            "log1p", "log2", "logb", "trunc",
+        ] {
+            assert_eq!(dispatch(name, &[Num::Float(f64::NAN)]), None, "{name}(NaN)");
+        }
     }
 }

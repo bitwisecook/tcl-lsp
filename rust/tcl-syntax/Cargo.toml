@@ -56,6 +56,11 @@ num-traits = { version = "0.2", optional = true }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 bitflags = "2"
+# Pure-Rust `no_std` libm port — the portable, wasm32-clean source for the
+# few TIP 745 (Tcl 9.1) C99 math functions Rust's `f64` std doesn't expose
+# (`erf`/`erfc`/`gamma`/`lgamma`/`ldexp`/`logb`/`nextafter`/`remainder`/
+# `dim`). Already a workspace precedent in `tcl-bigip-query`.
+libm = "0.2"
 
 [lints]
 workspace = true
