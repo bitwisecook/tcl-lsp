@@ -223,21 +223,62 @@ fn canon(name: &str) -> &str {
 }
 
 /// The `expr` operators, exposed in the registry as commands (`+`,
-/// `tcl::mathop::+`, `eq`, `min`, …) but evaluated inside `expr`'s bytecode, not
-/// dispatched as standalone runtime commands (bare `+` is not even a command in
-/// tclsh). A stable, closed family — matched by predicate rather than spelling
-/// out ~90 entries. `c` must already be [`canon`]ical.
+/// `tcl::mathop::+`, `eq`, …) but evaluated inside `expr`'s bytecode, not
+/// dispatched as standalone runtime commands (bare `+` is not even a command
+/// in tclsh). `c` must already be [`canon`]ical.
+///
+/// The bare spellings are derived from `tcl_syntax::expr::operators` (issue
+/// #983's unification) rather than a hand-typed list — that list used to
+/// carry a bare `max`/`min` entry left over from the same historical
+/// `mathop_generated.rs` bug documented in that file's own header
+/// (`max`/`min` were never real `::tcl::mathop` members; they're
+/// `expr` math *functions*, registered only under the qualified
+/// `tcl::mathfunc::` spellings, never bare — so this predicate never
+/// actually matched a real registry command for them; dead weight, not a
+/// live bug, since the WASM-parity scan only ever calls this on names the
+/// registry actually carries).
 fn is_expr_operator(c: &str) -> bool {
-    const BARE: &[&str] = &[
-        "!", "!=", "%", "&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>", "^",
-        "eq", "ge", "gt", "in", "le", "lt", "max", "min", "ne", "ni", "|", "~",
-    ];
-    c == "tcl::mathop" || c.starts_with("tcl::mathop::") || BARE.contains(&c)
+    c == "tcl::mathop"
+        || c.starts_with("tcl::mathop::")
+        || tcl_syntax::expr::operators::ALL_BIN_OPS
+            .iter()
+            .any(|op| op.spec().spelling == c && op.spec().mathop_shape.is_some())
+        || tcl_syntax::expr::operators::ALL_UNARY_OPS
+            .iter()
+            .any(|op| op.spec().spelling == c && op.spec().mathop_shape.is_some())
 }
 
 /// The reason attached to every [`is_expr_operator`] command in the report.
 const EXPR_OPERATOR_REASON: &str =
     "`expr` operator/function; evaluated inside `expr`, not a standalone runtime command";
+
+/// Whether `c` is a `tcl::mathfunc::<name>` (or `::`-qualified) command for
+/// a real `expr` math function — derived from
+/// [`tcl_syntax::expr::mathfunc::added_in`] (issue #983's unification).
+/// `c` must already be [`canon`]ical.
+///
+/// Unlike [`is_expr_operator`]'s bare mathop spellings, `::tcl::mathfunc::*`
+/// commands genuinely **are** backed — `runtime/rust/src/cmd_mathfunc.rs`'s
+/// `install()` registers a real handler for every function — just via the
+/// same dynamic-name-construction pattern `cmd_mathop.rs`'s `install()`
+/// uses (`register_builtin(&full, …)` builds `full` from a runtime string,
+/// not a `register_builtin(b"…")` literal [`scan_handlers`] can see). So
+/// this is [`Status::HandlerNative`], not [`Status::NotRequired`] — real
+/// backing the literal scan just can't detect.
+fn is_mathfunc_command(c: &str) -> bool {
+    let Some(name) = c
+        .strip_prefix("tcl::mathfunc::")
+        .or_else(|| c.strip_prefix("::tcl::mathfunc::"))
+    else {
+        return c == "tcl::mathfunc";
+    };
+    tcl_syntax::expr::mathfunc::added_in(name).is_some()
+}
+
+/// The reason attached to every [`is_mathfunc_command`] command in the
+/// report.
+const MATHFUNC_COMMAND_REASON: &str = "`::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop \
+     (register_builtin(&full, …) — not a literal the scan can see)";
 
 /// One core command's backing status.
 enum Status {
@@ -306,6 +347,9 @@ fn classify(name: &str, backed: &BTreeSet<String>) -> Status {
     }
     if let Some((_, why)) = HANDLER_EXTRA.iter().find(|(n, _)| *n == c) {
         return Status::HandlerNative(why);
+    }
+    if is_mathfunc_command(c) {
+        return Status::HandlerNative(MATHFUNC_COMMAND_REASON);
     }
     if is_expr_operator(c) {
         return Status::NotRequired(EXPR_OPERATOR_REASON);

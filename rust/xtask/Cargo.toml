@@ -38,6 +38,7 @@ anyhow = "1"
 regex = "1"
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-syntax = { path = "../tcl-syntax" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 
