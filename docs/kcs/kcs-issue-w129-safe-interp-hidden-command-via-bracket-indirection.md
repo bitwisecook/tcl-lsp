@@ -197,21 +197,34 @@ source; $cmd $file`) are **not** flagged — see decision rule 3.
    indirection shape specifically. Worth a follow-up test-only PR; not
    folded into this fix since it changes no runtime behaviour.
 7. **`namespace ensemble configure -map` redirection to a hidden command is
-   an explicitly scoped-out, pre-existing gap, not fixed here.** Only
-   `namespace ensemble create ... -map {...}` is handled by
-   `handle_namespace_ensemble` at all (`configure` is silently ignored —
-   `if args[1] != "create" { return; }`); even for `create`, a `-map` target
-   is recorded only as a *reference* (`push_command_reference`, for
-   find-references/rename), never resolved at the ensemble's own *call
-   sites* — `myEnsemble sub ...` is analysed as an ordinary call to
-   `myEnsemble` (not hidden), never as a call to the mapped target. Making
-   W129 see through ensemble-map redirection would require building
-   generic ensemble-dispatch-aware call-site resolution that does not exist
-   for *any* diagnostic today — the same theme as issue #979's
-   interprocedural call-site gap. Fixing that is a distinct, larger,
-   pre-existing architectural gap shared with #979, not specific to
-   bracket-substitution indirection; tracked separately rather than folded
-   into this fix.
+   now resolved at the ensemble's own call sites.** `handle_namespace_ensemble`
+   now accepts both `create` and `configure` (previously `configure` was
+   silently ignored — `if args[1] != "create" { return; }`); for both forms,
+   `record_ensemble_map_targets` records each `-map` target's *raw, written
+   text* (not a namespace-resolved qualified name) into a new
+   `self.ensemble_command_maps: HashMap<String, HashMap<String, String>>`,
+   keyed by the ensemble's own name (the enclosing namespace for a bare
+   `create`, or the `-command` value when given — `-command` *replaces* the
+   default naming, it does not add an alias, confirmed against real
+   `tclsh8.6` — or the resolved `NAME` argument for `configure`). A new
+   `Analyser::check_ensemble_redirect_hiding` call (from both
+   `check_indirect_hiding` and `dispatch_nested_segment`) looks up the
+   called command's first argument (the ensemble subcommand) in this map
+   and, on a hit, runs `safe_interp_visibility_gate` against the mapped
+   target exactly as if it had been called directly. Storing the *raw*
+   target text (rather than resolving it through
+   `resolve_command_qualified_name`) is deliberate: real Tcl resolves a
+   `-map` target relative to the *ensemble's own* namespace, not the
+   caller's, and a resolved qualified name would frequently be a
+   synthetic, interp-domain-prefixed name (e.g. `::@interp@s::source`)
+   that the registry lookup (bare names only) could never match — using
+   the written text, unresolved, is a deliberate, permissive-leaning
+   precision tradeoff, consistent with this fix's "prefer a false positive
+   over a missed real violation" stance for a security diagnostic (decision
+   rule 2). This closes the gap previously described here as scoped out;
+   the remaining, distinct architectural gap from issue #979 (generic
+   interprocedural call-site resolution for diagnostics other than W129) is
+   untouched and still tracked separately.
 8. **`rename` / `interp alias` do not defeat this gate, and needed no new
    handling.** `safe_interp_visibility_gate` checks the *literal, written*
    command name against the registry — it does not resolve through
@@ -231,40 +244,81 @@ source; $cmd $file`) are **not** flagged — see decision rule 3.
    lookups not resolving through renames *generally*, for other
    diagnostics); it does not apply to W129's hidden-command check.
 
-## Known, separate gap found during this investigation (not fixed here)
+## The live server's incremental path (`analyse_per_item`) — fixed
 
 `analyse_per_item` — the incremental shell/body-pass split the *live* LSP
 server always uses for diagnostics (`tcl-lsp-db`) — defers **every**
-proc/method body (via `DeferredBody`, filled by
-`analyse_proc_body_isolated` in a second, isolated pass) regardless of
-whether it is nested inside a tracked `interp eval` safe-interpreter body.
-`DeferredBody` carries no `safe_interp_stack` snapshot at all, so **W129
-never fires for a hidden call inside any proc (or, by the same mechanism,
-`apply`-lambda) body nested in a safe interpreter when analysed
-incrementally** — including a *directly-written* call with no
-bracket-substitution indirection whatsoever:
+proc/method/`apply` body (via `DeferredBody`, filled by
+`analyse_proc_body_isolated` in a second, isolated pass). `DeferredBody`
+previously carried no safe-interpreter visibility information at all, so
+W129 never fired for a hidden call inside any such body nested in a safe
+interpreter when analysed incrementally — including a *directly-written*
+call with no bracket-substitution indirection whatsoever:
 
 ```tcl
 interp create -safe s
 interp eval s { proc f {} { source foo }; f }
 ```
 
-draws no W129 through the live server's diagnostics path, even though
+drew no W129 through the live server's diagnostics path, even though
 `Analyser::analyse` (the whole-file walk — used by the `tcl diag`/`lint`
-CLIs and every existing W129 unit test) correctly flags it. This is a
-pre-existing gap, not introduced or worsened by this fix (this fix's own
-`handle_apply_command` recursion inherits the exact same limitation for the
-indirect case, symmetrically with the direct one) and it is **not specific
-to bracket-substitution indirection** — issue #1001's actual subject — so it
-is out of scope here. It is pinned by a dedicated, currently-still-red-by-
-design unit test
-(`safe_interp_w129_lost_across_per_item_deferred_proc_body_1001` in
-`tcl-compiler`'s `analyser::handlers::tests`) so a future fix threading
-`safe_interp_stack` (or an equivalent snapshot) through `DeferredBody` /
-`analyse_proc_body_isolated` has a red test to turn green. Given its
-real-world impact (it affects the live server's diagnostics for *any*
-proc/apply body in a safe interpreter, not just this idiom), it is worth
-its own tracked issue.
+CLIs and every existing W129 unit test) correctly flagged it. This was a
+pre-existing gap, not introduced by this fix, but with real-world impact
+broad enough (it affects the live server's diagnostics for *any*
+proc/apply/method body in a safe interpreter, not just this issue's
+bracket-substitution idiom) that it was folded into this same change
+rather than left to a separate issue.
+
+Fixed by threading a flattened visibility snapshot through `DeferredBody`
+and the `tcl-lsp-db` salsa cache: `Analyser::safe_interp_ctx_snapshot`
+converts the top of `self.safe_interp_stack` (a `SafeInterpCtx` whose
+`hidden_extra`/`exposed` fields are `HashSet<String>`) into a
+`(bool, Vec<String>, Vec<String>)` — sorted `Vec`s, not `HashSet`s, because
+this snapshot must round-trip through `tcl-lsp-db`'s
+`#[salsa::interned] ItemBodyKey`, whose fields must be `Eq + Hash + Clone`,
+which `HashSet` does not implement. Both `handle_proc_command`,
+`handle_apply_command`, and the TclOO method-body push site in `oo.rs` now
+capture this snapshot into `DeferredBody::safe_interp_ctx` at defer time;
+`analyse_proc_body_isolated` pushes it back onto a fresh `Analyser`'s
+`safe_interp_stack` before analysing the deferred body, so the isolated
+second pass sees the same visibility state the shell pass had. `tcl-lsp-db`
+carries the same field through `ItemBodyKey` end to end (both the
+`ItemBodyKey::new(...)` construction site and the `DeferredBody`
+reconstruction in `item_body_analysis`) so the production incremental path
+gets identical coverage to `Analyser::analyse`, not just the test-only
+`analyse_per_item` entry point.
+
+One narrower limitation remains, deliberately not fixed, because it would
+require threading interpreter *identity* (`interp_path_stack` /
+`self.interpreters`), not just a visibility snapshot, through
+`DeferredBody` — a larger, separate change: a `proc` that locally
+*redefines* a hidden name **nested inside** a deferred body does not
+suppress W129 for a later call to that redefined name within the *same*
+body, under incremental analysis only (`Analyser::analyse`'s whole-file
+walk is unaffected, since it never loses interpreter identity in the first
+place). Concretely:
+
+```tcl
+interp create -safe s
+interp eval s {
+    proc f {} {
+        proc source {args} { return ok }
+        source foo
+    }
+    f
+}
+```
+
+still draws W129 on the inner `source foo` call under `analyse_per_item`,
+even though the local redefinition makes it a false positive (the call
+truly is safe at run time). This can only ever produce a spurious
+diagnostic, never miss a real violation, so it stays on the acceptable
+side of this fix's "prefer a false positive over a missed real violation"
+stance (decision rule 2) — unlike the gap this whole fix closes, which
+could miss a real violation. Pinned by
+`safe_interp_w129_nested_redefinition_inside_deferred_body_still_flagged_1001`,
+which documents and asserts the current (over-flagging) behaviour rather
+than silently regressing it in either direction.
 
 ## Failure modes
 
@@ -275,14 +329,18 @@ its own tracked issue.
   would widen this walker's general scope (every other diagnostic starting
   to fire inside `[list apply ...]` bodies everywhere) — guarded against by
   gating every new call site on `!self.safe_interp_stack.is_empty()`.
-- Assuming `rust/tcl-vm`'s `UNSAFE`-command list is authoritative for the
-  static registry's `Traits::SAFE_INTERP_HIDDEN` set: `tcl-vm` additionally
-  hides `after`/`vwait`, which the registry does not currently mark
-  `SAFE_INTERP_HIDDEN` (only the 13 commands this note's companion
-  diagnostic page lists are marked). This discrepancy is unrelated to
-  bracket-substitution indirection and is not addressed by this fix —
-  noted here so a future contributor does not assume the two sets are
-  already reconciled.
+- `rust/tcl-vm`'s `UNSAFE`-command list previously over-hid `after` and
+  `vwait`, disagreeing with the static registry's `Traits::SAFE_INTERP_HIDDEN`
+  set (only the 13 commands this note's companion diagnostic page lists are
+  marked, and real `tclsh8.6` confirms neither `after` nor `vwait` is hidden
+  by `-safe`). Fixed by removing both from `UNSAFE` in both
+  `rust/tcl-vm/src/interp.rs` and the WASM runtime's `runtime/rust/src/interp.rs`
+  equivalent, with a pinning comment; verified with
+  `after_and_vwait_remain_callable_in_a_safe_interp` (see test anchors).
+  This discrepancy was unrelated to bracket-substitution indirection but,
+  like the per-item gap above, was folded into this same change given its
+  direct relevance to this issue's runtime-severity investigation
+  (decision rule 6).
 
 ## Triage checklist
 
@@ -294,14 +352,21 @@ its own tracked issue.
    actually carries `ArgRole::Body` / `LambdaLiteral` / `CommandPrefix` for
    the command it sits in (`registry.arg_indices_for_role`) — if not, the
    gate is correctly silent (decision rule 4).
-3. For an `apply`-lambda-body case specifically, check whether the call is
-   reached via `Analyser::analyse` (works) or `analyse_per_item` (currently
-   does not, for *any* proc/apply body in a safe interpreter — the separate
-   gap above, not this fix's concern).
-4. If a hidden command is reached via `namespace ensemble configure -map`
-   or an ensemble's call site generally, that is the pre-existing,
-   documented-separate gap in decision rule 7 — not a regression in this
-   fix.
+3. For an `apply`/proc/method-body case, both `Analyser::analyse` (the
+   whole-file walk) and `analyse_per_item` (the live server's incremental
+   path) now carry safe-interpreter visibility into deferred bodies; if
+   only one of the two flags a case, that is a real regression, not the
+   old known gap (which is fixed — see the section above).
+4. If a hidden command is reached via `namespace ensemble create` or
+   `configure -map`, `check_ensemble_redirect_hiding` should catch it
+   (decision rule 7) — if it doesn't, check whether the `-map` target text
+   or the ensemble key (bare vs. explicit `-command`) actually matches what
+   `record_ensemble_map_targets` stored, before assuming a new gap.
+5. A local redefinition of a hidden command's name **nested inside** a
+   deferred body (proc/apply/method) not suppressing a later same-body call
+   under `analyse_per_item` is the one remaining, deliberately-accepted,
+   over-flagging-only limitation — see the end of the per-item section
+   above, not a bug to chase.
 
 ## Test anchors
 
@@ -326,18 +391,43 @@ its own tracked issue.
   `safe_interp_w129_list_quoted_apply_safe_command_not_flagged_1001` (TN),
   `safe_interp_w129_redefined_command_not_flagged_through_indirection_1001`,
   `safe_interp_w129_alias_bridged_command_not_flagged_through_indirection_1001`,
-  `safe_interp_w129_lost_across_per_item_deferred_proc_body_1001` (pins the
-  separate, out-of-scope per-item gap above).
+  `safe_interp_w129_ensemble_create_map_redirect_to_hidden_command_1001`,
+  `safe_interp_w129_ensemble_configure_map_redirect_to_hidden_command_1001`,
+  `safe_interp_w129_ensemble_default_name_map_redirect_to_hidden_command_1001`,
+  `safe_interp_w129_ensemble_map_redirect_to_safe_command_not_flagged_1001`
+  (TN), `ensemble_map_redirect_outside_any_safe_interp_is_untouched_1001`
+  (no scope-creep guard),
+  `safe_interp_w129_reaches_deferred_proc_body_under_per_item_1001`,
+  `safe_interp_w129_reaches_deferred_apply_body_under_per_item_1001`,
+  `safe_interp_w129_reaches_deferred_method_body_under_per_item_1001`,
+  `deferred_proc_body_outside_any_safe_interp_is_untouched_under_per_item_1001`
+  (no scope-creep guard),
+  `safe_interp_w129_nested_redefinition_inside_deferred_body_still_flagged_1001`
+  (pins the narrower, accepted, over-flagging-only limitation described
+  above).
 - `rust/tcl-compiler/src/signature_scan/command_prefix.rs` —
   `list_quoted_command_segment` (new shared primitive); existing
   `extract_list_quoted_prefix_head` tests continue to pass against it
   unchanged.
 - `rust/tcl-lsp-server/tests/e2e/issue1001.rs` — full end-to-end coverage
   against the real, packaged native server for every path that does not
-  depend on the separate per-item/`DeferredBody` gap above (list-quoted
-  direct hidden command in both `Body` and `CommandPrefix` positions, the
-  plain-data FP guard, direct nested substitution, `{*}`-expanded
-  list-quoted head, the safe-command FP guard through list-quoted `apply`).
+  depend on the (now-fixed, but deliberately not re-exercised at the e2e
+  layer) per-item/`DeferredBody` case (list-quoted direct hidden command in
+  both `Body` and `CommandPrefix` positions, the plain-data FP guard, direct
+  nested substitution, `{*}`-expanded list-quoted head, the safe-command FP
+  guard through list-quoted `apply`).
+- `rust/tcl-vm/tests/safe_interp_e2e.rs` (new) — runtime-severity coverage
+  confirming `tcl-vm`'s bytecode VM already enforces hidden-command
+  rejection at execution time, independent of the static lint, for every
+  indirection shape this note enumerates:
+  `hidden_command_direct_call_raises_invalid_command_name`,
+  `hidden_command_via_expand_list_quoting_raises_invalid_command_name`,
+  `hidden_command_via_eval_of_built_string_raises_invalid_command_name`,
+  `hidden_command_via_ensemble_map_redirect_raises_invalid_command_name`,
+  `rename_cannot_resurrect_a_hidden_command`,
+  `after_and_vwait_remain_callable_in_a_safe_interp` (pins the
+  `UNSAFE`-list fix above),
+  `safe_interp_hides_every_implemented_command_in_the_registry_set`.
 
 ## Related
 

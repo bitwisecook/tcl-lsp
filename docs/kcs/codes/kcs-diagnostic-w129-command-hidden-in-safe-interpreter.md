@@ -30,14 +30,18 @@ because C Tcl never runs it.
 
 The check also follows a hidden command through `[...]` bracket-substitution
 indirection — a direct nested call (`set x [source b.tcl]`), `{*}` expansion
-of a built command, and the pervasive `package ifneeded name ver [list apply
+of a built command, the pervasive `package ifneeded name ver [list apply
 {dir {...}} $dir]` deferred-command idiom (also seen as `-command [list
 apply {...} $x]`, `after idle [list apply {...} $x]`, `trace add ...
-command [list apply {...} $x]`) — so a hidden `source` nested inside such a
-lambda body is flagged the same way a direct `source` call would be.  The
-underlying runtime already refuses every one of these shapes at execution
-time regardless of whether this diagnostic catches it ahead of time — this
-check is early, editor-time feedback, not the enforcement mechanism itself.
+command [list apply {...} $x]`), and a `namespace ensemble create`/`configure
+-map` redirection to a hidden target — so a hidden `source` nested inside
+such a lambda body, or reached by calling an ensemble subcommand mapped to
+it, is flagged the same way a direct `source` call would be.  This applies
+equally whether the code is analysed as a whole file or incrementally by
+the running editor session.  The underlying runtime already refuses every
+one of these shapes at execution time regardless of whether this diagnostic
+catches it ahead of time — this check is early, editor-time feedback, not
+the enforcement mechanism itself.
 
 ## Symptoms
 
