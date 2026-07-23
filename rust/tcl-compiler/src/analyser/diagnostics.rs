@@ -345,6 +345,8 @@ impl Analyser {
             }
         }
 
+        self.emit_method_body_diagnostics(cu, registry, &cbn_proc_index, &traced_globals);
+
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
         self.emit_var_command_diagnostics(cu, registry);
@@ -363,6 +365,81 @@ impl Analyser {
         // emitting the indirect head references and their writable
         // literal-anchored twins.
         self.settle_const_dispatches(cu);
+    }
+
+    /// `TclOO`/snit method bodies (issue #923 idx 77, main audit wave, high
+    /// severity): `cu.methods` is kept in a *separate* map from
+    /// `cu.procedures` precisely so [`Self::emit_cfg_ssa_diagnostics_with_cu`]'s
+    /// procs loop was historically unaffected by their addition (see
+    /// [`crate::compilation_unit::CompilationUnit::methods`]'s own doc) — but
+    /// that meant the entire CFG/SSA dataflow family (W210 read-before-set
+    /// and siblings) silently never ran on any method body at all, a
+    /// systemic false-negative gap: tomato's real `Vector3d.tcl::* {type}`
+    /// reads `$other` (a variable belonging to a *sibling* method, never
+    /// bound in `*`'s own scope) and crashes at runtime the moment it's
+    /// called with an object operand (tclsh8.6/9.0.4-verified) — the exact
+    /// same unbound-read shape inside a plain `proc` already fires W210
+    /// twice, but zero diagnostics fired here. No `::when::`/`ConnectionScope`
+    /// handling needed — a method's qualified name (`{class}::{method}`)
+    /// never has that prefix, so every one of the procs loop's
+    /// iRule-specific branches would always take their empty-set arm
+    /// anyway.
+    fn emit_method_body_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        cbn_proc_index: &crate::interprocedural::ProcIndex,
+        traced_globals: &HashSet<String>,
+    ) {
+        for (qname, fu) in &cu.methods {
+            let method_ir = cu.ir_module.methods.get(qname);
+            // Known-bound-at-entry names for this method: its own params
+            // *plus* `MethodDef::instance_vars` (class-level `variable`
+            // declarations + the method's own — TclOO auto-binds these in
+            // every method's scope with no visible `variable` statement in
+            // the body itself). Without instance vars, naively running W210
+            // here would flood false positives on every ordinary
+            // instance-variable read; without params,
+            // `emit_read_before_set_diagnostics` / `emit_return_phi_undef_w210`
+            // would *also* flood false positives on the method's own
+            // parameters — both special-case a real parameter via a
+            // *separate* `ir_proc.params` lookup keyed by
+            // `ir_module.procedures`, which a method's qualified name is
+            // never in (verified empirically: a throwaway probe against
+            // `method DotProduct {other} { ... $other ... }` flagged
+            // `other` — the method's own, used parameter — before params
+            // were folded in here too). Both emitters already consult
+            // `extra_known_defined` redundantly alongside `ir_proc.params`
+            // for exactly this case, so this is the minimal fix — no need
+            // to plumb a second `ir_proc`-style lookup through every
+            // consumer. `cross_event_vars` (W211/W220 suppression) needs
+            // the same set for a parallel reason: a "setter" method that
+            // writes an instance var with no local read is not a dead
+            // store, since another method reads it later — mirrors the
+            // existing cross-function-global mechanism above
+            // (`globals_written` / `cross_event_imports`), just
+            // object-instance-scoped instead of interpreter-global-scoped.
+            let known_bound: HashSet<String> = method_ir.map_or_else(HashSet::new, |m| {
+                m.instance_vars
+                    .iter()
+                    .chain(m.params.iter())
+                    .cloned()
+                    .collect()
+            });
+            let mut cross_event_vars = known_bound.clone();
+            cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
+                &fu.cfg,
+                cbn_proc_index,
+            ));
+            cross_event_vars.extend(traced_globals.iter().cloned());
+            self.emit_cfg_ssa_diagnostics_for_function_full(
+                fu,
+                &cu.ir_module,
+                &known_bound,
+                &cross_event_vars,
+            );
+            self.emit_channel_diagnostics(fu, registry);
+        }
     }
 
     /// Per-function diagnostic dispatcher.

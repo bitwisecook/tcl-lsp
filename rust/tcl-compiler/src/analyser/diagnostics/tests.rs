@@ -4982,6 +4982,107 @@ fn codes_for(src: &str) -> Vec<String> {
         .collect()
 }
 
+// TclOO/snit method-body CFG/SSA diagnostics (issue #923 idx 77)
+
+#[test]
+fn method_body_read_before_set_now_flags_w210() {
+    // TP — the finding's own real repro shape, reduced: `nico-robert_tomato`'s
+    // Vector3d.tcl `method * {type}` reads `$other`, a variable belonging to
+    // a *sibling* method (`DotProduct {other}`), never bound in `*`'s own
+    // scope — tclsh8.6/9.0.4 both crash with `can't read "other": no such
+    // variable` the moment `*` runs on an object operand. The exact same
+    // unbound-read shape inside a plain `proc` already fired W210; a TclOO
+    // method body previously got zero diagnostics at all, because the whole
+    // CFG/SSA dataflow family (`emit_cfg_ssa_diagnostics_for_function_full`)
+    // was only ever run over `cu.procedures`, never `cu.methods`.
+    let src = "oo::class create Vector3d {\n    variable _x\n    constructor {x} { set _x $x }\n    method DotProduct {other} { return [expr {$_x * $other}] }\n    method Buggy {type} { return [my DotProduct $other] }\n}\n";
+    let codes = codes_for(src);
+    assert_eq!(
+        codes,
+        vec!["W210".to_string()],
+        "the unbound `$other` read inside Buggy must flag exactly once: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_instance_variable_read_does_not_false_positive_w210() {
+    // FP guard — `variable _x` declared at class level auto-binds `_x` in
+    // *every* method's scope with no visible `variable` statement in the
+    // method body itself (real TclOO semantics); a naive fix that just
+    // iterates `cu.methods` without threading `MethodDef::instance_vars`
+    // into the read-before-set suppression set would flood a false W210 on
+    // every ordinary instance-variable read — this is that read, alone,
+    // with no sibling bug present.
+    let src = "oo::class create P {\n    variable _x\n    constructor {x} { set _x $x }\n    method X {} { return $_x }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "a legitimate instance-variable read must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_own_parameter_read_does_not_false_positive_w210() {
+    // FP guard — a method's *own* declared parameter must not flag W210
+    // either. `emit_read_before_set_diagnostics` / `emit_return_phi_undef_w210`
+    // both special-case a real parameter via a separate `ir_module.procedures`
+    // lookup keyed by the function's qualified name, which a method's
+    // qualified name is never in (methods live in `ir_module.methods`, a
+    // different map) — so without also folding `MethodDef::params` into the
+    // suppression set, every method parameter would falsely read-before-set
+    // (caught empirically while building this fix: an earlier version that
+    // only threaded `instance_vars` still flagged `other` in `DotProduct
+    // {other}` itself, and `x` in the constructor).
+    let src =
+        "oo::class create P {\n    method DotProduct {other} { return [expr {1 * $other}] }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "a method's own used parameter must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_setter_write_with_no_local_read_does_not_false_positive_dead_store() {
+    // FP guard — a "setter" method that writes an instance variable with no
+    // local read is not a dead store (W220) or unused variable (W211):
+    // another method reads the value later. Mirrors the pre-existing
+    // cross-function-global suppression (`globals_written_by_procs`), just
+    // object-instance-scoped.
+    let src = "oo::class create P {\n    variable _x\n    method SetX {v} { set _x $v }\n    method GetX {} { return $_x }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W220".to_string()) && !codes.contains(&"W211".to_string()),
+        "a setter's instance-variable write must not flag dead-store/unused: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_ordinary_unused_local_still_flags_w211() {
+    // TN — the fix must not blanket-suppress every diagnostic inside a
+    // method body: a genuinely unused *local* (not a param, not an instance
+    // var) still flags W211, exactly as it would inside a plain proc.
+    let src = "oo::class create P {\n    method Foo {} {\n        set unused 1\n        return ok\n    }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W211".to_string()),
+        "a genuinely unused local inside a method must still flag W211: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_unbound_read_inside_switch_arm_still_flags_w210() {
+    // TN — a sanity check that the new loop reaches a method's full CFG,
+    // not just a shallow top-level scan: the unbound read is nested inside
+    // a `switch` arm.
+    let src = "oo::class create P {\n    method Foo {n} {\n        switch $n {\n            1 { return $missing }\n        }\n        return 0\n    }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "an unbound read nested inside a switch arm must still flag W210: {codes:?}"
+    );
+}
+
 #[test]
 fn info_exists_control_still_flags_w210() {
     // Baseline: a plain read of an unset local flags W210.

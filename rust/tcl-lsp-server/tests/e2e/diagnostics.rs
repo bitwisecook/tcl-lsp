@@ -3393,3 +3393,48 @@ fn issue_968_user_defined_mathfunc_override_still_resolves_end_to_end() {
         codes(&diags)
     );
 }
+
+/// idx 77 (differential-audit main audit wave, high severity, tomato
+/// corpus): `Vector3d.tcl`'s `method * {type}` reads `$other`, a variable
+/// belonging to a *sibling* method (`DotProduct {other}`), never bound in
+/// `*`'s own scope — tclsh8.6/9.0.4 both crash with `can't read "other": no
+/// such variable` the instant `*` runs on an object operand. The entire
+/// CFG/SSA dataflow diagnostic family (W210 read-before-set and its
+/// siblings) previously never ran on any `TclOO`/snit method body at all —
+/// a systemic false-negative gap, not a one-off miss — because the
+/// per-function diagnostic loop only ever iterated `cu.procedures`, never
+/// `cu.methods`. The identical unbound-read shape inside a plain `proc`
+/// already fired W210.
+#[test]
+fn method_body_unbound_sibling_parameter_read_flags_w210_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Vector3d {\n    variable _x\n    constructor {x} { set _x $x }\n    method DotProduct {other} { return [expr {$_x * $other}] }\n    method Buggy {type} { return [my DotProduct $other] }\n}\n",
+    );
+    assert!(
+        has_code(&diags, "W210"),
+        "the unbound `$other` read inside Buggy must flag: {:?}",
+        codes(&diags)
+    );
+}
+
+/// FP guard (issue #923 idx 77): the fix must not flood false W210s on
+/// ordinary instance-variable reads or a method's own parameters —
+/// `TclOO` auto-binds class-level `variable` declarations in every
+/// method's scope with no visible `variable` statement in the body itself.
+#[test]
+fn method_body_instance_variable_and_own_parameter_reads_stay_clean_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create P {\n    variable _x\n    constructor {x} { set _x $x }\n    method DotProduct {other} { return [expr {$_x * $other}] }\n}\n",
+    );
+    assert!(
+        !has_code(&diags, "W210"),
+        "legitimate instance-variable / own-parameter reads must not flag: {:?}",
+        codes(&diags)
+    );
+}
