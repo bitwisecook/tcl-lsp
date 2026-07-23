@@ -26,8 +26,8 @@ current commit list).
 
 **tl;dr:** A deep differential-audit campaign against real-world Tcl code
 found 107 confirmed LSP correctness bugs total (22 in tcllib, 85 across 7
-other corpora — the "main wave"). 17 tcllib findings are fixed, tested, and
-pushed to this branch (§3/§6a); 3 tcllib findings remain, each with a
+other corpora — the "main wave"). 18 tcllib findings are fixed, tested, and
+pushed to this branch (§3/§6a); 2 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
@@ -199,6 +199,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `e0ebda9` | tcllib idx 121 | `record_instance_creation`/`class_from_constructor_subst` only recognised a literal class-name bareword at a `new`/`create` constructor call — tcllib's `httpd/httpd.tcl:1970-1994` instead flows the class name through a single, unconditional `set` one line earlier (`set class ::Derived; set obj [$class create NAME]`), so `instance_classes` never bound `obj`, leaving hover/go-to-definition/references on a later `$obj method` call silently empty (tclsh9.0/8.6-verified the dispatch itself works). Fixed by extending idx 94's `ConstDispatchSite` settle-late discipline: a new `PendingInstanceClassSite` is recorded when a constructor's class head is a plain `$var`, then settled once the CFG/SSA `CompilationUnit` exists via `value_provenance::const_contributors`, binding `instance_classes` only when every reaching definition agrees on one known class (abstains soundly on a branch-ambiguous or genuinely dynamic value). The settle call must run *before* `emit_var_command_diagnostics` in the same pass (unlike `settle_const_dispatches`, which only feeds `command_invocations`) — that pass reads `instance_classes` to suppress W307/validate W308, and settling too late left a newly-discovered W307 false positive on the very call site the fix was meant to clear. That W307/W308 gate turned out to have its own independent copy of the same gap: `harvest_constructor_object_types` (the SSA type-lattice's separate constructor scanner) hit the identical `$var`-headed limitation — extended with a new `harvest_indirect_constructor_class` reusing the same `class_var_head_constructor_subst` shape-parse and `const_contributors` resolution, so the type lattice agrees with hover/definition on the exact same dispatch. |
 | `c031d1d` | tcllib idx 122 | W210 false-fired for an `upvar`-populated variable whenever the writing proc is called from inside a `while`/`if` **condition** rather than a bare statement — real tcllib repro `cmdline.tcl`'s `getopt`/`getKnownOpt` chain, `while {[set err [getopt argv $opts opt arg]]} { ... }` (tclsh9.0/8.6-verified the condition's own substitution, including the write, completes before the body runs). Three compounding gaps: (1) `condition_command_out_vars` only recognised 4 hardcoded builtins (`catch`/`scan`/`gets`/`regexp`), never the general known-upvar-proc/global-write-proc resolution every other embedded-substitution site already gets — fixed with a new `CfgBuilder::condition_out_vars` unioning both, used by `lower_if`/`lower_while`. (2) A `while`/`for` whose condition is *purely* a command substitution freezes the whole loop into an opaque `Statement::Barrier` (no `defs` field at all) instead of calling `lower_while`/`lower_for` — its own `uses_of` textually scans the un-lowered condition+body text for `$var` reads, but nothing populated defs, so fix (1) alone couldn't reach it; fixed by pushing a synthetic `<cond>` `Statement::Call` carrying `condition_out_vars`'s result immediately before the barrier. (3) `upvar_defs_from_text`/`global_write_defs_from_text` only checked the outermost command's own first word, so a wrapping command around the real call (`set err [getopt ...]`, the actual tcllib shape) hid it — a pre-existing gap in the general (non-condition) mechanism too, confirmed via a plain `set x [set err [getopt ...]]` statement; fixed by recursing into each matched token's own inner text, bounded by a new `MAX_EMBEDDED_SUBST_DEPTH` guard. |
 | `72a0d6d` | tcllib idx 18 | W210 false-fired for a variable an `upvar`+`uplevel` "custom control structure" proc populates, whenever the analyser only knows about that proc's own *caller* — real tcllib repro `modules/page/util_flow.tcl`'s `::page::util::flow`, a plain wrapper `proc` that hands its own `fvar`/`nvar`/`script` params unchanged to a snit constructor one call-hop away, which does the actual `upvar`/`uplevel` work (tclsh9.0/8.6-verified the idiom runs cleanly). `detect_upvar_procs` only ever scanned each proc's own body for *direct* `upvar` statements, with no transitive notion that a pass-through wrapper is itself an upvar-write target one frame further out. Fixed with a new `upvar_info::transitive_upvar_info_for` (+ `walk_script_for_transitive_calls`/`walk_stmt_for_transitive_calls`, mirroring `collect_upvar_targets`'s own body-walk shape): for a candidate proc not yet known, matches any `Statement::Call` to an already-known upvar proc whose call-site args feed the callee's own upvar-source parameter with a bare `$paramName` naming one of the candidate's own parameters unchanged (a callee with an unresolvable target widens the candidate the same way). `detect_upvar_procs` runs this to a fixed point after its original scan, so an N-hop wrapper chain resolves too, bounded by proc count. Deliberately out of scope: the real `page::util::flow` reaches its constructor via `uplevel 1 [list ... ]`, one layer more indirect than a plain proc-to-proc call — this fix covers the direct `Statement::Call` shape only, matching what the finding's own "minimal repro confirmed" language implies was actually verified. |
+| `ef53d47` | tcllib idx 125 | `VarReferenceScanner::scan_script_uncached` re-tokenised already-extracted value/argument text with the general-purpose top-level lexer, which applies command-word rules (a bare `{…}` is a fresh, non-substituting brace-quoted word) to text that actually originated *inside* a double-quoted string, where braces are ordinary characters and substitution continues straight through them — real tcllib repro `htmlparse.tcl`'s `::htmlparse::parse`: `set vroot hmstart; eval "$cmd {$vroot} {} {} {$html}"` (tclsh9.0/8.6-verified `{$vroot}` is an ordinary substitution, same as the bare `$cmd`/`$html` beside it). The re-scan swallowed `$vroot` into literal text instead, false-firing W220 "never read" while hover/definition/references (reading the primary parser's own quote-context-tracking CST) agreed it's live. Fixed with a new `Lexer::as_quoted_body` builder (`tcl-lexer`, seeds `in_quote = true` from byte 0, reusing `parse_quoted`'s own dispatch) and a `var_refs.rs` `scan_tokens` mode split: the outermost scan (every external `scan_word`/`scan_script` call) uses quoted-body dispatch, while a nested `[…]` substitution's own content — genuinely a fresh Tcl command, where `[foo {$bar}]`'s `{$bar}` really is a literal non-substituting argument — keeps the ordinary top-level dispatch. Surfaced two latent false positives the bug had been accidentally masking: `itcl::class`/`snit::widget`/`snit::type`/`snit::widgetadaptor` were missing the registry's `body_kind: Structural` classification `oo::class` already carries, so their body argument fell through to the same flat, now-more-accurate scan and (with no suppression path at that enclosing-scope layer) W210'd every `$this`/instance/`common` variable reference inside — fixed by adding the missing classification to all four specs. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -341,33 +342,32 @@ from scratch:
 | `06-main-audit-results-PARTIAL-49of105.json` | Superseded by the `COMPLETE` file below — kept for history (idx 0–48 only, the first half of the wave). |
 | `06-main-audit-results-COMPLETE-105of105.json` | **Complete.** All 105 main-wave findings (idx 0–104) differentially audited: 85 CONFIRMED, 20 REFUTED. **Triaged** — see §6b for the severity/corpus/feature breakdown, the full up-to-date fixed/remaining list, and priority-ordered tables (kept current there; not duplicated here to avoid drift). |
 | `07-remaining-tcllib-findings-14.json` | The 14 tcllib CONFIRMED findings not yet fixed (full detail: summary, failure_scenario, oracle_output, lsp_output, root_cause_hint, repro_path — repro files themselves are gone, scratchpad-only, but the hints are detailed enough to rebuild a repro in minutes). |
-| `08-research-plans-PARTIAL-8of14.json` | **Partial — 8 of 14 done.** Refined, current-code-verified fix plans for 8 of the 14 remaining tcllib findings (idx 3, 9, 105, 106, 110, 113, 116, 120), produced by a research-only agent fan-out (no file edits) that re-checked each root-cause hint against the *current* (post-merge) code and proposed concrete changes + test scenarios. idx 24, 125, 128 do not have refined plans yet — use `07`'s `root_cause_hint` field directly for those, which is still quite detailed. (idx 18, idx 121, and idx 122 are now fixed — see §3/§6a.)
+| `08-research-plans-PARTIAL-8of14.json` | **Partial — 8 of 14 done.** Refined, current-code-verified fix plans for 8 of the 14 remaining tcllib findings (idx 3, 9, 105, 106, 110, 113, 116, 120), produced by a research-only agent fan-out (no file edits) that re-checked each root-cause hint against the *current* (post-merge) code and proposed concrete changes + test scenarios. idx 24, 128 do not have refined plans yet — use `07`'s `root_cause_hint` field directly for those, which is still quite detailed. (idx 18, idx 121, idx 122, and idx 125 are now fixed — see §3/§6a.)
 
 ---
 
 ## 6. Remaining work, prioritized
 
-### 6a. tcllib — 3 CONFIRMED findings, not yet fixed
+### 6a. tcllib — 2 CONFIRMED findings, not yet fixed
 
-**idx 105, 106, 3, 110, 113, 9, 120, 116, 121, 122, and 18 are done** (fixed,
-tested, pushed — see §3's `25d6a09` / `2c48bcc` / `c022921` / `264cfdf` /
-`183baef` / `78ea6e2` / `af8c3d5` / `a824ff8` / `e0ebda9` / `c031d1d` /
-`72a0d6d`
-rows); removed from the table below. 3 remain, none with a refined plan
-left — use `07`'s `root_cause_hint` directly for all of them.
+**idx 105, 106, 3, 110, 113, 9, 120, 116, 121, 122, 18, and 125 are done**
+(fixed, tested, pushed — see §3's `25d6a09` / `2c48bcc` / `c022921` /
+`264cfdf` / `183baef` / `78ea6e2` / `af8c3d5` / `a824ff8` / `e0ebda9` /
+`c031d1d` / `72a0d6d` / `ef53d47`
+rows); removed from the table below. 2 remain, neither with a refined plan
+left — use `07`'s `root_cause_hint` directly for both.
 
 All in `data/07-remaining-tcllib-findings-14.json`. Suggested order (by
 severity):
 
 | idx | severity | feature | one-line summary | refined plan? |
 |---|---|---|---|---|
-| 125 | medium | eval | W220 false-positive: `{$var}` inside a double-quoted string mis-tokenized as non-substituting brace-quoted (re-lexing loses quote context). | no |
 | 128 | medium | package_loading | `PackageResolver::parse_pkg_index` ignores `if {...} { return }` reachability guards in `pkgIndex.tcl`, over-suppressing W123. | no |
 | 24 | medium | autoindex | `hover()` never falls back to the cross-document/autoload resolution tiers that `definition()`/`references()` already use. | no |
 
-Each of these follows the exact same playbook as the 11 already-fixed
-findings: read root_cause_hint (no refined plan remains for any of these
-3) → confirm
+Each of these follows the exact same playbook as the 12 already-fixed
+findings: read root_cause_hint (no refined plan remains for either of these
+2) → confirm
 still-reproduces against current code → check `tclsh9.0`/`tclsh8.6` ground
 truth if not already fully confirmed → registry-driven fix reusing §4's
 mechanisms where applicable → unit tests (TP/FP/TN/FN) + lsp_e2e test →
@@ -647,7 +647,7 @@ unknown ✓ (idx 110 done; interp-create angle done), aliasing ✓ (idx 113
 done), safe-/sub-interpreters ✓✓ (idx 111, 9 both done), tracing ✓✓ (idx
 115, 116 both done), tricky indirection ✓✓ (idx
 118/119 done), tclOO ✓✓ (idx 120, 121 both done), upvar ✓ (idx 122 done),
-uplevel ✓ (idx 18 done), eval (open, idx 125), `::tcl`/`::tcl::mathop` namespaces ✓
+uplevel ✓ (idx 18 done), eval ✓ (idx 125 done), `::tcl`/`::tcl::mathop` namespaces ✓
 (idx 127's host procs were the bug, mathop dispatch itself was already
 correct), source (not specifically probed yet — consider mining more
 `source`-heavy patterns), package loading (open, idx 128), autoIndex (open,
@@ -725,8 +725,8 @@ manual differential checks — see its own docstring for usage
    commits on top) if anything new is there.
 3. Recreate the tclsh9.0/8.6 oracle environment (§7).
 4. Pick the next finding to fix — two ready queues, both fully triaged:
-   - §6a: 3 remaining tcllib findings (idx 125/128/24), no
-     refined plan for any — use `07`'s `root_cause_hint` directly.
+   - §6a: 2 remaining tcllib findings (idx 128/24), no
+     refined plan for either — use `07`'s `root_cause_hint` directly.
    - §6b: 62 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
      idx 29, idx 31, idx 32, idx 33, idx 39, idx 46, idx 52, idx 56, idx
      63, idx 68, idx 70, idx 71, idx 76, idx 77, idx 84, idx 86, idx 90,
@@ -779,7 +779,7 @@ manual differential checks — see its own docstring for usage
    confirm byte-for-byte what actually landed matches local before trusting
    it (see idx 95's `7953d5e`/`ef36c73` commits and the surrounding
    session transcript for the full story — it worked, but took real care).
-7. Both queues (§6a's 3 tcllib findings, §6b's 62 main-wave findings) are
+7. Both queues (§6a's 2 tcllib findings, §6b's 62 main-wave findings) are
    independent — fix from whichever queue makes sense, no need to exhaust
    one before starting the other. Keep this document's counts current as
    findings get fixed: move a finished idx out of §6a/§6b's tables and into
