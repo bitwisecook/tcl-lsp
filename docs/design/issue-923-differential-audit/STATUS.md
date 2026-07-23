@@ -26,8 +26,8 @@ current commit list).
 
 **tl;dr:** A deep differential-audit campaign against real-world Tcl code
 found 107 confirmed LSP correctness bugs total (22 in tcllib, 85 across 7
-other corpora — the "main wave"). 14 tcllib findings are fixed, tested, and
-pushed to this branch (§3/§6a); 6 tcllib findings remain, each with a
+other corpora — the "main wave"). 15 tcllib findings are fixed, tested, and
+pushed to this branch (§3/§6a); 5 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
@@ -196,6 +196,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `0c03128` | — | **Not campaign work** — `tcl::prefix` (added by idx 9's own fix, `51d0a35`) was never folded into `editors/zed/src/generated/tcl_commands.json`; the full workspace test suite's own `gen_editor_catalogs::tests::committed_catalogs_match_generated` gate catches exactly this drift and was failing. Regenerated via `cargo xtask gen-editor-catalogs`. |
 | `7953d5e` + `ef36c73` | **main-wave** idx 95 (high) | `tk.tcl:594-596`'s `$w ${dir}view scroll ...` (a subcommand synthesized by string-concatenating `$dir` with literal `view`) itself correctly abstains from any false "unknown subcommand" diagnostic — but Rename Symbol on `dir` corrupted the source: `tcl-lexer`'s `Var` token span for a non-degenerate `${name}` form deliberately stops one byte short of the closing `}` (`${a{b}}` names `a{b}`, whose content can itself legitimately end in `}`, so the span convention leaves the outer delimiter unconsumed rather than risk misreading it as content), which made the raw span unsafe to reuse as a rename *edit range*: `build_var_ref_replacement` already emits a self-closed `${new}` string, so replacing only the short span left the source's own original `}` sitting right after it, corrupting `${direction}` into `${direction}}view` — real tclsh8.6/9.0 both fail to even parse the enclosing proc ("extra characters after close-brace"). Fixed with a new `var_ref_edit_span` helper that extends the span to include the closing brace only when the source confirms it's actually there and unconsumed, mirroring `SourceMap::token_text`'s own degenerate-`${}`-empty-name check so it never mis-fires on a span that already legitimately includes the brace. Pushed as two commits (the outage described in §8 blocked a local `git push`, so this landed via the GitHub API directly from locally-verified file contents): `7953d5e` (the e2e regression tests) and `ef36c73` (the core `var_ref_edit_span` fix + its own unit tests) — zero diff between the two once reconciled locally. |
 | `959bca8` | **main-wave** idx 94 (high) | A bare `$var` body of any `ArgRole::Body`-marked argument (`eval $cmd`, `uplevel #0 $cmd …`) dynamically evaluates $var's value as a script at runtime — the same "value is a command prefix" shape `{*}$cmd` already gets via `head_expanded`, just reached through a different syntactic position (a command's body argument, not its own head). Real corpus shape (`tk/library/tearoff.tcl`'s `MenuDup`): `set cmd [list menu $dst -type $type]; ...; eval $cmd`. `command_invocations` never saw this at all — `analyse_body` only ever recurses a literal `Str` body, so hover/go-to-definition resolved via their independent cursor-token walk while references/rename silently missed the call site. Fixed with a new `TokenType::Var` branch in `dispatch_one_body_argument` — generic across every `ArgRole::Body` argument, not eval/uplevel-specific by name — registering a `ConstDispatchSite` (`head_expanded: true`) for the existing CFG/SSA `settle_const_dispatches` machinery (issue #945 faults 1–2) to resolve. That machinery's own `value_provenance.rs` had a separate, narrower gap the finding's own minimal repro exposed: it never folded a `[list W1 W2 ...]` value into a constant at all — fixed with a new, deliberately narrow `fold_literal_list_call` (every element must be a plain literal word) whose first element's own span anchors `literal_span` directly, giving a fully rename-safe result (real tclsh9.0/8.6-verified: renaming `greetD` in `set cmdD [list greetD World]; eval $cmdD` correctly rewrites just that one word, and the transformed script still executes, printing "D World"). Computing that span surfaced a second general bug in the same family as idx 95: `Cmd`-token spans (a `[...]` substitution) also deliberately exclude their own closing `]`, so the existing `word_content_base` helper underflows for a `[list ...]`-shaped value — worked around locally by reading the token's own unaffected *start* offset directly. Empirically confirmed the finding's own speculative "second, compounding gap" (per-proc `FunctionUnit`s not reaching `settle_one_site` with usable SSA data) does not exist — pinned as a regression test, not a fix. Also corrected a stale pre-existing test (`references_do_not_treat_a_dynamic_bareword_body_as_a_static_call`, now `references_resolve_a_constant_var_body_through_its_real_value_not_its_literal_text`) whose own assertion that `if {1} $cb` (with `set cb foo`) must never resolve was contradicted by real tclsh9.0/8.6 (both call `foo`). |
+| `e0ebda9` | tcllib idx 121 | `record_instance_creation`/`class_from_constructor_subst` only recognised a literal class-name bareword at a `new`/`create` constructor call — tcllib's `httpd/httpd.tcl:1970-1994` instead flows the class name through a single, unconditional `set` one line earlier (`set class ::Derived; set obj [$class create NAME]`), so `instance_classes` never bound `obj`, leaving hover/go-to-definition/references on a later `$obj method` call silently empty (tclsh9.0/8.6-verified the dispatch itself works). Fixed by extending idx 94's `ConstDispatchSite` settle-late discipline: a new `PendingInstanceClassSite` is recorded when a constructor's class head is a plain `$var`, then settled once the CFG/SSA `CompilationUnit` exists via `value_provenance::const_contributors`, binding `instance_classes` only when every reaching definition agrees on one known class (abstains soundly on a branch-ambiguous or genuinely dynamic value). The settle call must run *before* `emit_var_command_diagnostics` in the same pass (unlike `settle_const_dispatches`, which only feeds `command_invocations`) — that pass reads `instance_classes` to suppress W307/validate W308, and settling too late left a newly-discovered W307 false positive on the very call site the fix was meant to clear. That W307/W308 gate turned out to have its own independent copy of the same gap: `harvest_constructor_object_types` (the SSA type-lattice's separate constructor scanner) hit the identical `$var`-headed limitation — extended with a new `harvest_indirect_constructor_class` reusing the same `class_var_head_constructor_subst` shape-parse and `const_contributors` resolution, so the type lattice agrees with hover/definition on the exact same dispatch. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -245,9 +246,12 @@ these rather than inventing something new:
   child-interpreter domains, dynamic `namespace eval` targets, dynamic
   `oo::define` targets, and (idx 9) a pathless `set VAR [interp create
   ...]`'s auto-generated interpreter name (`@autoname@<offset>`).
-  **Candidate for reuse**: idx 121 (dynamic TclOO constructor class — though
-  that one may be better solved by consulting `const_contributors`, see its
-  research plan) and potentially others.
+  idx 121 (dynamic TclOO constructor class) turned out **not** to need this
+  mechanism — fixed instead by consulting `const_contributors` directly
+  (a new `PendingInstanceClassSite`/`settle_pending_instance_class_sites`,
+  mirroring idx 94's `ConstDispatchSite`; see §3's `e0ebda9` row), exactly
+  the alternative this note used to flag as more likely. Still a candidate
+  for a genuinely nameless/unrepresentable construct.
 - **`AnalysisResult::offset_is_inside_any_definition_body`**
   (`rust/tcl-compiler/src/analyser/types.rs`) — "is this byte offset inside
   any recorded proc/class body", i.e. "does this only exist conditionally,
@@ -335,18 +339,18 @@ from scratch:
 | `06-main-audit-results-PARTIAL-49of105.json` | Superseded by the `COMPLETE` file below — kept for history (idx 0–48 only, the first half of the wave). |
 | `06-main-audit-results-COMPLETE-105of105.json` | **Complete.** All 105 main-wave findings (idx 0–104) differentially audited: 85 CONFIRMED, 20 REFUTED. **Triaged** — see §6b for the severity/corpus/feature breakdown, the full up-to-date fixed/remaining list, and priority-ordered tables (kept current there; not duplicated here to avoid drift). |
 | `07-remaining-tcllib-findings-14.json` | The 14 tcllib CONFIRMED findings not yet fixed (full detail: summary, failure_scenario, oracle_output, lsp_output, root_cause_hint, repro_path — repro files themselves are gone, scratchpad-only, but the hints are detailed enough to rebuild a repro in minutes). |
-| `08-research-plans-PARTIAL-8of14.json` | **Partial — 8 of 14 done.** Refined, current-code-verified fix plans for 8 of the 14 remaining tcllib findings (idx 3, 9, 105, 106, 110, 113, 116, 120), produced by a research-only agent fan-out (no file edits) that re-checked each root-cause hint against the *current* (post-merge) code and proposed concrete changes + test scenarios. idx 18, 24, 121, 122, 125, 128 do not have refined plans yet — use `07`'s `root_cause_hint` field directly for those, which is still quite detailed.
+| `08-research-plans-PARTIAL-8of14.json` | **Partial — 8 of 14 done.** Refined, current-code-verified fix plans for 8 of the 14 remaining tcllib findings (idx 3, 9, 105, 106, 110, 113, 116, 120), produced by a research-only agent fan-out (no file edits) that re-checked each root-cause hint against the *current* (post-merge) code and proposed concrete changes + test scenarios. idx 18, 24, 122, 125, 128 do not have refined plans yet — use `07`'s `root_cause_hint` field directly for those, which is still quite detailed. (idx 121 is now fixed — see §3/§6a.)
 
 ---
 
 ## 6. Remaining work, prioritized
 
-### 6a. tcllib — 6 CONFIRMED findings, not yet fixed
+### 6a. tcllib — 5 CONFIRMED findings, not yet fixed
 
-**idx 105, 106, 3, 110, 113, 9, 120, and 116 are done** (fixed, tested,
-pushed — see §3's `25d6a09` / `2c48bcc` / `c022921` / `264cfdf` /
-`183baef` / `78ea6e2` / `af8c3d5` / `a824ff8` rows); removed from the
-table below. 6 remain, none with a refined plan left — use `07`'s
+**idx 105, 106, 3, 110, 113, 9, 120, 116, and 121 are done** (fixed,
+tested, pushed — see §3's `25d6a09` / `2c48bcc` / `c022921` / `264cfdf` /
+`183baef` / `78ea6e2` / `af8c3d5` / `a824ff8` / `e0ebda9` rows); removed
+from the table below. 5 remain, none with a refined plan left — use `07`'s
 `root_cause_hint` directly for all of them.
 
 All in `data/07-remaining-tcllib-findings-14.json`. Suggested order (by
@@ -354,16 +358,15 @@ severity):
 
 | idx | severity | feature | one-line summary | refined plan? |
 |---|---|---|---|---|
-| 121 | medium | tclOO | `set class ::Derived; set obj [$class create NAME]` — single-hop variable-indirected class name never resolved (needs `const_contributors`/SSA wiring, or the `@dyn...@` pattern). | no — use root_cause_hint |
 | 122 | medium | upvar | W210 false-positive: call-by-name upvar writes from a user proc invoked inside an `if`/`while` **condition** aren't recognised (only 4 hardcoded builtins are, in `cmd_substitution_out_vars`). | no |
 | 18 | medium | uplevel | W210 false-positive for `upvar`+`uplevel` custom-control-structure idiom, when the actual upvar is one proc-call hop away from the literal call site. | no |
 | 125 | medium | eval | W220 false-positive: `{$var}` inside a double-quoted string mis-tokenized as non-substituting brace-quoted (re-lexing loses quote context). | no |
 | 128 | medium | package_loading | `PackageResolver::parse_pkg_index` ignores `if {...} { return }` reachability guards in `pkgIndex.tcl`, over-suppressing W123. | no |
 | 24 | medium | autoindex | `hover()` never falls back to the cross-document/autoload resolution tiers that `definition()`/`references()` already use. | no |
 
-Each of these follows the exact same playbook as the 8 already-fixed
+Each of these follows the exact same playbook as the 9 already-fixed
 findings: read root_cause_hint (no refined plan remains for any of these
-6) → confirm
+5) → confirm
 still-reproduces against current code → check `tclsh9.0`/`tclsh8.6` ground
 truth if not already fully confirmed → registry-driven fix reusing §4's
 mechanisms where applicable → unit tests (TP/FP/TN/FN) + lsp_e2e test →
@@ -642,7 +645,7 @@ so far (from mined+fixed findings): namespaces ✓✓✓, rename ✓ (idx 3 done
 unknown ✓ (idx 110 done; interp-create angle done), aliasing ✓ (idx 113
 done), safe-/sub-interpreters ✓✓ (idx 111, 9 both done), tracing ✓✓ (idx
 115, 116 both done), tricky indirection ✓✓ (idx
-118/119 done), tclOO ✓ (idx 120 done, idx 121 open), upvar (open, idx 122), uplevel
+118/119 done), tclOO ✓✓ (idx 120, 121 both done), upvar (open, idx 122), uplevel
 (open, idx 18), eval (open, idx 125), `::tcl`/`::tcl::mathop` namespaces ✓
 (idx 127's host procs were the bug, mathop dispatch itself was already
 correct), source (not specifically probed yet — consider mining more
@@ -721,7 +724,7 @@ manual differential checks — see its own docstring for usage
    commits on top) if anything new is there.
 3. Recreate the tclsh9.0/8.6 oracle environment (§7).
 4. Pick the next finding to fix — two ready queues, both fully triaged:
-   - §6a: 6 remaining tcllib findings (idx 121/122/18/125/128/24), no
+   - §6a: 5 remaining tcllib findings (idx 122/18/125/128/24), no
      refined plan for any — use `07`'s `root_cause_hint` directly.
    - §6b: 62 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
      idx 29, idx 31, idx 32, idx 33, idx 39, idx 46, idx 52, idx 56, idx
@@ -775,7 +778,7 @@ manual differential checks — see its own docstring for usage
    confirm byte-for-byte what actually landed matches local before trusting
    it (see idx 95's `7953d5e`/`ef36c73` commits and the surrounding
    session transcript for the full story — it worked, but took real care).
-7. Both queues (§6a's 6 tcllib findings, §6b's 62 main-wave findings) are
+7. Both queues (§6a's 5 tcllib findings, §6b's 62 main-wave findings) are
    independent — fix from whichever queue makes sense, no need to exhaust
    one before starting the other. Keep this document's counts current as
    findings get fixed: move a finished idx out of §6a/§6b's tables and into
