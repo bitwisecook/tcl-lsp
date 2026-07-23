@@ -1599,7 +1599,8 @@ fn reads_in_stmt(
 /// caps its own construction at 256), capped here independently for
 /// defence-in-depth and consistency with every other full-tree walker in
 /// this crate.
-const MAX_COLLAPSED_EXTRA_DEFS_DEPTH: u32 = 256;
+const MAX_COLLAPSED_EXTRA_DEFS_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
 
 /// `for`-init/next clause defs and if/while/for condition command-sub defs
 /// (`[regexp … -> v]`) that [`crate::ir_helpers::defs_from_ir_script`] does not
@@ -1611,7 +1612,7 @@ fn collapsed_extra_defs(
 ) -> BTreeSet<String> {
     use crate::ir_helpers::{defs_from_expr, defs_from_ir_script};
     let mut extra = BTreeSet::new();
-    if depth > MAX_COLLAPSED_EXTRA_DEFS_DEPTH {
+    if MAX_COLLAPSED_EXTRA_DEFS_DEPTH.exceeded(depth) {
         return extra;
     }
     for stmt in &script.statements {

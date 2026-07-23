@@ -104,7 +104,8 @@ impl Script {
 /// this crate (`optimiser::MAX_OPTIMISER_WALK_DEPTH`,
 /// `codegen::structured::MAX_STRUCTURED_DEPTH`), since this is a `pub`
 /// utility any future caller could hand a `Script` built some other way.
-const MAX_FOR_EACH_STATEMENT_DEPTH: u32 = 256;
+const MAX_FOR_EACH_STATEMENT_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
 
 /// Recursively visit every statement in `script`, including nested bodies
 /// (`if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`), in source order.
@@ -126,7 +127,7 @@ pub fn for_each_statement(script: &Script, visit: &mut impl FnMut(&Statement)) {
 }
 
 fn for_each_statement_inner(script: &Script, visit: &mut impl FnMut(&Statement), depth: u32) {
-    if depth > MAX_FOR_EACH_STATEMENT_DEPTH {
+    if MAX_FOR_EACH_STATEMENT_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {

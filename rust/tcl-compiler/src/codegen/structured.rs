@@ -56,7 +56,7 @@ use crate::ir::{IfClause, Script, Statement};
 /// since, when wired up, this runs on the native compiler's side (emitting
 /// WASM, not executing inside it) — the same big-stack entry points already
 /// fixed for issue #996 apply.
-const MAX_STRUCTURED_DEPTH: u32 = 256;
+const MAX_STRUCTURED_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// Whether straight-line control falls through to the next statement, or the
 /// statement transferred control elsewhere (so the rest of its script is dead).
@@ -99,7 +99,7 @@ fn walk_stmt<E: Emit>(
     // (issue #996). Past the cap, an `if`/`while`/`for` degrades to the
     // same whole-construct eval-fallback every other unstructured
     // statement kind already uses below, instead of recursing further.
-    if depth > MAX_STRUCTURED_DEPTH
+    if MAX_STRUCTURED_DEPTH.exceeded(depth)
         && matches!(
             stmt,
             Statement::If { .. } | Statement::While { .. } | Statement::For { .. }
@@ -213,7 +213,7 @@ fn emit_if<E: Emit>(
 
     if !rest.is_empty() {
         emit.begin_else();
-        if depth + 1 > MAX_STRUCTURED_DEPTH {
+        if MAX_STRUCTURED_DEPTH.exceeded(depth + 1) {
             // Native-stack safety net — see `MAX_STRUCTURED_DEPTH`'s doc
             // comment (issue #996). Re-running the *whole* original
             // if/elseif/else construct as one eval-fallback here (rather

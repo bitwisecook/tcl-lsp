@@ -348,7 +348,7 @@ struct FoldCtx<'a> {
 /// Defensive recursion bound for nested-body fold collection, set to match the
 /// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
 /// keeps full folding support. Real source never nests anywhere near this.
-const MAX_FOLD_DEPTH: u32 = 256;
+const MAX_FOLD_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 fn collect_body_folds(
     body_source: &str,
@@ -357,7 +357,7 @@ fn collect_body_folds(
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     ctx: &mut FoldCtx<'_>,
 ) {
-    if depth > MAX_FOLD_DEPTH {
+    if MAX_FOLD_DEPTH.exceeded(depth) {
         return;
     }
     let commands = segment_commands_with_offset_and_config(body_source, base_offset, ctx.config);

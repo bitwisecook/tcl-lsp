@@ -101,7 +101,7 @@ pub const SMALL_BODY_THRESHOLD: usize = 5;
 /// lowering, which already caps its own construction at 256), capped here
 /// independently for defence-in-depth and consistency with every other
 /// full-tree walker in this crate.
-const MAX_INLINING_WALK_DEPTH: u32 = 256;
+const MAX_INLINING_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// What an inlinable proc splices in at a call site.
 #[derive(Debug, Clone)]
@@ -223,7 +223,7 @@ fn tally_calls(
     counts: &mut HashMap<String, usize>,
     depth: u32,
 ) {
-    if depth > MAX_INLINING_WALK_DEPTH {
+    if MAX_INLINING_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {
@@ -448,7 +448,7 @@ fn v3_eligible(
 /// must lean toward declining the inline, never toward inlining something
 /// that could trap a `break`.
 fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool, depth: u32) -> bool {
-    if depth > MAX_INLINING_WALK_DEPTH {
+    if MAX_INLINING_WALK_DEPTH.exceeded(depth) {
         return true;
     }
     for stmt in &script.statements {
@@ -1926,7 +1926,7 @@ fn record_local_base(name: &str, names: &mut HashSet<String>) {
 /// `depth` is the nesting level of `script` — see
 /// [`MAX_INLINING_WALK_DEPTH`].
 fn walk_local_writes(script: &Script, names: &mut HashSet<String>, depth: u32) {
-    if depth > MAX_INLINING_WALK_DEPTH {
+    if MAX_INLINING_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {

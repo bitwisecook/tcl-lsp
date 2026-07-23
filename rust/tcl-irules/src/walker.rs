@@ -43,7 +43,7 @@ use crate::resolve_object_ref_args;
 /// `tcl_lsp_core::minify::MAX_MINIFY_DEPTH`, this must be safe on a small
 /// ambient stack, not just a generously-sized one — same value and
 /// reasoning; see those constants' doc comments.
-const MAX_WALK_DEPTH: u32 = 128;
+const MAX_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
 
 /// One iRules object reference resolved from a literal command argument
 /// (mirrors `IrulesObjectReference`).
@@ -144,7 +144,7 @@ fn walk(
     // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment (issue
     // #996). Past the cap, stop descending — the references collected up
     // to this nesting level still stand.
-    if depth > MAX_WALK_DEPTH {
+    if MAX_WALK_DEPTH.exceeded(depth) {
         return;
     }
     // Always the iRules dialect: segment with the f5-irules preset so an iRule's

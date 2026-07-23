@@ -56,7 +56,7 @@ use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
 /// Maximum depth for backward SSA tracing (prevents infinite loops on
 /// pathological phi chains).
-const MAX_TRACE_DEPTH: u32 = 12;
+const MAX_TRACE_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(12);
 
 /// Characters that indicate a query-string delimiter when literal.
 const QUERY_CHARS: &[char] = &['?', '&'];
@@ -303,7 +303,7 @@ fn trace_to_uri_family(
     ctx: TraceCtx<'_>,
     depth: u32,
 ) -> Option<String> {
-    if depth > MAX_TRACE_DEPTH {
+    if MAX_TRACE_DEPTH.exceeded(depth) {
         return None;
     }
 

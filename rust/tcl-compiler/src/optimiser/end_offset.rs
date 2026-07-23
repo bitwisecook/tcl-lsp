@@ -77,7 +77,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// bodies are reached. `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn collect_statement_spans(script: &Script, out: &mut Vec<Span>, depth: u32) {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {

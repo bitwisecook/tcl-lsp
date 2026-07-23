@@ -40,6 +40,8 @@ use core::ffi::c_char;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
+use tcl_core_types::RecursionLimit;
+
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
 use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
@@ -415,7 +417,7 @@ pub(crate) struct CoroContext {
     exc: ExceptionState,
     error_line: u32,
     arg_lines: Vec<u32>,
-    eval_depth: usize,
+    eval_depth: u32,
     oo: crate::cmd_oo::OoExec,
 }
 
@@ -689,7 +691,7 @@ pub struct InterpState {
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
     /// accumulate.
-    eval_depth: Cell<usize>,
+    eval_depth: Cell<u32>,
     /// Count of commands dispatched (`info cmdcount`).
     cmd_count: Cell<u64>,
     /// The code an `exit` requested, if any. `exit` does **not** terminate the
@@ -856,7 +858,7 @@ const RECURSION_LIMIT: usize = 1000;
 /// (infinite loop?)"` error `RECURSION_LIMIT` uses — the failure mode is
 /// conceptually identical (too much nesting), just caught earlier for
 /// native-safety reasons independent of the user-configurable budget.
-const NATIVE_EVAL_DEPTH_LIMIT: usize = 128;
+const NATIVE_EVAL_DEPTH_LIMIT: RecursionLimit = RecursionLimit(128);
 
 /// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
 /// reports: a decimal that overflows `i64` is "too large to represent", a
@@ -3771,7 +3773,7 @@ impl Interp {
         // comment (issue #996). Checked before incrementing / doing any
         // other setup, so bailing out here needs no unwind: `owned` (not
         // yet pushed) simply drops normally.
-        if self.eval_depth.get() >= NATIVE_EVAL_DEPTH_LIMIT {
+        if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
         self.eval_depth.set(self.eval_depth.get() + 1);

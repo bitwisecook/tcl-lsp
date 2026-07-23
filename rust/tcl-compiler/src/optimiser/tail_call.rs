@@ -432,7 +432,7 @@ fn non_tail_self_call_in_expression(
     registry: Option<&tcl_registry::CommandRegistry>,
     depth: u32,
 ) -> bool {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return false;
     }
     for stmt in &script.statements {
@@ -552,7 +552,7 @@ fn collect_tail_sites(
     emit_o121: bool,
     depth: u32,
 ) {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     let Some(last) = script.statements.last() else {

@@ -1165,7 +1165,8 @@ pub(super) fn parse_oo_define_inline(
 /// already caps its own construction at 256), capped here independently
 /// for defence-in-depth and consistency with every other full-tree walker
 /// in this crate.
-const MAX_UNKNOWN_STMT_WALK_DEPTH: u32 = 256;
+const MAX_UNKNOWN_STMT_WALK_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
 
 /// Inspect a single IR statement for unknown-proc dispatch
 /// markers.
@@ -1176,7 +1177,7 @@ const MAX_UNKNOWN_STMT_WALK_DEPTH: u32 = 256;
 /// loop is still detected. `depth` is `stmt`'s own nesting level — see
 /// [`MAX_UNKNOWN_STMT_WALK_DEPTH`].
 fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProcInfo, depth: u32) {
-    if depth > MAX_UNKNOWN_STMT_WALK_DEPTH {
+    if MAX_UNKNOWN_STMT_WALK_DEPTH.exceeded(depth) {
         return;
     }
     match stmt {

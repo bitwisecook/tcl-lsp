@@ -55,7 +55,7 @@ type CollectedHead = (String, Span, Option<usize>, Option<AppendedArity>);
 /// diagnostics worker and the `tcl diag` / `lint` / `validate` CLIs. At
 /// the cap we stop descending into further nested bodies (the diagnostics
 /// already collected stand); no real source nests anywhere near this.
-const MAX_BODY_DEPTH: u32 = 256;
+const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// The borrowed word-level view of one command, threaded into the
 /// dispatch-site diagnostic emitter ([`Analyser::emit_dispatch_site_diagnostics`]).
@@ -117,7 +117,7 @@ impl Analyser {
             return;
         }
         self.body_depth += 1;
-        if self.body_depth > MAX_BODY_DEPTH {
+        if MAX_BODY_DEPTH.exceeded(self.body_depth) {
             // Stop descending before the recursive body walk overflows the
             // stack — the diagnostics collected up to this nesting level
             // still stand. Report it as a diagnostic (once per walk, not
@@ -132,9 +132,10 @@ impl Analyser {
                     code: DiagCode::E207,
                     span: body_tok.span,
                     message: format!(
-                        "nesting depth exceeds the analysis limit ({MAX_BODY_DEPTH} levels) — \
+                        "nesting depth exceeds the analysis limit ({} levels) — \
                          diagnostics for this body and anything nested inside it are not \
-                         collected"
+                         collected",
+                        MAX_BODY_DEPTH.0
                     ),
                     severity: Severity::Error,
                     fixes: Vec::new(),
@@ -3069,7 +3070,7 @@ mod tests {
         // The wrapping `proc` body is itself one level of `body_depth`, so
         // `MAX_BODY_DEPTH - 1` nested `if`s is what brings body_depth to
         // exactly `MAX_BODY_DEPTH`.
-        let source = nested_if_source(MAX_BODY_DEPTH - 1);
+        let source = nested_if_source(MAX_BODY_DEPTH.0 - 1);
         let res = analyse_on_big_stack(source, "tcl9.0");
         assert!(
             !res.diagnostics.iter().any(|d| d.code == DiagCode::E207),
@@ -3080,7 +3081,7 @@ mod tests {
 
     #[test]
     fn depth_one_past_cap_emits_e207_exactly_once() {
-        let source = nested_if_source(MAX_BODY_DEPTH);
+        let source = nested_if_source(MAX_BODY_DEPTH.0);
         let res = analyse_on_big_stack(source, "tcl9.0");
         let e207_count = res
             .diagnostics

@@ -42,7 +42,8 @@ use crate::side_effects::EffectRegion;
 /// independently for defence-in-depth and consistency with every other
 /// full-tree walker in this crate (`optimiser::MAX_OPTIMISER_WALK_DEPTH`,
 /// `codegen::structured::MAX_STRUCTURED_DEPTH`).
-const MAX_INTERPROCEDURAL_WALK_DEPTH: u32 = 256;
+const MAX_INTERPROCEDURAL_WALK_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
 
 // Summary types
 
@@ -664,7 +665,7 @@ fn collect_instance_var_writes(
     depth: u32,
 ) {
     use crate::ir::Statement;
-    if depth > MAX_INTERPROCEDURAL_WALK_DEPTH {
+    if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {
@@ -1089,7 +1090,7 @@ struct ScanCtx<'a> {
 /// [`scan_statement`]'s own `Statement::Barrier` arm (unscanned code must
 /// not be silently under-counted as pure / effect-free).
 fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
-    if depth > MAX_INTERPROCEDURAL_WALK_DEPTH {
+    if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
         facts.has_barrier = true;
         facts.local_pure = false;
         facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
@@ -2118,7 +2119,7 @@ fn is_plain_proc_name(text: &str) -> bool {
 /// so an unresolved deep answer costs only a missed constant-return fold,
 /// never a miscompile.
 fn script_always_returns(script: &crate::ir::Script, depth: u32) -> bool {
-    if depth > MAX_INTERPROCEDURAL_WALK_DEPTH {
+    if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
         return false;
     }
     script

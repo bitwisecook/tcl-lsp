@@ -32,6 +32,7 @@ use std::io::{self, Write};
 use std::rc::Rc;
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
+use tcl_core_types::RecursionLimit;
 use tcl_platform::Host;
 use tcl_runtime_api::{
     Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
@@ -80,7 +81,7 @@ pub(crate) const RECURSION_LIMIT: usize = 1000;
 /// comfortably covering this fallback path's real (rare, edge-case —
 /// ordinary Tcl essentially never nests a *computed-command-name* `if`
 /// this deep) usage.
-const CONTROL_FALLBACK_DEPTH_LIMIT: usize = 24;
+const CONTROL_FALLBACK_DEPTH_LIMIT: RecursionLimit = RecursionLimit(24);
 
 /// Native-stack safety net for `TclOO` method dispatch (`cmd_oo.rs::run_step`)
 /// — issue #996.
@@ -118,7 +119,7 @@ const CONTROL_FALLBACK_DEPTH_LIMIT: usize = 24;
 /// process abort is strictly worse than a catchable error arriving earlier
 /// than tclsh's own limit would. 20 leaves better than 2x margin under the
 /// measured crash floor.
-const OO_DISPATCH_DEPTH_LIMIT: usize = 20;
+const OO_DISPATCH_DEPTH_LIMIT: RecursionLimit = RecursionLimit(20);
 
 /// Render a subcommand list as C's ensemble `must be …` clause — note the
 /// ensemble formatter puts a comma before `or` even for two items
@@ -3522,7 +3523,9 @@ impl Vm {
     /// [`Self::exit_control_fallback`] (even on an early-error return) to
     /// keep the counter balanced.
     pub(crate) fn enter_control_fallback(&mut self) -> Result<(), Completion<Value>> {
-        if self.control_fallback_depth >= CONTROL_FALLBACK_DEPTH_LIMIT {
+        if CONTROL_FALLBACK_DEPTH_LIMIT
+            .exceeded(u32::try_from(self.control_fallback_depth + 1).unwrap_or(u32::MAX))
+        {
             return Err(err("too many nested evaluations (infinite loop?)"));
         }
         self.control_fallback_depth += 1;
@@ -3540,7 +3543,9 @@ impl Vm {
     /// before incrementing; pair with [`Self::exit_oo_dispatch`] (even on
     /// an early-error return) to keep the counter balanced.
     pub(crate) fn enter_oo_dispatch(&mut self) -> Result<(), Completion<Value>> {
-        if self.oo_dispatch_depth >= OO_DISPATCH_DEPTH_LIMIT {
+        if OO_DISPATCH_DEPTH_LIMIT
+            .exceeded(u32::try_from(self.oo_dispatch_depth + 1).unwrap_or(u32::MAX))
+        {
             return Err(err("too many nested evaluations (infinite loop?)"));
         }
         self.oo_dispatch_depth += 1;

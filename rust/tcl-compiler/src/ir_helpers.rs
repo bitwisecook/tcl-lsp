@@ -98,7 +98,7 @@ pub(crate) fn nested_bodies(stmt: &Statement) -> Vec<&Script> {
 /// caps its own construction at 256), capped here independently for
 /// defence-in-depth and consistency with every other full-tree walker in
 /// this crate.
-const MAX_DEFS_COLLECT_DEPTH: u32 = 256;
+const MAX_DEFS_COLLECT_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// Collect all variable names defined anywhere inside a script (recursive).
 ///
@@ -114,7 +114,7 @@ pub fn defs_from_ir_script(script: &Script) -> Vec<String> {
 
 #[allow(clippy::too_many_lines)] // the depth-cap check adds a few lines over the threshold
 fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>, depth: u32) {
-    if depth > MAX_DEFS_COLLECT_DEPTH {
+    if MAX_DEFS_COLLECT_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {

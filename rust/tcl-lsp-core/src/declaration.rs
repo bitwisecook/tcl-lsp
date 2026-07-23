@@ -45,7 +45,7 @@ use tcl_registry::arg_role::ArgRole;
 /// bound, set to match the compiler analyser's `MAX_BODY_DEPTH` so deeply (but
 /// validly) nested code keeps full go-to-declaration support. Real source never
 /// nests anywhere near this.
-const MAX_BODY_DEPTH: u32 = 256;
+const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 use crate::definition::{LspRange, byte_offset_at, definition, scope_body_spans_at, span_to_range};
 use crate::hover::find_var_at_position;
@@ -149,7 +149,7 @@ fn collect_declarations_in_region(
     depth: u32,
     found: &mut DeclSpans,
 ) {
-    if depth > MAX_BODY_DEPTH {
+    if MAX_BODY_DEPTH.exceeded(depth) {
         return;
     }
     let (source, dialect, target, visible, registry) = (

@@ -556,12 +556,12 @@ fn walk_assign_or_incr(stmt: &Statement, state: &mut EscapeState) -> bool {
 /// own construction at 256), capped here independently for
 /// defence-in-depth and consistency with every other full-tree walker in
 /// this crate.
-const MAX_ESCAPE_WALK_DEPTH: u32 = 256;
+const MAX_ESCAPE_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// Walk *stmts* with the standard escape-rule transfer functions. `depth`
 /// is the nesting level of `stmts` — see [`MAX_ESCAPE_WALK_DEPTH`].
 fn walk(stmts: &[Statement], state: &mut EscapeState, depth: u32) {
-    if depth > MAX_ESCAPE_WALK_DEPTH {
+    if MAX_ESCAPE_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in stmts {

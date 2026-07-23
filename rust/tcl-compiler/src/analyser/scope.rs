@@ -1063,10 +1063,10 @@ impl Analyser {
 /// in the first place, already caps its own nesting at 256), capped here
 /// independently for defence-in-depth and consistency with every other
 /// full-tree walker in this crate.
-const MAX_SCOPE_WALK_DEPTH: u32 = 256;
+const MAX_SCOPE_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>, depth: u32) {
-    if depth > MAX_SCOPE_WALK_DEPTH {
+    if MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
         return;
     }
     out.push(path.to_vec());

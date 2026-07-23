@@ -64,7 +64,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn walk_script(ctx: &mut PassContext<'_>, script: &Script, depth: u32) {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     let stmts = &script.statements;
@@ -297,7 +297,7 @@ fn find_deepest_targets<'a>(body: &'a Script, var: &str, depth: u32) -> Vec<&'a 
     let Some(&first) = using.first() else {
         return Vec::new();
     };
-    if using.len() == 1 && depth <= super::MAX_OPTIMISER_WALK_DEPTH {
+    if using.len() == 1 && !super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         let no_prior_redefine = !body.statements[..first]
             .iter()
             .any(|s| statement_defines_var(s, var));
@@ -414,7 +414,7 @@ fn script_redefines_sink_read(script: &Script, sink: &Statement, depth: u32) -> 
 /// lean toward blocking the sink, never toward permitting one that could be
 /// a miscompile.
 fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement, depth: u32) -> bool {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return true;
     }
     if stmt_defined_vars(stmt)
@@ -577,7 +577,7 @@ fn script_uses_var(script: &Script, var: &str, depth: u32) -> bool {
 /// treat a variable as still-needed), so an unresolved deep answer must
 /// lean toward "don't touch it", never toward "safe to rewrite".
 fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return true;
     }
     match stmt {

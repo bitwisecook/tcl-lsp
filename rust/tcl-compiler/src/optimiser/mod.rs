@@ -91,7 +91,8 @@ use crate::compilation_unit::CompilationUnit;
 /// test-only caller that builds a `Script` directly rather than through
 /// [`crate::lowering`], and — unlike relying solely on the caller's cap —
 /// keeps each pass safe to reason about in isolation.
-pub(crate) const MAX_OPTIMISER_WALK_DEPTH: u32 = 256;
+pub(crate) const MAX_OPTIMISER_WALK_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
 use crate::ssa::ValueKey;

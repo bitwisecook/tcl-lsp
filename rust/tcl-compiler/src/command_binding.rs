@@ -723,7 +723,7 @@ fn walk_body_calls(
     rebind: &mut RebindState<'_>,
     depth: u32,
 ) {
-    if depth > crate::optimiser::MAX_OPTIMISER_WALK_DEPTH {
+    if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {

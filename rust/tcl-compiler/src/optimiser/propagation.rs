@@ -885,7 +885,7 @@ fn walk_script(
     namespace: &str,
     depth: u32,
 ) {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {

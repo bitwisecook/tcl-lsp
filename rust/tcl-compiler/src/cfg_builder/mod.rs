@@ -175,7 +175,7 @@ pub(crate) struct CfgBuilder {
     inline_eval_spans: Vec<tcl_lexer::Span>,
     /// Current `lower_script` recursion depth, bounded by [`MAX_LOWER_DEPTH`]
     /// so deeply-nested bodies cannot overflow the stack.
-    depth: usize,
+    depth: u32,
 }
 
 /// Maximum nesting depth for the recursive `lower_script` descent.
@@ -187,7 +187,7 @@ pub(crate) struct CfgBuilder {
 /// treat the over-deep script as a non-fall-through tail, yielding a
 /// truncated-but-valid CFG instead of a crash. No real source nests
 /// anywhere near this.
-const MAX_LOWER_DEPTH: usize = 256;
+const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 impl CfgBuilder {
     fn new(inline_loops: bool) -> Self {
@@ -706,7 +706,7 @@ impl CfgBuilder {
     /// overflow.
     fn lower_script(&mut self, script: &Script, block_name: &str) -> Option<String> {
         self.depth += 1;
-        if self.depth > MAX_LOWER_DEPTH {
+        if MAX_LOWER_DEPTH.exceeded(self.depth) {
             self.depth -= 1;
             return None;
         }
@@ -1602,7 +1602,7 @@ pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
 /// already builds every `Script` under, so this is defence-in-depth /
 /// consistency with that cap rather than a currently-reachable path).
 pub(crate) fn escaping_loop_jumps(script: &Script, depth: u32) -> (bool, bool) {
-    if depth as usize > MAX_LOWER_DEPTH {
+    if MAX_LOWER_DEPTH.exceeded(depth) {
         return (false, false);
     }
     let mut can_break = false;

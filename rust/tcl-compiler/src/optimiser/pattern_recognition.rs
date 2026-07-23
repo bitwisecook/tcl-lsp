@@ -101,7 +101,7 @@ fn lattice_is_int(t: &TypeLattice) -> bool {
 /// `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn walk_script(ctx: &mut PassContext<'_>, script: &Script, int_vars: &HashSet<String>, depth: u32) {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     detect_multi_set_packing(ctx, script);

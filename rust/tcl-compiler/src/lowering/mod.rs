@@ -661,7 +661,7 @@ pub struct Lowerer<'r> {
     /// lowering runs *before* CFG construction, so an unguarded recursion
     /// here reaches the same crash first and makes the CFG builder's own
     /// cap moot (issue #996).
-    nest_depth: usize,
+    nest_depth: u32,
 }
 
 /// Maximum nesting depth for the recursive `lower_script` / `lower_body`
@@ -673,7 +673,7 @@ pub struct Lowerer<'r> {
 /// independently-recursive walkers over the same source cap at the same
 /// depth, so no consumer of this crate depends on one pass reaching a
 /// deeper nesting level than another.
-const MAX_LOWER_NEST_DEPTH: usize = 256;
+const MAX_LOWER_NEST_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 impl<'r> Lowerer<'r> {
     /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
@@ -768,7 +768,7 @@ impl<'r> Lowerer<'r> {
     /// unanalysed content as having unknown effects, not as empty/dead.
     fn lower_script(&mut self, source: &str, namespace: &str) -> Script {
         self.nest_depth += 1;
-        if self.nest_depth > MAX_LOWER_NEST_DEPTH {
+        if MAX_LOWER_NEST_DEPTH.exceeded(self.nest_depth) {
             self.nest_depth -= 1;
             return over_depth_script(0, source.len());
         }
@@ -797,7 +797,7 @@ impl<'r> Lowerer<'r> {
     /// comment.
     fn lower_body(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
         self.nest_depth += 1;
-        if self.nest_depth > MAX_LOWER_NEST_DEPTH {
+        if MAX_LOWER_NEST_DEPTH.exceeded(self.nest_depth) {
             self.nest_depth -= 1;
             return over_depth_script(base_offset, text.len());
         }
@@ -2868,7 +2868,7 @@ fn resolve_trace_type_word(word: &str) -> Option<&'static str> {
 /// so this is defence-in-depth rather than a currently-reachable path).
 fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegistry, depth: u32) {
     use crate::ir::Statement;
-    if depth as usize > MAX_LOWER_NEST_DEPTH {
+    if MAX_LOWER_NEST_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {

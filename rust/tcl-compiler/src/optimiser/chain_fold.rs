@@ -112,7 +112,7 @@ fn protected_vars(
 /// independently). `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn fold_script(ctx: &mut PassContext<'_>, script: &Script, protected: &HashSet<String>, depth: u32) {
-    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     let stmts = &script.statements;

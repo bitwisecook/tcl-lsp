@@ -165,7 +165,7 @@ fn proc_is_slot_eligible(summary: &ProcEscapeSummary) -> bool {
 /// already caps its own construction at 256), capped here independently
 /// for defence-in-depth and consistency with every other full-tree walker
 /// in this crate.
-const MAX_SLOT_WALK_DEPTH: u32 = 256;
+const MAX_SLOT_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// Walk every statement reachable from *script*, recursing
 /// through compound bodies.  Depth-first source order so a
@@ -173,7 +173,7 @@ const MAX_SLOT_WALK_DEPTH: u32 = 256;
 /// emits them. `depth` is the nesting level of `script` — see
 /// [`MAX_SLOT_WALK_DEPTH`].
 fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>, depth: u32) {
-    if depth > MAX_SLOT_WALK_DEPTH {
+    if MAX_SLOT_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {

@@ -55,7 +55,7 @@ use super::config::FormatterConfig;
 /// runtime: comfortably safe even against a meaningfully smaller WASM
 /// stack, while still far more headroom than realistic (even
 /// generated/templated) Tcl needs to format.
-const MAX_FORMAT_DEPTH: usize = 128;
+const MAX_FORMAT_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
 
 /// What kind of argument this is for formatting purposes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1375,7 +1375,7 @@ pub(crate) fn format_body(
     // (issue #996). Past the cap, leave this (deeply nested) body
     // unformatted rather than recursing further, matching the existing
     // give-up-gracefully fallback just below for an unparseable body.
-    if indent_level > MAX_FORMAT_DEPTH {
+    if MAX_FORMAT_DEPTH.exceeded(u32::try_from(indent_level).unwrap_or(u32::MAX)) {
         return source.to_owned();
     }
     let sm = SourceMap::new(source);

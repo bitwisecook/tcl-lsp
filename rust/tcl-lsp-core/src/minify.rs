@@ -110,7 +110,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 /// [`crate::formatting::engine::MAX_FORMAT_DEPTH`] (this crate is also
 /// reachable from a WASM host with no stack-size guarantee, via
 /// `bigip-query-wasm`) — see that constant's doc comment.
-const MAX_MINIFY_DEPTH: usize = 128;
+const MAX_MINIFY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
 
 /// One argument accumulated while parsing a command.
 struct Arg {
@@ -591,12 +591,12 @@ pub fn minify_tcl_compact(
 
 /// Minify a Tcl script body (top-level or inside braces). `depth` is this
 /// body's nesting level — see [`MAX_MINIFY_DEPTH`].
-fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry, depth: usize) -> String {
+fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
     // Native-stack safety net — see `MAX_MINIFY_DEPTH`'s doc comment
     // (issue #996). Past the cap, leave this (deeply nested) body
     // unminified rather than recursing further, matching the existing
     // give-up-gracefully fallback just below for an unparseable body.
-    if depth > MAX_MINIFY_DEPTH {
+    if MAX_MINIFY_DEPTH.exceeded(depth) {
         return source.to_owned();
     }
     let sm = SourceMap::new(source);
@@ -2438,7 +2438,7 @@ fn render_command(
     cmd_args: &[Arg],
     dialect: &str,
     registry: &CommandRegistry,
-    depth: usize,
+    depth: u32,
 ) -> Vec<String> {
     let cmd_name = cmd_args
         .first()
@@ -2507,7 +2507,7 @@ fn minify_lambda_literal(
     tok: Token,
     dialect: &str,
     registry: &CommandRegistry,
-    depth: usize,
+    depth: u32,
 ) -> String {
     let source = sm.source();
     let fallback = || format!("{{{}}}", sm.token_text(tok));
@@ -2572,7 +2572,7 @@ fn reconstruct_raw(
     dialect: &str,
     registry: &CommandRegistry,
     in_quotes: bool,
-    depth: usize,
+    depth: u32,
 ) -> String {
     match tok.kind {
         // Inside a double-quoted word the caller re-wraps the arg in `"…"`, so a
@@ -2668,7 +2668,7 @@ fn reconstruct_arg(
     arg: &Arg,
     dialect: &str,
     registry: &CommandRegistry,
-    depth: usize,
+    depth: u32,
 ) -> String {
     let mut raw = String::new();
     for (idx, &tok) in arg.tokens.iter().enumerate() {
@@ -2738,7 +2738,7 @@ fn minify_switch_case_list(
     source: &str,
     dialect: &str,
     registry: &CommandRegistry,
-    depth: usize,
+    depth: u32,
 ) -> String {
     let sm = SourceMap::new(source);
     let Ok(tokens) = Lexer::new(source).tokenise_all() else {
@@ -2837,7 +2837,7 @@ fn strip_expr_whitespace(
     text: &str,
     dialect: &str,
     registry: &CommandRegistry,
-    depth: usize,
+    depth: u32,
 ) -> String {
     let toks = tokenise_expr(text, dialect, registry, depth);
     let rendered: Vec<String> = toks
@@ -2865,7 +2865,7 @@ fn strip_expr_whitespace(
 /// Compress and shrink an `expr` body: strip whitespace, then try
 /// AST transforms (De Morgan / comparison inversion / double
 /// negation) and keep whichever is shorter.
-fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry, depth: usize) -> String {
+fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
     let compressed = strip_expr_whitespace(text, dialect, registry, depth);
     let shrunk = shrink_expr_ast(&compressed, dialect, registry, depth);
     if shrunk.len() < compressed.len() {
@@ -2876,7 +2876,7 @@ fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry, depth: u
 }
 
 /// AST-based expression shrinking.
-fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry, depth: usize) -> String {
+fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry, depth: u32) -> String {
     let node = parse_expr(text, Some(dialect));
     if matches!(node, ExprNode::Raw { .. }) {
         return text.to_owned();
@@ -3073,7 +3073,7 @@ fn tokenise_expr(
     text: &str,
     dialect: &str,
     registry: &CommandRegistry,
-    nest_depth: usize,
+    nest_depth: u32,
 ) -> Vec<ExprTok> {
     let bytes = text.as_bytes();
     let n = bytes.len();
