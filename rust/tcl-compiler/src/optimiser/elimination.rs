@@ -45,6 +45,7 @@ use tcl_registry::CommandRegistry;
 use crate::cfg::Function as CfgFunction;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::def_use::DefKind;
+use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
@@ -80,7 +81,15 @@ pub(crate) struct PurityCtx<'a> {
     pub(crate) enclosing_class: Option<&'a str>,
 }
 
-fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>) -> bool {
+fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32) -> bool {
+    // Native-stack safety net (issue #996): this recurses into nested `[cmd
+    // …]` substitutions inside a single word's raw text, a genuinely
+    // unbounded axis. Past the cap, assume an observable side effect — the
+    // conservative direction, so an assignment whose RHS nests deeper than we
+    // can scan is never wrongly deleted.
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        return true;
+    }
     let PurityCtx {
         interproc_pure,
         pure_methods,
@@ -127,7 +136,7 @@ fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>) -> bool {
         }
         // Recurse into nested substitutions inside the args.
         for arg in cmd_args {
-            if word_has_observable_side_effect(arg, purity) {
+            if word_has_observable_side_effect(arg, purity, depth + 1) {
                 return true;
             }
         }
@@ -154,28 +163,39 @@ fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<Stri
 /// Expr-tree analogue of [`word_has_observable_side_effect`] — `true`
 /// if any embedded command substitution in the expression has an
 /// observable side effect.
-fn expr_has_observable_side_effect(node: &ExprNode, purity: PurityCtx<'_>) -> bool {
+fn expr_has_observable_side_effect(node: &ExprNode, purity: PurityCtx<'_>, depth: u32) -> bool {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, assume an observable side effect
+    // — the conservative direction, so an expression assignment nested deeper
+    // than we can walk is never wrongly deleted. (Calls into
+    // `word_has_observable_side_effect` re-enter that walker at bracket-text
+    // depth 0: a leaf's raw text is a separate, independent recursion axis.)
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return true;
+    }
     match node {
         ExprNode::Command { text, .. } | ExprNode::Raw { text } => {
-            word_has_observable_side_effect(text, purity)
+            word_has_observable_side_effect(text, purity, 0)
         }
         ExprNode::Binary { left, right, .. } => {
-            expr_has_observable_side_effect(left, purity)
-                || expr_has_observable_side_effect(right, purity)
+            expr_has_observable_side_effect(left, purity, depth + 1)
+                || expr_has_observable_side_effect(right, purity, depth + 1)
         }
-        ExprNode::Unary { operand, .. } => expr_has_observable_side_effect(operand, purity),
+        ExprNode::Unary { operand, .. } => {
+            expr_has_observable_side_effect(operand, purity, depth + 1)
+        }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expr_has_observable_side_effect(condition, purity)
-                || expr_has_observable_side_effect(true_branch, purity)
-                || expr_has_observable_side_effect(false_branch, purity)
+            expr_has_observable_side_effect(condition, purity, depth + 1)
+                || expr_has_observable_side_effect(true_branch, purity, depth + 1)
+                || expr_has_observable_side_effect(false_branch, purity, depth + 1)
         }
         ExprNode::Call { args, .. } => args
             .iter()
-            .any(|a| expr_has_observable_side_effect(a, purity)),
+            .any(|a| expr_has_observable_side_effect(a, purity, depth + 1)),
         _ => false,
     }
 }
@@ -189,14 +209,14 @@ fn expr_has_observable_side_effect(node: &ExprNode, purity: PurityCtx<'_>) -> bo
 pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>) -> bool {
     match stmt {
         Statement::AssignConst { .. } => true,
-        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, purity),
-        Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, purity),
+        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, purity, 0),
+        Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, purity, 0),
         // `incr v` reads + writes v — the assignment itself is the
         // observable effect, so deleting it is OK when v is dead and
         // the optional amount word is side-effect-free.
         Statement::Incr { amount, .. } => match amount {
             None => true,
-            Some(a) => !word_has_observable_side_effect(a, purity),
+            Some(a) => !word_has_observable_side_effect(a, purity, 0),
         },
         // Unknown statement form — conservative.
         _ => false,
@@ -1162,6 +1182,52 @@ mod tests {
     }
 
     // internal helper tests
+
+    /// Regression coverage for issue #996: `expr_has_observable_side_effect`
+    /// recurses once per `ExprNode` level (Tier 1A) and
+    /// `word_has_observable_side_effect` once per nested `[cmd …]`
+    /// substitution inside a single word's raw text (Tier 1B) — both
+    /// genuinely unbounded before this fix. Empirically each overflowed the
+    /// native stack (SIGABRT) in the low thousands of levels on a 2 MiB
+    /// thread (`cargo test`'s default). 3000 is comfortably past that crash
+    /// range and past both caps (256); the assertion is that each returns at
+    /// all.
+    #[test]
+    fn deeply_nested_side_effect_walks_survive() {
+        let reg = registry();
+        // `a` is treated as an interprocedurally-pure command so
+        // `word_has_observable_side_effect` recurses through the nested
+        // substitutions rather than early-returning at the first command.
+        let interproc_pure: HashSet<String> = ["a".to_owned()].into_iter().collect();
+        let pure_methods: HashSet<String> = HashSet::new();
+        let purity = PurityCtx {
+            registry: Some(&reg),
+            interproc_pure: &interproc_pure,
+            pure_methods: &pure_methods,
+            enclosing_class: None,
+        };
+
+        // Tier 1B: `[a [a [a … [a x] … ]]]` nested substitutions.
+        let mut deep = "x".to_owned();
+        for _ in 0..3000 {
+            deep = format!("[a {deep}]");
+        }
+        let _ = word_has_observable_side_effect(&deep, purity, 0);
+
+        // Tier 1A: a 3000-deep `ExprNode` tree (nested unary `!`).
+        let mut node = ExprNode::Literal {
+            text: "1".into(),
+            start: 0,
+            end: 1,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: crate::expr_ast::UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let _ = expr_has_observable_side_effect(&node, purity, 0);
+    }
 
     #[test]
     fn unreachable_blocks_empty_when_all_executable() {

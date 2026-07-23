@@ -1051,17 +1051,29 @@ impl Analyser {
         let Some(start) = scope_at(&self.result.global_scope, scope_path) else {
             return out;
         };
-        walk_scopes_helper(start, scope_path, &mut out);
+        walk_scopes_helper(start, scope_path, &mut out, 0);
         out
     }
 }
 
-fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>) {
+/// Depth cap for [`walk_scopes_helper`]'s recursion over nested
+/// (namespace / proc / method) [`Scope`] children — issue #996.
+/// Transitively bounded today via `analyser::commands::MAX_BODY_DEPTH`
+/// (the analyser's own recursive descent, which builds this `Scope` tree
+/// in the first place, already caps its own nesting at 256), capped here
+/// independently for defence-in-depth and consistency with every other
+/// full-tree walker in this crate.
+const MAX_SCOPE_WALK_DEPTH: u32 = 256;
+
+fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>, depth: u32) {
+    if depth > MAX_SCOPE_WALK_DEPTH {
+        return;
+    }
     out.push(path.to_vec());
     for (i, child) in scope.children.iter().enumerate() {
         let mut child_path = path.to_vec();
         child_path.push(i);
-        walk_scopes_helper(child, &child_path, out);
+        walk_scopes_helper(child, &child_path, out, depth + 1);
     }
 }
 
@@ -1678,6 +1690,30 @@ mod tests {
             .push(Scope::new(ScopeKind::Namespace, "ns2"));
         let paths = a.walk_scopes_from(&[]);
         assert_eq!(paths, vec![vec![], vec![0], vec![0, 0], vec![1]]);
+    }
+
+    /// Regression coverage for issue #996: `walk_scopes_helper` recurses
+    /// once per nested [`Scope`] child, with no depth cap of its own
+    /// before this fix. Transitively bounded to
+    /// `analyser::commands::MAX_BODY_DEPTH` (256) by the analyser pass
+    /// that builds the `Scope` tree today, so this is defence-in-depth /
+    /// consistency with every other full-tree walker in this crate, not a
+    /// currently-reproducible crash. 2000 levels is comfortably past this
+    /// new cap; the assertion is that `walk_scopes_from` returns at all,
+    /// not what it returns.
+    #[test]
+    fn deeply_nested_scopes_survive_walk_scopes_from() {
+        const DEPTH: usize = 2000;
+        let mut a = Analyser::new();
+        let mut leaf = Scope::new(ScopeKind::Proc, "::leaf");
+        for i in 0..DEPTH {
+            let mut wrapper = Scope::new(ScopeKind::Namespace, format!("ns{i}"));
+            wrapper.children.push(leaf);
+            leaf = wrapper;
+        }
+        a.result.global_scope.children.push(leaf);
+        let paths = a.walk_scopes_from(&[]);
+        assert!(!paths.is_empty());
     }
 
     fn var(name: &str, def_span: Span) -> VarDef {

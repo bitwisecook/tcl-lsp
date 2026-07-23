@@ -44,6 +44,7 @@ use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp};
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ssa::{SsaFunction, ValueKey, Version};
 
 /// A bound is an `i64`, or `None` for an infinity (sign given by position).
@@ -262,11 +263,26 @@ fn const_int_from_value(text: &str) -> Option<i64> {
 /// Abstract-evaluate `expr` over the current interval environment.
 #[must_use]
 pub(crate) fn eval_expr(expr: &ExprNode, env: &HashMap<String, Interval>) -> Interval {
+    // Public entry: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`eval_expr_at`]).
+    eval_expr_at(expr, env, 0)
+}
+
+#[must_use]
+fn eval_expr_at(expr: &ExprNode, env: &HashMap<String, Interval>, depth: u32) -> Interval {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, return `TOP` (the unbounded
+    // interval) — the same "know nothing" answer this abstract evaluator
+    // already gives for any unsupported node, so the result stays a sound
+    // over-approximation, never a crash.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return TOP;
+    }
     match expr {
         ExprNode::Literal { .. } => literal_int(expr).map_or(TOP, constant),
         ExprNode::Var { name, .. } => env.get(name).copied().unwrap_or(TOP),
         ExprNode::Unary { op, operand } => {
-            let inner = eval_expr(operand, env);
+            let inner = eval_expr_at(operand, env, depth + 1);
             match op {
                 UnaryOp::Neg => negate(inner),
                 UnaryOp::Pos => inner,
@@ -274,8 +290,8 @@ pub(crate) fn eval_expr(expr: &ExprNode, env: &HashMap<String, Interval>) -> Int
             }
         }
         ExprNode::Binary { op, left, right } => {
-            let la = eval_expr(left, env);
-            let ra = eval_expr(right, env);
+            let la = eval_expr_at(left, env, depth + 1);
+            let ra = eval_expr_at(right, env, depth + 1);
             match op {
                 BinOp::Add => add(la, ra),
                 BinOp::Sub => sub(la, ra),
@@ -890,6 +906,26 @@ mod tests {
 
     fn pexpr(src: &str) -> ExprNode {
         tcl_syntax::expr::parser::parse_expr(src, None)
+    }
+
+    /// Regression coverage for issue #996: `eval_expr` recurses once per
+    /// `ExprNode` level with no depth cap before this fix. A tree built
+    /// directly is unbounded (the Pratt parser caps its own output at 256)
+    /// and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
+    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns
+    /// (the value past the cap is a sound `TOP`).
+    #[test]
+    fn deeply_nested_eval_expr_survives() {
+        let env: HashMap<String, Interval> = HashMap::new();
+        let mut node = pexpr("1");
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Neg,
+                operand: Box::new(node),
+            };
+        }
+        let _ = eval_expr(&node, &env);
     }
 
     #[test]

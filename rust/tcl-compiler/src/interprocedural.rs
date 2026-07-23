@@ -27,8 +27,22 @@ use std::collections::{HashMap, HashSet};
 
 pub use tcl_registry::Arity;
 
+use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::naming::{normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
+
+/// Depth cap shared by every `Script`/`Statement`-tree recursion in this
+/// module (`collect_instance_var_writes`; the mutually-recursive
+/// `scan_script`/`scan_statement`/`scan_control_flow_statement` trio;
+/// `script_always_returns`/`stmt_always_returns`) — issue #996.
+///
+/// Transitively bounded today via `crate::lowering`'s
+/// `MAX_LOWER_NEST_DEPTH` (every `Script` this module walks is built by
+/// lowering, which already caps its own construction at 256), capped here
+/// independently for defence-in-depth and consistency with every other
+/// full-tree walker in this crate (`optimiser::MAX_OPTIMISER_WALK_DEPTH`,
+/// `codegen::structured::MAX_STRUCTURED_DEPTH`).
+const MAX_INTERPROCEDURAL_WALK_DEPTH: u32 = 256;
 
 // Summary types
 
@@ -540,9 +554,9 @@ fn build_method_summaries(
             // Method bodies are not call-graph nodes; no object-type map needed.
             object_types: ObjectTypeMap::none().0,
         };
-        scan_script(&method.body, ctx, &mut facts);
+        scan_script(&method.body, ctx, &mut facts, 0);
         // Fall-through exit is non-constant (O103); see `scan_proc`.
-        if !script_always_returns(&method.body) {
+        if !script_always_returns(&method.body, 0) {
             facts.returns.push(ReturnKind::Other);
         }
 
@@ -551,7 +565,12 @@ fn build_method_summaries(
         // impure even though the write looks like a plain local `set`.
         let mut written_ivars: HashSet<String> = HashSet::new();
         if !method.instance_vars.is_empty() {
-            collect_instance_var_writes(&method.body, &method.instance_vars, &mut written_ivars);
+            collect_instance_var_writes(
+                &method.body,
+                &method.instance_vars,
+                &mut written_ivars,
+                0,
+            );
         }
 
         // `local_pure` is the authoritative local-impurity signal (the
@@ -637,12 +656,17 @@ fn build_method_summaries(
 /// not missed. Over-approximating writes is the sound direction (a
 /// spurious write only costs an O126 fold; a missed one would wrongly
 /// delete a state mutation).
+#[allow(clippy::too_many_lines)] // the depth-cap check adds a few lines over the threshold
 fn collect_instance_var_writes(
     script: &crate::ir::Script,
     ivars: &HashSet<String>,
     out: &mut HashSet<String>,
+    depth: u32,
 ) {
     use crate::ir::Statement;
+    if depth > MAX_INTERPROCEDURAL_WALK_DEPTH {
+        return;
+    }
     for stmt in &script.statements {
         match stmt {
             Statement::AssignConst { name, .. }
@@ -668,20 +692,20 @@ fn collect_instance_var_writes(
                 clauses, else_body, ..
             } => {
                 for clause in clauses {
-                    collect_instance_var_writes(&clause.body, ivars, out);
+                    collect_instance_var_writes(&clause.body, ivars, out, depth + 1);
                 }
                 if let Some(eb) = else_body {
-                    collect_instance_var_writes(eb, ivars, out);
+                    collect_instance_var_writes(eb, ivars, out, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                collect_instance_var_writes(init, ivars, out);
-                collect_instance_var_writes(next, ivars, out);
-                collect_instance_var_writes(body, ivars, out);
+                collect_instance_var_writes(init, ivars, out, depth + 1);
+                collect_instance_var_writes(next, ivars, out, depth + 1);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
             }
-            Statement::While { body, .. } => collect_instance_var_writes(body, ivars, out),
+            Statement::While { body, .. } => collect_instance_var_writes(body, ivars, out, depth + 1),
             Statement::Foreach {
                 iterators, body, ..
             } => {
@@ -690,7 +714,7 @@ fn collect_instance_var_writes(
                         check_ivar_write(v, ivars, out);
                     }
                 }
-                collect_instance_var_writes(body, ivars, out);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
             }
             Statement::Catch {
                 body,
@@ -698,7 +722,7 @@ fn collect_instance_var_writes(
                 options_var,
                 ..
             } => {
-                collect_instance_var_writes(body, ivars, out);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
                 if let Some(rv) = result_var {
                     check_ivar_write(rv, ivars, out);
                 }
@@ -712,7 +736,7 @@ fn collect_instance_var_writes(
                 finally_body,
                 ..
             } => {
-                collect_instance_var_writes(body, ivars, out);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
                 for h in handlers {
                     if let Some(v) = &h.var_name {
                         check_ivar_write(v, ivars, out);
@@ -720,10 +744,10 @@ fn collect_instance_var_writes(
                     if let Some(ov) = &h.options_var {
                         check_ivar_write(ov, ivars, out);
                     }
-                    collect_instance_var_writes(&h.body, ivars, out);
+                    collect_instance_var_writes(&h.body, ivars, out, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    collect_instance_var_writes(fb, ivars, out);
+                    collect_instance_var_writes(fb, ivars, out, depth + 1);
                 }
             }
             Statement::Switch {
@@ -731,15 +755,15 @@ fn collect_instance_var_writes(
             } => {
                 for arm in arms {
                     if let Some(b) = &arm.body {
-                        collect_instance_var_writes(b, ivars, out);
+                        collect_instance_var_writes(b, ivars, out, depth + 1);
                     }
                 }
                 if let Some(db) = default_body {
-                    collect_instance_var_writes(db, ivars, out);
+                    collect_instance_var_writes(db, ivars, out, depth + 1);
                 }
             }
             Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
-                collect_instance_var_writes(body, ivars, out);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
             }
             _ => {}
         }
@@ -1029,13 +1053,13 @@ fn scan_proc(
         params: &params,
         object_types,
     };
-    scan_script(&proc.body, ctx, &mut facts);
+    scan_script(&proc.body, ctx, &mut facts, 0);
     // If the body can fall off the end, its implicit exit returns the
     // result of the last command — not a constant. Record a non-constant
     // exit so `summarise_returns` won't fold a conditional `return CONST`
     // to a constant when a fall-through path returns something else
     // (O103).
-    if !script_always_returns(&proc.body) {
+    if !script_always_returns(&proc.body, 0) {
         facts.returns.push(ReturnKind::Other);
     }
     facts
@@ -1059,9 +1083,21 @@ struct ScanCtx<'a> {
     object_types: &'a HashMap<String, HashSet<String>>,
 }
 
-fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+/// `depth` is the nesting level of `script` — see
+/// [`MAX_INTERPROCEDURAL_WALK_DEPTH`]. Past the cap, `script`'s statements
+/// are not scanned; `facts` is instead marked exactly as conservatively as
+/// [`scan_statement`]'s own `Statement::Barrier` arm (unscanned code must
+/// not be silently under-counted as pure / effect-free).
+fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
+    if depth > MAX_INTERPROCEDURAL_WALK_DEPTH {
+        facts.has_barrier = true;
+        facts.local_pure = false;
+        facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+        facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+        return;
+    }
     for stmt in &script.statements {
-        scan_statement(stmt, ctx, facts);
+        scan_statement(stmt, ctx, facts, depth);
     }
 }
 
@@ -1327,7 +1363,12 @@ fn scan_call_statement(
     scan_call_facts(command, args, ctx, facts);
 }
 
-fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+/// `depth` is `stmt`'s own nesting level — see
+/// [`MAX_INTERPROCEDURAL_WALK_DEPTH`]. Dispatch-only (no nested `Script`
+/// entered here) keeps the same `depth`; recursing into a nested body
+/// (`UpFrame`/`Block`'s inner statements, or any control-flow body via
+/// [`scan_control_flow_statement`]) passes `depth + 1`.
+fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
     use crate::ir::Statement;
     let ScanCtx { params, .. } = ctx;
     match stmt {
@@ -1347,16 +1388,12 @@ fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut Loc
             facts.local_pure = false;
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
             facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
-            for inner in &body.statements {
-                scan_statement(inner, ctx, facts);
-            }
+            scan_script(body, ctx, facts, depth + 1);
         }
         Statement::Block { body, .. } => {
             // ``Block`` is a transparent splice: walk through to the
             // inner statements without flagging a barrier.
-            for inner in &body.statements {
-                scan_statement(inner, ctx, facts);
-            }
+            scan_script(body, ctx, facts, depth + 1);
         }
         Statement::AssignConst { name, .. } | Statement::AssignExpr { name, .. } => {
             note_assign_global_write(name, facts);
@@ -1367,7 +1404,7 @@ fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut Loc
             // value is a call site (`set y [double $x]`), so its callees
             // become call-graph edges.
             if value.contains('[') {
-                scan_value_substitutions(value, ctx, facts);
+                scan_value_substitutions(value, ctx, facts, 0);
             }
         }
         Statement::Incr { name, amount, .. } => {
@@ -1375,7 +1412,7 @@ fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut Loc
             if let Some(amount) = amount
                 && amount.contains('[')
             {
-                scan_value_substitutions(amount, ctx, facts);
+                scan_value_substitutions(amount, ctx, facts, 0);
             }
         }
         Statement::Return { value, expr, .. } => {
@@ -1386,7 +1423,7 @@ fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut Loc
             if let Some(value) = value
                 && value.contains('[')
             {
-                scan_value_substitutions(value, ctx, facts);
+                scan_value_substitutions(value, ctx, facts, 0);
             }
         }
         Statement::Call {
@@ -1405,7 +1442,7 @@ fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut Loc
         | Statement::Catch { .. }
         | Statement::Try { .. }
         | Statement::Switch { .. } => {
-            scan_control_flow_statement(stmt, ctx, facts);
+            scan_control_flow_statement(stmt, ctx, facts, depth);
         }
     }
 }
@@ -1413,11 +1450,14 @@ fn scan_statement(stmt: &crate::ir::Statement, ctx: ScanCtx<'_>, facts: &mut Loc
 /// Recurse into the bodies / conditions of a control-flow statement (`if` /
 /// `for` / `while` / `expr` / `foreach` / `catch` / `try` / `switch`),
 /// recording param-touching conditions and embedded call edges. Extracted from
-/// [`scan_statement`].
+/// [`scan_statement`]. `depth` is `stmt`'s own nesting level — see
+/// [`MAX_INTERPROCEDURAL_WALK_DEPTH`]; every nested body passed to
+/// [`scan_script`] descends one level (`depth + 1`).
 fn scan_control_flow_statement(
     stmt: &crate::ir::Statement,
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
+    depth: u32,
 ) {
     use crate::ir::Statement;
     let ScanCtx { params, .. } = ctx;
@@ -1426,12 +1466,12 @@ fn scan_control_flow_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                note_params_in_expr(&c.condition, params, facts);
-                scan_expr_for_calls(&c.condition, ctx, facts);
-                scan_script(&c.body, ctx, facts);
+                note_params_in_expr(&c.condition, params, facts, 0);
+                scan_expr_for_calls(&c.condition, ctx, facts, 0);
+                scan_script(&c.body, ctx, facts, depth + 1);
             }
             if let Some(body) = else_body {
-                scan_script(body, ctx, facts);
+                scan_script(body, ctx, facts, depth + 1);
             }
         }
         Statement::For {
@@ -1441,25 +1481,25 @@ fn scan_control_flow_statement(
             body,
             ..
         } => {
-            note_params_in_expr(condition, params, facts);
-            scan_expr_for_calls(condition, ctx, facts);
-            scan_script(init, ctx, facts);
-            scan_script(next, ctx, facts);
-            scan_script(body, ctx, facts);
+            note_params_in_expr(condition, params, facts, 0);
+            scan_expr_for_calls(condition, ctx, facts, 0);
+            scan_script(init, ctx, facts, depth + 1);
+            scan_script(next, ctx, facts, depth + 1);
+            scan_script(body, ctx, facts, depth + 1);
         }
         Statement::While {
             condition, body, ..
         } => {
-            note_params_in_expr(condition, params, facts);
-            scan_expr_for_calls(condition, ctx, facts);
-            scan_script(body, ctx, facts);
+            note_params_in_expr(condition, params, facts, 0);
+            scan_expr_for_calls(condition, ctx, facts, 0);
+            scan_script(body, ctx, facts, depth + 1);
         }
         Statement::ExprEval { expr, .. } => {
-            note_params_in_expr(expr, params, facts);
-            scan_expr_for_calls(expr, ctx, facts);
+            note_params_in_expr(expr, params, facts, 0);
+            scan_expr_for_calls(expr, ctx, facts, 0);
         }
         Statement::Foreach { body, .. } | Statement::Catch { body, .. } => {
-            scan_script(body, ctx, facts);
+            scan_script(body, ctx, facts, depth + 1);
         }
         Statement::Try {
             body,
@@ -1467,12 +1507,12 @@ fn scan_control_flow_statement(
             finally_body,
             ..
         } => {
-            scan_script(body, ctx, facts);
+            scan_script(body, ctx, facts, depth + 1);
             for h in handlers {
-                scan_script(&h.body, ctx, facts);
+                scan_script(&h.body, ctx, facts, depth + 1);
             }
             if let Some(fb) = finally_body {
-                scan_script(fb, ctx, facts);
+                scan_script(fb, ctx, facts, depth + 1);
             }
         }
         Statement::Switch {
@@ -1480,11 +1520,11 @@ fn scan_control_flow_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    scan_script(b, ctx, facts);
+                    scan_script(b, ctx, facts, depth + 1);
                 }
             }
             if let Some(db) = default_body {
-                scan_script(db, ctx, facts);
+                scan_script(db, ctx, facts, depth + 1);
             }
         }
         _ => {}
@@ -1544,8 +1584,23 @@ fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>>
 /// `if {[q]} ...`, `while {[q]} ...`, and `for {init} {[q]} {next}
 /// ...` left `q` unrecorded as a callee — flagging it as dead code
 /// and missing the edge in `tcl callgraph`.
-fn scan_expr_for_calls(node: &crate::expr_ast::ExprNode, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+fn scan_expr_for_calls(
+    node: &crate::expr_ast::ExprNode,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+    depth: u32,
+) {
     use crate::expr_ast::ExprNode;
+    // Native-stack safety net (issue #996): this walks the `ExprNode`
+    // operator tree, one native frame per level. Past the cap, stop
+    // descending — a fact collector that returns what it has recorded so far
+    // is the safe fallback (call edges buried deeper than the cap are simply
+    // not recorded; never a crash). Calls into `scan_source_for_calls` below
+    // start that walker at bracket-text depth 0: a `[cmd …]` leaf's raw text
+    // is a separate, independent recursion axis with its own cap.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Command { text, .. } => {
             // Strip the outer `[…]` and segment the inner script.
@@ -1556,7 +1611,7 @@ fn scan_expr_for_calls(node: &crate::expr_ast::ExprNode, ctx: ScanCtx<'_>, facts
                 .strip_prefix('[')
                 .and_then(|s| s.strip_suffix(']'))
                 .unwrap_or(text.as_str());
-            scan_source_for_calls(inner, ctx, facts);
+            scan_source_for_calls(inner, ctx, facts, 0);
         }
         ExprNode::String { text, .. }
             // Quoted strings may contain command substitutions
@@ -1569,28 +1624,28 @@ fn scan_expr_for_calls(node: &crate::expr_ast::ExprNode, ctx: ScanCtx<'_>, facts
         {
             let inner = &text[1..text.len() - 1];
             if inner.contains('[') {
-                scan_source_for_calls(inner, ctx, facts);
+                scan_source_for_calls(inner, ctx, facts, 0);
             }
         }
         ExprNode::Binary { left, right, .. } => {
-            scan_expr_for_calls(left, ctx, facts);
-            scan_expr_for_calls(right, ctx, facts);
+            scan_expr_for_calls(left, ctx, facts, depth + 1);
+            scan_expr_for_calls(right, ctx, facts, depth + 1);
         }
         ExprNode::Unary { operand, .. } => {
-            scan_expr_for_calls(operand, ctx, facts);
+            scan_expr_for_calls(operand, ctx, facts, depth + 1);
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            scan_expr_for_calls(condition, ctx, facts);
-            scan_expr_for_calls(true_branch, ctx, facts);
-            scan_expr_for_calls(false_branch, ctx, facts);
+            scan_expr_for_calls(condition, ctx, facts, depth + 1);
+            scan_expr_for_calls(true_branch, ctx, facts, depth + 1);
+            scan_expr_for_calls(false_branch, ctx, facts, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for a in args {
-                scan_expr_for_calls(a, ctx, facts);
+                scan_expr_for_calls(a, ctx, facts, depth + 1);
             }
         }
         _ => {}
@@ -1623,7 +1678,7 @@ fn note_assign_global_write(name: &str, facts: &mut LocalFacts) {
 /// dialect; each [`TokenType::Cmd`] token's inner script is handed to
 /// [`scan_source_for_calls`] (which resolves the head, applies the
 /// callee's effects, and recurses into `BODY`-role args).
-fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
     let dialect = ctx.dialect;
     if !text.contains('[') {
         return;
@@ -1646,12 +1701,23 @@ fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts
             && text.is_char_boundary(start)
             && text.is_char_boundary(end)
         {
-            scan_source_for_calls(&text[start..end], ctx, facts);
+            // Thin dispatcher — carry the caller's bracket-text depth straight
+            // through; `scan_source_for_calls` enforces the cap (issue #996).
+            scan_source_for_calls(&text[start..end], ctx, facts, depth);
         }
     }
 }
 
-fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
+    // Native-stack safety net (issue #996): this recurses into `ArgRole::Body`
+    // args, `apply` lambda bodies, and nested `[cmd …]` substitutions inside a
+    // single word's raw text — a genuinely unbounded axis, independent of any
+    // statement-tree cap (`catch {catch {catch {…}}}` / `apply {{} {apply {{}
+    // {…}}}}` nested arbitrarily deep). Past the cap, stop descending: call
+    // edges buried deeper than the cap are not recorded, never a crash.
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        return;
+    }
     let ScanCtx {
         registry, dialect, ..
     } = ctx;
@@ -1680,7 +1746,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts)
             registry.arg_indices_for_role(name, &arg_strs, tcl_registry::arg_role::ArgRole::Body);
         for idx in body_indices {
             if let Some(body_text) = texts.get(idx) {
-                scan_source_for_calls(body_text, ctx, facts);
+                scan_source_for_calls(body_text, ctx, facts, depth + 1);
             }
         }
         // Recurse into an `ArgRole::LambdaLiteral` argument's real body
@@ -1724,7 +1790,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts)
                     caller: &lambda_caller,
                     ..ctx
                 };
-                scan_source_for_calls(body_text, lambda_ctx, facts);
+                scan_source_for_calls(body_text, lambda_ctx, facts, depth + 1);
             }
         }
         // Recurse into EXPR-role args. `expr {…}` (and the registry's other
@@ -1746,7 +1812,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts)
                     .strip_prefix('{')
                     .and_then(|s| s.strip_suffix('}'))
                     .unwrap_or(arg);
-                scan_value_substitutions(inner, ctx, facts);
+                scan_value_substitutions(inner, ctx, facts, depth + 1);
             }
         }
         // A `[cmd …]` substitution inside a *plain* value arg also executes in
@@ -1759,7 +1825,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts)
         // body/expr args handled above are idempotent under a re-scan.
         for arg in texts {
             if arg.contains('[') {
-                scan_value_substitutions(arg, ctx, facts);
+                scan_value_substitutions(arg, ctx, facts, depth + 1);
             }
         }
     }
@@ -1825,8 +1891,17 @@ fn note_params_in_expr(
     node: &crate::expr_ast::ExprNode,
     params: &HashSet<String>,
     facts: &mut LocalFacts,
+    depth: u32,
 ) {
     use crate::expr_ast::ExprNode;
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — param
+    // observations buried deeper than the cap are simply not recorded (a
+    // param not marked `UsedInCondition` stays whatever it already was);
+    // never a crash.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Var { name, .. } if params.contains(name) => {
             facts
@@ -1836,22 +1911,22 @@ fn note_params_in_expr(
                 .insert(ProcArgTrait::UsedInCondition);
         }
         ExprNode::Binary { left, right, .. } => {
-            note_params_in_expr(left, params, facts);
-            note_params_in_expr(right, params, facts);
+            note_params_in_expr(left, params, facts, depth + 1);
+            note_params_in_expr(right, params, facts, depth + 1);
         }
-        ExprNode::Unary { operand, .. } => note_params_in_expr(operand, params, facts),
+        ExprNode::Unary { operand, .. } => note_params_in_expr(operand, params, facts, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            note_params_in_expr(condition, params, facts);
-            note_params_in_expr(true_branch, params, facts);
-            note_params_in_expr(false_branch, params, facts);
+            note_params_in_expr(condition, params, facts, depth + 1);
+            note_params_in_expr(true_branch, params, facts, depth + 1);
+            note_params_in_expr(false_branch, params, facts, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for a in args {
-                note_params_in_expr(a, params, facts);
+                note_params_in_expr(a, params, facts, depth + 1);
             }
         }
         _ => {}
@@ -1959,7 +2034,7 @@ fn classify_return_expr(node: &crate::expr_ast::ExprNode, params: &HashSet<Strin
     // Walk the AST collecting var references against the param
     // set; any match → UsesParam.
     let mut referenced: Vec<String> = Vec::new();
-    walk_collect_param_refs(node, params, &mut referenced);
+    walk_collect_param_refs(node, params, &mut referenced, 0);
     if !referenced.is_empty() {
         referenced.sort();
         referenced.dedup();
@@ -1972,29 +2047,37 @@ fn walk_collect_param_refs(
     node: &crate::expr_ast::ExprNode,
     params: &HashSet<String>,
     out: &mut Vec<String>,
+    depth: u32,
 ) {
     use crate::expr_ast::ExprNode;
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — this collector
+    // returns the param refs gathered so far (a conservative under-count only
+    // reachable past 256 levels of expression nesting); never a crash.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Var { name, .. } if params.contains(name) => {
             out.push(name.clone());
         }
         ExprNode::Binary { left, right, .. } => {
-            walk_collect_param_refs(left, params, out);
-            walk_collect_param_refs(right, params, out);
+            walk_collect_param_refs(left, params, out, depth + 1);
+            walk_collect_param_refs(right, params, out, depth + 1);
         }
-        ExprNode::Unary { operand, .. } => walk_collect_param_refs(operand, params, out),
+        ExprNode::Unary { operand, .. } => walk_collect_param_refs(operand, params, out, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            walk_collect_param_refs(condition, params, out);
-            walk_collect_param_refs(true_branch, params, out);
-            walk_collect_param_refs(false_branch, params, out);
+            walk_collect_param_refs(condition, params, out, depth + 1);
+            walk_collect_param_refs(true_branch, params, out, depth + 1);
+            walk_collect_param_refs(false_branch, params, out, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for a in args {
-                walk_collect_param_refs(a, params, out);
+                walk_collect_param_refs(a, params, out, depth + 1);
             }
         }
         _ => {}
@@ -2028,19 +2111,35 @@ fn is_plain_proc_name(text: &str) -> bool {
 /// fully-covered `if`/`elseif`/`else` whose every arm returns. Anything
 /// else is treated as "may fall through", which costs only a missed fold,
 /// never a miscompile.
-fn script_always_returns(script: &crate::ir::Script) -> bool {
-    script.statements.iter().any(stmt_always_returns)
+/// `depth` is the nesting level of `script` — see
+/// [`MAX_INTERPROCEDURAL_WALK_DEPTH`]. Past the cap, conservatively answers
+/// `false` ("may fall through") — the same conservative direction this
+/// function's doc comment already commits to for anything it can't prove,
+/// so an unresolved deep answer costs only a missed constant-return fold,
+/// never a miscompile.
+fn script_always_returns(script: &crate::ir::Script, depth: u32) -> bool {
+    if depth > MAX_INTERPROCEDURAL_WALK_DEPTH {
+        return false;
+    }
+    script
+        .statements
+        .iter()
+        .any(|s| stmt_always_returns(s, depth))
 }
 
-fn stmt_always_returns(stmt: &crate::ir::Statement) -> bool {
+fn stmt_always_returns(stmt: &crate::ir::Statement, depth: u32) -> bool {
     use crate::ir::Statement;
     match stmt {
         Statement::Return { .. } => true,
         Statement::If {
             clauses, else_body, ..
         } => {
-            else_body.as_ref().is_some_and(script_always_returns)
-                && clauses.iter().all(|c| script_always_returns(&c.body))
+            else_body
+                .as_ref()
+                .is_some_and(|b| script_always_returns(b, depth + 1))
+                && clauses
+                    .iter()
+                    .all(|c| script_always_returns(&c.body, depth + 1))
         }
         _ => false,
     }
@@ -2139,6 +2238,65 @@ mod tests {
 
     fn known_set(names: &[&str]) -> HashSet<String> {
         names.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    /// Regression coverage for issue #996: the interprocedural call-graph
+    /// scanners recurse with no depth cap before this fix —
+    /// `scan_expr_for_calls`, `note_params_in_expr` and
+    /// `walk_collect_param_refs` once per `ExprNode` level (Tier 1A);
+    /// `scan_source_for_calls` (+ its `scan_value_substitutions` helper) once
+    /// per nested `[cmd …]` substitution / `ArgRole::Body` arg inside a
+    /// single word's raw text (Tier 1B). Both axes were genuinely unbounded,
+    /// independent of the statement-tree `MAX_INTERPROCEDURAL_WALK_DEPTH`
+    /// cap, and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread (`cargo test`'s default). 3000 is
+    /// comfortably past that crash range and past both caps (256); the
+    /// assertion is that each scanner returns at all.
+    #[test]
+    fn deeply_nested_interprocedural_scans_survive() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let known: HashSet<String> = HashSet::new();
+        let params: HashSet<String> = ["x".to_owned()].into_iter().collect();
+        let ctx = ScanCtx {
+            caller: "::top",
+            known: &known,
+            registry: &registry,
+            dialect: None,
+            params: &params,
+            object_types: ObjectTypeMap::none().0,
+        };
+
+        // A 3000-deep `ExprNode` tree (nested unary `!` over `$x`).
+        let mut node = crate::expr_ast::ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = crate::expr_ast::ExprNode::Unary {
+                op: crate::expr_ast::UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+
+        // Tier 1A walkers over the deep expr tree.
+        let mut facts = LocalFacts::default();
+        scan_expr_for_calls(&node, ctx, &mut facts, 0);
+        note_params_in_expr(&node, &params, &mut facts, 0);
+        let mut refs = Vec::new();
+        walk_collect_param_refs(&node, &params, &mut refs, 0);
+
+        // Tier 1B walker over deeply nested command substitutions
+        // `a [a [a [ … [x] … ]]]`: each level is a literal-headed command
+        // whose argument holds the next `[…]` substitution, so
+        // `scan_source_for_calls` recurses through `scan_value_substitutions`
+        // once per bracket level.
+        let mut deep_brackets = "x".to_owned();
+        for _ in 0..3000 {
+            deep_brackets = format!("a [{deep_brackets}]");
+        }
+        scan_source_for_calls(&deep_brackets, ctx, &mut facts, 0);
     }
 
     #[test]
@@ -2819,6 +2977,75 @@ mod tests {
                 caller.calls,
             );
         }
+    }
+
+    /// Regression coverage for issue #996: `collect_instance_var_writes`
+    /// and the mutually-recursive `scan_script`/`scan_statement`/
+    /// `scan_control_flow_statement` trio recurse once per nested
+    /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body, with no
+    /// depth cap of their own before this fix. Transitively bounded to
+    /// `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today, so this is
+    /// defence-in-depth / consistency with every other full-tree walker in
+    /// this crate, not a currently-reproducible crash. 1000 levels of
+    /// *source* nesting is comfortably past this new cap; the assertion is
+    /// that `build_interprocedural_analysis` returns at all, not what it
+    /// returns. Spawns its own big-stack thread since the lexer/CST/
+    /// segmenter stages upstream of this walker's own new cap still walk
+    /// the full un-truncated source nesting before lowering's cap trims
+    /// it — same rationale as
+    /// `structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn deeply_nested_if_survives_interprocedural_scan() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = "proc ::p {} {\n".to_owned();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set done 1\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        src.push_str("}\n");
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = build(&src);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    /// Regression coverage for issue #996: `collect_instance_var_writes`
+    /// (the `TclOO` method-body instance-write scan) recurses once per
+    /// nested `if` body, with no depth cap of its own before this fix.
+    /// Same transitively-bounded-today caveat and big-stack-thread
+    /// rationale as `deeply_nested_if_survives_interprocedural_scan`. 1000
+    /// levels is comfortably past the new cap; the assertion is that the
+    /// method summary is built at all, not what it contains.
+    #[test]
+    fn deeply_nested_if_survives_collect_instance_var_writes() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = "oo::class create C {\n    variable n\n    method bump {} {\n".to_owned();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("incr n\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        src.push_str("}\n}\n");
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let ia = build(&src);
+                assert!(ia.methods.contains_key("::C::bump"));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }
 

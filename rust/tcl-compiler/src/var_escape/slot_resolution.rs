@@ -158,11 +158,24 @@ fn proc_is_slot_eligible(summary: &ProcEscapeSummary) -> bool {
     true
 }
 
+/// Depth cap for [`walk_statements`]'s recursion over nested `if`/`for`/
+/// `while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame` bodies —
+/// issue #996. Transitively bounded today via `MAX_LOWER_NEST_DEPTH`
+/// (every `Script` this walk sees was built by `crate::lowering`, which
+/// already caps its own construction at 256), capped here independently
+/// for defence-in-depth and consistency with every other full-tree walker
+/// in this crate.
+const MAX_SLOT_WALK_DEPTH: u32 = 256;
+
 /// Walk every statement reachable from *script*, recursing
 /// through compound bodies.  Depth-first source order so a
 /// slot-assignment loop sees names in the same order codegen
-/// emits them.
-fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>) {
+/// emits them. `depth` is the nesting level of `script` — see
+/// [`MAX_SLOT_WALK_DEPTH`].
+fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>, depth: u32) {
+    if depth > MAX_SLOT_WALK_DEPTH {
+        return;
+    }
     for stmt in &script.statements {
         out.push(stmt);
         match stmt {
@@ -170,36 +183,36 @@ fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>) {
                 clauses, else_body, ..
             } => {
                 for clause in clauses {
-                    walk_statements(&clause.body, out);
+                    walk_statements(&clause.body, out, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    walk_statements(b, out);
+                    walk_statements(b, out, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                walk_statements(init, out);
-                walk_statements(next, out);
-                walk_statements(body, out);
+                walk_statements(init, out, depth + 1);
+                walk_statements(next, out, depth + 1);
+                walk_statements(body, out, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Foreach { body, .. }
             | Statement::Catch { body, .. }
             | Statement::Block { body, .. }
-            | Statement::UpFrame { body, .. } => walk_statements(body, out),
+            | Statement::UpFrame { body, .. } => walk_statements(body, out, depth + 1),
             Statement::Try {
                 body,
                 handlers,
                 finally_body,
                 ..
             } => {
-                walk_statements(body, out);
+                walk_statements(body, out, depth + 1);
                 for h in handlers {
-                    walk_statements(&h.body, out);
+                    walk_statements(&h.body, out, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    walk_statements(fb, out);
+                    walk_statements(fb, out, depth + 1);
                 }
             }
             Statement::Switch {
@@ -207,11 +220,11 @@ fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>) {
             } => {
                 for arm in arms {
                     if let Some(b) = &arm.body {
-                        walk_statements(b, out);
+                        walk_statements(b, out, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    walk_statements(b, out);
+                    walk_statements(b, out, depth + 1);
                 }
             }
             _ => {}
@@ -341,7 +354,7 @@ pub fn assign_local_slots(
     }
 
     let mut all_stmts: Vec<&Statement> = Vec::new();
-    walk_statements(script, &mut all_stmts);
+    walk_statements(script, &mut all_stmts, 0);
 
     for stmt in &all_stmts {
         if stmt_disables_slots(stmt, &mut ineligible) {
@@ -463,6 +476,40 @@ mod tests {
 
     fn script_with(stmts: Vec<Statement>) -> Script {
         Script { statements: stmts }
+    }
+
+    /// Regression coverage for issue #996: `walk_statements` recurses once
+    /// per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/
+    /// `Block`/`UpFrame` body, with no depth cap of its own before this
+    /// fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the
+    /// lowering pass today, so this is defence-in-depth / consistency with
+    /// every other full-tree walker in this crate, not a
+    /// currently-reproducible crash. 2000 levels is comfortably past this
+    /// new cap; the assertion is that `assign_local_slots` returns at
+    /// all, not what it returns.
+    #[test]
+    fn deeply_nested_if_survives_walk_statements() {
+        use crate::expr_ast::ExprNode;
+        use crate::ir::IfClause;
+
+        const DEPTH: usize = 2000;
+        let mut body = script_with(vec![assign_const("leaf", "1")]);
+        for _ in 0..DEPTH {
+            body = script_with(vec![Statement::If {
+                span: Span::new(0, 0),
+                clauses: vec![IfClause {
+                    condition: ExprNode::Raw { text: "1".into() },
+                    condition_span: Span::new(0, 0),
+                    body,
+                    body_span: Span::new(0, 0),
+                    condition_base: None,
+                }],
+                else_body: None,
+                else_span: None,
+            }]);
+        }
+        let s = ProcEscapeSummary::default();
+        let _ = assign_local_slots(&body, &s, &[]);
     }
 
     #[test]

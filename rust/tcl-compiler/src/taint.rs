@@ -110,6 +110,7 @@ use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{CommandTokens, Statement};
@@ -482,6 +483,29 @@ pub(crate) fn word_taint<S: std::hash::BuildHasher>(
     taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
 ) -> TaintLattice {
+    // Public entry: a word's raw text is bracket-nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`word_taint_at`]).
+    word_taint_at(word, uses, taints, ctx, 0)
+}
+
+/// Depth-carrying core of [`word_taint`]. `depth` counts nested `[cmd …]`
+/// command substitutions *within this word's raw text* — a genuinely
+/// unbounded recursion axis (issue #996), independent of any expression- or
+/// statement-tree cap. `[a [b [c …]]]` nested N deep recurses N frames here.
+fn word_taint_at<S: std::hash::BuildHasher>(
+    word: &str,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    depth: u32,
+) -> TaintLattice {
+    // Native-stack safety net. Past the cap, assume the word is tainted with
+    // no proven mitigations — the conservative direction for a taint
+    // analysis, so a source buried in nesting we stopped scanning can never
+    // be laundered into a false-negative security result.
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        return TaintLattice::tainted();
+    }
     let stripped = word.trim();
 
     // Pure variable reference — inherit taint directly.
@@ -513,7 +537,7 @@ pub(crate) fn word_taint<S: std::hash::BuildHasher>(
         // arbitrary `string range` / `lindex [split ...]` transform.
         let mut t = TaintLattice::clean();
         for arg in &args {
-            t = t.join(word_taint(arg, uses, taints, ctx));
+            t = t.join(word_taint_at(arg, uses, taints, ctx, depth + 1));
         }
         t = t.shape_unproven();
         // Stamp the encoder/transform colour the command adds to a
@@ -547,7 +571,7 @@ pub(crate) fn word_taint<S: std::hash::BuildHasher>(
                 // inside `{[]}`) makes no progress and would recurse
                 // until the stack overflows.
                 if sub.len() < stripped.len() {
-                    t = t.join(word_taint(sub, uses, taints, ctx));
+                    t = t.join(word_taint_at(sub, uses, taints, ctx, depth + 1));
                 }
                 rest = &rest[close + 1..];
             } else {
@@ -773,7 +797,17 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
+    depth: u32,
 ) -> TaintLattice {
+    // Native-stack safety net (issue #996): this walks the `ExprNode`
+    // operator tree, one native frame per level. Past the cap, assume
+    // tainted — the conservative direction, so a command substitution nested
+    // deeper than we can walk can't launder taint into a false negative.
+    // (Calls into `word_taint` below re-enter that walker at bracket-depth 0:
+    // a leaf node's raw text is a separate, independent recursion axis.)
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return TaintLattice::tainted();
+    }
     match node {
         // A bracketed command substitution is classified exactly as a word; an
         // unparseable `Raw` fallback is treated the same way, scanning its text
@@ -791,19 +825,23 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
                 TaintLattice::clean()
             }
         }
-        ExprNode::Binary { left, right, .. } => expr_command_taint(left, uses, taints, ctx)
-            .join(expr_command_taint(right, uses, taints, ctx)),
-        ExprNode::Unary { operand, .. } => expr_command_taint(operand, uses, taints, ctx),
+        ExprNode::Binary { left, right, .. } => {
+            expr_command_taint(left, uses, taints, ctx, depth + 1)
+                .join(expr_command_taint(right, uses, taints, ctx, depth + 1))
+        }
+        ExprNode::Unary { operand, .. } => {
+            expr_command_taint(operand, uses, taints, ctx, depth + 1)
+        }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
             ..
-        } => expr_command_taint(condition, uses, taints, ctx)
-            .join(expr_command_taint(true_branch, uses, taints, ctx))
-            .join(expr_command_taint(false_branch, uses, taints, ctx)),
+        } => expr_command_taint(condition, uses, taints, ctx, depth + 1)
+            .join(expr_command_taint(true_branch, uses, taints, ctx, depth + 1))
+            .join(expr_command_taint(false_branch, uses, taints, ctx, depth + 1)),
         ExprNode::Call { args, .. } => args.iter().fold(TaintLattice::clean(), |acc, a| {
-            acc.join(expr_command_taint(a, uses, taints, ctx))
+            acc.join(expr_command_taint(a, uses, taints, ctx, depth + 1))
         }),
         // Literals and variable references carry no command substitution
         // (variables are covered by the statement's `uses` join).
@@ -827,7 +865,7 @@ fn evaluate_taint_def<S: std::hash::BuildHasher>(
         // launder the taint — a false-negative security diagnostic
         // (RUST_ISSUE_021).
         Statement::AssignExpr { expr, .. } => {
-            join_uses(uses, taints, ssa).join(expr_command_taint(expr, uses, taints, ctx))
+            join_uses(uses, taints, ssa).join(expr_command_taint(expr, uses, taints, ctx, 0))
         }
 
         // Value assignment: evaluate the RHS word.
@@ -1666,7 +1704,7 @@ fn compute_branch_guard_map(
         else {
             continue;
         };
-        let (negated, var) = extract_guard_var(condition, false);
+        let (negated, var) = extract_guard_var(condition, false, 0);
         let Some(var) = var else {
             continue;
         };
@@ -1690,15 +1728,22 @@ fn compute_branch_guard_map(
 /// Extract `(negated, path-var)` from a branch condition: a unary
 /// operator flips negation; a binary operator checks both sides; a
 /// `[string …]` command sub yields the bounds-checked variable.
-fn extract_guard_var(expr: &ExprNode, negated: bool) -> (bool, Option<String>) {
+fn extract_guard_var(expr: &ExprNode, negated: bool, depth: u32) -> (bool, Option<String>) {
+    // Native-stack safety net (issue #996): this walks the `ExprNode` tree,
+    // one native frame per level. Past the cap, report "no guard variable
+    // found" — the same conservative result as the leaf `_` arm, so no
+    // read-narrowing is applied where the condition was too deep to analyse.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return (negated, None);
+    }
     match expr {
-        ExprNode::Unary { operand, .. } => extract_guard_var(operand, !negated),
+        ExprNode::Unary { operand, .. } => extract_guard_var(operand, !negated, depth + 1),
         ExprNode::Binary { left, right, .. } => {
-            let (n, r) = extract_guard_var(left, negated);
+            let (n, r) = extract_guard_var(left, negated, depth + 1);
             if r.is_some() {
                 return (n, r);
             }
-            extract_guard_var(right, negated)
+            extract_guard_var(right, negated, depth + 1)
         }
         ExprNode::Command { text, .. } => (negated, guard_var_from_string_command(text)),
         _ => (negated, None),
@@ -2485,7 +2530,20 @@ const fn binop_coerces(op: crate::expr_ast::BinOp) -> bool {
 ///   None`) regardless of `in_context`, since the parser gave up and the
 ///   operator structure inside is unknown; erring towards a false
 ///   positive here is safer than silently dropping coverage.
-fn collect_coercion_operands(expr: &ExprNode, in_context: bool, out: &mut Vec<CoercionOperand>) {
+fn collect_coercion_operands(
+    expr: &ExprNode,
+    in_context: bool,
+    out: &mut Vec<CoercionOperand>,
+    depth: u32,
+) {
+    // Native-stack safety net (issue #996): this walks the `ExprNode` tree,
+    // one native frame per level. Past the cap, stop descending — a collector
+    // that returns what it has gathered so far is the safe fallback (the only
+    // effect is that operands buried deeper than the cap are not flagged;
+    // never a crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match expr {
         ExprNode::Var {
             name, start, end, ..
@@ -2500,24 +2558,24 @@ fn collect_coercion_operands(expr: &ExprNode, in_context: bool, out: &mut Vec<Co
         ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Command { .. } => {}
         ExprNode::Binary { op, left, right } => {
             let child_ctx = binop_coerces(*op);
-            collect_coercion_operands(left, child_ctx, out);
-            collect_coercion_operands(right, child_ctx, out);
+            collect_coercion_operands(left, child_ctx, out, depth + 1);
+            collect_coercion_operands(right, child_ctx, out, depth + 1);
         }
         ExprNode::Unary { operand, .. } => {
-            collect_coercion_operands(operand, true, out);
+            collect_coercion_operands(operand, true, out, depth + 1);
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            collect_coercion_operands(condition, true, out);
-            collect_coercion_operands(true_branch, in_context, out);
-            collect_coercion_operands(false_branch, in_context, out);
+            collect_coercion_operands(condition, true, out, depth + 1);
+            collect_coercion_operands(true_branch, in_context, out, depth + 1);
+            collect_coercion_operands(false_branch, in_context, out, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                collect_coercion_operands(arg, true, out);
+                collect_coercion_operands(arg, true, out, depth + 1);
             }
         }
         ExprNode::Raw { text } => {
@@ -2551,7 +2609,7 @@ fn emit_expr_coercion_warnings<S: std::hash::BuildHasher>(
     warnings: &mut Vec<TaintWarning>,
 ) {
     let mut hits = Vec::new();
-    collect_coercion_operands(expr, true, &mut hits);
+    collect_coercion_operands(expr, true, &mut hits, 0);
     let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
     for hit in hits {
         let Some((sym, ver)) = resolve(&hit.name) else {
@@ -3520,6 +3578,86 @@ mod tests {
         assert!(!TaintColour::CRLF_SAFE.contains(TaintColour::HTML_ESCAPED));
         assert!(!TaintColour::CRLF_SAFE.contains(TaintColour::URL_ENCODED));
         assert!(!TaintColour::CRLF_SAFE.contains(TaintColour::TAINTED));
+    }
+
+    /// A deeply-nested `[a [a [a … x]]]` command-substitution word and a
+    /// deeply-nested `ExprNode` tree, plus a minimal [`TaintCtx`], for the
+    /// two ctx-taking recursion caps below.
+    fn deep_bracket_word(depth: usize) -> String {
+        format!("{}x{}", "[a ".repeat(depth), "]".repeat(depth))
+    }
+
+    /// Regression coverage for issue #996: `word_taint` recurses once per
+    /// nested `[cmd …]` command substitution inside a single word's raw text
+    /// (Tier 1B), and `expr_command_taint` recurses once per `ExprNode`
+    /// operator-tree level (Tier 1A) — both genuinely unbounded before this
+    /// fix, independent of any statement-tree cap. Empirically each
+    /// overflowed the native stack (SIGABRT) in the low thousands of levels
+    /// on a 2 MiB thread (`cargo test`'s default). 3000 is comfortably past
+    /// that crash range and past both caps (256); the assertion is that each
+    /// returns at all.
+    #[test]
+    fn deeply_nested_taint_walks_survive() {
+        use crate::cfg::Function;
+        use crate::ssa::SsaFunction;
+
+        let registry = CommandRegistry::build_default();
+        let cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
+        let ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let uses: HashMap<Symbol, u32> = HashMap::new();
+        let taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
+        let ctx = TaintCtx {
+            registry: &registry,
+            ssa: &ssa,
+            interproc: None,
+            known_procs: None,
+            caller_qname: None,
+            dialect: None,
+            taint_summaries: None,
+        };
+
+        // Tier 1B: nested `[a [a [a … x]]]` command-substitution text.
+        let _ = word_taint(&deep_bracket_word(3000), &uses, &taints, ctx);
+
+        // Tier 1A: a 3000-deep `ExprNode` tree (nested unary `!`).
+        let mut node = ExprNode::Literal {
+            text: "1".into(),
+            start: 0,
+            end: 1,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: crate::expr_ast::UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let _ = expr_command_taint(&node, &uses, &taints, ctx, 0);
+    }
+
+    /// Regression coverage for issue #996: `extract_guard_var` and
+    /// `collect_coercion_operands` each recurse once per `ExprNode` level
+    /// with no depth cap before this fix. 3000-deep trees are past the crash
+    /// range and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that each
+    /// returns at all.
+    #[test]
+    fn deeply_nested_expr_guard_and_coercion_walks_survive() {
+        // A 3000-deep nested-unary tree drives both walkers' recursion.
+        let mut node = ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: crate::expr_ast::UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let _ = extract_guard_var(&node, false, 0);
+        let mut out = Vec::new();
+        collect_coercion_operands(&node, true, &mut out, 0);
     }
 
     #[test]

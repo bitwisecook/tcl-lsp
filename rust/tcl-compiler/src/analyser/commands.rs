@@ -31,6 +31,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{AppendedArity, ArgRole, CommandRegistry};
 
+use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::parsing::syntax::descend::{descend_command, descend_token};
 use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
@@ -1632,6 +1633,7 @@ impl Analyser {
                                     seg,
                                     config,
                                     &mut nested,
+                                    0,
                                 );
                             }
                         }
@@ -2709,12 +2711,29 @@ fn collect_substitution_segments(
     config: LexerConfig,
     out: &mut Vec<SegmentedCommand>,
 ) {
+    // Entry point: the outermost `[…]` substitution is bracket-nesting depth
+    // 0 (issue #996 — the recursion cap lives in `collect_segment_recursive`,
+    // which this and `collect_substitution_segments_at` mutually recurse
+    // with).
+    collect_substitution_segments_at(sm, registry, cmd_tok, config, out, 0);
+}
+
+fn collect_substitution_segments_at(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    cmd_tok: Token,
+    config: LexerConfig,
+    out: &mut Vec<SegmentedCommand>,
+    depth: u32,
+) {
     if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
         return;
     }
     let descended = descend_token(sm, cmd_tok, config);
     for seg in segments_from_tree(descended.tree(), sm) {
-        collect_segment_recursive(sm, registry, seg, config, out);
+        // A substitution's segments sit at the same nesting level as the
+        // substitution itself; `collect_segment_recursive` enforces the cap.
+        collect_segment_recursive(sm, registry, seg, config, out, depth);
     }
 }
 
@@ -2729,11 +2748,22 @@ fn collect_segment_recursive(
     seg: SegmentedCommand,
     config: LexerConfig,
     out: &mut Vec<SegmentedCommand>,
+    depth: u32,
 ) {
+    // Native-stack safety net (issue #996): this and
+    // `collect_substitution_segments_at` mutually recurse once per nested
+    // `[…]` substitution / registry-resolved body inside a single word's raw
+    // text — a genuinely unbounded axis. Past the cap, record this command
+    // but stop descending into its nested substitutions/bodies: commands
+    // buried deeper than the cap go unanalysed, never a crash.
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        out.push(seg);
+        return;
+    }
     // Nested ``[…]`` substitutions in any word of this command.
     for tok in &seg.all_tokens {
         if tok.kind == TokenType::Cmd {
-            collect_substitution_segments(sm, registry, *tok, config, out);
+            collect_substitution_segments_at(sm, registry, *tok, config, out, depth + 1);
         }
     }
     // Registry-resolved body arguments (`[if {$c} {string index …}]`):
@@ -2749,7 +2779,7 @@ fn collect_segment_recursive(
         let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
         for body in descend_command(registry, sm, seg.name(), &args, &arg_tokens, config) {
             for inner in segments_from_tree(body.descended.tree(), sm) {
-                collect_segment_recursive(sm, Some(registry), inner, config, out);
+                collect_segment_recursive(sm, Some(registry), inner, config, out, depth + 1);
             }
         }
     }
@@ -2852,6 +2882,22 @@ fn top_level_cmd_subst_regions(text: &str) -> Vec<(usize, &str)> {
 /// adds the enclosing token's source-span start to obtain an
 /// absolute offset.
 pub(crate) fn scan_nested_command_heads(text: &str) -> Vec<(String, u32)> {
+    // Entry point: the outermost word's raw text is bracket-nesting depth 0
+    // (issue #996 — the recursion cap lives in
+    // [`scan_nested_command_heads_at`]).
+    scan_nested_command_heads_at(text, 0)
+}
+
+fn scan_nested_command_heads_at(text: &str, rec_depth: u32) -> Vec<(String, u32)> {
+    // Native-stack safety net (issue #996): this self-recurses once per
+    // nested `[…]` substitution inside a single word's raw text — a genuinely
+    // unbounded axis. Past the cap, return what's been found so far: nested
+    // heads buried deeper than the cap go unreported, never a crash.
+    // (`rec_depth` is named apart from the local `[`/`{`-matching `depth`
+    // counters below, which track bracket balance, not native recursion.)
+    if MAX_BRACKET_TEXT_DEPTH.exceeded(rec_depth) {
+        return Vec::new();
+    }
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
@@ -2902,7 +2948,7 @@ pub(crate) fn scan_nested_command_heads(text: &str) -> Vec<(String, u32)> {
                     // Recurse into the inner text — nested ``[...]``
                     // substitutions inside this one also produce
                     // invocations.
-                    for (name, off_in_inner) in scan_nested_command_heads(inner) {
+                    for (name, off_in_inner) in scan_nested_command_heads_at(inner, rec_depth + 1) {
                         out.push((name, inner_start_u32 + off_in_inner));
                     }
                     i = j + 1;
@@ -3291,6 +3337,42 @@ mod tests {
             out,
             vec![("outer".to_string(), 1), ("inner".to_string(), 8)]
         );
+    }
+
+    /// Regression coverage for issue #996: `scan_nested_command_heads`
+    /// self-recurses once per nested `[…]` substitution inside a single
+    /// word's raw text (Tier 1B), and `collect_segment_recursive` /
+    /// `collect_substitution_segments` mutually recurse the same way. Both
+    /// were genuinely unbounded before this fix, independent of the
+    /// statement-tree `MAX_BODY_DEPTH` cap, and empirically overflowed the
+    /// native stack (SIGABRT) in the low thousands of levels on a 2 MiB
+    /// thread. 3000 is past that crash range and past `MAX_BRACKET_TEXT_DEPTH`
+    /// (256); the assertion is that each returns.
+    #[test]
+    fn deeply_nested_command_head_scans_survive() {
+        // `[a [a [a … [a x] … ]]]` nested bracket substitutions drive the
+        // direct Tier 1B text scanner.
+        let mut brackets = "x".to_owned();
+        for _ in 0..3000 {
+            brackets = format!("[a {brackets}]");
+        }
+        let _ = scan_nested_command_heads(&brackets);
+
+        // `a [a [a … [x] … ]]` — each level is a literal-headed command whose
+        // argument holds the next `[…]` substitution — drives the
+        // `collect_segment_recursive` / `collect_substitution_segments` mutual
+        // recursion directly (isolated from the full analyser pipeline).
+        let mut nested = "x".to_owned();
+        for _ in 0..3000 {
+            nested = format!("a [{nested}]");
+        }
+        let config = LexerConfig::for_dialect("tcl8.6");
+        let sm = SourceMap::new(&nested);
+        let reg = CommandRegistry::build_default();
+        let mut out = Vec::new();
+        for seg in crate::segmenter::segment_commands_with_offset_and_config(&nested, 0, config) {
+            collect_segment_recursive(&sm, Some(&reg), seg, config, &mut out, 0);
+        }
     }
 
     #[test]

@@ -45,6 +45,7 @@ use tcl_registry::CommandRegistry;
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::expr_parser::parse_expr;
 use crate::ir::Statement;
@@ -726,28 +727,36 @@ fn walk_expr(
     ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
     out: &mut Vec<ExprHit>,
+    depth: u32,
 ) {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — a collector
+    // that returns the hits gathered so far is the safe fallback (IRULE31xx
+    // hits buried deeper than the cap go unreported; never a crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Binary { op, left, right } => {
             if let Some(hit) = check_expr_binary(*op, left, right, ssa_versions, ctx) {
                 out.push(hit);
             }
-            walk_expr(left, ssa_versions, ctx, out);
-            walk_expr(right, ssa_versions, ctx, out);
+            walk_expr(left, ssa_versions, ctx, out, depth + 1);
+            walk_expr(right, ssa_versions, ctx, out, depth + 1);
         }
-        ExprNode::Unary { operand, .. } => walk_expr(operand, ssa_versions, ctx, out),
+        ExprNode::Unary { operand, .. } => walk_expr(operand, ssa_versions, ctx, out, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            walk_expr(condition, ssa_versions, ctx, out);
-            walk_expr(true_branch, ssa_versions, ctx, out);
-            walk_expr(false_branch, ssa_versions, ctx, out);
+            walk_expr(condition, ssa_versions, ctx, out, depth + 1);
+            walk_expr(true_branch, ssa_versions, ctx, out, depth + 1);
+            walk_expr(false_branch, ssa_versions, ctx, out, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for a in args {
-                walk_expr(a, ssa_versions, ctx, out);
+                walk_expr(a, ssa_versions, ctx, out, depth + 1);
             }
         }
         ExprNode::Command { text, .. } => {
@@ -767,7 +776,7 @@ fn walk_expr(
             // so IRULE3103 can still inspect the structured form.
             let reparsed = parse_expr(text, Some("f5-irules"));
             if !matches!(reparsed, ExprNode::Raw { .. }) {
-                walk_expr(&reparsed, ssa_versions, ctx, out);
+                walk_expr(&reparsed, ssa_versions, ctx, out, depth + 1);
             }
         }
         ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Var { .. } => {}
@@ -934,7 +943,7 @@ fn check_statement<S: std::hash::BuildHasher>(
     // 3. Expression-level checks in AssignExpr.
     if let Statement::AssignExpr { expr, .. } = stmt {
         let mut hits: Vec<ExprHit> = Vec::new();
-        walk_expr(expr, &ssa_stmt.uses, ctx, &mut hits);
+        walk_expr(expr, &ssa_stmt.uses, ctx, &mut hits, 0);
         for (uri_cmd, op_name, component) in hits {
             warnings.push(TaintWarning {
                 span: stmt_span,
@@ -966,7 +975,7 @@ fn check_branch_terminator(
     };
 
     let mut hits: Vec<ExprHit> = Vec::new();
-    walk_expr(condition, &ssa_block.exit_versions, ctx, &mut hits);
+    walk_expr(condition, &ssa_block.exit_versions, ctx, &mut hits, 0);
     for (uri_cmd, op_name, component) in hits {
         warnings.push(TaintWarning {
             span: *span,
@@ -1070,6 +1079,45 @@ mod tests {
     /// Run the IRULE3103 pass over `source` under the iRules dialect.
     fn warnings_for(source: &str) -> Vec<TaintWarning> {
         warnings_for_dialect(source, Some("f5-irules"))
+    }
+
+    /// Regression coverage for issue #996: `walk_expr` recurses once per
+    /// `ExprNode` level with no depth cap before this fix. A tree built
+    /// directly is unbounded (the Pratt parser caps its own output at 256)
+    /// and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
+    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns
+    /// at all.
+    #[test]
+    fn deeply_nested_walk_expr_survives() {
+        let r = registry();
+        let cu = CompilationUnit::build_for("set v 5", &r, false);
+        let fu = cu.function("::top").unwrap();
+        let families = uri_families(&r);
+        let def_sites: HashMap<ValueKey, (BlockId, usize)> = HashMap::new();
+        let phi_index: HashMap<ValueKey, Phi> = HashMap::new();
+        let ctx = TraceCtx {
+            cfg: &fu.cfg,
+            ssa: &fu.ssa,
+            families: &families,
+            def_sites: &def_sites,
+            phi_index: &phi_index,
+        };
+        let uses: HashMap<Symbol, u32> = HashMap::new();
+        let mut node = ExprNode::Var {
+            text: "$v".into(),
+            name: "v".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: crate::expr_ast::UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let mut hits = Vec::new();
+        walk_expr(&node, &uses, ctx, &mut hits, 0);
     }
 
     fn warnings_for_dialect(source: &str, dialect: Option<&str>) -> Vec<TaintWarning> {

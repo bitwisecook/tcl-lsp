@@ -1502,7 +1502,7 @@ fn free_reads_in_script(
     let mut defs: HashSet<String> = crate::ir_helpers::defs_from_ir_script(script)
         .into_iter()
         .collect();
-    defs.extend(collapsed_extra_defs(script, registry));
+    defs.extend(collapsed_extra_defs(script, registry, 0));
     reads_in_script(script, scanner, registry)
         .into_iter()
         .filter(|v| !defs.contains(v))
@@ -1592,15 +1592,28 @@ fn reads_in_stmt(
     reads
 }
 
+/// Depth cap for [`collapsed_extra_defs`]'s recursion over nested
+/// `if`/`while`/`for`/`foreach`/`catch`/`try`/`switch` bodies — issue #996.
+/// Transitively bounded today via `MAX_LOWER_NEST_DEPTH` (every `Script`
+/// feeding SSA construction was built by `crate::lowering`, which already
+/// caps its own construction at 256), capped here independently for
+/// defence-in-depth and consistency with every other full-tree walker in
+/// this crate.
+const MAX_COLLAPSED_EXTRA_DEFS_DEPTH: u32 = 256;
+
 /// `for`-init/next clause defs and if/while/for condition command-sub defs
 /// (`[regexp … -> v]`) that [`crate::ir_helpers::defs_from_ir_script`] does not
 /// recurse — recovered for the collapsed-body read subtraction only.
 fn collapsed_extra_defs(
     script: &crate::ir::Script,
     registry: &CommandRegistry,
+    depth: u32,
 ) -> BTreeSet<String> {
     use crate::ir_helpers::{defs_from_expr, defs_from_ir_script};
     let mut extra = BTreeSet::new();
+    if depth > MAX_COLLAPSED_EXTRA_DEFS_DEPTH {
+        return extra;
+    }
     for stmt in &script.statements {
         match stmt {
             Statement::If {
@@ -1608,17 +1621,17 @@ fn collapsed_extra_defs(
             } => {
                 for clause in clauses {
                     extra.extend(defs_from_expr(&clause.condition, registry));
-                    extra.extend(collapsed_extra_defs(&clause.body, registry));
+                    extra.extend(collapsed_extra_defs(&clause.body, registry, depth + 1));
                 }
                 if let Some(eb) = else_body {
-                    extra.extend(collapsed_extra_defs(eb, registry));
+                    extra.extend(collapsed_extra_defs(eb, registry, depth + 1));
                 }
             }
             Statement::While {
                 condition, body, ..
             } => {
                 extra.extend(defs_from_expr(condition, registry));
-                extra.extend(collapsed_extra_defs(body, registry));
+                extra.extend(collapsed_extra_defs(body, registry, depth + 1));
             }
             Statement::For {
                 init,
@@ -1630,12 +1643,12 @@ fn collapsed_extra_defs(
                 extra.extend(defs_from_ir_script(init));
                 extra.extend(defs_from_ir_script(next));
                 extra.extend(defs_from_expr(condition, registry));
-                extra.extend(collapsed_extra_defs(init, registry));
-                extra.extend(collapsed_extra_defs(next, registry));
-                extra.extend(collapsed_extra_defs(body, registry));
+                extra.extend(collapsed_extra_defs(init, registry, depth + 1));
+                extra.extend(collapsed_extra_defs(next, registry, depth + 1));
+                extra.extend(collapsed_extra_defs(body, registry, depth + 1));
             }
             Statement::Foreach { body, .. } | Statement::Catch { body, .. } => {
-                extra.extend(collapsed_extra_defs(body, registry));
+                extra.extend(collapsed_extra_defs(body, registry, depth + 1));
             }
             Statement::Try {
                 body,
@@ -1643,12 +1656,12 @@ fn collapsed_extra_defs(
                 finally_body,
                 ..
             } => {
-                extra.extend(collapsed_extra_defs(body, registry));
+                extra.extend(collapsed_extra_defs(body, registry, depth + 1));
                 for handler in handlers {
-                    extra.extend(collapsed_extra_defs(&handler.body, registry));
+                    extra.extend(collapsed_extra_defs(&handler.body, registry, depth + 1));
                 }
                 if let Some(fb) = finally_body {
-                    extra.extend(collapsed_extra_defs(fb, registry));
+                    extra.extend(collapsed_extra_defs(fb, registry, depth + 1));
                 }
             }
             Statement::Switch {
@@ -1656,11 +1669,11 @@ fn collapsed_extra_defs(
             } => {
                 for arm in arms {
                     if let Some(body) = &arm.body {
-                        extra.extend(collapsed_extra_defs(body, registry));
+                        extra.extend(collapsed_extra_defs(body, registry, depth + 1));
                     }
                 }
                 if let Some(db) = default_body {
-                    extra.extend(collapsed_extra_defs(db, registry));
+                    extra.extend(collapsed_extra_defs(db, registry, depth + 1));
                 }
             }
             _ => {}
@@ -3256,5 +3269,50 @@ mod tests {
         assert!(ssa.blocks.is_empty(), "guarded SSA must be trivial");
         assert_eq!(ssa.name, "::big");
         assert_eq!(ssa.entry, b0);
+    }
+
+    /// Regression coverage for issue #996: `collapsed_extra_defs` recurses
+    /// once per nested `If`/`While`/`For`/`Foreach`/`Catch`/`Try`/`Switch`
+    /// body, with no depth cap of its own before this fix. Transitively
+    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today,
+    /// so this is defence-in-depth / consistency with every other
+    /// full-tree walker in this crate, not a currently-reproducible crash.
+    /// 2000 levels is comfortably past this new cap; the assertion is that
+    /// the call returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_if_survives_collapsed_extra_defs() {
+        use crate::ir::{IfClause, Script};
+
+        const DEPTH: usize = 2000;
+        let leaf = Statement::AssignConst {
+            span: Span::new(0, 0),
+            name: "leaf".into(),
+            name_braced: false,
+            value: "1".into(),
+            value_span: None,
+        };
+        let mut script = Script::from_statements(vec![leaf]);
+        for _ in 0..DEPTH {
+            script = Script::from_statements(vec![Statement::If {
+                span: Span::new(0, 0),
+                clauses: vec![IfClause {
+                    condition: ExprNode::Raw { text: "1".into() },
+                    condition_span: Span::new(0, 0),
+                    body: script,
+                    body_span: Span::new(0, 0),
+                    condition_base: None,
+                }],
+                else_body: None,
+                else_span: None,
+            }]);
+        }
+
+        let reg = CommandRegistry::build_default();
+        let extra = collapsed_extra_defs(&script, &reg, 0);
+        // Nothing but the leaf `AssignConst` here is a def source visible to
+        // this helper (it only recovers `for`/condition-command-sub defs) —
+        // the assertion is that this returns at all without overflowing the
+        // stack, not what it returns.
+        let _ = extra;
     }
 }

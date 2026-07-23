@@ -45,6 +45,7 @@
 //! command substitution.
 
 use crate::compilation_unit::CompilationUnit;
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use tcl_core_types::DiagCode;
@@ -714,22 +715,39 @@ fn text_references_var(text: &str, var: &str) -> bool {
 }
 
 fn expr_references_var(node: &ExprNode, var: &str) -> bool {
+    // Entry point: the top of a condition expression is nesting depth 0
+    // (issue #996 — the recursion cap lives in [`expr_references_var_at`]).
+    expr_references_var_at(node, var, 0)
+}
+
+fn expr_references_var_at(node: &ExprNode, var: &str, depth: u32) -> bool {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, assume the var *is* referenced —
+    // the conservative direction, since callers use this to *suppress* code
+    // sinking when the sunk value's variable appears in a guard, so a false
+    // `true` only forgoes a sink, never performs an unsound one.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return true;
+    }
     match node {
         ExprNode::Var { name, .. } => name == var,
         ExprNode::Binary { left, right, .. } => {
-            expr_references_var(left, var) || expr_references_var(right, var)
+            expr_references_var_at(left, var, depth + 1)
+                || expr_references_var_at(right, var, depth + 1)
         }
-        ExprNode::Unary { operand, .. } => expr_references_var(operand, var),
+        ExprNode::Unary { operand, .. } => expr_references_var_at(operand, var, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expr_references_var(condition, var)
-                || expr_references_var(true_branch, var)
-                || expr_references_var(false_branch, var)
+            expr_references_var_at(condition, var, depth + 1)
+                || expr_references_var_at(true_branch, var, depth + 1)
+                || expr_references_var_at(false_branch, var, depth + 1)
         }
-        ExprNode::Call { args, .. } => args.iter().any(|a| expr_references_var(a, var)),
+        ExprNode::Call { args, .. } => {
+            args.iter().any(|a| expr_references_var_at(a, var, depth + 1))
+        }
         _ => false,
     }
 }
@@ -750,6 +768,30 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    /// Regression coverage for issue #996: `expr_references_var` recurses
+    /// once per `ExprNode` level with no depth cap before this fix. A tree
+    /// built directly is unbounded (the Pratt parser caps its own output at
+    /// 256) and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
+    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns
+    /// at all.
+    #[test]
+    fn deeply_nested_expr_references_var_survives() {
+        let mut node = ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: crate::expr_ast::UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let _ = expr_references_var(&node, "y");
     }
 
     #[test]

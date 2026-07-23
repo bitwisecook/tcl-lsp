@@ -85,13 +85,13 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         &default_registry
     };
     let top_protected = protected_vars(&cu.top_level, &cross, registry);
-    fold_script(ctx, &cu.ir_module.top_level, &top_protected);
+    fold_script(ctx, &cu.ir_module.top_level, &top_protected, 0);
     for (qname, proc) in &cu.ir_module.procedures {
         let protected = cu
             .procedures
             .get(qname)
             .map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross, registry));
-        fold_script(ctx, &proc.body, &protected);
+        fold_script(ctx, &proc.body, &protected, 0);
     }
 }
 
@@ -109,8 +109,12 @@ fn protected_vars(
 
 /// Fold chains in `script`, then recurse into control-flow bodies (a
 /// chain never crosses a control-flow boundary, so each body is folded
-/// independently).
-fn fold_script(ctx: &mut PassContext<'_>, script: &Script, protected: &HashSet<String>) {
+/// independently). `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
+fn fold_script(ctx: &mut PassContext<'_>, script: &Script, protected: &HashSet<String>, depth: u32) {
+    if depth > super::MAX_OPTIMISER_WALK_DEPTH {
+        return;
+    }
     let stmts = &script.statements;
     let mut i = 0;
     while i < stmts.len() {
@@ -126,34 +130,34 @@ fn fold_script(ctx: &mut PassContext<'_>, script: &Script, protected: &HashSet<S
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    fold_script(ctx, &c.body, protected);
+                    fold_script(ctx, &c.body, protected, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    fold_script(ctx, b, protected);
+                    fold_script(ctx, b, protected, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                fold_script(ctx, init, protected);
-                fold_script(ctx, next, protected);
-                fold_script(ctx, body, protected);
+                fold_script(ctx, init, protected, depth + 1);
+                fold_script(ctx, next, protected, depth + 1);
+                fold_script(ctx, body, protected, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
-            | Statement::Foreach { body, .. } => fold_script(ctx, body, protected),
+            | Statement::Foreach { body, .. } => fold_script(ctx, body, protected, depth + 1),
             Statement::Try {
                 body,
                 handlers,
                 finally_body,
                 ..
             } => {
-                fold_script(ctx, body, protected);
+                fold_script(ctx, body, protected, depth + 1);
                 for h in handlers {
-                    fold_script(ctx, &h.body, protected);
+                    fold_script(ctx, &h.body, protected, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    fold_script(ctx, fb, protected);
+                    fold_script(ctx, fb, protected, depth + 1);
                 }
             }
             Statement::Switch {
@@ -161,11 +165,11 @@ fn fold_script(ctx: &mut PassContext<'_>, script: &Script, protected: &HashSet<S
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        fold_script(ctx, b, protected);
+                        fold_script(ctx, b, protected, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    fold_script(ctx, b, protected);
+                    fold_script(ctx, b, protected, depth + 1);
                 }
             }
             _ => {}
@@ -435,6 +439,40 @@ mod tests {
             );
         }
         out
+    }
+
+    /// Regression coverage for issue #996: `fold_script` recurses once per
+    /// nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body,
+    /// with no depth cap of its own before this fix. Transitively bounded
+    /// to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today, so this
+    /// is defence-in-depth / consistency with every other full-tree walker
+    /// in this crate, not a currently-reproducible crash. 1000 levels of
+    /// source nesting is comfortably past this new cap; the assertion is
+    /// that `run_pass` returns at all, not what it returns. Spawns its own
+    /// big-stack thread since the lexer/CST/segmenter stages upstream of
+    /// the lowering cap still walk the full un-truncated source nesting
+    /// before that cap trims it — same rationale as
+    /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn deeply_nested_if_survives_fold_script() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set s \"\"\nappend s foo\nappend s bar\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = run_pass(&src);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]

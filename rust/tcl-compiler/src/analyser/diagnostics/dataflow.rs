@@ -41,6 +41,7 @@ use super::helpers::{
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::analyser::utils::param_name_spans;
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{ExprNode, UnaryOp};
 
 /// The read-only name/guard/suppression context for the `return`-value
@@ -2275,25 +2276,39 @@ file; this call falls through to the 'unknown' handler."
 /// boundary). Used to recover
 /// variable reads hidden inside `if`/`while` conditions and `expr` values.
 fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
+    // Entry point: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`collect_expr_command_texts_at`]).
+    collect_expr_command_texts_at(node, out, 0);
+}
+
+fn collect_expr_command_texts_at(node: &ExprNode, out: &mut Vec<String>, depth: u32) {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — a collector
+    // that returns the command texts gathered so far is the safe fallback
+    // (substitutions buried deeper than the cap are not collected; never a
+    // crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Command { text, .. } => out.push(text.clone()),
         ExprNode::Binary { left, right, .. } => {
-            collect_expr_command_texts(left, out);
-            collect_expr_command_texts(right, out);
+            collect_expr_command_texts_at(left, out, depth + 1);
+            collect_expr_command_texts_at(right, out, depth + 1);
         }
-        ExprNode::Unary { operand, .. } => collect_expr_command_texts(operand, out),
+        ExprNode::Unary { operand, .. } => collect_expr_command_texts_at(operand, out, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            collect_expr_command_texts(condition, out);
-            collect_expr_command_texts(true_branch, out);
-            collect_expr_command_texts(false_branch, out);
+            collect_expr_command_texts_at(condition, out, depth + 1);
+            collect_expr_command_texts_at(true_branch, out, depth + 1);
+            collect_expr_command_texts_at(false_branch, out, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                collect_expr_command_texts(arg, out);
+                collect_expr_command_texts_at(arg, out, depth + 1);
             }
         }
         ExprNode::Literal { .. }
@@ -2783,4 +2798,33 @@ fn def_is_element_write(
                     if name.contains('(')
             )
         })
+}
+
+#[cfg(test)]
+mod issue996_tests {
+    use super::*;
+
+    /// Regression coverage for issue #996: `collect_expr_command_texts`
+    /// recurses once per `ExprNode` level with no depth cap before this fix.
+    /// A tree built directly is unbounded (the Pratt parser caps its own
+    /// output at 256) and empirically overflowed the native stack (SIGABRT)
+    /// in the low thousands of levels on a 2 MiB thread. 3000 is past that
+    /// crash range and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is
+    /// that it returns at all.
+    #[test]
+    fn deeply_nested_collect_expr_command_texts_survives() {
+        let mut node = ExprNode::Command {
+            text: "[x]".into(),
+            start: 0,
+            end: 3,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let mut out = Vec::new();
+        collect_expr_command_texts(&node, &mut out);
+    }
 }

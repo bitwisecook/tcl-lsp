@@ -2817,7 +2817,7 @@ fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
 /// `has_dynamic_variable_trace`.
 fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry) {
     let top_level = module.top_level.clone();
-    walk_for_trace(&top_level, module, registry);
+    walk_for_trace(&top_level, module, registry, 0);
     // Every statically-known frame, not just named procedures: a `trace`
     // call inside a `namespace eval` / `apply` body (`Module::body_units`)
     // or a `TclOO` method (`Module::methods`) is just as live as one inside
@@ -2832,11 +2832,11 @@ fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry) {
         .chain(module.methods.values().map(|m| m.body.clone()))
         .collect();
     for body in &bodies {
-        walk_for_trace(body, module, registry);
+        walk_for_trace(body, module, registry, 0);
     }
     let method_bodies: Vec<Script> = module.methods.values().map(|m| m.body.clone()).collect();
     for body in &method_bodies {
-        walk_for_trace(body, module, registry);
+        walk_for_trace(body, module, registry, 0);
     }
 }
 
@@ -2861,8 +2861,16 @@ fn resolve_trace_type_word(word: &str) -> Option<&'static str> {
     Some(first)
 }
 
-fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegistry) {
+/// `depth` is the nesting level of `script` — see [`MAX_LOWER_NEST_DEPTH`]
+/// (this post-lower scan reuses the same cap `lower_script`/`lower_body`
+/// already build every `Script` under, for consistency; every input this
+/// walk sees is already transitively bounded to that depth by construction,
+/// so this is defence-in-depth rather than a currently-reachable path).
+fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegistry, depth: u32) {
     use crate::ir::Statement;
+    if depth as usize > MAX_LOWER_NEST_DEPTH {
+        return;
+    }
     for stmt in &script.statements {
         match stmt {
             // Canonical (alias-resolved) name, so `interp alias exampleTrace trace`
@@ -2898,34 +2906,34 @@ fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegist
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    walk_for_trace(&c.body, module, registry);
+                    walk_for_trace(&c.body, module, registry, depth + 1);
                 }
                 if let Some(e) = else_body {
-                    walk_for_trace(e, module, registry);
+                    walk_for_trace(e, module, registry, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                walk_for_trace(init, module, registry);
-                walk_for_trace(next, module, registry);
-                walk_for_trace(body, module, registry);
+                walk_for_trace(init, module, registry, depth + 1);
+                walk_for_trace(next, module, registry, depth + 1);
+                walk_for_trace(body, module, registry, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Foreach { body, .. }
             | Statement::Catch { body, .. }
             | Statement::Block { body, .. }
-            | Statement::UpFrame { body, .. } => walk_for_trace(body, module, registry),
+            | Statement::UpFrame { body, .. } => walk_for_trace(body, module, registry, depth + 1),
             Statement::Switch {
                 arms, default_body, ..
             } => {
                 for arm in arms {
                     if let Some(b) = &arm.body {
-                        walk_for_trace(b, module, registry);
+                        walk_for_trace(b, module, registry, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    walk_for_trace(b, module, registry);
+                    walk_for_trace(b, module, registry, depth + 1);
                 }
             }
             Statement::Try {
@@ -2934,12 +2942,12 @@ fn walk_for_trace(script: &Script, module: &mut Module, registry: &CommandRegist
                 finally_body,
                 ..
             } => {
-                walk_for_trace(body, module, registry);
+                walk_for_trace(body, module, registry, depth + 1);
                 for h in handlers {
-                    walk_for_trace(&h.body, module, registry);
+                    walk_for_trace(&h.body, module, registry, depth + 1);
                 }
                 if let Some(f) = finally_body {
-                    walk_for_trace(f, module, registry);
+                    walk_for_trace(f, module, registry, depth + 1);
                 }
             }
             _ => {}
@@ -4036,6 +4044,43 @@ mod tests {
         let m = lower_to_ir("trace add variable x write h", &reg());
         assert!(m.traced_commands.is_empty());
         assert!(!m.has_dynamic_trace);
+    }
+
+    /// Regression coverage for issue #996: `walk_for_trace`'s post-lower
+    /// scan recurses once per nested `if`/`for`/`while`/`foreach`/`catch`/
+    /// `try`/`switch`/`Block`/`UpFrame` body, with no depth cap of its own
+    /// before this fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+    /// (256) by `lower_script`/`lower_body` (this same `lower_to_ir` call
+    /// builds the `Script` `walk_for_trace` then scans), so this is
+    /// defence-in-depth / consistency with every other full-tree walker in
+    /// this crate, not a currently-reproducible crash. 1000 levels of
+    /// source nesting is comfortably past the new cap; the assertion is
+    /// that lowering (which runs `populate_trace_facts` ->
+    /// `walk_for_trace`) returns at all, not what it returns. Spawns its
+    /// own big-stack thread since the lexer/CST/segmenter stages upstream
+    /// of `lower_script`'s own cap still walk the full un-truncated source
+    /// nesting before that cap trims it — same rationale as
+    /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn deeply_nested_if_survives_walk_for_trace() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("trace add execution foo enter handler\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = lower_to_ir(&src, &reg());
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     // trace add/remove/variable/vdelete module-fact population

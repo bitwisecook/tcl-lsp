@@ -27,6 +27,7 @@
 use tcl_lexer::{Lexer, SourceMap, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
@@ -90,6 +91,15 @@ pub(crate) fn nested_bodies(stmt: &Statement) -> Vec<&Script> {
     }
 }
 
+/// Depth cap for [`collect_defs_from_script`]'s recursion over nested
+/// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` bodies — issue #996.
+/// Transitively bounded today via `MAX_LOWER_NEST_DEPTH` (every `Script`
+/// feeding SSA construction was built by [`crate::lowering`], which already
+/// caps its own construction at 256), capped here independently for
+/// defence-in-depth and consistency with every other full-tree walker in
+/// this crate.
+const MAX_DEFS_COLLECT_DEPTH: u32 = 256;
+
 /// Collect all variable names defined anywhere inside a script (recursive).
 ///
 /// Walks through structured IR nodes (`If`, `For`, `While`, `Foreach`,
@@ -98,11 +108,15 @@ pub(crate) fn nested_bodies(stmt: &Statement) -> Vec<&Script> {
 #[must_use]
 pub fn defs_from_ir_script(script: &Script) -> Vec<String> {
     let mut defs = Vec::new();
-    collect_defs_from_script(script, &mut defs);
+    collect_defs_from_script(script, &mut defs, 0);
     defs
 }
 
-fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
+#[allow(clippy::too_many_lines)] // the depth-cap check adds a few lines over the threshold
+fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>, depth: u32) {
+    if depth > MAX_DEFS_COLLECT_DEPTH {
+        return;
+    }
     for stmt in &script.statements {
         match stmt {
             Statement::AssignConst {
@@ -135,15 +149,15 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
                 clauses, else_body, ..
             } => {
                 for clause in clauses {
-                    collect_defs_from_script(&clause.body, defs);
+                    collect_defs_from_script(&clause.body, defs, depth + 1);
                 }
                 if let Some(eb) = else_body {
-                    collect_defs_from_script(eb, defs);
+                    collect_defs_from_script(eb, defs, depth + 1);
                 }
             }
 
             Statement::For { body, .. } | Statement::While { body, .. } => {
-                collect_defs_from_script(body, defs);
+                collect_defs_from_script(body, defs, depth + 1);
             }
 
             Statement::Foreach {
@@ -157,7 +171,7 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
                         }
                     }
                 }
-                collect_defs_from_script(body, defs);
+                collect_defs_from_script(body, defs, depth + 1);
             }
 
             Statement::Catch {
@@ -166,7 +180,7 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
                 options_var,
                 ..
             } => {
-                collect_defs_from_script(body, defs);
+                collect_defs_from_script(body, defs, depth + 1);
                 if let Some(rv) = result_var {
                     defs.push(rv.clone());
                 }
@@ -181,7 +195,7 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
                 finally_body,
                 ..
             } => {
-                collect_defs_from_script(body, defs);
+                collect_defs_from_script(body, defs, depth + 1);
                 for handler in handlers {
                     if let Some(vn) = &handler.var_name {
                         defs.push(vn.clone());
@@ -189,10 +203,10 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
                     if let Some(ov) = &handler.options_var {
                         defs.push(ov.clone());
                     }
-                    collect_defs_from_script(&handler.body, defs);
+                    collect_defs_from_script(&handler.body, defs, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    collect_defs_from_script(fb, defs);
+                    collect_defs_from_script(fb, defs, depth + 1);
                 }
             }
 
@@ -201,11 +215,11 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>) {
             } => {
                 for arm in arms {
                     if let Some(body) = &arm.body {
-                        collect_defs_from_script(body, defs);
+                        collect_defs_from_script(body, defs, depth + 1);
                     }
                 }
                 if let Some(db) = default_body {
-                    collect_defs_from_script(db, defs);
+                    collect_defs_from_script(db, defs, depth + 1);
                 }
             }
 
@@ -424,20 +438,36 @@ fn catch_body_out_vars(body_word: &str, out: &mut Vec<String>) {
 /// for emission-time startCommand wrapping.
 #[must_use]
 pub fn expr_has_command(expr: &ExprNode) -> bool {
+    // Public entry: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`expr_has_command_at`]).
+    expr_has_command_at(expr, 0)
+}
+
+fn expr_has_command_at(expr: &ExprNode, depth: u32) -> bool {
+    // Native-stack safety net (issue #996): past the cap, assume "yes, has a
+    // command substitution" — the conservative direction, since callers use
+    // this to decide whether a branch condition needs a synthetic `<cond>`
+    // placeholder / startCommand wrapping; a false `true` only adds a
+    // harmless wrapper, never drops a needed one.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return true;
+    }
     match expr {
         ExprNode::Command { .. } => true,
-        ExprNode::Binary { left, right, .. } => expr_has_command(left) || expr_has_command(right),
-        ExprNode::Unary { operand, .. } => expr_has_command(operand),
+        ExprNode::Binary { left, right, .. } => {
+            expr_has_command_at(left, depth + 1) || expr_has_command_at(right, depth + 1)
+        }
+        ExprNode::Unary { operand, .. } => expr_has_command_at(operand, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expr_has_command(condition)
-                || expr_has_command(true_branch)
-                || expr_has_command(false_branch)
+            expr_has_command_at(condition, depth + 1)
+                || expr_has_command_at(true_branch, depth + 1)
+                || expr_has_command_at(false_branch, depth + 1)
         }
-        ExprNode::Call { args, .. } => args.iter().any(expr_has_command),
+        ExprNode::Call { args, .. } => args.iter().any(|a| expr_has_command_at(a, depth + 1)),
         ExprNode::Literal { .. }
         | ExprNode::String { .. }
         | ExprNode::Var { .. }
@@ -451,29 +481,43 @@ pub fn expr_has_command(expr: &ExprNode) -> bool {
 /// always included (conservative — we do not attempt compile-time
 /// constant evaluation).
 pub(crate) fn collect_expr_commands(expr: &ExprNode, out: &mut Vec<String>) {
+    // Entry point: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`collect_expr_commands_at`]).
+    collect_expr_commands_at(expr, out, 0);
+}
+
+fn collect_expr_commands_at(expr: &ExprNode, out: &mut Vec<String>, depth: u32) {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — a collector
+    // that returns the command texts gathered so far is the safe fallback
+    // (substitutions buried deeper than the cap are not collected; never a
+    // crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match expr {
         ExprNode::Command { text, .. } => {
             out.push(text.clone());
         }
         ExprNode::Binary { left, right, .. } => {
-            collect_expr_commands(left, out);
-            collect_expr_commands(right, out);
+            collect_expr_commands_at(left, out, depth + 1);
+            collect_expr_commands_at(right, out, depth + 1);
         }
         ExprNode::Unary { operand, .. } => {
-            collect_expr_commands(operand, out);
+            collect_expr_commands_at(operand, out, depth + 1);
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            collect_expr_commands(condition, out);
-            collect_expr_commands(true_branch, out);
-            collect_expr_commands(false_branch, out);
+            collect_expr_commands_at(condition, out, depth + 1);
+            collect_expr_commands_at(true_branch, out, depth + 1);
+            collect_expr_commands_at(false_branch, out, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                collect_expr_commands(arg, out);
+                collect_expr_commands_at(arg, out, depth + 1);
             }
         }
         _ => {}
@@ -565,6 +609,32 @@ mod tests {
         assert!(defs_from_ir_script(&script).is_empty());
     }
 
+    /// Regression coverage for issue #996: `expr_has_command` and
+    /// `collect_expr_commands` each recurse once per `ExprNode` level with no
+    /// depth cap before this fix. A tree built directly is unbounded (the
+    /// Pratt parser caps its own output at 256) and empirically overflowed
+    /// the native stack (SIGABRT) in the low thousands of levels on a 2 MiB
+    /// thread. 3000 is past that crash range and past `MAX_EXPR_NODE_DEPTH`
+    /// (256); the assertion is that each returns at all.
+    #[test]
+    fn deeply_nested_expr_command_walks_survive() {
+        use crate::expr_ast::UnaryOp;
+        let mut node = ExprNode::Command {
+            text: "[x]".into(),
+            start: 0,
+            end: 3,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let _ = expr_has_command(&node);
+        let mut cmds = Vec::new();
+        collect_expr_commands(&node, &mut cmds);
+    }
+
     #[test]
     fn defs_from_assign() {
         let script = Script::from_statements(vec![Statement::AssignConst {
@@ -619,6 +689,50 @@ mod tests {
             else_span: None,
         }]);
         assert_eq!(defs_from_ir_script(&script), vec!["y"]);
+    }
+
+    /// Regression coverage for issue #996: `collect_defs_from_script`
+    /// recurses once per nested `If`/`For`/`While`/`Foreach`/`Catch`/`Try`/
+    /// `Switch` body, with no depth cap of its own before this fix.
+    /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering
+    /// pass today, so this is defence-in-depth / consistency with every
+    /// other full-tree walker in this crate, not a currently-reproducible
+    /// crash. 2000 levels is comfortably past this new cap; the assertion
+    /// is that `defs_from_ir_script` returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_if_survives_defs_from_ir_script() {
+        const DEPTH: usize = 2000;
+        let leaf = Statement::AssignConst {
+            span: Span::new(0, 0),
+            name: "leaf".into(),
+            name_braced: false,
+            value: "1".into(),
+            value_span: None,
+        };
+        let mut script = Script::from_statements(vec![leaf]);
+        for _ in 0..DEPTH {
+            script = Script::from_statements(vec![Statement::If {
+                span: Span::new(0, 0),
+                clauses: vec![IfClause {
+                    condition: ExprNode::Literal {
+                        text: "1".into(),
+                        start: 0,
+                        end: 1,
+                    },
+                    condition_span: Span::new(0, 0),
+                    body: script,
+                    body_span: Span::new(0, 0),
+                    condition_base: None,
+                }],
+                else_body: None,
+                else_span: None,
+            }]);
+        }
+
+        // 2000 levels of nesting exceeds the new 256-deep cap, so the
+        // innermost `leaf` def is never reached — the assertion is that
+        // this returns at all (no stack overflow), not what it returns.
+        let _ = defs_from_ir_script(&script);
     }
 
     #[test]

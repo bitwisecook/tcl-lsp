@@ -48,6 +48,7 @@ use tcl_registry::{CommandRegistry, ReturnElements, TclType, VarElementsEffect, 
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
@@ -277,7 +278,19 @@ pub(crate) fn return_type_for_command<S: std::hash::BuildHasher>(
 /// operators produce boolean; variable references look up the known
 /// type from `var_types`.
 #[must_use]
-fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) -> TypeLattice {
+fn infer_expr_type(
+    node: &ExprNode,
+    var_types: &HashMap<String, TypeLattice>,
+    depth: u32,
+) -> TypeLattice {
+    // Native-stack safety net (issue #996): `ExprNode` operator trees are
+    // walked with one native frame per nesting level. Past the cap, give up
+    // conservatively with `overdefined` — the same "any type / can't tell"
+    // top this function already returns for opaque `Command`/`Raw` nodes, so
+    // no caller narrows a type it shouldn't.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return TypeLattice::overdefined();
+    }
     match node {
         ExprNode::Literal { text, .. } => expr_literal_type(text),
 
@@ -336,8 +349,8 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
                 // operand types, but only when both are `Known`;
                 // otherwise Numeric.
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::Pow => {
-                    let lt = infer_expr_type(left, var_types);
-                    let rt = infer_expr_type(right, var_types);
+                    let lt = infer_expr_type(left, var_types, depth + 1);
+                    let rt = infer_expr_type(right, var_types, depth + 1);
                     if lt.kind() == TypeKind::Known && rt.kind() == TypeKind::Known {
                         arithmetic_result(&lt, &rt)
                     } else {
@@ -353,7 +366,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
             // logical NOT yields `Boolean`.'
             // `UnaryOpKind` BITWISE arm (`~` was grouped with
             // the identity ops and leaked the operand's `Double`).
-            UnaryOp::Neg | UnaryOp::Pos => infer_expr_type(operand, var_types),
+            UnaryOp::Neg | UnaryOp::Pos => infer_expr_type(operand, var_types, depth + 1),
             UnaryOp::BitNot => TypeLattice::of(TclType::Int),
             UnaryOp::Not | UnaryOp::WordNot => TypeLattice::of(TclType::Boolean),
         },
@@ -363,15 +376,17 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
             false_branch,
             ..
         } => {
-            let tt = infer_expr_type(true_branch, var_types);
-            let ft = infer_expr_type(false_branch, var_types);
+            let tt = infer_expr_type(true_branch, var_types, depth + 1);
+            let ft = infer_expr_type(false_branch, var_types, depth + 1);
             type_join(&tt, &ft)
         }
 
         // Math-function calls resolve through the expr-function table
         // — `sqrt($x)` is Double, `int(...)` is Int, etc.,
         // where they previously degraded to overdefined.
-        ExprNode::Call { function, args, .. } => expr_call_type(function, args, var_types),
+        ExprNode::Call { function, args, .. } => {
+            expr_call_type(function, args, var_types, depth)
+        }
 
         // Command substitutions and raw/unrecognised expression text
         // need the registry (or runtime context) to resolve. Without it
@@ -406,11 +421,14 @@ fn expr_call_type(
     function: &str,
     args: &[ExprNode],
     var_types: &HashMap<String, TypeLattice>,
+    depth: u32,
 ) -> TypeLattice {
+    // `depth` is the level of the enclosing `Call` node; its args are one
+    // level deeper (issue #996 — `infer_expr_type` guards the cap itself).
     // Identity: `abs` preserves the operand type (Int fallback).
     if function == "abs" {
         return match args.first() {
-            Some(a) => infer_expr_type(a, var_types),
+            Some(a) => infer_expr_type(a, var_types, depth + 1),
             None => TypeLattice::of(TclType::Int),
         };
     }
@@ -419,9 +437,9 @@ fn expr_call_type(
         let mut it = args.iter();
         return match it.next() {
             Some(first) => {
-                let mut acc = infer_expr_type(first, var_types);
+                let mut acc = infer_expr_type(first, var_types, depth + 1);
                 for a in it {
-                    acc = type_join(&acc, &infer_expr_type(a, var_types));
+                    acc = type_join(&acc, &infer_expr_type(a, var_types, depth + 1));
                 }
                 acc
             }
@@ -965,7 +983,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                     Some((ctx.ssa.var_name(sym).to_owned(), t.clone()))
                 })
                 .collect();
-            DefTyping::Uniform(infer_expr_type(expr, &var_types))
+            DefTyping::Uniform(infer_expr_type(expr, &var_types, 0))
         }
 
         Statement::AssignValue { value, .. } => DefTyping::Uniform(value_word_type(ctx, value)),
@@ -1551,7 +1569,7 @@ pub(crate) fn infer_function_return_type<S: std::hash::BuildHasher>(
         let t = match &block.terminator {
             Some(Terminator::Return { value, expr, .. }) => {
                 if let Some(expr) = expr {
-                    infer_expr_type(expr, &var_types)
+                    infer_expr_type(expr, &var_types, 0)
                 } else if let Some(value) = value {
                     infer_return_value_type(value, &var_types, registry, known_classes, &namespace)
                 } else {
@@ -2139,7 +2157,7 @@ mod tests {
     /// predicates only tokenise as operators in the iRules dialect).
     fn infer_str_dialect(src: &str, dialect: Option<&str>) -> TypeLattice {
         let node = crate::parse_expr(src, dialect);
-        infer_expr_type(&node, &HashMap::new())
+        infer_expr_type(&node, &HashMap::new(), 0)
     }
 
     #[test]
@@ -2167,6 +2185,58 @@ mod tests {
         assert_eq!(infer_str("signbit($x)").tcl_type(), Some(TclType::Boolean));
         // Unknown function → Numeric (conservative).
         assert_eq!(infer_str("nope($x)").tcl_type(), Some(TclType::Numeric));
+    }
+
+    /// Regression coverage for issue #996: `infer_expr_type` (and its
+    /// mutually-recursive helper `expr_call_type`) recurse once per
+    /// `ExprNode` operator-tree level, with no depth cap before this fix.
+    /// A long left-associative `1+1+1+…` chain parses *iteratively* (the
+    /// Pratt parser's own `MAX_EXPR_DEPTH` never trips — it builds the
+    /// left-nested `Binary` spine in a loop), so it hands this walker an
+    /// arbitrarily deep tree the parser cap does not bound. Empirically that
+    /// unguarded walk overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread (`cargo test`'s per-test
+    /// default). 3000 is comfortably past both that crash range and
+    /// `MAX_EXPR_NODE_DEPTH` (256); the assertion is that inference returns
+    /// at all, not what it returns. Also exercises `expr_call_type` via the
+    /// nested-`min(…)` variant.
+    #[test]
+    fn deeply_nested_expr_type_inference_survives() {
+        let chain = format!("1{}", "+1".repeat(3000));
+        // Returns without overflowing the stack; the value is unspecified
+        // past the cap (a conservative `overdefined`/`numeric`).
+        let _ = infer_str(&chain);
+
+        // Drive the `expr_call_type` side of the same recursion cluster with
+        // a tree built directly — nested `min(min(…))` *source* would trip
+        // the Pratt parser's own `MAX_EXPR_DEPTH` first (function-call
+        // nesting recurses the parser, unlike the iterative binary chain
+        // above), so build the deep `Call` spine by hand to reach this
+        // walker unbounded.
+        let mut node = ExprNode::Literal {
+            text: "1".to_owned(),
+            start: 0,
+            end: 1,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Call {
+                function: "abs".to_owned(),
+                args: vec![node],
+                start: 0,
+                end: 1,
+            };
+        }
+        let _ = infer_expr_type(&node, &HashMap::new(), 0);
+    }
+
+    /// Companion to `deeply_nested_expr_type_inference_survives`: moderate
+    /// nesting (well under `MAX_EXPR_NODE_DEPTH`) must still infer exactly as
+    /// before — the cap changes nothing for realistic input. A 100-deep
+    /// all-integer additive chain is unambiguously `Int`.
+    #[test]
+    fn moderate_depth_expr_type_inference_unchanged() {
+        let chain = format!("1{}", "+1".repeat(100));
+        assert_eq!(infer_str(&chain).tcl_type(), Some(TclType::Int));
     }
 
     #[test]

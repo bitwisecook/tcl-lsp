@@ -41,6 +41,7 @@ use tcl_syntax::expr::ast::ExprNode;
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::intervals::{Interval, build_guard_index, compute_intervals, refine_interval};
 use crate::ir::Statement;
 use crate::segmenter::segment_commands;
@@ -430,14 +431,28 @@ fn const_bool(expr: &ExprNode) -> Option<bool> {
 /// short-circuit operand of `&&`/`||`/`and`/`or` and the non-selected ternary
 /// arm run only when forced by a *constant* guard.
 fn walk_eager(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode)) {
+    // Public entry: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`walk_eager_at`]).
+    walk_eager_at(expr, visit, 0);
+}
+
+fn walk_eager_at(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode), depth: u32) {
     use tcl_syntax::expr::ast::BinOp;
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — the visitor
+    // simply isn't invoked on sub-expressions buried deeper than the cap
+    // (a conservative under-visit only reachable past 256 levels of
+    // expression nesting); never a crash.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     visit(expr);
     match expr {
         ExprNode::Binary { op, left, right } => {
-            walk_eager(left, visit);
+            walk_eager_at(left, visit, depth + 1);
             let lazy = matches!(op, BinOp::And | BinOp::Or | BinOp::WordAnd | BinOp::WordOr);
             if !lazy {
-                walk_eager(right, visit);
+                walk_eager_at(right, visit, depth + 1);
                 return;
             }
             let Some(guard) = const_bool(left) else {
@@ -446,25 +461,25 @@ fn walk_eager(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode)) {
             let is_and = matches!(op, BinOp::And | BinOp::WordAnd);
             let forced = if is_and { guard } else { !guard };
             if forced {
-                walk_eager(right, visit);
+                walk_eager_at(right, visit, depth + 1);
             }
         }
-        ExprNode::Unary { operand, .. } => walk_eager(operand, visit),
+        ExprNode::Unary { operand, .. } => walk_eager_at(operand, visit, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            walk_eager(condition, visit);
+            walk_eager_at(condition, visit, depth + 1);
             match const_bool(condition) {
-                Some(true) => walk_eager(true_branch, visit),
-                Some(false) => walk_eager(false_branch, visit),
+                Some(true) => walk_eager_at(true_branch, visit, depth + 1),
+                Some(false) => walk_eager_at(false_branch, visit, depth + 1),
                 None => {}
             }
         }
         ExprNode::Call { args, .. } => {
             for a in args {
-                walk_eager(a, visit);
+                walk_eager_at(a, visit, depth + 1);
             }
         }
         _ => {}
@@ -1010,6 +1025,34 @@ fn statement_span(stmt: &Statement) -> Option<Span> {
 #[cfg(test)]
 mod tests {
     use crate::analyser::Analyser;
+
+    /// Regression coverage for issue #996: `walk_eager` recurses once per
+    /// `ExprNode` level with no depth cap before this fix. A tree built
+    /// directly is unbounded (the Pratt parser caps its own output at 256)
+    /// and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
+    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns
+    /// at all.
+    #[test]
+    fn deeply_nested_walk_eager_survives() {
+        use crate::expr_ast::{ExprNode, UnaryOp};
+        let mut node = ExprNode::Literal {
+            text: "1".into(),
+            start: 0,
+            end: 1,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Neg,
+                operand: Box::new(node),
+            };
+        }
+        let mut count = 0usize;
+        super::walk_eager(&node, &mut |_| count += 1);
+        // The visitor ran without overflowing the native stack; it stops
+        // descending at the cap, so it visits at most ~257 nodes here.
+        assert!(count >= 1);
+    }
 
     /// The `op` of every W233 divide-by-zero finding for `src`'s top level.
     fn divzero(src: &str) -> Vec<&'static str> {

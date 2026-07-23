@@ -92,6 +92,17 @@ pub enum InlineDecision {
 /// unconditionally inlinable.
 pub const SMALL_BODY_THRESHOLD: usize = 5;
 
+/// Depth cap shared by every `Script`/`Statement`-tree recursion in this
+/// module (`tally_calls`, `has_irreturn_in_unsafe_scope`,
+/// `walk_local_writes`) — issue #996.
+///
+/// Transitively bounded today via `crate::lowering`'s
+/// `MAX_LOWER_NEST_DEPTH` (every `Script` this module walks is built by
+/// lowering, which already caps its own construction at 256), capped here
+/// independently for defence-in-depth and consistency with every other
+/// full-tree walker in this crate.
+const MAX_INLINING_WALK_DEPTH: u32 = 256;
+
 /// What an inlinable proc splices in at a call site.
 #[derive(Debug, Clone)]
 enum InlineSpec {
@@ -178,10 +189,10 @@ fn count_static_calls(
 ) -> HashMap<String, usize> {
     let mut counts: HashMap<String, usize> =
         module.procedures.keys().map(|q| (q.clone(), 0)).collect();
-    tally_calls(&module.top_level, "::", "::", summaries, &mut counts);
+    tally_calls(&module.top_level, "::", "::", summaries, &mut counts, 0);
     for (qname, proc) in &module.procedures {
         let root_ns = root_namespace_of(qname);
-        tally_calls(&proc.body, &root_ns, qname, summaries, &mut counts);
+        tally_calls(&proc.body, &root_ns, qname, summaries, &mut counts, 0);
     }
     counts
 }
@@ -202,13 +213,19 @@ fn root_namespace_of(qname: &str) -> String {
     }
 }
 
+/// `depth` is the nesting level of `script` — see
+/// [`MAX_INLINING_WALK_DEPTH`].
 fn tally_calls(
     script: &Script,
     ns: &str,
     caller_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
     counts: &mut HashMap<String, usize>,
+    depth: u32,
 ) {
+    if depth > MAX_INLINING_WALK_DEPTH {
+        return;
+    }
     for stmt in &script.statements {
         match stmt {
             Statement::Call { command, .. } => {
@@ -230,30 +247,30 @@ fn tally_calls(
                 } else {
                     namespace
                 };
-                tally_calls(body, inner, caller_qname, summaries, counts);
+                tally_calls(body, inner, caller_qname, summaries, counts, depth + 1);
             }
             Statement::If {
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    tally_calls(&c.body, ns, caller_qname, summaries, counts);
+                    tally_calls(&c.body, ns, caller_qname, summaries, counts, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    tally_calls(b, ns, caller_qname, summaries, counts);
+                    tally_calls(b, ns, caller_qname, summaries, counts, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                tally_calls(init, ns, caller_qname, summaries, counts);
-                tally_calls(next, ns, caller_qname, summaries, counts);
-                tally_calls(body, ns, caller_qname, summaries, counts);
+                tally_calls(init, ns, caller_qname, summaries, counts, depth + 1);
+                tally_calls(next, ns, caller_qname, summaries, counts, depth + 1);
+                tally_calls(body, ns, caller_qname, summaries, counts, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Foreach { body, .. }
             | Statement::Catch { body, .. }
             | Statement::UpFrame { body, .. } => {
-                tally_calls(body, ns, caller_qname, summaries, counts);
+                tally_calls(body, ns, caller_qname, summaries, counts, depth + 1);
             }
             Statement::Try {
                 body,
@@ -261,12 +278,12 @@ fn tally_calls(
                 finally_body,
                 ..
             } => {
-                tally_calls(body, ns, caller_qname, summaries, counts);
+                tally_calls(body, ns, caller_qname, summaries, counts, depth + 1);
                 for h in handlers {
-                    tally_calls(&h.body, ns, caller_qname, summaries, counts);
+                    tally_calls(&h.body, ns, caller_qname, summaries, counts, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    tally_calls(fb, ns, caller_qname, summaries, counts);
+                    tally_calls(fb, ns, caller_qname, summaries, counts, depth + 1);
                 }
             }
             Statement::Switch {
@@ -274,11 +291,11 @@ fn tally_calls(
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        tally_calls(b, ns, caller_qname, summaries, counts);
+                        tally_calls(b, ns, caller_qname, summaries, counts, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    tally_calls(b, ns, caller_qname, summaries, counts);
+                    tally_calls(b, ns, caller_qname, summaries, counts, depth + 1);
                 }
             }
             _ => {}
@@ -406,7 +423,7 @@ fn v3_eligible(
     summaries: &HashMap<String, ProcEscapeSummary>,
     registry: &CommandRegistry,
 ) -> bool {
-    if has_irreturn_in_unsafe_scope(&proc.body, false) {
+    if has_irreturn_in_unsafe_scope(&proc.body, false, 0) {
         return false;
     }
     for stmt in &proc.body.statements {
@@ -424,7 +441,16 @@ fn v3_eligible(
 /// whose `break` semantics would trap our wrapper's break (loop bodies,
 /// `catch` / `try` traps, `uplevel` frame-shifts). Transparent groupings
 /// (`Block`, `if` clauses, `switch` arms) propagate the parent flag.
-fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool) -> bool {
+/// `depth` is the nesting level of `script` — see
+/// [`MAX_INLINING_WALK_DEPTH`]. Past the cap, conservatively answers
+/// `true` ("assume an unsafe-scope return exists") — this predicate gates
+/// whether a proc is *safe* to v3-inline, so an unresolved deep answer
+/// must lean toward declining the inline, never toward inlining something
+/// that could trap a `break`.
+fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool, depth: u32) -> bool {
+    if depth > MAX_INLINING_WALK_DEPTH {
+        return true;
+    }
     for stmt in &script.statements {
         match stmt {
             Statement::Return { .. } => {
@@ -435,9 +461,9 @@ fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool) -> bool {
             Statement::For {
                 init, next, body, ..
             } => {
-                if has_irreturn_in_unsafe_scope(init, inside_unsafe)
-                    || has_irreturn_in_unsafe_scope(next, inside_unsafe)
-                    || has_irreturn_in_unsafe_scope(body, true)
+                if has_irreturn_in_unsafe_scope(init, inside_unsafe, depth + 1)
+                    || has_irreturn_in_unsafe_scope(next, inside_unsafe, depth + 1)
+                    || has_irreturn_in_unsafe_scope(body, true, depth + 1)
                 {
                     return true;
                 }
@@ -446,7 +472,7 @@ fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool) -> bool {
             | Statement::Foreach { body, .. }
             | Statement::Catch { body, .. }
             | Statement::UpFrame { body, .. } => {
-                if has_irreturn_in_unsafe_scope(body, true) {
+                if has_irreturn_in_unsafe_scope(body, true, depth + 1) {
                     return true;
                 }
             }
@@ -456,22 +482,22 @@ fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool) -> bool {
                 finally_body,
                 ..
             } => {
-                if has_irreturn_in_unsafe_scope(body, true) {
+                if has_irreturn_in_unsafe_scope(body, true, depth + 1) {
                     return true;
                 }
                 for h in handlers {
-                    if has_irreturn_in_unsafe_scope(&h.body, true) {
+                    if has_irreturn_in_unsafe_scope(&h.body, true, depth + 1) {
                         return true;
                     }
                 }
                 if let Some(fb) = finally_body
-                    && has_irreturn_in_unsafe_scope(fb, true)
+                    && has_irreturn_in_unsafe_scope(fb, true, depth + 1)
                 {
                     return true;
                 }
             }
             Statement::Block { body, .. } => {
-                if has_irreturn_in_unsafe_scope(body, inside_unsafe) {
+                if has_irreturn_in_unsafe_scope(body, inside_unsafe, depth + 1) {
                     return true;
                 }
             }
@@ -479,12 +505,12 @@ fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool) -> bool {
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    if has_irreturn_in_unsafe_scope(&c.body, inside_unsafe) {
+                    if has_irreturn_in_unsafe_scope(&c.body, inside_unsafe, depth + 1) {
                         return true;
                     }
                 }
                 if let Some(b) = else_body
-                    && has_irreturn_in_unsafe_scope(b, inside_unsafe)
+                    && has_irreturn_in_unsafe_scope(b, inside_unsafe, depth + 1)
                 {
                     return true;
                 }
@@ -494,13 +520,13 @@ fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool) -> bool {
             } => {
                 for a in arms {
                     if let Some(b) = &a.body
-                        && has_irreturn_in_unsafe_scope(b, inside_unsafe)
+                        && has_irreturn_in_unsafe_scope(b, inside_unsafe, depth + 1)
                     {
                         return true;
                     }
                 }
                 if let Some(b) = default_body
-                    && has_irreturn_in_unsafe_scope(b, inside_unsafe)
+                    && has_irreturn_in_unsafe_scope(b, inside_unsafe, depth + 1)
                 {
                     return true;
                 }
@@ -1880,7 +1906,7 @@ fn list_clean_for_splice(text: &str) -> bool {
 /// Array-element writes contribute the array base name.
 fn collect_local_names(script: &Script) -> HashSet<String> {
     let mut names = HashSet::new();
-    walk_local_writes(script, &mut names);
+    walk_local_writes(script, &mut names, 0);
     names
 }
 
@@ -1897,7 +1923,12 @@ fn record_local_base(name: &str, names: &mut HashSet<String>) {
     }
 }
 
-fn walk_local_writes(script: &Script, names: &mut HashSet<String>) {
+/// `depth` is the nesting level of `script` — see
+/// [`MAX_INLINING_WALK_DEPTH`].
+fn walk_local_writes(script: &Script, names: &mut HashSet<String>, depth: u32) {
+    if depth > MAX_INLINING_WALK_DEPTH {
+        return;
+    }
     for stmt in &script.statements {
         match stmt {
             Statement::AssignConst { name, .. }
@@ -1910,26 +1941,26 @@ fn walk_local_writes(script: &Script, names: &mut HashSet<String>) {
                 }
             }
             Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
-                walk_local_writes(body, names);
+                walk_local_writes(body, names, depth + 1);
             }
             Statement::If {
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    walk_local_writes(&c.body, names);
+                    walk_local_writes(&c.body, names, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    walk_local_writes(b, names);
+                    walk_local_writes(b, names, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                walk_local_writes(init, names);
-                walk_local_writes(next, names);
-                walk_local_writes(body, names);
+                walk_local_writes(init, names, depth + 1);
+                walk_local_writes(next, names, depth + 1);
+                walk_local_writes(body, names, depth + 1);
             }
-            Statement::While { body, .. } => walk_local_writes(body, names),
+            Statement::While { body, .. } => walk_local_writes(body, names, depth + 1),
             Statement::Foreach {
                 iterators, body, ..
             } => {
@@ -1938,7 +1969,7 @@ fn walk_local_writes(script: &Script, names: &mut HashSet<String>) {
                         record_local_base(v, names);
                     }
                 }
-                walk_local_writes(body, names);
+                walk_local_writes(body, names, depth + 1);
             }
             Statement::Catch {
                 body,
@@ -1946,7 +1977,7 @@ fn walk_local_writes(script: &Script, names: &mut HashSet<String>) {
                 options_var,
                 ..
             } => {
-                walk_local_writes(body, names);
+                walk_local_writes(body, names, depth + 1);
                 if let Some(v) = result_var {
                     names.insert(v.clone());
                 }
@@ -1960,9 +1991,9 @@ fn walk_local_writes(script: &Script, names: &mut HashSet<String>) {
                 finally_body,
                 ..
             } => {
-                walk_local_writes(body, names);
+                walk_local_writes(body, names, depth + 1);
                 for h in handlers {
-                    walk_local_writes(&h.body, names);
+                    walk_local_writes(&h.body, names, depth + 1);
                     if let Some(v) = &h.var_name {
                         names.insert(v.clone());
                     }
@@ -1971,7 +2002,7 @@ fn walk_local_writes(script: &Script, names: &mut HashSet<String>) {
                     }
                 }
                 if let Some(fb) = finally_body {
-                    walk_local_writes(fb, names);
+                    walk_local_writes(fb, names, depth + 1);
                 }
             }
             Statement::Switch {
@@ -1979,11 +2010,11 @@ fn walk_local_writes(script: &Script, names: &mut HashSet<String>) {
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        walk_local_writes(b, names);
+                        walk_local_writes(b, names, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    walk_local_writes(b, names);
+                    walk_local_writes(b, names, depth + 1);
                 }
             }
             _ => {}

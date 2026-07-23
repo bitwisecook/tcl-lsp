@@ -694,48 +694,66 @@ fn insert_rebound_candidates(
     rebound.insert(nqn(name));
 }
 
+/// The mutable rebinding-tracking state [`walk_body_calls`] threads
+/// through its recursive descent, grouped into one struct (rather than
+/// three separate `&mut` parameters) so adding the depth-cap parameter
+/// below doesn't push the function over clippy's `too_many_arguments`
+/// threshold.
+struct RebindState<'a> {
+    names: &'a mut std::collections::HashSet<String>,
+    rebound: &'a mut std::collections::HashSet<String>,
+    dynamic: &'a mut bool,
+}
+
 /// Apply the gen of every `Call` / `Barrier` in `script` (recursing into
 /// nested structured bodies, in source order) to `state`, collecting
 /// after *each* mutation — so a builtin renamed away and later restored
 /// (`rename string ms; …; rename ms string`) is still recorded as
-/// tampered within that window.
+/// tampered within that window. `depth` is the nesting level of `script`
+/// — reuses [`crate::optimiser::MAX_OPTIMISER_WALK_DEPTH`] (this walker
+/// isn't itself part of the optimiser module, but shares the same
+/// `Script`/`Statement`-tree-depth semantics as every walker guarded by
+/// that constant, so a second identically-valued constant would only add
+/// drift risk).
 fn walk_body_calls(
     script: &crate::ir::Script,
     state: &mut State,
     registry: &CommandRegistry,
     namespace: &str,
-    names: &mut std::collections::HashSet<String>,
-    rebound: &mut std::collections::HashSet<String>,
-    dynamic: &mut bool,
+    rebind: &mut RebindState<'_>,
+    depth: u32,
 ) {
+    if depth > crate::optimiser::MAX_OPTIMISER_WALK_DEPTH {
+        return;
+    }
     for stmt in &script.statements {
         match stmt {
             Statement::Call { .. } | Statement::Barrier { .. } => {
-                collect_proc_rebindings(stmt, namespace, registry, rebound, dynamic);
+                collect_proc_rebindings(stmt, namespace, registry, rebind.rebound, rebind.dynamic);
                 stmt_gen(stmt, state, registry);
-                collect_tampered_builtins(state, registry, names, dynamic);
+                collect_tampered_builtins(state, registry, rebind.names, rebind.dynamic);
             }
             Statement::If {
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    walk_body_calls(&c.body, state, registry, namespace, names, rebound, dynamic);
+                    walk_body_calls(&c.body, state, registry, namespace, rebind, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    walk_body_calls(b, state, registry, namespace, names, rebound, dynamic);
+                    walk_body_calls(b, state, registry, namespace, rebind, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                walk_body_calls(init, state, registry, namespace, names, rebound, dynamic);
-                walk_body_calls(next, state, registry, namespace, names, rebound, dynamic);
-                walk_body_calls(body, state, registry, namespace, names, rebound, dynamic);
+                walk_body_calls(init, state, registry, namespace, rebind, depth + 1);
+                walk_body_calls(next, state, registry, namespace, rebind, depth + 1);
+                walk_body_calls(body, state, registry, namespace, rebind, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
             | Statement::Foreach { body, .. } => {
-                walk_body_calls(body, state, registry, namespace, names, rebound, dynamic);
+                walk_body_calls(body, state, registry, namespace, rebind, depth + 1);
             }
             Statement::Try {
                 body,
@@ -743,12 +761,12 @@ fn walk_body_calls(
                 finally_body,
                 ..
             } => {
-                walk_body_calls(body, state, registry, namespace, names, rebound, dynamic);
+                walk_body_calls(body, state, registry, namespace, rebind, depth + 1);
                 for h in handlers {
-                    walk_body_calls(&h.body, state, registry, namespace, names, rebound, dynamic);
+                    walk_body_calls(&h.body, state, registry, namespace, rebind, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    walk_body_calls(fb, state, registry, namespace, names, rebound, dynamic);
+                    walk_body_calls(fb, state, registry, namespace, rebind, depth + 1);
                 }
             }
             Statement::Switch {
@@ -756,11 +774,11 @@ fn walk_body_calls(
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        walk_body_calls(b, state, registry, namespace, names, rebound, dynamic);
+                        walk_body_calls(b, state, registry, namespace, rebind, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    walk_body_calls(b, state, registry, namespace, names, rebound, dynamic);
+                    walk_body_calls(b, state, registry, namespace, rebind, depth + 1);
                 }
             }
             _ => {}
@@ -788,15 +806,12 @@ pub fn scan_module_command_mutations(
 
     let mut visit = |script: &crate::ir::Script, namespace: &str| {
         let mut state = State::default();
-        walk_body_calls(
-            script,
-            &mut state,
-            registry,
-            namespace,
-            &mut names,
-            &mut rebound,
-            &mut dynamic,
-        );
+        let mut rebind = RebindState {
+            names: &mut names,
+            rebound: &mut rebound,
+            dynamic: &mut dynamic,
+        };
+        walk_body_calls(script, &mut state, registry, namespace, &mut rebind, 0);
     };
 
     visit(&ir_module.top_level, "::");
@@ -1004,6 +1019,44 @@ Dog create d",
         let cu2 = CompilationUnit::build_for("set x foo\nrename $x bar", &reg, false);
         let m2 = scan_module_command_mutations(&cu2.ir_module, &reg);
         assert!(!m2.trusts("string") && !m2.trusts("lappend"));
+    }
+
+    /// Regression coverage for issue #996: `walk_body_calls` recurses once
+    /// per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`
+    /// body, with no depth cap of its own before this fix. Transitively
+    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today,
+    /// so this is defence-in-depth / consistency with every other
+    /// full-tree walker in this crate, not a currently-reproducible
+    /// crash. 1000 levels of source nesting is comfortably past this new
+    /// cap; the assertion is that `scan_module_command_mutations` returns
+    /// at all, not what it returns. Spawns its own big-stack thread since
+    /// the lexer/CST/segmenter stages upstream of the lowering cap still
+    /// walk the full un-truncated source nesting before that cap trims
+    /// it — same rationale as
+    /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn deeply_nested_if_survives_walk_body_calls() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = "proc clobber {} {\n".to_owned();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("rename string {}\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        src.push_str("}\n");
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let reg = CommandRegistry::build_default();
+                let cu = CompilationUnit::build_for(&src, &reg, false);
+                let _ = scan_module_command_mutations(&cu.ir_module, &reg);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]
