@@ -31,7 +31,7 @@ pushed to this branch (§3/§6a); 6 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
-Twenty-one of these are **fixed**: idx 61 (critical, §3's `438e56f`), idx 9
+Twenty-three of these are **fixed**: idx 61 (critical, §3's `438e56f`), idx 9
 (high, §3's `51d0a35`), idx 10 (high, §3's `2330862`), idx 18 (high, §3's
 `1f5fe71`), idx 29 (high, already resolved by idx 18's fix, pinned in
 §3's `d218463`), idx 31 (high, §3's `89b75a5`), idx 32 (high, §3's
@@ -42,7 +42,8 @@ idx 63 (high, partial — §3's `65dda01`), idx 68 (high, §3's `134c31c`),
 idx 70 (high, §3's `d5e4d65`), idx 71 (high, §3's `2339d4a`), idx 76
 (high, §3's `0bde16e`), idx 77 (high, §3's `51a630f`), idx 84 (high,
 partial — §3's `7115bc8`), idx 86 (high, §3's `99cf07f`), idx 90 (high,
-§3's `7d476f5`); the other 64
+§3's `7d476f5`), idx 95 (high, §3's `ef36c73`), idx 94 (high, §3's
+`959bca8`); the other 62
 main-wave findings are clustered by feature/root-cause with a
 priority-ordered table in
 §6b, ready for a future session to pick up efficiently. Nothing
@@ -192,6 +193,9 @@ the branch's actual current content, on top of `origin/rust`:
 | `99cf07f` | **main-wave** idx 86 (high) | `proc`'s own name argument never attempted constant-folding at all (unlike `rename`'s operands, fixed for idx 3), so `proc ::$wtype {...}` with `wtype` a known constant registered under the raw, garbled text instead of the resolved name. The real `tk/library/accessibility.tcl` idiom compounds this inside `foreach wtype {button entry ...} { rename ::$wtype ::tk::accessible::orig_$wtype ; proc ::$wtype {args} {...} }`: the loop variable binds a *different* value each iteration, a fact the single-value `const_strings` scope map can't represent generally (`foreach` shares one flat cell for the whole loop — confirmed against tclsh, no per-iteration scope to key a value under). Go-to-definition on a post-loop `button` call site fell through to the stale, pre-rename `proc button` declaration; the outline showed a garbled `Function ${wtype}(args)` entry instead of the real per-element wrapper names. Fixed in two parts: `handle_proc_command` now constant-folds its name argument via the same `resolve_dynamic_word` path `rename` already used; `handle_foreach_command` recognises the narrow, fully-literal single-pair shape (mirroring the idx 110 precedent of recognising one specific idiom rather than generalising the underlying lattice) — it binds the loop variable to the first literal element before its one normal body walk (letting the existing constant-fold resolve that iteration for free), then narrowly re-dispatches just the body's own `rename`/`proc` sub-commands once per remaining literal element, the two handlers whose resolution go-to-definition/references/symbols actually depend on. Every other command in the body keeps the single evaluation the normal walk already gives it, so diagnostics/scope entries for anything else aren't duplicated; a bounds guard (mirroring `cmd_fragments`'s own) keeps a direct unit-level `handle_foreach_command` call with a synthetic out-of-bounds span safe. W113's message now names the resolved proc, not the raw dynamic text, now that a dynamic name can resolve. |
 | `20304ef` | — | **Not campaign work** — a rebase of this branch onto `origin/rust`'s newer tip (8 upstream commits, 9 of the resulting 58 replayed commits needed manual conflict resolution — genuine overlapping work, merged rather than either side picked blindly) surfaced a real cross-commit semantic-drift bug via the post-rebase full validation gate, unrelated to any specific tracked finding: `rename_method_in_class` hardcoded `is_classmethod: false` in its call to `references::method_references_for_class` — correct reasoning at the time origin/rust wrote it ("only ever reached via an external `$obj method` call site... always an instance-method receiver"), invalidated once this branch's own idx 120 fix (already on this branch pre-rebase) extended `receiver_instance_class` to also resolve a bare class-name receiver. Fixed by threading through the caller's own `receiver_method_bucket` determination (added by idx 120 for the identical disambiguation elsewhere) instead of the now-stale assumption; `class_q`/`method`/`is_classmethod` bundled into one tuple parameter to stay under the 7-argument clippy lint. |
 | `7d476f5` | **main-wave** idx 90 (high) | `tcl::OptProc name optlist body` (the `opt` package's automatic-option-parsing proc definer — `tk/library/safetk.tcl` redefines a throwaway stub this way) had no `AnalyserHookId` at all, so `all_procs` kept the stub's `{}`-arity `ProcDef` for every real call: false E003 on every call, wrong hover/go-to-definition/references/document-symbol signature. Runtime mechanism (tclsh9.0/8.6-verified): installs a real proc via `uplevel 1 [list ::proc $name args ...]` — the Tcl-level formal is always the single `args` catch-all, `optlist` itself never arity-checked; `optlist`'s own descriptors are bound as LOCAL VARIABLES by `::tcl::OptKeyParse`, a leading `-` on a flag descriptor stripped for the bound name. Fixed with a new `AnalyserHookId::OptProc` + registry spec gaining `analyser_hook`/`arg_roles`/`body_kind`/`command_table_effect`/proc-matching traits; new `handle_opt_proc_command` (mirrors `handle_proc_command`'s glue as a largely separate function — the arity/local-binding stories diverge too much for a shared abstraction) records `ProcDef.params` as `[args]` always, while a combined `args` + dash-stripped-optlist-locals list feeds the body's own scope/hover. Three more gaps found and fixed while wiring this in: (1) `resolve_analyser_hook` blocked *any* `::`-qualified head unconditionally — correct for existing bareword-only hooks (`proc`, preserved), wrong for this brand-new, namespaced one, since real corpus code commonly writes it `::tcl::OptProc` fully qualified (now also fixes the identical latent gap for `::oo::define`/`::oo::objdefine`); (2) the synthetic `args` local (no literal `args` word is ever written) needed a definition-span anchor colliding with neither the proc name nor `optlist`'s own descriptor sub-spans — a zero-width span at `optlist`'s own opening brace; (3) the separate `signature_scan` background/cross-file indexer also dispatches on `Traits::DEFINES_PROCEDURE` (needed for hover), whose shared `handle_proc` would have recorded `optlist`'s own words as the cross-file arity too — new `handle_opt_proc` (keyed off the same `AnalyserHookId::OptProc` stamp) fixes that independently. |
+| `0c03128` | — | **Not campaign work** — `tcl::prefix` (added by idx 9's own fix, `51d0a35`) was never folded into `editors/zed/src/generated/tcl_commands.json`; the full workspace test suite's own `gen_editor_catalogs::tests::committed_catalogs_match_generated` gate catches exactly this drift and was failing. Regenerated via `cargo xtask gen-editor-catalogs`. |
+| `7953d5e` + `ef36c73` | **main-wave** idx 95 (high) | `tk.tcl:594-596`'s `$w ${dir}view scroll ...` (a subcommand synthesized by string-concatenating `$dir` with literal `view`) itself correctly abstains from any false "unknown subcommand" diagnostic — but Rename Symbol on `dir` corrupted the source: `tcl-lexer`'s `Var` token span for a non-degenerate `${name}` form deliberately stops one byte short of the closing `}` (`${a{b}}` names `a{b}`, whose content can itself legitimately end in `}`, so the span convention leaves the outer delimiter unconsumed rather than risk misreading it as content), which made the raw span unsafe to reuse as a rename *edit range*: `build_var_ref_replacement` already emits a self-closed `${new}` string, so replacing only the short span left the source's own original `}` sitting right after it, corrupting `${direction}` into `${direction}}view` — real tclsh8.6/9.0 both fail to even parse the enclosing proc ("extra characters after close-brace"). Fixed with a new `var_ref_edit_span` helper that extends the span to include the closing brace only when the source confirms it's actually there and unconsumed, mirroring `SourceMap::token_text`'s own degenerate-`${}`-empty-name check so it never mis-fires on a span that already legitimately includes the brace. Pushed as two commits (the outage described in §8 blocked a local `git push`, so this landed via the GitHub API directly from locally-verified file contents): `7953d5e` (the e2e regression tests) and `ef36c73` (the core `var_ref_edit_span` fix + its own unit tests) — zero diff between the two once reconciled locally. |
+| `959bca8` | **main-wave** idx 94 (high) | A bare `$var` body of any `ArgRole::Body`-marked argument (`eval $cmd`, `uplevel #0 $cmd …`) dynamically evaluates $var's value as a script at runtime — the same "value is a command prefix" shape `{*}$cmd` already gets via `head_expanded`, just reached through a different syntactic position (a command's body argument, not its own head). Real corpus shape (`tk/library/tearoff.tcl`'s `MenuDup`): `set cmd [list menu $dst -type $type]; ...; eval $cmd`. `command_invocations` never saw this at all — `analyse_body` only ever recurses a literal `Str` body, so hover/go-to-definition resolved via their independent cursor-token walk while references/rename silently missed the call site. Fixed with a new `TokenType::Var` branch in `dispatch_one_body_argument` — generic across every `ArgRole::Body` argument, not eval/uplevel-specific by name — registering a `ConstDispatchSite` (`head_expanded: true`) for the existing CFG/SSA `settle_const_dispatches` machinery (issue #945 faults 1–2) to resolve. That machinery's own `value_provenance.rs` had a separate, narrower gap the finding's own minimal repro exposed: it never folded a `[list W1 W2 ...]` value into a constant at all — fixed with a new, deliberately narrow `fold_literal_list_call` (every element must be a plain literal word) whose first element's own span anchors `literal_span` directly, giving a fully rename-safe result (real tclsh9.0/8.6-verified: renaming `greetD` in `set cmdD [list greetD World]; eval $cmdD` correctly rewrites just that one word, and the transformed script still executes, printing "D World"). Computing that span surfaced a second general bug in the same family as idx 95: `Cmd`-token spans (a `[...]` substitution) also deliberately exclude their own closing `]`, so the existing `word_content_base` helper underflows for a `[list ...]`-shaped value — worked around locally by reading the token's own unaffected *start* offset directly. Empirically confirmed the finding's own speculative "second, compounding gap" (per-proc `FunctionUnit`s not reaching `settle_one_site` with usable SSA data) does not exist — pinned as a regression test, not a fix. Also corrected a stale pre-existing test (`references_do_not_treat_a_dynamic_bareword_body_as_a_static_call`, now `references_resolve_a_constant_var_body_through_its_real_value_not_its_literal_text`) whose own assertion that `if {1} $cb` (with `set cb foo`) must never resolve was contradicted by real tclsh9.0/8.6 (both call `foo`). |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -329,7 +333,7 @@ from scratch:
 | `04-tcllib-audit-results-COMPLETE-25of25.json` | **Complete.** All 25 tcllib findings differentially audited: 22 CONFIRMED, 3 REFUTED. This is the source for the tcllib triage in §6. |
 | `05-main-audit-input-105.json` | The 105 findings from the other 7 corpora (SpiceGenTcl, argparse, tclopt, ticklecharts, pix, tomato, tk) selected for the second audit wave (indices 0–104). |
 | `06-main-audit-results-PARTIAL-49of105.json` | Superseded by the `COMPLETE` file below — kept for history (idx 0–48 only, the first half of the wave). |
-| `06-main-audit-results-COMPLETE-105of105.json` | **Complete.** All 105 main-wave findings (idx 0–104) differentially audited: 85 CONFIRMED, 20 REFUTED. **Triaged** — see §6b for the severity/corpus/feature breakdown and priority-ordered tables. idx 61 (critical, §3's `438e56f`), idx 9 (high, §3's `51d0a35`), idx 10 (high, §3's `2330862`), idx 18 (high, §3's `1f5fe71`), idx 29 (high, same root cause as idx 18, pinned in §3's `d218463`), idx 31 (high, §3's `89b75a5`), idx 32 (high, §3's `8646964`), and idx 33 (high, same root cause as idx 18, pinned in §3's `1135d75`) are fixed; the other 77 CONFIRMED findings are open work. |
+| `06-main-audit-results-COMPLETE-105of105.json` | **Complete.** All 105 main-wave findings (idx 0–104) differentially audited: 85 CONFIRMED, 20 REFUTED. **Triaged** — see §6b for the severity/corpus/feature breakdown, the full up-to-date fixed/remaining list, and priority-ordered tables (kept current there; not duplicated here to avoid drift). |
 | `07-remaining-tcllib-findings-14.json` | The 14 tcllib CONFIRMED findings not yet fixed (full detail: summary, failure_scenario, oracle_output, lsp_output, root_cause_hint, repro_path — repro files themselves are gone, scratchpad-only, but the hints are detailed enough to rebuild a repro in minutes). |
 | `08-research-plans-PARTIAL-8of14.json` | **Partial — 8 of 14 done.** Refined, current-code-verified fix plans for 8 of the 14 remaining tcllib findings (idx 3, 9, 105, 106, 110, 113, 116, 120), produced by a research-only agent fan-out (no file edits) that re-checked each root-cause hint against the *current* (post-merge) code and proposed concrete changes + test scenarios. idx 18, 24, 121, 122, 125, 128 do not have refined plans yet — use `07`'s `root_cause_hint` field directly for those, which is still quite detailed.
 
@@ -372,7 +376,7 @@ tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
 merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
 from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
 `wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
-REFUTED.** Of the 85 CONFIRMED: **21 fixed** (idx 61, critical — §3's
+REFUTED.** Of the 85 CONFIRMED: **23 fixed** (idx 61, critical — §3's
 `438e56f`; idx 9, high — §3's `51d0a35`; idx 10, high — §3's `2330862`;
 idx 18, high — §3's `1f5fe71`; idx 29, high, same root cause as idx 18 —
 §3's `d218463`; idx 31, high — §3's `89b75a5`; idx 32, high — §3's
@@ -382,8 +386,9 @@ idx 18, high — §3's `1f5fe71`; idx 29, high, same root cause as idx 18 —
 partial — §3's `65dda01`; idx 68, high — §3's `134c31c`; idx 70, high —
 §3's `d5e4d65`; idx 71, high — §3's `2339d4a`; idx 76, high — §3's
 `0bde16e`; idx 77, high — §3's `51a630f`; idx 84, high, partial — §3's
-`7115bc8`; idx 86, high — §3's `99cf07f`; idx 90, high — §3's `7d476f5`),
-**64 remaining**.
+`7115bc8`; idx 86, high — §3's `99cf07f`; idx 90, high — §3's `7d476f5`;
+idx 95, high — §3's `ef36c73`; idx 94, high — §3's `959bca8`),
+**62 remaining**.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
@@ -394,7 +399,7 @@ namespaces 11, proc_args 10, upvar 7, source 6, tcl_mathop 5, rename 4,
 package_loading 3, uplevel 3, tracing 3, aliasing 2, safe_interp 2, eval 1,
 autoindex 1.
 
-#### Priority tier 1 — critical + high (24 findings, 21 already fixed)
+#### Priority tier 1 — critical + high (24 findings, 23 already fixed)
 
 Fix these first — each is either data-loss-risk (a rename that silently
 breaks the program, idx 61) or a full-zero-results failure of a core
@@ -428,8 +433,8 @@ not a substitute.
 | 84 | high | tk | namespaces | **PARTIALLY FIXED** (`7115bc8`) — `namespace ensemble configure` (as opposed to `create`) was invisible to the analyser, so the real `tk/library/systray.tcl` (and `print.tcl`/`fileicon.tcl`/`accessibility.tcl`) idiom of splicing `systray`/`sysnotify` onto the pre-existing `tk` ensemble drew 5 false W001s and risked wrong go-to-definition/hover navigation for the 2-word shape; both now fixed. The 3rd-word case (`tk systray create`/…) remains open — a separate, general, pre-existing limitation, not idx-84-specific; see the dedicated note after this table. |
 | 86 | high | tk | rename | **FIXED** (`99cf07f`) — `tk/library/accessibility.tcl`'s `foreach wtype {...} { rename ::$wtype ::tk::ac... }` loop-generated rename/proc targets weren't tracked (nor was a plain `proc ::$wtype {...}` outside any loop — `proc`'s name never attempted constant-folding at all); go-to-definition on a post-rename call fell through to the stale original, and the outline showed a garbled `${wtype}`-named entry. |
 | 90 | high | tk | safe_interp | **FIXED** (`7d476f5`) — `tcl::OptProc` (the `opt` package's automatic-option-parsing proc definer) had no `AnalyserHookId` at all, so `all_procs` kept a stub `{}`-arity `ProcDef` for every real call — false E003, and wrong hover/go-to-definition/references/document-symbol signature. |
-| 94 | high | tk | tricky_indirection | `tearoff.tcl`'s `-tearoffcommand`/`cget`/`upvar`-adjacent indirection mechanics both reproduce, need a combined fix. |
-| 95 | high | tk | tricky_indirection | `tk.tcl:594-596`'s `$w ${dir}view scroll ...` — a subcommand synthesized by string-concatenation at the call site — isn't resolved. |
+| 94 | high | tk | tricky_indirection | **FIXED** (`959bca8`) — a bare `$var` body of an `eval`/`uplevel` call (`tk/library/tearoff.tcl`'s `MenuDup`: `set cmd [list menu $dst ...]; eval $cmd`) dynamically evaluates $var's value as a script, but `command_invocations` never saw it — references/rename silently missed the call site while hover/go-to-definition resolved via their independent cursor-token walk; a "complete" rename left the program calling a now-nonexistent name at runtime. |
+| 95 | high | tk | tricky_indirection | **FIXED** (`ef36c73`) — `tk.tcl:594-596`'s `$w ${dir}view scroll ...` (a subcommand synthesized by string-concatenation) itself correctly abstains, but renaming `dir` corrupted the source: the `Var` token's lexer span for `${dir}` excludes its own closing `}`, so the rename edit range left the original `}` behind, producing `${direction}}view` — a parse error under real tclsh. |
 
 **idx 79, in detail (investigated, deliberately not fixed):** the finding's
 own repro is nico-robert/tomato's `Vector3d.tcl` `constructor {args}`, whose
@@ -718,12 +723,13 @@ manual differential checks — see its own docstring for usage
 4. Pick the next finding to fix — two ready queues, both fully triaged:
    - §6a: 6 remaining tcllib findings (idx 121/122/18/125/128/24), no
      refined plan for any — use `07`'s `root_cause_hint` directly.
-   - §6b: 64 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
+   - §6b: 62 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
      idx 29, idx 31, idx 32, idx 33, idx 39, idx 46, idx 52, idx 56, idx
-     63, idx 68, idx 70, idx 71, idx 76, idx 77, idx 84, idx 86, and idx 90
-     are fixed — idx 46, idx 63, and idx 84 only partially, see their §3/§6b
-     rows for what's still open — so far), fully triaged into a
-     priority-ordered critical/high table (3 remaining, start here) and a feature-clustered medium/low
+     63, idx 68, idx 70, idx 71, idx 76, idx 77, idx 84, idx 86, idx 90,
+     idx 95, and idx 94 are fixed — idx 46, idx 63, and idx 84 only
+     partially, see their §3/§6b rows for what's still open — so far),
+     fully triaged into a
+     priority-ordered critical/high table (1 remaining, start here) and a feature-clustered medium/low
      table (61 findings, group by feature when fixing). Likely the
      higher-leverage queue given its size and the presence of several
      zero-results go-to-definition/references failures on common
@@ -744,7 +750,32 @@ manual differential checks — see its own docstring for usage
    crate manifest does; running this (or `df`/`du`) from a `rust/`-relative
    cwd silently no-ops (the path just doesn't exist there) and looks like
    cleanup happened when it didn't — confirmed the hard way this session.
-7. Both queues (§6a's 6 tcllib findings, §6b's 65 main-wave findings) are
+   **`incremental/` isn't always the bulk of it**: after enough
+   `--workspace` iterations, `target/debug/deps`/`target/debug/examples`
+   (hundreds of stale, hash-versioned test/example binaries across the
+   workspace's 41 crates) can dwarf `incremental/` itself (one session
+   this campaign hit 20G in `deps/` alone vs. 2.6G in `incremental/`,
+   filling the disk enough to take the whole `Bash` tool down — every
+   invocation failed at the harness's own preflight step before any
+   command ran, since it couldn't even create its own output-capture
+   directory). If clearing `incremental/` alone doesn't recover enough
+   room, `rm -rf /home/user/tcl-lsp/target` (confirmed `.gitignore`d) is
+   the complete, still-safe fix — slower next cold build, nothing lost.
+   If `Bash` itself is down and you're stuck reasoning about *why*, check
+   `df -h /` the moment anything recovers enough to run one command —
+   don't assume a `tasks`-scratch-dir-specific cause without checking; it
+   was the whole root filesystem both times this session hit it, not a
+   dedicated small tmpfs. If `Bash` is completely down and staying down,
+   pushing a small, already-locally-verified fix directly via the GitHub
+   MCP `push_files` tool (from a repo you already have `add_repo`'d) is a
+   viable fallback for *already-finished* work sitting uncommitted — but
+   treat it as a last resort for files small enough to reconstruct
+   confidently, and reconcile with `git fetch` + a diff against the new
+   remote HEAD (not `reset --hard` blind) the moment `Bash` recovers, to
+   confirm byte-for-byte what actually landed matches local before trusting
+   it (see idx 95's `7953d5e`/`ef36c73` commits and the surrounding
+   session transcript for the full story — it worked, but took real care).
+7. Both queues (§6a's 6 tcllib findings, §6b's 62 main-wave findings) are
    independent — fix from whichever queue makes sense, no need to exhaust
    one before starting the other. Keep this document's counts current as
    findings get fixed: move a finished idx out of §6a/§6b's tables and into
