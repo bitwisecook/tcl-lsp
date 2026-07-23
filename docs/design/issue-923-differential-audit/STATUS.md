@@ -31,7 +31,7 @@ pushed to this branch (§3/§6a); 6 tcllib findings remain, each with a
 detailed `root_cause_hint` but no refined plan (§6a). The main-wave audit
 (other 7 corpora, 105 findings total) is now **fully complete and triaged**
 (§6b): 85 CONFIRMED (1 critical, 23 high, 60 medium, 1 low), 20 REFUTED.
-Sixteen of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
+Seventeen of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
 (high, §3's `26e4ea3`), idx 10 (high, §3's `9a55b00`), idx 18 (high, §3's
 `b3cbdb1`), idx 29 (high, already resolved by idx 18's fix, pinned in
 §3's `65aaa5c`), idx 31 (high, §3's `26c6e02`), idx 32 (high, §3's
@@ -39,9 +39,9 @@ Sixteen of these are **fixed**: idx 61 (critical, §3's `d825d1d`), idx 9
 `b1d7269`), idx 39 (high, §3's `6f58385`), idx 46 (high, partial — §3's
 `2fb4921`), idx 52 (high, §3's `15267af`), idx 56 (high, §3's `8b1e88f`),
 idx 63 (high, partial — §3's `6d429dc`), idx 68 (high, §3's `440572f`),
-idx 70 (high, §3's `a8971ac`), idx 71 (high, §3's `70f0c99`); the other 69
-main-wave findings are clustered by feature/root-cause with a
-priority-ordered table in
+idx 70 (high, §3's `a8971ac`), idx 71 (high, §3's `70f0c99`), idx 76
+(high, §3's `7c1a154`); the other 68 main-wave findings are clustered by
+feature/root-cause with a priority-ordered table in
 §6b, ready for a future session to pick up efficiently. Nothing
 is lost — the raw data,
 the exact scripts that
@@ -183,6 +183,7 @@ the branch's actual current content, on top of `origin/rust`:
 | `440572f` | **main-wave** idx 68 (high) | Find-References/Rename never unified a proc's `global`/`variable`/`namespace upvar` alias with the canonical cell it points at — only *other aliases* of a target were ever found (`collect_alias_spans` matches on `link_target`, but a plain `set`/declaration is never given one). Real corpus shape: nico-robert/pix's `isEqual`/`tolComp` (`global tolComp` inside the proc, defaulted if unset, overridden by a top-level `set ::tolComp` before each call) — Rename from either side previously rewrote only its own half, silently decoupling the proc's default from the caller's override. Fixed with two new bidirectional `tcl-compiler::analyser::scope` helpers: `qualified_name_for_var_decl` (the reverse of the pre-existing `lookup_var_in_namespace` — given a declaration's span, finds the qualified name an alias would target it by) and `lookup_var_by_qualified_name` (a superset of `lookup_var_in_namespace` that also matches a *literal* `::`-qualified `set`'s verbatim-stored key — discovered empirically that `define_var` never re-qualifies a name it's given, so `set ::tolComp val` stores `"::tolComp"` as its own key, not the bare tail `variable`/`global` aliases use; a new `lookup_var_by_literal_qualified_name` fallback walk covers that spelling). `linked_var_reference_spans` now folds the canonical cell in when querying from an alias, and every alias in when querying from the canonical cell, either direction, either spelling. |
 | `a8971ac` | **main-wave** idx 70 (high) | `foreach varList1 list1 ?varList2 list2 ...? body` (the parallel/lock-step multi-list form, arity-validated by the registry's own `foreach` spec) only ever bound the *first* varList — every subsequent varList/list pair's names were silently dropped. Real corpus consequence on nico-robert/pix's `docs/pixdoc.tcl`: `foreach dirName {...} name {...} {...}` never bound `name` at all, so go-to-definition on `$name` inside the loop body fell through to a coincidentally same-named but wholly unrelated *later* `foreach name {...}` 300+ lines away (`foreach` introduces no new analyser scope, correctly modelling Tcl's lack of block scoping, so all top-level `name`s share one flat lookup table). Fixed by looping `for i in (0..args.len()-1).step_by(2)` binding every `args[i]` varList, mirroring the arity spec's own stride of 2. Verified against real tclsh9.0/8.6 that two sequential top-level `foreach name {...}` statements genuinely share one global storage cell — so the fully correct fixed `references()` set unifies both loops rather than artificially excluding the second. |
 | `70f0c99` | **main-wave** idx 71 (high) | `textDocument/references` dropped every call site in the *same* document a query was issued from whenever that document has no local declaration to anchor on (a proc reached only through a `source`d-in or workspace-sibling declaration) — `cross_document_references` unconditionally excludes the current document from its workspace-index lookup, assuming the (empty, in this case) single-document pass already covers it. Real corpus shape: nico-robert/pix's `test_context.test` sources `data_b64.test` then calls `isEqual` bare, twice; both of its own calls were invisible to find-references. Mirrored the identical fix pattern rename's "M8" consumer-document fallback already uses (resolve through the workspace oracle with an empty exclude-URI): `cross_document_references`'s body is now shared via a new `gather_reference_targets(..., exclude_uri)` helper, and a new sibling `workspace_resolved_references` calls it with `exclude_uri = ""` instead of the current URI, used whenever the single-document pass finds nothing local to anchor on. The `.test`-extension half of this finding was already fixed by idx 10. |
+| `7c1a154` | **main-wave** idx 76 (high) | The finding's own headline hypothesis (LSP guessing the wrong class among structurally-similar TclOO classes for a genuinely dynamic `switch`-dispatched call) is REFUTED — the LSP already correctly abstains there. Tracing why uncovered a distinct CONFIRMED gap on the exact same class (nico-robert/tomato's real classes all use idx 52's two-block `oo::class create` + separate `oo::define` convention): a definite, single-target `my methodName` internal-dispatch call had no hover at all, even though go-to-definition/find-references already resolved it (cursor-shape-driven, via `enclosing_class_at`/`method_dispatch_definition`) — hover only had the word-match-driven `class_member_hover_text`, gated on `ClassDef::linked_members` (idx 113's `oo::Helpers::link` idiom only), which a plain un-linked `my` call never populates. Fixed with a new `inst == "my"` branch in `hover_with_profile`, mirroring `instance_method_definition`'s existing one, resolving via `enclosing_class_at` and rendering through the existing `obj_method_hover_text`. |
 
 Run `git log --oneline 2c7693b..9ec4cff` for the exact list (this branch's
 own history — `9ec4cff` is where PR #963 landed on `origin/rust`, see below);
@@ -363,7 +364,7 @@ tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
 merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
 from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
 `wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
-REFUTED.** Of the 85 CONFIRMED: **16 fixed** (idx 61, critical — §3's
+REFUTED.** Of the 85 CONFIRMED: **17 fixed** (idx 61, critical — §3's
 `d825d1d`; idx 9, high — §3's `26e4ea3`; idx 10, high — §3's `9a55b00`;
 idx 18, high — §3's `b3cbdb1`; idx 29, high, same root cause as idx 18 —
 §3's `65aaa5c`; idx 31, high — §3's `26c6e02`; idx 32, high — §3's
@@ -371,7 +372,8 @@ idx 18, high — §3's `b3cbdb1`; idx 29, high, same root cause as idx 18 —
 39, high — §3's `6f58385`; idx 46, high, partial — §3's `2fb4921`; idx
 52, high — §3's `15267af`; idx 56, high — §3's `8b1e88f`; idx 63, high,
 partial — §3's `6d429dc`; idx 68, high — §3's `440572f`; idx 70, high —
-§3's `a8971ac`; idx 71, high — §3's `70f0c99`), **69 remaining**.
+§3's `a8971ac`; idx 71, high — §3's `70f0c99`; idx 76, high — §3's
+`7c1a154`), **68 remaining**.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
@@ -382,7 +384,7 @@ namespaces 11, proc_args 10, upvar 7, source 6, tcl_mathop 5, rename 4,
 package_loading 3, uplevel 3, tracing 3, aliasing 2, safe_interp 2, eval 1,
 autoindex 1.
 
-#### Priority tier 1 — critical + high (24 findings, 16 already fixed)
+#### Priority tier 1 — critical + high (24 findings, 17 already fixed)
 
 Fix these first — each is either data-loss-risk (a rename that silently
 breaks the program, idx 61) or a full-zero-results failure of a core
@@ -410,7 +412,7 @@ not a substitute.
 | 68 | high | pix | proc_args | **FIXED** (`440572f`) — Find-References/Rename never unified a proc's `global` alias with its own canonical `set` declaration (only *other aliases* of a target were ever found, never the target's own direct declaration); now bidirectional, qualified or unqualified spelling. |
 | 70 | high | pix | tricky_indirection | **FIXED** (`a8971ac`) — the parallel/lock-step multi-list `foreach` form only ever bound the first varList; every subsequent one (and its uses) was invisible, and on the real corpus file resolved to a coincidentally same-named unrelated later loop instead. |
 | 71 | high | pix | source | **FIXED** (`70f0c99`) — find-references dropped every call site in the same document a query was issued from whenever that document has no local declaration (a proc reached only through a `source`d-in/sibling file); the `.test`-extension half was already fixed by idx 10. |
-| 76 | high | tomato | tclOO | LSP guesses the wrong class among several structurally-similar TclOO classes for a dynamically-dispatched call. |
+| 76 | high | tomato | tclOO | **FIXED** (`7c1a154`) — the headline "wrong class guessed" hypothesis is REFUTED (correct abstention); tracing it found hover had no resolution path at all for a plain `my methodName` call, unlike already-working go-to-definition/references. |
 | 77 | high | tomato | tclOO | `method * {type}` (operator-overload dispatch) reads `$other` in its isa-object branch incorrectly / the resolver doesn't follow it. |
 | 79 | high | tomato | proc_args | `constructor {args}` reinterprets its single `args` list as multiple different logical shapes depending on caller — the parameter model doesn't track this. |
 | 84 | high | tk | namespaces | `tk/library/systray.tcl` (and print.tcl, fileicon.tcl, accessibility.tcl) splices a namespace-qualified name dynamically; resolution fails. |
@@ -540,11 +542,11 @@ manual differential checks — see its own docstring for usage
 4. Pick the next finding to fix — two ready queues, both fully triaged:
    - §6a: 6 remaining tcllib findings (idx 121/122/18/125/128/24), no
      refined plan for any — use `07`'s `root_cause_hint` directly.
-   - §6b: 69 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
+   - §6b: 68 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
      idx 29, idx 31, idx 32, idx 33, idx 39, idx 46, idx 52, idx 56, idx
-     63, idx 68, idx 70, and idx 71 are fixed — idx 46 and idx 63 only
-     partially, see their §3/§6b rows for what's still open — so far),
-     fully triaged into a priority-ordered critical/high table (8
+     63, idx 68, idx 70, idx 71, and idx 76 are fixed — idx 46 and idx 63
+     only partially, see their §3/§6b rows for what's still open — so
+     far), fully triaged into a priority-ordered critical/high table (7
      remaining, start here) and a feature-clustered medium/low table (61
      findings, group by feature when fixing). Likely the higher-leverage
      queue given its size and the presence of several zero-results
@@ -565,7 +567,7 @@ manual differential checks — see its own docstring for usage
    crate manifest does; running this (or `df`/`du`) from a `rust/`-relative
    cwd silently no-ops (the path just doesn't exist there) and looks like
    cleanup happened when it didn't — confirmed the hard way this session.
-7. Both queues (§6a's 6 tcllib findings, §6b's 69 main-wave findings) are
+7. Both queues (§6a's 6 tcllib findings, §6b's 68 main-wave findings) are
    independent — fix from whichever queue makes sense, no need to exhaust
    one before starting the other. Keep this document's counts current as
    findings get fixed: move a finished idx out of §6a/§6b's tables and into
