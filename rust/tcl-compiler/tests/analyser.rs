@@ -2103,6 +2103,35 @@ mod eval_uplevel_indirect_dispatch {
 }
 
 // ===========================================================================
+// `apply [list {params} {body} ns]` — the list-constructor lambda idiom
+// (issue #923 idx 116). Each list element must reach the body walk with its
+// list delimiters removed, exactly as a literal braced lambda does.
+// ===========================================================================
+mod apply_list_lambda {
+    use super::*;
+
+    #[test]
+    fn apply_list_constructor_body_element_is_delimiter_stripped() {
+        // Codex review (PR #1020): `resolve_dynamic_apply_lambda`'s `[list
+        // …]` path sliced each element's raw source span, keeping the braces
+        // of a `{frobnicate arg}` body element, so the body re-segmented as a
+        // single braced word and the real `frobnicate` call was never seen.
+        // With the element text delimiter-stripped (zipped from the
+        // segmenter's `texts`, the same shape the literal-lambda path uses),
+        // the body walks as `frobnicate arg` and records `frobnicate` as its
+        // own command invocation.
+        let invs = Analyser::new()
+            .analyse("apply [list {} {frobnicate arg} ::myns]\n", D)
+            .command_invocations;
+        assert!(
+            invs.iter().any(|i| i.name == "frobnicate"),
+            "apply [list ...] body must segment to the real `frobnicate` call: {:?}",
+            invs.iter().map(|i| &i.name).collect::<Vec<_>>()
+        );
+    }
+}
+
+// ===========================================================================
 // TestW123UnresolvedCommand — unknown-command detection.
 // ===========================================================================
 mod unresolved_command {

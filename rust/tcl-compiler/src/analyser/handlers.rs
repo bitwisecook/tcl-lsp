@@ -1196,8 +1196,22 @@ impl Analyser {
                     return None;
                 }
                 let mut out = Vec::with_capacity(cmd.texts.len().saturating_sub(1));
-                for tok in cmd.argv.iter().skip(1) {
-                    out.push(one_hop(*tok)?);
+                for (tok, text) in cmd.argv.iter().skip(1).zip(cmd.texts.iter().skip(1)) {
+                    if tok.kind == TokenType::Var {
+                        // A `$body` / `$ns` list element still needs one hop
+                        // through the constant-value lattice.
+                        out.push(one_hop(*tok)?);
+                    } else {
+                        // Use the segmenter's already-delimiter-stripped
+                        // element text (`cmd.texts`) paired with its token —
+                        // the same shape `parse_apply_lambda_elements` yields
+                        // for a literal lambda. Slicing the token's raw source
+                        // span instead would keep a `{cleanup done}` element's
+                        // braces, so the body re-segments as one braced word
+                        // and the real `cleanup` call is missed (Codex review,
+                        // PR #1020).
+                        out.push((*tok, text.clone()));
+                    }
                 }
                 Some(out)
             }
