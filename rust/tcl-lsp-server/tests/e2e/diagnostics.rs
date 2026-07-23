@@ -1243,33 +1243,36 @@ fn w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// Issue #923 idx 18 (tcllib): the standard `upvar N $fvar ...` +
-// `uplevel N $script` "custom control structure" idiom false-fires W210
-// whenever the proc performing the upvar/uplevel is one call-hop away from
-// the literal call site — real tcllib repro:
-// `modules/page/util_flow.tcl`'s `::page::util::flow` wrapper `proc`
-// (which hands its own params to a snit type's constructor, which does the
-// actual `upvar`/`uplevel` work). tclsh9.0/8.6-verified the minimal
-// wrapper/worker shape below runs cleanly.
+// Issue #923 idx 18 (tcllib), revisited after PR #1020 review: a wrapper
+// proc that reaches an `upvar`+`uplevel` "custom control structure" proc
+// through a *plain* call (not `uplevel`) does NOT propagate the effect to
+// its own caller — tclsh9.0/8.6-verified (`can't read "myf": no such
+// variable` when the caller reads the variable outside any `uplevel`'d
+// script argument). An earlier version of this fix treated every such
+// pass-through as transitive based on a misleading test (reading the
+// variable *inside* the same script block that wrote it, which
+// coincidentally lands in the same frame regardless of whether real
+// propagation happened); these tests now pin the correct, tclsh-verified
+// behaviour instead. The real tcllib idiom (`page::util::flow`) reaches its
+// worker via `uplevel 1 [list ...]`, which genuinely does propagate one
+// frame further (also tclsh9.0-verified) — soundly modelling that shape is
+// tracked at https://github.com/bitwisecook/tcl-lsp/issues/1019, not
+// attempted here.
 
 #[test]
-fn w210_silent_for_upvar_proc_reached_through_a_wrapper_923_idx18() {
+fn w210_still_fires_for_a_plain_call_wrapper_923_idx18() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc wrapper {fvar nvar script} {\n    real_worker $fvar $nvar $script\n}\nwrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
-    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
 #[test]
-fn w210_silent_across_a_two_hop_wrapper_chain_923_idx18() {
-    // The fixed-point propagation must reach an N-hop chain, not just one
-    // hop: `outer_wrapper` calls `middle_wrapper` (itself only a
-    // transitively-discovered upvar proc), which calls `real_worker`
-    // directly.
+fn w210_still_fires_across_a_two_hop_plain_call_wrapper_chain_923_idx18() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc middle_wrapper {fvar nvar script} {\n    real_worker $fvar $nvar $script\n}\nproc outer_wrapper {fvar nvar script} {\n    middle_wrapper $fvar $nvar $script\n}\nouter_wrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
-    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
 #[test]

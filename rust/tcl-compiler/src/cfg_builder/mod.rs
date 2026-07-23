@@ -1272,55 +1272,6 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
         }
         result.insert(qname.clone(), info);
     }
-    // Issue #923 idx 18: a wrapper proc that doesn't declare `upvar`
-    // itself, but whose own parameter is passed unchanged to an
-    // already-known upvar proc's own upvar-source parameter, is itself
-    // an upvar-write target one frame further out — tcllib's
-    // `page::util::flow` idiom (a plain wrapper `proc` that hands its own
-    // `fvar`/`nvar`/`script` params to a snit type's constructor, which
-    // does the real `upvar`/`uplevel` work). Runs to a fixed point so an
-    // N-hop wrapper chain resolves too, not just one hop; bounded by the
-    // module's own proc count (each round either adds at least one new
-    // entry or the loop ends).
-    let mut params_by_name: HashMap<String, Vec<String>> = HashMap::new();
-    for (qname, proc) in &module.procedures {
-        if let Some((_, short)) = qname.rsplit_once("::")
-            && !short.is_empty()
-        {
-            params_by_name.insert(short.to_owned(), proc.params.clone());
-        }
-        params_by_name.insert(qname.clone(), proc.params.clone());
-    }
-    loop {
-        let mut discovered: Vec<(String, UpvarInfo)> = Vec::new();
-        for (qname, proc) in &module.procedures {
-            if result.contains_key(qname.as_str()) {
-                continue;
-            }
-            let Some(info) = upvar_info::transitive_upvar_info_for(
-                &proc.params,
-                &proc.body,
-                &result,
-                &params_by_name,
-            ) else {
-                continue;
-            };
-            discovered.push((qname.clone(), info));
-        }
-        if discovered.is_empty() {
-            break;
-        }
-        for (qname, info) in discovered {
-            if let Some((_, short)) = qname.rsplit_once("::")
-                && !short.is_empty()
-            {
-                result
-                    .entry(short.to_owned())
-                    .or_insert_with(|| info.clone());
-            }
-            result.insert(qname, info);
-        }
-    }
     result
 }
 
@@ -2487,17 +2438,31 @@ mod tests {
         assert!(!upvar_procs.contains_key("p2"));
     }
 
-    // Issue #923 idx 18: a wrapper proc that doesn't declare `upvar` itself,
-    // but passes its own parameter unchanged to an already-known upvar
-    // proc's own upvar-source parameter, must itself become a known upvar
-    // proc — tcllib's `page::util::flow` wrapper idiom, one call-hop away
-    // from the real `upvar`/`uplevel` work.
+    // Issue #923 idx 18 (revisited after PR #1020 review): a wrapper proc
+    // that reaches an already-known upvar proc through a *plain* call
+    // (`real_worker $fvar $nvar $script`, not `uplevel`) does NOT itself
+    // become an upvar-write target for its own caller — tclsh9.0/8.6-
+    // verified (`can't read "myf": no such variable"` when the caller reads
+    // the variable in a statement separate from the call, i.e. genuinely
+    // outside any `uplevel`'d script argument). A plain call only shares
+    // *values*, not stack frames: `real_worker`'s own `upvar 1` reaches the
+    // wrapper's frame, not the wrapper's caller's frame — an earlier
+    // version of this fix treated every such pass-through as transitive,
+    // which was disproven by re-testing with the read moved outside the
+    // uplevel'd script (see the reverted commit's own follow-up fix for
+    // the story). The real tcllib idiom this finding was mined from
+    // (`page::util::flow`) reaches its own worker via `uplevel 1 [list
+    // ... ]`, not a plain call — genuinely propagating one frame further,
+    // confirmed separately against tclsh9.0 — but modelling that shape
+    // soundly (accounting for the wrapper's own uplevel level composed
+    // with the callee's own upvar level) is out of scope here; tracked at
+    // https://github.com/bitwisecook/tcl-lsp/issues/1019.
 
     #[test]
-    fn detect_upvar_procs_propagates_through_a_wrapper_one_hop_away() {
-        // TP — `wrapper` has no `upvar` of its own, but its call to the
-        // known upvar proc `real_worker` passes `fvar`/`nvar` through
-        // unchanged.
+    fn detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper() {
+        // TN — `wrapper` has no `upvar` of its own, and its call to the
+        // known upvar proc `real_worker` is a plain call (not `uplevel`),
+        // so it must NOT be registered as a transitive upvar proc.
         let module = lower_module(
             "proc real_worker {fvar nvar script} {\n\
              upvar 1 $fvar f\n\
@@ -2511,54 +2476,9 @@ mod tests {
              }",
         );
         let upvar_procs = detect_upvar_procs(&module);
-        let wrapper_info = upvar_procs
-            .get("wrapper")
-            .expect("wrapper should be discovered as a transitive upvar proc");
-        let defs = wrapper_info.caller_side_defs(
-            &["myf".to_string(), "myn".to_string(), "{...}".to_string()],
-            &["fvar".to_string(), "nvar".to_string(), "script".to_string()],
-        );
         assert!(
-            defs.contains(&"myf".to_string()) && defs.contains(&"myn".to_string()),
-            "expected wrapper's own call-site defs to include myf/myn, got {defs:?}",
-        );
-    }
-
-    #[test]
-    fn detect_upvar_procs_propagation_is_a_fixed_point_across_two_hops() {
-        // TP — `outer_wrapper` calls `middle_wrapper` (itself only
-        // discovered transitively in the first fixed-point round), which
-        // calls `real_worker` directly. Neither wrapper declares `upvar`.
-        let module = lower_module(
-            "proc real_worker {fvar nvar script} {\n\
-             upvar 1 $fvar f\n\
-             upvar 1 $nvar n\n\
-             set f 1\n\
-             set n 2\n\
-             uplevel 1 $script\n\
-             }\n\
-             proc middle_wrapper {fvar nvar script} {\n\
-             real_worker $fvar $nvar $script\n\
-             }\n\
-             proc outer_wrapper {fvar nvar script} {\n\
-             middle_wrapper $fvar $nvar $script\n\
-             }",
-        );
-        let upvar_procs = detect_upvar_procs(&module);
-        assert!(
-            upvar_procs.contains_key("middle_wrapper"),
-            "middle_wrapper should be discovered in the first fixed-point round",
-        );
-        let outer_info = upvar_procs
-            .get("outer_wrapper")
-            .expect("outer_wrapper should be discovered in the second fixed-point round");
-        let defs = outer_info.caller_side_defs(
-            &["myf".to_string(), "myn".to_string(), "{...}".to_string()],
-            &["fvar".to_string(), "nvar".to_string(), "script".to_string()],
-        );
-        assert!(
-            defs.contains(&"myf".to_string()) && defs.contains(&"myn".to_string()),
-            "expected outer_wrapper's own call-site defs to include myf/myn, got {defs:?}",
+            !upvar_procs.contains_key("wrapper"),
+            "a plain-call wrapper must not be treated as a transitive upvar proc",
         );
     }
 
@@ -2585,25 +2505,6 @@ mod tests {
         assert!(
             !upvar_procs.contains_key("unrelated_wrapper"),
             "unrelated_wrapper passes literal args, not its own params — must not propagate",
-        );
-    }
-
-    #[test]
-    fn frozen_while_condition_carries_transitive_upvar_proc_defs() {
-        // TP — the transitive propagation must also reach the frozen-loop
-        // condition path (issue #923 idx 122's `<cond>` synthetic Call),
-        // not just the ordinary direct-call path.
-        let module = lower_module(
-            "proc real_worker {ovar} { upvar 1 $ovar opt; set opt 1 }\n\
-             proc wrapper {ovar} { real_worker $ovar }\n\
-             while {[wrapper opt]} { puts $opt }",
-        );
-        let cfg = build_cfg(&module, false);
-        let defs =
-            find_call_defs(&cfg.top_level, "<cond>").expect("expected a <cond> Call in the CFG");
-        assert!(
-            defs.contains(&"opt".to_string()),
-            "expected opt in the frozen while's <cond> Call defs via the transitive wrapper, got {defs:?}",
         );
     }
 
