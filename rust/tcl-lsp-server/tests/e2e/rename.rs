@@ -243,6 +243,74 @@ fn rename_var_preserves_braced_form() {
     assert!(t.contains("${newvar}"), "{t:?}");
 }
 
+/// Find the one `{range, newText}` edit whose replacement text is exactly
+/// `expected_text`, applied to `source` — the strongest check available at
+/// this layer, since it proves the fix through real JSON-RPC (de)serialization,
+/// not just the core crate's own in-process `TextEdit`s.
+fn apply_named_edit(edits: &[Value], source: &str, expected_text: &str) -> String {
+    let (rng, new_text) = edits
+        .iter()
+        .find_map(|e| {
+            let text = e.get("newText")?.as_str()?;
+            (text == expected_text).then(|| (e.get("range").cloned().unwrap(), text.to_owned()))
+        })
+        .unwrap_or_else(|| panic!("expected a {expected_text:?} edit among {edits:?}"));
+    apply_edit(source, &rng, &new_text)
+}
+
+#[test]
+fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace() {
+    // Issue #923 idx 95, applied end-to-end against the packaged server
+    // over real JSON-RPC. `rename_var_preserves_braced_form` right above
+    // only asserts `newText` in isolation — this actually applies
+    // `(range, newText)` back onto the source, which is exactly what
+    // shipping this bug uncaught required nobody doing.  The `Var`
+    // token's own lexer span for a non-degenerate `${name}` form stops
+    // one byte short of the closing `}`, so using it verbatim as the
+    // edit range left the source's original `}` behind, corrupting
+    // `${x}` into `${y}}`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set x 1\nputs ${x}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 1, 7, "y");
+    let edits = rename_edits(&result);
+    let uri_edits = edits.get(&uri).cloned().unwrap_or_default();
+    assert_eq!(
+        apply_named_edit(&uri_edits, src, "${y}"),
+        "set x 1\nputs ${y}\n"
+    );
+}
+
+#[test]
+fn rename_var_applying_the_dir_view_idiom_reference_edit_does_not_corrupt_the_source() {
+    // The real `tk/library/tk.tcl:594-596` idiom this finding traces
+    // through (`$w ${dir}view scroll ...`, a subcommand synthesized by
+    // concatenating `$dir` with literal `view`): applying the LSP's own
+    // rename edit for the `${dir}view` reference previously produced
+    // `$w ${direction}}view ...` — tclsh8.6/9.0 both fail to even parse
+    // the enclosing proc ("extra characters after close-brace") once
+    // that edit is applied, since the stray extra `}` shifts Tcl's own
+    // brace-counting scan for where the proc body ends.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
+    let result = lsp.rename(&uri, 1, 9, "direction");
+    let edits = rename_edits(&result);
+    let uri_edits = edits.get(&uri).cloned().unwrap_or_default();
+    let applied = apply_named_edit(&uri_edits, src, "${direction}");
+    assert!(
+        applied.contains("${direction}view"),
+        "expected a single, correctly-closed brace: {applied}"
+    );
+    assert!(
+        !applied.contains("${direction}}view"),
+        "must not duplicate the closing brace: {applied}"
+    );
+}
+
 #[test]
 fn rename_qualified_var_preserves_namespace() {
     let mut lsp = Lsp::tcl();
