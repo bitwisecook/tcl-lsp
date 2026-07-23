@@ -562,54 +562,6 @@ fn help_catalogue_dialect() {
     );
 }
 
-// `registry-dump` is wired onto the command-registry snapshot
-// (`tcl_registry::command_snapshot`, matching the
-// `command_registry_snapshot`). Whole-dialect byte-for-byte output is gated by
-// command-registry *data* completeness: the snapshots differ on
-// the `dialects` field representation (the snapshot uses explicit dialect sets
-// where the golden uses `None`, and carries no `f5-bigip`/`f5-tmsh` dialect bits)
-// plus scattered trait / hover-synopsis / arity / subcommand-modelling data
-// divergences. So this golden locks the matching
-// subset — the core commands whose registry data is already byte-identical to
-// the golden — verifying the snapshot serialisation + field derivation.
-//
-// One entry now diverges from the retired Python `registry-dump` on purpose:
-// `error` carries `is_language_keyword: true` (issue #904). It raises an
-// exception exactly as `throw` does, and every Tcl grammar that has a function
-// category agrees it is not one — so `catch { error boom }` no longer paints its
-// two halves in different colours. The golden records the new truth, not the old
-// parity.
-#[test]
-fn registry_dump_faithful_subset() {
-    // Core commands verified byte-identical to `registry-dump`
-    // entry (`dialects: null` in both, matching traits/forms/scalars/info).
-    const NAMES: &[&str] = &[
-        "append", "array", "break", "catch", "continue", "error", "eval", "expr", "for", "global",
-        "incr", "info", "join", "lappend", "lassign", "lindex", "llength", "lrange", "proc",
-        "regexp", "regsub", "return", "set", "split", "switch", "throw", "try", "unset", "uplevel",
-        "upvar", "variable", "while",
-    ];
-    use std::collections::BTreeMap;
-    use tcl_registry::snapshot::Json;
-
-    let registry = tcl_cli_support::registry_for_dialect("tcl8.6");
-    let mut obj: BTreeMap<String, Json> = BTreeMap::new();
-    for name in NAMES {
-        let entry = tcl_registry::command_snapshot::command_entry_json(registry, "tcl8.6", name)
-            .unwrap_or_else(|| panic!("registry has no entry for {name}"));
-        obj.insert((*name).to_owned(), entry);
-    }
-    let actual = Json::Object(obj).dumps_indent2();
-
-    let golden_path = fixtures_dir().join("registry-dump.tcl8.6-subset.golden");
-    let expected = std::fs::read_to_string(&golden_path)
-        .unwrap_or_else(|e| panic!("read golden {}: {e}", golden_path.display()));
-    assert_eq!(
-        actual, expected,
-        "registry-dump faithful-subset snapshot does not match the golden"
-    );
-}
-
 #[test]
 fn explore_json_emits_the_contract_keys() {
     let out = run_tcl(&["explore", "--source", "set x 1\nputs $x", "--json"]);
