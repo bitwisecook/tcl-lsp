@@ -54,6 +54,13 @@ wasm_stdlib = []
 [dependencies]
 tcl-lexer = { path = "../../rust/tcl-lexer" }
 tcl-syntax = { path = "../../rust/tcl-syntax" }
+# Dependency-free shared vocabulary — pulled in directly (previously only a
+# transitive dependency via `tcl-lexer`/`tcl-syntax`) for `RecursionLimit`/
+# `RecursionGuard` (issue #996's shared native-stack safety-net primitive; see
+# `rust/tcl-core-types/src/recursion.rs`). A dependency-free leaf crate, so
+# adding it directly does not add anything to this crate's own dependency
+# closure.
+tcl-core-types = { path = "../../rust/tcl-core-types" }
 # The shared portable command logic (string/… helpers over ValueOps). This
 # crate implements `ValueOps` for `*mut TclObj` (see src/value_ops.rs) and
 # adapts the helpers in its command handlers.
