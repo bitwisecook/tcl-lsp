@@ -30,17 +30,37 @@ several other sessions' independent, overlapping fixes for issue #923
 (ensemble `-map`/W129, `enclosing_class_at`, mathop/mathfunc registry
 unification, and more) landed in the interim. All 76 replayed commits were
 reconciled commit-by-commit, full workspace `cargo fmt --check` +
-`cargo clippy --workspace --all-targets -- -D warnings` pass clean, and
-the full test suite of every touched crate (`tcl-lexer`, `tcl-compiler`,
-`tcl-lsp-core`, `tcl-lsp-server`, `tcl-registry`) passes except for 2
-pre-existing `origin/rust` tests that only fail once combined with this
-branch — filed as
-[#1021](https://github.com/bitwisecook/tcl-lsp/issues/1021) (a genuine
-cross-feature interaction gap between two independently-developed `rust`
-features, not a regression introduced by this branch's own commits).
+`cargo clippy --workspace --all-targets -- -D warnings` pass clean.
 Derived catalogs (`docs/generated/wasm-command-backing.md`,
 `editors/zed/src/generated/tcl_commands.json`) were regenerated post-rebase
 and their gate tests pass.
+
+CI on the post-rebase push surfaced 4 test failures across the `rust-tests`
+and `lsp-e2e` checks (run
+[30035264703](https://github.com/bitwisecook/tcl-lsp/actions/runs/30035264703)).
+Each was individually root-caused (pre-existing vs. rebase-introduced,
+verified by re-running against both the pre-rebase branch tip and
+`origin/rust` alone) and filed with full repro rather than fixed outright,
+per this session's stop-at-a-working-checkpoint instruction:
+
+- [#1021](https://github.com/bitwisecook/tcl-lsp/issues/1021) — 2
+  pre-existing `origin/rust` tests (`#975`, `#1014`) plus their e2e twin,
+  failing only once combined with this branch (cross-feature interaction,
+  not a regression from this branch's own commits).
+- [#1022](https://github.com/bitwisecook/tcl-lsp/issues/1022) — W210
+  false-fires inside a dynamically-resolved `-safe` interp eval body;
+  confirmed pre-existing on this branch's own pre-rebase tip (predates the
+  rebase, latent idx=9 gap).
+- [#1023](https://github.com/bitwisecook/tcl-lsp/issues/1023) — Codex
+  review: `link` modelled as an unconditional global `CommandSpec`, plus
+  its own idx=113 e2e regression test; confirmed via pre/post-rebase
+  bisection to be a genuine rebase-introduced regression, not latent.
+- [#1024](https://github.com/bitwisecook/tcl-lsp/issues/1024) — Codex
+  review: `scan_script` forced into quoted-body mode unconditionally by the
+  idx=125 fix, mis-scanning genuine script bodies.
+- [#1025](https://github.com/bitwisecook/tcl-lsp/issues/1025) — Codex
+  review: `interp create` value-flow path uses `split_whitespace`,
+  mis-splitting a braced/nested interpreter path.
 
 This document and `data/06-main-audit-results-COMPLETE-105of105.json` /
 `data/07-remaining-tcllib-findings-14.json` remain the source of full
