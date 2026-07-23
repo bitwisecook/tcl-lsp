@@ -1,7 +1,36 @@
-# Issue #923 — Differential Audit & Fix Campaign — STATUS (active)
+# Issue #923 — Differential Audit & Fix Campaign — STATUS (paused, tracked)
 
 Written so a fresh Claude Code session (or any engineer) with zero prior
 context can pick this up from the repo alone.
+
+**2026-07-23 update — campaign paused at a clean boundary, remaining work
+tracked as GitHub issues:** By explicit user request, this campaign is
+pausing here rather than continuing through the full remaining backlog.
+18 of 22 tcllib findings and 23 of 85 main-wave findings are fixed, tested,
+and pushed to this branch (see §3); every commit's own gate (fmt, targeted
+clippy, `xtask resolution-drift`, full test suite of every touched crate)
+passed clean, so what's landed is solid to build on. The remaining known
+findings are now durably tracked as GitHub issues rather than left to rely
+solely on this document + the `data/` JSON files:
+
+- [#1017](https://github.com/bitwisecook/tcl-lsp/issues/1017) — tcllib idx
+  128 (package_loading): `pkgIndex.tcl` reachability guards ignored,
+  over-suppressing W123.
+- [#1018](https://github.com/bitwisecook/tcl-lsp/issues/1018) — tcllib idx
+  24 (autoindex): `hover()` missing the cross-document/autoload fallback
+  tiers `definition()`/`references()` already have.
+- [#1019](https://github.com/bitwisecook/tcl-lsp/issues/1019) — rollup
+  tracking issue for all 62 remaining main-wave findings (1 tier-1 — idx
+  79, investigated but not fixed, needs receiver-type inference — plus 61
+  tier-2, feature-clustered).
+
+This document and `data/06-main-audit-results-COMPLETE-105of105.json` /
+`data/07-remaining-tcllib-findings-14.json` remain the source of full
+detail (repro steps, oracle output, root_cause_hint) for every finding —
+the GitHub issues summarize and link back here, they don't replace it.
+Sections below (§6a/§6b/§8) are otherwise left as they were mid-campaign
+for historical accuracy; treat the GitHub issues above as the current
+front door for picking this back up.
 
 **2026-07-22 update:** PR #963 (the original incarnation of this branch,
 through commit `2676cc1`) merged into `origin/rust` as `9ec4cff` on
@@ -709,6 +738,15 @@ manual differential checks — see its own docstring for usage
 ---
 
 ## 8. Immediate next steps for whoever picks this up
+
+**Superseded by the 2026-07-23 pause update at the top of this doc:** the
+remaining findings this section walks through are now tracked as GitHub
+issues [#1017](https://github.com/bitwisecook/tcl-lsp/issues/1017),
+[#1018](https://github.com/bitwisecook/tcl-lsp/issues/1018), and
+[#1019](https://github.com/bitwisecook/tcl-lsp/issues/1019) — start there.
+The steps below are kept for their still-accurate mechanical detail
+(branch state, oracle environment, disk-space gotchas, validation gate),
+just no longer the primary "what's left" pointer.
 
 1. **Branch is already current:** `claude/tcl-lsp-issue-923-qzkfqz` was
    rebased directly onto `origin/rust`'s tip on 2026-07-22 (see the update at
