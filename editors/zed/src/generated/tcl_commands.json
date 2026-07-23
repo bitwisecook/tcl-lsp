@@ -3,7 +3,7 @@
   "commands": [
     {
       "name": "!",
-      "summary": "logical NOT (unary)"
+      "summary": "logical NOT"
     },
     {
       "name": "!=",
@@ -27,19 +27,15 @@
     },
     {
       "name": "+",
-      "summary": "addition"
+      "summary": "arithmetic identity"
     },
     {
       "name": "-",
-      "summary": "subtraction or negation"
+      "summary": "arithmetic negation"
     },
     {
       "name": "/",
       "summary": "division"
-    },
-    {
-      "name": "::tcl::build-info",
-      "summary": "Return compile-time build metadata for the Tcl runtime."
     },
     {
       "name": "::tcl::idna",
@@ -52,8 +48,298 @@
       ]
     },
     {
+      "name": "::tcl::mathfunc::abs",
+      "summary": "absolute value",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::acos",
+      "summary": "arc cosine",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::acosh",
+      "summary": "inverse hyperbolic cosine",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::asin",
+      "summary": "arc sine",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::asinh",
+      "summary": "inverse hyperbolic sine",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::atan",
+      "summary": "arc tangent",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::atan2",
+      "summary": "arc tangent of y/x",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::atanh",
+      "summary": "inverse hyperbolic tangent",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::bool",
+      "summary": "convert to boolean",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::cbrt",
+      "summary": "cube root",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::ceil",
+      "summary": "ceiling (round up)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::copysign",
+      "summary": "magnitude of x with the sign of y",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::cos",
+      "summary": "cosine",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::cosh",
+      "summary": "hyperbolic cosine",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::dim",
+      "summary": "positive difference (max(x - y, 0))",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::double",
+      "summary": "convert to floating point",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::entier",
+      "summary": "convert to an arbitrary-precision integer",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::erf",
+      "summary": "error function",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::erfc",
+      "summary": "complementary error function",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::exp",
+      "summary": "exponential (e^x)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::exp2",
+      "summary": "base-2 exponential (2^x)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::expm1",
+      "summary": "exp(x) - 1, accurate for small x",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::floor",
+      "summary": "floor (round down)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::fma",
+      "summary": "fused multiply-add (x*y + z, one rounding)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::fmod",
+      "summary": "floating-point remainder",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::gamma",
+      "summary": "gamma function",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::hypot",
+      "summary": "hypotenuse (sqrt(x*x + y*y))",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::int",
+      "summary": "convert to integer (truncating)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::isfinite",
+      "summary": "true if the value is finite (not infinite or NaN)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::isinf",
+      "summary": "true if the value is positive or negative infinity",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::isnan",
+      "summary": "true if the value is NaN (not a number)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::isnormal",
+      "summary": "true if the value is a normal floating-point number",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::isqrt",
+      "summary": "integer square root",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::issubnormal",
+      "summary": "true if the value is a subnormal (denormal) number",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::isunordered",
+      "summary": "true if either argument is NaN (they cannot be ordered)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::ldexp",
+      "summary": "x * 2^exp",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::lgamma",
+      "summary": "natural log of the absolute value of gamma(x)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::log",
+      "summary": "natural logarithm",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::log10",
+      "summary": "base-10 logarithm",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::log1p",
+      "summary": "log(1 + x), accurate for small x",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::log2",
+      "summary": "base-2 logarithm",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::logb",
+      "summary": "unbiased base-2 exponent",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::max",
+      "summary": "largest of the arguments",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::min",
+      "summary": "smallest of the arguments",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::nextafter",
+      "summary": "next representable value after x, toward y",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::pow",
+      "summary": "exponentiation (x^y)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::rand",
+      "summary": "pseudo-random number in [0, 1)",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::remainder",
+      "summary": "IEEE remainder of x/y",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::round",
+      "summary": "round to nearest integer",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::signbit",
+      "summary": "true if the sign bit of x is set",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::sin",
+      "summary": "sine",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::sinh",
+      "summary": "hyperbolic sine",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::sqrt",
+      "summary": "square root",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::srand",
+      "summary": "seed the random number generator",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::tan",
+      "summary": "tangent",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::tanh",
+      "summary": "hyperbolic tangent",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::trunc",
+      "summary": "truncate toward zero",
+      "pure": true
+    },
+    {
+      "name": "::tcl::mathfunc::wide",
+      "summary": "convert to a wide (64-bit) integer",
+      "pure": true
+    },
+    {
       "name": "::tcl::mathop::!",
-      "summary": "logical NOT (unary)"
+      "summary": "logical NOT"
     },
     {
       "name": "::tcl::mathop::!=",
@@ -77,11 +363,11 @@
     },
     {
       "name": "::tcl::mathop::+",
-      "summary": "addition"
+      "summary": "arithmetic identity"
     },
     {
       "name": "::tcl::mathop::-",
-      "summary": "subtraction or negation"
+      "summary": "arithmetic negation"
     },
     {
       "name": "::tcl::mathop::/",
@@ -157,7 +443,7 @@
     },
     {
       "name": "::tcl::mathop::~",
-      "summary": "bitwise NOT (unary)"
+      "summary": "bitwise complement"
     },
     {
       "name": "::tcl::process",
@@ -7744,13 +8030,308 @@
       "pure": true
     },
     {
+      "name": "tcl::mathfunc",
+      "summary": "Mathematical function commands.",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::abs",
+      "summary": "absolute value",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::acos",
+      "summary": "arc cosine",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::acosh",
+      "summary": "inverse hyperbolic cosine",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::asin",
+      "summary": "arc sine",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::asinh",
+      "summary": "inverse hyperbolic sine",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::atan",
+      "summary": "arc tangent",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::atan2",
+      "summary": "arc tangent of y/x",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::atanh",
+      "summary": "inverse hyperbolic tangent",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::bool",
+      "summary": "convert to boolean",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::cbrt",
+      "summary": "cube root",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::ceil",
+      "summary": "ceiling (round up)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::copysign",
+      "summary": "magnitude of x with the sign of y",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::cos",
+      "summary": "cosine",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::cosh",
+      "summary": "hyperbolic cosine",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::dim",
+      "summary": "positive difference (max(x - y, 0))",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::double",
+      "summary": "convert to floating point",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::entier",
+      "summary": "convert to an arbitrary-precision integer",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::erf",
+      "summary": "error function",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::erfc",
+      "summary": "complementary error function",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::exp",
+      "summary": "exponential (e^x)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::exp2",
+      "summary": "base-2 exponential (2^x)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::expm1",
+      "summary": "exp(x) - 1, accurate for small x",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::floor",
+      "summary": "floor (round down)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::fma",
+      "summary": "fused multiply-add (x*y + z, one rounding)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::fmod",
+      "summary": "floating-point remainder",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::gamma",
+      "summary": "gamma function",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::hypot",
+      "summary": "hypotenuse (sqrt(x*x + y*y))",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::int",
+      "summary": "convert to integer (truncating)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::isfinite",
+      "summary": "true if the value is finite (not infinite or NaN)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::isinf",
+      "summary": "true if the value is positive or negative infinity",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::isnan",
+      "summary": "true if the value is NaN (not a number)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::isnormal",
+      "summary": "true if the value is a normal floating-point number",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::isqrt",
+      "summary": "integer square root",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::issubnormal",
+      "summary": "true if the value is a subnormal (denormal) number",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::isunordered",
+      "summary": "true if either argument is NaN (they cannot be ordered)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::ldexp",
+      "summary": "x * 2^exp",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::lgamma",
+      "summary": "natural log of the absolute value of gamma(x)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::log",
+      "summary": "natural logarithm",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::log10",
+      "summary": "base-10 logarithm",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::log1p",
+      "summary": "log(1 + x), accurate for small x",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::log2",
+      "summary": "base-2 logarithm",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::logb",
+      "summary": "unbiased base-2 exponent",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::max",
+      "summary": "largest of the arguments",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::min",
+      "summary": "smallest of the arguments",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::nextafter",
+      "summary": "next representable value after x, toward y",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::pow",
+      "summary": "exponentiation (x^y)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::rand",
+      "summary": "pseudo-random number in [0, 1)",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::remainder",
+      "summary": "IEEE remainder of x/y",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::round",
+      "summary": "round to nearest integer",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::signbit",
+      "summary": "true if the sign bit of x is set",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::sin",
+      "summary": "sine",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::sinh",
+      "summary": "hyperbolic sine",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::sqrt",
+      "summary": "square root",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::srand",
+      "summary": "seed the random number generator",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::tan",
+      "summary": "tangent",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::tanh",
+      "summary": "hyperbolic tangent",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::trunc",
+      "summary": "truncate toward zero",
+      "pure": true
+    },
+    {
+      "name": "tcl::mathfunc::wide",
+      "summary": "convert to a wide (64-bit) integer",
+      "pure": true
+    },
+    {
       "name": "tcl::mathop",
       "summary": "Mathematical operator commands.",
       "pure": true
     },
     {
       "name": "tcl::mathop::!",
-      "summary": "logical NOT (unary)"
+      "summary": "logical NOT"
     },
     {
       "name": "tcl::mathop::!=",
@@ -7774,11 +8355,11 @@
     },
     {
       "name": "tcl::mathop::+",
-      "summary": "addition"
+      "summary": "arithmetic identity"
     },
     {
       "name": "tcl::mathop::-",
-      "summary": "subtraction or negation"
+      "summary": "arithmetic negation"
     },
     {
       "name": "tcl::mathop::/",
@@ -7854,7 +8435,7 @@
     },
     {
       "name": "tcl::mathop::~",
-      "summary": "bitwise NOT (unary)"
+      "summary": "bitwise complement"
     },
     {
       "name": "tcl::process",
@@ -9941,7 +10522,7 @@
     },
     {
       "name": "~",
-      "summary": "bitwise NOT (unary)"
+      "summary": "bitwise complement"
     }
   ]
 }
