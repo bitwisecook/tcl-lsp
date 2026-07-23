@@ -438,6 +438,38 @@ fn references_do_not_cross_between_unrelated_proc_and_mathfunc_override() {
     );
 }
 
+/// idx 68 (differential-audit main audit wave, high severity, pix corpus):
+/// reduces the real `isEqual`/`tolComp` shape from nico-robert/pix's
+/// `test/data_b64.test` — a proc aliases a top-level cell via `global`, and a
+/// caller overrides it via a plain `set ::name` before invoking the proc.
+/// tclsh proves `tolComp` (via `global`) and `::tolComp` (the caller's
+/// `set`) are the identical storage cell; previously, Find-References from
+/// either side reached only its own half, so Rename (which shares the same
+/// helper) would silently decouple the two, leaving the caller's override
+/// unreachable and `isEqual` falling back to its hardcoded default.
+#[test]
+fn references_unify_a_procs_global_alias_with_the_callers_canonical_set() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(2).unwrap().find("$tolComp").unwrap() as u32 + 1;
+    let lines = start_lines(&lsp.references(&uri, 2, col, true));
+    assert!(
+        lines.contains(&1),
+        "the `global tolComp` decl (line 1): {lines:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "the in-proc $tolComp read (line 2): {lines:?}"
+    );
+    assert!(
+        lines.contains(&4),
+        "the caller's canonical `set ::tolComp` (line 4) must now be reached: {lines:?}"
+    );
+}
+
 /// idx 63 (differential-audit main audit wave, high severity): a `my
 /// methodName` call written inside a `switch` arm body is a genuine,
 /// statically-known call site (tclsh9.0/8.6-verified) — the real corpus

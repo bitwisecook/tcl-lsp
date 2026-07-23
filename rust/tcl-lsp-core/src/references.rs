@@ -2441,6 +2441,109 @@ mod tests {
     }
 
     #[test]
+    fn references_from_in_proc_global_alias_reach_the_callers_canonical_set() {
+        // Issue #923 idx 68 (main audit wave, high severity, pix corpus):
+        // reduces the real `isEqual`/`tolComp` shape from
+        // nico-robert/pix's test/data_b64.test — a proc aliases a top-level
+        // cell via `global`, and the caller overrides it via a plain `set
+        // ::name` before invoking the proc. tclsh proves `tolComp` (via
+        // `global`) and `::tolComp` (the caller's `set`) are the identical
+        // storage cell. Querying from the in-proc `$tolComp` read must reach
+        // the caller's `set ::tolComp` — before this fix, `collect_alias_spans`
+        // only ever found *other aliases* of the same target, never the
+        // target's own canonical (non-aliased) declaration.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the `$tolComp` read inside the proc (line 2, col 14).
+        let refs = references(src, "tcl", 2, 14, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&1),
+            "the `global tolComp` decl itself must still be present: {refs:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the in-proc $tolComp read must still be present: {refs:?}"
+        );
+        assert!(
+            lines.contains(&4),
+            "the caller's canonical `set ::tolComp 0.05` must now be reached: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_from_the_callers_canonical_set_reach_the_in_proc_global_alias() {
+        // The reverse direction of the test above (issue #923 idx 68): before
+        // this fix, querying from the caller's own `set ::tolComp` returned
+        // only its own 2 spans (decl + any top-level reads), missing every
+        // in-proc `global tolComp` occurrence — since a plain `set` has no
+        // `link_target` of its own to search alias records by.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the `set ::tolComp` declaration (line 4, col 8, inside
+        // "tolComp" — `set ::tolComp 0.05` has "tolComp" starting at col 6).
+        let refs = references(src, "tcl", 4, 8, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&4),
+            "the caller's own decl must still be present: {refs:?}"
+        );
+        assert!(
+            lines.contains(&1),
+            "the in-proc `global tolComp` decl must now be reached: {refs:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the in-proc $tolComp read must now be reached: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_unify_global_alias_and_canonical_set_when_the_set_is_unqualified() {
+        // Issue #923 idx 68's second repro: an *unqualified* `set tolComp
+        // 0.05` at global scope reproduces the identical split, ruling out
+        // the `::`-prefix as the sole cause — `handle_set_command` never
+        // calls `set_var_link_target` regardless of how the name is spelled,
+        // so the gap (and the fix) is the same either way.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the unqualified `set tolComp` declaration (line 4, col 6).
+        let refs = references(src, "tcl", 4, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&4), "the caller's own decl: {refs:?}");
+        assert!(
+            lines.contains(&1),
+            "the in-proc `global tolComp` decl must be reached even from an unqualified set: {refs:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the in-proc $tolComp read must be reached even from an unqualified set: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_do_not_conflate_unrelated_same_named_cells_in_different_namespaces() {
+        // FP guard (issue #923 idx 68): the new canonical-cell fold-in must
+        // still be exact-qualified-name matched — two unrelated top-level
+        // `tolComp` cells living in different namespaces, neither aliasing
+        // the other, must never be unioned together just because they share
+        // a bare name.
+        let src = "namespace eval A {\n    variable tolComp 1\n}\nnamespace eval B {\n    variable tolComp 2\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `A::tolComp`'s declaration (line 1, col 13).
+        let refs = references(src, "tcl", 1, 13, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(
+            lines,
+            vec![1],
+            "an unrelated same-named cell in a different namespace must not be pulled in: {refs:?}"
+        );
+    }
+
+    #[test]
     fn references_do_not_include_unexported_sibling_wildcard_call_same_document() {
         // FP guard — the unexported sibling must not surface as a reference
         // through the wildcard import either.

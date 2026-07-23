@@ -1131,9 +1131,34 @@ pub(crate) fn linked_var_reference_spans(
 ) -> Vec<tcl_lexer::Span> {
     let mut out = Vec::new();
     match var_def.link_target.as_deref() {
-        Some(target) => collect_alias_spans(scope, target, var_def.definition_span, &mut out, 0),
+        Some(target) => {
+            collect_alias_spans(scope, target, var_def.definition_span, &mut out, 0);
+            // `target`'s own canonical cell (a plain `set` / declaration with
+            // no `link_target` of its own) is never found by the alias-only
+            // scan above, since that scan only unions records that name
+            // `target` as *their own* link target (issue #923 idx 68): fold
+            // it in directly.
+            if let Some(canonical) =
+                tcl_compiler::analyser::lookup_var_by_qualified_name(scope, target)
+                && canonical.definition_span != var_def.definition_span
+            {
+                out.push(canonical.definition_span);
+                out.extend(canonical.references.iter().copied());
+            }
+        }
         None if !var_def.definition_span.is_empty() => {
             collect_shared_span_refs(scope, var_def.definition_span, &mut out, 0);
+            // The inverse of the fold-in above: `var_def` might itself BE the
+            // canonical cell some `global` / `variable` / `namespace upvar`
+            // alias elsewhere points at (issue #923 idx 68) — its own
+            // `link_target` is `None` precisely because it isn't an alias, so
+            // this can only be discovered by finding its own qualified name
+            // and searching for aliases of it.
+            if let Some(own_qualified) =
+                tcl_compiler::analyser::qualified_name_for_var_decl(scope, var_def.definition_span)
+            {
+                collect_alias_spans(scope, &own_qualified, var_def.definition_span, &mut out, 0);
+            }
         }
         None => out.extend(var_def.references.iter().copied()),
     }

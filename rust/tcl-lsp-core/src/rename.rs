@@ -1357,6 +1357,61 @@ mod tests {
     }
 
     #[test]
+    fn rename_from_the_in_proc_global_alias_rewrites_the_callers_canonical_set_too() {
+        // Issue #923 idx 68 (main audit wave, high severity, pix corpus):
+        // the finding's own stated consequence of the `references()` gap —
+        // triggering Rename from the in-proc `global tolComp` alias
+        // previously rewrote only the proc's own 4 spans, leaving the
+        // caller's `set ::tolComp 0.05` pointed at the now-decoupled old
+        // name. Applying that edit would silently fall back to `isEqual`'s
+        // hardcoded 0.01 default instead of the caller-intended tolerance —
+        // a real runtime-behavior break introduced by a "successful" rename.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the `$tolComp` read inside the proc (line 2, col 14).
+        let edits = rename(src, "tcl", 2, 14, "tolerance", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "the `global tolComp` decl: {edits:?}");
+        assert!(lines.contains(&2), "the in-proc $tolComp read: {edits:?}");
+        assert!(
+            lines.contains(&4),
+            "the caller's canonical `set ::tolComp 0.05` must be rewritten too: {edits:?}"
+        );
+        let replacements: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(
+            replacements.contains(&"::tolerance"),
+            "the canonical cell's own `::` qualifier must be preserved; got {replacements:?}"
+        );
+    }
+
+    #[test]
+    fn rename_from_the_callers_canonical_set_rewrites_every_in_proc_global_alias_too() {
+        // The reverse direction of the test above (issue #923 idx 68):
+        // triggering Rename from the caller's own `set ::tolComp` must
+        // rewrite every in-proc `global tolComp` occurrence too, not just
+        // the caller's own 2 spans.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the `set ::tolComp` declaration (line 4, col 8).
+        let edits = rename(src, "tcl", 4, 8, "tolerance", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(
+            lines.contains(&4),
+            "the caller's own decl must be rewritten: {edits:?}"
+        );
+        assert!(
+            lines.contains(&1),
+            "the in-proc `global tolComp` decl must be rewritten too: {edits:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the in-proc $tolComp read must be rewritten too: {edits:?}"
+        );
+    }
+
+    #[test]
     fn rename_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);

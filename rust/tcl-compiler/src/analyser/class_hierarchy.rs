@@ -1001,6 +1001,7 @@ mod tests {
             visibility: "public".to_string(),
             doc: String::new(),
             forward_target: None,
+            is_self_method: false,
         });
         cd
     }
