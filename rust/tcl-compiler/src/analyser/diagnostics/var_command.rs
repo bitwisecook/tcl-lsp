@@ -158,7 +158,8 @@ impl Analyser {
                         // is never assigned an object (issue #1010).
                         let qn = self.canonicalise_class_name(&head);
                         let off = span.start();
-                        if self.class_live_for_call(&qn, off) || self.class_live_for_call(&head, off)
+                        if self.class_live_for_call(&qn, off)
+                            || self.class_live_for_call(&head, off)
                         {
                             class_qn = Some(qn);
                         }

@@ -2111,7 +2111,6 @@ impl Analyser {
             })
             .unwrap_or_default();
 
-
         let mut i = 0usize;
         while i < opts.len() {
             let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
