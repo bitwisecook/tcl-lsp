@@ -12,13 +12,13 @@ or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 104 |
-| handler (native) | 123 |
+| handler | 105 |
+| handler (native) | 145 |
 | stdlib | 11 |
 | not-required | 108 |
-| known-gap (`RUST_ISSUE_007`) | 9 |
+| known-gap (`RUST_ISSUE_007`) | 10 |
 | **UNCLASSIFIED** | 0 |
-| **total** | 355 |
+| **total** | 379 |
 
 | command | backing | note |
 | --- | --- | --- |
@@ -31,6 +31,28 @@ or an explicit *not required* classification.
 | `+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `-` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `/` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::dict::append` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::create` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::exists` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::filter` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::for` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::get` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::getdef` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::getwithdefault` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::incr` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::info` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::keys` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::lappend` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::map` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::merge` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::remove` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::replace` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::set` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::size` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::unset` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::update` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::values` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
+| `::tcl::dict::with` | handler (native) | dict ensemble subcommand, backed by register_builtin(b"dict", …) |
 | `::tcl::mathfunc::abs` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::mathfunc::acos` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::mathfunc::acosh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
@@ -118,7 +140,7 @@ or an explicit *not required* classification.
 | `::tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::process` | not-required | OS subprocess management; needs host processes |
 | `::tcl::unsupported::corotype` | handler |  |
-| `::tcl::zipfs` | known-gap | Tcl 9 zipfs archive-filesystem ensemble; not yet implemented in runtime/rust |
+| `::tcl::zipfs` | known-gap | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
 | `<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -195,6 +217,7 @@ or an explicit *not required* classification.
 | `ledit` | handler |  |
 | `lfilter` | known-gap | Tcl 9.1 list-filter command; not yet implemented in runtime/rust |
 | `lindex` | handler |  |
+| `link` | known-gap | TclOO oo::Helpers::link (issue #923 idx 113) — installs a per-object-namespace alias to a method via the object's own command table, not a standalone dispatchable command; no runtime handler |
 | `linsert` | handler |  |
 | `list` | handler |  |
 | `llength` | handler |  |
@@ -347,6 +370,7 @@ or an explicit *not required* classification.
 | `tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::prefix` | handler |  |
 | `tcl::process` | not-required | OS subprocess management; needs host processes |
 | `tcl::unsupported::corotype` | handler |  |
 | `tclLog` | stdlib | init.tcl |
@@ -373,7 +397,7 @@ or an explicit *not required* classification.
 | `writeFile` | not-required | non-core EDA/dialect file helper, absent from bare tclsh 9 |
 | `yield` | handler |  |
 | `yieldto` | handler |  |
-| `zipfs` | known-gap | Tcl 9 zipfs archive-filesystem ensemble; not yet implemented in runtime/rust |
+| `zipfs` | known-gap | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
 | `zlib` | handler |  |
 | `|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |

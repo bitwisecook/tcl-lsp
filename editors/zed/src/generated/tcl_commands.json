@@ -38,6 +38,106 @@
       "summary": "division"
     },
     {
+      "name": "::tcl::dict::append",
+      "summary": "Append to a value in a dictionary."
+    },
+    {
+      "name": "::tcl::dict::create",
+      "summary": "Create a new dictionary from key/value pairs.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::exists",
+      "summary": "Test whether a key exists in a dictionary.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::filter",
+      "summary": "Filter a dictionary."
+    },
+    {
+      "name": "::tcl::dict::for",
+      "summary": "Iterate over dictionary key/value pairs."
+    },
+    {
+      "name": "::tcl::dict::get",
+      "summary": "Get a value from a dictionary.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::getdef",
+      "summary": "Return the value a key path maps to, or a default if absent.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::getwithdefault",
+      "summary": "Return the value a key path maps to, or a default if absent.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::incr",
+      "summary": "Increment a value in a dictionary."
+    },
+    {
+      "name": "::tcl::dict::info",
+      "summary": "Return information (for display to people) about a dictionary.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::keys",
+      "summary": "Return the keys of a dictionary.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::lappend",
+      "summary": "Append list elements to a dictionary value."
+    },
+    {
+      "name": "::tcl::dict::map",
+      "summary": "Apply a transformation to each dictionary entry."
+    },
+    {
+      "name": "::tcl::dict::merge",
+      "summary": "Merge one or more dictionaries.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::remove",
+      "summary": "Remove keys from a dictionary value.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::replace",
+      "summary": "Replace keys in a dictionary value.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::set",
+      "summary": "Set a value in a dictionary."
+    },
+    {
+      "name": "::tcl::dict::size",
+      "summary": "Return the number of key/value pairs.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::unset",
+      "summary": "Remove keys from a dictionary variable."
+    },
+    {
+      "name": "::tcl::dict::update",
+      "summary": "Map dictionary keys to variables, execute body, write back."
+    },
+    {
+      "name": "::tcl::dict::values",
+      "summary": "Return the values of a dictionary.",
+      "pure": true
+    },
+    {
+      "name": "::tcl::dict::with",
+      "summary": "Map all dictionary keys to variables, execute body, write back."
+    },
+    {
       "name": "::tcl::idna",
       "summary": "Internationalised Domain Name (IDNA/Punycode) helpers.",
       "subcommands": [
@@ -3673,6 +3773,10 @@
       "name": "lindex",
       "summary": "Retrieve an element from a list",
       "pure": true
+    },
+    {
+      "name": "link",
+      "summary": "expose a method as a bareword command in the object's own namespace"
     },
     {
       "name": "linsert",
