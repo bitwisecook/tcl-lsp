@@ -10268,3 +10268,37 @@ fn vendor_command_inherited_options_resolve_cleanly() {
         "inherited expect options must resolve under expect, got {codes:?}"
     );
 }
+
+// Issue #1006 — the W123 alias / rename-target checks used file-end-only
+// gating (`fact_live_at_file_end`, no call site or conditional-body
+// awareness), unlike the proc/class checks #973 already made call-site-
+// and conditional-aware (`fact_live_for_call`). Fixed by replacing the
+// plain `alias_names` / `rename_target_names` tail `HashSet`s'
+// contribution to resolution with `alias_defs_by_tail` /
+// `rename_defs_by_tail` (mirroring `proc_defs_by_tail` /
+// `class_defs_by_tail`), checked per call site the same way. All cases
+// confirmed against tclsh 8.6.14.
+
+#[test]
+fn w123_fp_issue_1006_alias_call_before_later_deletion_resolves() {
+    let src = "proc target {} { return 1 }\ninterp alias {} short {} target\nshort\ninterp alias {} short {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1006_alias_deletion_inside_never_triggered_body_resolves() {
+    let src = "proc target {} { return 1 }\ninterp alias {} short {} target\nproc maybeDelete {} { interp alias {} short {} }\nproc caller {} { short }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1006_rename_target_call_before_later_deletion_resolves() {
+    let src = "proc helper {} { return 1 }\nrename helper ha2\nha2\nrename ha2 {}\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+#[test]
+fn w123_fp_issue_1006_rename_target_deletion_inside_never_triggered_body_resolves() {
+    let src = "proc helper {} { return 1 }\nrename helper ha2\nproc maybeDelete {} { rename ha2 {} }\nproc caller {} { ha2 }\n";
+    assert_eq!(w123_codes(src), Vec::<String>::new());
+}

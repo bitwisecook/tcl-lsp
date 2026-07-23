@@ -50,8 +50,13 @@ struct W123KnownNames {
     proc_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
     /// [`Self::proc_defs_by_tail`]'s twin for classes.
     class_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
-    alias_names: HashSet<String>,
-    rename_target_names: HashSet<String>,
+    /// [`Self::proc_defs_by_tail`]'s twin for `interp alias` targets
+    /// (issue #1006 — previously a plain tail `HashSet`, checked only at
+    /// file-end granularity via `fact_live_at_file_end`).
+    alias_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
+    /// [`Self::proc_defs_by_tail`]'s twin for static `rename OLD NEW`
+    /// targets (issue #1006, same history as `alias_defs_by_tail`).
+    rename_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
     ensemble_cmds: HashSet<String>,
     stub_names: HashSet<String>,
     /// Final `::`-segment of each literal (non-conjectured) `namespace
@@ -339,26 +344,33 @@ impl Analyser {
                 .iter()
                 .map(|(qn, def)| (qn, def.name_span.start())),
         );
-        // An alias whose most recent action (by offset) in the file is a
-        // deletion (`interp alias {} name {}`) is no longer a callable
-        // command — `command_aliases` itself is never pruned on deletion
-        // (a later re-declaration of the same name must still win, and this
-        // whole-file set has no per-call-site position to gate against), so
-        // `live_tail_names` checks `deleted_commands` directly. This
-        // mirrors the same-file arity resolver's `fact_in_effect`
-        // convention for deleted aliases, just at file-end granularity
-        // rather than per call site.
+        // These two tail sets feed only the "did you mean…?" candidate list
+        // below (same convention as `proc_tail_names` / `class_tail_names`
+        // above) — resolution itself uses `alias_defs_by_tail` /
+        // `rename_defs_by_tail` (built further down), issue #1006.
         let alias_names =
             self.live_tail_names(self.result.command_aliases.keys(), &self.alias_offsets);
-        // A static `rename OLD NEW` binds `NEW` to whatever `OLD` denoted —
-        // `NEW` is a callable command from the rename onward, so calls to it
-        // must not draw W123 (the same-file arity resolver already validates
-        // them against `OLD`'s signature via `renamed_commands`). Deletion is
-        // order-gated exactly like `alias_names` above: a `NEW` whose most
-        // recent action in the file is a deletion (`rename NEW {}`, or `NEW`
-        // renamed away again) is no longer callable at file end.
         let rename_target_names =
             self.live_tail_names(self.renamed_commands.keys(), &self.rename_offsets);
+        // Grouped by tail, unfiltered by deletion — same per-call live
+        // check as `proc_defs_by_tail` / `class_defs_by_tail` (issue
+        // #1006: an alias/rename-target call textually before a later
+        // deletion, or a deletion recorded inside a never-triggered
+        // proc/class body, must still resolve; previously these two were
+        // plain tail `HashSet`s checked only via `fact_live_at_file_end`
+        // — file-end granularity, no call site or conditional-body
+        // awareness).
+        let alias_defs_by_tail = group_defs_by_tail(
+            self.result
+                .command_aliases
+                .keys()
+                .filter_map(|qn| self.alias_offsets.get(qn).map(|&off| (qn, off))),
+        );
+        let rename_defs_by_tail = group_defs_by_tail(
+            self.renamed_commands
+                .keys()
+                .filter_map(|qn| self.rename_offsets.get(qn).map(|&off| (qn, off))),
+        );
         let ensemble_cmds: HashSet<String> = self
             .ensemble_namespaces
             .iter()
@@ -412,8 +424,8 @@ impl Analyser {
             registry_names,
             proc_defs_by_tail,
             class_defs_by_tail,
-            alias_names,
-            rename_target_names,
+            alias_defs_by_tail,
+            rename_defs_by_tail,
             ensemble_cmds,
             stub_names,
             import_pattern_tails,
@@ -572,11 +584,12 @@ impl Analyser {
         }
         // A tail may match several qualified names (the same simple name
         // in different namespaces) — resolve if *any* of them has a fact
-        // still live for this specific call (issue #973: a proc/class
-        // renamed or deleted away, with no later re-establishment, must
-        // not resolve here; `fact_live_for_call` also keeps a top-level
-        // call textually before a later deletion, and a deletion recorded
-        // inside a never-triggered proc/class body, correctly resolving).
+        // still live for this specific call (issue #973 for procs/classes,
+        // issue #1006 for aliases/rename targets: a name renamed or
+        // deleted away, with no later re-establishment, must not resolve
+        // here; `fact_live_for_call` also keeps a top-level call textually
+        // before a later deletion, and a deletion recorded inside a
+        // never-triggered proc/class body, correctly resolving).
         let tail_has_live_def = |defs_by_tail: &HashMap<String, Vec<(String, u32)>>| {
             defs_by_tail.get(name).is_some_and(|defs| {
                 defs.iter().any(|(qualified, fact_off)| {
@@ -586,8 +599,8 @@ impl Analyser {
         };
         if tail_has_live_def(&known.proc_defs_by_tail)
             || tail_has_live_def(&known.class_defs_by_tail)
-            || known.alias_names.contains(name)
-            || known.rename_target_names.contains(name)
+            || tail_has_live_def(&known.alias_defs_by_tail)
+            || tail_has_live_def(&known.rename_defs_by_tail)
             || known.ensemble_cmds.contains(name)
             || known.stub_names.contains(name)
         {
