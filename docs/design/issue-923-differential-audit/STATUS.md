@@ -369,7 +369,7 @@ tclopt, ticklecharts, pix, tomato, tk) are differentially audited and
 merged into `data/06-main-audit-results-COMPLETE-105of105.json` (idx 0–48
 from the original `06-...-PARTIAL-49of105.json` batch, idx 49–104 from the
 `wf_61c6b92a-e22` workflow's completed resume run). **85 CONFIRMED, 20
-REFUTED.** Of the 85 CONFIRMED: **19 fixed** (idx 61, critical — §3's
+REFUTED.** Of the 85 CONFIRMED: **20 fixed** (idx 61, critical — §3's
 `d825d1d`; idx 9, high — §3's `26e4ea3`; idx 10, high — §3's `9a55b00`;
 idx 18, high — §3's `b3cbdb1`; idx 29, high, same root cause as idx 18 —
 §3's `65aaa5c`; idx 31, high — §3's `26c6e02`; idx 32, high — §3's
@@ -379,7 +379,7 @@ idx 18, high — §3's `b3cbdb1`; idx 29, high, same root cause as idx 18 —
 partial — §3's `6d429dc`; idx 68, high — §3's `440572f`; idx 70, high —
 §3's `a8971ac`; idx 71, high — §3's `70f0c99`; idx 76, high — §3's
 `7c1a154`; idx 77, high — §3's `476b7a2`; idx 84, high, partial — §3's
-`e178f29`), **66 remaining**.
+`e178f29`; idx 86, high — §3's `cf5720c`), **65 remaining**.
 
 **By corpus** (confirmed only): ticklecharts 20, tk 17, argparse 10,
 SpiceGenTcl 10, tclopt 13 (6+7, split across two inconsistent corpus-label
@@ -390,7 +390,7 @@ namespaces 11, proc_args 10, upvar 7, source 6, tcl_mathop 5, rename 4,
 package_loading 3, uplevel 3, tracing 3, aliasing 2, safe_interp 2, eval 1,
 autoindex 1.
 
-#### Priority tier 1 — critical + high (24 findings, 19 already fixed)
+#### Priority tier 1 — critical + high (24 findings, 20 already fixed)
 
 Fix these first — each is either data-loss-risk (a rename that silently
 breaks the program, idx 61) or a full-zero-results failure of a core
@@ -714,12 +714,12 @@ manual differential checks — see its own docstring for usage
 4. Pick the next finding to fix — two ready queues, both fully triaged:
    - §6a: 6 remaining tcllib findings (idx 121/122/18/125/128/24), no
      refined plan for any — use `07`'s `root_cause_hint` directly.
-   - §6b: 66 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
+   - §6b: 65 remaining main-wave findings (idx 61, idx 9, idx 10, idx 18,
      idx 29, idx 31, idx 32, idx 33, idx 39, idx 46, idx 52, idx 56, idx
-     63, idx 68, idx 70, idx 71, idx 76, idx 77, and idx 84 are fixed —
-     idx 46, idx 63, and idx 84 only partially, see their §3/§6b rows for
-     what's still open — so far), fully triaged into a priority-ordered
-     critical/high table (5 remaining, start here) and a feature-clustered medium/low
+     63, idx 68, idx 70, idx 71, idx 76, idx 77, idx 84, and idx 86 are
+     fixed — idx 46, idx 63, and idx 84 only partially, see their §3/§6b
+     rows for what's still open — so far), fully triaged into a
+     priority-ordered critical/high table (4 remaining, start here) and a feature-clustered medium/low
      table (61 findings, group by feature when fixing). Likely the
      higher-leverage queue given its size and the presence of several
      zero-results go-to-definition/references failures on common
@@ -740,7 +740,7 @@ manual differential checks — see its own docstring for usage
    crate manifest does; running this (or `df`/`du`) from a `rust/`-relative
    cwd silently no-ops (the path just doesn't exist there) and looks like
    cleanup happened when it didn't — confirmed the hard way this session.
-7. Both queues (§6a's 6 tcllib findings, §6b's 66 main-wave findings) are
+7. Both queues (§6a's 6 tcllib findings, §6b's 65 main-wave findings) are
    independent — fix from whichever queue makes sense, no need to exhaust
    one before starting the other. Keep this document's counts current as
    findings get fixed: move a finished idx out of §6a/§6b's tables and into
