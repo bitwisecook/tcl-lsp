@@ -130,6 +130,90 @@ fn renamed_away_builtin_fires_w123_only_after_the_rename() {
     );
 }
 
+// -- Issue #1010: known-command checks gated on deletion -------------------
+//
+// Four `var_command.rs` "is this a known command" checks had no deletion
+// gate at all (the pre-#973 shape): interpolated-W123 resolution, W307
+// dynamic-dispatch suppression, dispatch-table reference synthesis, and
+// constructor object-typing. Each is confirmed against tclsh 8.6.14.
+
+/// TP: an interpolated command head (`do${suffix}`) folding to a proc
+/// renamed away with no re-establishment must keep its W123 — this
+/// closure used to delete an already-correct W123 outright.
+#[test]
+fn interpolated_head_folding_to_a_deleted_proc_keeps_w123() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc doThing {} {}\nrename doThing {}\nset suffix Thing\ndo$suffix\n",
+    );
+    assert!(
+        codes(&diags).iter().any(|c| c == "W123"),
+        "the interpolated head must still draw W123 once its target is deleted: {diags:?}"
+    );
+}
+
+/// TP: a dynamic-dispatch value (`$cmd hello`) proven by SCCP to equal a
+/// deleted proc name must not have its W307 silenced.
+#[test]
+fn dynamic_dispatch_value_equal_to_a_deleted_proc_keeps_w307() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc target {} {}\nrename target {}\nproc foo {} { set cmd target\n$cmd hello }\n",
+    );
+    assert!(
+        codes(&diags).iter().any(|c| c == "W307"),
+        "a dispatch value equalling a deleted proc must still draw W307: {diags:?}"
+    );
+}
+
+/// TP: a dispatch-table literal (`array set ops {add do_add}`) naming a
+/// deleted proc must draw no reference (checked via find-references,
+/// since this feeds rename-tracking rather than a diagnostic directly).
+#[test]
+fn dispatch_table_entry_naming_a_deleted_proc_draws_no_reference() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc do_add {a b} {}\nrename do_add {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    lsp.open_ready(&uri, src);
+    // `do_add` proc declaration name at line 0, col 5.
+    let refs = lsp.references(&uri, 0, 5, true);
+    let refs = refs.as_array().cloned().unwrap_or_default();
+    let lines: Vec<i64> = refs
+        .iter()
+        .map(|r| r["range"]["start"]["line"].as_i64().unwrap())
+        .collect();
+    assert!(
+        !lines.contains(&2),
+        "a deleted proc must draw no reference from the dead dispatch-table entry: {lines:?}"
+    );
+}
+
+/// TP: `[Cls new] method` where `Cls` was renamed away with no
+/// re-establishment must not draw the misleading "unknown method" W308
+/// (which implies `Cls` exists) — `Cls` itself draws W123 instead.
+#[test]
+fn constructor_of_a_deleted_class_does_not_draw_misleading_w308() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\n[Dog new] fly\n",
+    );
+    let cs = codes(&diags);
+    assert!(
+        !cs.iter().any(|c| c == "W308"),
+        "a deleted class must not draw the misleading unknown-method W308: {diags:?}"
+    );
+    assert!(
+        cs.iter().any(|c| c == "W123"),
+        "the deleted class itself must draw W123: {diags:?}"
+    );
+}
+
 /// FP guard: `coroutine NAME cmd` binds NAME as a command — calling it is
 /// not unknown.  TP control: a typo'd coroutine name still fires.
 #[test]

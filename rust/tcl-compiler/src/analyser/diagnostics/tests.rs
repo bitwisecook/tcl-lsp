@@ -5189,6 +5189,56 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
     );
 }
 
+// Issue #1010 (site 4) — `emit_cmd_command_diagnostics`'s constructor
+// recognition (`[Cls new] method`) typed the result as `Object(Cls)`
+// even when `Cls` was renamed or deleted away with no later
+// re-establishment, producing a misleading "unknown method" W308 that
+// implies `Cls` exists. Confirmed against tclsh 8.6.14 that the
+// constructor call itself fails "invalid command name" first — fixed so
+// the dispatch instead falls back to the conservative "non-literal,
+// cannot statically analyze" (W307), with W123 on `Cls` itself as the
+// real, primary diagnostic.
+//
+// `harvest_constructor_object_types` (the `set x [Cls new]` variable-
+// assignment sibling of this same check) is fixed the same way, but a
+// deeper, independent source in `type_infer.rs`'s `constructor_object_type`
+// still separately types `x` as `Object(Cls)` for that shape via the SSA
+// type lattice, so `$x method` there still draws the same misleading
+// W308 — tracked as a follow-up (that fix needs a call-site offset
+// threaded into a foundational, flow-insensitive type-inference helper,
+// a larger and riskier change than this session's other gate-only fixes).
+
+#[test]
+fn w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307() {
+    let src =
+        "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\n[Dog new] fly";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    assert!(
+        !codes.contains("W308"),
+        "a deleted class must not draw the misleading 'unknown method' W308; got {codes:?}"
+    );
+    assert!(
+        codes.contains("W123"),
+        "the deleted class itself must draw W123 as the real diagnostic; got {codes:?}"
+    );
+}
+
+#[test]
+fn w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method() {
+    let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\n[Dog new] fly";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("fly")),
+        "a class re-established after deletion must still resolve its constructor normally; got {:?}",
+        r.diagnostics,
+    );
+}
+
 /// Object-`of` constructor typing — the W307/W308 item.  Each
 /// case asserts the exact set of expected diagnostic codes.
 fn w30x_codes(src: &str) -> Vec<String> {
@@ -6190,6 +6240,37 @@ foo$suffix
     assert!(
         !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
         "W123 should be suppressed when partial interpolation resolves to a known proc; got {:?}",
+        r.diagnostics,
+    );
+}
+
+// Issue #1010 (site 1) — `resolve_interpolated_w123_diagnostics` deleted an
+// already-correct W123 for an interpolated command head (`foo$suffix`)
+// once SCCP folded it to a known-but-dead proc name, with no deletion
+// gate at all. Fixed by reusing `fact_live_for_call` per candidate.
+// Confirmed against tclsh 8.6.14.
+
+#[test]
+fn w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged() {
+    let src = "proc foo_hi {} {}\nrename foo_hi {}\nset suffix _hi\nfoo$suffix\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "an interpolated head folding to a deleted proc must still draw W123; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w123_fp_issue_1010_interpolated_head_folds_to_reestablished_proc_resolves() {
+    let src =
+        "proc foo_hi {} {}\nrename foo_hi {}\nproc foo_hi {} {}\nset suffix _hi\nfoo$suffix\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "a proc re-established after deletion must still resolve; got {:?}",
         r.diagnostics,
     );
 }
@@ -7432,6 +7513,38 @@ fn analyse_no_w307_for_static_known_command() {
     assert!(
         w307s.is_empty(),
         "W307 must be suppressed when var holds known command name; got {:?}",
+        r.diagnostics,
+    );
+}
+
+// Issue #1010 (site 2) — `is_known_command` (used by `w307_site_suppressed`)
+// suppressed W307 whenever SCCP proved a dynamic-dispatch value equalled
+// a proc/class name, with no deletion gate — so a variable holding a
+// renamed-or-deleted-away command (no later re-establishment) still
+// silenced the real "invalid command name" hazard. Fixed by threading
+// the dispatch site's own offset through and reusing `fact_live_for_call`.
+// Confirmed against tclsh 8.6.14.
+
+#[test]
+fn w307_tp_issue_1010_dispatch_value_is_deleted_proc_stays_flagged() {
+    let src = "proc target {} {}\nrename target {}\nproc foo {} { set cmd target\n$cmd hello }";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
+        "a dispatch value equalling a deleted proc must still draw W307; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn w307_fp_issue_1010_dispatch_value_is_reestablished_proc_resolves() {
+    let src = "proc target {} {}\nrename target {}\nproc target {} {}\nproc foo {} { set cmd target\n$cmd hello }";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
+        "a proc re-established after deletion must still suppress W307; got {:?}",
         r.diagnostics,
     );
 }
@@ -9706,6 +9819,45 @@ fn dispatch_table_value_abstains_when_the_table_is_not_consumed_m7() {
     assert!(
         !r.command_invocations.iter().any(|i| i.name == "do_add"),
         "{:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+// Issue #1010 (site 3) — `emit_dispatch_table_command_references`'s
+// `known` closure synthesized a "live reference" for a dispatch-table
+// literal even when the proc/class it named was renamed or deleted away
+// with no later re-establishment. Fixed by reusing `fact_live_for_call`
+// with the table entry's own position as the call site. Confirmed
+// against tclsh 8.6.14.
+
+#[test]
+fn dispatch_table_tp_issue_1010_deleted_proc_draws_no_reference() {
+    let src = "proc do_add {a b} {}\nrename do_add {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.command_invocations.iter().any(|i| i.name == "do_add"),
+        "a deleted proc with no re-establishment must draw no reference: {:?}",
+        r.command_invocations
+            .iter()
+            .map(|i| (&i.name, i.range.start()))
+            .collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn dispatch_table_fp_issue_1010_reestablished_proc_still_references() {
+    let src = "proc do_add {a b} {}\nrename do_add {}\nproc do_add {a b} {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.command_invocations
+            .iter()
+            .any(|i| i.name == "do_add" && i.resolved_qualified_name.as_deref() == Some("::do_add")),
+        "a proc re-established after deletion must still be referenced: {:?}",
         r.command_invocations
             .iter()
             .map(|i| (&i.name, i.range.start()))

@@ -69,11 +69,15 @@ struct W123KnownNames {
 
 /// Group `(qualified_name, establishing_offset)` pairs by their
 /// `::`-tail — shared by the proc and class def maps in
-/// [`Analyser::build_w123_known_names`] (issue #973): a tail may match
-/// several qualified names (the same simple name in different
-/// namespaces), each kept with its own offset for a later per-call live
-/// check ([`Analyser::fact_live_for_call`]).
-fn group_defs_by_tail<'a>(
+/// [`Analyser::build_w123_known_names`] (issue #973) and its siblings
+/// (`var_command.rs`'s `build_w307_known_names` / interpolated-W123
+/// resolution, issue #1010): a tail may match several qualified names
+/// (the same simple name in different namespaces), each kept with its
+/// own offset for a later per-call live check
+/// ([`Analyser::fact_live_for_call`]). `pub(super)` (not private) so
+/// those sibling passes reuse it rather than reimplementing the same
+/// grouping loop.
+pub(super) fn group_defs_by_tail<'a>(
     entries: impl Iterator<Item = (&'a String, u32)>,
 ) -> HashMap<String, Vec<(String, u32)>> {
     let mut map: HashMap<String, Vec<(String, u32)>> = HashMap::new();
@@ -203,7 +207,13 @@ impl Analyser {
     /// statements in source order — is always the most recent one, so a
     /// name re-established after its deletion (a fresh `rename` or
     /// `interp alias` under the same name) reads as live again.
-    fn fact_live_at_file_end(&self, qualified: &str, fact_off: u32) -> bool {
+    ///
+    /// `pub(super)`: also reused by `var_command.rs`'s
+    /// `compute_factory_object_ranges` (issue #1010), whose
+    /// `is_object_returning_head` predicate classifies a bare command
+    /// head with no specific call site in hand — the same file-end
+    /// question, not [`Self::fact_live_for_call`]'s per-call one.
+    pub(super) fn fact_live_at_file_end(&self, qualified: &str, fact_off: u32) -> bool {
         self.deleted_commands
             .get(qualified)
             .is_none_or(|&del_off| fact_off > del_off)
