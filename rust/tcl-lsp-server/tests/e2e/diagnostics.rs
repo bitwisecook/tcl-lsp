@@ -756,6 +756,53 @@ fn unshadowed_ensemble_command_still_fires_w001_alongside_a_shadowed_one() {
 }
 
 #[test]
+fn namespace_ensemble_configure_splice_onto_tk_suppresses_w001_end_to_end() {
+    // FP regression, issue #923 idx 84: the real `tk/library/systray.tcl`
+    // idiom splices `systray`/`sysnotify` onto the pre-existing,
+    // registry-builtin `tk` ensemble via `namespace ensemble configure tk
+    // -map [dict merge [namespace ensemble configure tk -map] {systray
+    // ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]` — a
+    // `CONFIGURE`, not `CREATE`. tclsh9.0/8.6 both confirm `tk systray
+    // create`/`tk sysnotify ...` are correct, documented calls.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc ::tk::systray {args} {}\n\
+         proc ::tk::sysnotify::sysnotify {a b} {}\n\
+         namespace ensemble configure tk -map \
+         [dict merge [namespace ensemble configure tk -map] \
+         {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]\n\
+         tk systray create -image book\n\
+         tk sysnotify Alert message\n",
+    );
+    assert!(
+        !has_code(&diags, "W001"),
+        "a statically-spliced ensemble subcommand must not fire W001: {diags:?}"
+    );
+}
+
+#[test]
+fn namespace_ensemble_configure_genuinely_unknown_tk_subcommand_still_fires_w001_end_to_end() {
+    // TP control paired with the FP above: splicing `systray` onto `tk`
+    // must not blind the server to an unrelated, genuinely unknown `tk`
+    // subcommand in the same file.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "namespace ensemble configure tk -map \
+         [dict merge [namespace ensemble configure tk -map] \
+         {systray ::tk::systray}]\n\
+         tk zzznotreal\n",
+    );
+    assert!(
+        has_code(&diags, "W001"),
+        "a genuinely unknown tk subcommand must still fire W001: {diags:?}"
+    );
+}
+
+#[test]
 fn bare_tcloo_object_dispatch_is_e001() {
     // `set o [Dog new]; $o` — TclOO's per-object dispatcher requires a
     // method word before it attempts any method lookup.

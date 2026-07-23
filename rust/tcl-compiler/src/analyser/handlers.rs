@@ -32,10 +32,12 @@
 //! alias resolution.
 
 use tcl_core_types::DiagCode;
-use tcl_lexer::{Span, Token, TokenType};
+use tcl_lexer::{SourceMap, Span, Token, TokenType};
 use tcl_syntax::list::find_element;
 
 use crate::alias::{detect_interp_alias, resolve_alias};
+use crate::parsing::syntax::descend::descend_token;
+use crate::parsing::syntax::segment::segments_from_tree;
 use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
@@ -1923,10 +1925,12 @@ impl Analyser {
                 // the W129 safe-interpreter gate can resolve a call through
                 // this redirect to the target (issue #1001 follow-up).
                 "-map" => {
-                    if let (Some(value), Some(tok)) = (value, value_tok) {
+                    if let (Some(value), Some(tok)) = (value, value_tok)
+                        && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
+                    {
                         self.record_ensemble_map_targets(
-                            value,
-                            tok,
+                            &text,
+                            text_tok,
                             scope_path,
                             ensemble_key.as_deref(),
                         );
@@ -1935,10 +1939,12 @@ impl Analyser {
                 // `-subcommands {a b c}` — each subcommand `a` dispatches to
                 // the command `<ns>::a` in the ensemble's namespace.
                 "-subcommands" => {
-                    if let (Some(value), Some(tok)) = (value, value_tok) {
+                    if let (Some(value), Some(tok)) = (value, value_tok)
+                        && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
+                    {
                         self.record_ensemble_subcommands(
-                            value,
-                            tok,
+                            &text,
+                            text_tok,
                             &ns_prefix,
                             ensemble_key.as_deref(),
                         );
@@ -1948,6 +1954,68 @@ impl Analyser {
             }
             i += 1 + spec.value_word_count(opts, i);
         }
+    }
+
+    /// Resolve a `-map`/`-subcommands` option value to its statically-known
+    /// list text + representative token, or `None` when nothing static can
+    /// be extracted.
+    ///
+    /// A plain literal (`{sub target …}`) passes through unchanged — the
+    /// pre-existing, common case, where `-command`'s own equivalent
+    /// dynamic-value check (`starts_with('$')`/`starts_with('[')`) already
+    /// guards a *whole*-value dynamic. `-map`/`-subcommands` additionally
+    /// tolerate one dynamic *element* among literal ones today
+    /// ([`Self::list_word_elements`]'s per-element `is_dynamic_word`), but a
+    /// value that is itself one whole dynamic `[...]` substitution is not a
+    /// list at all — naively word-splitting
+    /// `[dict merge [namespace ensemble configure tk -map] {systray
+    /// ::tk::systray}]` would misread fragments of the *expression*
+    /// (`"tk"`, `"configure"`, …) as bogus subcommand/target pairs, which is
+    /// worse than abstaining. Falls back to
+    /// [`Self::dict_merge_literal_tail`] for the one dynamic shape real code
+    /// needs (issue #923 idx 84); anything else abstains.
+    fn ensemble_list_literal(&self, value: &str, value_tok: Token) -> Option<(String, Token)> {
+        if !crate::naming::is_dynamic_word(value) {
+            return Some((value.to_owned(), value_tok));
+        }
+        self.dict_merge_literal_tail(value_tok)
+    }
+
+    /// Recognise the `[dict merge EXISTING {literal}]`-shaped value the real
+    /// `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
+    /// `accessibility.tcl`) idiom uses to splice new entries onto a
+    /// pre-existing ensemble's `-map`/`-subcommands` without a literal
+    /// `{...}` value of its own (issue #923 idx 84): `namespace ensemble
+    /// configure tk -map [dict merge [namespace ensemble configure tk -map]
+    /// {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]`.
+    /// `EXISTING` (whatever it evaluates to — typically a self-referential
+    /// query of the ensemble's own current map) is left unknown, but the
+    /// spliced literal tail is a statically known fact regardless of what
+    /// `EXISTING` is.
+    ///
+    /// Deliberately narrow, matching the issue #923 idx 110 precedent:
+    /// exactly `dict merge ARG {literal}` (2 dict-merge operands, the
+    /// second a literal word) — does not recognise `dict set`/`dict
+    /// replace`/`concat`/a list-building helper proc, or a `dict merge`
+    /// with more than 2 operands. A documented scope boundary, not an
+    /// oversight (no attested real-world instance of those forms).
+    fn dict_merge_literal_tail(&self, value_tok: Token) -> Option<(String, Token)> {
+        if value_tok.kind != TokenType::Cmd {
+            return None;
+        }
+        let config = self.lexer_config();
+        let sm = SourceMap::new(&self.source);
+        let descended = descend_token(&sm, value_tok, config);
+        let segs = segments_from_tree(descended.tree(), &sm);
+        let [seg] = segs.as_slice() else { return None };
+        if seg.texts.len() != 4 || seg.texts[0] != "dict" || seg.texts[1] != "merge" {
+            return None;
+        }
+        let tail = seg.texts[3].clone();
+        if crate::naming::is_dynamic_word(&tail) {
+            return None;
+        }
+        seg.argv.get(3).map(|tok| (tail, *tok))
     }
 
     /// The `(element, span)` pairs of a list word's *top-level* Tcl-list
@@ -6001,6 +6069,140 @@ mod tests {
         assert!(
             resolved.contains(&"::foo::show"),
             "the -subcommands name should map to `<ns>::show`: {resolved:?}",
+        );
+    }
+
+    // `namespace ensemble configure` (issue #923 idx 84): the real
+    // `tk/library/systray.tcl` idiom splices new subcommands onto a
+    // *pre-existing* ensemble via `configure`, not `create` — previously
+    // invisible to `handle_namespace_ensemble` entirely.
+
+    #[test]
+    fn namespace_ensemble_configure_extends_a_preexisting_ensembles_map() {
+        // TP — the mechanism in isolation, with a literal `-map` value and a
+        // deliberately non-tk ensemble name (`myens`), proving the fix is
+        // registry-agnostic rather than hardcoded to `tk`.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::extra {args} {}\n\
+                   namespace ensemble configure ::myens -map {extra ::myens::extra}\n\
+                   myens extra\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::myens::extra"),
+            "a configure-spliced -map target should be a command reference: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_dynamic_name_is_not_recorded() {
+        // FP-guard — `namespace ensemble configure $x -map {...}` can't be
+        // resolved statically; the whole call must abstain rather than
+        // recording a `-map` splice under a guessed/wrong key.
+        let mut a = Analyser::new();
+        a.handle_namespace_ensemble(
+            &[
+                "ensemble".to_string(),
+                "configure".to_string(),
+                "$x".to_string(),
+                "-map".to_string(),
+                "sub".to_string(),
+                "::real::target".to_string(),
+            ],
+            &[],
+            &[],
+        );
+        assert!(a.result.ensemble_subcommand_targets.is_empty());
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_with_no_name_argument_is_a_no_op() {
+        // TN — the bare query form `namespace ensemble configure` (no NAME,
+        // no options) must not panic on `args[2]` indexing.
+        let mut a = Analyser::new();
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "configure".to_string()], &[], &[]);
+        assert!(a.result.ensemble_subcommand_targets.is_empty());
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_dict_merge_literal_tail_is_extracted() {
+        // TP — the real, exact idiom (issue #923 idx 84):
+        // `namespace ensemble configure NAME -map [dict merge [namespace
+        // ensemble configure NAME -map] {literal}]`. The self-referential
+        // query argument is left unknown, but the literal tail's own pairs
+        // are statically known regardless of what it evaluates to.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::extra {args} {}\n\
+                   proc ::myens::other {args} {}\n\
+                   namespace ensemble configure ::myens -map \
+                   [dict merge [namespace ensemble configure ::myens -map] \
+                   {extra ::myens::extra other ::myens::other}]\n\
+                   myens extra\n\
+                   myens other\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::myens::extra"),
+            "the dict-merge literal tail's first pair should resolve: {resolved:?}",
+        );
+        assert!(
+            resolved.contains(&"::myens::other"),
+            "the dict-merge literal tail's second pair should resolve too, \
+             proving the extraction isn't overfit to a single pair: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_unrecognised_dynamic_map_shape_abstains_safely() {
+        // Safety regression: a `-map` value that is itself one whole
+        // dynamic `[...]` substitution NOT matching the narrow `dict merge
+        // ARG {literal}` shape must abstain entirely — not naively
+        // word-split the expression's own source text into bogus
+        // subcommand/target pairs. `[linsert {} 0 foo bar]` evaluates to
+        // the *string* "foo bar" at runtime (one call to `linsert`; "foo"/
+        // "bar" are plain data words, never independently invoked) — were
+        // the value's raw text naively whitespace-split instead of
+        // abstained on, "foo" would land at an odd (target) index and
+        // wrongly resolve to the real `::myens::foo` defined below,
+        // recording a spurious command reference to it.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::foo {} {}\n\
+                   namespace ensemble configure ::myens -map [linsert {} 0 foo bar]\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.ensemble_subcommand_targets
+                .get("::myens")
+                .is_none_or(std::collections::HashMap::is_empty),
+            "an unrecognised dynamic -map shape must record no subcommand \
+             targets: {:?}",
+            r.ensemble_subcommand_targets.get("::myens"),
+        );
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            !resolved.contains(&"::myens::foo"),
+            "must not record a spurious command reference from splitting \
+             the dynamic expression's own text: {resolved:?}",
         );
     }
 

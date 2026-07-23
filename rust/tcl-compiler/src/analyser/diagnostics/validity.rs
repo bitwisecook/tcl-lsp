@@ -761,7 +761,9 @@ impl Analyser {
         // "unknown subcommand". Registry-driven via
         // `CommandSpec::implementation_namespace`, so it applies to any
         // future ensemble that declares one, not just `dict`.
-        if self.dynamic_ensemble_subcommand_known(cmd_name, first_arg) {
+        if self.dynamic_ensemble_subcommand_known(cmd_name, first_arg)
+            || self.statically_mapped_ensemble_subcommand_known(cmd_name, first_arg, scope_path)
+        {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
@@ -841,6 +843,43 @@ impl Analyser {
         self.result
             .all_procs
             .contains_key(&format!("{ns}::{subcommand_name}"))
+    }
+
+    /// Whether `cmd_name subcommand_name` is a call into an ensemble whose
+    /// `-map`/`-subcommands` *this file itself* literally, statically
+    /// extends via `namespace ensemble create`/`configure`
+    /// ([`super::super::handlers::Analyser::handle_namespace_ensemble`],
+    /// which populates [`AnalysisResult::ensemble_subcommand_targets`]) —
+    /// the real `tk/library/systray.tcl` idiom (issue #923 idx 84):
+    /// `namespace ensemble configure tk -map [dict merge [namespace
+    /// ensemble configure tk -map] {systray ::tk::systray sysnotify
+    /// ::tk::sysnotify::sysnotify}]`, which splices `systray`/`sysnotify`
+    /// onto the pre-existing, registry-builtin `tk` ensemble.
+    ///
+    /// Complements [`Self::dynamic_ensemble_subcommand_known`] (which needs
+    /// [`tcl_registry::CommandSpec::implementation_namespace`] — unset for
+    /// `tk`, since `tk systray`'s own genuinely 2-level nested-ensemble
+    /// shape doesn't fit that field's single-hop `<ns>::<subcommand>`
+    /// convention anyway) with the general, ensemble-agnostic fact this
+    /// file's own analysis already recorded, rather than a `tk`-specific
+    /// escape hatch.
+    ///
+    /// [`AnalysisResult::ensemble_subcommand_targets`]: super::super::types::AnalysisResult::ensemble_subcommand_targets
+    fn statically_mapped_ensemble_subcommand_known(
+        &self,
+        cmd_name: &str,
+        subcommand_name: &str,
+        scope_path: &[usize],
+    ) -> bool {
+        let ns = self.command_resolution_namespace(scope_path);
+        crate::naming::bareword_resolution_candidates(&ns, cmd_name)
+            .into_iter()
+            .any(|cand| {
+                self.result
+                    .ensemble_subcommand_targets
+                    .get(&cand)
+                    .is_some_and(|subs| subs.contains_key(subcommand_name))
+            })
     }
 
     /// `first_arg` is unknown in the active dialect profile but exists as a

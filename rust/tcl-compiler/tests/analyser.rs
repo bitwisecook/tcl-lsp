@@ -559,6 +559,41 @@ mod diagnostics {
     }
 
     #[test]
+    fn namespace_ensemble_configure_on_tk_suppresses_w001_for_systray_and_sysnotify() {
+        // FP — regression for issue #923 idx 84: the real
+        // `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
+        // `accessibility.tcl`) idiom splices `systray`/`sysnotify` into the
+        // *pre-existing, registry-builtin* `tk` ensemble via `namespace
+        // ensemble configure tk -map [dict merge [namespace ensemble
+        // configure tk -map] {systray ::tk::systray sysnotify
+        // ::tk::sysnotify::sysnotify}]` — a `CONFIGURE`, not `CREATE`, on an
+        // ensemble this file never itself created. tclsh9.0/8.6 both
+        // confirm `tk systray create`/`tk sysnotify ...` are correct,
+        // documented calls; must not fire "Unknown subcommand".
+        let src = "proc ::tk::systray {args} {}\n\
+             proc ::tk::sysnotify::sysnotify {a b} {}\n\
+             namespace ensemble configure tk -map \
+             [dict merge [namespace ensemble configure tk -map] \
+             {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]\n\
+             tk systray create -image book\n\
+             tk sysnotify Alert message\n";
+        assert!(!fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_genuinely_unknown_tk_subcommand_still_fires_w001() {
+        // TP — regression guard: a real, non-existent `tk` subcommand (no
+        // splice recorded for it) must still fire — proves
+        // `statically_mapped_ensemble_subcommand_known` doesn't over-suppress
+        // the whole `tk` ensemble once *any* subcommand has been spliced in.
+        let src = "namespace ensemble configure tk -map \
+             [dict merge [namespace ensemble configure tk -map] \
+             {systray ::tk::systray}]\n\
+             tk zzznotreal\n";
+        assert!(fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
     fn ensemble_without_implementation_namespace_is_unaffected_by_dynamic_map_check() {
         // TN — regression guard: `dynamic_ensemble_subcommand_known` is
         // inert for every ensemble whose `CommandSpec` doesn't set

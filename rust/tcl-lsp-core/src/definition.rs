@@ -2789,6 +2789,29 @@ mod tests {
     }
 
     #[test]
+    fn tk_ensemble_configure_splice_resolves_the_subcommand_to_its_real_target_not_a_decoy() {
+        // TP — the finding's own repro shape (issue #923 idx 84):
+        // `tk`'s built-in ensemble is extended at runtime via `namespace
+        // ensemble configure tk -map [dict merge [namespace ensemble
+        // configure tk -map] {systray ::tk::systray}]`, the real
+        // `tk/library/systray.tcl` idiom. tclsh9.0/8.6 both confirm `tk
+        // systray` really dispatches to `::tk::systray`, never a
+        // same-tail-name decoy proc in an unrelated namespace — previously
+        // this fell through to `fallback_proc_by_simple_name` and wrongly
+        // landed on the decoy (or, with no decoy present, abstained despite
+        // `systray -> ::tk::systray` being a literal, static fact).
+        let src = "namespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n";
+        let analysis = analyse(src);
+        // Cursor on "systray" in the final `tk systray create ...` call
+        // (0-based line 5, "tk " is 3 chars so "systray" starts at col 3).
+        let locs = definition(src, 5, 5, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // Resolves to the REAL `proc ::tk::systray` (line 3), not the
+        // same-tail-name decoy inside `::decoy` (line 1).
+        assert_eq!(locs[0].start_line, 3);
+    }
+
+    #[test]
     fn ensemble_wholly_dynamic_map_value_abstains() {
         // FN (accepted, zero regression) — the whole `-map` value itself is
         // a variable, not a literal list; `ensemble_subcommand_targets`

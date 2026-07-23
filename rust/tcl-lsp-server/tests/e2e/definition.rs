@@ -427,3 +427,32 @@ fn multi_list_foreach_name_resolves_to_its_own_loop_not_a_later_unrelated_one() 
         "must resolve to the first loop's own `name` clause (line 0), not the unrelated second loop (line 4): {locs:?}"
     );
 }
+
+/// idx 84 (differential-audit main audit wave, high severity, tk corpus):
+/// the real `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
+/// `accessibility.tcl`) idiom splices `systray` into the pre-existing,
+/// registry-builtin `tk` ensemble at runtime via `namespace ensemble
+/// configure tk -map [dict merge [namespace ensemble configure tk -map]
+/// {systray ::tk::systray}]` — a `CONFIGURE`, not `CREATE`, statement,
+/// previously invisible to the analyser. tclsh9.0/8.6 both proved `tk
+/// systray create` really calls `::tk::systray`; the LSP instead fell
+/// through to `fallback_proc_by_simple_name` and wrongly resolved to a
+/// same-tail-name decoy proc in an unrelated namespace.
+#[test]
+fn tk_ensemble_configure_splice_resolves_to_the_real_target_not_a_decoy() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n",
+    );
+    // Line 5: `tk systray create -image book` — cursor on "systray".
+    let result = lsp.definition(&uri, 5, 5);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        3,
+        "must resolve to the real `proc ::tk::systray` (line 3), not the same-tail-name decoy inside ::decoy (line 1): {locs:?}"
+    );
+}
