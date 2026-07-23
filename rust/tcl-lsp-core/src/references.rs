@@ -309,15 +309,24 @@ pub fn references(
         return out;
     }
 
-    // Class-member references (cursor inside a class body on a member name).
-    if let Some(out) = class_member_references(&ctx, &word) {
+    // `constructor` / `destructor` keyword — the next-chain reference story
+    // (issue #992); neither has a name to dispatch on, so no `my`/`$obj`
+    // call-site scan applies the way it does for a method. Tried *before*
+    // the ordinary class-member lookup below: a class may legally also
+    // declare a `method`/`property` literally named `constructor` or
+    // `destructor` (the keyword form and a same-named ordinary member are
+    // independent), and `class_member_references`'s cursor-outside-any-span
+    // fallback (see `resolve_member_span`) would otherwise claim a cursor
+    // sitting on the special keyword token for that unrelated same-named
+    // member instead (Codex review on #1011, P2). This resolver only ever
+    // matches when the cursor sits strictly on the keyword's own name span,
+    // so trying it first never steals a real member reference.
+    if let Some(out) = constructor_or_destructor_references(&ctx, &word) {
         return out;
     }
 
-    // `constructor` / `destructor` keyword — the next-chain reference story
-    // (issue #992); neither has a name to dispatch on, so no `my`/`$obj`
-    // call-site scan applies the way it does for a method.
-    if let Some(out) = constructor_or_destructor_references(&ctx, &word) {
+    // Class-member references (cursor inside a class body on a member name).
+    if let Some(out) = class_member_references(&ctx, &word) {
         return out;
     }
 
@@ -901,6 +910,20 @@ fn canonicalise_class_name(analysis: &AnalysisResult, owner: &str, name: &str) -
 /// reference story for one — no `my`/`$obj` call-site scan applies, unlike
 /// [`method_references_for_class`]. Returns `None` when `class_q` declares
 /// no explicit constructor.
+///
+/// Not gated by `DefinerFamily` (Codex review on #1011, P1): `next` /
+/// `nextto` and the MRO this walks (`ClassHierarchy::mro_map`, built by
+/// `tcloo_linearise` for every `ClassDef` alike) are `TclOO`-specific —
+/// Snit / [incr Tcl] classes have different chaining models the registry
+/// doesn't even register a `next`/`nextto` command for. This is not a new
+/// gap: [`method_next_dispatch_spans`] / [`ClassHierarchy::next_provider`]
+/// have run unconditionally across every definer family since they were
+/// introduced, with no existing itcl/Snit exclusion (unlike
+/// `find_obj_method_call_sites`'s classmethod dispatch-shape check, which
+/// *does* consult `is_itcl_class` for an unrelated concern). Gating only
+/// the constructor/destructor path here would be an inconsistent partial
+/// fix, not a real one — a proper fix scopes the whole next/nextto
+/// reference system by family, out of scope for this change.
 pub(crate) fn constructor_next_chain_references(
     source: &str,
     dialect: &str,
@@ -1241,16 +1264,18 @@ fn scan_next_dispatch_region_with_target(
             if h_end <= source.len() && h_start < h_end {
                 let h = &source[h_start..h_end];
                 if h == "next" || h == "nextto" {
-                    let target =
-                        (h == "nextto")
-                            .then(|| cmd.argv.get(1))
-                            .flatten()
-                            .and_then(|tok| {
-                                let (a_start, a_end) =
-                                    (tok.span.start() as usize, tok.span.end() as usize);
-                                (a_end <= source.len() && a_start < a_end)
-                                    .then(|| source[a_start..a_end].to_owned())
-                            });
+                    // `texts` is the segmenter's already-*decoded* per-word
+                    // reconstruction — unlike `argv`'s token span (which
+                    // covers a braced/quoted word's raw delimiters per this
+                    // codebase's body-span convention, e.g. `{Grandparent`
+                    // for `nextto {Grandparent}`, dropping only the closer),
+                    // `texts[1]` is plain `"Grandparent"` regardless of
+                    // whether the target was written bare, braced, or
+                    // quoted. Slicing the raw span instead left a literal
+                    // `{`/`"` in the target text, which
+                    // `canonicalise_class_name` could never resolve to a
+                    // real class (Codex review on #1011, P2).
+                    let target = (h == "nextto").then(|| cmd.texts.get(1).cloned()).flatten();
                     out.push((head.span, target));
                 }
             }
@@ -2254,6 +2279,21 @@ mod tests {
     }
 
     #[test]
+    fn constructor_next_chain_reference_via_braced_nextto_target() {
+        // Regression (Codex review on #1011, P2): `nextto {Grandparent}` (a
+        // braced target, functionally identical to the bare form) must
+        // resolve exactly like `constructor_next_chain_reference_via_nextto_explicit_target`'s
+        // bare `nextto Grandparent` — the decoded word, not the raw
+        // delimited span, is what gets resolved against the class map.
+        let src = "oo::class create Grandparent {\n    constructor {} { }\n}\noo::class create Base {\n    superclass Grandparent\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { nextto {Grandparent} }\n}\n";
+        let analysis = analyse(src);
+        let grandparent_refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert_eq!(grandparent_refs.len(), 1, "{grandparent_refs:?}");
+        let base_refs = references(src, "tcl", 4, 6, &analysis, false);
+        assert!(base_refs.is_empty(), "{base_refs:?}");
+    }
+
+    #[test]
     fn destructor_next_chain_reference_from_direct_subclass() {
         let src = "oo::class create Base {\n    destructor { }\n}\noo::class create Sub {\n    superclass Base\n    destructor { next }\n}\n";
         let analysis = analyse(src);
@@ -2272,6 +2312,26 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(src, "tcl", 1, 6, &analysis, true);
         assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[test]
+    fn constructor_keyword_resolves_its_own_next_chain_even_with_a_same_named_method() {
+        // Regression (Codex review on #1011, P2): a class can also declare a
+        // `method` literally named `constructor` — an independent, ordinary
+        // member sharing a name with the special keyword form. A cursor on
+        // the special `constructor` keyword must still resolve its own
+        // next-chain story, not fall through to the unrelated same-named
+        // method's (ordinary) references.
+        let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n    method constructor {} { }\n}\n";
+        let analysis = analyse(src);
+        // `Base`'s `constructor` keyword, line 1.
+        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        assert_eq!(
+            refs.len(),
+            1,
+            "must resolve the next-chain, not the unrelated same-named method: {refs:?}"
+        );
+        assert_eq!(refs[0].start_line, 5, "{refs:?}");
     }
 
     #[test]
