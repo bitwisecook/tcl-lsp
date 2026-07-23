@@ -38,6 +38,7 @@ use tcl_syntax::list::find_element;
 use crate::alias::{detect_interp_alias, resolve_alias};
 use crate::parsing::syntax::descend::descend_token;
 use crate::parsing::syntax::segment::segments_from_tree;
+use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
@@ -726,6 +727,7 @@ impl Analyser {
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
         if args.len() < 3 || arg_tokens.len() < 3 {
@@ -733,6 +735,22 @@ impl Analyser {
         }
 
         let raw_name = &args[0];
+        let name_tok = arg_tokens[0];
+        // A constant-foldable dynamic name (`proc ::$wtype {args} {...}` with
+        // `wtype` a known constant) resolves the same way `rename`'s operands
+        // already do (issue #923 idx 86: `tk/library/accessibility.tcl`'s
+        // rename-away-and-reinstall idiom names its wrapper proc this way).
+        // An unresolvable dynamic name falls back to the raw written text
+        // unchanged — this only *improves* the resolvable case, the same
+        // scope boundary `resolve_dynamic_word`'s other callers keep.
+        let resolved_name = self
+            .resolve_dynamic_word(
+                raw_name,
+                Some(name_tok),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .unwrap_or_else(|| raw_name.clone());
         // Home the proc to the *command-resolution* namespace, not the purely
         // lexical one: a proc defined inside another proc's body homes to that
         // enclosing proc's **defining** namespace (the prefix of its qualified
@@ -745,15 +763,14 @@ impl Analyser {
         // `qualify` takes the constructed (rooted) namespace key verbatim and
         // `key_tail` inverts the construction — a `char`-pattern colon trim or
         // an `rsplit("::")` here would collapse a lone-colon name (#934).
-        let qualified = qualify(&ns_prefix, raw_name);
+        let qualified = qualify(&ns_prefix, &resolved_name);
         let simple = crate::naming::key_tail(&qualified).to_string();
-        let name_tok = arg_tokens[0];
         let name_span = name_tok.span;
         let body_tok = arg_tokens[2];
         let body_span = body_tok.span;
 
         // **W113** — proc name shadows a built-in command.
-        self.emit_w113_proc_shadows_builtin(raw_name, &qualified, name_span);
+        self.emit_w113_proc_shadows_builtin(&resolved_name, &qualified, name_span);
         // **W314** — the name has no absolute written form (#934).
         self.emit_w314_no_absolute_name(raw_name, name_span);
 
@@ -2266,12 +2283,128 @@ impl Analyser {
                 self.define_vars_from_list(&args[i], *tok, scope_path);
             }
         }
+        // A single-pair `foreach VAR {literal list} { rename ::$VAR ... ;
+        // proc ::$VAR ... }` loop over a fully literal list (issue #923 idx
+        // 86: the real `tk/library/accessibility.tcl` rename-away-and
+        // -reinstall idiom) binds `VAR` to a *different* value each
+        // iteration — a fact the single-value `const_strings` scope map
+        // can't represent generally (`foreach` shares one flat cell for the
+        // whole loop, confirmed against tclsh: no per-iteration scope to key
+        // a value under). Bind `VAR` to the *first* literal element before
+        // the one normal body walk below, so `rename`/`proc`'s own
+        // constant-fold (unchanged) resolves that iteration correctly;
+        // `simulate_remaining_foreach_iterations` afterwards narrowly
+        // re-dispatches just `rename`/`proc` for every *additional* literal
+        // element, since those are the only two commands go-to-definition/
+        // references/rename need to see resolved here.
+        let literal_binding = (args.len() == 3)
+            .then(|| Self::literal_foreach_binding(&args[0], &args[1]))
+            .flatten();
+        if let Some((var, elements)) = &literal_binding
+            && let Some(first) = elements.first()
+        {
+            self.set_const_string(var, first.clone(), arg_tokens[1].span, scope_path);
+        }
         // The body is always the last argument; recurse so vars
         // defined inside the loop land in the enclosing scope.
         if let (Some(body_text), Some(body_tok)) = (args.last(), arg_tokens.last().copied()) {
             self.analyse_body(body_text, body_tok, scope_path);
+            if let Some((var, elements)) = &literal_binding {
+                self.simulate_remaining_foreach_iterations(var, elements, body_tok, scope_path);
+            }
         }
         true
+    }
+
+    /// Whether a `foreach`'s only var/list pair (`var_list_text`/
+    /// `list_text`) is the narrow, fully-literal shape
+    /// [`Self::simulate_remaining_foreach_iterations`] can simulate: a
+    /// single plain identifier (not itself dynamic, not a multi-name list)
+    /// bound to a whitespace-separated list of literal (non-dynamic)
+    /// elements. Returns `(var, elements)`.
+    fn literal_foreach_binding(
+        var_list_text: &str,
+        list_text: &str,
+    ) -> Option<(String, Vec<String>)> {
+        let mut vars = var_list_text.split_whitespace();
+        let var = vars.next()?;
+        if vars.next().is_some() || crate::naming::is_dynamic_word(var) {
+            return None;
+        }
+        let elements: Vec<String> = list_text.split_whitespace().map(str::to_owned).collect();
+        if elements.is_empty() || elements.iter().any(|e| crate::naming::is_dynamic_word(e)) {
+            return None;
+        }
+        Some((var.to_owned(), elements))
+    }
+
+    /// For each literal element *after* the first (the first iteration is
+    /// already covered by [`Self::handle_foreach_command`]'s own
+    /// pre-binding + the loop's one normal body walk), narrowly re-dispatch
+    /// just the body's own `rename`/`proc` sub-commands with `var`
+    /// temporarily rebound to that element — the two commands whose
+    /// handlers already resolve a constant-foldable dynamic word via
+    /// [`Self::resolve_dynamic_word`], and the two go-to-definition/
+    /// references/rename need correctly resolved per iteration (issue #923
+    /// idx 86). Every *other* command in the body keeps the single
+    /// evaluation the normal walk above already gave it — deliberately
+    /// narrow, matching the issue #923 idx 110 precedent: this does not
+    /// generally re-walk the body per iteration (which would duplicate
+    /// diagnostics/scope entries for everything else), only these two.
+    /// Leaves `var` bound to the *last* element afterwards — the same
+    /// value real Tcl leaves the loop variable holding once `foreach`
+    /// completes.
+    fn simulate_remaining_foreach_iterations(
+        &mut self,
+        var: &str,
+        elements: &[String],
+        body_tok: Token,
+        scope_path: &[usize],
+    ) {
+        if elements.len() < 2 || body_tok.kind != TokenType::Str {
+            return;
+        }
+        // `body_tok`'s span must address real text in `self.source` — a
+        // direct unit-level `handle_foreach_command` call (bypassing the
+        // real tokeniser) can pass a synthetic span that doesn't, the same
+        // out-of-bounds guard `Self::cmd_fragments` already needs for the
+        // identical reason.
+        let start = body_tok.span.start() as usize;
+        let end = body_tok.span.end() as usize;
+        if start >= self.source.len() || end > self.source.len() || start >= end {
+            return;
+        }
+        let config = self.lexer_config();
+        let segs: Vec<SegmentedCommand> = {
+            let sm = SourceMap::new(&self.source);
+            let descended = descend_token(&sm, body_tok, config);
+            segments_from_tree(descended.tree(), &sm)
+        };
+        for element in &elements[1..] {
+            self.set_const_string(var, element.clone(), body_tok.span, scope_path);
+            for seg in &segs {
+                match seg.name() {
+                    "rename" => {
+                        self.handle_rename(
+                            seg.args(),
+                            seg.arg_tokens(),
+                            seg.arg_single_token(),
+                            scope_path,
+                            seg.span.start(),
+                        );
+                    }
+                    "proc" => {
+                        self.handle_proc_command(
+                            seg.args(),
+                            seg.arg_tokens(),
+                            seg.arg_single_token(),
+                            scope_path,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 
     /// Handle `for init test next body`.
@@ -4259,6 +4392,7 @@ mod tests {
                 str_tok(span(10, 20)),
             ],
             &[],
+            &[],
         );
         a.handle_proc_command(
             &["foo".to_string(), String::new(), "return TWO".to_string()],
@@ -4267,6 +4401,7 @@ mod tests {
                 esc_tok(span(34, 34)),
                 str_tok(span(35, 45)),
             ],
+            &[],
             &[],
         );
         assert_eq!(a.result.all_procs["::foo"].body_span, span(35, 45));
@@ -4294,6 +4429,7 @@ mod tests {
                 str_tok(span(15, 25)),
             ],
             &[],
+            &[],
         );
         assert!(handled);
         assert!(a.result.all_procs.contains_key("::foo"));
@@ -4320,6 +4456,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[0],
         );
         assert!(handled);
@@ -4345,6 +4482,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[0],
         );
         let scope = &a.result.global_scope.children[0];
@@ -4379,6 +4517,7 @@ mod tests {
                 str_tok(span(18, 20)),
                 str_tok(span(21, 23)),
             ],
+            &[],
             &[0],
         );
         assert!(handled);
@@ -4399,6 +4538,7 @@ mod tests {
                 str_tok(span(7, 9)),
             ],
             &[],
+            &[],
         );
         assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
         // last_comment is consumed.
@@ -4408,7 +4548,7 @@ mod tests {
     #[test]
     fn handle_proc_too_few_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_proc_command(&["foo".to_string()], &[esc_tok(span(0, 3))], &[]);
+        let handled = a.handle_proc_command(&["foo".to_string()], &[esc_tok(span(0, 3))], &[], &[]);
         assert!(!handled);
         assert!(a.result.all_procs.is_empty());
     }
@@ -4433,6 +4573,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[],
         );
         let w113s: Vec<&crate::analyser::types::Diagnostic> = a
@@ -4461,6 +4602,7 @@ mod tests {
                 str_tok(span(12, 14)),
             ],
             &[],
+            &[],
         );
         assert!(
             !a.result
@@ -4486,6 +4628,7 @@ mod tests {
                 str_tok(span(14, 16)),
             ],
             &[],
+            &[],
         );
         assert!(
             a.result
@@ -4507,6 +4650,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[],
         );
         let w113 = a
@@ -4537,6 +4681,7 @@ mod tests {
                 str_tok(span(13, 15)),
             ],
             &[],
+            &[],
         );
         assert!(
             a.result
@@ -4556,6 +4701,7 @@ mod tests {
                 str_tok(span(10, 12)),
                 str_tok(span(13, 15)),
             ],
+            &[],
             &[],
         );
         assert!(
@@ -4581,6 +4727,7 @@ mod tests {
                 str_tok(span(19, 21)),
                 str_tok(span(22, 24)),
             ],
+            &[],
             &[],
         );
         assert!(
@@ -4608,6 +4755,7 @@ mod tests {
                 str_tok(span(12, 14)),
             ],
             &[],
+            &[],
         );
         assert_eq!(a.result.global_scope.children.len(), 1);
         let proc_scope = &a.result.global_scope.children[0];
@@ -4628,6 +4776,7 @@ mod tests {
                 esc_tok(span(9, 14)),
                 str_tok(span(15, 17)),
             ],
+            &[],
             &[],
         );
         let proc_scope = &a.result.global_scope.children[0];
@@ -4656,6 +4805,7 @@ mod tests {
                 str_tok(span(13, 22)),
             ],
             &[],
+            &[],
         );
         let proc_scope = &a.result.global_scope.children[0];
         assert!(
@@ -4681,6 +4831,7 @@ mod tests {
                 str_tok(span(13, 25)),
             ],
             &[],
+            &[],
         );
         let proc_scope = &a.result.global_scope.children[0];
         assert!(proc_scope.variables.contains_key("a"));
@@ -4703,6 +4854,7 @@ mod tests {
                 str_tok(span(11, 13)),
                 str_tok(span(15, 33)),
             ],
+            &[],
             &[],
         );
         // Outer proc registered.
@@ -4735,6 +4887,7 @@ mod tests {
             &["foo".to_string(), String::new(), "$body".to_string()],
             &[esc_tok(span(5, 8)), str_tok(span(9, 11)), var_tok],
             &[],
+            &[],
         );
         assert!(a.result.all_procs.contains_key("::foo"));
         // No proc scope opened — Str gate failed.
@@ -4756,6 +4909,7 @@ mod tests {
                 str_tok(span(12, 14)),
             ],
             &[],
+            &[],
         );
         assert_eq!(a.body_depth, 0);
     }
@@ -4776,6 +4930,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[],
         );
         assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
@@ -6391,6 +6546,145 @@ mod tests {
         assert!(!handled);
     }
 
+    // Dynamic proc names + the foreach rename-and-reinstall idiom (issue
+    // #923 idx 86): `tk/library/accessibility.tcl`'s `foreach wtype {...} {
+    // rename ::$wtype ::tk::accessible::orig_$wtype ; proc ::$wtype {args}
+    // {...} }` renames each classic widget command away and reinstalls a
+    // wrapper under the same original name.
+
+    #[test]
+    fn handle_proc_command_dynamic_name_resolves_via_constant_fold() {
+        // TP — the finding's own non-foreach isolation repro: a plain `set`
+        // constant, no loop at all. `proc ::$wtype {...}` previously never
+        // attempted to constant-fold its name at all (unlike `rename`,
+        // fixed for idx 3), registering under the literal garbled text
+        // instead of resolving `wtype`'s known value.
+        let mut a = Analyser::new();
+        let src = "set wtype button\nproc ::$wtype {} {return ok}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.all_procs.contains_key("::button"),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains('$')),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn handle_proc_command_unresolvable_dynamic_name_keeps_raw_text() {
+        // TN — a genuinely dynamic name (no constant to fold against) keeps
+        // today's existing (unchanged) fallback behaviour: this fix only
+        // *improves* the resolvable case, per its own scope boundary.
+        let mut a = Analyser::new();
+        let src = "proc ::$wtype {} {return ok}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.all_procs.keys().any(|k| k.contains("wtype")),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn handle_foreach_rename_reinstall_idiom_resolves_every_literal_element() {
+        // TP — the finding's own corpus repro shape: `tk/library/
+        // accessibility.tcl` renames each classic widget command away and
+        // reinstalls a wrapper proc under the same name, once per element
+        // of a literal `foreach` list. tclsh9.0/8.6 both prove `button`/
+        // `entry` are the *new* wrapper procs afterwards; the old bodies
+        // live only at `::tk::accessible::orig_button`/`orig_entry`.
+        let mut a = Analyser::new();
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        // Both wrapper redefinitions are registered, at the *same* physical
+        // source location (the one templated `proc ::$wtype ...`
+        // statement) — genuinely correct: there is only one place in the
+        // source that defines either of them.
+        let button_def = r.all_procs.get("::button").expect("::button registered");
+        let entry_def = r.all_procs.get("::entry").expect("::entry registered");
+        assert_eq!(button_def.body_span, entry_def.body_span);
+        // No garbled `${wtype}`-named entry left behind.
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains('$')),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        // The old, pre-rename bodies are reachable only via their new
+        // `orig_*` names.
+        assert_eq!(
+            r.renamed_commands.get("::tk::accessible::orig_button"),
+            Some(&"::button".to_string())
+        );
+        assert_eq!(
+            r.renamed_commands.get("::tk::accessible::orig_entry"),
+            Some(&"::entry".to_string())
+        );
+    }
+
+    #[test]
+    fn handle_foreach_rename_reinstall_idiom_is_not_overfit_to_two_elements() {
+        // FP guard — a third element proves the per-iteration simulation
+        // isn't hardcoded to exactly the corpus's own two widget names.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::ns {\n    \
+                   foreach wtype {button entry checkbutton} {\n        \
+                   rename ::$wtype ::ns::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        for name in ["::button", "::entry", "::checkbutton"] {
+            assert!(
+                r.all_procs.contains_key(name),
+                "{name} missing: {:?}",
+                r.all_procs.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn handle_foreach_multi_pair_form_does_not_trigger_the_literal_simulation() {
+        // TN — the idx 70 multi-list lock-step form (`foreach v1 l1 v2 l2
+        // body`) is a different arg shape; the single-pair-only literal
+        // simulation must not misfire on it.
+        let mut a = Analyser::new();
+        let src = "foreach a {1 2} b {3 4} {\n    rename ::$a ::orig_$a\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(r.renamed_commands.is_empty(), "{:?}", r.renamed_commands);
+    }
+
+    #[test]
+    fn handle_foreach_dynamic_list_does_not_trigger_the_literal_simulation() {
+        // TN — a non-literal list (a variable, not a literal element list)
+        // can't be simulated; must abstain exactly as before this fix.
+        let mut a = Analyser::new();
+        let src = "set items {button entry}\nforeach wtype $items {\n    rename ::$wtype ::orig_$wtype\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(r.renamed_commands.is_empty(), "{:?}", r.renamed_commands);
+    }
+
+    #[test]
+    fn handle_foreach_non_idiom_body_is_unaffected() {
+        // TN — an ordinary literal-list foreach with no rename/proc inside
+        // must see no new side effects from the idiom-recognition code.
+        let mut a = Analyser::new();
+        let src = "foreach x {a b c} {\n    puts $x\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(r.renamed_commands.is_empty());
+        assert!(!r.all_procs.keys().any(|k| k.contains('$')));
+    }
+
     // handle_for_command
 
     #[test]
@@ -6706,6 +7000,7 @@ mod tests {
                 str_tok(span(12, 14)),
             ],
             &[],
+            &[],
         );
         let resolved = a.resolve_proc_call("::foo", &[]);
         assert!(resolved.is_some());
@@ -6729,6 +7024,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[0],
         );
         // Resolve from inside ns1 — should find ::ns1::foo.
@@ -6749,6 +7045,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[],
         );
         a.result
@@ -6842,6 +7139,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[0],
         );
         // Resolving from ::a::b::c (scope_path [0, 0, 0]) must NOT reach

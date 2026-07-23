@@ -3194,4 +3194,55 @@ mod tests {
         let locs = definition(src, 4, 2, &analysis);
         assert!(locs.is_empty(), "{locs:?}");
     }
+
+    #[test]
+    fn foreach_rename_reinstall_call_site_resolves_to_the_wrapper_not_the_stale_original() {
+        // TP — issue #923 idx 86, the finding's own `tk/library/
+        // accessibility.tcl` repro shape: a literal-list `foreach` renames
+        // each classic widget command away and reinstalls a wrapper proc
+        // under the same original name. tclsh9.0/8.6 both prove `button`
+        // is the *new* wrapper proc after the loop runs — the old body is
+        // reachable only via `::tk::accessible::orig_button`. Go-to
+        // -definition on a `button` call made after the loop must resolve
+        // to the wrapper's own declaration (inside the loop), not the
+        // stale, pre-rename `proc button` at the top of the file.
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n\
+                   set r1 [button .b1]\n\
+                   set r2 [entry .e1]\n";
+        let analysis = analyse(src);
+        // Line 8: `set r1 [button .b1]` — cursor on "button".
+        let locs = definition(src, 8, 9, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // Resolves to the wrapper's own `proc ::$wtype ...` declaration
+        // (line 5), not the stale original `proc button` (line 0).
+        assert_eq!(locs[0].start_line, 5);
+    }
+
+    #[test]
+    fn foreach_rename_reinstall_second_element_also_resolves_to_its_own_wrapper() {
+        // TP sibling — proves the fix isn't overfit to the *first* literal
+        // list element: `entry` (the second element) resolves too.
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n\
+                   set r1 [button .b1]\n\
+                   set r2 [entry .e1]\n";
+        let analysis = analyse(src);
+        // Line 9: `set r2 [entry .e1]` — cursor on "entry".
+        let locs = definition(src, 9, 9, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 5);
+    }
 }

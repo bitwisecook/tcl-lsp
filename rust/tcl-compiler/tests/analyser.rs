@@ -1771,16 +1771,22 @@ mod rename {
     }
 
     #[test]
-    fn foreach_loop_variable_is_not_constant_folded() {
-        // FN (expected, documented — not a regression): a `foreach`
-        // loop variable is never entered into the constant-string
-        // lattice (`define_vars_from_list` only calls `define_var`),
-        // so a rename built from it isn't foldable by this
-        // intentionally-scoped-down Tier-1 fix even though the list
-        // here has a single literal element.
+    fn foreach_loop_variable_over_a_literal_list_is_constant_folded() {
+        // Was FN (documented at idx 3's landing) — closed by issue #923 idx
+        // 86: a `foreach VAR {literal list} { ... }` loop over a fully
+        // literal list now binds `VAR` to each element in turn before
+        // simulating the body's own `rename`/`proc` sub-commands (the two
+        // constant-fold-sensitive callers go-to-definition/references/
+        // rename care about), rather than leaving the loop variable out of
+        // the constant-string lattice entirely. `renamed_commands` is
+        // populated the same as if `c` had been a plain top-level `set`
+        // constant.
         let src =
             "proc ::foo_impl {} { return impl }\nforeach c {foo} { rename ::${c}_impl ::${c} }\n";
-        assert!(!renamed_commands(src).contains_key("::foo"));
+        assert_eq!(
+            renamed_commands(src).get("::foo"),
+            Some(&"::foo_impl".to_string())
+        );
     }
 
     #[test]

@@ -2367,6 +2367,36 @@ mod tests {
     }
 
     #[test]
+    fn references_reach_the_call_site_from_the_stale_original_in_a_foreach_rename_reinstall_idiom()
+    {
+        // TP — issue #923 idx 86, mirroring the same-file precedent set by
+        // `references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document`
+        // (idx 31): cursor on a superseded declaration resolves by *name*,
+        // landing on whichever declaration currently wins under that name
+        // — not the stale span the cursor happened to start on. Here the
+        // "shadowing" declaration is the `tk/library/accessibility.tcl`
+        // rename-and-reinstall idiom's own per-element wrapper (issue #923
+        // idx 86), reached only by simulating each literal `foreach`
+        // element rather than by a second textual `proc` statement.
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n\
+                   set r1 [button .b1]\n\
+                   set r2 [entry .e1]\n";
+        let analysis = analyse(src);
+        // Cursor on the STALE original `proc button` declaration (line 0).
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&5), "winning wrapper decl missing: {refs:?}");
+        assert!(lines.contains(&8), "call site missing: {refs:?}");
+    }
+
+    #[test]
     fn references_to_proc_include_decl_and_calls() {
         let src = "proc greet {} {}\ngreet\ngreet\n";
         let analysis = analyse(src);

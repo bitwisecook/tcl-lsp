@@ -456,3 +456,34 @@ fn tk_ensemble_configure_splice_resolves_to_the_real_target_not_a_decoy() {
         "must resolve to the real `proc ::tk::systray` (line 3), not the same-tail-name decoy inside ::decoy (line 1): {locs:?}"
     );
 }
+
+/// idx 86 (differential-audit main audit wave, high severity, tk corpus):
+/// the real `tk/library/accessibility.tcl` idiom renames each classic
+/// widget command away and reinstalls a wrapper proc under the same
+/// original name, once per element of a literal `foreach` list —
+/// `foreach wtype {button entry ...} { rename ::$wtype ::tk::accessible::
+/// orig_$wtype ; proc ::$wtype {args} {...} }`. tclsh9.0/8.6 both prove
+/// `button` is the *new* wrapper afterwards; the old body survives only as
+/// `::tk::accessible::orig_button`. The dynamic `$wtype` name previously
+/// never attempted constant-folding at all (unlike `rename`'s own operands,
+/// fixed for idx 3), so both `rename` and `proc` registered under garbled
+/// literal text instead — go-to-definition on a `button` call site fell
+/// through to the stale, pre-rename `proc button` declaration.
+#[test]
+fn foreach_rename_reinstall_idiom_resolves_to_the_wrapper_not_the_stale_original() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc button {args} {return orig_button}\nproc entry {args} {return orig_entry}\nnamespace eval ::tk::accessible {\n    foreach wtype {button entry} {\n        rename ::$wtype ::tk::accessible::orig_$wtype\n        proc ::$wtype {args} {return wrapped}\n    }\n}\nset r1 [button .b1]\nset r2 [entry .e1]\n",
+    );
+    // Line 8: `set r1 [button .b1]` — cursor on "button".
+    let result = lsp.definition(&uri, 8, 9);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        5,
+        "must resolve to the wrapper's own `proc ::$wtype` declaration (line 5) inside the loop, not the stale original `proc button` (line 0): {locs:?}"
+    );
+}
