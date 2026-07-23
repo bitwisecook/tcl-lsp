@@ -891,6 +891,19 @@ impl Analyser {
             .entry(scope_path.to_vec())
             .or_default()
             .insert(var_name.to_string(), (value, value_span));
+        // Track whether this binding's *current* value dominates uses after
+        // an `if`/`try` join. A conditional write (`conditional_depth > 0`)
+        // does not; a straight-line (depth-0) write does and re-establishes
+        // dominance over any earlier conditional one (Codex review, PR
+        // #1020 — see `nondominating_consts` / `lookup_dominating_const_string`).
+        if self.conditional_depth > 0 {
+            self.nondominating_consts
+                .entry(scope_path.to_vec())
+                .or_default()
+                .insert(var_name.to_string());
+        } else if let Some(set) = self.nondominating_consts.get_mut(scope_path) {
+            set.remove(var_name);
+        }
     }
 
     /// Remove constant-value knowledge for `var_name` (re-assigned
@@ -899,6 +912,38 @@ impl Analyser {
         if let Some(map) = self.const_strings.get_mut(scope_path) {
             map.remove(var_name);
         }
+        if let Some(set) = self.nondominating_consts.get_mut(scope_path) {
+            set.remove(var_name);
+        }
+    }
+
+    /// Like [`Self::lookup_const_string`], but only returns a value that
+    /// **dominates** this use site — i.e. whose nearest-enclosing-scope
+    /// binding was last written straight-line (not inside an `if`/`try`
+    /// body). A binding poisoned in [`Self::nondominating_consts`] at the
+    /// scope where it is found yields `None`: the value is branch-dependent,
+    /// so identity resolution (`source`/`rename` targets) must abstain
+    /// rather than pick the last-written branch (Codex review, PR #1020).
+    /// The nearest binding still wins — a poisoned inner binding shadows an
+    /// outer dominating one, exactly as Tcl variable scoping would.
+    #[must_use]
+    pub fn lookup_dominating_const_string(
+        &self,
+        var_name: &str,
+        scope_path: &[usize],
+    ) -> Option<&str> {
+        for ancestor in ancestor_paths(scope_path) {
+            if let Some(map) = self.const_strings.get(&ancestor)
+                && let Some((value, _)) = map.get(var_name)
+            {
+                let poisoned = self
+                    .nondominating_consts
+                    .get(&ancestor)
+                    .is_some_and(|s| s.contains(var_name));
+                return if poisoned { None } else { Some(value.as_str()) };
+            }
+        }
+        None
     }
 
     /// Look up the constant string value for `var_name`, walking

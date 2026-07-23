@@ -3217,11 +3217,32 @@ impl Analyser {
             return Some(text.to_string());
         }
         let tok = tok?;
-        if let Some(resolved) = self.resolve_const_word(text, tok, is_single, scope_path) {
-            return Some(resolved);
+        // Identity resolution (a `source`/`rename` target) must resolve only
+        // through const values that *dominate* this use site — never the
+        // last-write-wins branch value the lexical map otherwise carries.
+        // `set p a.tcl; if {$c} {set p b.tcl}; source $p` must abstain here,
+        // not pin the source to `b.tcl` (Codex review, PR #1020): a
+        // branch-conditional binding cannot prove a unique target, so
+        // `lookup_dominating_const_string` yields `None` for it. This differs
+        // from `resolve_const_word` / `lookup_const_string`, which other
+        // callers (expansion counts, regex-var tagging) still use with their
+        // existing last-write-wins semantics.
+        if is_single && matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+            return Some(text.to_string());
+        }
+        if is_single && tok.kind == TokenType::Var {
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
+            let var_name = sm.token_text(tok);
+            return self
+                .lookup_dominating_const_string(var_name, scope_path)
+                .map(str::to_string);
         }
         crate::text::fold_interpolation_single(text, |name| {
-            self.lookup_const_string(name, scope_path)
+            self.lookup_dominating_const_string(name, scope_path)
                 .map(str::to_string)
         })
     }

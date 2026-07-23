@@ -76,6 +76,9 @@ pub struct AnalyserSnapshot {
     pub renamed_commands: HashMap<String, String>,
     /// Per-scope const-string tracker.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+    /// Per-scope set of const-string names whose current value was written
+    /// conditionally (see [`Analyser::nondominating_consts`]).
+    pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
     /// Variables known to contain regex patterns.
     pub regex_vars: HashSet<(Vec<usize>, String)>,
     /// Variable-as-command call sites collected during the walk.
@@ -123,6 +126,7 @@ impl Analyser {
             command_aliases: self.command_aliases.clone(),
             renamed_commands: self.renamed_commands.clone(),
             const_strings: self.const_strings.clone(),
+            nondominating_consts: self.nondominating_consts.clone(),
             regex_vars: self.regex_vars.clone(),
             var_command_sites: self.var_command_sites.clone(),
             cmd_command_sites: self.cmd_command_sites.clone(),
@@ -156,6 +160,7 @@ impl Analyser {
         self.command_aliases = snap.command_aliases;
         self.renamed_commands = snap.renamed_commands;
         self.const_strings = snap.const_strings;
+        self.nondominating_consts = snap.nondominating_consts;
         self.regex_vars = snap.regex_vars;
         self.var_command_sites = snap.var_command_sites;
         self.cmd_command_sites = snap.cmd_command_sites;

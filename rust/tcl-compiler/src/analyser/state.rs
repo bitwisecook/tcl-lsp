@@ -212,6 +212,18 @@ pub struct Analyser {
     /// Keyed on the path vector so snapshot/restore doesn't have to
     /// remap pointers.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+    /// Per-scope set of const-string bindings whose *current* value was
+    /// last written inside an ``if`` / ``try`` body (``conditional_depth >
+    /// 0``) — a write that does **not** dominate code after the conditional
+    /// join. [`Self::set_const_string`] adds a name here when the write is
+    /// conditional and removes it on a later straight-line (depth-0) write;
+    /// [`Self::lookup_dominating_const_string`] consults it so identity
+    /// resolution (`source`/`rename` targets via
+    /// [`Self::resolve_dynamic_word`]) abstains rather than pick a
+    /// branch-dependent value (Codex review, PR #1020). Kept as a side set
+    /// so the many other `const_strings` readers (regex vars, expansion
+    /// counts, …) keep their existing last-write-wins behaviour untouched.
+    pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
     /// Variables known to contain regex patterns:
     /// ``(scope_path, var_name)``.
     pub regex_vars: HashSet<(Vec<usize>, String)>,
@@ -804,6 +816,7 @@ impl Analyser {
             last_comment: String::new(),
             file_path: None,
             const_strings: HashMap::new(),
+            nondominating_consts: HashMap::new(),
             regex_vars: HashSet::new(),
             current_event: None,
             tk_possibly_active: false,

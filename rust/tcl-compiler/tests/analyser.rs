@@ -1957,6 +1957,33 @@ mod rename {
     }
 
     #[test]
+    fn rename_target_set_only_in_a_conditional_branch_does_not_resolve() {
+        // Codex review (PR #1020): a `rename`/`source` target read from the
+        // last-write-wins const map is unsound across an `if` join. Here `t`
+        // is `::foo` straight-line but reassigned `::bar` inside an `if`
+        // body, so at the `rename` it could be either — the analyser must
+        // abstain (leave the rename dynamic), never pin it to the branch
+        // value `::bar` the lexical map happens to hold last.
+        let renamed = renamed_commands(
+            "proc ::foo_impl {} {}\nset t ::foo\nif {$cond} { set t ::bar }\nrename ::foo_impl $t\n",
+        );
+        assert!(
+            !renamed.contains_key("::bar") && !renamed.contains_key("::foo"),
+            "a branch-dependent rename target must not resolve to either branch: {renamed:?}"
+        );
+    }
+
+    #[test]
+    fn rename_target_set_straight_line_still_resolves() {
+        // Control for the above: without the conditional, the single
+        // straight-line `set` dominates the `rename`, so it still resolves
+        // (issue #923 idx 3 behaviour unchanged).
+        let renamed =
+            renamed_commands("proc ::foo_impl {} {}\nset t ::foo\nrename ::foo_impl $t\n");
+        assert_eq!(renamed.get("::foo"), Some(&"::foo_impl".to_string()));
+    }
+
+    #[test]
     fn proc_parameter_is_not_constant_folded() {
         // FN (expected, documented — explicitly out of scope per idx 3's
         // research plan: closing this needs interprocedural single-
