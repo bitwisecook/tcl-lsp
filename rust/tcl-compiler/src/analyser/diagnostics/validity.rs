@@ -2463,9 +2463,9 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                 .stub_expr_defs
                 .iter()
                 .filter(|s| {
-                    BUILTIN_MATH_FUNCTIONS.contains(&s.name.as_str())
-                        || BUILTIN_EXPR_OPS.contains(&s.name.as_str())
-                        || (irules && IRULES_EXPR_OPS.contains(&s.name.as_str()))
+                    is_builtin_math_function(&s.name)
+                        || is_builtin_expr_op(&s.name)
+                        || (irules && is_irules_only_expr_op(&s.name))
                 })
                 .map(|s| (s.name.clone(), s.kind.clone(), s.range))
                 .collect();
@@ -2932,7 +2932,7 @@ in the active dialect ({}).",
         if !contains_gated_word(expr_text) {
             return;
         }
-        let Some((pre_85, pre_90)) = self.w003_gates() else {
+        let Some(base) = self.w003_gates() else {
             return;
         };
 
@@ -2957,7 +2957,7 @@ in the active dialect ({}).",
         let gated: Vec<(&tcl_lexer::ExprToken, &'static str)> = tokens
             .iter()
             .filter(|t| t.kind == tcl_lexer::ExprTokenType::Operator)
-            .filter_map(|t| gated_operator_name(&t.text, pre_85, pre_90).map(|name| (t, name)))
+            .filter_map(|t| gated_operator_name(&t.text, base).map(|name| (t, name)))
             .collect();
         if gated.is_empty() {
             return;
@@ -3073,7 +3073,7 @@ in the active dialect ({}).",
         if !contains_gated_word(joined_text) {
             return;
         }
-        let Some((pre_85, pre_90)) = self.w003_gates() else {
+        let Some(base) = self.w003_gates() else {
             return;
         };
         let parsed = crate::parse_expr(joined_text.trim(), Some(self.dialect()));
@@ -3081,7 +3081,7 @@ in the active dialect ({}).",
             return;
         }
         for (word, tok) in args.iter().zip(arg_tokens.iter()) {
-            let Some(op_name) = gated_operator_name(word, pre_85, pre_90) else {
+            let Some(op_name) = gated_operator_name(word, base) else {
                 continue;
             };
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -3102,103 +3102,59 @@ in the active dialect ({}).",
         }
     }
 
-    /// Resolve whether the active dialect gates TIP 201 (`in`/`ni`)
-    /// and/or TIP 461 (`lt`/`le`/`gt`/`ge`) `expr` operators, as
-    /// `(pre_85, pre_90)`. `None` when the active dialect string has
-    /// no documented `expr`-grammar base version, or neither TIP is
-    /// gated (nothing for W003 to check).
-    fn w003_gates(&self) -> Option<(bool, bool)> {
-        use tcl_dialect::{DialectProfile, TclVersion};
-        let base = DialectProfile::by_name(self.dialect()).expr_grammar_base?;
-        // Pre-Tcl-8.5 runtimes don't accept `in` / `ni` (TIP 201).
-        let pre_85 = base < TclVersion::V8_5;
-        // Pre-Tcl-9.0 runtimes don't accept `lt` / `le` / `gt` / `ge`
-        // (TIP 461); 9.0 and 9.1 both do.
-        let pre_90 = base < TclVersion::V9_0;
-        (pre_85 || pre_90).then_some((pre_85, pre_90))
+    /// The active dialect's `expr`-grammar base version, or `None` when the
+    /// dialect string has no documented one (nothing for W003 to check —
+    /// see [`gated_operator_name`], which does the real per-operator
+    /// version comparison against this).
+    fn w003_gates(&self) -> Option<tcl_dialect::TclVersion> {
+        tcl_dialect::DialectProfile::by_name(self.dialect()).expr_grammar_base
     }
 }
 
-/// Built-in `expr` math functions.  Used by the
-/// W117 stub-shadow check.
-const BUILTIN_MATH_FUNCTIONS: &[&str] = &[
-    "abs",
-    "acos",
-    "asin",
-    "atan",
-    "atan2",
-    "bool",
-    "ceil",
-    "cos",
-    "cosh",
-    "double",
-    "entier",
-    "exp",
-    "floor",
-    "fmod",
-    "hypot",
-    "int",
-    "isinf",
-    "isnan",
-    "isqrt",
-    "log",
-    "log10",
-    "max",
-    "min",
-    "pow",
-    "rand",
-    "round",
-    "sin",
-    "sinh",
-    "sqrt",
-    "srand",
-    "tan",
-    "tanh",
-    "wide",
-    // Tcl 9.1 C99 math functions (TIP 745), verified against
-    // `tmp/tcl9.1-src/changes.md`.  The multi-value C99 functions land as the
-    // `divmod`/`frexp`/`modf`/`remquo` *commands* instead.
-    "acosh",
-    "asinh",
-    "atanh",
-    "cbrt",
-    "copysign",
-    "dim",
-    "erf",
-    "erfc",
-    "exp2",
-    "expm1",
-    "fma",
-    "gamma",
-    "ldexp",
-    "lgamma",
-    "log1p",
-    "log2",
-    "logb",
-    "nextafter",
-    "remainder",
-    "signbit",
-    "trunc",
-];
+/// Whether `name` is a built-in `expr` math function (`sin`, `max`, the TIP
+/// 745 C99 batch, …) in *any* dialect — used by the W117 stub-shadow check,
+/// which doesn't have (and doesn't need) a specific dialect to check against
+/// here since a stub shadowing a function that exists in some other dialect
+/// is still worth flagging. Derived from
+/// [`tcl_syntax::expr::mathfunc::added_in`] — issue #983's unification —
+/// rather than a hand-typed list that had already drifted once (`added_in`
+/// claiming the TIP 745 batch before `dispatch()` actually implemented it).
+fn is_builtin_math_function(name: &str) -> bool {
+    tcl_syntax::expr::mathfunc::added_in(name).is_some()
+}
 
-/// Built-in `expr` operators.
-const BUILTIN_EXPR_OPS: &[&str] = &[
-    "!", "!=", "%", "&", "&&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>",
-    "^", "eq", "ge", "gt", "in", "le", "lt", "ne", "ni", "|", "||", "~",
-];
+/// Whether `name` is a built-in `expr` operator spelling **not** gated to
+/// iRules only (`+`, `in`, `**`, `eq`, …) — used by the W117 stub-shadow
+/// check. Derived from [`tcl_syntax::expr::operators`] (issue #983's
+/// unification) rather than a hand-typed list: a `BinOp`/`UnaryOp` whose
+/// `dialects` isn't exactly `Some(DialectSet::IRULES)` is available outside
+/// iRules (`None` = ungated, `Some(TCL90_PLUS)` etc. = version-gated but not
+/// dialect-*identity*-gated — both count as "built-in" here; only the nine
+/// iRules word operators are excluded).
+fn is_builtin_expr_op(name: &str) -> bool {
+    use tcl_registry::prelude::DialectSet;
+    tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
+        let spec = op.spec();
+        spec.spelling == name && spec.dialects != Some(DialectSet::IRULES)
+    }) || tcl_syntax::expr::operators::ALL_UNARY_OPS.iter().any(|op| {
+        let spec = op.spec();
+        spec.spelling == name && spec.dialects != Some(DialectSet::IRULES)
+    })
+}
 
-/// iRules-only `expr` operators.
-const IRULES_EXPR_OPS: &[&str] = &[
-    "and",
-    "contains",
-    "ends_with",
-    "equals",
-    "matches_glob",
-    "matches_regex",
-    "not",
-    "or",
-    "starts_with",
-];
+/// Whether `name` is one of the nine iRules-only word operators (`and`,
+/// `contains`, `not`, …) — see [`is_builtin_expr_op`]'s doc for the
+/// derivation and why these are excluded there.
+fn is_irules_only_expr_op(name: &str) -> bool {
+    use tcl_registry::prelude::DialectSet;
+    tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
+        let spec = op.spec();
+        spec.spelling == name && spec.dialects == Some(DialectSet::IRULES)
+    }) || tcl_syntax::expr::operators::ALL_UNARY_OPS.iter().any(|op| {
+        let spec = op.spec();
+        spec.spelling == name && spec.dialects == Some(DialectSet::IRULES)
+    })
+}
 
 /// Scan `args` for the first positional argument that lacks a
 /// preceding `--` terminator.
@@ -3324,68 +3280,64 @@ pub(super) fn last_literal_set_value_for_var(
 ///
 /// Single source for the three W003 steps — the prefilter
 /// ([`contains_gated_word`]), the per-token gate check ([`gated_operator_name`]),
-/// and the message ([`w003_tip_citation`]) — which were previously three
-/// separate hardcoded matches that had drifted (the symbolic `**` was in none
-/// of them, so `expr {2 ** 3}` under tcl8.4 was a false negative).
+/// and the message ([`w003_tip_citation`]). `op`/`word_shaped`/`min_version`
+/// are derived from [`tcl_syntax::expr::operators`] (issue #983's
+/// unification) — only the TIP citation number is still local prose (two
+/// operators can share a minimum version but not a TIP: `**` is TIP 123,
+/// `in`/`ni` is TIP 201, both Tcl 8.5). Before the `tcl_syntax` derivation
+/// this whole table was three separate hardcoded matches that had drifted
+/// from each other (the symbolic `**` was in none of them, so
+/// `expr {2 ** 3}` under tcl8.4 was a false negative).
 struct GatedExprOp {
     /// The operator text as the expr lexer emits it (`in`, `**`).
     op: &'static str,
     /// Word-shaped (`in`/`lt`) operators need identifier-boundary matching in
     /// the prefilter; symbolic ones (`**`) match on any occurrence.
     word_shaped: bool,
-    /// `true` = needs Tcl 8.5+ (gated under `pre_85`); `false` = needs Tcl 9.0+
-    /// (gated under `pre_90`).
-    needs_85: bool,
+    /// The oldest Tcl release whose `expr` grammar parses this operator.
+    min_version: tcl_dialect::TclVersion,
     /// The TIP citation surfaced in the W003 message.
     tip: &'static str,
 }
 
+/// The TIP citation string for `spelling`'s W003 message — the one fact a
+/// gated operator's `tcl_syntax::expr::operators::OperatorSpec` doesn't
+/// carry (see [`GatedExprOp`]'s docs for why).
+fn w003_tip_string(spelling: &str) -> &'static str {
+    match spelling {
+        "**" => "Tcl 8.5+ (TIP 123)",
+        "in" | "ni" => "Tcl 8.5+ (TIP 201)",
+        // "lt" | "le" | "gt" | "ge", and the fallback `gated_expr_ops()`
+        // itself guarantees no other spelling ever reaches this function.
+        _ => "Tcl 9.0+ (TIP 461)",
+    }
+}
+
 /// The version-gated `expr` operators (`in`/`ni`/`**` from 8.5; the string
-/// comparison words `lt`/`le`/`gt`/`ge` from 9.0).
-const GATED_EXPR_OPS: &[GatedExprOp] = &[
-    GatedExprOp {
-        op: "in",
-        word_shaped: true,
-        needs_85: true,
-        tip: "Tcl 8.5+ (TIP 201)",
-    },
-    GatedExprOp {
-        op: "ni",
-        word_shaped: true,
-        needs_85: true,
-        tip: "Tcl 8.5+ (TIP 201)",
-    },
-    GatedExprOp {
-        op: "**",
-        word_shaped: false,
-        needs_85: true,
-        tip: "Tcl 8.5+ (TIP 123)",
-    },
-    GatedExprOp {
-        op: "lt",
-        word_shaped: true,
-        needs_85: false,
-        tip: "Tcl 9.0+ (TIP 461)",
-    },
-    GatedExprOp {
-        op: "le",
-        word_shaped: true,
-        needs_85: false,
-        tip: "Tcl 9.0+ (TIP 461)",
-    },
-    GatedExprOp {
-        op: "gt",
-        word_shaped: true,
-        needs_85: false,
-        tip: "Tcl 9.0+ (TIP 461)",
-    },
-    GatedExprOp {
-        op: "ge",
-        word_shaped: true,
-        needs_85: false,
-        tip: "Tcl 9.0+ (TIP 461)",
-    },
-];
+/// comparison words `lt`/`le`/`gt`/`ge` from 9.0) — every `BinOp` whose
+/// [`tcl_syntax::expr::operators::OperatorSpec::expr_grammar_min_version`]
+/// is `Some(_)`. Computed once (not `const`: `OperatorSpec` isn't cheaply
+/// iterable in a const context) and cached for the process lifetime — W003
+/// only calls into this after its own text prefilter narrows to expressions
+/// that already contain a gated keyword, so this never runs on a hot path.
+fn gated_expr_ops() -> &'static [GatedExprOp] {
+    static TABLE: std::sync::OnceLock<Vec<GatedExprOp>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        tcl_syntax::expr::operators::ALL_BIN_OPS
+            .iter()
+            .filter_map(|op| {
+                let spec = op.spec();
+                let min_version = spec.expr_grammar_min_version?;
+                Some(GatedExprOp {
+                    op: spec.spelling,
+                    word_shaped: spec.spelling.as_bytes()[0].is_ascii_alphabetic(),
+                    min_version,
+                    tip: w003_tip_string(spec.spelling),
+                })
+            })
+            .collect()
+    })
+}
 
 /// Return `true` if `text` contains any dialect-gated expression operator (a
 /// word-shaped one as a whole word, or a symbolic one such as `**` anywhere).
@@ -3395,7 +3347,7 @@ const GATED_EXPR_OPS: &[GatedExprOp] = &[
 /// matching Tcl expr's tolerance for arbitrary whitespace between tokens.
 pub(super) fn contains_gated_word(text: &str) -> bool {
     let bytes = text.as_bytes();
-    for g in GATED_EXPR_OPS {
+    for g in gated_expr_ops() {
         let needle = g.op.as_bytes();
         let n = needle.len();
         let mut i = 0;
@@ -3414,20 +3366,19 @@ pub(super) fn contains_gated_word(text: &str) -> bool {
     false
 }
 
-/// The gated operator name for `word`, given which TIPs are
-/// unavailable in the active dialect — `None` when `word` isn't one
-/// of the six dialect-gated keywords, or the relevant TIP is actually
-/// available (`pre_85`/`pre_90` both false for it).
-fn gated_operator_name(word: &str, pre_85: bool, pre_90: bool) -> Option<&'static str> {
-    GATED_EXPR_OPS
+/// The gated operator name for `word` under a dialect whose `expr`-grammar
+/// base version is `base` — `None` when `word` isn't one of the
+/// dialect-gated keywords, or `base` already satisfies its minimum version.
+fn gated_operator_name(word: &str, base: tcl_dialect::TclVersion) -> Option<&'static str> {
+    gated_expr_ops()
         .iter()
-        .find(|g| g.op == word && if g.needs_85 { pre_85 } else { pre_90 })
+        .find(|g| g.op == word && base < g.min_version)
         .map(|g| g.op)
 }
 
 /// The TIP citation to surface in the W003 message for `op_name`.
 fn w003_tip_citation(op_name: &str) -> &'static str {
-    GATED_EXPR_OPS
+    gated_expr_ops()
         .iter()
         .find(|g| g.op == op_name)
         .map_or("Tcl 9.0+ (TIP 461)", |g| g.tip)
@@ -3466,4 +3417,131 @@ fn rewrite_gated_operator(op_name: &str, left: &str, right: &str) -> Option<Stri
         "ge" => format!("([string compare {left} {right}] >= 0)"),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod w117_tests {
+    use super::{is_builtin_expr_op, is_builtin_math_function, is_irules_only_expr_op};
+
+    /// The W117 stub-shadow check's own `is_builtin_*` helpers used to be
+    /// three hand-typed lists (`BUILTIN_MATH_FUNCTIONS`/`BUILTIN_EXPR_OPS`/
+    /// `IRULES_EXPR_OPS`) — this proves the `tcl_syntax`-derived
+    /// replacements recognise exactly the same names (issue #983's
+    /// unification: no behaviour change, only the source of truth moved).
+    const OLD_BUILTIN_MATH_FUNCTIONS: &[&str] = &[
+        "abs",
+        "acos",
+        "asin",
+        "atan",
+        "atan2",
+        "bool",
+        "ceil",
+        "cos",
+        "cosh",
+        "double",
+        "entier",
+        "exp",
+        "floor",
+        "fmod",
+        "hypot",
+        "int",
+        "isinf",
+        "isnan",
+        "isqrt",
+        "log",
+        "log10",
+        "max",
+        "min",
+        "pow",
+        "rand",
+        "round",
+        "sin",
+        "sinh",
+        "sqrt",
+        "srand",
+        "tan",
+        "tanh",
+        "wide",
+        "acosh",
+        "asinh",
+        "atanh",
+        "cbrt",
+        "copysign",
+        "dim",
+        "erf",
+        "erfc",
+        "exp2",
+        "expm1",
+        "fma",
+        "gamma",
+        "ldexp",
+        "lgamma",
+        "log1p",
+        "log2",
+        "logb",
+        "nextafter",
+        "remainder",
+        "signbit",
+        "trunc",
+    ];
+    const OLD_BUILTIN_EXPR_OPS: &[&str] = &[
+        "!", "!=", "%", "&", "&&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=",
+        ">>", "^", "eq", "ge", "gt", "in", "le", "lt", "ne", "ni", "|", "||", "~",
+    ];
+    const OLD_IRULES_EXPR_OPS: &[&str] = &[
+        "and",
+        "contains",
+        "ends_with",
+        "equals",
+        "matches_glob",
+        "matches_regex",
+        "not",
+        "or",
+        "starts_with",
+    ];
+
+    #[test]
+    fn is_builtin_math_function_matches_the_old_hand_list_exactly() {
+        for name in OLD_BUILTIN_MATH_FUNCTIONS {
+            assert!(
+                is_builtin_math_function(name),
+                "{name}: was in the old list"
+            );
+        }
+        // A handful of names that were never math functions.
+        for name in ["puts", "expr", "+", "in", "notafunction"] {
+            assert!(
+                !is_builtin_math_function(name),
+                "{name}: not a math function"
+            );
+        }
+    }
+
+    #[test]
+    fn is_builtin_expr_op_matches_the_old_hand_list_exactly() {
+        for name in OLD_BUILTIN_EXPR_OPS {
+            assert!(is_builtin_expr_op(name), "{name}: was in the old list");
+        }
+        for name in OLD_IRULES_EXPR_OPS {
+            assert!(
+                !is_builtin_expr_op(name),
+                "{name}: is iRules-only, must not count as a plain built-in"
+            );
+        }
+        assert!(!is_builtin_expr_op("notanoperator"));
+    }
+
+    #[test]
+    fn is_irules_only_expr_op_matches_the_old_hand_list_exactly() {
+        for name in OLD_IRULES_EXPR_OPS {
+            assert!(is_irules_only_expr_op(name), "{name}: was in the old list");
+        }
+        for name in OLD_BUILTIN_EXPR_OPS {
+            assert!(
+                !is_irules_only_expr_op(name),
+                "{name}: is a plain built-in, must not count as iRules-only"
+            );
+        }
+        assert!(!is_irules_only_expr_op("notanoperator"));
+    }
 }

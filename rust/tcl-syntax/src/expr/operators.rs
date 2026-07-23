@@ -37,7 +37,7 @@
 //! `contains`, `starts_with`, `ends_with`, `equals`, `matches_glob`, or
 //! `matches_regex`, on any version).
 
-use tcl_dialect::DialectSet;
+use tcl_dialect::{DialectSet, TclVersion};
 
 use super::ast::{BinOp, UnaryOp};
 
@@ -164,6 +164,19 @@ pub struct OperatorSpec {
     pub mathop_shape: Option<OperatorShape>,
     /// A one-line human summary for hover text.
     pub summary: &'static str,
+    /// The oldest Tcl release whose `expr` **grammar** parses this
+    /// operator's syntax at all, or `None` when it's part of the base
+    /// grammar every dialect's `expr` has always had. Distinct from
+    /// [`Self::dialects`] (which gates the *command-table* form, `dialects:
+    /// None` there just meaning "no extra gate beyond `::tcl::mathop`'s own
+    /// 8.5+ requirement"): `**`/`in`/`ni` (TIP 123/201) need Tcl 8.5's
+    /// grammar to parse at all but — like every other pre-9.0 operator —
+    /// carry `dialects: None`, so this field is the fact a *grammar*-level
+    /// version diagnostic (W003) needs and `dialects` doesn't give it.
+    /// `None` for the iRules word operators too — they're gated by dialect
+    /// *identity*, not a Tcl version threshold, an axis this field doesn't
+    /// model (see [`Self::dialects`] for that gate instead).
+    pub expr_grammar_min_version: Option<TclVersion>,
 }
 
 /// The `(dialects, mathop_shape, summary)` triple `BinOp::spec()`/
@@ -222,6 +235,24 @@ impl BinOp {
             dialects,
             mathop_shape,
             summary,
+            expr_grammar_min_version: self.expr_grammar_min_version(),
+        }
+    }
+
+    /// The oldest Tcl release whose `expr` grammar parses this operator at
+    /// all — see [`OperatorSpec::expr_grammar_min_version`]. A wildcard
+    /// match (unlike [`Self::spec`]'s deliberately exhaustive one): `None`
+    /// — "part of the base grammar" — is a safe default for every variant
+    /// this doesn't name, so a future `BinOp` addition doesn't need this
+    /// function updated in lockstep, only [`Self::spec`] itself.
+    const fn expr_grammar_min_version(self) -> Option<TclVersion> {
+        match self {
+            // TIP 123 (Tcl 8.5): exponentiation. TIP 201 (Tcl 8.5): list
+            // membership operators.
+            Self::Pow | Self::In | Self::Ni => Some(TclVersion::V8_5),
+            // TIP 461 (Tcl 9.0): string-ordering operators.
+            Self::StrLt | Self::StrLe | Self::StrGt | Self::StrGe => Some(TclVersion::V9_0),
+            _ => None,
         }
     }
 
@@ -464,6 +495,11 @@ impl UnaryOp {
             dialects,
             mathop_shape,
             summary,
+            // No `UnaryOp` needs a grammar-version gate: `-`/`+`/`~`/`!` are
+            // base grammar, and `not` (like the other iRules word
+            // operators) is gated by dialect identity, not a Tcl version —
+            // see `OperatorSpec::expr_grammar_min_version`.
+            expr_grammar_min_version: None,
         }
     }
 }
@@ -653,6 +689,50 @@ mod tests {
         // Their pre-existing (8.5+) counterparts are ungated.
         for op in [BinOp::StrEq, BinOp::StrNe] {
             assert_eq!(op.spec().dialects, None);
+        }
+    }
+
+    #[test]
+    fn expr_grammar_min_version_matches_the_gated_operators_tclsh_ground_truth() {
+        use tcl_dialect::TclVersion;
+
+        // TIP 123/201 (Tcl 8.5): `**`/`in`/`ni` don't parse at all pre-8.5,
+        // yet (unlike the TIP-461 four) carry `dialects: None` — no
+        // *additional* mathop command-table gate beyond the ensemble's own
+        // 8.5+ requirement. This is exactly the axis mismatch
+        // `expr_grammar_min_version` exists to resolve for a grammar-level
+        // consumer (W003) that `dialects` alone can't answer.
+        for op in [BinOp::Pow, BinOp::In, BinOp::Ni] {
+            assert_eq!(op.spec().expr_grammar_min_version, Some(TclVersion::V8_5));
+            assert_eq!(
+                op.spec().dialects,
+                None,
+                "{op:?}: unchanged from before this field existed"
+            );
+        }
+        // TIP 461 (Tcl 9.0): both axes agree here.
+        for op in [BinOp::StrLt, BinOp::StrLe, BinOp::StrGt, BinOp::StrGe] {
+            assert_eq!(op.spec().expr_grammar_min_version, Some(TclVersion::V9_0));
+        }
+        // Base-grammar operators (arithmetic, `==`/`!=`, `eq`/`ne`, …) and
+        // the iRules word operators (dialect-*identity* gated, not a
+        // version threshold) both read `None`.
+        for op in [
+            BinOp::Add,
+            BinOp::Sub,
+            BinOp::Eq,
+            BinOp::Ne,
+            BinOp::StrEq,
+            BinOp::StrNe,
+            BinOp::And,
+            BinOp::Or,
+            BinOp::WordAnd,
+            BinOp::Contains,
+        ] {
+            assert_eq!(op.spec().expr_grammar_min_version, None, "{op:?}");
+        }
+        for op in ALL_UNARY_OPS {
+            assert_eq!(op.spec().expr_grammar_min_version, None, "{op:?}");
         }
     }
 
