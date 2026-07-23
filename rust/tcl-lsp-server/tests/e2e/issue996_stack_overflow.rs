@@ -38,6 +38,14 @@
 //! server survive this"). A process abort here shows up as the reader
 //! thread hitting EOF, so a regression fails as an `await_diagnostics`
 //! timeout — loud, not a silent pass.
+//!
+//! The investigation this issue triggered found the same bug class in the
+//! formatter and minifier (`docs/design/compiler/
+//! recursive-descent-depth-limits.md`), both LSP-reachable (`textDocument/
+//! formatting`, the `tcl-lsp.minifyDocument` workspace command) — covered
+//! here too, driving the same real server process.
+
+use serde_json::{Value, json};
 
 use crate::common::{Lsp, unique_uri};
 
@@ -127,4 +135,78 @@ fn mixed_control_flow_nesting_survives() {
     // (no diagnostics ever) or a hang (timeout) both fail this the same way
     // `await_diagnostics` already fails any other missing-publish case.
     lsp.await_diagnostics(&uri);
+}
+
+/// The formatter (`tcl_lsp_core::formatting::engine::format_body`) recurses
+/// once per nested body, independently of the analyser, and is now
+/// depth-capped (`MAX_FORMAT_DEPTH` = 128) — reachable over the wire via
+/// `textDocument/formatting`. 500 is comfortably past that cap; the request
+/// must return (formatted, with the excess nesting left untouched past the
+/// cap) rather than hang or crash the server.
+#[test]
+fn formatting_survives_deep_nesting() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("issue996-format-depth500.tcl");
+    lsp.open_ready(&uri, &nested_if_source(500));
+    let edits = lsp.formatting(&uri, 4, true);
+    assert!(!edits.is_null(), "expected formatting edits, got null");
+
+    // Same "the process is still alive" proof the analyser tests use.
+    let other_uri = unique_uri("issue996-format-followup.tcl");
+    lsp.open_document(&other_uri, "puts hi\n");
+    lsp.await_diagnostics(&other_uri);
+}
+
+/// The minifier (`tcl_lsp_core::minify::minify_body`) has the same
+/// recursion shape as the formatter and is now capped the same way
+/// (`MAX_MINIFY_DEPTH` = 128) — reachable over the wire via the
+/// `tcl-lsp.minifyDocument` workspace command. 500 is comfortably past that
+/// cap; the request must return a minified document rather than hang or
+/// crash the server.
+#[test]
+fn minify_survives_deep_nesting() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("issue996-minify-depth500.tcl");
+    lsp.open_ready(&uri, &nested_if_source(500));
+    let result = lsp.execute_command("tcl-lsp.minifyDocument", json!([uri, false, false, false]));
+    assert!(!result.is_null(), "expected a minify result, got null");
+    let minified = result.get("source").and_then(Value::as_str).unwrap_or("");
+    assert!(!minified.is_empty(), "expected non-empty minified source");
+
+    let other_uri = unique_uri("issue996-minify-followup.tcl");
+    lsp.open_document(&other_uri, "puts hi\n");
+    lsp.await_diagnostics(&other_uri);
+}
+
+/// `tcl_irules::walker` (the object-reference walker semantic tokens use to
+/// highlight `pool`/`node`/`class` names) has its own, independent
+/// recursion — `walk`/`recurse_token`, capped at `MAX_WALK_DEPTH` (128) —
+/// reachable over the wire via `textDocument/semanticTokens/full` on an
+/// iRules document. 300 nested `[…]` command substitutions is comfortably
+/// past that cap; the request must return (highlighting whatever it found
+/// before the cap stopped collection) rather than hang or crash the server.
+#[test]
+fn irules_semantic_tokens_survive_deep_command_substitution() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("issue996-irules-depth300.tcl");
+    let depth = 300;
+    let mut source = "when HTTP_REQUEST {\n  set x ".to_owned();
+    for _ in 0..depth {
+        source.push('[');
+    }
+    source.push_str("pool /Common/p");
+    for _ in 0..depth {
+        source.push(']');
+    }
+    source.push_str("\n}\n");
+    lsp.open_document_lang(&uri, &source, "tcl-irule", 1);
+    let tokens = lsp.semantic_tokens(&uri);
+    assert!(
+        !tokens.is_null(),
+        "expected a semantic tokens result, got null"
+    );
+
+    let other_uri = unique_uri("issue996-irules-followup.tcl");
+    lsp.open_document(&other_uri, "puts hi\n");
+    lsp.await_diagnostics(&other_uri);
 }

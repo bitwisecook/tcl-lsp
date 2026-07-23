@@ -75,6 +75,23 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
 use crate::compilation_unit::CompilationUnit;
+
+/// Depth cap shared by every pass's `Script`/`Statement` body-recursion walk
+/// (`propagation`, `expr_simplify`, `pattern_recognition`,
+/// `structure_elimination`, `code_sinking`) — issue #996.
+///
+/// In the normal pipeline these passes only ever see IR produced by
+/// [`crate::lowering`], which already caps *its own* recursive descent at
+/// `MAX_LOWER_NEST_DEPTH` (256) and emits a `Statement::Barrier` (a leaf, not
+/// a further-nested body) past that point — so a pass walking
+/// lowering-produced IR can never actually be handed more than 256 levels of
+/// nesting today. This constant guards each pass independently anyway
+/// (matching the number, so it never trips before lowering's own cap would
+/// have already flattened the input): defence in depth against any future or
+/// test-only caller that builds a `Script` directly rather than through
+/// [`crate::lowering`], and — unlike relying solely on the caller's cap —
+/// keeps each pass safe to reason about in isolation.
+pub(crate) const MAX_OPTIMISER_WALK_DEPTH: u32 = 256;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
 use crate::ssa::ValueKey;

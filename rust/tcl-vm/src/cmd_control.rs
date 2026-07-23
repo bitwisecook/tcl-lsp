@@ -57,11 +57,21 @@ fn cond_bool(vm: &mut Vm, cond: &Value) -> Result<bool, Completion<Value>> {
 
 /// Evaluate a body as a transparent script in the current frame. The full
 /// completion is returned so the caller can act on `break`/`continue`/`return`.
+///
+/// Native-stack safety net — see `interp::CONTROL_FALLBACK_DEPTH_LIMIT`'s
+/// doc comment (issue #996). Every runtime-fallback body in this module
+/// (`if`/`while`/`for`/`foreach`/`lmap`) funnels through here, so guarding
+/// this one entry point covers all of them.
 fn eval_body(vm: &mut Vm, body: &Value) -> Completion<Value> {
-    match vm.eval_source(&body.to_str()) {
+    if let Err(c) = vm.enter_control_fallback() {
+        return c;
+    }
+    let result = match vm.eval_source(&body.to_str()) {
         Ok(c) => c,
         Err(e) => err(e.message),
-    }
+    };
+    vm.exit_control_fallback();
+    result
 }
 
 /// `wrong # args: no script following "<token>" argument` (C's `missingScript`).

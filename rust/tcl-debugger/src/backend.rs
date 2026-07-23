@@ -43,6 +43,12 @@ use tcl_vm::{CompileError, CompileService, DebugAction, DebugSnapshot, Vm};
 use crate::controller::DebugController;
 use crate::types::{StackFrame, StepMode, StopEvent, StopReason, Variable, VariableKind};
 
+/// Stack budget for the dedicated worker thread [`VmBackend::record`] runs
+/// compilation on. Matches `WORKER_STACK_SIZE` in `tcl-lsp-server`'s
+/// `main.rs` — see that constant's doc comment for the full rationale
+/// (issue #996).
+const RECORD_STACK_SIZE: usize = 64 * 1024 * 1024;
+
 /// Errors a backend can surface.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DebugError {
@@ -169,6 +175,27 @@ impl VmBackend {
 
     /// Compile and run `source`, capturing the execution trace.
     fn record(source: &str) -> Result<Vec<DebugSnapshot>, DebugError> {
+        // `Svc::compile` runs the same `lower_to_ir`/`build_cfg_codegen`
+        // recursive-descent chain that crashed `tcl-lsp-server` on deeply
+        // nested input (issue #996) — its depth cap bounds the frame
+        // *count* but not the stack the OS/ambient thread happens to
+        // provide. Run it on a dedicated big-stack thread rather than
+        // whatever `launch` was called on (this CLI's main thread, or a
+        // DAP request-handling thread), matching the fix applied to
+        // `tcl-lsp-server`/`tcl-mcp`/`tcl-cli`/`f5-cli`.
+        let source = source.to_owned();
+        std::thread::Builder::new()
+            .stack_size(RECORD_STACK_SIZE)
+            .spawn(move || Self::record_on_this_thread(&source))
+            .expect("failed to spawn the tcl-debug record worker thread")
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    }
+
+    /// The actual compile-and-run work behind [`Self::record`] — split out
+    /// so [`Self::record`] can run it on a dedicated big-stack thread; see
+    /// that function's doc comment.
+    fn record_on_this_thread(source: &str) -> Result<Vec<DebugSnapshot>, DebugError> {
         let registry = CommandRegistry::build_default();
         let module = Svc(CommandRegistry::build_default())
             .compile(source)
@@ -364,6 +391,37 @@ mod tests {
         let stop = b.last_stop().expect("entry stop");
         assert_eq!(stop.reason, StopReason::Entry);
         assert_eq!(stop.line, 1);
+    }
+
+    /// Regression test for issue #996 in this binary specifically: `launch`
+    /// compiles caller-supplied source through the same
+    /// `lower_to_ir`/`build_cfg_codegen` recursive-descent chain that
+    /// crashed `tcl-lsp-server`. Before `record` ran this on its own
+    /// [`RECORD_STACK_SIZE`] thread, this reliably overflowed the stack
+    /// `cargo test` gives each `#[test]` (~2 MiB, same default that made
+    /// the original crash reproducible) — 400 levels is comfortably past
+    /// the 130-140 level range that crashed the unfixed binary.
+    ///
+    /// Asserts only that `launch` returns rather than aborting the process:
+    /// 400 levels is also past `MAX_LOWER_DEPTH` (256), so lowering's own
+    /// depth-cap barrier legitimately empties the debug trace past that
+    /// point (a separate, already-tested concern in `tcl_compiler::lowering`)
+    /// — this test is specifically about surviving, not about what gets
+    /// traced past the cap.
+    #[test]
+    fn launch_survives_deeply_nested_control_flow() {
+        const DEPTH: usize = 400;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set done 1\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        let mut b = VmBackend::new();
+        b.launch("x.tcl", Some(&src))
+            .expect("launch must not crash or error on deeply nested input");
     }
 
     #[test]

@@ -268,6 +268,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
 
 [[package]]
+name = "num-bigint"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
+dependencies = [
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-integer"
+version = "0.1.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -434,6 +453,7 @@ dependencies = [
  "regex",
  "serde_json",
  "sha2",
+ "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
@@ -454,6 +474,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -478,10 +499,14 @@ name = "tcl-compiler"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
  "regex",
  "rustc-hash",
  "tcl-bytecode",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -494,12 +519,20 @@ name = "tcl-core-types"
 version = "0.1.0"
 
 [[package]]
+name = "tcl-dialect"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "tcl-irules"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -509,6 +542,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "tcl-dialect",
  "thiserror",
 ]
 
@@ -521,6 +555,7 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
@@ -540,6 +575,7 @@ dependencies = [
  "sha2",
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-syntax",
 ]
@@ -556,6 +592,10 @@ name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "tcl-dialect",
  "tcl-lexer",
 ]
 

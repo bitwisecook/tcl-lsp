@@ -34,6 +34,17 @@ use tcl_registry::arg_role::ArgRole;
 
 use crate::resolve_object_ref_args;
 
+/// Depth cap for [`walk`]'s (and [`recurse_token`]'s) recursion over nested
+/// bodies / `apply` lambdas / `[…]` command substitutions — issue #996.
+///
+/// This crate is reachable from a WASM host with no stack-size guarantee
+/// (via `bigip-query-wasm`, transitively through `tcl-bigip`), so, like
+/// `tcl_lsp_core::formatting::engine::MAX_FORMAT_DEPTH` /
+/// `tcl_lsp_core::minify::MAX_MINIFY_DEPTH`, this must be safe on a small
+/// ambient stack, not just a generously-sized one — same value and
+/// reasoning; see those constants' doc comments.
+const MAX_WALK_DEPTH: u32 = 128;
+
 /// One iRules object reference resolved from a literal command argument
 /// (mirrors `IrulesObjectReference`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,6 +118,7 @@ pub fn extract_irules_object_references(
         registry,
         &mut scope,
         &mut out,
+        0,
     );
     out.sort_by(|a, b| {
         (a.range.start(), a.range.end(), &a.name).cmp(&(b.range.start(), b.range.end(), &b.name))
@@ -116,7 +128,9 @@ pub fn extract_irules_object_references(
 
 /// Segment `slice` (a substring of `full` starting at byte `base`) and collect
 /// references, recursing into body / expr / command-substitution arguments with
-/// child scopes. Token spans are absolute into `full`.
+/// child scopes. Token spans are absolute into `full`. `depth` is this call's
+/// nesting level — see [`MAX_WALK_DEPTH`].
+#[allow(clippy::too_many_arguments)] // one context threaded through a recursive walk
 fn walk(
     full: &str,
     slice: &str,
@@ -125,7 +139,14 @@ fn walk(
     registry: &CommandRegistry,
     scope: &mut BindingScope,
     out: &mut Vec<IrulesObjectReference>,
+    depth: u32,
 ) {
+    // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment (issue
+    // #996). Past the cap, stop descending — the references collected up
+    // to this nesting level still stand.
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     // Always the iRules dialect: segment with the f5-irules preset so an iRule's
     // `if {expr}{body}` (`}{` valid in TMM) splits into distinct words and its
     // pool/node references are attributed to the right command, not swallowed by
@@ -159,7 +180,7 @@ fn walk(
                 && !inner_is_empty(full, tok)
             {
                 let mut child = scope.child();
-                recurse_token(full, tok, rule_module, registry, &mut child, out);
+                recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
                 if matches!(tok.kind, TokenType::Cmd) {
                     recursed.insert((tok.span.start(), tok.span.end()));
                 }
@@ -177,7 +198,7 @@ fn walk(
                 && !inner_is_empty(full, tok)
             {
                 let mut child = scope.child();
-                recurse_token(full, tok, rule_module, registry, &mut child, out);
+                recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
             }
         }
 
@@ -214,6 +235,7 @@ fn walk(
                         registry,
                         &mut child,
                         out,
+                        depth + 1,
                     );
                 }
             }
@@ -234,7 +256,15 @@ fn walk(
         {
             for body in case_list_body_tokens(full, &tok, spec) {
                 let mut child = scope.child();
-                recurse_token(full, &body, rule_module, registry, &mut child, out);
+                recurse_token(
+                    full,
+                    &body,
+                    rule_module,
+                    registry,
+                    &mut child,
+                    out,
+                    depth + 1,
+                );
             }
         }
 
@@ -249,7 +279,7 @@ fn walk(
             }
             recursed.insert(key);
             let mut child = scope.child();
-            recurse_token(full, tok, rule_module, registry, &mut child, out);
+            recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
         }
     }
 }
@@ -368,6 +398,7 @@ fn recurse_token(
     registry: &CommandRegistry,
     scope: &mut BindingScope,
     out: &mut Vec<IrulesObjectReference>,
+    depth: u32,
 ) {
     let (start, end) = content_range(full, tok);
     if start >= end {
@@ -385,6 +416,7 @@ fn recurse_token(
         registry,
         scope,
         out,
+        depth,
     );
 }
 
@@ -527,6 +559,26 @@ mod tests {
         assert!(by_name.contains(&("class".to_owned(), "/Common/host_dg".to_owned())));
         assert!(by_name.contains(&("snatpool".to_owned(), "/Common/sp1".to_owned())));
         assert!(by_name.contains(&("pool".to_owned(), "/Common/web_pool".to_owned())));
+    }
+
+    /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual
+    /// recursion over nested command-substitution bodies is now capped at
+    /// `MAX_WALK_DEPTH` (128). 300 nested `[…]` command substitutions is
+    /// comfortably past the cap; the assertion is that extraction returns
+    /// at all, not what it returns.
+    #[test]
+    fn deeply_nested_command_substitution_does_not_crash() {
+        const DEPTH: usize = 300;
+        let mut source = "when HTTP_REQUEST {\n    set x ".to_owned();
+        for _ in 0..DEPTH {
+            source.push('[');
+        }
+        source.push_str("pool /Common/p");
+        for _ in 0..DEPTH {
+            source.push(']');
+        }
+        source.push_str("\n}\n");
+        let _ = refs(&source);
     }
 
     #[test]
