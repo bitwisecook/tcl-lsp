@@ -1336,6 +1336,28 @@ fn scan_my_method_region(
         for (inner_start, inner_end) in nested_dispatch_regions(source, ctx.dialect, cmd) {
             scan_my_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
+        // `switch`'s brace-delimited arm bodies are Tcl scripts too, but
+        // they're neither a `[...]` command substitution (the recursion
+        // above never reaches them) nor reachable any other way — descend
+        // each arm body as its own command-sequence region (issue #923 idx
+        // 63, main audit wave: the corpus's own "assigned `Add`-dispatcher"
+        // idiom keeps its `my AddBarSeries` calls inside exactly this
+        // shape, `switch ... { barSeries { my AddBarSeries {*}$args } }`).
+        // Matches `Analyser::switch_arm_bodies`'s own bare-name check for
+        // which commands own this shape.
+        if cmd.argv.first().is_some_and(|h| {
+            let h_start = h.span.start() as usize;
+            let h_end = h.span.end() as usize;
+            h_start < source.len() && h_end <= source.len() && &source[h_start..h_end] == "switch"
+        }) {
+            let switch_arg_tokens: Vec<tcl_lexer::Token> =
+                cmd.argv.iter().skip(1).copied().collect();
+            for (_, body_tok) in
+                tcl_compiler::analyser::commands::switch_arm_bodies(cmd.args(), &switch_arg_tokens)
+            {
+                scan_my_method_body(ctx, body_tok.span, sink);
+            }
+        }
     }
 }
 
@@ -2952,6 +2974,39 @@ mod tests {
     // class-member references
 
     #[test]
+    fn idx63_two_block_class_my_dispatch_already_fixed_by_idx52() {
+        // Issue #923 idx 63 (main audit wave, high severity): the finding's
+        // own primary, corpus-verified claim — "go-to-definition AND
+        // find-references both return zero results" for a `my
+        // methodName` call when the class is created via `oo::class
+        // create` with no body and every method (including the call site
+        // itself) is added via a *separate*, later `oo::define ClassName
+        // { ... }` block (the finding's own minimal repro shape, matching
+        // the real corpus's `ticklecharts::chart`). This is the exact
+        // root cause idx 52 already fixed (`class_body_spans` /
+        // `enclosing_class_at`) — verified here independently, pinned as
+        // a permanent regression using idx 63's own repro shape. No
+        // production changes in this commit for this part of the finding.
+        let src = "oo::class create foo::widget {\n    variable _x\n    constructor {} { set _x 0 }\n}\noo::define foo::widget {\n    method bar {} { return \"bar-value\" }\n    method baz {} { return [my bar] }\n}\nputs [[foo::widget new] baz]\n";
+        let analysis = analyse(src);
+        // `definition` at the `my bar` call site (line 6, col 31).
+        let locs = crate::definition::definition(src, 6, 31, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 5,
+            "must resolve to method bar's declaration"
+        );
+        // `references` from `bar`'s declaration (line 5, col 11).
+        let refs = references(src, "tcl", 5, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&5), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&6),
+            "the my bar call site must be reachable from the declaration: {refs:?}"
+        );
+    }
+
+    #[test]
     fn references_for_method_includes_decl_and_call_sites() {
         // Intra-class dispatch uses `my <method>` (the dispatch form tclsh
         // accepts; a bare `greet` head errors with "invalid command name", so it
@@ -2961,6 +3016,30 @@ mod tests {
         // Cursor on the `greet` declaration (line 1, col 11).
         let refs = references(src, "tcl", 1, 11, &analysis, true);
         assert!(refs.len() >= 3, "expected ≥3 refs; got {refs:?}");
+    }
+
+    #[test]
+    fn references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm() {
+        // Issue #923 idx 63 (main audit wave, high severity): a `my
+        // methodName` call written inside a `switch` arm body is a
+        // genuine, statically-known call site (tclsh9.0/8.6-verified) —
+        // the real corpus shape (`ticklecharts::chart`'s `Add` dispatcher:
+        // `switch ... { barSeries { my AddBarSeries {*}$args } ... }`).
+        // `scan_my_method_region`'s `[...]`-substitution recursion never
+        // reaches a switch arm's braced body (it isn't a command
+        // substitution), so this was invisible to find-references even
+        // though go-to-definition (an independent cursor-token walk)
+        // already resolved it.
+        let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `bar` declaration (line 1, col 11).
+        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&4),
+            "the my bar call site inside the switch arm is missing: {refs:?}"
+        );
     }
 
     #[test]

@@ -437,3 +437,30 @@ fn references_do_not_cross_between_unrelated_proc_and_mathfunc_override() {
         "unrelated proc's references must not include the expr call site: {unrelated_lines:?}"
     );
 }
+
+/// idx 63 (differential-audit main audit wave, high severity): a `my
+/// methodName` call written inside a `switch` arm body is a genuine,
+/// statically-known call site (tclsh9.0/8.6-verified) — the real corpus
+/// shape (`ticklecharts::chart`'s `Add` dispatcher: `switch ... {
+/// barSeries { my AddBarSeries {*}$args } ... }`). `scan_my_method_region`'s
+/// `[...]`-substitution recursion never reached a switch arm's braced body
+/// (it isn't a command substitution), so this was invisible to
+/// find-references even though go-to-definition (an independent
+/// cursor-token walk) already resolved it.
+#[test]
+fn references_reach_a_my_dispatch_call_inside_a_switch_arm() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n",
+    );
+    // Line 1: `    method bar {} { return "bar-value" }` — cursor on the
+    // `bar` declaration (column 11).
+    let lines = start_lines(&lsp.references(&uri, 1, 11, true));
+    assert!(lines.contains(&1), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&4),
+        "the my bar call site inside the switch arm is missing: {lines:?}"
+    );
+}

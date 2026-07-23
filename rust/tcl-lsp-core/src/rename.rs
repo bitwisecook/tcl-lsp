@@ -1927,6 +1927,28 @@ mod tests {
     }
 
     #[test]
+    fn rename_method_rewrites_a_my_dispatch_call_inside_a_switch_arm() {
+        // Issue #923 idx 63 (main audit wave, high severity): the real
+        // corpus's `ticklecharts::chart::Add` dispatcher shape — `switch
+        // ... { barSeries { my AddBarSeries {*}$args } ... }`. `rename`
+        // reaches `my`-dispatch call sites via `references::
+        // method_references_for_class` (`scan_my_method_region`), so this
+        // is the same fix as `references_for_method_reach_a_my_dispatch_
+        // call_inside_a_switch_arm`, verified end-to-end through rename.
+        let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `bar` declaration (line 1, col 11).
+        let edits = rename(src, "tcl", 1, 11, "baz", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {edits:?}");
+        assert!(
+            lines.contains(&4),
+            "the my bar call site inside the switch arm must be rewritten too: {edits:?}"
+        );
+        assert!(edits.iter().all(|e| e.new_text == "baz"));
+    }
+
+    #[test]
     fn rename_method_rewrites_my_dispatch_when_class_extended_via_separate_oo_define() {
         // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
         // created via `oo::class create` with no body; every method

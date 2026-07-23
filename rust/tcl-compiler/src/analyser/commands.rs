@@ -3329,6 +3329,74 @@ fn switch_list_body_index(args: &[&str]) -> Option<usize> {
     if i == args.len() - 1 { Some(i) } else { None }
 }
 
+/// Every arm *body* of a `switch ?options? string {pattern body …}` /
+/// `switch ?options? string pattern body pattern body …` command, in
+/// source order — the `-` fall-through marker (a body borrowed from the
+/// next arm, not one of its own) is skipped. `args`/`arg_tokens` exclude
+/// the command name (`args[0]` is the first option or the `string` word),
+/// matching every other command handler's own convention.
+///
+/// Handles both of `switch`'s argument shapes, matching
+/// [`Analyser::handle_switch_command`]'s own form-1/form-2 branching
+/// exactly (kept independent of it — this returns only the body list a
+/// caller needs for scanning, not the pattern-recording side effects
+/// `handle_switch_command` also performs, e.g. `-regexp` pattern
+/// diagnostics), so the two can never disagree about where an arm's body
+/// starts and ends.
+///
+/// Consumed by `tcl_lsp_core::references::scan_my_method_region` to
+/// descend into a switch-dispatched `TclOO` method body's arms when
+/// searching for `my method` call sites (issue #923 idx 63, main audit
+/// wave: the "assigned `Add`-dispatcher" idiom — `switch ... { barSeries
+/// { my AddBarSeries {*}$args } ... }` — mines exactly this shape from
+/// nico-robert/ticklecharts).
+#[must_use]
+pub fn switch_arm_bodies(args: &[String], arg_tokens: &[Token]) -> Vec<(String, Token)> {
+    let mut out = Vec::new();
+    if args.len() < 2 {
+        return out;
+    }
+    let mut i = 0;
+    while i < args.len() && args[i].starts_with('-') {
+        if args[i] == "--" {
+            i += 1;
+            break;
+        }
+        i += 1;
+    }
+    i += 1; // the `string` argument
+    if i >= args.len() {
+        return out;
+    }
+    if i == args.len() - 1 {
+        // Form 2 — single braced body containing all pairs.
+        let Some(body_tok) = arg_tokens.get(i).copied() else {
+            return out;
+        };
+        let elements = crate::segmenter::flatten_clause_list_elements(&args[i], body_tok);
+        let mut j = 1;
+        while j < elements.len() {
+            let (body_text, body_tok) = &elements[j];
+            if body_text != "-" {
+                out.push((body_text.clone(), *body_tok));
+            }
+            j += 2;
+        }
+    } else {
+        // Form 1 — pattern/body pairs inline in args/arg_tokens.
+        while i + 1 < args.len() {
+            let body_text = &args[i + 1];
+            if let Some(body_tok) = arg_tokens.get(i + 1).copied()
+                && body_text != "-"
+            {
+                out.push((body_text.clone(), body_tok));
+            }
+            i += 2;
+        }
+    }
+    out
+}
+
 /// Top-level ``[...]`` command-substitution regions in `text`, as
 /// `(inner_byte_offset, inner_text)` — the script *inside* the brackets and
 /// the offset of its first byte within `text`.  ``\\[`` / ``\\]`` escapes are
@@ -3944,6 +4012,76 @@ mod tests {
 
     fn span(start: u32, end: u32) -> Span {
         Span::new(start, end)
+    }
+
+    // switch_arm_bodies
+
+    #[test]
+    fn switch_arm_bodies_form1_extracts_each_body() {
+        // Form 1: `switch $x a {set y 1} b {set z 2}` — the same shape
+        // `handle_switch_form1_walks_each_arm_body` (handlers.rs) proves
+        // gets walked; this pins the extraction function itself
+        // (issue #923 idx 63, main audit wave).
+        let args = vec![
+            "$x".to_string(),
+            "a".to_string(),
+            "set y 1".to_string(),
+            "b".to_string(),
+            "set z 2".to_string(),
+        ];
+        let arg_tokens = vec![
+            esc_tok(span(7, 9)),
+            esc_tok(span(10, 11)),
+            str_tok(span(13, 22)),
+            esc_tok(span(24, 25)),
+            str_tok(span(27, 36)),
+        ];
+        let bodies = switch_arm_bodies(&args, &arg_tokens);
+        let texts: Vec<&str> = bodies.iter().map(|(t, _)| t.as_str()).collect();
+        assert_eq!(texts, vec!["set y 1", "set z 2"]);
+    }
+
+    #[test]
+    fn switch_arm_bodies_form2_extracts_each_body_from_the_braced_list() {
+        // Form 2: `switch $x { a {set y 1} b {set z 2} }` — the same
+        // shape `handle_switch_form2_braced_body_walks_each_arm`
+        // (handlers.rs) proves gets walked.
+        let body_text = " a {set y 1} b {set z 2} ".to_string();
+        let args = vec!["$x".to_string(), body_text];
+        let arg_tokens = vec![esc_tok(span(7, 9)), str_tok(span(10, 37))];
+        let bodies = switch_arm_bodies(&args, &arg_tokens);
+        let texts: Vec<&str> = bodies.iter().map(|(t, _)| t.as_str()).collect();
+        assert_eq!(texts, vec!["set y 1", "set z 2"]);
+    }
+
+    #[test]
+    fn switch_arm_bodies_skips_the_fallthrough_marker() {
+        // `switch $x a - b {set y 1}` — the `-` body for pattern `a` is
+        // fall-through (the next arm's body actually runs), so it must
+        // not appear as a body of its own.
+        let args = vec![
+            "$x".to_string(),
+            "a".to_string(),
+            "-".to_string(),
+            "b".to_string(),
+            "set y 1".to_string(),
+        ];
+        let arg_tokens = vec![
+            esc_tok(span(7, 9)),
+            esc_tok(span(10, 11)),
+            esc_tok(span(12, 13)),
+            esc_tok(span(14, 15)),
+            str_tok(span(17, 26)),
+        ];
+        let bodies = switch_arm_bodies(&args, &arg_tokens);
+        let texts: Vec<&str> = bodies.iter().map(|(t, _)| t.as_str()).collect();
+        assert_eq!(texts, vec!["set y 1"]);
+    }
+
+    #[test]
+    fn switch_arm_bodies_too_few_args_is_empty() {
+        assert!(switch_arm_bodies(&["$x".to_string()], &[]).is_empty());
+        assert!(switch_arm_bodies(&[], &[]).is_empty());
     }
 
     #[test]
