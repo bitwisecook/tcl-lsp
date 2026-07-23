@@ -1191,6 +1191,58 @@ fn w210_silent_when_set_on_all_paths() {
     assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
+// Issue #923 idx 122: a helper proc's `upvar` write, reached only through
+// a `while`/`if` loop CONDITION rather than a bare statement, was invisible
+// to W210 — only 4 hardcoded builtins (`catch`/`scan`/`gets`/`regexp`) were
+// recognised there. Real tcllib repro: `modules/cmdline/cmdline.tcl`'s
+// `getopt`/`getKnownOpt` chain, `while {[set err [getopt argv $opts opt
+// arg]]} { ... }`. tclsh9.0/8.6-verified the condition's own command
+// substitution (including the upvar write) completes before the guarded
+// body ever runs.
+
+#[test]
+fn w210_silent_for_upvar_proc_call_in_while_condition_923_idx122() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc getopt {ovar} {\n    upvar 1 $ovar opt\n    set opt value\n    return 1\n}\nwhile {[getopt opt]} {\n    puts $opt\n    break\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_silent_for_upvar_proc_wrapped_inside_a_while_condition_923_idx122() {
+    // The exact tcllib shape: the upvar-writing call sits one bracket
+    // deeper than the condition's own outermost command (`set err
+    // [getopt ...]`, not a bare `[getopt ...]`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc getopt {ovar} {\n    upvar 1 $ovar opt\n    set opt value\n    return 1\n}\nwhile {[set err [getopt opt]]} {\n    puts $opt\n    break\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_silent_for_upvar_proc_call_in_if_condition_923_idx122() {
+    // The `if`-conditioned analogue — never "frozen" (only `for`/`while`
+    // have a command-substitution-condition opaque-barrier path), so this
+    // exercises the ordinary `lower_if` → `condition_out_vars` route
+    // rather than the frozen-loop synthetic `<cond>` Call.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc getopt {ovar} {\n    upvar 1 $ovar opt\n    set opt value\n    return 1\n}\nif {[getopt opt]} {\n    puts $opt\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122() {
+    // TN — a condition call to a proc that does *not* upvar-write its
+    // argument must still warn: the fix must not blanket-suppress every
+    // `$var`-in-condition read, only ones a known upvar proc actually
+    // populates.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc doesNothing {ovar} {\n    puts \"called with $ovar\"\n}\nwhile {[doesNothing opt]} {\n    puts $opt\n    break\n}\n";
+    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
 // -- W307: a variable used in command position ---------------------------
 
 #[test]
