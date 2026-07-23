@@ -1814,6 +1814,19 @@ mod interp_value_flow {
     }
 
     #[test]
+    fn builtins_only_literal_interp_eval_body_stays_silent() {
+        // TN — the same false-fire (W210 on `x`) reproduced with a *literal*
+        // interpreter path, no dynamic tracking involved at all: `interp
+        // eval`'s script argument is a `Plain`-body-kind `ArgRole::Body`
+        // (unlike an `if`/`while`/`catch` body, never flattened into its
+        // own CFG since the target interpreter is opaque to static
+        // analysis), so it was scanned as ordinary value text with no
+        // notion of its own `set x 1` write before the later `$x` read.
+        let src = "interp create child\ninterp eval child {\n    set x 1\n    expr {$x + 1}\n}\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    #[test]
     fn synthetic_autoname_key_used_for_pathless_interp_create() {
         // TP — pins the synthetic per-call-site key convention (mirrors
         // `handle_namespace_eval_dynamic_target_gets_a_synthetic_span_keyed_name`'s
