@@ -83,6 +83,24 @@ const GRAMMAR_NODE_WORDS: &[&str] = &[
     "switch",
 ];
 
+/// `expr` operator spellings the vendored tree-sitter-tcl grammar (rev pinned
+/// in `rust/zed-query-check/vendor/REV`) tokenises as dedicated anonymous
+/// grammar symbols inside its `unpack`/operator production — confirmed by
+/// grepping that grammar's generated `parser.c` symbol table. Only these may
+/// appear in a `[ "…" ] @operator` literal-token list; a tree-sitter query
+/// listing any other string there is a `QueryError` (`NodeType`), since the
+/// grammar has no such anonymous token to match. Everything else `tcl-syntax`
+/// knows about as an operator — the TIP 461 string-ordering four (`lt`/`le`/
+/// `gt`/`ge`, added in Tcl 9.0, newer than this grammar rev) and every iRules
+/// word operator (`contains`, `and`, …, which this generic Tcl grammar has no
+/// knowledge of at all) — parses as a plain `simple_word` and must be matched
+/// by content instead, the same way `@boolean`'s `"true"`/`"false"` already
+/// are below.
+const GRAMMAR_LITERAL_OPERATOR_TOKENS: &[&str] = &[
+    "!", "!=", "%", "&", "&&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>",
+    "^", "eq", "in", "ne", "ni", "|", "||", "~",
+];
+
 /// The profile's registry: `build_default` plus its on-demand command
 /// packs, stamped with the profile so mask queries apply its subtractive
 /// rules (§9 — the iRules disable list and operator-head exclusion).
@@ -238,7 +256,10 @@ fn render_any_of(names: &BTreeSet<String>) -> String {
 /// buckets for one language's dialect set.
 fn render(reg: &CommandRegistry, dialects: DialectSet) -> String {
     let b = classify(reg, dialects);
-    let ops = operator_spellings(dialects);
+    let (literal_ops, word_ops): (BTreeSet<String>, BTreeSet<String>) =
+        operator_spellings(dialects)
+            .into_iter()
+            .partition(|op| GRAMMAR_LITERAL_OPERATOR_TOKENS.contains(&op.as_str()));
     format!(
         r#"; Tcl-family highlights for Zed
 ;
@@ -320,12 +341,20 @@ fn render(reg: &CommandRegistry, dialects: DialectSet) -> String {
 (command
   name: (simple_word) @function)
 
-; Operators
+; Operators recognised as dedicated tokens by the vendored tree-sitter-tcl
+; grammar
 (unpack) @operator
 
 [
-{ops}
+{literal_ops}
 ] @operator
+
+; Word-shaped operators (TIP 461 string-ordering, iRules words) the vendored
+; grammar parses as a plain word rather than a dedicated token — matched by
+; content, like `@boolean` below.
+((simple_word) @operator
+  (#any-of? @operator
+{word_ops}))
 
 ; Punctuation
 ["{{" "}}" "[" "]" ";"] @punctuation.bracket
@@ -333,7 +362,8 @@ fn render(reg: &CommandRegistry, dialects: DialectSet) -> String {
         control = render_any_of(&b.control),
         keyword = render_any_of(&b.keyword),
         builtin = render_any_of(&b.builtin),
-        ops = render_any_of(&ops),
+        literal_ops = render_any_of(&literal_ops),
+        word_ops = render_any_of(&word_ops),
     )
 }
 

@@ -108,16 +108,24 @@
 (command
   name: (simple_word) @function)
 
-; Operators
+; Operators recognised as dedicated tokens by the vendored tree-sitter-tcl
+; grammar
 (unpack) @operator
 
 [
     "!" "!=" "%" "&" "&&" "*"
     "**" "+" "-" "/" "<" "<<"
     "<=" "==" ">" ">=" ">>" "^"
-    "eq" "ge" "gt" "in" "le" "lt"
-    "ne" "ni" "|" "||" "~"
+    "eq" "in" "ne" "ni" "|" "||"
+    "~"
 ] @operator
+
+; Word-shaped operators (TIP 461 string-ordering, iRules words) the vendored
+; grammar parses as a plain word rather than a dedicated token — matched by
+; content, like `@boolean` below.
+((simple_word) @operator
+  (#any-of? @operator
+    "ge" "gt" "le" "lt"))
 
 ; Punctuation
 ["{" "}" "[" "]" ";"] @punctuation.bracket
