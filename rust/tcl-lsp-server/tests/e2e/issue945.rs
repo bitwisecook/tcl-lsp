@@ -131,6 +131,42 @@ fn const_dispatch_rename_rewrites_the_defining_literal_and_executes_945() {
     }
 }
 
+// Issue #1009 — the constant-`$cmd` dispatch settlement resolved through a
+// proc/class/alias/rename target renamed or deleted away with no later
+// re-establishment, the same root cause #973/#1006/#1007 fixed for the
+// bareword-call paths. Confirmed against tclsh 8.6.14 that a deleted
+// proc's dispatch fails "invalid command name" — the LSP must not still
+// treat the dead name as a live reference.
+
+#[test]
+fn const_dispatch_draws_no_reference_to_a_deleted_proc_1009() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc target {} { return hi }\nrename target {}\nset cmd target\n$cmd\n";
+    lsp.open_ready(&uri, src);
+    let refs = start_lines(&lsp.references(&uri, 0, 6, true));
+    assert!(
+        !refs.contains(&2) && !refs.contains(&3),
+        "a proc deleted with no re-establishment must draw no reference from \
+         the dead $cmd dispatch (`set cmd target` / `$cmd`): {refs:?}"
+    );
+}
+
+#[test]
+fn const_dispatch_still_references_a_proc_reestablished_after_deletion_1009() {
+    // FP guard: a fresh `proc target` after the deletion re-establishes the
+    // name — the dispatch must still resolve and reference it normally.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc target {} { return hi }\nrename target {}\nproc target {} { return bye }\nset cmd target\n$cmd\n";
+    lsp.open_ready(&uri, src);
+    let refs = start_lines(&lsp.references(&uri, 2, 6, true));
+    assert!(
+        refs.contains(&3),
+        "the re-established proc must still be referenced by the dispatch: {refs:?}"
+    );
+}
+
 #[test]
 fn branch_joined_dispatch_definition_offers_both_targets_945() {
     let mut lsp = Lsp::tcl();

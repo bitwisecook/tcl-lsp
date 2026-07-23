@@ -232,7 +232,12 @@ impl Analyser {
     ///   running every top-level statement, including the deletion —
     ///   before any body ever runs) and, for a top-level call, only once
     ///   the call's own textual position is after it.
-    fn fact_live_for_call(&self, qualified: &str, fact_off: u32, call_off: u32) -> bool {
+    ///
+    /// `pub(super)` (not private) so sibling passes over the same
+    /// `command_invocations` question — `const_dispatch.rs`'s constant-
+    /// `$cmd` settlement (issue #1009) — reuse this rather than
+    /// reimplementing it.
+    pub(super) fn fact_live_for_call(&self, qualified: &str, fact_off: u32, call_off: u32) -> bool {
         let Some(&del_off) = self.deleted_commands.get(qualified) else {
             return true;
         };

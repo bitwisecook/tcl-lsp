@@ -9248,6 +9248,106 @@ fn colon_named_proc_resolves_from_bare_calls_not_written_runs() {
 
 // -- M7: command names carried in variables / dispatch tables ------------
 
+// Issue #1009 — the constant-`$cmd` dispatch settlement's `known` /
+// `user_defined` closures resolved through a proc/class/alias/rename
+// target that was renamed or deleted away, with no later
+// re-establishment, exactly like the pre-#973 bug in `scope.rs`. Fixed
+// by reusing `fact_live_for_call` (widened to `pub(super)` so this
+// sibling pass can call it) with the dispatch site's own offset as the
+// call site. Confirmed this never caused a W123 false negative (the
+// pass runs after W123 already fired), but did poison the
+// `resolved_qualified_name` these invocations carry for hover /
+// go-to-definition / find-references / rename-tracking. All cases
+// confirmed against tclsh 8.6.14 (deletion semantics are identical
+// whether a command is invoked literally or via a variable).
+
+fn const_dispatch_target(src: &str) -> Option<(String, Option<String>)> {
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    let dispatch = u32::try_from(src.rfind("$cmd").unwrap()).unwrap();
+    r.command_invocations
+        .into_iter()
+        .find(|i| i.range.start() == dispatch && i.indirect)
+        .map(|i| (i.name, i.resolved_qualified_name))
+}
+
+#[test]
+fn const_dispatch_tp_issue_1009_proc_deleted_no_reestablishment_does_not_resolve() {
+    let src = "proc target {} {}\nrename target {}\nset cmd target\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        None,
+        "a $cmd dispatch to a deleted proc with no re-establishment must not resolve"
+    );
+}
+
+#[test]
+fn const_dispatch_fp_issue_1009_proc_reestablished_after_deletion_resolves() {
+    let src = "proc target {} {}\nrename target {}\nproc target {} {}\nset cmd target\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("target".to_owned(), Some("::target".to_owned())))
+    );
+}
+
+#[test]
+fn const_dispatch_tn_issue_1009_proc_no_deletion_still_resolves() {
+    let src = "proc target {} {}\nset cmd target\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("target".to_owned(), Some("::target".to_owned())))
+    );
+}
+
+#[test]
+fn const_dispatch_tp_issue_1009_class_deleted_no_reestablishment_does_not_resolve() {
+    let src = "oo::class create Target\nrename Target {}\nset cmd Target\n$cmd\n";
+    assert_eq!(const_dispatch_target(src), None);
+}
+
+#[test]
+fn const_dispatch_tp_issue_1009_rename_target_deleted_no_reestablishment_does_not_resolve() {
+    let src = "proc helper {} {}\nrename helper ha2\nrename ha2 {}\nset cmd ha2\n$cmd\n";
+    assert_eq!(const_dispatch_target(src), None);
+}
+
+#[test]
+fn const_dispatch_fp_issue_1009_rename_target_no_deletion_still_resolves() {
+    let src = "proc helper {} {}\nrename helper ha2\nset cmd ha2\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("ha2".to_owned(), Some("::ha2".to_owned())))
+    );
+}
+
+#[test]
+fn const_dispatch_tp_issue_1009_alias_deleted_no_reestablishment_does_not_resolve() {
+    let src = "proc target {} {}\ninterp alias {} short {} target\ninterp alias {} short {}\nset cmd short\n$cmd\n";
+    assert_eq!(const_dispatch_target(src), None);
+}
+
+#[test]
+fn const_dispatch_fp_issue_1009_alias_no_deletion_still_resolves() {
+    let src = "proc target {} {}\ninterp alias {} short {} target\nset cmd short\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("short".to_owned(), Some("::short".to_owned())))
+    );
+}
+
+#[test]
+fn const_dispatch_fp_issue_1009_deletion_inside_never_triggered_body_still_resolves() {
+    // Same conditional-body guard #1006/#1007 already apply — a deletion
+    // recorded inside a proc that's never called must not disqualify the
+    // dispatch (tclsh: calling nothing that invokes `maybeDelete` leaves
+    // `target` live).
+    let src = "proc target {} {}\nproc maybeDelete {} { rename target {} }\nset cmd target\n$cmd\n";
+    assert_eq!(
+        const_dispatch_target(src),
+        Some(("target".to_owned(), Some("::target".to_owned())))
+    );
+}
+
 #[test]
 fn const_cmd_head_records_a_reference_to_the_dispatched_proc_m7() {
     let mut a = Analyser::new();

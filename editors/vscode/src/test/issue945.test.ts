@@ -61,6 +61,31 @@ suite("Issue #945 resolution model", () => {
     );
   });
 
+  // Issue #1009: the const-`$cmd` dispatch settlement resolved through a
+  // proc renamed/deleted away with no later re-establishment, the same
+  // root cause #973/#1006/#1007 fixed for bareword calls. Deep TP/FP/TN
+  // coverage lives in the analyser and native e2e suites (see
+  // rust/tcl-lsp-server/tests/e2e/issue945.rs); this proves the fix
+  // reaches a real VS Code session.
+  test("const-dispatch draws no reference to a proc deleted with no re-establishment", async () => {
+    const docUri = getDocUri("issue1009ConstDispatchDeleted.tcl");
+    await activate(docUri);
+
+    // `target` declaration name at line 0, col 5.
+    const locations = (await vscode.commands.executeCommand(
+      "vscode.executeReferenceProvider",
+      docUri,
+      new vscode.Position(0, 5),
+    )) as vscode.Location[];
+
+    const lines = (locations ?? []).map((l) => l.range.start.line);
+    assert.ok(
+      !lines.includes(2) && !lines.includes(3),
+      `a proc deleted with no re-establishment must draw no reference from ` +
+        `the dead $cmd dispatch ("set cmd target" / "$cmd"): ${JSON.stringify(lines)}`,
+    );
+  });
+
   test("externally unexported TclOO method does not resolve; dispatch entry does", async () => {
     const docUri = getDocUri("issue945Tcloo.tcl");
     await activate(docUri);
