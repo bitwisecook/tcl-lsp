@@ -8438,6 +8438,15 @@
       "summary": "bitwise complement"
     },
     {
+      "name": "tcl::prefix",
+      "summary": "Prefix-matching utility commands.",
+      "subcommands": [
+        "all",
+        "longest",
+        "match"
+      ]
+    },
+    {
       "name": "tcl::process",
       "summary": "Manage subprocesses started by exec / open |cmd.",
       "subcommands": [
