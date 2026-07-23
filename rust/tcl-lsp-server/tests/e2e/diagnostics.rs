@@ -1353,6 +1353,65 @@ fn w220_dead_store_inside_dict_for_body_fires() {
     assert!(on_line(&diags, "W220").contains(&2));
 }
 
+// Issue #923 idx 125 (tcllib): a value word's embedded `{…}` run that
+// survived, as ordinary literal content, from an originally double-quoted
+// or bareword-concatenated source word must not hide the `$var`
+// substitutions inside it from W220 — real tcllib repro:
+// `modules/htmlparse/htmlparse.tcl`'s `eval "$cmd {$vroot} {} {}
+// \{$html\}"`. tclsh9.0/8.6-verified `{$vroot}` here is an ordinary
+// substitution, exactly like the bare `$cmd` beside it.
+
+#[test]
+fn w220_silent_for_a_var_wrapped_in_braces_inside_a_double_quoted_value_923_idx125() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc demo {} {\n    set a AA\n    set b BB\n    set c CC\n    set s \"prefix {$a} suffix $b $c\"\n    puts $s\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W220"), "{:?}", codes(&diags));
+}
+
+#[test]
+fn w220_still_fires_for_a_genuinely_brace_quoted_value_923_idx125() {
+    // TN — the whole value is brace-quoted (`{$a}` as ONE word, not
+    // embedded inside a larger double-quoted string): Tcl performs zero
+    // substitution on it at all (tclsh9.0/8.6-verified `set s {$a}` stores
+    // the literal two characters `$a`), so `a` is genuinely never read and
+    // must still warn.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc demo {} {\n    set a 1\n    set s {$a}\n    puts $s\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(has_code(&diags, "W220"), "{:?}", codes(&diags));
+}
+
+// Regression guards (found while fixing idx 125): `itcl::class` /
+// `snit::widget` / `snit::type` / `snit::widgetadaptor` bodies were missing
+// the registry's `body_kind: Structural` classification `oo::class`
+// already carries — their body argument was scanned as ordinary value text
+// instead of being excluded as a separate definition scope. This was
+// invisible before idx 125's fix only because the class/method body's own
+// nested braces were, by the same quote-context bug, mis-read as a single
+// non-substituting brace-quoted word, which happened to swallow every
+// `$this` / instance-variable reference along with it.
+
+#[test]
+fn w210_silent_for_this_and_instance_vars_in_an_itcl_method_body_923_idx125() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "itcl::class C {\n    variable handler\n    common registry\n    method run {} {\n        $this configure\n        $handler process\n        return $registry\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W210"), "{:?}", codes(&diags));
+}
+
+#[test]
+fn w210_silent_for_self_and_instance_vars_in_a_snit_widget_method_body_923_idx125() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "snit::widget mywidget {\n    variable helper\n    component inner\n    method draw {} {\n        $self configure -bg white\n        $inner render\n        $helper compute\n        return $win\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W210"), "{:?}", codes(&diags));
+}
+
 #[test]
 fn uplevel_issue_837_body_is_silent_through_server() {
     // Issue #837: the exact reproducer must produce no diagnostics through the

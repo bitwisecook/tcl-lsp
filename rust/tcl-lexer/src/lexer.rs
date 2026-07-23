@@ -323,6 +323,32 @@ impl<'src> Lexer<'src> {
         self
     }
 
+    /// Treat `source` as already being the *interior* of an open
+    /// double-quoted string, from byte 0: only `$`, `[`, and `\` escapes
+    /// are special, and everything else — including `{` / `}`,
+    /// whitespace, and `#` — is ordinary literal content, exactly like
+    /// [`Self::parse_quoted`]'s own in-quote dispatch. No top-level
+    /// word-splitting or brace-quoting is applied at all.
+    ///
+    /// For scanning already-extracted word/value text (a `set` value, a
+    /// proc-arg default, …) whose own enclosing quotes have already been
+    /// stripped by whatever produced the text — re-tokenising it with the
+    /// ordinary top-level rules would wrongly treat an embedded `{…}` run
+    /// as a fresh brace-quoted (non-substituting) word, when it was
+    /// actually just literal content the original quoted context already
+    /// carried through unchanged. Builder form, chains after
+    /// [`Lexer::new`] / [`Lexer::with_source_map`].
+    ///
+    /// An unterminated quote is expected here (there is no real closing
+    /// delimiter to find) and never surfaces as an error: same
+    /// best-effort behaviour as any other unterminated quoted string
+    /// (see [`Self::parse_quoted`]).
+    #[must_use]
+    pub fn as_quoted_body(mut self) -> Self {
+        self.in_quote = true;
+        self
+    }
+
     /// The ghost delimiter byte active at `offset`, if any.
     fn ghost_at(&self, offset: u32) -> Option<u8> {
         if self.ghosts.is_empty() {
@@ -3138,5 +3164,82 @@ mod tests {
             .find(|(t, _)| t.kind == TokenType::Var)
             .expect("expected a Var token");
         assert_eq!(var.1, "$a($b($c(1)))");
+    }
+
+    // `Lexer::as_quoted_body` — issue #923 idx 125.
+
+    #[test]
+    fn as_quoted_body_treats_embedded_braces_as_literal_content() {
+        // `{$a}` is ordinary literal-then-substitution content, not a fresh
+        // brace-quoted word: no `Str` token at all, and `$a` surfaces as its
+        // own `Var` token.
+        let src = "prefix {$a} suffix";
+        let lexer = Lexer::new(src).as_quoted_body();
+        let sm = lexer.source_map().clone();
+        let tokens = lexer
+            .tokenise_all()
+            .expect("quoted-body lexing is best-effort, never fails");
+        assert!(
+            !tokens.iter().any(|t| t.kind == TokenType::Str),
+            "no token should be brace-quoted in quoted-body mode: {tokens:?}"
+        );
+        let var = tokens
+            .iter()
+            .find(|t| t.kind == TokenType::Var)
+            .expect("$a must surface as its own Var token");
+        assert_eq!(sm.token_text(*var), "a");
+    }
+
+    #[test]
+    fn default_lexing_of_the_same_text_brace_quotes_it_instead() {
+        // Contrast case: without `as_quoted_body`, the identical text is
+        // lexed as fresh top-level command words, so `{$a}` is one
+        // non-substituting `Str` token and `$a` never becomes a `Var` token
+        // at all — this is the exact mis-tokenisation idx 125 fixed by
+        // giving callers `as_quoted_body` to opt out of.
+        let src = "prefix {$a} suffix";
+        let tokens = Lexer::new(src).tokenise_all().expect("lexes fine");
+        assert!(
+            tokens.iter().any(|t| t.kind == TokenType::Str),
+            "the default top-level lexer should brace-quote {{$a}}: {tokens:?}"
+        );
+        assert!(
+            !tokens.iter().any(|t| t.kind == TokenType::Var),
+            "so $a must NOT surface as a Var token: {tokens:?}"
+        );
+    }
+
+    #[test]
+    fn as_quoted_body_still_dispatches_dollar_and_bracket_normally() {
+        let src = "$x [foo $y]";
+        let lexer = Lexer::new(src).as_quoted_body();
+        let sm = lexer.source_map().clone();
+        let tokens = lexer.tokenise_all().expect("lexes fine");
+        let var_texts: Vec<&str> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenType::Var)
+            .map(|t| sm.token_text(*t))
+            .collect();
+        assert_eq!(var_texts, vec!["x"], "only the top-level $x is a Var here");
+        let cmd = tokens
+            .iter()
+            .find(|t| t.kind == TokenType::Cmd)
+            .expect("[foo $y] must still be recognised as a Cmd token");
+        assert_eq!(sm.token_text(*cmd), "foo $y");
+    }
+
+    #[test]
+    fn as_quoted_body_treats_the_missing_close_quote_as_a_soft_warning() {
+        // There is no real closing `"` to find (the caller already stripped
+        // it, if there ever was one) — this must be a best-effort, non-fatal
+        // warning under the default (non-`strict_quoting`) config, not a
+        // `LexError`, since every value-body scan otherwise relies on
+        // `tokenise_all()` succeeding.
+        let lexer = Lexer::new("plain bareword value").as_quoted_body();
+        let result = lexer.tokenise_all();
+        assert!(
+            result.is_ok(),
+            "a missing close-quote must not be a hard error by default: {result:?}"
+        );
     }
 }

@@ -41,6 +41,9 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         arg_roles: &[(1, ArgRole::Body)],
+        // A separate definition scope, not enclosing-scope data flow —
+        // matches `oo::class`'s own `Structural` classification.
+        body_kind: BodyKind::Structural,
         tcllib_package: Some("snit"),
         required_package: Some("snit"),
         definition_body: Some(&crate::definer::SNIT_GRAMMAR),
