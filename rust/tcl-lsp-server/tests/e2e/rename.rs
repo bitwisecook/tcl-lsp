@@ -567,3 +567,49 @@ fn rename_rewrites_the_renames_own_old_word_too() {
     );
     assert!(for_uri.iter().all(|e| e["newText"] == "newName"));
 }
+
+/// idx 56 (differential-audit main audit wave, high severity): a proc
+/// installed directly into `::oo::Helpers` (the documented "`TclOO` Tricks"
+/// idiom — real corpus usage: nico-robert/ticklecharts installs `classvar`/
+/// `callback` this way) is bare-callable from every method body in the
+/// program via `TclOO`'s own fixed runtime namespace path. Renaming it
+/// previously produced a `WorkspaceEdit` that rewrote only the declaration,
+/// leaving every bare call site pointed at the now-nonexistent old name —
+/// applying that edit verbatim crashes the very next invocation with
+/// "invalid command name" at runtime, while the tool reported it as a
+/// complete, safe rename.
+#[test]
+fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n",
+    );
+    // Line 0: `proc ::oo::Helpers::classvar {name} {` — cursor on the
+    // `classvar` word (column 20).
+    let result = lsp.rename(&uri, 0, 20, "renamedClassvar");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    assert!(lines.contains(&0), "decl missing: {for_uri:?}");
+    assert!(
+        lines.contains(&9),
+        "the bare classvar call site inside the method body must be rewritten too: {for_uri:?}"
+    );
+    let replacements: Vec<&str> = for_uri
+        .iter()
+        .filter_map(|e| e["newText"].as_str())
+        .collect();
+    assert!(
+        replacements.contains(&"::oo::Helpers::renamedClassvar"),
+        "expected the qualified replacement at decl; got {replacements:?}"
+    );
+    assert!(
+        replacements.contains(&"renamedClassvar"),
+        "expected the short replacement at the bare call site; got {replacements:?}"
+    );
+}

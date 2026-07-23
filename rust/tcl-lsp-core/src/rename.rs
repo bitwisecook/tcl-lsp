@@ -1323,6 +1323,40 @@ mod tests {
     }
 
     #[test]
+    fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
+        // Issue #923 idx 56 (main audit wave, high severity): the finding's
+        // own demonstrated failure mode — renaming `::oo::Helpers::classvar`
+        // previously produced a `WorkspaceEdit` with only the declaration
+        // rewritten, leaving the bare `classvar hits` call site inside the
+        // method body pointed at the now-nonexistent old name. Applying
+        // that edit would crash the very next invocation with "invalid
+        // command name" at runtime, while the tool reported it as a
+        // complete, safe rename.
+        let src = "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `classvar` declaration (line 0, col 20).
+        let edits = rename(src, "tcl", 0, 20, "renamedClassvar", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {edits:?}");
+        assert!(
+            lines.contains(&9),
+            "the bare classvar call site inside the method body must be rewritten too: {edits:?}"
+        );
+        // The qualified declaration gets the qualified replacement; the
+        // bare call site gets the short replacement — same convention as
+        // any other namespaced-proc rename.
+        let replacements: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(
+            replacements.contains(&"::oo::Helpers::renamedClassvar"),
+            "expected the qualified replacement at decl; got {replacements:?}"
+        );
+        assert!(
+            replacements.contains(&"renamedClassvar"),
+            "expected the short replacement at the bare call site; got {replacements:?}"
+        );
+    }
+
+    #[test]
     fn rename_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);

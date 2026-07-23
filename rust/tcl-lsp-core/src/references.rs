@@ -250,9 +250,22 @@ pub(crate) fn invocation_references_named(
         inv.range.start(),
         &analysis.namespace_overrides,
     );
+    // A user proc installed directly into `::oo::Helpers` (the documented
+    // "TclOO Tricks" idiom — `proc ::oo::Helpers::classvar {...} {...}`,
+    // real corpus usage: nico-robert/ticklecharts) is bare-callable from
+    // every method body in the program via TclOO's own fixed runtime
+    // namespace path — a search member `call_ns` alone can't represent,
+    // since it's a single accumulated namespace string, not a path (issue
+    // #923 idx 56, main audit wave).
+    let call_reaches_target = call_ns == target_ns
+        || (target_ns == "oo::Helpers"
+            && tcl_compiler::analyser::innermost_scope_reaches_oo_helpers(
+                &analysis.global_scope,
+                inv.range.start(),
+            ));
     let simple_ok = inv.name == def_name
         && resolved_norm.is_none_or(|r| r == target_q || r == def_name)
-        && call_ns == target_ns;
+        && call_reaches_target;
     if simple_ok || inv.name == def_qualified || resolved_norm == Some(target_q) {
         return true;
     }
@@ -2360,6 +2373,48 @@ mod tests {
         assert!(
             lines.contains(&5),
             "wildcard-imported bareword call site missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_include_bare_call_to_a_proc_installed_into_oo_helpers() {
+        // Issue #923 idx 56 (main audit wave, high severity): a proc
+        // installed directly into `::oo::Helpers` (the documented "TclOO
+        // Tricks" idiom — nico-robert/ticklecharts installs `classvar` /
+        // `callback` this way) becomes bare-callable from every TclOO
+        // method body in the program via TclOO's own fixed runtime
+        // namespace path. tclsh9.0/8.6 both prove the bare `classvar hits`
+        // call genuinely dispatches to `::oo::Helpers::classvar` —
+        // find-references must reach it, not just the declaration.
+        let src = "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `classvar` declaration (line 0, col 20).
+        let refs = references(src, "tcl", 0, 20, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&9),
+            "the bare classvar call site inside the method body is missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_exclude_a_top_level_bare_call_with_the_same_name_as_an_oo_helpers_proc() {
+        // FP guard (issue #923 idx 56): a bare call outside any TclOO
+        // method body must not be treated as reaching a proc installed in
+        // `::oo::Helpers` — real tclsh raises "invalid command name" there
+        // (`::oo::Helpers` is on a *method body's* runtime namespace path
+        // only, never the global one) — only a call genuinely inside a
+        // method body's own runtime namespace path does.
+        let src = "proc ::oo::Helpers::classvar {name} {}\nclassvar hits\n";
+        let analysis = analyse(src);
+        // Cursor on the `::oo::Helpers::classvar` declaration (line 0, col 20).
+        let refs = references(src, "tcl", 0, 20, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(
+            lines,
+            vec![0],
+            "a top-level bare call outside any method body must not be linked: {refs:?}"
         );
     }
 

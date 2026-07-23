@@ -189,6 +189,51 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
     ns
 }
 
+/// Whether an unqualified command at `byte_offset` also resolves against
+/// `::oo::Helpers`, the one fixed namespace real Tcl's `TclOO` implementation
+/// always searches for a method body's bare command calls — the runtime
+/// counterpart to [`Scope::oo_global_resolution`]'s static `"::"`-only
+/// approximation, which [`advance_command_resolution_namespace`] can't
+/// otherwise represent (a single accumulated namespace string has no room
+/// for a second, non-lexical search member).
+///
+/// A real-world idiom installs a proc directly into `::oo::Helpers`
+/// (`proc ::oo::Helpers::classvar {...} {...}`, the documented `TclOO`
+/// Tricks pattern nico-robert/ticklecharts uses) to make it bare-callable
+/// from every method body in the program — this is what lets
+/// [`tcl_lsp_core::references::invocation_references_named`]'s namespace
+/// gate recognise such a call site as a genuine reference to that proc,
+/// alongside the ordinary `call_ns == target_ns` case (issue #923 idx 56,
+/// main audit wave).
+///
+/// Same traversal as [`command_resolution_namespace_at`] (so the two can
+/// never disagree about which scope is innermost), tracking whether the
+/// *last* namespace-resolution-affecting scope kind visited on the way
+/// down was an `oo_global_resolution` method — a `namespace eval` (or any
+/// other scope kind) nested inside a method body leaves the method's
+/// object-context resolution behind, exactly like [`ScopeKind::Namespace`]
+/// resets nothing in `advance_command_resolution_namespace` but a
+/// `Proc`/`Method`/`Uplevel` scope does.
+#[must_use]
+pub fn innermost_scope_reaches_oo_helpers(root: &Scope, byte_offset: u32) -> bool {
+    let mut reaches = false;
+    let mut cursor = root;
+    loop {
+        let next = cursor.children.iter().find(|c| {
+            c.body_span
+                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
+        });
+        let Some(child) = next else { break };
+        reaches = match child.kind {
+            ScopeKind::Namespace | ScopeKind::Global => reaches,
+            ScopeKind::Method => child.oo_global_resolution,
+            ScopeKind::Proc | ScopeKind::Uplevel => false,
+        };
+        cursor = child;
+    }
+    reaches
+}
+
 /// The [`VarDef`] a `::`-qualified variable reference names — `base_name`
 /// declared directly in the namespace whose fully qualified, `::`-rooted
 /// resolution path is `target_ns` — the single-table, no-searching lookup
