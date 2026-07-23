@@ -21,6 +21,13 @@
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
+// `upvar ?level? otherVar myVar ?otherVar myVar ...?` is the exact
+// SYNOPSIS text in every one of the Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
+// upvar.n manpages — unlike `global`/`return`/`open`, this command's
+// invocation shape has never changed, so a single dialect-unrestricted
+// FormSpec covers every version (9.0's and 9.1's upvar.html bodies are
+// themselves byte-for-byte identical, bar the doc-anchor version string
+// in the page banner).
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "upvar ?level? otherVar myVar ?otherVar myVar ...?",
@@ -28,9 +35,37 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Command spec for `upvar`.
+///
+/// `upvar`'s SYNOPSIS and minimum arity are unchanged across Tcl 8.4,
+/// 8.5, 8.6, 9.0, and 9.1, so `FORMS`/`arity` need no per-version gate.
+/// Two real behavioural facts do differ by version; both are folded into
+/// the hover snippet's prose rather than a dialect gate, since the
+/// command and its argument shape stay universal and only a property of
+/// an existing argument changes:
+///   - A `myVar` that looks like an array element (`a(b)`) is a hard
+///     error from Tcl 8.5 onward ("can't create a scalar variable that
+///     looks like an array element" — confirmed on tclsh 8.6.14); the
+///     Tcl 8.4 manpage instead documents that "a regular variable is
+///     created" there, silently.
+///   - When `otherVar` names an array element, a whole-array trace on
+///     that array does not fire for accesses through `myVar` on Tcl 8.4
+///     through 8.6 (confirmed on tclsh 8.6.14: only a trace on the
+///     specific element fires). The Tcl 9.0 and 9.1 manpages instead
+///     document that the element name is passed as the trace
+///     procedure's second argument "in case of traces set on an entire
+///     array" — i.e. such a whole-array trace now does fire.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "upvar",
+        // A pure variable-scoping primitive — no filesystem, process, or
+        // network access — so every dialect that hosts a real Tcl core
+        // carries it unmodified, the same reasoning `global`/`variable`
+        // use for their own unrestricted `dialects`. Not on iRules'
+        // `IRULES_DISABLED_COMMANDS` list (`tcl-dialect/src/profile.rs`),
+        // and no dialect command pack (irules/, iapps/, itcl/, tk/,
+        // expect/, the eda_*/ vendor directories) defines its own
+        // "upvar" spec to add or restrict a form.
+        dialects: None,
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -39,6 +74,12 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_SCOPE_ALIAS
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::FRAME_HASH_BUILTIN,
+        // At least one otherVar/myVar pair is required — `upvar` and
+        // `upvar x` (0 or 1 trailing word) both raise "wrong # args",
+        // `upvar x y` does not (tclsh 8.6.14). No upper bound: any
+        // number of additional pairs is legal. Identical in every
+        // version, since the SYNOPSIS itself never changed (see
+        // `FORMS`).
         arity: Arity::at_least(2),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
@@ -51,10 +92,10 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Create link to variable in a different stack frame",
             synopsis: &["upvar ?level? otherVar myVar ?otherVar myVar ...?"],
-            snippet: "This command arranges for one or more local variables in the current procedure to refer to variables in an enclosing procedure call or to global variables.",
-            source: "Tcl man page upvar.n",
-            examples: "",
-            return_value: "",
+            snippet: "Links each myVar in the current procedure to the variable named otherVar in the call frame named by level (or the global scope, when level is #0); afterwards, reading, writing, or unsetting myVar reads, writes, or unsets otherVar directly. otherVar need not exist beforehand — it is created, just like an ordinary variable, the first time myVar is referenced. myVar must not already exist as a variable when upvar runs, and is always treated as a plain variable name, never an array element: since Tcl 8.5, a myVar that looks like an array element (e.g. a(b)) is a hard error (\"can't create a scalar variable that looks like an array element\"); Tcl 8.4 instead silently created an ordinary scalar variable literally named that. otherVar itself may be a scalar, a whole array, or a single array element. level takes any uplevel-style form — a plain integer counts call frames up from the current one (each namespace eval body also counts as one frame), #N is an absolute frame number, and it defaults to 1 (the immediate caller) whenever the first otherVar doesn't itself look like a level specifier; a level outside the current call stack is a \"bad level\" error. There is no way to remove an upvar link short of leaving the procedure that created it, though a later upvar call can retarget myVar to a different otherVar. A variable trace on otherVar fires on accesses through myVar but is passed myVar's name, not otherVar's; when otherVar names one element of an array, Tcl 8.4 through 8.6 do not fire a whole-array trace on that array for accesses through myVar (only a trace on that specific element fires), while Tcl 9.0 and 9.1 pass the element name as the trace procedure's second argument, so a whole-array trace does observe the access.",
+            source: "Tcl upvar(n)",
+            examples: "proc add2 name {\n    upvar $name x\n    set x [expr {$x + 2}]\n}\nset n 5\nadd2 n\nputs $n\n\n# level defaults to 1 (the caller); an explicit level reaches further up the stack\nproc decr {varName {decrement 1}} {\n    upvar 1 $varName var\n    incr var [expr {-$decrement}]\n}\n\n# level #0 links straight to the global scope, regardless of call depth\nproc bumpCounter {} {\n    upvar #0 counter c\n    incr c\n}",
+            return_value: "The empty string.",
         }),
         lowering_hook: Some(LoweringHookId::Upvar),
         codegen_hook: Some(CodegenHookId::Upvar),
