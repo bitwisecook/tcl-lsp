@@ -39,6 +39,7 @@ use std::cell::{Cell, RefCell};
 // A `BTreeMap` (not `HashMap`) keeps the engine free of any RNG/entropy
 // dependency, so it embeds cleanly in freestanding / wasm / C-linked builds.
 use std::collections::BTreeMap;
+use tcl_core_types::RecursionLimit;
 
 /// Half-open character span `[start, end)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,6 +61,61 @@ pub struct Span {
 /// fraction of a second, while staying orders of magnitude above what any
 /// realistic pattern/input needs — the `reg.test` corpus never comes close.
 const MATCH_FUEL: u64 = 4_000_000;
+
+/// Recursion budget for [`Matcher::dissect`]/[`Matcher::dissect_seq`]/
+/// [`Matcher::dissect_repeat`] (issue #996). `dissect_repeat`'s `min == 0`
+/// branch recurses once per matched iteration of a repeated sub-pattern —
+/// so a shallow, everyday pattern like `.*` or `a+` matched against a long
+/// subject produces recursion depth proportional to the subject length,
+/// independent of [`MAX_PARSE_DEPTH`](crate::parser) (which bounds only how
+/// deeply *groups* nest in the pattern text, not how many characters a
+/// repeat matches). [`MATCH_FUEL`] happens to bound this too in the common
+/// case — `dissect_repeat`'s per-level "where does this iteration end"
+/// check re-scans the *remaining* subject via a fresh, unmemoized
+/// `reach_repeat` call, so total fuel spent across the whole recursion is
+/// quadratic in depth and self-limits it to roughly
+/// `sqrt(2 * MATCH_FUEL)` (~2800) before the shared budget runs out — but
+/// that is a coincidence of the current fuel accounting, not a depth
+/// guarantee, and empirically the two limits are close enough to each other
+/// that it is not a comfortable margin. With the fuel budget temporarily
+/// raised to rule out fuel exhaustion as a confound, unguarded recursion
+/// overflowed the native stack (SIGABRT) between depth 2400 and 2420 on a
+/// 2 MiB thread (`cargo test`'s per-test default) — i.e. dissection was
+/// already only ~15% of the way from its fuel-imposed "natural" ceiling to
+/// an actual crash. 256 leaves better than 9x margin under that measured
+/// floor. Tripping this cap does not turn a real match into "no match" —
+/// [`Matcher::search`] has already fixed the overall match extent
+/// (`caps[0]`) by the time `dissect` runs, so the cap only affects
+/// submatch spans nested inside a repeat iterating this deep; the fallback
+/// dissects the remaining `[lo, hi)` span as a single unit (the same
+/// "can't cleanly locate the next iteration boundary" fallback the
+/// algorithm already uses elsewhere in this function), a reasonable
+/// approximation rather than leaving those captures unset.
+const MAX_DISSECT_DEPTH: RecursionLimit = RecursionLimit(256);
+
+/// Recursion budget for the backtracking matcher's mutually-recursive
+/// [`Bt::m`]/[`Bt::m_seq`]/[`Bt::m_repeat`]/[`Bt::m_star`]/[`Bt::m_backref`]
+/// (issue #996) — the separate matching path used only when a pattern
+/// contains a backreference. `m_star` recurses once per matched iteration
+/// of a repeated sub-pattern (same shape as `dissect_repeat`, but via a
+/// continuation closure rather than a plain call) and `m_backref` recurses
+/// once per repetition of a quantified backreference (`\1*`); both are
+/// independent of [`MATCH_FUEL`] as a *depth* bound — the fuel charge here
+/// is 1 unit per node visit regardless of how much native stack that visit
+/// costs, so a pattern like `a*(b)\1` or `(x)\1*` against a long subject
+/// can recurse to a depth proportional to the subject length long before
+/// the multi-million-unit budget is anywhere near exhausted. Empirically
+/// (binary-searched via a throwaway probe spawning a worker thread with an
+/// explicit stack size), unguarded input overflowed the native stack
+/// (SIGABRT) between depth 2200 and 2300 for `m_star` and between 2400 and
+/// 2500 for `m_backref`, both on a 2 MiB thread (`cargo test`'s per-test
+/// default). 256 leaves better than 8x margin under the lower of those two
+/// measured floors. On trip, every guarded function returns `false` —
+/// mirroring the existing fuel-exhaustion fallback in [`Bt::m`]
+/// (`if !self.spend_fuel() { return false; }`) immediately above — so a
+/// pattern that recurses this deep cleanly reports no match along that
+/// backtracking path rather than aborting the process.
+const MAX_BT_DEPTH: RecursionLimit = RecursionLimit(256);
 
 pub(crate) struct Matcher<'a> {
     subj: &'a [Chr],
@@ -317,7 +373,7 @@ impl<'a> Matcher<'a> {
             if let Some(&hi) = pick {
                 let mut caps: Vec<Option<Span>> = vec![None; nsub + 1];
                 caps[0] = Some(Span { start, end: hi });
-                self.dissect(root, start, hi, &mut caps);
+                self.dissect(root, start, hi, 0, &mut caps);
                 return Some(caps);
             }
         }
@@ -325,7 +381,21 @@ impl<'a> Matcher<'a> {
     }
 
     /// Assign captures for `node` known to match exactly `[lo, hi)`.
-    fn dissect(&mut self, node: &Node, lo: usize, hi: usize, caps: &mut [Option<Span>]) {
+    ///
+    /// `depth` is the nesting level of this call (0 at the top, via
+    /// [`Self::search`]); past [`MAX_DISSECT_DEPTH`] this stops recursing
+    /// further — see that constant's doc comment for why that is safe.
+    fn dissect(
+        &mut self,
+        node: &Node,
+        lo: usize,
+        hi: usize,
+        depth: u32,
+        caps: &mut [Option<Span>],
+    ) {
+        if MAX_DISSECT_DEPTH.exceeded(depth) {
+            return;
+        }
         match node {
             Node::Empty
             | Node::Anchor(_)
@@ -334,34 +404,44 @@ impl<'a> Matcher<'a> {
             | Node::Backref { .. } => {}
             Node::Capture { subno, sub } => {
                 caps[*subno] = Some(Span { start: lo, end: hi });
-                self.dissect(sub, lo, hi, caps);
+                self.dissect(sub, lo, hi, depth + 1, caps);
             }
             Node::Alt(branches) => {
                 for b in branches {
                     if self.reach(b, lo).contains(&hi) {
-                        self.dissect(b, lo, hi, caps);
+                        self.dissect(b, lo, hi, depth + 1, caps);
                         return;
                     }
                 }
             }
-            Node::Concat(items) => self.dissect_seq(items, lo, hi, caps),
+            Node::Concat(items) => self.dissect_seq(items, lo, hi, depth + 1, caps),
             Node::Repeat {
                 sub,
                 min,
                 max,
                 pref,
             } => {
-                self.dissect_repeat(sub, lo, hi, *min, *max, *pref, caps);
+                self.dissect_repeat(sub, lo, hi, *min, *max, *pref, depth + 1, caps);
             }
         }
     }
 
-    fn dissect_seq(&mut self, items: &[Node], lo: usize, hi: usize, caps: &mut [Option<Span>]) {
+    fn dissect_seq(
+        &mut self,
+        items: &[Node],
+        lo: usize,
+        hi: usize,
+        depth: u32,
+        caps: &mut [Option<Span>],
+    ) {
+        if MAX_DISSECT_DEPTH.exceeded(depth) {
+            return;
+        }
         if items.is_empty() {
             return;
         }
         if items.len() == 1 {
-            self.dissect(&items[0], lo, hi, caps);
+            self.dissect(&items[0], lo, hi, depth + 1, caps);
             return;
         }
         let first = &items[0];
@@ -377,8 +457,8 @@ impl<'a> Matcher<'a> {
             Pref::Shorter => firsts.into_iter().min(),
         };
         if let Some(mid) = mid {
-            self.dissect(first, lo, mid, caps);
-            self.dissect_seq(rest, mid, hi, caps);
+            self.dissect(first, lo, mid, depth + 1, caps);
+            self.dissect_seq(rest, mid, hi, depth + 1, caps);
         }
     }
 
@@ -390,8 +470,23 @@ impl<'a> Matcher<'a> {
         min: i32,
         max: i32,
         pref: Pref,
+        depth: u32,
         caps: &mut [Option<Span>],
     ) {
+        if MAX_DISSECT_DEPTH.exceeded(depth) {
+            // Can't cleanly locate the next iteration boundary within budget:
+            // fall back to the same "dissect the remaining span as one unit"
+            // approximation the algorithm already uses below when `firsts`
+            // yields no candidate. This never changes whether the overall
+            // match succeeded (`search` fixed `caps[0]` before `dissect` was
+            // ever called) — only a capture nested this deep inside a single
+            // repeat gets an approximate span instead of the exact final
+            // iteration's.
+            if lo < hi {
+                self.dissect(sub, lo, hi, depth + 1, caps);
+            }
+            return;
+        }
         if lo == hi && min == 0 {
             // Zero iterations: inner captures do not participate.
             return;
@@ -419,7 +514,7 @@ impl<'a> Matcher<'a> {
                 Pref::Shorter => starts.into_iter().min(),
             };
             if let Some(s) = pick {
-                self.dissect(sub, s, hi, caps);
+                self.dissect(sub, s, hi, depth + 1, caps);
             }
             return;
         }
@@ -439,9 +534,9 @@ impl<'a> Matcher<'a> {
             Pref::Shorter => firsts.into_iter().min(),
         };
         match pick {
-            Some(m) if m == hi => self.dissect(sub, lo, hi, caps),
-            Some(m) => self.dissect_repeat(sub, m, hi, 0, nmax, pref, caps),
-            None if lo < hi => self.dissect(sub, lo, hi, caps),
+            Some(m) if m == hi => self.dissect(sub, lo, hi, depth + 1, caps),
+            Some(m) => self.dissect_repeat(sub, m, hi, 0, nmax, pref, depth + 1, caps),
+            None if lo < hi => self.dissect(sub, lo, hi, depth + 1, caps),
             None => {}
         }
     }
@@ -488,7 +583,7 @@ impl Matcher<'_> {
             let mut found = None;
             let mut try_end = |end: usize| -> bool {
                 *bt.caps.borrow_mut() = vec![None; nsub + 1];
-                if bt.m(root, start, end, &mut |p| p == end) {
+                if bt.m(root, start, end, 0, &mut |p| p == end) {
                     let mut caps = bt.caps.borrow().clone();
                     caps[0] = Some(Span { start, end });
                     found = Some(caps);
@@ -569,11 +664,26 @@ impl Bt<'_> {
 
     /// Match `node` from `pos` (not consuming past `hi`); call `k(end)` for each
     /// way it matches, returning `true` as soon as `k` accepts.
-    fn m(&self, node: &Node, pos: usize, hi: usize, k: &mut dyn FnMut(usize) -> bool) -> bool {
+    ///
+    /// `depth` is the nesting level of this call (0 at the top, via
+    /// [`Matcher::search_backref`]); past [`MAX_BT_DEPTH`] every guarded
+    /// function in this `impl` returns `false` — see that constant's doc
+    /// comment.
+    fn m(
+        &self,
+        node: &Node,
+        pos: usize,
+        hi: usize,
+        depth: u32,
+        k: &mut dyn FnMut(usize) -> bool,
+    ) -> bool {
         // One step of the backtracking search. When the budget is gone, treat
         // every remaining path as a non-match so an exponential pattern unwinds
         // promptly (the search then reports no match — the standard ReDoS guard).
         if !self.spend_fuel() {
+            return false;
+        }
+        if MAX_BT_DEPTH.exceeded(depth) {
             return false;
         }
         match node {
@@ -582,7 +692,7 @@ impl Bt<'_> {
             Node::Set(s) => pos < hi && s.matches(self.subj[pos]) && k(pos + 1),
             Node::Look { positive, sub } => {
                 let mut matched = false;
-                self.m(sub, pos, self.subj.len(), &mut |_| {
+                self.m(sub, pos, self.subj.len(), depth + 1, &mut |_| {
                     matched = true;
                     true
                 });
@@ -591,7 +701,7 @@ impl Bt<'_> {
             Node::Capture { subno, sub } => {
                 let sn = *subno;
                 let start = pos;
-                self.m(sub, pos, hi, &mut |end| {
+                self.m(sub, pos, hi, depth + 1, &mut |end| {
                     let prev = self.caps.borrow()[sn];
                     self.caps.borrow_mut()[sn] = Some(Span { start, end });
                     if k(end) {
@@ -602,10 +712,10 @@ impl Bt<'_> {
                     }
                 })
             }
-            Node::Concat(items) => self.m_seq(items, 0, pos, hi, k),
+            Node::Concat(items) => self.m_seq(items, 0, pos, hi, depth + 1, k),
             Node::Alt(branches) => {
                 for b in branches {
-                    if self.m(b, pos, hi, k) {
+                    if self.m(b, pos, hi, depth + 1, k) {
                         return true;
                     }
                 }
@@ -616,13 +726,13 @@ impl Bt<'_> {
                 min,
                 max,
                 pref,
-            } => self.m_repeat(sub, *min, *max, *pref, pos, hi, k),
+            } => self.m_repeat(sub, *min, *max, *pref, pos, hi, depth + 1, k),
             Node::Backref {
                 subno,
                 min,
                 max,
                 pref,
-            } => self.m_backref(*subno, *min, *max, *pref, 0, pos, hi, k),
+            } => self.m_backref(*subno, *min, *max, *pref, 0, pos, hi, depth + 1, k),
         }
     }
 
@@ -632,13 +742,17 @@ impl Bt<'_> {
         i: usize,
         pos: usize,
         hi: usize,
+        depth: u32,
         k: &mut dyn FnMut(usize) -> bool,
     ) -> bool {
+        if MAX_BT_DEPTH.exceeded(depth) {
+            return false;
+        }
         if i == items.len() {
             return k(pos);
         }
-        self.m(&items[i], pos, hi, &mut |p| {
-            self.m_seq(items, i + 1, p, hi, k)
+        self.m(&items[i], pos, hi, depth + 1, &mut |p| {
+            self.m_seq(items, i + 1, p, hi, depth + 1, k)
         })
     }
 
@@ -665,15 +779,19 @@ impl Bt<'_> {
         pref: Pref,
         pos: usize,
         hi: usize,
+        depth: u32,
         k: &mut dyn FnMut(usize) -> bool,
     ) -> bool {
+        if MAX_BT_DEPTH.exceeded(depth) {
+            return false;
+        }
         if min >= 1 {
             let pmax = if max >= DUPINF { max } else { max - 1 };
-            self.m_repeat(sub, min - 1, pmax, pref, pos, hi, &mut |mid| {
-                self.m(sub, mid, hi, k)
+            self.m_repeat(sub, min - 1, pmax, pref, pos, hi, depth + 1, &mut |mid| {
+                self.m(sub, mid, hi, depth + 1, k)
             })
         } else {
-            self.m_star(sub, max, pref, 0, pos, hi, k)
+            self.m_star(sub, max, pref, 0, pos, hi, depth + 1, k)
         }
     }
 
@@ -689,13 +807,17 @@ impl Bt<'_> {
         count: i32,
         pos: usize,
         hi: usize,
+        depth: u32,
         k: &mut dyn FnMut(usize) -> bool,
     ) -> bool {
+        if MAX_BT_DEPTH.exceeded(depth) {
+            return false;
+        }
         let can_more = max >= DUPINF || count < max;
         let more = |k: &mut dyn FnMut(usize) -> bool| {
             can_more
-                && self.m(sub, pos, hi, &mut |p| {
-                    p > pos && self.m_star(sub, max, pref, count + 1, p, hi, k)
+                && self.m(sub, pos, hi, depth + 1, &mut |p| {
+                    p > pos && self.m_star(sub, max, pref, count + 1, p, hi, depth + 1, k)
                 })
         };
         // The arms differ only in short-circuit order, which is load-bearing
@@ -710,6 +832,11 @@ impl Bt<'_> {
 
     // Threads the full backref-repeat state (subno/min/max/pref/count/pos/hi)
     // plus the continuation; bundling into a struct would obscure the recursion.
+    //
+    // `depth` guards this against the same unbounded-recursion class as
+    // `m`/`m_seq`/`m_repeat`/`m_star` (issue #996): a quantified
+    // backreference like `\1*` recurses once per repetition, independent of
+    // any other function in this `impl` — see [`MAX_BT_DEPTH`].
     #[allow(clippy::too_many_arguments)]
     fn m_backref(
         &self,
@@ -720,8 +847,12 @@ impl Bt<'_> {
         count: i32,
         pos: usize,
         hi: usize,
+        depth: u32,
         k: &mut dyn FnMut(usize) -> bool,
     ) -> bool {
+        if MAX_BT_DEPTH.exceeded(depth) {
+            return false;
+        }
         let text: Vec<Chr> = match self.caps.borrow()[subno] {
             // A non-participating group makes the backreference fail outright
             // (Tcl/POSIX): it is not the same as a group that captured "".
@@ -738,7 +869,7 @@ impl Bt<'_> {
         let can_more = (max >= DUPINF || count < max) && one;
         let can_stop = count >= min;
         let more = |k: &mut dyn FnMut(usize) -> bool| {
-            can_more && self.m_backref(subno, min, max, pref, count + 1, pos + l, hi, k)
+            can_more && self.m_backref(subno, min, max, pref, count + 1, pos + l, hi, depth + 1, k)
         };
         // See `m_repeat`: the arms differ only in short-circuit order, which is
         // load-bearing (greedy vs lazy, plus capture side effects).
