@@ -535,6 +535,7 @@ impl Analyser {
         // params, and the class instance variables (pre-bound in every method).
         if self.defer_proc_bodies {
             let namespace = self.namespace_from_scope_path(scope_path);
+            let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
                 body_text: mb.body_text.clone(),
                 body_tok: mb.body_tok,
@@ -548,6 +549,7 @@ impl Analyser {
                 // declaration spans; the graft keeps the shell's span, so
                 // the deferred body pass only needs the names.
                 class_variables: class_variables.to_vec(),
+                safe_interp_ctx,
             });
         } else {
             self.analyse_body(&mb.body_text, mb.body_tok, &method_path);

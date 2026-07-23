@@ -277,6 +277,21 @@ impl Analyser {
         true
     }
 
+    /// A flattened snapshot of `self.safe_interp_stack`'s *top* entry, for
+    /// [`super::per_item::DeferredBody::safe_interp_ctx`] (issue #1001
+    /// follow-up) — see that field's doc for the full rationale. Called
+    /// wherever a proc/method/apply body is deferred for `analyse_per_item`'s
+    /// isolated second pass, so the visibility context is available for
+    /// [`super::per_item::analyse_proc_body_isolated`] to restore.
+    pub(super) fn safe_interp_ctx_snapshot(&self) -> Option<(bool, Vec<String>, Vec<String>)> {
+        let ctx = self.safe_interp_stack.last()?;
+        let mut hidden_extra: Vec<String> = ctx.hidden_extra.iter().cloned().collect();
+        hidden_extra.sort_unstable();
+        let mut exposed: Vec<String> = ctx.exposed.iter().cloned().collect();
+        exposed.sort_unstable();
+        Some((ctx.base_hidden, hidden_extra, exposed))
+    }
+
     /// Issue #1001's two `process_command`-level extensions to
     /// [`Self::safe_interp_visibility_gate`], combined into one call so
     /// `process_command` stays within its line budget:

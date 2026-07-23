@@ -94,6 +94,26 @@ pub struct DeferredBody {
     /// pass below only needs the names, so this stays `Vec<String>` (and salsa
     /// -interning-friendly — see `tcl-lsp-db`'s `ItemBodyKey`).
     pub class_variables: Vec<String>,
+    /// A flattened snapshot of `self.safe_interp_stack`'s *top* entry (issue
+    /// #1001 follow-up) at the moment this body was deferred — `(base_hidden,
+    /// hidden_extra, exposed)`, sorted `Vec<String>`s rather than the live
+    /// `HashSet`-based `SafeInterpCtx` (which isn't `Hash`, so can't key
+    /// `tcl-lsp-db`'s `ItemBodyKey` directly) so this stays deterministic and
+    /// salsa-interning-friendly, matching `class_variables` above.
+    /// `None` outside any tracked safe interpreter (the overwhelming common
+    /// case — no new work, no behaviour change from before this field
+    /// existed). Every safe-interp check only ever consults the *top* of the
+    /// stack (`safe_interp_visibility_gate`'s `.last()`), never an older
+    /// entry, so this single flattened snapshot is sufficient — a proc/apply
+    /// body nested several `interp eval`s deep still only needs the
+    /// innermost one. [`analyse_proc_body_isolated`] seeds the isolated
+    /// `Analyser`'s own `safe_interp_stack` from this before walking the
+    /// body, so a hidden call inside the body hits the same, unmodified gate
+    /// a directly-written call already does — without this, W129 silently
+    /// missed *any* hidden call inside *any* proc/apply body nested in a
+    /// safe interpreter under incremental (`analyse_per_item`) analysis,
+    /// which is what the live LSP server always uses for diagnostics.
+    pub safe_interp_ctx: Option<(bool, Vec<String>, Vec<String>)>,
 }
 
 impl Analyser {
@@ -671,6 +691,20 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         a.define_var(base, dummy, &proc_path, false, Some(placeholder));
     }
     a.suppress_w215 = false;
+    // Restore the enclosing safe-interpreter visibility context (issue #1001
+    // follow-up) so a hidden call inside this body — reached only via
+    // incremental analysis's isolated second pass — still hits
+    // `safe_interp_visibility_gate` the same way it would in a directly-
+    // written body under the whole-file `analyse` path. `None` (the
+    // overwhelming common case) leaves the fresh analyser's stack empty,
+    // exactly as before this field existed.
+    if let Some((base_hidden, hidden_extra, exposed)) = &db.safe_interp_ctx {
+        a.safe_interp_stack.push(super::state::SafeInterpCtx {
+            base_hidden: *base_hidden,
+            hidden_extra: hidden_extra.iter().cloned().collect(),
+            exposed: exposed.iter().cloned().collect(),
+        });
+    }
     a.analyse_body(&db.body_text, body_tok, &proc_path);
     let proc_scope = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
         .expect("reconstructed proc scope")

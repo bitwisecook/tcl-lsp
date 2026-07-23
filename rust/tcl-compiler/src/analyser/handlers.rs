@@ -771,6 +771,7 @@ impl Analyser {
             // created with params; a second pass fills it in place).
             let body_text = args[2].clone();
             if self.defer_proc_bodies {
+                let safe_interp_ctx = self.safe_interp_ctx_snapshot();
                 self.deferred_bodies.push(super::per_item::DeferredBody {
                     body_text,
                     body_tok,
@@ -781,6 +782,7 @@ impl Analyser {
                     scope_name: raw_name.clone(),
                     params: params.clone(),
                     class_variables: Vec::new(),
+                    safe_interp_ctx,
                 });
             } else {
                 self.analyse_body(&body_text, body_tok, &child_path);
@@ -952,6 +954,7 @@ impl Analyser {
         // doc-comment inside the lambda body doesn't bleed to what follows.
         let saved_comment = std::mem::take(&mut self.last_comment);
         if self.defer_proc_bodies {
+            let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
                 body_text,
                 body_tok,
@@ -962,6 +965,7 @@ impl Analyser {
                 scope_name,
                 params,
                 class_variables: Vec::new(),
+                safe_interp_ctx,
             });
         } else {
             self.analyse_body(&body_text, body_tok, &child_path);
@@ -6938,41 +6942,138 @@ proc runs {body} {\n\
         );
     }
 
-    /// Pre-existing, **separate** gap found while investigating issue #1001
-    /// (tracked distinctly, not folded into this fix — see the issue's KCS
-    /// doc): `analyse_per_item`'s shell/body-pass split (`per_item.rs`)
+    // -- issue #1001 follow-up: safe-interp visibility survives `analyse_per_item` --
+
+    /// A **separate** gap found while investigating issue #1001, now fixed
+    /// alongside it: `analyse_per_item`'s shell/body-pass split (`per_item.rs`)
     /// defers *every* proc/method body — including one nested inside a
     /// tracked `interp eval` safe-interpreter body — to an isolated second
-    /// pass (`DeferredBody` / `analyse_proc_body_isolated`) that carries no
-    /// `safe_interp_stack` snapshot at all, so W129 never fires for a hidden
-    /// call inside *any* proc body nested in a safe interpreter when
-    /// analysed incrementally (the live LSP server's diagnostics path always
-    /// uses `analyse_per_item`) — even a directly-written call, with no
-    /// bracket-substitution indirection whatsoever. `Analyser::analyse`
-    /// (the whole-file walk; also what every existing W129/#945 unit test
-    /// above uses) is unaffected, since it never defers a body at all. This
-    /// pins the gap so a future fix has a red test to turn green; it is
-    /// out of scope here because it is not specific to bracket-substitution
-    /// indirection (issue #1001's actual subject) and touches the
-    /// differential-fuzzer-gated incremental-analysis core rather than the
-    /// W129 gate itself.
+    /// pass (`DeferredBody` / `analyse_proc_body_isolated`). Before this fix
+    /// that pass carried no `safe_interp_stack` snapshot at all, so W129
+    /// never fired for a hidden call inside *any* proc body nested in a safe
+    /// interpreter when analysed incrementally (the live LSP server's
+    /// diagnostics path always uses `analyse_per_item`) — even a
+    /// directly-written call, with no bracket-substitution indirection
+    /// whatsoever. `DeferredBody::safe_interp_ctx` (a flattened snapshot of
+    /// the stack's top entry, captured when the body is deferred and
+    /// restored in `analyse_proc_body_isolated`) closes this.
     #[test]
-    fn safe_interp_w129_lost_across_per_item_deferred_proc_body_1001() {
+    fn safe_interp_w129_reaches_deferred_proc_body_under_per_item_1001() {
         let mut a = Analyser::new();
         let r = a.analyse_per_item(
             "interp create -safe s\ninterp eval s { proc f {} { source foo }; f }\n",
             "tcl8.6",
         );
         assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred proc body warns under \
+             incremental (per-item) analysis, matching `Analyser::analyse`: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The same fix for a directly-written `apply` lambda body (also
+    /// deferred by the shell pass) rather than a `proc` body.
+    #[test]
+    fn safe_interp_w129_reaches_deferred_apply_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\ninterp eval s { apply {{} { source foo }} }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred apply-lambda body warns under \
+             incremental (per-item) analysis: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The same fix for a `TclOO` method body (also deferred by the shell pass
+    /// via a distinct push site in `oo.rs`).
+    #[test]
+    fn safe_interp_w129_reaches_deferred_method_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 oo::class create C { method m {} { source foo } }\n\
+                 [C new] m\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred TclOO method body warns under \
+             incremental (per-item) analysis: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: a deferred proc body outside any safe interpreter must not
+    /// warn — the new `safe_interp_ctx` snapshot must stay `None` and inert
+    /// for the overwhelming common case.
+    #[test]
+    fn deferred_proc_body_outside_any_safe_interp_is_untouched_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item("proc f {} { source foo }\nf\n", "tcl8.6");
+        assert!(
             !r.diagnostics
                 .iter()
                 .any(|d| d.code == tcl_core_types::DiagCode::W129),
-            "known gap (separate from #1001): per-item analysis currently \
-             loses the hidden `source` call inside `f`'s deferred body — \
-             `Analyser::analyse` (non-per-item) correctly flags it \
-             (`safe_interp_hides_unsafe_commands_and_expose_restores_945`); \
-             flip this assertion once a future fix threads \
-             `safe_interp_stack` through `DeferredBody`: {:?}",
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// A narrower, separate limitation the `safe_interp_ctx` fix above does
+    /// **not** cover, found while adding it: a *nested* local redefinition —
+    /// `proc source {…}` written **inside** a proc body that is itself
+    /// deferred, redefining a name a *later statement in the same body* then
+    /// calls — does not suppress W129 the way an identical redefinition at
+    /// the top level of a tracked `interp eval` body already does (see
+    /// `safe_interp_w129_redefined_command_not_flagged_through_indirection_1001`,
+    /// which is unaffected — it never defers a body at all). Root cause:
+    /// `mark_locally_defined_in_enclosing_interp` also requires
+    /// `self.interp_path_stack` / `self.interpreters` to recognise the
+    /// current interpreter, and `safe_interp_ctx` only snapshots
+    /// `safe_interp_stack` (sufficient for the gate check itself, per that
+    /// field's doc) — not those two, which `analyse_proc_body_isolated`'s
+    /// fresh `Analyser` never seeds. Fixing this fully would mean threading
+    /// the interpreter identity (not just its visibility snapshot) through
+    /// `DeferredBody` too; out of scope here since the primary miss (a
+    /// hidden call inside a deferred body not warning *at all*) is what this
+    /// fix targets, and this narrower shadowing case is `SAFE_INTERP_HIDDEN`-
+    /// specific low-severity — it only means an occasional cosmetic false
+    /// positive on a rare pattern (redefining a hidden builtin's name
+    /// *inside* the very body that also calls it), never a missed real
+    /// violation. Pinned so a future contributor extending
+    /// `DeferredBody` has a red test.
+    #[test]
+    fn safe_interp_w129_nested_redefinition_inside_deferred_body_still_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 proc f {} { proc source {} { return ok }; source }\n\
+                 f\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "known narrower gap: a redefinition nested inside a deferred \
+             body doesn't suppress W129 for a later call in the same body, \
+             under per-item analysis specifically; flip this assertion if a \
+             future fix threads interpreter identity through `DeferredBody`: {:?}",
             r.diagnostics
         );
     }
