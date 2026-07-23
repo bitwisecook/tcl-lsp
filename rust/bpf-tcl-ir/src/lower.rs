@@ -942,3 +942,100 @@ fn has_cycle(func: &Function) -> bool {
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+
+    /// BPF-Tcl v1's documented scope (see `map_bin`/`map_cmp`'s "arithmetic +
+    /// comparison only" error text): plain arithmetic, bitwise, shift, and
+    /// C-style numeric comparison. Everything else — `**` (no integer BPF
+    /// instruction), `&&`/`||` (short-circuit boolean logic, not modelled as
+    /// an int-producing instruction here), every string-typed operator
+    /// (`eq`/`ne`/TIP 461 `lt`/`le`/`gt`/`ge`), list membership (`in`/`ni`),
+    /// and every iRules word operator — is out of subset by design, not a
+    /// coverage gap.
+    const SUPPORTED_BINOPS: &[BinOp] = &[
+        BinOp::Add,
+        BinOp::Sub,
+        BinOp::Mul,
+        BinOp::Div,
+        BinOp::Mod,
+        BinOp::BitAnd,
+        BinOp::BitOr,
+        BinOp::BitXor,
+        BinOp::LShift,
+        BinOp::RShift,
+        BinOp::Eq,
+        BinOp::Ne,
+        BinOp::Lt,
+        BinOp::Le,
+        BinOp::Gt,
+        BinOp::Ge,
+    ];
+
+    /// `UnaryOp::Pos` is a no-op pass-through in `lower_expr` before
+    /// `map_un` is ever consulted, so it deliberately appears in neither
+    /// this list nor `map_un`'s own match arms — it always "lowers"
+    /// without being counted as one of `map_un`'s supported variants.
+    const SUPPORTED_UNARYOPS: &[UnaryOp] = &[UnaryOp::Neg, UnaryOp::Not, UnaryOp::BitNot];
+
+    /// Issue #983 (Phase I, bpf-tcl-ir completeness): `map_bin`/`map_cmp`
+    /// already fall back to a wildcard `_ => None` rather than an
+    /// exhaustive match, so a newly added `BinOp` variant can never panic
+    /// here by construction — `lower_expr` funnels every `None` result
+    /// into `BpfDiag::OutOfSubset` (BPF001) unconditionally, regardless of
+    /// which operator produced it. What this test pins down is the
+    /// *intentional* v1 scope itself: every operator in `SUPPORTED_BINOPS`
+    /// must actually lower, every operator not in it (including every
+    /// operator `tcl-syntax` currently defines, so a future addition
+    /// defaults to correctly-diagnosed rather than silently mishandled)
+    /// must be rejected, and `map_cmp`/`map_bin` must never both claim the
+    /// same operator — `lower_expr`'s `if let ... else if let ...` would
+    /// otherwise resolve that silently by picking whichever runs first.
+    #[test]
+    fn every_binop_variant_matches_the_documented_v1_subset_exactly() {
+        for op in ALL_BIN_OPS.iter().copied() {
+            let cmp = map_cmp(op);
+            let bin = map_bin(op);
+            assert!(
+                !(cmp.is_some() && bin.is_some()),
+                "{op:?} matched both map_cmp and map_bin"
+            );
+            let supported = cmp.is_some() || bin.is_some();
+            let expected = SUPPORTED_BINOPS.contains(&op);
+            assert_eq!(
+                supported, expected,
+                "{op:?}: map_cmp/map_bin support {supported}, expected {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_unaryop_variant_matches_the_documented_v1_subset_exactly() {
+        for op in ALL_UNARY_OPS.iter().copied() {
+            if matches!(op, UnaryOp::Pos) {
+                continue;
+            }
+            let supported = map_un(op).is_some();
+            let expected = SUPPORTED_UNARYOPS.contains(&op);
+            assert_eq!(
+                supported, expected,
+                "{op:?}: map_un support {supported}, expected {expected}"
+            );
+        }
+    }
+
+    /// End-to-end companion to the direct `map_*` checks above: an
+    /// unsupported operator reaching `lower_expr` through a real compile
+    /// (not just a direct function call) surfaces as `BpfDiag::OutOfSubset`
+    /// — never a panic, and never some other diagnostic code that would
+    /// suggest the rejection path itself is broken.
+    #[test]
+    fn out_of_subset_binop_in_a_real_program_is_rejected_not_panicked() {
+        let src = "when SOCKET_FILTER {\n  setbuf pkt ctx\n  pktlen len pkt\n  if {$len eq 36} { accept }\n  drop\n}\n";
+        let err = crate::frontend::compile_module(src).unwrap_err();
+        assert_eq!(err.code, BpfDiag::OutOfSubset);
+    }
+}
