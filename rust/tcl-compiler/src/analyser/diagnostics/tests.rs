@@ -10006,9 +10006,20 @@ fn dispatch_table_tp_issue_1010_deleted_proc_draws_no_reference() {
     let src = "proc do_add {a b} {}\nrename do_add {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
+    // `rename do_add {}` itself intentionally draws its own self-reference
+    // to the OLD argument's token (issue #923 idx 39 — go-to-definition on
+    // that exact written word must still resolve, and real Tcl requires
+    // `do_add` to exist at that point). That reference is not what this
+    // test guards against; only a *dispatch-table*-synthesized reference
+    // (via `array set ops {add do_add}` / `$ops($k)`) to the deleted,
+    // never-re-established proc must be absent.
+    let rename_self_ref_offset =
+        u32::try_from(src.find("rename do_add").unwrap() + "rename ".len()).unwrap();
     assert!(
-        !r.command_invocations.iter().any(|i| i.name == "do_add"),
-        "a deleted proc with no re-establishment must draw no reference: {:?}",
+        !r.command_invocations
+            .iter()
+            .any(|i| i.name == "do_add" && i.range.start() != rename_self_ref_offset),
+        "a deleted proc with no re-establishment must draw no reference beyond rename's own self-reference: {:?}",
         r.command_invocations
             .iter()
             .map(|i| (&i.name, i.range.start()))
