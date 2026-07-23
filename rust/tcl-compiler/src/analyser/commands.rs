@@ -709,6 +709,12 @@ impl Analyser {
             // object's class.
             self.record_instance_creation(cmd_name, args);
 
+            // When the constructor's class head is a `$var` reference
+            // instead of a literal bareword, defer to the flow-sensitive
+            // value model (issue #923 idx 121) rather than dropping the
+            // instance's class entirely.
+            self.record_pending_instance_class_site(cmd_name, args, arg_tokens);
+
             // Generic EXPR-argument walk via the command registry's
             // ``ArgRole::Expr``.  Picks up the condition arg of
             // ``if`` / ``elseif`` / ``while`` / the cond+next slots
@@ -3017,6 +3023,133 @@ impl Analyser {
         }
         None
     }
+
+    /// When a `set VAR [... new|create ...]` constructor call's class head
+    /// is a `$var` reference rather than the literal bareword
+    /// [`Self::class_from_constructor_subst`] resolves directly, record a
+    /// [`super::state::PendingInstanceClassSite`] so
+    /// [`Self::settle_pending_instance_class_sites`] can bind it once the
+    /// CFG/SSA flow-sensitive value model proves the variable's constant
+    /// value (issue #923 idx 121: `set class ::Derived; set obj [$class
+    /// create NAME]`, tcllib's `httpd/httpd.tcl`) — the same settle-late
+    /// discipline `{*}$cmd` dispatch already uses (issue #945 / idx 94's
+    /// `ConstDispatchSite`).  A no-op when the literal path already
+    /// resolved the call, or the shape doesn't match.
+    fn record_pending_instance_class_site(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        if cmd_name != "set"
+            || args.len() < 2
+            || self.class_from_constructor_subst(&args[1]).is_some()
+        {
+            return;
+        }
+        let Some(&arg_tok) = arg_tokens.get(1) else {
+            return;
+        };
+        let Some((class_var, offset)) = class_var_head_constructor_subst(&args[1]) else {
+            return;
+        };
+        let start = arg_tok.span.start() + offset;
+        let len = 1 + u32::try_from(class_var.len()).unwrap_or(0);
+        self.pending_instance_class_sites
+            .push(super::state::PendingInstanceClassSite {
+                class_var,
+                span: Span::new(start, start + len),
+                target_name: args[0].clone(),
+            });
+    }
+
+    /// Settle every pending `$class`-headed `TclOO` instance-creation site
+    /// (issue #923 idx 121) against `cu`'s flow-sensitive value model,
+    /// mirroring [`Self::settle_const_dispatches`]'s settle-late
+    /// discipline: `class_var`'s constant contributors are resolved to a
+    /// user class exactly like [`Self::class_from_constructor_subst`]
+    /// resolves a literal bareword, and bound into `instance_classes` only
+    /// when every contributor agrees on the same single class — an
+    /// unprovable value or a genuine (branch-dependent) ambiguity abstains
+    /// soundly, leaving the pre-fix silence rather than guessing wrong.
+    pub(in crate::analyser) fn settle_pending_instance_class_sites(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+    ) {
+        if self.pending_instance_class_sites.is_empty() {
+            return;
+        }
+        let sites = std::mem::take(&mut self.pending_instance_class_sites);
+        for site in &sites {
+            // A write trace can mutate the variable at any read — see
+            // `settle_const_dispatches`'s identical guard.
+            if cu.ir_module.has_dynamic_variable_trace
+                || cu.ir_module.traced_variables.contains(&site.class_var)
+            {
+                continue;
+            }
+            let fu = cu.function_unit_at(site.span.start());
+            let Some(contributors) =
+                crate::value_provenance::const_contributors(fu, site.span.start(), &site.class_var)
+            else {
+                continue;
+            };
+            let mut resolved: Option<String> = None;
+            for c in &contributors {
+                let value = c.value.trim();
+                if value.is_empty() || crate::naming::is_dynamic_word(value) {
+                    resolved = None;
+                    break;
+                }
+                let Some(qc) = self.resolve_user_class(value) else {
+                    resolved = None;
+                    break;
+                };
+                match &resolved {
+                    None => resolved = Some(qc),
+                    Some(existing) if *existing != qc => {
+                        resolved = None;
+                        break;
+                    }
+                    Some(_) => {}
+                }
+            }
+            if let Some(class) = resolved {
+                self.result
+                    .instance_classes
+                    .insert(site.target_name.clone(), class);
+            }
+        }
+    }
+}
+
+/// Parse a `[$class new|create ...]` command-substitution value whose head
+/// is a plain scalar-variable reference rather than the literal class
+/// bareword [`Analyser::class_from_constructor_subst`] resolves directly —
+/// returns the variable's name (no leading `$`) and its byte offset within
+/// `value`, for the caller to anchor a
+/// [`super::state::PendingInstanceClassSite`] (issue #923 idx 121).
+/// `None` for anything but a bare `$name` head (no braces, array index, or
+/// other computed shape) followed by `new`/`create` — the same "pure
+/// reference" scope idx 94's `eval $cmd` fix uses, so a concatenated head
+/// like `${class}Suffix` is left alone.
+pub(in crate::analyser) fn class_var_head_constructor_subst(value: &str) -> Option<(String, u32)> {
+    let inner = value.strip_prefix('[')?.strip_suffix(']')?;
+    let lead = u32::try_from(inner.len() - inner.trim_start().len()).ok()?;
+    let trimmed = inner.trim_start();
+    let head_len = trimmed.find(char::is_whitespace)?;
+    let head = &trimmed[..head_len];
+    let rest = trimmed[head_len..].trim_start();
+    let subcmd_len = rest.find(char::is_whitespace).unwrap_or(rest.len());
+    let subcmd = &rest[..subcmd_len];
+    if subcmd != "new" && subcmd != "create" {
+        return None;
+    }
+    let var_name = head.strip_prefix('$')?;
+    if var_name.is_empty() || var_name.contains(['$', '[', ']', '{', '}', '(', ')']) {
+        return None;
+    }
+    Some((var_name.to_string(), 1 + lead))
 }
 
 /// Whether `name` is a concrete, bindable instance-command name in a

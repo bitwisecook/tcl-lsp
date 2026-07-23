@@ -28,7 +28,7 @@
 
 use serde_json::Value;
 
-use crate::common::helpers::{locations, rename_edits, start_lines};
+use crate::common::helpers::{hover_text, locations, rename_edits, start_lines};
 use crate::common::{Lsp, unique_uri};
 
 /// Find a tclsh to execute transformed rename output under; `None` skips
@@ -521,5 +521,104 @@ fn eval_of_a_dynamic_unresolvable_var_body_produces_no_edits_923_idx94() {
         1,
         "only the declaration should rewrite — no evidence the dynamic \
          eval body ever reaches `target`: {for_uri:?}"
+    );
+}
+
+// -- issue #923 idx 121: TclOO instance-class inference through a
+// `$var`-headed constructor -------------------------------------------
+//
+// `record_instance_creation` / `class_from_constructor_subst` only
+// recognised a literal class-name bareword at the `new`/`create` call
+// site.  Real corpus (tcllib's `httpd/httpd.tcl:1970-1994`) instead flows
+// the class name through a single, unconditional `set` one line earlier
+// (`set class ::Derived; set obj [$class create NAME]`) — the analyser
+// never bound `obj`'s class, so hover / go-to-definition / rename on a
+// later `$obj method` call silently found nothing, exactly like the
+// `{*}$cmd` / `eval $cmd` dispatch gaps this file's fault 1 / idx 94
+// sections already cover, just for TclOO instance construction instead of
+// plain command dispatch.
+
+#[test]
+fn hover_and_definition_resolve_a_method_through_a_var_headed_constructor_923_idx121() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // tclsh9.0/8.6-verified: `set class ::Dog; set obj [$class create rex];
+    // $obj bark` calls `::Dog::bark` either way.
+    let src = "oo::class create Dog {\n    method bark {} { return \"woof\" }\n}\nset class Dog\nset obj [$class create rex]\n$obj bark\n";
+    lsp.open_ready(&uri, src);
+
+    // Hover on the `$obj bark` call site (line 5) resolves through the
+    // indirect class the same way it already does for a literal `Dog
+    // create rex` — pre-fix this returned nothing at all.
+    let hover = lsp.hover(&uri, 5, 5);
+    let text = hover_text(&hover);
+    assert!(
+        text.contains("bark"),
+        "hover on the indirectly-typed instance's method call must resolve: {text:?}"
+    );
+
+    // Go-to-definition from the same call site lands on the `bark` method
+    // declaration (line 1).
+    let defs: Vec<i64> = start_lines(&lsp.definition(&uri, 5, 5))
+        .into_iter()
+        .collect();
+    assert_eq!(
+        defs,
+        vec![1],
+        "go-to-definition must reach the method declaration: {defs:?}"
+    );
+
+    // References from the declaration reach the indirect call site too.
+    let refs = start_lines(&lsp.references(&uri, 1, 11, true));
+    assert!(
+        refs.contains(&5),
+        "the indirect `$obj bark` call site must be a reference: {refs:?}"
+    );
+}
+
+#[test]
+fn rename_rewrites_a_method_reached_through_a_var_headed_constructor_923_idx121() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Dog {\n    method bark {} { return \"woof\" }\n}\nset class Dog\nset obj [$class create rex]\nputs [$obj bark]\n";
+    lsp.open_ready(&uri, src);
+
+    let result = lsp.rename(&uri, 1, 11, "speak");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let renamed_src = apply_lsp_edits(src, &for_uri);
+    assert!(
+        renamed_src.contains("method speak"),
+        "the declaration must rewrite:\n{renamed_src}"
+    );
+    assert!(
+        renamed_src.contains("[$obj speak]"),
+        "the indirect call site must rewrite too:\n{renamed_src}"
+    );
+    if let Some(out) = run_tclsh(&renamed_src) {
+        assert_eq!(
+            out, "woof",
+            "the renamed method must still execute through the indirect dispatch"
+        );
+    } else {
+        eprintln!("skipping tclsh execution leg: no tclsh (set TCL_LSP_TCLSH)");
+    }
+}
+
+#[test]
+fn hover_abstains_on_a_branch_ambiguous_class_var_923_idx121() {
+    // TN — a class variable whose reaching definitions genuinely disagree
+    // (one branch arm `Dog`, the other `Cat`) is unprovable at the
+    // constructor call: binding *either* class would be a guess, so hover
+    // must find nothing rather than resolve to an arbitrary one.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Dog {\n    method bark {} {}\n}\noo::class create Cat {\n    method meow {} {}\n}\nif {$flag} { set class Dog } else { set class Cat }\nset obj [$class create x]\n$obj bark\n";
+    lsp.open_ready(&uri, src);
+    let hover = lsp.hover(&uri, 8, 5);
+    let text = hover_text(&hover);
+    assert!(
+        text.is_empty(),
+        "an ambiguous class var must not resolve to either class: {text:?}"
     );
 }

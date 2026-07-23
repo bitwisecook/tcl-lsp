@@ -1042,6 +1042,7 @@ impl Analyser {
             let saved_comment = std::mem::take(&mut self.last_comment);
             let body_text = args[2].clone();
             if self.defer_proc_bodies {
+                let safe_interp_ctx = self.safe_interp_ctx_snapshot();
                 self.deferred_bodies.push(super::per_item::DeferredBody {
                     body_text,
                     body_tok,
@@ -1052,6 +1053,7 @@ impl Analyser {
                     scope_name: raw_name.clone(),
                     params: combined_params,
                     class_variables: Vec::new(),
+                    safe_interp_ctx,
                 });
             } else {
                 self.analyse_body(&body_text, body_tok, &child_path);

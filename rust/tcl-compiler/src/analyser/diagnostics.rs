@@ -179,6 +179,15 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
+        // Issue #923 idx 121: resolve pending `$class`-headed `TclOO`
+        // instance-creation sites against `cu`'s flow-sensitive value
+        // model *first* — `emit_var_command_diagnostics` below reads
+        // `instance_classes` to suppress W307 / validate W308, so the
+        // settle must land before that read, not after (unlike
+        // `settle_const_dispatches`, which only feeds `command_invocations`
+        // and has no such in-pass reader).
+        self.settle_pending_instance_class_sites(cu);
+
         // **W128.** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
         // command-binding lattice.  Independent of the CFG/SSA dead-store

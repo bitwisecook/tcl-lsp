@@ -51,6 +51,29 @@ pub(super) struct ConstDispatchSite {
     pub head_expanded: bool,
 }
 
+/// One `$class`-headed `TclOO` instance-creation site (issue #923 idx
+/// 121), pending settlement against the compiler's flow-sensitive value
+/// model once the CFG/SSA `CompilationUnit` is built — the same
+/// settle-late discipline [`ConstDispatchSite`] uses, since `class_var`'s
+/// value can't be proven constant until SSA reaching-definitions exist.
+/// Recorded by [`super::commands::Analyser::record_instance_creation`]
+/// when the constructor call's class head is a plain `$var` reference
+/// instead of the literal bareword
+/// [`super::commands::Analyser::class_from_constructor_subst`] resolves
+/// directly (`set class ::Derived; set obj [$class create NAME]`,
+/// tcllib's `httpd/httpd.tcl`).
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct PendingInstanceClassSite {
+    /// The class-naming variable's name (no leading `$`).
+    pub class_var: String,
+    /// Span of the `$class` head, for the SSA use-position lookup.
+    pub span: Span,
+    /// The `instance_classes` key to bind once `class_var` resolves to a
+    /// single known user class — the assigned variable (`set obj [...]`)
+    /// or created instance-command name.
+    pub target_name: String,
+}
+
 /// The recorded state of one child interpreter (issue #945 faults 7–8):
 /// safe flag plus the explicit hide / expose deltas layered over the
 /// registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base set.
@@ -339,6 +362,11 @@ pub struct Analyser {
     /// alive).  Anything unprovable is dropped (sound abstention — no
     /// phantom invocation, no W123 delta).
     pub(super) pending_const_dispatches: Vec<ConstDispatchSite>,
+    /// `TclOO` instance-creation sites whose class head is a `$var`
+    /// reference (issue #923 idx 121), pending settlement alongside
+    /// [`Self::pending_const_dispatches`] once the CFG/SSA
+    /// `CompilationUnit` exists.
+    pub(super) pending_instance_class_sites: Vec<PendingInstanceClassSite>,
     /// M9: the namespace key a seeded analysis wraps the whole file in (set
     /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it
     /// creates becomes the top-level walk's base path.
@@ -801,6 +829,7 @@ impl Analyser {
             namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
             pending_const_dispatches: Vec::new(),
+            pending_instance_class_sites: Vec::new(),
             seed_namespace_key: None,
             seed_scope_path: Vec::new(),
             widget_dispatch_sites: Vec::new(),
@@ -2055,6 +2084,82 @@ mod tests {
         assert_eq!(
             r.instance_classes.get("d").map(String::as_str),
             Some("::Dog")
+        );
+    }
+
+    #[test]
+    fn analyse_records_instance_class_through_a_var_headed_create() {
+        // TP — issue #923 idx 121: tcllib's `httpd/httpd.tcl` flows the
+        // constructor's class name through a single, unconditional `set`
+        // one line earlier (`set class ::Derived; set obj [$class create
+        // NAME]`) rather than writing the class as a literal bareword.
+        // Verified against real tclsh9.0/8.6: `$obj`'s methods dispatch to
+        // `Dog` either way, so the analyser must bind `obj` -> `::Dog`
+        // exactly like the literal-bareword shape already does.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\nset class Dog\nset obj [$class create rex]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj").map(String::as_str),
+            Some("::Dog"),
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_records_instance_class_through_a_var_headed_new() {
+        // TP — same gap, the `new` constructor spelling.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\nset class Dog\nset obj [$class new]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj").map(String::as_str),
+            Some("::Dog"),
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_abstains_on_a_branch_ambiguous_class_var() {
+        // TN — a class variable whose reaching definitions genuinely
+        // disagree (one arm `Dog`, the other `Cat`) is unprovable at the
+        // constructor call: binding *either* class would be a guess, so
+        // the analyser must abstain (no `instance_classes` entry) rather
+        // than pick one arbitrarily.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog {}\noo::class create Cat {}\nif {$flag} { set class Dog } else { set class Cat }\nset obj [$class create x]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj"),
+            None,
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_abstains_on_a_genuinely_dynamic_class_var() {
+        // TN — a class variable fed by a computed value (no exact
+        // constant) can't be proven at all; must abstain exactly like the
+        // pre-fix behaviour rather than binding a wrong/empty class.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog {}\nset class [someFactory]\nset obj [$class create x]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj"),
+            None,
+            "{:?}",
+            r.instance_classes
         );
     }
 
