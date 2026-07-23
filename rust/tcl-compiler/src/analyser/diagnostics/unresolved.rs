@@ -625,11 +625,20 @@ impl Analyser {
         // Tcl-priority-ordered candidate list for this exact call
         // (`finalise_invocation_resolutions` / `command_resolution_candidates`);
         // this reuses the same `registry_names` set already built above
-        // rather than a second, namespace-blind lookup.
-        if resolution_candidates
-            .iter()
-            .any(|cand| known.registry_names.contains(cand))
-        {
+        // rather than a second, namespace-blind lookup. Each candidate is
+        // always fully qualified (`command_resolution_candidates`'s own
+        // contract), so `qualified_name_deleted_before` — not
+        // `registry_name_deleted_before`, which would double-prefix an
+        // already-qualified string — pairs with the registry-membership
+        // check the same way the bare-name check above already pairs
+        // `registry_name_deleted_before` with `known.registry_names`
+        // (issue #923: a candidate that is registry-known but renamed/
+        // deleted away before this call, e.g. `::tcl::mathfunc::sin` after
+        // `rename ::tcl::mathfunc::sin {}`, must not resolve here either —
+        // confirmed against tclsh 9.0.4).
+        if resolution_candidates.iter().any(|cand| {
+            known.registry_names.contains(cand) && !self.qualified_name_deleted_before(cand, range.start())
+        }) {
             return true;
         }
         // Qualified names defer to per-namespace logic (conservative skip);
