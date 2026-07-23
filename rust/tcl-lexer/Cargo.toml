@@ -33,6 +33,7 @@ authors.workspace = true
 html = []
 
 [dependencies]
+tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 thiserror = "2.0"
 

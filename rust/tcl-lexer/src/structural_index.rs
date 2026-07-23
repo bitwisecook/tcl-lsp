@@ -118,6 +118,23 @@
 //!    hypothetical close — the doc's "command-sub interiors need care",
 //!    confirmed and bounded in Rust.
 
+use tcl_core_types::RecursionLimit;
+
+/// Cap on nested `[…]` command-substitution depth for every recursive
+/// scanner in this module ([`BracketIndex`]'s `scan_cmd_sub`,
+/// [`BraceIndex`]'s `scan_script`/`scan_quoted`, and the
+/// [`script_is_complete`]/[`command_boundaries`] scanner's
+/// `scan_complete`/`scan_complete_quoted`). Each recurses one native-stack
+/// frame group per `[`, with no natural bound — `[a [a [a …]]]` nested N
+/// deep recurses N deep — so pathologically deep input (issue #996's
+/// class: generated/minified Tcl) could otherwise abort the process with
+/// an uncatchable stack overflow. 128 is far past any bracket nesting
+/// real Tcl code uses; past it, a further `[` is scanned as an ordinary
+/// character instead of recursed into, so the index/completeness verdict
+/// degrades gracefully rather than crashing. See
+/// `docs/design/compiler/recursive-descent-depth-limits.md`.
+const MAX_NESTED_BRACKET_DEPTH: RecursionLimit = RecursionLimit(128);
+
 /// A structural-state index for the script bracket (`[` / `]`)
 /// dimension, captured in a single forward scan.
 #[derive(Debug, Clone)]
@@ -356,7 +373,7 @@ impl Builder<'_> {
                 }
                 b'[' => {
                     self.push_event(i, 1);
-                    let (next_i, _) = self.scan_cmd_sub(i + 1);
+                    let (next_i, _) = self.scan_cmd_sub(i + 1, 0);
                     i = next_i;
                     newword = false;
                 }
@@ -374,18 +391,23 @@ impl Builder<'_> {
     }
 
     /// Scan a `[…]` command-substitution interior starting at `start`
-    /// (just past the `[`).'s
+    /// (just past the `[`).
     /// **count-based** rules: `blevel` tracks `{` / `}` literally, a `]`
     /// closes only at `blevel == 0 && !in_quotes`, nested `[` / `]`
     /// recurse. Records nested structural bracket events and inert spans
     /// for brace interiors / escapes / `${…}`. Returns (offset,
     /// terminated): the offset just past the closing `]` (terminated), or
     /// EOF (unterminated).
-    fn scan_cmd_sub(&mut self, start: usize) -> (usize, bool) {
+    ///
+    /// `depth` is the nesting level of this call (0 at the top, from
+    /// [`Builder::scan_top`]); past [`MAX_NESTED_BRACKET_DEPTH`] a nested
+    /// `[` is scanned as an ordinary character rather than recursed into.
+    fn scan_cmd_sub(&mut self, start: usize, depth: u32) -> (usize, bool) {
         let n = self.bytes.len();
         let mut i = start;
         let mut blevel: u32 = 0;
         let mut in_quotes = false;
+        let past_cap = MAX_NESTED_BRACKET_DEPTH.exceeded(depth);
         // Start of the current inert brace run (when blevel transitions
         // 0 -> >0), so the whole `{…}` is one inert span.
         let mut brace_run_start: Option<usize> = None;
@@ -395,9 +417,9 @@ impl Builder<'_> {
                     in_quotes = !in_quotes;
                     i += 1;
                 }
-                b'[' if blevel == 0 && !in_quotes => {
+                b'[' if blevel == 0 && !in_quotes && !past_cap => {
                     self.push_event(i, 1);
-                    let (next_i, _) = self.scan_cmd_sub(i + 1);
+                    let (next_i, _) = self.scan_cmd_sub(i + 1, depth + 1);
                     i = next_i;
                 }
                 b']' if blevel == 0 && !in_quotes => {
@@ -652,7 +674,7 @@ impl BraceBuilder<'_> {
 
     /// Build the index by scanning `source` as a top-level script.
     fn scan_top(&mut self) {
-        let _ = self.scan_script(0, false);
+        let _ = self.scan_script(0, false, 0);
     }
 
     /// Scan a script region for the brace dimension, recursively. A
@@ -721,7 +743,7 @@ impl BraceBuilder<'_> {
         j
     }
 
-    fn scan_script(&mut self, start: usize, stop_at_bracket: bool) -> (usize, bool) {
+    fn scan_script(&mut self, start: usize, stop_at_bracket: bool, depth: u32) -> (usize, bool) {
         let n = self.bytes.len();
         let mut i = start;
         // `command_start`: a `#` here begins a comment (only at the start
@@ -731,6 +753,7 @@ impl BraceBuilder<'_> {
         let mut newword = true;
         // Verbatim brace-word nesting depth (0 = command/word context).
         let mut brace_level: u32 = 0;
+        let past_cap = MAX_NESTED_BRACKET_DEPTH.exceeded(depth);
         // Set right after a brace/quote *word* closes; the next char
         // decides separator (normal) vs terminal "extra characters".
         let mut just_closed_word = false;
@@ -797,7 +820,7 @@ impl BraceBuilder<'_> {
                     command_start = false;
                 }
                 b'"' if newword => {
-                    let (end, terminal) = self.scan_quoted(i + 1);
+                    let (end, terminal) = self.scan_quoted(i + 1, depth);
                     if terminal {
                         return (end, true);
                     }
@@ -816,8 +839,8 @@ impl BraceBuilder<'_> {
                     newword = false;
                     command_start = false;
                 }
-                b'[' => {
-                    let (end, terminal) = self.scan_script(i + 1, true);
+                b'[' if !past_cap => {
+                    let (end, terminal) = self.scan_script(i + 1, true, depth + 1);
                     if terminal {
                         return (end, true);
                     }
@@ -848,15 +871,16 @@ impl BraceBuilder<'_> {
     /// still scripts (their braces count). Returns `(end, terminal)` —
     /// `end` is past the closing `"` (or EOF); `terminal` propagates an
     /// extra-chars error from a nested command sub.
-    fn scan_quoted(&mut self, start: usize) -> (usize, bool) {
+    fn scan_quoted(&mut self, start: usize, depth: u32) -> (usize, bool) {
         let n = self.bytes.len();
         let mut i = start;
+        let past_cap = MAX_NESTED_BRACKET_DEPTH.exceeded(depth);
         while i < n {
             match self.bytes[i] {
                 b'\\' => i = (i + 2).min(n),
                 b'"' => return (i + 1, false),
-                b'[' => {
-                    let (end, terminal) = self.scan_script(i + 1, true);
+                b'[' if !past_cap => {
+                    let (end, terminal) = self.scan_script(i + 1, true, depth + 1);
                     if terminal {
                         return (end, true);
                     }
@@ -1038,7 +1062,7 @@ enum Completeness {
 #[must_use]
 pub fn script_is_complete(source: &str) -> bool {
     let b = source.as_bytes();
-    match scan_complete(b, 0, false).1 {
+    match scan_complete(b, 0, false, 0).1 {
         Completeness::Incomplete => false,
         Completeness::Terminal => true,
         // A clean parse is still incomplete if it ends on a
@@ -1147,7 +1171,12 @@ fn step_brace_word(
     }
 }
 
-fn scan_complete(b: &[u8], start: usize, stop_at_bracket: bool) -> (usize, Completeness) {
+fn scan_complete(
+    b: &[u8],
+    start: usize,
+    stop_at_bracket: bool,
+    depth: u32,
+) -> (usize, Completeness) {
     let n = b.len();
     let mut i = start;
     let mut command_start = true;
@@ -1155,6 +1184,7 @@ fn scan_complete(b: &[u8], start: usize, stop_at_bracket: bool) -> (usize, Compl
     let mut brace_level: u32 = 0;
     let mut just_closed_word = false;
     let mut brace_is_var = false;
+    let past_cap = MAX_NESTED_BRACKET_DEPTH.exceeded(depth);
     while i < n {
         if brace_level > 0 {
             i = step_brace_word(
@@ -1206,7 +1236,7 @@ fn scan_complete(b: &[u8], start: usize, stop_at_bracket: bool) -> (usize, Compl
                 i += 1;
                 command_start = false;
             }
-            b'"' if newword => match scan_complete_quoted(b, i + 1) {
+            b'"' if newword => match scan_complete_quoted(b, i + 1, depth) {
                 (_, Completeness::Terminal) => return (n, Completeness::Terminal),
                 (_, Completeness::Incomplete) => return (n, Completeness::Incomplete),
                 (end, Completeness::Closed) => {
@@ -1223,7 +1253,7 @@ fn scan_complete(b: &[u8], start: usize, stop_at_bracket: bool) -> (usize, Compl
                 i += 2; // skip `${`; the `{` is the brace-word opener
                 command_start = false;
             }
-            b'[' => match scan_complete(b, i + 1, true) {
+            b'[' if !past_cap => match scan_complete(b, i + 1, true, depth + 1) {
                 (_, Completeness::Terminal) => return (n, Completeness::Terminal),
                 (_, Completeness::Incomplete) => return (n, Completeness::Incomplete),
                 (end, Completeness::Closed) => {
@@ -1251,14 +1281,15 @@ fn scan_complete(b: &[u8], start: usize, stop_at_bracket: bool) -> (usize, Compl
 /// Scan a `"…"` quoted run (opening `"` consumed). Command subs inside
 /// are scripts. `Closed` past the closing `"`, `Incomplete` at EOF
 /// (unterminated quote), `Terminal` if a nested command sub errored.
-fn scan_complete_quoted(b: &[u8], start: usize) -> (usize, Completeness) {
+fn scan_complete_quoted(b: &[u8], start: usize, depth: u32) -> (usize, Completeness) {
     let n = b.len();
     let mut i = start;
+    let past_cap = MAX_NESTED_BRACKET_DEPTH.exceeded(depth);
     while i < n {
         match b[i] {
             b'\\' => i = (i + 2).min(n),
             b'"' => return (i + 1, Completeness::Closed),
-            b'[' => match scan_complete(b, i + 1, true) {
+            b'[' if !past_cap => match scan_complete(b, i + 1, true, depth + 1) {
                 (_, Completeness::Terminal) => return (n, Completeness::Terminal),
                 (_, Completeness::Incomplete) => return (n, Completeness::Incomplete),
                 (end, Completeness::Closed) => i = end,
@@ -1392,7 +1423,7 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
                 command_start = false;
             }
             b'"' if newword => {
-                i = scan_complete_quoted(b, i + 1).0;
+                i = scan_complete_quoted(b, i + 1, 0).0;
                 newword = false;
                 command_start = false;
             }
@@ -1403,7 +1434,7 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
                 command_start = false;
             }
             b'[' => {
-                i = scan_complete(b, i + 1, true).0;
+                i = scan_complete(b, i + 1, true, 0).0;
                 newword = false;
                 command_start = false;
             }

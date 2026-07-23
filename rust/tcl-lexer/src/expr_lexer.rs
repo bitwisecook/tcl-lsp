@@ -27,6 +27,16 @@
 
 use std::collections::HashSet;
 
+use tcl_core_types::RecursionLimit;
+
+/// Cap on `$name(…)` array-index nesting depth for `Inner::scan_array_index`
+/// — mirrors the main lexer's `MAX_ARRAY_INDEX_DEPTH` (`crate::lexer`) and
+/// exists for the same reason: unbounded self-recursion on
+/// `$a($b($c(...)))` could otherwise abort the process with an
+/// uncatchable native-stack overflow on pathologically deep input. See
+/// `docs/design/compiler/recursive-descent-depth-limits.md`.
+const MAX_EXPR_ARRAY_INDEX_DEPTH: RecursionLimit = RecursionLimit(64);
+
 /// Token types specific to Tcl expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExprTokenType {
@@ -346,7 +356,7 @@ impl<'s> Inner<'s> {
             }
             if self.i < self.b.len() && self.b[self.i] == b'(' {
                 self.i += 1;
-                self.scan_array_index();
+                self.scan_array_index(0);
             }
         }
         self.tok(ExprTokenType::Variable, start)
@@ -362,7 +372,14 @@ impl<'s> Inner<'s> {
     /// tokens are scanned so their inner `)` are not the terminator. The old
     /// paren-counting left `$a((b)` unterminated and ended `$a(x\)y)` at the
     /// escaped `)` (`RUST_ISSUE_085`).
-    fn scan_array_index(&mut self) {
+    ///
+    /// `depth` is the nesting level of this call (0 at the top); past
+    /// [`MAX_EXPR_ARRAY_INDEX_DEPTH`] a nested `$name(` is scanned as an
+    /// ordinary character rather than recursed into, so pathologically
+    /// deep `$a($b($c(...)))` input degrades gracefully rather than
+    /// overflowing the native stack.
+    fn scan_array_index(&mut self, depth: u32) {
+        let past_cap = MAX_EXPR_ARRAY_INDEX_DEPTH.exceeded(depth);
         while self.i < self.b.len() {
             match self.b[self.i] {
                 b')' => {
@@ -388,7 +405,7 @@ impl<'s> Inner<'s> {
                         }
                     }
                 }
-                b'$' => {
+                b'$' if !past_cap => {
                     self.i += 1;
                     if self.i < self.b.len() && self.b[self.i] == b'{' {
                         self.i += 1;
@@ -414,7 +431,7 @@ impl<'s> Inner<'s> {
                         }
                         if self.i < self.b.len() && self.b[self.i] == b'(' {
                             self.i += 1;
-                            self.scan_array_index(); // nested index
+                            self.scan_array_index(depth + 1); // nested index
                         }
                     }
                 }

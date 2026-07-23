@@ -21,6 +21,26 @@
 
 use std::process::ExitCode;
 
+/// Stack budget for the dedicated worker thread the CLI runs on.
+///
+/// Matches `WORKER_STACK_SIZE` in `f5-cli`/`tcl-lsp-server`/`tcl-mcp`/
+/// `tcl-cli`'s entry points — see `f5-cli/src/lib.rs`'s doc comment for the
+/// full rationale. Short version: `check`/`compile`/`run` all call into
+/// `tcl_compiler::lowering::lower_to_ir`/`tcl_syntax::expr::parse_expr` on
+/// caller-supplied `.bpftcl` source — the same depth-capped-but-stack-hungry
+/// recursion chain that crashed `tcl-lsp-server` in issue #996. The
+/// OS-provided main-thread stack this binary would otherwise inherit is
+/// outside this crate's control (8 MiB by default on Linux, far less
+/// guaranteed elsewhere), so the CLI runs on an explicitly-sized thread
+/// instead.
+const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
+
 fn main() -> ExitCode {
-    bpf_tcl::run(std::env::args())
+    let args: Vec<String> = std::env::args().collect();
+    std::thread::Builder::new()
+        .stack_size(WORKER_STACK_SIZE)
+        .spawn(move || bpf_tcl::run(args.into_iter()))
+        .expect("failed to spawn the bpf-tcl CLI worker thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }

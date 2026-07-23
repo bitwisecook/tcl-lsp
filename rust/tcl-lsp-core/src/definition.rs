@@ -407,7 +407,11 @@ fn variable_scope_extent(
         scope: &tcl_compiler::analyser::Scope,
         offset: u32,
         best: &mut Option<(u32, u32)>,
+        depth: u32,
     ) {
+        if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+            return;
+        }
         for child in &scope.children {
             if let Some(span) = child.body_span
                 && span.start() <= offset
@@ -424,12 +428,12 @@ fn variable_scope_extent(
                         *best = Some((span.start(), span.end()));
                     }
                 }
-                innermost(child, offset, best);
+                innermost(child, offset, best, depth + 1);
             }
         }
     }
     let mut best = None;
-    innermost(&analysis.global_scope, offset, &mut best);
+    innermost(&analysis.global_scope, offset, &mut best, 0);
     best
 }
 
@@ -929,9 +933,9 @@ pub(crate) fn linked_var_reference_spans(
 ) -> Vec<tcl_lexer::Span> {
     let mut out = Vec::new();
     match var_def.link_target.as_deref() {
-        Some(target) => collect_alias_spans(scope, target, var_def.definition_span, &mut out),
+        Some(target) => collect_alias_spans(scope, target, var_def.definition_span, &mut out, 0),
         None if !var_def.definition_span.is_empty() => {
-            collect_shared_span_refs(scope, var_def.definition_span, &mut out);
+            collect_shared_span_refs(scope, var_def.definition_span, &mut out, 0);
         }
         None => out.extend(var_def.references.iter().copied()),
     }
@@ -945,7 +949,11 @@ fn collect_alias_spans(
     target: &str,
     own_decl: tcl_lexer::Span,
     out: &mut Vec<tcl_lexer::Span>,
+    depth: u32,
 ) {
+    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for v in scope.variables.values() {
         if v.link_target.as_deref() == Some(target) {
             if v.definition_span != own_decl {
@@ -955,7 +963,7 @@ fn collect_alias_spans(
         }
     }
     for child in &scope.children {
-        collect_alias_spans(child, target, own_decl, out);
+        collect_alias_spans(child, target, own_decl, out, depth + 1);
     }
 }
 
@@ -965,14 +973,18 @@ fn collect_shared_span_refs(
     scope: &tcl_compiler::analyser::Scope,
     def_span: tcl_lexer::Span,
     out: &mut Vec<tcl_lexer::Span>,
+    depth: u32,
 ) {
+    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for v in scope.variables.values() {
         if v.definition_span == def_span {
             out.extend(v.references.iter().copied());
         }
     }
     for child in &scope.children {
-        collect_shared_span_refs(child, def_span, out);
+        collect_shared_span_refs(child, def_span, out, depth + 1);
     }
 }
 
@@ -1343,7 +1355,10 @@ pub(crate) fn cross_namespace_qualified_vars(
     chain: &FxHashSet<String>,
 ) -> Vec<String> {
     use tcl_compiler::analyser::{Scope, ScopeKind};
-    fn visit(scope: &Scope, chain: &FxHashSet<String>, out: &mut Vec<String>) {
+    fn visit(scope: &Scope, chain: &FxHashSet<String>, out: &mut Vec<String>, depth: u32) {
+        if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+            return;
+        }
         if matches!(scope.kind, ScopeKind::Namespace | ScopeKind::Global)
             && !chain.contains(&scope.name)
         {
@@ -1352,11 +1367,11 @@ pub(crate) fn cross_namespace_qualified_vars(
             }
         }
         for child in &scope.children {
-            visit(child, chain, out);
+            visit(child, chain, out, depth + 1);
         }
     }
     let mut out = Vec::new();
-    visit(global, chain, &mut out);
+    visit(global, chain, &mut out, 0);
     out
 }
 
@@ -1420,11 +1435,40 @@ pub(crate) fn span_to_range(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
     use tcl_compiler::analyser::Analyser;
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    /// Regression coverage for issue #996: `variable_scope_extent`'s
+    /// nested `innermost` fn and `linked_var_reference_spans`'s
+    /// `collect_alias_spans`/`collect_shared_span_refs` all recurse once
+    /// per nested namespace/proc scope, with no depth cap before this fix
+    /// (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested `namespace eval`
+    /// levels is past the point (confirmed empirically: 100+) where
+    /// unguarded namespace-scope recursion overflows `cargo test`'s bare
+    /// ~2 MiB per-test default. The assertion is that both return at all,
+    /// not what they return.
+    #[test]
+    fn deeply_nested_namespaces_survive_scope_extent_and_alias_scans() {
+        const DEPTH: usize = 80;
+        let mut source = String::new();
+        for i in 0..DEPTH {
+            let _ = writeln!(source, "namespace eval ns{i} {{");
+        }
+        source.push_str("set x 1\nputs $x\n");
+        for _ in 0..DEPTH {
+            source.push_str("}\n");
+        }
+        let analysis = analyse(&source);
+        let _ = variable_scope_extent(&analysis, "x", 0);
+        if let Some(var_def) = analysis.all_variables.values().next() {
+            let _ = linked_var_reference_spans(&analysis.global_scope, var_def);
+        }
+        let _ = cross_namespace_qualified_vars(&analysis.global_scope, &FxHashSet::default());
     }
 
     #[test]

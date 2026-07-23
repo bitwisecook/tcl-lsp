@@ -118,12 +118,23 @@
 //! [`SourcePosition`]: crate::SourcePosition
 //! [`SourcePosition::offset`]: crate::SourcePosition#structfield.offset
 
+use tcl_core_types::RecursionLimit;
 use tcl_dialect::BracedVarStyle;
 use thiserror::Error;
 
 use crate::source_map::SourceMap;
 use crate::span::Span;
 use crate::tokens::{Token, TokenType};
+
+/// Cap on `$name(…)` array-index nesting depth that
+/// [`Lexer::scan_array_index_body`]/[`Lexer::skip_var_in_index`] will
+/// recurse into. The two are mutually recursive with no natural bound —
+/// `$a($b($c(...)))` recurses one native-stack frame group per `(` — so
+/// pathologically deep input (e.g. generated/minified Tcl) could otherwise
+/// abort the process with an uncatchable stack overflow. 64 is far past any
+/// array-index nesting real Tcl code uses; see
+/// `docs/design/compiler/recursive-descent-depth-limits.md`.
+const MAX_ARRAY_INDEX_DEPTH: RecursionLimit = RecursionLimit(64);
 
 /// Configuration for the Tcl lexer.
 ///
@@ -677,7 +688,7 @@ impl<'src> Lexer<'src> {
 
         // `$arr(idx)` array-index form
         if self.current_byte() == Some(b'(') {
-            self.scan_array_index_body()?;
+            self.scan_array_index_body(0)?;
             return Ok(Token::with_content_offset(
                 TokenType::Var,
                 Span::new(dollar_pos, self.pos),
@@ -712,9 +723,16 @@ impl<'src> Lexer<'src> {
     /// rest of the source) and made `$a(x\)y)` end at the escaped `)`
     /// (`RUST_ISSUE_085`). Advances `self.pos` past the closing `)` (or to EOF
     /// for unterminated input).
-    fn scan_array_index_body(&mut self) -> Result<(), LexError> {
+    ///
+    /// `depth` is the nesting level of this call (0 at the top, via
+    /// [`Self::parse_var`]); past [`MAX_ARRAY_INDEX_DEPTH`] a nested `$…(`
+    /// is no longer recursed into — its `(` is scanned as an ordinary
+    /// character instead — so pathologically deep `$a($b($c(...)))` input
+    /// degrades gracefully rather than overflowing the native stack.
+    fn scan_array_index_body(&mut self, depth: u32) -> Result<(), LexError> {
         debug_assert_eq!(self.current_byte(), Some(b'('));
         self.pos += 1; // skip '('
+        let past_cap = MAX_ARRAY_INDEX_DEPTH.exceeded(depth);
         loop {
             let Some(ch) = self.current_char() else {
                 self.warn_or_error("missing )")?;
@@ -734,7 +752,7 @@ impl<'src> Lexer<'src> {
                     }
                 }
                 '[' => self.skip_command_in_index(),
-                '$' => self.skip_var_in_index()?,
+                '$' if !past_cap => self.skip_var_in_index(depth + 1)?,
                 _ => {
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
                 }
@@ -794,7 +812,10 @@ impl<'src> Lexer<'src> {
     /// Skip a `$` variable reference inside an array index (`${…}` or `$name`
     /// with an optional nested `(…)` index) so its inner `)` are not mistaken
     /// for the outer index terminator.
-    fn skip_var_in_index(&mut self) -> Result<(), LexError> {
+    ///
+    /// `depth` is passed straight through to a nested
+    /// [`Self::scan_array_index_body`] call — see its doc comment.
+    fn skip_var_in_index(&mut self, depth: u32) -> Result<(), LexError> {
         debug_assert_eq!(self.current_byte(), Some(b'$'));
         self.pos += 1; // skip '$'
         if self.current_byte() == Some(b'{') {
@@ -844,7 +865,7 @@ impl<'src> Lexer<'src> {
         }
         // A nested `$name(index)` — recurse so its `)` closes the inner index.
         if self.current_byte() == Some(b'(') {
-            self.scan_array_index_body()?;
+            self.scan_array_index_body(depth)?;
         }
         Ok(())
     }
@@ -1488,6 +1509,8 @@ fn is_separator_byte(byte: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
+
     use crate::line_index::LineIndex;
     use crate::tokens::{ByteCol, SourcePosition};
 
@@ -3075,5 +3098,45 @@ mod tests {
             .tokenise_all()
             .unwrap();
         assert_eq!(plain, with_empty);
+    }
+
+    /// Regression coverage for issue #996: `scan_array_index_body` and
+    /// `skip_var_in_index` are mutually recursive on nested `$a($b($c(…)))`
+    /// array-index references, with no depth cap before this fix.
+    /// Empirically, unguarded input overflowed the native stack (SIGABRT)
+    /// around depth 20,000-25,000 on a 2 MiB thread (`cargo test`'s
+    /// per-test default). 5000 is comfortably past both that crash range
+    /// and `MAX_ARRAY_INDEX_DEPTH` (64); the assertion is that lexing
+    /// returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_array_index_survives_lexing() {
+        const DEPTH: usize = 5000;
+        let mut src = String::from("set x $a0");
+        for i in 0..DEPTH {
+            src.push('(');
+            let _ = write!(src, "a{}", i + 1);
+        }
+        src.push('1');
+        for _ in 0..DEPTH {
+            src.push(')');
+        }
+        src.push('\n');
+        let _ = Lexer::new(&src).tokenise_all_with_warnings();
+    }
+
+    /// A moderately nested array index (well under `MAX_ARRAY_INDEX_DEPTH`)
+    /// still lexes as a single `Var` token — the safety net must not fire
+    /// on realistic nesting depths.
+    #[test]
+    fn moderately_nested_array_index_still_lexes_as_one_var() {
+        let src = "set x $a($b($c(1)))\n";
+        let lexed = Lexed::run(src);
+        let var = lexed
+            .tokens
+            .iter()
+            .zip(lexed.texts())
+            .find(|(t, _)| t.kind == TokenType::Var)
+            .expect("expected a Var token");
+        assert_eq!(var.1, "$a($b($c(1)))");
     }
 }
