@@ -59,13 +59,15 @@ const REPORT_PATH: &str = "docs/generated/wasm-command-backing.md";
 /// Core commands the runtime backs natively but **not** through a
 /// `register_builtin(b"…")` literal the [`scan_handlers`] pass can see, with a
 /// note on the mechanism: `TclOO` metaclasses bootstrapped as objects
-/// (`oo::class create ::oo::…` in `cmd_oo.rs`), the per-object `my` command
-/// created by method dispatch (`oo_register_my`), and the `::tcl::dict::*`
-/// registry names (issue #923 idx 105) — alternate, independently-resolvable
-/// spellings of `dict`'s own subcommands (real C Tcl implements the `dict`
-/// ensemble's default map that way), backed by the single
-/// `register_builtin(b"dict", …)` handler, not a separate one per name. Names
-/// are canonical (no leading `::`). Kept sorted.
+/// (`oo::class create ::oo::…` in `cmd_oo.rs`) and the per-object `my` command
+/// created by method dispatch (`oo_register_my`). Names are canonical (no
+/// leading `::`). Kept sorted.
+///
+/// The standalone `::tcl::dict::*` spellings (issue #923 idx 105) are **not**
+/// here: `runtime/rust` backs only the `dict` ensemble head, so a direct
+/// `::tcl::dict::get …` call is `invalid command name` there — a genuine gap
+/// classified by [`is_tcl_dict_qualified`] as [`Status::KnownGap`], not hidden
+/// as if `dict`'s handler backed it (Codex review, PR #1020).
 const HANDLER_EXTRA: &[(&str, &str)] = &[
     (
         "my",
@@ -90,94 +92,6 @@ const HANDLER_EXTRA: &[(&str, &str)] = &[
     (
         "oo::singleton",
         "TclOO metaclass bootstrapped as an object in cmd_oo.rs",
-    ),
-    (
-        "tcl::dict::append",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::create",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::exists",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::filter",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::for",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::get",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::getdef",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::getwithdefault",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::incr",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::info",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::keys",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::lappend",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::map",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::merge",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::remove",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::replace",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::set",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::size",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::unset",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::update",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::values",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
-    ),
-    (
-        "tcl::dict::with",
-        "dict ensemble subcommand, backed by register_builtin(b\"dict\", …)",
     ),
 ];
 
@@ -423,6 +337,27 @@ fn is_mathfunc_command(c: &str) -> bool {
 const MATHFUNC_COMMAND_REASON: &str = "`::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop \
      (register_builtin(&full, …) — not a literal the scan can see)";
 
+/// Whether `c` is a standalone `::tcl::dict::*` ensemble-implementation
+/// spelling (issue #923 idx 105). These are real, separately-callable commands
+/// in C Tcl (the `dict` ensemble's default map targets), so the registry
+/// carries them — but `runtime/rust` implements only the `dict` ensemble head
+/// (`register_builtin(b"dict", …)`), not the qualified spellings: a direct
+/// `::tcl::dict::get …` call raises `invalid command name` there. Classified as
+/// a genuine, visible runtime gap ([`Status::KnownGap`]) rather than hidden
+/// under [`HANDLER_EXTRA`] as if `dict`'s handler backed them (Codex review,
+/// PR #1020).
+fn is_tcl_dict_qualified(c: &str) -> bool {
+    c.strip_prefix("::")
+        .unwrap_or(c)
+        .strip_prefix("tcl::dict::")
+        .is_some_and(|sub| !sub.is_empty())
+}
+
+/// The reason attached to every [`is_tcl_dict_qualified`] command in the
+/// report.
+const TCL_DICT_QUALIFIED_REASON: &str = "standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): \
+     runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name`";
+
 /// One core command's backing status.
 enum Status {
     /// A real `register_builtin` handler in the runtime.
@@ -509,6 +444,9 @@ fn classify(name: &str, backed: &BTreeSet<String>) -> Status {
     }
     if is_mathfunc_command(c) {
         return Status::HandlerNative(MATHFUNC_COMMAND_REASON);
+    }
+    if is_tcl_dict_qualified(c) {
+        return Status::KnownGap(TCL_DICT_QUALIFIED_REASON);
     }
     if is_expr_operator(c) {
         return Status::NotRequired(EXPR_OPERATOR_REASON);

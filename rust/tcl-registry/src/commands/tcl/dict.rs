@@ -737,6 +737,27 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 return_type: sub.return_type,
                 arg_types: sub.arg_types,
                 const_fold: sub.const_fold,
+                const_fold_versioned: sub.const_fold_versioned,
+                // Carry the subcommand's full *analysis* contract onto the
+                // standalone spelling, not just its arity/hover (Codex
+                // review, PR #1020). A `SubCommand`'s arg-role indices are
+                // already 0-based *after* the subcommand word — exactly the
+                // standalone command's own arg indexing — so `dict set`'s
+                // `VarWrite` on arg 0 and `dict for`'s `LoopVarList` + `Body`
+                // transfer verbatim. Without these, `::tcl::dict::set d k v`
+                // would not mark `d` written and `::tcl::dict::for {k v} $d
+                // {…}` would neither bind its loop vars nor analyse its body.
+                arg_roles: sub.arg_roles,
+                arg_role_resolver: sub.arg_role_resolver,
+                command_prefixes: sub.command_prefixes,
+                command_prefix_resolver: sub.command_prefix_resolver,
+                analyser_hook: sub.analyser_hook,
+                side_effects: sub.side_effects,
+                var_write_typing: sub.var_write_typing,
+                return_elements: sub.return_elements,
+                var_elements_effect: sub.var_elements_effect,
+                safe_on_uninit: sub.safe_on_uninit,
+                options: sub.options,
                 hover: Some(HoverSnippet::brief(
                     summary,
                     synopsis,
@@ -763,6 +784,42 @@ mod tests {
         assert!(
             !qualified_specs().iter().any(|s| s.name.ends_with("::getd")),
             "qualified_specs must never register ::tcl::dict::getd",
+        );
+    }
+
+    #[test]
+    fn qualified_specs_carry_the_subcommand_analysis_contract() {
+        // Codex review (PR #1020): standalone `::tcl::dict::*` specs must
+        // inherit the subcommand's arg-roles / analyser hook, not just its
+        // arity and hover. `dict set`'s `VarWrite` on arg 0 and `dict for`'s
+        // `Body` on arg 2 + its `DictFor` hook transfer verbatim (subcommand
+        // arg indices are already 0-based after the subcommand word).
+        let specs = qualified_specs();
+        let get = |name: &str| {
+            specs
+                .iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("missing {name}"))
+        };
+        let set = get("::tcl::dict::set");
+        assert!(
+            set.arg_roles
+                .iter()
+                .any(|&(i, r)| i == 0 && r == ArgRole::VarWrite),
+            "::tcl::dict::set must mark its dict variable (arg 0) as VarWrite: {:?}",
+            set.arg_roles,
+        );
+        let for_ = get("::tcl::dict::for");
+        assert!(
+            for_.arg_roles
+                .iter()
+                .any(|&(i, r)| i == 2 && r == ArgRole::Body),
+            "::tcl::dict::for must mark its body (arg 2) as Body: {:?}",
+            for_.arg_roles,
+        );
+        assert!(
+            for_.analyser_hook.is_some(),
+            "::tcl::dict::for must carry the DictFor analyser hook",
         );
     }
 

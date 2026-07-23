@@ -2159,6 +2159,53 @@ mod apply_list_lambda {
 }
 
 // ===========================================================================
+// `::tcl::dict::*` standalone spellings (issue #923 idx 105) must carry the
+// same analysis contract as the `dict` subcommands they mirror, not a
+// `CommandSpec::DEFAULT` stub (Codex review, PR #1020).
+// ===========================================================================
+mod dict_qualified_specs {
+    use super::*;
+
+    #[test]
+    fn qualified_dict_for_binds_loop_vars_and_walks_body() {
+        // The standalone `::tcl::dict::for` must carry `dict for`'s arg-roles
+        // (`LoopVarList` + `Body`) and its `DictFor` analyser hook, so its
+        // body is analysed and `k`/`v` are bound — `CommandSpec::DEFAULT`
+        // left it inert, so a call inside the body was never seen.
+        let invs = Analyser::new()
+            .analyse(
+                "set d {a 1 b 2}\n::tcl::dict::for {k v} $d { frobnicate $k $v }\n",
+                D,
+            )
+            .command_invocations;
+        assert!(
+            invs.iter().any(|i| i.name == "frobnicate"),
+            "::tcl::dict::for body must be analysed like dict for: {:?}",
+            invs.iter().map(|i| &i.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn qualified_dict_set_body_walks_a_nested_dict_for() {
+        // A `::tcl::dict::for` nested inside another command's body still
+        // carries its analysis contract, so the inner body's own call is
+        // seen — a stronger check than a top-level call that the generic
+        // walk would reach anyway.
+        let invs = Analyser::new()
+            .analyse(
+                "proc p {d} { ::tcl::dict::for {k v} $d { frobnicate $k } }\n",
+                D,
+            )
+            .command_invocations;
+        assert!(
+            invs.iter().any(|i| i.name == "frobnicate"),
+            "nested ::tcl::dict::for body must be analysed: {:?}",
+            invs.iter().map(|i| &i.name).collect::<Vec<_>>()
+        );
+    }
+}
+
+// ===========================================================================
 // TestW123UnresolvedCommand — unknown-command detection.
 // ===========================================================================
 mod unresolved_command {
