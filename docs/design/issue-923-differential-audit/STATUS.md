@@ -416,12 +416,83 @@ not a substitute.
 | 71 | high | pix | source | **FIXED** (`70f0c99`) — find-references dropped every call site in the same document a query was issued from whenever that document has no local declaration (a proc reached only through a `source`d-in/sibling file); the `.test`-extension half was already fixed by idx 10. |
 | 76 | high | tomato | tclOO | **FIXED** (`7c1a154`) — the headline "wrong class guessed" hypothesis is REFUTED (correct abstention); tracing it found hover had no resolution path at all for a plain `my methodName` call, unlike already-working go-to-definition/references. |
 | 77 | high | tomato | tclOO | **FIXED** (`476b7a2`) — the whole CFG/SSA dataflow diagnostic family (W210 and siblings) never ran on any TclOO/snit method body; the crash-causing unbound `$other` read now flags. |
-| 79 | high | tomato | proc_args | `constructor {args}` reinterprets its single `args` list as multiple different logical shapes depending on caller — the parameter model doesn't track this. |
+| 79 | high | tomato | proc_args | **INVESTIGATED, NOT FIXED** (session of 2026-07-23) — see the dedicated note right after this table for why: the audit's own "definition/hover resolve, references/rename don't" framing is now stale (idx 113 already narrowed `lookup_class_member` to require `link`, so definition/hover now *also* abstain on this shape), but the underlying rename-safety risk it flagged is still real and a sound fix needs receiver-type inference this campaign doesn't have. |
 | 84 | high | tk | namespaces | `tk/library/systray.tcl` (and print.tcl, fileicon.tcl, accessibility.tcl) splices a namespace-qualified name dynamically; resolution fails. |
 | 86 | high | tk | rename | `tk/library/accessibility.tcl`'s `foreach wtype {...} { rename ::$wtype ::tk::ac... }` loop-generated rename targets aren't tracked. |
 | 90 | high | tk | safe_interp | `tk/library/safetk.tcl` declares a throwaway 0-arg `proc ::safe::loadTk {}` stub then redefines it with the real signature later — arity/definition tracking picks the wrong one. |
 | 94 | high | tk | tricky_indirection | `tearoff.tcl`'s `-tearoffcommand`/`cget`/`upvar`-adjacent indirection mechanics both reproduce, need a combined fix. |
 | 95 | high | tk | tricky_indirection | `tk.tcl:594-596`'s `$w ${dir}view scroll ...` — a subcommand synthesized by string-concatenation at the call site — isn't resolved. |
+
+**idx 79, in detail (investigated, deliberately not fixed):** the finding's
+own repro is nico-robert/tomato's `Vector3d.tcl` `constructor {args}`, whose
+"copy constructor" branch (`llength $args == 1` + a `TypeOf ... Isa
+Vector3d` runtime guard) reinterprets `args` as a live object handle and
+calls `[$args X]` / `[$args Y]` / `[$args Z]` — tclsh8.6/9.0.4-verified this
+really dispatches. The audit found go-to-definition/hover resolved this call
+site (crediting `definition.rs::lookup_class_member`'s then-current "cursor
+inside class body, word matches any member name" fallback) while
+references/rename — sharing a narrower core,
+`references.rs::method_references_for_class` (only `my`-headed calls plus
+`$var method` where `var` is tracked in `instance_classes` from a literal
+`set var [Cls new/create]`) — never included it, so renaming `X` produced a
+`WorkspaceEdit` touching only the declaration; applying it and running under
+tclsh reproduced `unknown method "X"` on the copy-constructor call shape.
+
+Re-verified this session (2026-07-23) with a from-scratch repro matching the
+finding's shape exactly, at the `tcl-lsp-core::definition`/`references`/
+`hover` unit-test level: **the audit's own "definition/hover resolve, this
+one path, references/rename don't" framing no longer holds.** Idx 113 (an
+earlier, independently-motivated, correct fix in this same campaign —
+"require `oo::Helpers::link` before resolving bareword `TclOO` member
+calls") added exactly the `ClassDef::linked_members` gate current
+`lookup_class_member` (`rust/tcl-lsp-core/src/definition.rs`) checks before
+matching *any* word against a class member — and this repro's class uses
+plain `method X {}` / `method Y {}` / `method Z {}` with no
+`oo::Helpers::link` anywhere, so `linked_members` is empty for it. Confirmed
+empirically: `definition()`/`hover()` on `$other X` (the copy-constructor's
+own dispatch site, an exact analogue of `Vector3d.tcl`'s `$args X`) now
+return nothing at all — idx 113 already narrowed away the exact fallback
+this finding's "definition/hover work" half depended on. All four
+navigation features now abstain *consistently* on this shape, not
+inconsistently as the audit observed.
+
+That said, the finding's own most severe claim — **rename silently breaking
+running code** — is untouched by idx 113 and remains fully live today:
+renaming `method X` from its own declaration (definitely resolvable, always
+was) still produces a `WorkspaceEdit` touching only the declaration, since
+`method_references_for_class` still has no path to `$var method` calls
+through an untracked receiver. A sound fix needs to answer "could `$other`
+really be an instance of *this* class at this call site" — which requires
+receiver-type inference this campaign's registry-driven, no-hardcoding
+analyser doesn't have (unlike the bareword case idx 113 fixed, where real
+Tcl's own `link`-or-error rule makes the answer statically knowable with no
+type inference at all). Two directions were considered and rejected for this
+session:
+
+- **Reintroduce a broadened `lookup_class_member`-style match for
+  `$var method`** (the audit's own suggested direction) — rejected: this is
+  the *exact* class of unsound, receiver-blind heuristic idx 113 correctly
+  removed for the bareword case, just relocated to explicit-receiver calls;
+  extending it to *rename* specifically (not just navigation) means a wrong
+  guess doesn't just navigate somewhere unhelpful, it silently rewrites
+  unrelated code.
+- **A `rename_blocked`-style safety gate** (mirroring issue #945 fault 1's
+  established "provenance not fully writable → abstain outright" pattern):
+  detect that a class's own method bodies contain an untyped-receiver
+  `$var method` call matching one of its members, and refuse to rename that
+  member rather than emit a silently-partial edit. Not attempted this
+  session — the detection logic (walk every method body of the
+  renamed-from class for this exact shape, distinguishing "receiver's class
+  is genuinely unknown" from "receiver is provably a different, unrelated
+  class") is closer to a small feature than a quick fix, and risks either
+  false abstention (blocking genuinely safe renames whenever a class has any
+  internal `$var method` helper pattern) or reintroducing the same
+  false-positive risk as the first option, depending on how conservatively
+  it's tuned.
+
+Left open for a future session with more room to design the safety-gate
+direction carefully — not attempted lightly, and not silently: this note is
+that record.
 
 #### Priority tier 2 — medium + low (60 + 1 = 61 findings), grouped by feature for clustering
 
