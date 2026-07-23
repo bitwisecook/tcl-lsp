@@ -24,6 +24,24 @@ solely on this document + the `data/` JSON files:
   79, investigated but not fixed, needs receiver-type inference — plus 61
   tier-2, feature-clustered).
 
+**2026-07-23 update — rebased onto `origin/rust` tip (`9a031ac`):** PR
+#1020 (this branch) was rebased onto the current `rust` tip to pick up
+several other sessions' independent, overlapping fixes for issue #923
+(ensemble `-map`/W129, `enclosing_class_at`, mathop/mathfunc registry
+unification, and more) landed in the interim. All 76 replayed commits were
+reconciled commit-by-commit, full workspace `cargo fmt --check` +
+`cargo clippy --workspace --all-targets -- -D warnings` pass clean, and
+the full test suite of every touched crate (`tcl-lexer`, `tcl-compiler`,
+`tcl-lsp-core`, `tcl-lsp-server`, `tcl-registry`) passes except for 2
+pre-existing `origin/rust` tests that only fail once combined with this
+branch — filed as
+[#1021](https://github.com/bitwisecook/tcl-lsp/issues/1021) (a genuine
+cross-feature interaction gap between two independently-developed `rust`
+features, not a regression introduced by this branch's own commits).
+Derived catalogs (`docs/generated/wasm-command-backing.md`,
+`editors/zed/src/generated/tcl_commands.json`) were regenerated post-rebase
+and their gate tests pass.
+
 This document and `data/06-main-audit-results-COMPLETE-105of105.json` /
 `data/07-remaining-tcllib-findings-14.json` remain the source of full
 detail (repro steps, oracle output, root_cause_hint) for every finding —
