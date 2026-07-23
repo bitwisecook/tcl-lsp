@@ -373,8 +373,12 @@ pub fn rename(
         && let Some(edits) = rename_method_in_class(
             source,
             dialect,
-            class_q,
-            &method,
+            (
+                class_q,
+                &method,
+                crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
+                    == crate::definition::MethodBucket::Class,
+            ),
             new_name,
             analysis,
             &line_index,
@@ -405,6 +409,13 @@ pub fn rename(
 /// external `$obj method` call sites.  Returns `None` when neither
 /// `class_q` nor any ancestor provides `method` (nothing to rename).
 ///
+/// `target` is `(class_q, method, is_classmethod)` — bundled to keep the
+/// parameter count under the lint budget; `is_classmethod` reflects which
+/// [`crate::definition::MethodBucket`] the caller's own receiver resolved
+/// to (`$obj method` vs. a bare `ClassName method` classmethod dispatch,
+/// issue #923 idx 120), not something re-derivable from `class_q`/`method`
+/// alone.
+///
 /// A `TclOO` method that is (re)defined by a super- or sub-class is a
 /// single polymorphic name: `$obj method` dispatch can reach any
 /// definition along the chain, so renaming only the class under the
@@ -414,26 +425,31 @@ pub fn rename(
 fn rename_method_in_class(
     source: &str,
     dialect: &str,
-    class_q: &str,
-    method: &str,
+    target: (&str, &str, bool),
     new_name: &str,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
+    let (class_q, method, is_classmethod) = target;
     let family = override_family(analysis, class_q, method);
     if family.is_empty() {
         return None;
     }
     let mut edits = Vec::new();
     for member in &family {
-        // Only ever reached via an external `$obj method` call site (see the
-        // call site below), which is always an instance-method receiver —
-        // never a classmethod, which is called on the class object itself
-        // (confirmed against tclsh 9.0.4, see
-        // `tcl_compiler::analyser::diagnostics::var_command`'s dispatch-scope
-        // note).
+        // Reached via an external call site — either `$obj method` (always
+        // instance-context) or a bare `ClassName method` classmethod
+        // dispatch (issue #923 idx 120) — so `is_classmethod` is fixed by
+        // the caller's own receiver resolution, never re-derived per family
+        // member (a method and a classmethod occupy separate dispatch
+        // tables; the receiver picks exactly one for the whole rename).
         let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
-            source, dialect, analysis, member, method, false,
+            source,
+            dialect,
+            analysis,
+            member,
+            method,
+            is_classmethod,
         ) else {
             continue;
         };
