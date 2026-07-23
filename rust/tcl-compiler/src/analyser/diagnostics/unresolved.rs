@@ -919,7 +919,15 @@ impl Analyser {
         let mut best: HashMap<&str, &crate::signature_scan::types::SignatureCommandInvocation> =
             HashMap::new();
         for inv in &self.result.command_invocations {
-            let Some(spec) = registry.get(&inv.name) else {
+            // Dialect-aware, not the bare `registry.get` (which ignores
+            // dialect entirely and would pick an arbitrary same-name spec —
+            // e.g. `link`'s 8.6-`ooutil`-gated spec even under a 9.0+
+            // dialect where the unconditional core spec is the one that's
+            // actually visible, issue #923/Codex PR #1020 review). Matches
+            // the primitive `build_w123_known_names` already resolves
+            // `registry_names` through, so a command's package-gating is
+            // read from the one spec this dialect actually sees.
+            let Some(spec) = self.profile.resolve_command(registry, &inv.name) else {
                 continue;
             };
             if spec.required_package.is_none() {
@@ -943,8 +951,9 @@ impl Analyser {
         }
         let mut new_diags: Vec<super::types::Diagnostic> = Vec::new();
         for inv in best.values() {
-            let spec = registry
-                .get(&inv.name)
+            let spec = self
+                .profile
+                .resolve_command(registry, &inv.name)
                 .expect("invocation selected only when registry-known");
             let pkg = spec
                 .required_package

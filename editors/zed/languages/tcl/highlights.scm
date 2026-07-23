@@ -61,10 +61,10 @@
   name: (simple_word) @keyword
   (#any-of? @keyword
     "apply" "break" "classvariable" "continue" "coroutine" "error"
-    "global" "interp" "link" "my" "next" "nextto"
-    "oo::abstract" "oo::class" "oo::configurable" "oo::define" "oo::objdefine" "oo::singleton"
-    "package" "rename" "return" "self" "source" "tailcall"
-    "throw" "uplevel" "upvar" "variable" "yield" "yieldto"))
+    "global" "interp" "my" "next" "nextto" "oo::abstract"
+    "oo::class" "oo::configurable" "oo::define" "oo::objdefine" "oo::singleton" "package"
+    "rename" "return" "self" "source" "tailcall" "throw"
+    "uplevel" "upvar" "variable" "yield" "yieldto"))
 
 ; --- generated from tcl-registry: built-in commands ---
 (command

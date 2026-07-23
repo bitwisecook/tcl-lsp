@@ -334,7 +334,7 @@
         {
           "comment": "Definition keywords (proc/method handled in #definitions for name capture)",
           "name": "keyword.other.tcl",
-          "match": "(?<=^|\\s|;|\\[)(?:apply|classvariable|coroutine|global|interp|itcl::class|link|namespace|oo::abstract|oo::class|oo::configurable|oo::define|oo::objdefine|oo::singleton|package|proc|rename|source|uplevel|upvar|variable)(?=\\s|$|;)"
+          "match": "(?<=^|\\s|;|\\[)(?:apply|classvariable|coroutine|global|interp|itcl::class|namespace|oo::abstract|oo::class|oo::configurable|oo::define|oo::objdefine|oo::singleton|package|proc|rename|source|uplevel|upvar|variable)(?=\\s|$|;)"
         },
         {
           "comment": "Common built-in commands",
