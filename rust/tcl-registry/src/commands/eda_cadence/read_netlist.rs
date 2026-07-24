@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_netlist",
-        dialects: Some(DialectSet::TCL86),
+        dialects: Some(DialectSet::TCL84),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet::brief(
             "Read a gate-level netlist.",

@@ -31,7 +31,7 @@ pub fn spec() -> CommandSpec {
             | Traits::HAS_LOOP_BODY
             | Traits::NEVER_INLINE_BODY
             | Traits::LOOP_LIST_HEADER,
-        dialects: Some(DialectSet::TCL85_PLUS),
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet::brief(
             "Iterate over objects in a collection.",

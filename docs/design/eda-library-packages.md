@@ -170,15 +170,27 @@ Each EDA profile:
 - PrimeTime pure-SDC files are inherently ambiguous → acceptable to fall to a
   neutral `sdc` classification.
 
-## Base Tcl version reconciliation
+## Base Tcl version reconciliation (owner-decided)
 
-Current: xilinx=8.5, quartus=8.5, mentor=8.5, synopsys=8.6, cadence=8.6.
-Research: Vivado 8.5(→8.6 new); Quartus 8.5; Synopsys 8.4-historical→8.6-modern
-(already 8.6, keep); **Mentor modern Questa = 8.6** (bump 8.5→8.6);
-**Cadence Innovus/Genus historically 8.4-safe** (avoids dict/lassign/`{*}`) —
-a genuine discrepancy vs the current 8.6. Bumping Mentor→8.6 is low-risk; the
-Cadence 8.6→8.4 question is a *downgrade* that removes 8.5+ features and needs
-an explicit decision (flag, don't silently change).
+Final base versions: **Xilinx 8.5, Quartus 8.5, Synopsys 8.6, Mentor 8.6,
+Cadence 8.4.**
+
+- Xilinx/Quartus 8.5 and Synopsys 8.6 (modern gtclsh) kept as-is — within the
+  research ranges.
+- **Mentor → 8.6** (owner decision): modern Questa/ModelSim embeds Tcl 8.6
+  (bundled `tcl8.6` library paths). Older ModelSim shipped 8.4/8.5, but the
+  current-tool default is 8.6 — Questa scripts get TclOO + the 8.6 core.
+- **Cadence → 8.4-safe** (owner decision): real Innovus/Genus scripts
+  systematically avoid dict/lassign/`{*}` (the 8.5 additions) and no public
+  source pins a newer interpreter, so the analyser assumes an 8.4 core — no
+  `{*}` expansion, no `::tcl::mathop` command heads, no TclOO. `sdc_base`
+  widened from `TCL85_PLUS` to `ALL_TCL` so it still resolves under the 8.4
+  Cadence mask (the `required_package` gate keeps it EDA-only).
+
+Verified against the `dialect_surface` differential guard: the only surface
+deltas are Mentor +43 (8.6 features: `oo::*`, `lmap`, `coroutine`, `throw`, …)
+and Cadence −228 / +4 (loses the 8.5+ core + `::tcl::mathop` heads, gains four
+8.4-era `test*proc` commands 8.6 had dropped); no other profile changed.
 
 ## Phased, behaviour-preserving execution (differential-guarded)
 

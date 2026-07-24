@@ -335,14 +335,11 @@ impl DialectSet {
     #[must_use]
     pub fn expr_grammar_base_version(name: &str) -> Option<Self> {
         Some(match name {
-            "tcl8.4" | "f5-irules" => Self::TCL84,
-            "tcl8.5"
-            | "f5-iapps"
-            | "f5-tmsh"
-            | "xilinx-eda-tcl"
-            | "intel-quartus-eda-tcl"
-            | "mentor-eda-tcl" => Self::TCL85,
-            "tcl8.6" | "synopsys-eda-tcl" | "cadence-eda-tcl" | "expect" => Self::TCL86,
+            "tcl8.4" | "f5-irules" | "cadence-eda-tcl" => Self::TCL84,
+            "tcl8.5" | "f5-iapps" | "f5-tmsh" | "xilinx-eda-tcl" | "intel-quartus-eda-tcl" => {
+                Self::TCL85
+            }
+            "tcl8.6" | "synopsys-eda-tcl" | "mentor-eda-tcl" | "expect" => Self::TCL86,
             "tcl9.0" => Self::TCL90,
             "tcl9.1" => Self::TCL91,
             _ => return None,
@@ -501,6 +498,8 @@ mod tests {
         // iRules' *runtime* base (8.4.6) wins over its 8.6-shaped command
         // signature — version-dependent behaviour follows the runtime.
         assert_eq!(base("f5-irules"), Some(DialectSet::TCL84));
+        // Cadence Innovus/Genus run an 8.4-safe core (owner decision).
+        assert_eq!(base("cadence-eda-tcl"), Some(DialectSet::TCL84));
         // EDA / F5 vendor shells inherit their documented embedded core —
         // unlike `DialectSet::TCL85_PLUS`, which deliberately excludes them.
         for d in [
@@ -508,11 +507,11 @@ mod tests {
             "f5-tmsh",
             "xilinx-eda-tcl",
             "intel-quartus-eda-tcl",
-            "mentor-eda-tcl",
         ] {
             assert_eq!(base(d), Some(DialectSet::TCL85), "{d}");
         }
-        for d in ["synopsys-eda-tcl", "cadence-eda-tcl", "expect"] {
+        // Synopsys + modern Questa (Mentor) run an 8.6 core.
+        for d in ["synopsys-eda-tcl", "mentor-eda-tcl", "expect"] {
             assert_eq!(base(d), Some(DialectSet::TCL86), "{d}");
         }
         // Not Tcl at all / no documented base version: stay `None` rather

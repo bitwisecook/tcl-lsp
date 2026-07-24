@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "create_analysis_view",
-        dialects: Some(DialectSet::TCL86),
+        dialects: Some(DialectSet::TCL84),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet::brief(
             "Create an analysis view combining mode and corner.",

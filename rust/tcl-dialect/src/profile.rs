@@ -280,17 +280,21 @@ static CATALOG: [DialectProfile; 16] = [
         name: "cadence-eda-tcl",
         aliases: &[],
         vendor_bit: None,
-        availability_mask: DialectSet::TCL86,
-        base_layers: &[DialectSet::TCL86],
+        // Innovus/Genus embed an 8.4-safe Tcl core: real Cadence scripts
+        // systematically avoid dict/lassign/`{*}` (the 8.5 additions), and no
+        // public source pins a newer interpreter (owner decision; the July-2026
+        // EDA study). So no `{*}` expansion, no `::tcl::mathop` heads, no TclOO.
+        availability_mask: DialectSet::TCL84,
+        base_layers: &[DialectSet::TCL84],
         grammar_union: DialectSet::ALL_TCL,
-        version_ceiling: Some(TclVersion::V8_6),
-        signature_base: Some(TclVersion::V8_6),
-        runtime_base: Some(TclVersion::V8_6),
+        version_ceiling: Some(TclVersion::V8_4),
+        signature_base: Some(TclVersion::V8_4),
+        runtime_base: Some(TclVersion::V8_4),
         leading_zero_is_octal: Ternary::Yes,
-        expr_grammar_base: Some(TclVersion::V8_6),
-        grammar: GRAMMAR_TCL8X,
-        operators_as_commands: true,
-        tcloo: true,
+        expr_grammar_base: Some(TclVersion::V8_4),
+        grammar: GRAMMAR_TCL84,
+        operators_as_commands: false,
+        tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
         libraries: &[
@@ -542,17 +546,20 @@ static CATALOG: [DialectProfile; 16] = [
         name: "mentor-eda-tcl",
         aliases: &[],
         vendor_bit: None,
-        availability_mask: DialectSet::TCL85,
-        base_layers: &[DialectSet::TCL85],
+        // Modern Questa/ModelSim embeds Tcl 8.6 (owner decision; the July-2026
+        // EDA study — bundled `tcl8.6` library paths). Older ModelSim shipped
+        // 8.4/8.5, but the current-tool default is 8.6: TclOO + the 8.6 core.
+        availability_mask: DialectSet::TCL86,
+        base_layers: &[DialectSet::TCL86],
         grammar_union: DialectSet::ALL_TCL,
-        version_ceiling: Some(TclVersion::V8_5),
-        signature_base: Some(TclVersion::V8_5),
-        runtime_base: Some(TclVersion::V8_5),
+        version_ceiling: Some(TclVersion::V8_6),
+        signature_base: Some(TclVersion::V8_6),
+        runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
-        expr_grammar_base: Some(TclVersion::V8_5),
+        expr_grammar_base: Some(TclVersion::V8_6),
         grammar: GRAMMAR_TCL8X,
         operators_as_commands: true,
-        tcloo: false,
+        tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
         libraries: &[
@@ -1246,14 +1253,14 @@ mod tests {
         // The EDA-as-packages migration: each EDA shell's availability mask is
         // its pure base Tcl version (no vendor bit) — the vendor command surface
         // is gated by `required_package` (ambient in the profile), not the mask.
-        // The `vendor_bit` remains for loading/identity + the Tk-exclusion rule
-        // until it is retired in the bit-removal phase.
+        // Base versions follow the tools' embedded cores (owner decisions):
+        // Cadence 8.4-safe, Xilinx/Quartus 8.5, Synopsys + modern Questa 8.6.
         for (name, base) in [
             ("xilinx-eda-tcl", DialectSet::TCL85),
             ("synopsys-eda-tcl", DialectSet::TCL86),
-            ("cadence-eda-tcl", DialectSet::TCL86),
+            ("cadence-eda-tcl", DialectSet::TCL84),
             ("intel-quartus-eda-tcl", DialectSet::TCL85),
-            ("mentor-eda-tcl", DialectSet::TCL85),
+            ("mentor-eda-tcl", DialectSet::TCL86),
         ] {
             let p = DialectProfile::by_name(name);
             assert_eq!(p.availability_mask, base, "{name}: pure base-version mask");
@@ -1480,16 +1487,18 @@ mod tests {
     }
 
     #[test]
-    fn operators_are_commands_everywhere_but_irules_bigip_and_tcl84() {
-        // §9: the math-operator heads (`::tcl::mathop`, TIP 174) exist in
-        // every command dialect except iRules (operators live only inside
-        // expr there — an embedded-8.4 fact) and plain tcl8.4 (the
-        // `::tcl::` namespace itself is 8.5+, so 8.4 has the identical
-        // reasoning as iRules, just without a vendor bit to key off). `tk`
-        // is a library pin, not a profile, so it does not appear here.
-        // f5-bigip has no command surface at all.
+    fn operators_are_commands_everywhere_but_irules_bigip_tcl84_and_cadence() {
+        // §9: the math-operator heads (`::tcl::mathop`, TIP 174) exist in every
+        // command dialect on a Tcl 8.5+ core. The pre-8.5 cores have none — the
+        // `::tcl::` namespace itself is 8.5+: iRules (embedded 8.4), plain
+        // tcl8.4, and now Cadence Innovus/Genus (8.4-safe, owner decision).
+        // f5-bigip has no command surface at all; `tk` is a library pin, not a
+        // profile.
         for p in all_with_fallback() {
-            let expected = !(p.is_irules() || p.name == "f5-bigip" || p.name == "tcl8.4");
+            let expected = !(p.is_irules()
+                || p.name == "f5-bigip"
+                || p.name == "tcl8.4"
+                || p.name == "cadence-eda-tcl");
             assert_eq!(p.operators_as_commands, expected, "{}", p.name);
         }
     }
