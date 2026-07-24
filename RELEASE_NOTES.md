@@ -63,12 +63,13 @@ diagnostic fixes, and a run of TclOO reference-finding and code-lens fixes.
   the recursion-depth guard was correct, but the worker thread's default
   2 MiB stack wasn't big enough to hold that many real stack frames.
   Recursive analysis now runs with a larger stack.
-- **W123 "unknown command" no longer fires for commands that are actually
-  gone or actually known:** a proc, class, alias, or `rename`d command that
-  was later deleted or renamed away is now correctly treated as unknown
-  everywhere the check runs (previously only some resolution passes saw
-  the deletion); and built-in `expr` math functions like `sin($x)` /
-  `max($a, $b)` no longer draw a spurious unknown-command hint.
+- **W123 "unknown command" is now accurate in both directions.** A proc,
+  class, alias, or `rename`d command that was later deleted or renamed away
+  without being re-established now correctly *does* draw W123 everywhere the
+  check runs (previously only some resolution passes saw the deletion, so
+  the diagnostic was inconsistently suppressed). Separately, built-in `expr`
+  math functions like `sin($x)` / `max($a, $b)` no longer draw a spurious
+  W123 — they were never unknown to begin with.
 - **Fixed an unsound constant-folding false positive (I230).** An
   interprocedural parameter-constant analysis trusted a proc parameter as
   compile-time-constant whenever every *resolvable* call site agreed, even
