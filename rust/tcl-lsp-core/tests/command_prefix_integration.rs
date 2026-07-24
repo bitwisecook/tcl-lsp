@@ -280,11 +280,14 @@ fn regsub_command_prefix_fires_w123_only_when_unknown() {
 }
 
 #[test]
-fn coroinject_records_reference_but_never_arity_checks() {
-    // `coroinject`'s appended arity is Unknown (depends on the yield point), so
+fn coroprobe_records_reference_but_never_arity_checks() {
+    // `coroprobe`'s appended arity is Unknown (depends on the yield point), so
     // the injected command is a reference/W123 surface but is never arity-checked.
+    // (`coroinject`, once this test's exemplar, was moved off `Unknown` to the
+    // verified `Exactly(2)` its own implementation always appends — see
+    // `coroinject.rs` — so it no longer demonstrates this FP guard.)
     let reg = CommandRegistry::build_default();
-    let src = "proc worker {args} { yield }\nproc kick {c} {\n    coroinject $c worker extra\n}\n";
+    let src = "proc worker {args} { yield }\nproc kick {c} {\n    coroprobe $c worker extra\n}\n";
     let g = graphs::call_graph(src, &reg, "tcl9.0");
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
@@ -292,7 +295,7 @@ fn coroinject_records_reference_but_never_arity_checks() {
             e["caller"].as_str().unwrap_or("").contains("kick")
                 && e["callee"].as_str().unwrap_or("").contains("worker")
         }),
-        "expected a kick→worker edge from `coroinject`; got {g}"
+        "expected a kick→worker edge from `coroprobe`; got {g}"
     );
     let mut a = tcl_compiler::analyser::Analyser::new();
     let r = a.analyse(src, "tcl9.0");
@@ -300,11 +303,11 @@ fn coroinject_records_reference_but_never_arity_checks() {
         .command_invocations
         .iter()
         .find(|i| i.name == "worker")
-        .expect("coroinject records the injected command");
+        .expect("coroprobe records the injected command");
     assert_eq!(
         inj.callback_arity,
         Some(tcl_registry::AppendedArity::Unknown),
-        "coroinject's callback arity is Unknown so it is never flagged too-few/too-many"
+        "coroprobe's callback arity is Unknown so it is never flagged too-few/too-many"
     );
 }
 
