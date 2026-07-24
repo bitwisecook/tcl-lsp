@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "disconnect_net net_name port_pin_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "disconnect_net",
-        dialects: Some(DialectSet::SYNOPSYS),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet::brief(
             "Disconnect a net from pins/ports.",

@@ -38,6 +38,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "XLAT::src_endpoint_reservation create ?options? <client_ip> <client_port> <protocol> <lifetime>",
+            dialects: None,
         }],
         options: const {
             &[
@@ -88,6 +89,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

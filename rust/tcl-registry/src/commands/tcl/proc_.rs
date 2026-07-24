@@ -17,8 +17,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `proc` — define a procedure.
-//
-// VERIFIED: Tcl 9.0.3 manpage proc(n) (man3/proc.n).
 
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
@@ -28,17 +26,40 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
+/// `proc name args body` — the synopsis, arity, and argument grammar are
+/// byte-for-byte identical across the fetched Tcl 8.4, 8.5, 8.6, 9.0, and
+/// 9.1 manpages (8.6, 9.0, and 9.1 — 9.1b0, the live beta — share
+/// byte-identical DESCRIPTION text, differing only in incidental
+/// line-wrapping and the version banner). No option/flag has ever existed
+/// and no second form was ever added, so this is the command's only form,
+/// unrestricted by dialect or version.
+///
+/// The DESCRIPTION prose itself grew across versions in ways that are
+/// documentation clarification, not behaviour change: a paragraph noting
+/// that a defaulted argument followed by a non-defaulted one becomes
+/// de-facto required first appears in 8.5 (hedged there with "in 8.6 this
+/// will be considered an error" — a threat 8.6 walked back to "though this
+/// may change in a future version of Tcl"; it remains a non-error through
+/// 9.1), and a sentence naming the body's execution namespace explicitly
+/// first appears in 8.6. Neither is a new behaviour introduced at that
+/// version — positional argument binding and namespace-scoped body
+/// execution are both intrinsic to how `proc` has always worked — so both
+/// are folded into the hover snippet below as plain current-truth prose
+/// rather than as dialect gates.
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "proc name args body",
+    dialects: None,
 }];
 
 /// Command spec for `proc`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
@@ -46,6 +67,14 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY
             | Traits::IRULES_TOP_LEVEL_ONLY
             | Traits::WASM_EMITS_NOTHING,
+        // Deliberately no `TAINT_SINK` / `DYNAMIC_EVAL_BODY`: `body` is
+        // *stored*, not executed, by this call. Unlike `eval` / `uplevel`
+        // / `apply`, which run their tainted argument immediately as part
+        // of the same call, a tainted `proc` body only becomes dangerous
+        // if and when the newly-defined procedure is itself later
+        // invoked — one more hop than either trait models. That is why
+        // `proc` stays off both here even though it shares `apply`'s
+        // exact `{args} body` grammar (see `commands/tcl/apply.rs`).
         arity: Arity::exact(3),
         arg_roles: &[
             (0, ArgRole::Name),
@@ -64,10 +93,10 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Create a Tcl procedure.",
             synopsis: &["proc name args body"],
-            snippet: "`args` is a formal parameter list; `body` executes in a new call frame.",
-            source: "Tcl proc(1)",
-            examples: "",
-            return_value: "",
+            snippet: "`args` is a list of formal-parameter specifiers, each either a bare name or a `{name default}` pair. Actual arguments bind positionally in order, so a defaulted parameter followed by a non-defaulted one becomes de-facto required — enough actual arguments must be supplied to reach every parameter that lacks a default. If the last formal parameter is named `args`, any actual arguments beyond the other formals are combined into a list (as `list` would build it) and bound to it, so the procedure accepts a variable number of arguments.\n\nEach call runs `body` in a fresh call frame: a local variable is created for every formal parameter, and the frame is discarded when the procedure returns. A bare name inside `body` resolves to that local frame; reaching a variable in the global namespace needs `global`, and reaching one in another namespace needs `variable`, `upvar`, or (Tcl 8.5+) `namespace upvar`. `body` executes in the namespace the procedure's name resolves in — its defining namespace, unless the procedure has since been renamed elsewhere with `rename`.\n\n`proc` itself always returns an empty string. The *procedure it defines* returns whatever an explicit `return` inside `body` specifies, or otherwise the value of the last command `body` executed; an error raised while running `body` propagates as that call's own error.",
+            source: "Tcl proc(n)",
+            examples: "proc greet {name {greeting Hello}} {\n    return \"$greeting, $name!\"\n}\ngreet Alice        ;# -> Hello, Alice!\ngreet Bob Hi       ;# -> Hi, Bob!\n\nproc sum args {\n    set total 0\n    foreach n $args { incr total $n }\n    return $total\n}\nsum 1 2 3          ;# -> 6",
+            return_value: "An empty string.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

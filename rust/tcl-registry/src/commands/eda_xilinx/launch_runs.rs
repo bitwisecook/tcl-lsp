@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "launch_runs ?-jobs n? ?-scripts_only? ?-to_step step? run_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "launch_runs",
-        dialects: Some(DialectSet::XILINX),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Launch synthesis or implementation runs.",

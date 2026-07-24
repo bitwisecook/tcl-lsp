@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "REWRITE::post_process (SWITCH)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::StreamProfile,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "vlib ?-type type? library_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vlib",
-        dialects: Some(DialectSet::MENTOR),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet::brief(
             "Create a design library directory.",

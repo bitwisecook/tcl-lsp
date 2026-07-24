@@ -22,7 +22,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseCode",
         traits: Traits::PURE,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return the numeric HTTP response code.",

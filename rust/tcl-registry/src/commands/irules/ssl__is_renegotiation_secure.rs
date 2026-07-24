@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::is_renegotiation_secure",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

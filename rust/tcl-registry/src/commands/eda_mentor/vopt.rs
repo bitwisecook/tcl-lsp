@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "vopt ?+acc? ?-o optimized_name? ?-debugdb? ?-L library? top_module",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vopt",
-        dialects: Some(DialectSet::MENTOR),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Optimize a compiled design for simulation.",

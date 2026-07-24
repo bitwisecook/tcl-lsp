@@ -150,11 +150,13 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else? ?bodyN?",
+    dialects: None,
 }];
 
 /// Dynamic arg role resolver for `if`/`elseif`/`else` chains.
@@ -183,9 +185,32 @@ fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
 }
 
 /// Command spec for `if`.
+///
+/// Synopsis, grammar, and semantics are identical across Tcl 8.4, 8.5, 8.6,
+/// 9.0, and 9.1: the if(n) manpage's SYNOPSIS, DESCRIPTION, and EXAMPLES
+/// sections are word-for-word identical on all five version trees (fetched
+/// and line-diffed directly, not paraphrased) — no wording, grammar,
+/// option, or semantics change anywhere in the range. The five pages
+/// differ only in cosmetic typesetting, split at the same 8.5/8.6
+/// boundary: 8.4/8.5 use an ASCII troff-quoted "noise words" phrase and a
+/// hyphen in the NAME line, where 8.6+ use a Unicode-quoted "noise words"
+/// phrase and an em dash; and 8.4/8.5 render the EXAMPLES code blocks at 3-space indent
+/// with the final multi-line-expression example kept on one line, where
+/// 8.6+ use 4-space indent and wrap that same expression's `||` operators
+/// one per line. `if` has never taken an option, never gained or lost a
+/// form, and has no version-gated behaviour to model here.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",
+        // Present and unrestricted everywhere. `if` is a pure control-flow
+        // keyword with no filesystem/process/network access, so its
+        // `dialects` group carries the `IRULES` bit explicitly
+        // (`ALL_TCL.union(IRULES)`) and it resolves under the bare `IRULES`
+        // mask, the same as under every other dialect that hosts a real Tcl
+        // core (iapps, tmsh, the EDA shells, expect, tk). iRules availability
+        // is fully explicit per spec now — there is no `disabled_commands`
+        // list for a command to be absent from.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
@@ -215,10 +240,10 @@ pub fn spec() -> CommandSpec {
                 "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else? ?bodyN?",
                 "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?",
             ],
-            snippet: "Expressions are evaluated left-to-right until a true branch is selected.",
-            source: "Tcl if(1)",
-            examples: "",
-            return_value: "",
+            snippet: "Each expr is evaluated left to right, the same way expr evaluates its argument, until one is true; that clause's body runs and no later expr or body is touched. `then` and `else` are optional noise words kept only for readability — `if {$x} then {body}` and `if {$x} {body}` are equivalent. A boolean value is either numeric (0 is false, anything else is true) or one of the strings true/yes/false/no. Any number of elseif clauses may appear, including none, and the final body may be introduced with `else` or left bare with no keyword at all; an `else` with no body is an error, but a bare trailing body needs no `else` to be recognised. With no true expr and no final body, `if` returns an empty string.",
+            source: "Tcl if(n)",
+            examples: "if {$vbl == 1} {\n    puts \"vbl is one\"\n} elseif {$vbl == 2} {\n    puts \"vbl is two\"\n} else {\n    puts \"vbl is not one or two\"\n}",
+            return_value: "The result of whichever body script ran, or an empty string if no expr was true and no final body was given.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

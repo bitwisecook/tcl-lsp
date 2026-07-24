@@ -22,11 +22,12 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "format formatString ?arg arg ...?",
+    dialects: None,
 }];
 
 /// Constant-fold the
 /// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o` / `%b`), character
-/// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
+/// (`%c`), float (`%f` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
 /// conversions of `format`, with the printf flag / width / precision matrix.
 /// The per-version behaviour was verified against `tclsh8.4`/`8.5`/`8.6`/`9.0`
 /// during development and is pinned in this module's unit tests; the
@@ -34,7 +35,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// live `tclsh9.0` reference.
 /// `%b` (binary) *raises* before Tcl 8.6, so it is version-gated: the registry
 /// passes the dialect's `version`, and `%b` folds only on 8.6+ (else bail).
-/// Only size modifiers and `*`/positional specs remain unfolded.
+/// A `ll`/`L` size modifier always bails too — it is unmodelled (its
+/// "take without truncation" width isn't handled by any `render_*` helper,
+/// and `%llu` specifically *raises* below Tcl 9.0: `tclsh8.6 format %llu 5`
+/// → "unsigned bignum format is invalid", empirically verified), so folding
+/// it as a plain verb would be unsound.
+/// Only other size modifiers and `*`/positional specs remain unfolded.
 ///
 /// `args[0]` is the format string (ASCII-restricted — we byte-index it for
 /// the `%` scan, so a multi-byte char would be mis-sliced); `args[1..]` are
@@ -63,11 +69,26 @@ const FORMS: &[FormSpec] = &[FormSpec {
 ///   See [`Conversion::render_float`].
 /// * `%b` (binary) routes through [`Conversion::render_radix`] like `%x`
 ///   (non-negative, `0b` for `%#b`), but only on Tcl 8.6+ — it raises in
-///   8.4/8.5, so `fold_format` bails there.  Size modifiers (`%ld`), `*`
+///   8.4/8.5, so `fold_format` bails there.  A `ll`/`L` size modifier, `*`
 ///   (arg-driven) width / precision, positional `%n$`, and any field over
 ///   [`MAX_FIELD`] all bail.
 /// * A bare trailing `%` (an incomplete conversion, which Tcl raises on) and
 ///   too few arguments both bail; extra arguments are ignored (matching Tcl).
+///
+/// KNOWN GAP (not fixed here — needs a `tcl-syntax` change, out of this
+/// file's scope): a single-letter size modifier (`h`, `l`, `z`, `t`, `j`,
+/// `q`) is parsed and silently discarded by [`parse_spec`] rather than
+/// exposed on [`Spec`], so it is *not* modelled or bailed on here — `%hd`
+/// folds as plain `%d`.  This is unsound in general: `h` truncates to a
+/// 16-bit value before conversion regardless of platform or dialect
+/// (empirically verified: `tclsh8.6 format %hd 5000000000` → `-3584`, but
+/// `tclsh8.6 format %d 5000000000` → `5000000000` on a wordSize-8 build —
+/// this file's `fold_format` would currently (wrongly) fold `%hd
+/// 5000000000` to `"5000000000"`).  `l`/`z`/`t`/`j`/`q` often coincide with
+/// the no-modifier width on common platforms/dialects but are not
+/// guaranteed to.  Fixing this soundly requires `tcl-syntax::format::Spec`
+/// to report *which* (if any) single-letter modifier was present, not just
+/// the `ll`/`L` case it currently exposes via `big`.
 fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     let (fmt, vals) = args.split_first()?;
     if !fmt.is_ascii() {
@@ -152,19 +173,24 @@ impl Conversion {
             width_star,
             precision_star,
             arg_index,
-            // Version-relevant only (`ll`+`u` is 9.0-gated); the fold layer
-            // already bails on every conversion whose value is
-            // version-dependent, so the modifier itself is irrelevant here.
-            big: _,
+            // A `ll`/`L` size modifier ("take without truncation"): unmodelled
+            // by every `render_*` helper below, and version-relevant on its
+            // own — `%llu` *raises* before Tcl 9.0 (empirically verified:
+            // `tclsh8.6 format %llu 5` → "unsigned bignum format is
+            // invalid"; 9.0 accepts it) while `%lld`/`%llx`/... skip the
+            // dialect's normal wrap width on 9.0+. Bailed on below, alongside
+            // the other unmodelled forms.
+            big,
         } = parse_spec(fmt, i)?;
         // Decline to fold the unmodelled specifier forms: arg-driven `*` width /
-        // `.*` precision, and positional `%n$` selectors. `fold_format` consumes
-        // the value list left-to-right, so a positional spec would fold to the
-        // wrong argument (`format {%2$d} 10 20` is Tcl `20`, but sequentially
-        // `10`) — and a *mixed* positional/sequential format is a Tcl error.
-        // Bailing keeps the constant folder from rewriting either to a wrong
-        // value; the runtime `format` handles them.
-        if width_star || precision_star || arg_index.is_some() {
+        // `.*` precision, positional `%n$` selectors, and a `ll`/`L` size
+        // modifier. `fold_format` consumes the value list left-to-right, so a
+        // positional spec would fold to the wrong argument (`format {%2$d}
+        // 10 20` is Tcl `20`, but sequentially `10`) — and a *mixed*
+        // positional/sequential format is a Tcl error. Bailing keeps the
+        // constant folder from rewriting either to a wrong value; the runtime
+        // `format` handles them.
+        if width_star || precision_star || arg_index.is_some() || big {
             return None;
         }
         Some(Self {
@@ -184,7 +210,7 @@ impl Conversion {
             b'X' => self.render_radix(value, Radix::HexUpper, version),
             b'o' => self.render_radix(value, Radix::Octal, version),
             b'c' => self.render_char(value),
-            b'f' | b'F' => self.render_float(value, FloatKind::Fixed, false),
+            b'f' => self.render_float(value, FloatKind::Fixed, false),
             b'e' => self.render_float(value, FloatKind::Scientific, false),
             b'E' => self.render_float(value, FloatKind::Scientific, true),
             b'g' => self.render_float(value, FloatKind::General, false),
@@ -192,7 +218,9 @@ impl Conversion {
             b'u' => self.render_unsigned(value, version),
             b'b' => self.render_radix(value, Radix::Binary, version),
             b's' => self.render_str(value),
-            // Size modifiers (`%ld`) and positional `%n$` bail.
+            // Unmodelled verbs (`%a`/`%A`/`%p`) and any invalid byte —
+            // `F` is not a real Tcl conversion (empirically verified:
+            // `tclsh8.6 format %F 3.14` → `bad field specifier "F"`) — bail.
             _ => None,
         }
     }
@@ -225,8 +253,10 @@ impl Conversion {
         Some(self.pad("", &digits, self.int_zero_pad()))
     }
 
-    /// Render a float conversion — `%f`/`%F` (fixed), `%e`/`%E` (scientific),
-    /// or `%g`/`%G` (general).  All build on Rust's float formatter, which is
+    /// Render a float conversion — `%f` (fixed; `%F` is *not* a valid Tcl
+    /// conversion on any version — empirically verified: `tclsh8.6 format %F
+    /// 3.14` → `bad field specifier "F"`), `%e`/`%E` (scientific), or
+    /// `%g`/`%G` (general).  All build on Rust's float formatter, which is
     /// byte-identical to C/Tcl on the exact binary value — same
     /// round-half-to-even (verified differentially: `2.5`→`2`, `0.125`→`0.12`,
     /// `2.675`→`2.67`, `99.995`→`100.00`) — with the exponent / shortest-form
@@ -569,8 +599,12 @@ fn fmt_general(v: f64, prec: usize, upper: bool) -> String {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "format",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         byte_array_effect: ByteArrayEffect::Coerces,
-        traits: Traits::BYTE_COMPILED | Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::BYTE_COMPILED
+            | Traits::PURE
+            | Traits::CSE_CANDIDATE,
         // Index 0 is the %-string (the §6 argument-DSL rung: `%b` is
         // 8.6+, `%ll…u` is 9.0+).
         arg_roles: &[(0, ArgRole::FormatString)],
@@ -578,15 +612,12 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         const_fold_versioned: Some(fold_format),
         hover: Some(HoverSnippet {
-            summary: "Format a string in the style of sprintf",
-            synopsis: &[
-                "format formatString ?arg arg ...?",
-                "format formatString ?arg ...?",
-            ],
-            snippet: "",
+            summary: "Format a string in the style of C's sprintf.",
+            synopsis: &["format formatString ?arg arg ...?"],
+            snippet: "Scans formatString left to right, copying text through unchanged except where a % introduces a conversion specifier that consumes the next arg (or, with an %n$ position, an explicit one — once any specifier in the string is positional, every specifier must be). A specifier is %[n$][flags][width][.precision][size]verb: the flags are - (left-justify instead of the default right-justify), + (always show a sign), space (a leading space on a non-negative number), 0 (zero-pad instead of space-pad), and # (alternate form: on every version it forces a decimal point on a float and preserves %g's trailing zeros; for the integer verbs, before Tcl 9.0 it adds a leading 0 on octal or 0x/0X on hex (matching the verb's case) or, from Tcl 8.6, 0b on binary, while from Tcl 9.0 octal instead gets an 0o prefix, hex always gets a lowercase 0x prefix, and decimal gains a new 0d prefix). width and precision may each be a literal number or * to take the value from the next argument; precision means digits after the point for e/f, total significant digits for g, a minimum digit count (zero-padded) for the integer verbs, and a maximum character count for s. Conversion verbs: d/i (signed decimal), u (unsigned decimal), o (unsigned octal), x/X (unsigned hex), b (unsigned binary — Tcl 8.6 and later only), c (integer codepoint to character), s (string, unconverted), f (fixed-point), e/E (scientific notation), g/G (the shorter of f or e, with trailing zeros stripped), and %% for a literal percent. Tcl 9.0 and later also accept a/A (hexadecimal floating-point) and p (shorthand for 0x%zx). An optional size modifier before the verb (h or l; also ll from Tcl 8.5, and z, t, L, j, or q from Tcl 9.0) controls the integer conversion's truncation width but is ignored for the float verbs and for %c/%s. Too few arguments, or a malformed specifier, raises an error; unused trailing arguments are ignored.",
             source: "Tcl man page format.n",
-            examples: "",
-            return_value: "",
+            examples: "format {Hello, %s! You are %d years old.} $name $age\nformat %05.2f $pi\nformat {%#x} 255\nformat {%-10s|} $label",
+            return_value: "The formatted string.",
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
@@ -692,6 +723,21 @@ mod tests {
         assert_eq!(f(&["%99999d", "1"]), None);
         // A bare trailing `%` is an incomplete spec.
         assert_eq!(f(&["abc%", "x"]), None);
+        // `%F` is not a valid Tcl conversion on any version — unlike
+        // `%e`/`%E` or `%g`/`%G`, `%f` has no uppercase counterpart
+        // (empirically verified: `tclsh8.6 format %F 3.14` → `bad field
+        // specifier "F"`).
+        assert_eq!(f(&["%F", "3.14"]), None);
+        // A `ll`/`L` size modifier bails unconditionally: it is unmodelled
+        // (its "no truncation" width isn't handled by any render_* helper),
+        // and `%llu` specifically *raises* below Tcl 9.0 (empirically
+        // verified: `tclsh8.6 format %llu 5` → "unsigned bignum format is
+        // invalid"; 9.0 accepts it as `5`) while `%lld` skips the dialect's
+        // normal 32-bit wrap on 9.0+ — neither is sound to fold as a plain
+        // verb.
+        assert_eq!(f(&["%llu", "5"]), None);
+        assert_eq!(f(&["%lld", "5"]), None);
+        assert_eq!(f(&["%Lf", "3.14"]), None);
     }
 
     #[test]

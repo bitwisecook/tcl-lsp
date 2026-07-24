@@ -45,12 +45,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "pool pool_name ?member_addr member_port?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

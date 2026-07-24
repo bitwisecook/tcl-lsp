@@ -21,26 +21,67 @@
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "global ?varname ...?",
-}];
+const FORMS: &[FormSpec] = &[
+    // Tcl 8.6 dropped the `Tcl_WrongNumArgs` check that `Tcl_GlobalObjCmd`
+    // (generic/tclVar.c) has in 8.4/8.5, so every varname became optional
+    // — the manpage's own SYNOPSIS changed from `global varname ?varname
+    // ...?` to `global ?varname ...?` at that same boundary (8.6 TclCmd
+    // manpage vs. 8.4/8.5). Expect, Synopsys, and Cadence embed an
+    // 8.6-based Tcl core (`DialectSet::expr_grammar_base_version`), so
+    // they follow this form too.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "global ?varname ...?",
+        dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
+    },
+    // Tcl 8.4 and 8.5 require at least one varname: `Tcl_GlobalObjCmd`
+    // opens with `if (objc < 2) Tcl_WrongNumArgs(...)` in both versions,
+    // so a bare `global` is a hard "wrong # args" error there (matching
+    // those versions' manpage SYNOPSIS, `global varname ?varname ...?`).
+    // iRules, iApps, tmsh, and the Xilinx/Quartus/Mentor EDA shells embed
+    // an 8.4- or 8.5-based Tcl core (`DialectSet::expr_grammar_base_version`),
+    // so they inherit the same requirement.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "global varname ?varname ...?",
+        dialects: Some(
+            DialectSet::TCL84
+                .union(DialectSet::TCL85)
+                .union(DialectSet::IRULES)
+                .union(DialectSet::IAPPS)
+                .union(DialectSet::TMSH),
+        ),
+    },
+];
 
 /// Command spec for `global`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "global",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
+            | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::CREATES_BARRIER
             | Traits::CREATES_SCOPE_ALIAS
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::FRAME_HASH_BUILTIN,
-        // `global ?varName ...?` — zero args is a valid no-op (C
-        // `Tcl_GlobalObjCmd` has no `Tcl_WrongNumArgs`; its `for (i=1; …)` loop
-        // simply doesn't run), so `global` on its own must not draw E002.
-        // Verified against tclsh 9.0.4: `catch {global}` → 0.
+        // `global ?varName ...?` in Tcl 8.6/9.0/9.1 (and Expect/Synopsys/
+        // Cadence, which embed that 8.6-family core) — zero args is a
+        // valid no-op there: `Tcl_GlobalObjCmd` (generic/tclVar.c) has no
+        // `Tcl_WrongNumArgs` call from 8.6 onward, so its `for (i=1; …)`
+        // loop simply doesn't run.
+        //
+        // Tcl 8.4 and 8.5 (and iRules/iApps/tmsh/Xilinx/Quartus/Mentor,
+        // which embed that older core) are stricter: `Tcl_GlobalObjCmd`
+        // opens with `if (objc < 2) Tcl_WrongNumArgs(...)`, so a bare
+        // `global` is a hard "wrong # args" error there — even outside a
+        // proc body, since that check runs before the "not in a proc"
+        // early return. `Arity` has no per-dialect variant, so this keeps
+        // the loosest (8.6+) bound here rather than false-positiving E002
+        // on the common case; see FORMS above for the version-split
+        // synopsis text.
         arity: Arity::any(),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
@@ -50,14 +91,15 @@ pub fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
             summary: "Access global variables",
             synopsis: &["global ?varname ...?"],
-            snippet: "This command has no effect unless executed in the context of a proc body.",
-            source: "Tcl man page global.n",
-            examples: "",
-            return_value: "",
+            snippet: "Executing global outside a proc body has no effect there (a no-op), once its arity requirement, if any, is met. Inside a proc body it creates local variables linked to the corresponding global (::-namespace) variables; like upvar-created links, these do not appear in info locals. A namespace-qualified varname is linked under its unqualified tail name, per namespace tail. Tcl 8.4 and 8.5 require at least one varname — a bare global with none is a \"wrong # args\" error even outside a proc body; Tcl 8.6 dropped that requirement, making global alone a legal no-op in every context. Since Tcl 8.5, varname must be a plain scalar name: one that looks like an array element (e.g. a(b)) is rejected as an error.",
+            source: "Tcl global(n)",
+            examples: "proc reset {} {\n    global a::x\n    set x 0\n}",
+            return_value: "The empty string.",
         }),
         lowering_hook: Some(LoweringHookId::Global),
         codegen_hook: Some(CodegenHookId::Global),

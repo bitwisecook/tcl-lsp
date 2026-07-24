@@ -1,3 +1,0 @@
-validate: 2 finding(s) warning=2
-  [warning] irule-deprecated-command: /irule-lint-standalone: X509::extensions is deprecated; use X509::extensions_count + X509::extensions_get
-  [warning] irule-unknown-event: /irule-lint-standalone: iRule references unknown event 'BOGUS_EVENT'

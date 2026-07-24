@@ -32,6 +32,7 @@ const READS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: false,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Options for the one-shot `md4::md4` digest command.

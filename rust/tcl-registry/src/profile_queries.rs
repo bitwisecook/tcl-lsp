@@ -39,10 +39,11 @@ use crate::traits::Traits;
 /// here because the spec types live above the foundational crate.
 pub trait ProfileQueries {
     /// Whether `spec` is available under this profile: the membership test
-    /// against [`DialectProfile::availability_mask`], the subtractive
-    /// disable filter ([`DialectProfile::is_command_disabled`], §9), and —
-    /// for a profile whose math operators are not command heads
-    /// (`f5-irules`) — the [`Traits::OPERATOR_COMMAND`] exclusion.
+    /// against [`DialectProfile::availability_mask`], and — for a profile
+    /// whose math operators are not command heads (`f5-irules`) — the
+    /// [`Traits::OPERATOR_COMMAND`] exclusion. iRules availability is fully
+    /// explicit in each spec's `dialects` now (the `IRULES` bit is present
+    /// iff iRules enables it), so there is no longer a subtractive ban list.
     ///
     /// This is the same trio [`CommandRegistry::spec_visible`] enforces
     /// inside profile-stamped registries; it lives here too so profile-side
@@ -163,11 +164,51 @@ pub struct VendorSurface {
     pub namespaces: Vec<(String, usize)>,
 }
 
+/// The set of package names some dialect profile ships **ambient** — an EDA
+/// vendor tool surface (`vivado`, `synopsys-dc`, …), an F5 command pack —
+/// computed once from the catalog. A command gated on such a package is a
+/// closed-world vendor command: available only under a profile that ships it.
+/// Hosted libraries that need `package require` (Tk, tcllib, the stdlib
+/// packages) are never in this set (design doc `eda-library-packages.md`).
+fn vendor_ambient_packages() -> &'static std::collections::HashSet<&'static str> {
+    static SET: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
+        std::sync::OnceLock::new();
+    SET.get_or_init(|| {
+        DialectProfile::all()
+            .iter()
+            .flat_map(|p| p.libraries.iter())
+            .filter(|pin| pin.ambient)
+            .map(|pin| pin.package)
+            .collect()
+    })
+}
+
+/// Whether `required` is satisfied under `profile` (design doc
+/// `eda-library-packages.md`, the `is_available` package-loaded gate):
+///
+/// - `None` — no package gate, always satisfied.
+/// - a **hosted** library (never ambient in any profile — Tk, tcllib, stdlib):
+///   satisfied. The command stays known/available; a missing `package require`
+///   is reported separately by W120, not by hiding the command.
+/// - a **closed-world vendor** package (ambient in some profile): satisfied
+///   only when *this* profile ships it ambient — so a `vivado` command never
+///   resolves under a plain-Tcl or rival-vendor profile.
+///
+/// Behaviour-preserving today (vendor packs are profile-scoped and each EDA
+/// profile ships its own tool packages ambient); the gate makes the model
+/// honest and future-proofs finer per-tool detection.
+fn package_available(profile: &DialectProfile, required: Option<&'static str>) -> bool {
+    match required {
+        None => true,
+        Some(pkg) => profile.is_ambient_package(pkg) || !vendor_ambient_packages().contains(pkg),
+    }
+}
+
 impl ProfileQueries for DialectProfile {
     fn is_available(&self, spec: &CommandSpec) -> bool {
         spec.supports_dialect(self.availability_mask)
-            && !self.is_command_disabled(spec.name)
             && (self.operators_as_commands || !spec.traits.contains(Traits::OPERATOR_COMMAND))
+            && package_available(self, spec.required_package)
     }
 
     fn resolve_command<'r>(

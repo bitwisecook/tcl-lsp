@@ -23,12 +23,13 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::registerError",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Register or retrieve an error message for a protocol handler.",

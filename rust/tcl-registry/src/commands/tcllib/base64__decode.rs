@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "base64::decode encodedData",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

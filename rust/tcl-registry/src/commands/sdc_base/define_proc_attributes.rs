@@ -21,18 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "define_proc_attributes proc_name ?-info string?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "define_proc_attributes",
-        dialects: Some(
-            DialectSet::SYNOPSYS
-                | DialectSet::CADENCE
-                | DialectSet::XILINX
-                | DialectSet::QUARTUS
-                | DialectSet::MENTOR,
-        ),
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet::brief(
             "Define attributes for a procedure.",

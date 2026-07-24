@@ -35,12 +35,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTTP::release",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpBody,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::payload (length |",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

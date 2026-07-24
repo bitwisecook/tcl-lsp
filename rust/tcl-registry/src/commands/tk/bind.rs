@@ -23,6 +23,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Dynamic arg-role resolver for `bind`.
@@ -45,6 +46,7 @@ fn bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "bind tag ?sequence? ?+??command?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

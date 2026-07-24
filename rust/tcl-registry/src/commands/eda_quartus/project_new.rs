@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "project_new ?-overwrite? ?-revision rev? ?-part part? ?-family family? project_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "project_new",
-        dialects: Some(DialectSet::QUARTUS),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet::brief(
             "Create a new Quartus project.",

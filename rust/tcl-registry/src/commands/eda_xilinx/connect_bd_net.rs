@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "connect_bd_net ?-net net_name? pin_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "connect_bd_net",
-        dialects: Some(DialectSet::XILINX),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Connect block design nets.",

@@ -24,18 +24,21 @@ const SIDE_EFFECTS: &[SideEffect] = &[
         reads: true,
         writes: false,
         connection_side: ConnectionSide::None,
+        dialects: None,
     },
     SideEffect {
         target: SideEffectTarget::NetworkIo,
         reads: true,
         writes: false,
         connection_side: ConnectionSide::None,
+        dialects: None,
     },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "uri::geturl url ?options...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "read_mmmc file_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_mmmc",
-        dialects: Some(DialectSet::CADENCE),
+        dialects: Some(DialectSet::TCL84),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet::brief(
             "Read Multi-Mode Multi-Corner (MMMC) configuration.",

@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "vmap ?-c? ?-del? library_name ?library_path?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vmap",
-        dialects: Some(DialectSet::MENTOR),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet::brief(
             "Map a logical library name to a directory.",

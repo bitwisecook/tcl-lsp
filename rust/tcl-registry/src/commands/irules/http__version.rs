@@ -48,6 +48,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTTP::version ('0.9' | '1.0' | '1.1')?\nHTTP::version -string ?value?",
+            dialects: None,
         }],
         arg_values: &[(
             0,
@@ -56,16 +57,19 @@ pub const fn spec() -> CommandSpec {
                     value: "0.9",
                     detail: "HTTP/0.9",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "1.0",
                     detail: "HTTP/1.0",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "1.1",
                     detail: "HTTP/1.1",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -85,6 +89,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

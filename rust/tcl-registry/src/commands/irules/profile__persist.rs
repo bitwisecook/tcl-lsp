@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "PROFILE::persist ((instance PROFILE_PERSIST ATTR) | (mode MODE ATTR))",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::OptParse",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Parse a list of arguments according to an option description.",

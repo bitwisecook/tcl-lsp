@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "read_xdc ?-unmanaged? ?-ref ref_name? ?-cells cell? file_list",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_xdc",
-        dialects: Some(DialectSet::XILINX),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet::brief(
             "Read XDC timing constraint files.",

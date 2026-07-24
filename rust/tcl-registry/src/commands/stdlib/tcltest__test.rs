@@ -71,6 +71,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Built-in comparison modes for `-match` (a custom mode registered via
@@ -80,16 +81,19 @@ const MATCH_MODES: &[ArgValue] = &[
         value: "exact",
         detail: "actual result must equal the expected result exactly",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "glob",
         detail: "expected result is a glob pattern (string match)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "regexp",
         detail: "expected result is a regular expression",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -100,26 +104,31 @@ const RETURN_CODES: &[ArgValue] = &[
         value: "ok",
         detail: "TCL_OK (0)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "error",
         detail: "TCL_ERROR (1)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "return",
         detail: "TCL_RETURN (2)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "break",
         detail: "TCL_BREAK (3)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "continue",
         detail: "TCL_CONTINUE (4)",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -196,6 +205,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "test name description ?option value ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

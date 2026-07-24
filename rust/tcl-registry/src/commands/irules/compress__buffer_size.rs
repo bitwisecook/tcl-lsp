@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "COMPRESS::buffer_size (request | response)? NONNEGATIVE_INTEGER",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::StreamProfile,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

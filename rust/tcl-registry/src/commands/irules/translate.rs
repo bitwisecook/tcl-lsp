@@ -37,12 +37,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "translate (address | port | service)",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

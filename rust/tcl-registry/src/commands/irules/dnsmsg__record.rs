@@ -36,12 +36,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "DNSMSG::record RESOURCE_RECORD ('owner' | 'type' | 'ttl' | 'class' | 'rdata')",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

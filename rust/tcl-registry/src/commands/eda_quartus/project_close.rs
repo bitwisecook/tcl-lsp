@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "project_close ?-dont_export_assignments?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "project_close",
-        dialects: Some(DialectSet::QUARTUS),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Close the current Quartus project.",

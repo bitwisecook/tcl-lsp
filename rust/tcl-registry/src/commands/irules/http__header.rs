@@ -187,6 +187,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTTP::header <subcommand> ?arg ...?",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -194,6 +195,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

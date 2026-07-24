@@ -54,6 +54,10 @@ pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static Comman
     for &layer in profile.base_layers {
         registry.load_dialect(layer);
     }
+    // EDA shells load their command packs (shared `sdc_base` + the vendor tool
+    // packs) by profile identity, not a DialectSet bit — a no-op for every
+    // other profile (design doc `eda-library-packages.md`).
+    registry.load_eda_packs(profile.name);
     registry.set_profile(profile);
     let leaked: &'static CommandRegistry = Box::leak(Box::new(registry));
     guard.insert(profile.name, leaked);

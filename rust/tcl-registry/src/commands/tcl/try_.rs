@@ -20,16 +20,36 @@
 
 use crate::prelude::*;
 
+// `body`, every handler `script`, and `finally` can do literally anything
+// (`cmd_try` in `tcl-vm/src/cmd_try.rs` evaluates each one with
+// `vm.eval_source`), so — exactly like `catch`, its structural cousin —
+// the static spec can only declare the generic worst case rather than a
+// specific `SideEffectTarget`.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
+// `try body ?handler...? ?finally script?` is `try`'s only documented
+// form, unchanged since its introduction: Tcl 8.6.18's try.htm, Tcl
+// 9.0.4's try.html, and Tcl 9.1b0's try.html all give this identical
+// one-line SYNOPSIS verbatim (the 9.0/9.1 pages additionally grow a
+// third EXAMPLES entry over 8.6's two, with no synopsis or grammar
+// change alongside it). `try` has no manpage at all in Tcl 8.4 or
+// 8.5 — both `tcl-lang.org/man/tcl{8.4,8.5}/TclCmd/try.html` serve a
+// genuine "URL Not Found" page (HTTP 200 with a soft-404 body, not a
+// redirect quirk — the same pattern `throw_.rs` documents for
+// `throw`), consistent with `try` being a Tcl 8.6 addition (TIP 329,
+// alongside `throw`). `dialects: None` here inherits the command's own
+// `TCL86_PLUS` gate below, so this single entry already correctly
+// excludes 8.4/8.5 and every dialect pinned to an 8.4/8.5 base.
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "try body ?handler...? ?finally script?",
+    dialects: None,
 }];
 
 /// Whether a handler-body word is the literal `-` fallthrough marker
@@ -89,16 +109,91 @@ fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     roles
 }
 
+/// The word immediately after `body` (index 1), when present, is always
+/// the head of the first handler clause or a bare `finally` — every
+/// later clause-head position shifts with how many 4-word `on`/`trap`
+/// clauses precede it, so index 1 is the one spot [`CommandSpec::arg_values`]'s
+/// fixed-index model can describe exactly (`cmd_try`'s own
+/// `parse_clauses` rejects anything else there with `bad handler type
+/// "X": must be finally, on, or trap`). Every occurrence — not just this
+/// first one — still gets `ArgRole::Keyword` from [`try_arg_roles`]
+/// above, which does not depend on position.
+const FIRST_CLAUSE_KEYWORD_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "on",
+        detail: "on code variableList script — matches an exact completion code: ok, error, return, break, continue, or an integer.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "trap",
+        detail: "trap pattern variableList script — matches an error whose -errorcode has pattern as a leading prefix.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "finally",
+        detail: "finally script — always runs last, whether body succeeded, errored, or was otherwise handled.",
+        ..ArgValue::DEFAULT
+    },
+];
+
 /// Command spec for `try`.
+///
+/// `try` does not exist before Tcl 8.6 (see the version note on
+/// `FORMS` above); Tcl 8.6.18, 9.0.4, and 9.1b0 document identical
+/// grammar, handler forms, and semantics — no option, form, or
+/// behavioural delta of any kind across those three releases. The
+/// 9.0/9.1 manpages add a third EXAMPLES entry (a `finally`-guarded
+/// `read` inside a proc that also `return`s) over 8.6's two, but that
+/// is new example prose, not a semantic change: a plain `return`
+/// inside `body` has always propagated outward once `finally` has
+/// run, on 8.6 as much as 9.0+.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "try",
+        // `FRAMELESS_RUNTIME` deliberately absent: unlike `throw`/`error`/
+        // `return` (which build their completion directly with no `vm`
+        // touch), `cmd_try` evaluates `body`, every handler `script`, and
+        // `finally` through `vm.eval_source` — a genuine eval fallback —
+        // so a call to `try` needs a real frame in the callee. `try` is
+        // correctly absent from the
+        // `frameless_runtime_covers_the_audited_allow_list` test in
+        // `tcl-registry/src/registry.rs`.
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
             | Traits::NEVER_INLINE_BODY,
+        // `TCL86_PLUS`, via the mask-intersection rule
+        // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`,
+        // already resolves availability correctly for every non-core
+        // dialect with no extra gate needed: `f5-irules`'s profile mask is
+        // the bare `IRULES` bit (an embedded Tcl 8.4.6 core), and
+        // `f5-iapps`/`f5-tmsh`/the Quartus/Mentor/Xilinx EDA shells all
+        // mask in `TCL85` (their documented Tcl base) — none of those
+        // five intersect `TCL86_PLUS`, so `try` is correctly unavailable
+        // in all six (`tcl-dialect/src/profile.rs`). `f5-bigip`'s mask
+        // carries no Tcl-version bit at all (a config-file surface, not a
+        // Tcl command surface), so it is unaffected either way. Expect
+        // and the Cadence/Synopsys EDA shells mask in `TCL86`, and BPF
+        // masks in `TCL90` — all four intersect `TCL86_PLUS`, so `try`
+        // correctly resolves there too (each embeds a real 8.6+/9.0+ core
+        // with no disable list of its own touching it — confirmed by
+        // grepping `irules/`, `iapps/`, `expect/`, `eda_*/`, `tk/`, and
+        // `itcl/` for `"try"`: no hits at all, so no dialect overrides or
+        // bans it).
         dialects: Some(DialectSet::TCL86_PLUS),
+        // Minimum 1 (`body` is mandatory — `try` with no arguments is
+        // "wrong # args: should be \"try body ?handler ...? ?finally
+        // script?\"", confirmed in `cmd_try`'s own `USAGE` string); no
+        // fixed maximum, since any number of `on`/`trap` handler clauses
+        // may precede an optional trailing `finally`. The real grammar is
+        // a clause chain (each handler exactly 4 words, `finally` exactly
+        // 2 and only as the very last clause) finer than a flat
+        // `min..=max` range can express — `cmd_try`'s own `parse_clauses`
+        // (`tcl-vm/src/cmd_try.rs`) enforces that shape at runtime with
+        // dedicated "wrong # args to on/trap/finally clause" messages;
+        // this floor is the coarse static bound the generic arity check
+        // uses.
         arity: Arity::at_least(1),
         arg_role_resolver: Some(try_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Try),
@@ -107,12 +202,14 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Trap and process errors and exceptions",
             synopsis: &["try body ?handler...? ?finally script?"],
-            snippet: "This command executes the script body and, depending on what the outcome of that script is (normal exit, error, or some other exceptional result), runs a handler script to deal with the case.",
-            source: "Tcl man page try.n",
-            examples: "",
-            return_value: "",
+            snippet: "Evaluates body, then dispatches to at most one matching handler clause, tried in the order written, based on how body completed. Each clause is either \"on code variableList script\" — matching an exact completion code, where code is ok, error, return, break, or continue, or the equivalent integer 0 through 4 — or \"trap pattern variableList script\" — matching only when body raised an error whose -errorcode option has pattern as a leading prefix, compared element-wise with inter-word spacing normalised in both (not as a raw string prefix). An empty pattern (trap {}) therefore matches any error, so on error and trap {} are equivalent, and an earlier on error masks every later trap. A handler's variableList holds up to two variable names: when the first is present and non-empty it receives body's own result (its error message, on an error), and when the second is present and non-empty it receives the options dictionary as of that same moment. A handler script that is exactly \"-\" falls through to the next handler's script, just like a switch body of \"-\" — the last handler may not itself be \"-\". Once a handler has run, or none matched, an optional trailing finally script always runs — even when body or the handler raised an error, and irrespective of which handler, if any, matched. A finally that completes normally discards its own result and lets the handler's (or body's, when none matched) result and completion code propagate outward unchanged, so a plain return inside body still returns from the enclosing procedure once finally has run; a finally that does not complete normally replaces that outcome with its own instead. Whenever body, a handler, or finally raises a new exception while superseding an earlier one, the superseded exception's options dictionary is recorded on the new one under its -during key. try does not exist before Tcl 8.6, where it was added alongside throw.",
+            source: "Tcl try(n)",
+            examples: "# Guarantee cleanup regardless of outcome\nset f [open /some/file/name a]\ntry {\n    puts $f \"some message\"\n} finally {\n    close $f\n}\n\n# Differentiate error causes by their -errorcode\ntry {\n    set f [open /some/file/name r]\n} trap {POSIX EISDIR} {} {\n    puts \"it's a directory\"\n} trap {POSIX ENOENT} {} {\n    puts \"it doesn't exist\"\n}\n\n# finally still runs even though the body returns\nproc readFile {filename} {\n    set f [open $filename r]\n    try {\n        return [read $f]\n    } finally {\n        close $f\n    }\n}",
+            return_value: "The result and completion code of whichever handler matched, or of body itself when no handler matched, once finally (if present) has completed normally; a finally that does not itself complete with code ok replaces this outcome instead.",
         }),
         forms: FORMS,
+        arg_values: &[(1, FIRST_CLAUSE_KEYWORD_VALUES)],
+        closed_value_args: &[1],
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Try),
         ..CommandSpec::DEFAULT

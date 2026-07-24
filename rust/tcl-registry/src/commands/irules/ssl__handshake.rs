@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::handshake (hold | resume)",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

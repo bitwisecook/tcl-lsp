@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "CLASSIFY::username USERNAME (CONTEXT)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

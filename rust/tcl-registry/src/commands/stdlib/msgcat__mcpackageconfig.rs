@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcpackageconfig",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Get or set per-package configuration options.",

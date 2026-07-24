@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "drivers signal_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "drivers",
-        dialects: Some(DialectSet::MENTOR),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet::brief(
             "Find drivers of a signal.",

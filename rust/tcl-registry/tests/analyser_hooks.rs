@@ -55,8 +55,13 @@ const LOADABLE_DIALECTS: &[&str] = &[
 fn full_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
     for name in LOADABLE_DIALECTS {
-        let dialect = DialectSet::parse(name).expect("loadable dialect parses");
-        reg.load_dialect(dialect);
+        // Non-EDA dialects load by their DialectSet bit; the EDA shells are
+        // packaged (no vendor bit) and load their packs by profile identity
+        // (eda-library-packages.md).
+        match DialectSet::parse(name) {
+            Some(dialect) => reg.load_dialect(dialect),
+            None => reg.load_eda_packs(name),
+        }
     }
     reg
 }

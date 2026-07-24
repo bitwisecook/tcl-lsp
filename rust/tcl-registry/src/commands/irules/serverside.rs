@@ -53,12 +53,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "serverside (NESTING_SCRIPT)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

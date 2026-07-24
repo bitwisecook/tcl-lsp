@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "MESSAGE::type",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

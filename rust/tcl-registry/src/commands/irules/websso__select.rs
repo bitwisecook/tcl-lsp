@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "WEBSSO::select WEBSSO_OBJECT",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

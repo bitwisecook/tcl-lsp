@@ -50,6 +50,13 @@ rules for the KCS/documentation split live in
   versioned libraries keyed by base/BIG-IP/tool version), replacing
   per-consumer `DialectSet` arithmetic across the whole stack. Carries the
   complete consumer inventory and a milestone/stage delivery plan.
+- [eda-library-packages.md](eda-library-packages.md) — the migration from the
+  5 EDA vendor-bit dialects (`XILINX`/`SYNOPSYS`/`CADENCE`/`QUARTUS`/`MENTOR`)
+  to a base-Tcl-version dialect plus `required_package`-gated per-tool command
+  libraries (a shared `sdc` pack + per-tool vendor packages). Carries the
+  21-package taxonomy, the `is_available` package-loaded gate, detection
+  hardening, base-version reconciliation, and a phased, differential-guarded,
+  behaviour-preserving execution plan.
 
 > Past project-tracking documents (perf reports, phase trackers,
 > migration plans) are kept in [`../archive/`](../archive/) and are

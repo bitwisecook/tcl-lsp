@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::allow_dynamic_record_sizing (ZERO_ONE)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

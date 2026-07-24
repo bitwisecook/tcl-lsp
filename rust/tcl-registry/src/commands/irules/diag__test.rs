@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "DIAG::test",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

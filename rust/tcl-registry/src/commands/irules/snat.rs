@@ -45,12 +45,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "snat (automap | none | IP_TUPLE | (IP_ADDR (PORT)?))",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SnatSelection,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

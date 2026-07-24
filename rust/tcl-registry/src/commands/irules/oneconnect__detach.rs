@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ONECONNECT::detach BOOL_VALUE",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

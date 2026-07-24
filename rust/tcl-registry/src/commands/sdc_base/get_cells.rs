@@ -21,18 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_cells ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_cells",
-        dialects: Some(
-            DialectSet::SYNOPSYS
-                | DialectSet::CADENCE
-                | DialectSet::XILINX
-                | DialectSet::QUARTUS
-                | DialectSet::MENTOR,
-        ),
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Get cell objects matching a pattern.",

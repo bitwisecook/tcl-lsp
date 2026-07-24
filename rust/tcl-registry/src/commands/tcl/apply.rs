@@ -18,16 +18,26 @@
 
 //! `apply` — apply an anonymous procedure.
 use crate::prelude::*;
+
+/// `apply` never binds a name in the interpreter's command table — the
+/// temporary `Proc` structure TIP 194 builds for the lambda is discarded
+/// as soon as the call returns — so this is not a [`SideEffectTarget::ProcDefinition`]
+/// write. Like `eval`, the lambda body can do literally anything once
+/// invoked, so this uses the same `Unknown`/no-reads/no-writes
+/// "unknowable statically" placeholder `eval`'s spec declares, rather
+/// than asserting a specific effect the command doesn't actually have.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::ProcDefinition,
+    target: SideEffectTarget::Unknown,
     reads: false,
     writes: false,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "apply func ?arg1 arg2 ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
@@ -36,7 +46,17 @@ pub fn spec() -> CommandSpec {
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
-            | Traits::DYNAMIC_EVAL_BODY,
+            | Traits::DYNAMIC_EVAL_BODY
+            // func's list-form body is executed verbatim; tainted data
+            // reaching it is arbitrary code execution, exactly like
+            // `eval`/`uplevel` (Tcl apply(n)). Deliberately *not*
+            // `EVALUATES_CODE`: that trait pairs with `TAINT_SINK` to mean
+            // "the whole tail is one concatenated script" (`eval`'s shape,
+            // consumed by W101/W301/W309 in tcl-compiler's security.rs) —
+            // `apply`'s trailing arg1 arg2 ... are ordinary call arguments
+            // bound to the lambda's formal parameters, never re-parsed as
+            // script text, so that pairing would misclassify it.
+            | Traits::TAINT_SINK,
         // Added in Tcl 8.5 (TIP 194).
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
@@ -51,16 +71,23 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(crate::hooks::LoweringHookId::Apply),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
-            summary: "Apply an anonymous function",
-            synopsis: &["apply func ?arg1 arg2 ...?", "apply func ?arg ...?"],
-            snippet: "The command apply applies the function func to the arguments arg1 arg2 ...",
-            source: "Tcl man page apply.n",
-            examples: "",
-            return_value: "",
+            summary: "Invoke an anonymous function with the given arguments.",
+            synopsis: &["apply func ?arg1 arg2 ...?"],
+            snippet: "func is a two- or three-element list {args body ?namespace?}: args is a formal parameter list in the same form proc accepts (including a trailing args catch-all and default values), body is the script to run, and the optional namespace names the namespace the body's commands and variables resolve in (the global namespace when omitted). Each call builds a fresh, unnamed procedure, applies it to arg1 arg2 ..., and discards it afterwards — the formal parameters become local variables in a new call frame, so the body cannot see or modify the caller's locals without global, variable, or upvar. Raises an error if func is not a valid 2- or 3-element list.",
+            source: "Tcl apply(n)",
+            examples: "set square {{x} {expr {$x * $x}}}\napply $square 5\napply {{a b {suffix \"\"}} {return \"$a$b$suffix\"}} foo bar",
+            return_value: "The result of evaluating the function body.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Apply),
+        // Only `func` (arg 0, the `{argList body ?ns?}` lambda) is the
+        // code-execution sink: trailing `arg1 arg2 ...` are ordinary values
+        // bound to the lambda's formal parameters, never re-evaluated as
+        // script text (see the `TAINT_SINK`-not-`EVALUATES_CODE` note above),
+        // so a tainted `arg` must not draw T100. Without this, the
+        // whole-command sink default flags every argument.
+        taint_code_sink_args: Some(&[0]),
         ..CommandSpec::DEFAULT
     }
 }

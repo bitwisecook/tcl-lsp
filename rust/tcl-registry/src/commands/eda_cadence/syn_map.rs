@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "syn_map ?-effort effort?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "syn_map",
-        dialects: Some(DialectSet::CADENCE),
+        dialects: Some(DialectSet::TCL84),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Map the design to target technology.",

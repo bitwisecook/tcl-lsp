@@ -24,12 +24,14 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "break",
+    dialects: None,
 }];
 
 /// Command spec for `break`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "break",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
@@ -43,14 +45,15 @@ pub fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "Abort looping command",
+            summary: "Abort execution of the innermost enclosing loop.",
             synopsis: &["break"],
-            snippet: "This command is typically invoked inside the body of a looping command such as for or foreach or while.",
+            snippet: "Typically invoked inside the body of a looping command such as for, foreach, or while. It raises a TCL_BREAK exception that aborts the current script out to the innermost containing loop, which then stops iterating and returns normally — execution resumes with the statement after the loop. The exception is also handled by catch, Tk event bindings, and the outermost script of a procedure body. Used anywhere else — outside a loop, catch, Tk binding, or a procedure's top level — it is an error: invoked \"break\" outside of a loop.",
             source: "Tcl man page break.n",
-            examples: "",
-            return_value: "",
+            examples: "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 5} {\n        break\n    }\n    puts $i\n}",
+            return_value: "None in normal use — control transfers to just past the innermost enclosing loop. Trapped with catch, the caught value is an empty string.",
         }),
         inline_codegen_hook: Some(InlineCodegenHookId::Break),
         forms: FORMS,

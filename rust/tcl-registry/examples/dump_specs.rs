@@ -66,11 +66,8 @@ const DIALECT_TAGS: &[(DialectSet, &str)] = &[
     (DialectSet::IAPPS, "f5-iapps"),
     (DialectSet::TK, "tk"),
     (DialectSet::EXPECT, "expect"),
-    (DialectSet::SYNOPSYS, "synopsys-eda-tcl"),
-    (DialectSet::CADENCE, "cadence-eda-tcl"),
-    (DialectSet::XILINX, "xilinx-eda-tcl"),
-    (DialectSet::QUARTUS, "intel-quartus-eda-tcl"),
-    (DialectSet::MENTOR, "mentor-eda-tcl"),
+    // The EDA shells are packaged base-version dialects (no vendor bit); their
+    // commands tag under the base Tcl version (eda-library-packages.md).
 ];
 
 fn dialect_tags(d: DialectSet) -> Vec<&'static str> {

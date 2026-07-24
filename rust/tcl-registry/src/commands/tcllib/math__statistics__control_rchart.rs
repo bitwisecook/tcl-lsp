@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "math::statistics::control-Rchart data ?nsamples?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

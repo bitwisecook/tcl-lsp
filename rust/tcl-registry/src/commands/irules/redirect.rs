@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "redirect to HOST_URI",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ResponseCommit,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         deprecated_replacement: Some("HTTP::redirect"),
         ..CommandSpec::DEFAULT

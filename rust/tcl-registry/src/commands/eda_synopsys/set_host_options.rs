@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_host_options ?-max_cores n?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_host_options",
-        dialects: Some(DialectSet::SYNOPSYS),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Configure multi-core and host settings.",

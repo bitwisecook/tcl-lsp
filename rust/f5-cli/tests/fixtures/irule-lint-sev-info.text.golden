@@ -1,2 +1,0 @@
-validate: 1 finding(s) info=1
-  [info] irule-empty-when: /Common/empty_when_rule: iRule contains a `when` block with no statements

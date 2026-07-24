@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "run ?time_value? ?-all? ?-continue?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "run",
-        dialects: Some(DialectSet::MENTOR),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Advance simulation by specified time.",

@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ASM::violation_data",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         deprecated_replacement: Some("ASM::violation"),
         taint_source: Some(TaintColour::TAINTED),

@@ -47,12 +47,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "http_client_ip ?xff_header_name?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

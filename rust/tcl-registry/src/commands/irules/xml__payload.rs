@@ -38,12 +38,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "XML::payload (LENGTH | (OFFSET LENGTH))?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::StreamProfile,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

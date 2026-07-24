@@ -32,6 +32,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -46,6 +47,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -60,6 +62,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -74,6 +77,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -88,6 +92,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -102,6 +107,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -136,6 +142,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SIP::via ?field? ?INDEX?",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -143,6 +150,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

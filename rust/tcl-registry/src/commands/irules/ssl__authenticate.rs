@@ -32,6 +32,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -46,6 +47,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -60,6 +62,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -81,6 +84,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::authenticate <once | always | depth <number>>",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -88,6 +92,7 @@ pub const fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

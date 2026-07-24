@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::log (COMPONENT_LOGLEVEL)? MSG",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LogIo,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -1,9 +1,0 @@
-event: HTTP_CLASS_FAILED
-known: yes
-deprecated: no
-multiplicity: per_request
-description: Fires when an HTTP request does not match any HTTP class filter (deprecated; pre-LB classification).
-side: client-side
-transport: tcp
-profiles: HTTP
-valid commands: 844

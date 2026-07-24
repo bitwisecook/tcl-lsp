@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "sha2::sha256 ?options? ?--? string",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

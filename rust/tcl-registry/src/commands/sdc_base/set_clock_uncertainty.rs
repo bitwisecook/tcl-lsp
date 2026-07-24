@@ -21,18 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_clock_uncertainty ?-setup | -hold? ?-from from_clock? ?-to to_clock? ?-rise | -fall? uncertainty ?object_list?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_clock_uncertainty",
-        dialects: Some(
-            DialectSet::SYNOPSYS
-                | DialectSet::CADENCE
-                | DialectSet::XILINX
-                | DialectSet::QUARTUS
-                | DialectSet::MENTOR,
-        ),
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Set clock uncertainty (jitter).",

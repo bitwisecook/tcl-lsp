@@ -24,12 +24,14 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lappend varName ?value value value ...?",
+    dialects: None,
 }];
 
 /// Command spec for `lappend`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lappend",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -55,14 +57,15 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "Append list elements onto a variable",
+            summary: "Append list elements to a variable, creating it if it does not already exist.",
             synopsis: &["lappend varName ?value value value ...?"],
-            snippet: "This command treats the variable given by varName as a list and appends each of the value arguments to that list as a separate element, with spaces between elements.",
+            snippet: "This command treats the variable given by varName as a list and appends each of the value arguments to that list as a separate element, with spaces between elements. If varName does not exist, it is created as a list containing just the value arguments. lappend is similar to append except that the values are appended as list elements rather than raw text: this makes it a more efficient way to build up a large list than repeated set/concat, since `lappend a $b` is much cheaper than `set a [concat $a [list $b]]` once $a is already long. From Tcl 9.0, if varName names a nonexistent element of an array that has a default value configured (see `array default`), the list stored is that default value with the value arguments appended after it, rather than just the value arguments.",
             source: "Tcl man page lappend.n",
-            examples: "",
-            return_value: "",
+            examples: "set var 1\nlappend var 2\nlappend var 3 4 5\n# var is now \"1 2 3 4 5\"\n\nlappend newlist a b c\n# newlist is created as \"a b c\"",
+            return_value: "The new value stored in varName after the values have been appended.",
         }),
         lowering_hook: Some(LoweringHookId::AppendOrLappend),
         codegen_hook: Some(CodegenHookId::Lappend),

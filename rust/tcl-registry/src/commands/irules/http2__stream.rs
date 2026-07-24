@@ -74,6 +74,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Getter,
             synopsis: "HTTP2::stream",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -81,6 +82,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

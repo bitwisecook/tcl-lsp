@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "b64decode ANY_CHARS",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         traits: Traits::IS_UNESCAPE,
         ..CommandSpec::DEFAULT

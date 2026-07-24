@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::oauth sign ((-payload VALUE) (-key JWK_OBJECT)",
+            dialects: None,
         }],
         options: const {
             &[
@@ -84,6 +85,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

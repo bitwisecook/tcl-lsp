@@ -53,12 +53,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "UDP::payload (LENGTH | (OFFSET LENGTH))?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::UdpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         byte_array_payload: Some(BytePayloadSpec::DEFAULT),

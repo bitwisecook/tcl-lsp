@@ -547,7 +547,7 @@
     },
     {
       "name": "::tcl::process",
-      "summary": "Manage subprocesses started by exec / open |cmd.",
+      "summary": "Manage subprocesses created by exec or a command-pipeline open, tracked by process id.",
       "subcommands": [
         "autopurge",
         "list",
@@ -557,11 +557,11 @@
     },
     {
       "name": "::tcl::unsupported::corotype",
-      "summary": "Return the suspension state of a coroutine."
+      "summary": "Report whether a coroutine is active, or how it last suspended."
     },
     {
       "name": "::tcl::zipfs",
-      "summary": "Mount and manipulate ZIP archives on the virtual filesystem.",
+      "summary": "Mount ZIP archives as a Tcl virtual filesystem, and build ZIP archives or self-contained executables.",
       "subcommands": [
         "canonical",
         "exists",
@@ -709,7 +709,7 @@
     },
     {
       "name": "after",
-      "summary": "Execute a command after a time delay",
+      "summary": "Delay execution, or schedule a script to run later.",
       "subcommands": [
         "cancel",
         "idle",
@@ -718,11 +718,11 @@
     },
     {
       "name": "append",
-      "summary": "Append to variable"
+      "summary": "Append values to a variable, creating it if it does not already exist."
     },
     {
       "name": "apply",
-      "summary": "Apply an anonymous function"
+      "summary": "Invoke an anonymous function with the given arguments."
     },
     {
       "name": "argparse",
@@ -730,7 +730,7 @@
     },
     {
       "name": "array",
-      "summary": "Manipulate array variables",
+      "summary": "Manipulate array variables.",
       "subcommands": [
         "anymore",
         "default",
@@ -955,35 +955,36 @@
     },
     {
       "name": "auto_execok",
-      "summary": "Return path of executable, or empty string"
+      "summary": "Resolve a command name to its exec argument list, or return an empty string."
     },
     {
       "name": "auto_import",
-      "summary": "Import auto-loaded commands into namespace"
+      "summary": "Load auto-loadable commands matching a namespace-import pattern."
     },
     {
       "name": "auto_load",
-      "summary": "Auto-load a command from the library"
+      "summary": "Load the definition of an auto-loadable command."
     },
     {
       "name": "auto_load_index",
-      "summary": "Rebuild the auto-load index from the auto_path directories"
+      "summary": "Rebuild the auto-load index from the tclIndex files on auto_path."
     },
     {
       "name": "auto_mkindex",
-      "summary": "Generate tclIndex from Tcl source files"
+      "summary": "Generate a tclIndex file from Tcl source files in a directory."
     },
     {
       "name": "auto_mkindex_old",
-      "summary": "Legacy tclIndex generator"
+      "summary": "Generate a tclIndex file from Tcl source files using a simple line-based proc scan."
     },
     {
       "name": "auto_qualify",
-      "summary": "Compute fully-qualified names for auto-loading"
+      "summary": "Compute the fully qualified candidate name(s) for a command in a namespace.",
+      "pure": true
     },
     {
       "name": "auto_reset",
-      "summary": "Reset auto-loading state"
+      "summary": "Discard the auto-loading and auto-exec caches, deleting any commands they previously loaded."
     },
     {
       "name": "autoproxy::cget",
@@ -1115,7 +1116,7 @@
     },
     {
       "name": "bgerror",
-      "summary": "Handle background errors"
+      "summary": "Application-defined handler invoked for background errors."
     },
     {
       "name": "bibtex::addStrings",
@@ -1177,7 +1178,7 @@
     },
     {
       "name": "break",
-      "summary": "Abort looping command"
+      "summary": "Abort execution of the innermost enclosing loop."
     },
     {
       "name": "button",
@@ -1229,7 +1230,7 @@
     },
     {
       "name": "cd",
-      "summary": "Change working directory"
+      "summary": "Change the process's current working directory."
     },
     {
       "name": "chan",
@@ -1264,7 +1265,7 @@
     },
     {
       "name": "classvariable",
-      "summary": "link local variables to class-shared variables"
+      "summary": "Link local variables to variables shared by every instance of a class."
     },
     {
       "name": "clipboard",
@@ -1284,13 +1285,14 @@
         "format",
         "microseconds",
         "milliseconds",
+        "monotonic",
         "scan",
         "seconds"
       ]
     },
     {
       "name": "close",
-      "summary": "Close a channel."
+      "summary": "Close, or half-close, an open channel."
     },
     {
       "name": "cmdline::getArgv0",
@@ -1383,11 +1385,11 @@
     },
     {
       "name": "const",
-      "summary": "Define a constant variable."
+      "summary": "Create and initialize an unmodifiable constant variable."
     },
     {
       "name": "continue",
-      "summary": "Skip to the next iteration of a loop"
+      "summary": "Skip to the next iteration of the innermost enclosing loop."
     },
     {
       "name": "control::assert",
@@ -1408,15 +1410,15 @@
     },
     {
       "name": "coroinject",
-      "summary": "Inject a command into a suspended coroutine."
+      "summary": "Queue a command to run inside a suspended coroutine when it next resumes."
     },
     {
       "name": "coroprobe",
-      "summary": "Evaluate a command in a suspended coroutine."
+      "summary": "Run a command inside a suspended coroutine, without resuming it."
     },
     {
       "name": "coroutine",
-      "summary": "Create and produce values from coroutines"
+      "summary": "Create a named coroutine and run it up to its first suspension or completion."
     },
     {
       "name": "counter::count",
@@ -1725,7 +1727,7 @@
     },
     {
       "name": "dict",
-      "summary": "Manipulate dictionaries",
+      "summary": "Query and manipulate dictionary values — ordered key/value mappings — via a suite of subcommands.",
       "subcommands": [
         "append",
         "create",
@@ -1754,7 +1756,7 @@
     },
     {
       "name": "divmod",
-      "summary": "Divide an integer by another and report quotient and remainder (Tcl 9.1).",
+      "summary": "Divide an integer by another and report the quotient and remainder as a two-element list (Tcl 9.1).",
       "pure": true
     },
     {
@@ -1899,7 +1901,7 @@
     },
     {
       "name": "encoding",
-      "summary": "Convert between character encodings.",
+      "summary": "Convert between character encodings, and manage encoding-related interpreter state.",
       "subcommands": [
         "convertfrom",
         "convertto",
@@ -1940,7 +1942,7 @@
     },
     {
       "name": "eval",
-      "summary": "Evaluate a Tcl script."
+      "summary": "Evaluate one or more arguments as a Tcl script."
     },
     {
       "name": "event",
@@ -1954,7 +1956,7 @@
     },
     {
       "name": "exec",
-      "summary": "Invoke subprocesses."
+      "summary": "Invoke one or more subprocesses as a shell-style pipeline."
     },
     {
       "name": "exit",
@@ -1970,7 +1972,7 @@
     },
     {
       "name": "fblocked",
-      "summary": "Test whether the last input operation exhausted all available input"
+      "summary": "Test whether the last input operation on a channel was blocked by exhausted input."
     },
     {
       "name": "fconfigure",
@@ -1978,7 +1980,7 @@
     },
     {
       "name": "fcopy",
-      "summary": "Copy data from one channel to another"
+      "summary": "Copy data from one channel to another, synchronously or in the background."
     },
     {
       "name": "file",
@@ -2025,11 +2027,11 @@
     },
     {
       "name": "fileevent",
-      "summary": "Execute a script when a channel becomes readable or writable"
+      "summary": "Execute a script when a channel becomes readable or writable."
     },
     {
       "name": "filename",
-      "summary": "File name conventions"
+      "summary": "File name conventions supported by Tcl commands and C procedures."
     },
     {
       "name": "fileutil::appendToFile",
@@ -2211,7 +2213,7 @@
     },
     {
       "name": "flush",
-      "summary": "Flush buffered output for a channel"
+      "summary": "Flush buffered output for a channel."
     },
     {
       "name": "focus",
@@ -2237,15 +2239,15 @@
     },
     {
       "name": "foreach",
-      "summary": "Iterate over list elements with one or more loop variables."
+      "summary": "Iterate over one or more lists, assigning loop variables from each."
     },
     {
       "name": "foreachLine",
-      "summary": "Iterate over the lines of a text file, one line at a time."
+      "summary": "Iterate over each line of a text file, evaluating a script once per line."
     },
     {
       "name": "format",
-      "summary": "Format a string in the style of sprintf",
+      "summary": "Format a string in the style of C's sprintf.",
       "pure": true
     },
     {
@@ -2254,7 +2256,7 @@
     },
     {
       "name": "frexp",
-      "summary": "Split a floating-point number into fraction and exponent parts (Tcl 9.1).",
+      "summary": "Split a floating-point number into a normalized fraction and a base-2 exponent (Tcl 9.1).",
       "pure": true
     },
     {
@@ -2394,7 +2396,7 @@
     },
     {
       "name": "gets",
-      "summary": "Read a line from a channel"
+      "summary": "Read a line from a channel."
     },
     {
       "name": "gettimes",
@@ -3003,7 +3005,7 @@
     },
     {
       "name": "http",
-      "summary": "HTTP client implementation (package http)"
+      "summary": "Client-side implementation of the HTTP/1.x protocol, built around http::geturl and a per-transaction state token."
     },
     {
       "name": "http::cleanup",
@@ -3368,7 +3370,7 @@
     },
     {
       "name": "interp",
-      "summary": "Create and manipulate Tcl interpreters",
+      "summary": "Create and manipulate Tcl interpreters.",
       "subcommands": [
         "alias",
         "aliases",
@@ -3388,6 +3390,7 @@
         "limit",
         "marktrusted",
         "recursionlimit",
+        "set",
         "share",
         "slaves",
         "target",
@@ -3558,7 +3561,7 @@
     },
     {
       "name": "join",
-      "summary": "Create a string by joining together list elements",
+      "summary": "Create a string by joining together list elements.",
       "pure": true
     },
     {
@@ -3671,7 +3674,7 @@
     },
     {
       "name": "lappend",
-      "summary": "Append list elements onto a variable"
+      "summary": "Append list elements to a variable, creating it if it does not already exist."
     },
     {
       "name": "lassign",
@@ -3759,11 +3762,11 @@
     },
     {
       "name": "ledit",
-      "summary": "Replace elements in a list variable, in place."
+      "summary": "Replace a range of elements in a list variable, in place."
     },
     {
       "name": "lfilter",
-      "summary": "Select elements from a list based on an expression"
+      "summary": "Select elements from a list based on an expression."
     },
     {
       "name": "lgen",
@@ -3771,7 +3774,7 @@
     },
     {
       "name": "lindex",
-      "summary": "Retrieve an element from a list",
+      "summary": "Retrieve an element (or nested sublist) from a list by index.",
       "pure": true
     },
     {
@@ -3821,7 +3824,7 @@
     },
     {
       "name": "load",
-      "summary": "Load machine code and initialize new commands"
+      "summary": "Load a shared library extension and initialize new commands in an interpreter."
     },
     {
       "name": "log::Puts",
@@ -3966,16 +3969,16 @@
     },
     {
       "name": "lpop",
-      "summary": "Get and remove an element in a list variable."
+      "summary": "Get and remove an element from a list variable, in place."
     },
     {
       "name": "lrange",
-      "summary": "Return one or more adjacent elements from a list",
+      "summary": "Return one or more adjacent elements from a list.",
       "pure": true
     },
     {
       "name": "lremove",
-      "summary": "Remove elements from a list",
+      "summary": "Remove elements from a list by index.",
       "pure": true
     },
     {
@@ -3985,7 +3988,7 @@
     },
     {
       "name": "lreplace",
-      "summary": "Replace elements in a list with new elements",
+      "summary": "Replace a range of list elements with new elements.",
       "pure": true
     },
     {
@@ -3995,22 +3998,20 @@
     },
     {
       "name": "lsearch",
-      "summary": "Search a list for a pattern.",
+      "summary": "Search a list for an element matching a pattern.",
       "pure": true
     },
     {
       "name": "lseq",
-      "summary": "Generate a list of numeric values in a range.",
-      "pure": true
+      "summary": "Build a numeric sequence returned as a list."
     },
     {
       "name": "lset",
-      "summary": "Change an element in a list"
+      "summary": "Change an element (or nested element) in a list stored in a variable."
     },
     {
       "name": "lsort",
-      "summary": "Sort the elements of a list.",
-      "pure": true
+      "summary": "Sort the elements of a list."
     },
     {
       "name": "lstring",
@@ -6146,7 +6147,19 @@
     },
     {
       "name": "memory",
-      "summary": "Memory debugging (debug builds only)"
+      "summary": "Control Tcl's memory-debugging capabilities (debug builds only).",
+      "subcommands": [
+        "active",
+        "break_on_malloc",
+        "info",
+        "init",
+        "objs",
+        "onexit",
+        "tag",
+        "trace",
+        "trace_on_at_malloc",
+        "validate"
+      ]
     },
     {
       "name": "menu",
@@ -6270,7 +6283,7 @@
     },
     {
       "name": "modf",
-      "summary": "Split a floating-point number into integer and fraction parts (Tcl 9.1).",
+      "summary": "Split a floating-point number into its integer and fractional parts (Tcl 9.1).",
       "pure": true
     },
     {
@@ -6351,7 +6364,7 @@
     },
     {
       "name": "my",
-      "summary": "invoke a method on the current object",
+      "summary": "invoke any method, including non-exported ones, of the current object",
       "subcommands": [
         "variable"
       ]
@@ -6406,7 +6419,7 @@
     },
     {
       "name": "namespace",
-      "summary": "create and manipulate contexts for commands and variables",
+      "summary": "Create and manipulate contexts for commands and variables.",
       "subcommands": [
         "children",
         "code",
@@ -6587,11 +6600,11 @@
     },
     {
       "name": "next",
-      "summary": "invoke the next implementation of a method"
+      "summary": "Invoke the next implementation of the currently executing method."
     },
     {
       "name": "nextto",
-      "summary": "invoke a specific superclass implementation of a method"
+      "summary": "Invoke a specific class's implementation of the currently executing method."
     },
     {
       "name": "ni",
@@ -6671,7 +6684,7 @@
     },
     {
       "name": "oo::configurable",
-      "summary": "class that supports configurable properties"
+      "summary": "metaclass for configurable classes and objects"
     },
     {
       "name": "oo::copy",
@@ -6679,11 +6692,11 @@
     },
     {
       "name": "oo::define",
-      "summary": "define and configure classes and objects"
+      "summary": "Reconfigure an existing class: methods, constructor/destructor, superclasses, mixins, and more."
     },
     {
       "name": "oo::objdefine",
-      "summary": "define and configure classes and objects"
+      "summary": "Reconfigure an existing object (or a class acting as an instance object): per-object methods, mixins, variables, and more."
     },
     {
       "name": "oo::object",
@@ -6700,7 +6713,7 @@
     },
     {
       "name": "open",
-      "summary": "Open a file-based or command pipeline channel."
+      "summary": "Open a file, device, or command pipeline as a channel."
     },
     {
       "name": "option",
@@ -6930,7 +6943,7 @@
     },
     {
       "name": "parray",
-      "summary": "Print an array's keys and values"
+      "summary": "Print an array's names and values to standard output."
     },
     {
       "name": "picoirc::post",
@@ -6938,8 +6951,7 @@
     },
     {
       "name": "pid",
-      "summary": "Retrieve process identifiers",
-      "pure": true
+      "summary": "Return the process identifier of the current process, or of a command pipeline's processes."
     },
     {
       "name": "pkg::create",
@@ -6951,7 +6963,7 @@
     },
     {
       "name": "pkg_mkindex",
-      "summary": "Build pkgIndex.tcl for a directory of packages"
+      "summary": "Build a pkgIndex.tcl package index for automatic loading via package require."
     },
     {
       "name": "pki::decrypt",
@@ -7209,11 +7221,11 @@
     },
     {
       "name": "puts",
-      "summary": "Write text to a channel (stdout by default)."
+      "summary": "Write a string to a channel (stdout by default)."
     },
     {
       "name": "pwd",
-      "summary": "Return current working directory"
+      "summary": "Return the absolute path of the current working directory."
     },
     {
       "name": "radiobutton",
@@ -7274,11 +7286,11 @@
     },
     {
       "name": "read",
-      "summary": "Read from a channel"
+      "summary": "Read data from a channel, to end-of-file or a fixed character count."
     },
     {
       "name": "readFile",
-      "summary": "Read the contents of a file and return them."
+      "summary": "Read the whole contents of a file and return them."
     },
     {
       "name": "regex::quote",
@@ -7301,15 +7313,15 @@
     },
     {
       "name": "registry",
-      "summary": "Windows registry manipulation (Windows-only)."
+      "summary": "Manipulate the Windows registry (Windows-only)."
     },
     {
       "name": "regsub",
-      "summary": "Perform substitutions based on regular expression matching."
+      "summary": "Perform substitutions based on regular expression pattern matching."
     },
     {
       "name": "remquo",
-      "summary": "Compute floating-point remainder and quadrant determinant (Tcl 9.1).",
+      "summary": "Compute a floating-point remainder together with quadrant/octant information (Tcl 9.1).",
       "pure": true
     },
     {
@@ -7510,7 +7522,7 @@
     },
     {
       "name": "seek",
-      "summary": "Set the access position for a channel."
+      "summary": "Change the access position for an open channel."
     },
     {
       "name": "selection",
@@ -7524,12 +7536,12 @@
     },
     {
       "name": "self",
-      "summary": "query the identity of the current object",
+      "summary": "query information about the current method invocation",
       "pure": true
     },
     {
       "name": "set",
-      "summary": "Read or write a variable value."
+      "summary": "Read the value of a variable, or set it to a new value."
     },
     {
       "name": "sha1::HMACFinal",
@@ -7767,7 +7779,7 @@
     },
     {
       "name": "socket",
-      "summary": "Open a TCP client or server socket channel."
+      "summary": "Open a TCP client connection or listening server socket as a channel."
     },
     {
       "name": "soundex::knuth",
@@ -7799,7 +7811,7 @@
     },
     {
       "name": "split",
-      "summary": "Split a string into a proper Tcl list",
+      "summary": "Split a string into a proper Tcl list.",
       "pure": true
     },
     {
@@ -7836,7 +7848,7 @@
     },
     {
       "name": "string",
-      "summary": "Perform one of several string operations.",
+      "summary": "Perform one of several string operations, selected by the first argument.",
       "subcommands": [
         "bytelength",
         "cat",
@@ -7975,7 +7987,7 @@
     },
     {
       "name": "subst",
-      "summary": "Perform backslash, command, and variable substitutions."
+      "summary": "Perform backslash, command, and variable substitutions on a string."
     },
     {
       "name": "switch",
@@ -7983,7 +7995,7 @@
     },
     {
       "name": "tailcall",
-      "summary": "Replace the current procedure with another command"
+      "summary": "Replace the currently executing procedure, lambda, or method with a tail call to another command."
     },
     {
       "name": "tar::add",
@@ -8043,7 +8055,7 @@
     },
     {
       "name": "tcl::build-info",
-      "summary": "Return compile-time build metadata for the Tcl runtime."
+      "summary": "Return the Tcl interpreter's build-configuration and version metadata."
     },
     {
       "name": "tcl::chan::cat",
@@ -8430,7 +8442,7 @@
     },
     {
       "name": "tcl::mathop",
-      "summary": "Mathematical operator commands.",
+      "summary": "Namespace of mathematical, comparison, bit-wise, and logical operators exposed as ordinary commands.",
       "pure": true
     },
     {
@@ -8552,7 +8564,7 @@
     },
     {
       "name": "tcl::process",
-      "summary": "Manage subprocesses started by exec / open |cmd.",
+      "summary": "Manage subprocesses created by exec or a command-pipeline open, tracked by process id.",
       "subcommands": [
         "autopurge",
         "list",
@@ -8631,19 +8643,19 @@
     },
     {
       "name": "tcl::unsupported::corotype",
-      "summary": "Return the suspension state of a coroutine."
+      "summary": "Report whether a coroutine is active, or how it last suspended."
     },
     {
       "name": "tclLog",
-      "summary": "Default logger for Tcl's library error messages"
+      "summary": "Default logging hook for Tcl's library code; writes to stderr unless redefined."
     },
     {
       "name": "tclPkgSetup",
-      "summary": "Set up auto-loading stubs for a package's commands"
+      "summary": "Declare a package provided and register per-command auto-loading stubs for it."
     },
     {
       "name": "tclPkgUnknown",
-      "summary": "Default handler that loads pkgIndex.tcl files on demand"
+      "summary": "Scan auto_path for pkgIndex.tcl files as Tcl's default package unknown handler."
     },
     {
       "name": "tcl_endOfWord",
@@ -8652,7 +8664,7 @@
     },
     {
       "name": "tcl_findLibrary",
-      "summary": "Locate a Tcl library directory"
+      "summary": "Search standard directories for an extension's script library and source its init script."
     },
     {
       "name": "tcl_startOfNextWord",
@@ -8840,7 +8852,7 @@
     },
     {
       "name": "tell",
-      "summary": "Return current access position for an open channel"
+      "summary": "Return the current access position for an open channel."
     },
     {
       "name": "term::ansi::code::attr::names",
@@ -9908,7 +9920,7 @@
     },
     {
       "name": "time",
-      "summary": "Time the execution of a script"
+      "summary": "Time the execution of a script."
     },
     {
       "name": "time::cget",
@@ -9952,7 +9964,7 @@
     },
     {
       "name": "timer",
-      "summary": "Execute a script at a wall-clock point or after a monotonic delay (Tcl 9.1).",
+      "summary": "Schedule a script on the monotonic or wall clock, or block for an interval (Tcl 9.1).",
       "subcommands": [
         "at",
         "cancel",
@@ -9964,7 +9976,7 @@
     },
     {
       "name": "timerate",
-      "summary": "Measure the rate of execution of a script."
+      "summary": "Measure the calibrated rate of execution of a script."
     },
     {
       "name": "tk",
@@ -10047,7 +10059,7 @@
     },
     {
       "name": "trace",
-      "summary": "Monitor variable accesses, command usages and command executions",
+      "summary": "Monitor variable accesses, command renames/deletions, and command executions by invoking a callback.",
       "subcommands": [
         "add",
         "info",
@@ -10214,7 +10226,7 @@
     },
     {
       "name": "unicode",
-      "summary": "Unicode normalization (Tcl 9.1).",
+      "summary": "Normalize a string to one of the four Unicode normalization forms (Tcl 9.1).",
       "subcommands": [
         "tonfc",
         "tonfd",
@@ -10262,15 +10274,15 @@
     },
     {
       "name": "unload",
-      "summary": "Unload machine code"
+      "summary": "Unload a shared library extension previously loaded with load."
     },
     {
       "name": "unset",
-      "summary": "Delete variables"
+      "summary": "Delete one or more variables."
     },
     {
       "name": "update",
-      "summary": "Process pending events and idle callbacks"
+      "summary": "Process pending events and idle callbacks."
     },
     {
       "name": "uplevel",
@@ -10342,11 +10354,11 @@
     },
     {
       "name": "variable",
-      "summary": "create and initialize a namespace variable"
+      "summary": "Create and initialize a namespace variable, or link to one from inside a procedure."
     },
     {
       "name": "vwait",
-      "summary": "Process events until a variable is written"
+      "summary": "Process events until a variable is written, or — from Tcl 9.0 — until a channel is ready or a timeout elapses."
     },
     {
       "name": "websocket::close",
@@ -10398,7 +10410,7 @@
     },
     {
       "name": "while",
-      "summary": "Execute script repeatedly as long as a condition is met"
+      "summary": "Execute script repeatedly as long as a condition is met."
     },
     {
       "name": "winfo",
@@ -10496,7 +10508,7 @@
     },
     {
       "name": "writeFile",
-      "summary": "Write contents to a file."
+      "summary": "Write contents to a file, as text or as raw bytes."
     },
     {
       "name": "yaml::dict2yaml",
@@ -10543,11 +10555,11 @@
     },
     {
       "name": "yield",
-      "summary": "Create and produce values from coroutines"
+      "summary": "Suspend the current coroutine and produce a value to whichever call resumes it."
     },
     {
       "name": "yieldto",
-      "summary": "Create and produce values from coroutines"
+      "summary": "Suspend the current coroutine, ceding execution to another command until resumed."
     },
     {
       "name": "zipfile::decode::archive",
@@ -10607,7 +10619,7 @@
     },
     {
       "name": "zipfs",
-      "summary": "Mount and manipulate ZIP archives on the virtual filesystem.",
+      "summary": "Mount ZIP archives as a Tcl virtual filesystem, and build ZIP archives or self-contained executables.",
       "subcommands": [
         "canonical",
         "exists",
@@ -10627,7 +10639,19 @@
     },
     {
       "name": "zlib",
-      "summary": "Compression / decompression using zlib."
+      "summary": "Compress, decompress, and checksum data using zlib; also attaches a compression transform to a channel.",
+      "subcommands": [
+        "adler32",
+        "compress",
+        "crc32",
+        "decompress",
+        "deflate",
+        "gunzip",
+        "gzip",
+        "inflate",
+        "push",
+        "stream"
+      ]
     },
     {
       "name": "|",

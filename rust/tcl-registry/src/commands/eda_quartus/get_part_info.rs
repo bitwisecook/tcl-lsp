@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_part_info -family | -speed_grade | -package | -pin_count | -available_pin_count part_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_part_info",
-        dialects: Some(DialectSet::QUARTUS),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Get information about a specific FPGA part.",

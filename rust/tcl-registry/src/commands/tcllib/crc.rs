@@ -30,6 +30,7 @@ const READS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: false,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Options shared by every `crc16`-family checksum command.

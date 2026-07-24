@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "safe::interpConfigure",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Get or set the configuration of a safe interpreter.",

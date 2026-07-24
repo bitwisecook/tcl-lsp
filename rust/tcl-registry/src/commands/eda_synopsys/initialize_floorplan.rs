@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "initialize_floorplan ?-core_utilization util? ?-core_offset offset?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "initialize_floorplan",
-        dialects: Some(DialectSet::SYNOPSYS),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Initialize the floorplan from constraints.",

@@ -21,18 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report_area ?-hierarchy?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_area",
-        dialects: Some(
-            DialectSet::SYNOPSYS
-                | DialectSet::CADENCE
-                | DialectSet::XILINX
-                | DialectSet::QUARTUS
-                | DialectSet::MENTOR,
-        ),
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Report design area.",

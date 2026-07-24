@@ -72,10 +72,12 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::path ?-normalized?",
+                dialects: None,
             },
             FormSpec {
                 kind: FormKind::Setter,
                 synopsis: "HTTP::path <PATH_VALUE>",
+                dialects: None,
             },
         ],
         side_effects: &[SideEffect {
@@ -83,6 +85,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED.union(TaintColour::PATH_PREFIXED)),
         ..CommandSpec::DEFAULT

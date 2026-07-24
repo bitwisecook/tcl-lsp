@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "client_addr",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         deprecated_replacement: Some("IP::client_addr"),
         deprecated_replacement_drop_in: true,

@@ -23,11 +23,13 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "smtp::sendmessage token ?options?",
+    dialects: None,
 }];
 
 const OPTIONS: &[OptionSpec] = &[

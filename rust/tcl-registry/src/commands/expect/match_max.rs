@@ -40,6 +40,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "match_max ?-d | -i spawn_id? ?size?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

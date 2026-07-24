@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ISTATS::incr KEY VALUE",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::IStats,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

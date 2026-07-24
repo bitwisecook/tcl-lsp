@@ -60,9 +60,16 @@ use tcl_registry::{
 /// `registry_for_dialect(name)` returns a registry with that dialect loaded;
 /// pair it with the parsed `DialectSet` for `get_for_dialect`.
 fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, DialectSet) {
+    // "Available under dialect D" is membership in D's *profile availability
+    // mask*, not the bare single dialect bit. For the additive vendor
+    // dialects the mask is `(base Tcl version | vendor bit)` — e.g. expect is
+    // `TCL86 | EXPECT` — so a core command (now an explicit `ALL_TCL` group,
+    // no longer universal `None`) resolves through the version half. Using
+    // the bare bit here would wrongly exclude the whole Tcl core from every
+    // vendor dialect.
     (
         registry_for_dialect(dialect),
-        DialectSet::parse(dialect).unwrap_or_else(|| panic!("dialect {dialect} parses")),
+        tcl_dialect::DialectProfile::by_name(dialect).availability_mask,
     )
 }
 
@@ -1446,27 +1453,27 @@ fn regsub_switches_are_version_gated() {
 ///
 /// tclsh8.6: `info commands const` → empty. tclsh9.0: → `const`.
 ///
-/// NOTE: the strict "absent from tcl8.6" half is deliberately NOT asserted
-/// here. The `const` spec is declared
-/// `dialects: None` (universal) on purpose — see `registry.rs`
-/// `tcl9_commands_gated_to_tcl90`, which documents and asserts that `const` is
-/// dialect-agnostic "so it is valid inside iRules events". So
-/// `get_for_dialect("const", TCL86)` intentionally returns `Some` even though
-/// real tclsh8.6 lacks the command. This is an intentional registry
-/// over-approximation, not a bug; only the positive 9.0 fact is a strict
-/// C-Tcl assertion. (See the final report for the strict-availability caveat.)
+/// `const` (Tcl 9.0, TIP 677) is present from 9.0 and — after the
+/// registry-wide explicit-dialect sweep — correctly ABSENT before it. It used
+/// to be declared `dialects: None` (universal) as a workaround to reach iRules
+/// events, which wrongly made `get_for_dialect("const", TCL86)` return `Some`
+/// even though real tclsh8.6 lacks the command. It is now `TCL90_PLUS`, so the
+/// registry matches C-Tcl on both axes: present in 9.0/9.1, absent in 8.x (and
+/// absent from iRules, whose embedded 8.4.6 also predates it).
 #[test]
-fn const_is_present_in_tcl90() {
+fn const_is_present_in_tcl90_and_absent_before() {
     assert!(
         present_in("tcl9.0", "const"),
         "const must be present in tcl9.0"
     );
-    // Intentional divergence (documented above): const is `dialects: None`, so
-    // it resolves under every dialect, including tcl8.6.
+    assert!(
+        present_in("tcl9.1", "const"),
+        "const must be present in tcl9.1"
+    );
     let (reg86, ds86) = reg_and_set("tcl8.6");
     assert!(
-        reg86.get_for_dialect("const", ds86).is_some(),
-        "const is modelled as universal (dialects: None) by design"
+        reg86.get_for_dialect("const", ds86).is_none(),
+        "const is a Tcl 9.0 command; it must not resolve under tcl8.6"
     );
 }
 

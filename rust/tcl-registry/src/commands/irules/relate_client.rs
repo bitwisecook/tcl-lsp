@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "relate_client CONFIG",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -1,1 +1,0 @@
-when HTTP_REQUEST {set x [HTTP::uri];pool /Common/web_pool};when CLIENT_ACCEPTED {log local0. hi}

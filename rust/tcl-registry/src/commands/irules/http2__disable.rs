@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HTTP2::disable ('clientside')? ('serverside')? ('discard')?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Http2State,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "write_gds ?-merge gds_files? ?-map_file map? file_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_gds",
-        dialects: Some(DialectSet::CADENCE),
+        dialects: Some(DialectSet::TCL84),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Write a GDSII stream file.",

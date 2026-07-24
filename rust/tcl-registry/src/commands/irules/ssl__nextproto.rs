@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::nextproto",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         deprecated_replacement: Some("SSL::alpn"),
         ..CommandSpec::DEFAULT

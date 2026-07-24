@@ -30,6 +30,7 @@ const IO: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Options for the one-shot `rc4::rc4` command.

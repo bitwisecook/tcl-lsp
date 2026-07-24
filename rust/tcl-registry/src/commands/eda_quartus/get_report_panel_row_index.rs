@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "get_report_panel_row_index -name panel_name row_name",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_report_panel_row_index",
-        dialects: Some(DialectSet::QUARTUS),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Get the row index of matching data.",

@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "http_host",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         deprecated_replacement: Some("HTTP::host"),
         deprecated_replacement_drop_in: true,

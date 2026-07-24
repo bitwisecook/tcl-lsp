@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ANTIFRAUD::disable_app_layer_encryption",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

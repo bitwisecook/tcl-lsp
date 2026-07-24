@@ -33,6 +33,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -48,6 +49,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -63,6 +65,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -79,11 +82,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "get",
                     detail: "Get session variable value.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "set",
                     detail: "Set session variable value.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -92,6 +97,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -116,6 +122,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -130,6 +137,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -411,6 +419,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::session <subcommand> ?options? ?args?",
+            dialects: None,
         }],
         options: OPTIONS_5,
         subcommands: SUBCOMMANDS,
@@ -419,6 +428,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

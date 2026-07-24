@@ -23,13 +23,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: false,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "platform::identify",
         traits: Traits::PURE,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Return the platform identifier for the current machine.",

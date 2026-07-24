@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_operating_conditions",
-        dialects: Some(DialectSet::SYNOPSYS),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Set operating conditions for timing.",

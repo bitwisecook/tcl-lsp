@@ -25,17 +25,20 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "for start test next body",
+    dialects: None,
 }];
 
 /// Command spec for `for`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "for",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
@@ -63,10 +66,10 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "C-style loop with init, test, and next scripts.",
             synopsis: &["for start test next body"],
-            snippet: "`start` runs once; loop continues while `test` is true; `next` runs after each body pass.",
-            source: "Tcl for(1)",
-            examples: "",
-            return_value: "",
+            snippet: "`start` (a Tcl script) runs once before the loop begins. Before each pass, `test` is evaluated as an expression; the loop continues while it is non-zero. After `body` runs, `next` runs, then `test` is re-evaluated. `continue` inside `body` skips the rest of that pass and jumps straight to `next` and the next `test` check; `break` inside `body` or `next` ends the loop immediately. Either way `for` itself returns an empty string. `test` should almost always be written in braces (e.g. `{$i < 10}`): an unbraced `test` is substituted once, before the loop starts, so it never sees changes `next` or `body` make and typically runs forever.",
+            source: "Tcl for(n)",
+            examples: "for {set i 0} {$i < 10} {incr i} {\n    puts $i\n}",
+            return_value: "An empty string.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

@@ -51,12 +51,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "FLOW::refresh ANY_CHARS",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FlowState,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ifile 'listall'",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

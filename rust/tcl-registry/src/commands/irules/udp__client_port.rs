@@ -49,12 +49,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "UDP::client_port",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::UdpState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Client,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

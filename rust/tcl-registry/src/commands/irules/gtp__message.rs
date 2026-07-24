@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "GTP::message ('-message' MESSAGE)?",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {
@@ -50,6 +51,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

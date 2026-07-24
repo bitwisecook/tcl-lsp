@@ -23,12 +23,13 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::cookiejar",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create or configure an HTTP cookie jar (TclOO class).",

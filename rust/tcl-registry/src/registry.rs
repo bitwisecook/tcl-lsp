@@ -311,37 +311,41 @@ impl CommandRegistry {
             d if d == DialectSet::TMSH => crate::commands::iapps::tmsh_command_specs(),
             d if d == DialectSet::TK => crate::commands::tk::tk_command_specs(),
             d if d == DialectSet::EXPECT => crate::commands::expect::expect_command_specs(),
-            d if d == DialectSet::SYNOPSYS => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_synopsys::eda_synopsys_command_specs());
-                v
-            }
-            d if d == DialectSet::CADENCE => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_cadence::eda_cadence_command_specs());
-                v
-            }
-            d if d == DialectSet::XILINX => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_xilinx::eda_xilinx_command_specs());
-                v
-            }
-            d if d == DialectSet::QUARTUS => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_quartus::eda_quartus_command_specs());
-                v
-            }
-            d if d == DialectSet::MENTOR => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_mentor::eda_mentor_command_specs());
-                v
-            }
+            // The EDA shells load by profile identity via `load_eda_packs`
+            // (below), not a DialectSet bit — they are modelled as base-Tcl-
+            // version dialects plus `required_package`-gated command libraries
+            // (design doc `eda-library-packages.md`).
             _ => Vec::new(),
         };
         for spec in specs {
             self.insert(spec);
         }
         self.loaded_dialects |= dialect;
+    }
+
+    /// Load an EDA shell profile's command packs by profile name — the shared
+    /// `sdc_base` constraint/collection library plus the vendor's tool packs.
+    ///
+    /// EDA shells are modelled as a base Tcl version (loaded via
+    /// [`Self::load_dialect`] with the version bit) plus `required_package`-
+    /// gated libraries, rather than a vendor `DialectSet` bit (design doc
+    /// `eda-library-packages.md`), so their packs load by profile identity.
+    /// A no-op for any non-EDA profile name.
+    pub fn load_eda_packs(&mut self, profile_name: &str) {
+        let vendor = match profile_name {
+            "xilinx-eda-tcl" => crate::commands::eda_xilinx::eda_xilinx_command_specs(),
+            "synopsys-eda-tcl" => crate::commands::eda_synopsys::eda_synopsys_command_specs(),
+            "cadence-eda-tcl" => crate::commands::eda_cadence::eda_cadence_command_specs(),
+            "intel-quartus-eda-tcl" => crate::commands::eda_quartus::eda_quartus_command_specs(),
+            "mentor-eda-tcl" => crate::commands::eda_mentor::eda_mentor_command_specs(),
+            _ => return,
+        };
+        for spec in crate::commands::sdc_base::sdc_base_command_specs() {
+            self.insert(spec);
+        }
+        for spec in vendor {
+            self.insert(spec);
+        }
     }
 
     /// Load iRules dialect commands (convenience wrapper).
@@ -515,14 +519,18 @@ impl CommandRegistry {
         };
         if !dialect.intersects(profile.availability_mask) {
             // The query is about some other dialect's availability; this
-            // profile's subtractive rules do not apply to it.
+            // profile's operator-exclusion does not apply to it.
             return true;
         }
-        !(profile.is_command_disabled(spec.name)
-            || (!profile.operators_as_commands
-                && spec
-                    .traits
-                    .contains(crate::traits::Traits::OPERATOR_COMMAND)))
+        // iRules availability is fully explicit in each spec's `dialects`
+        // now (a command carries the `IRULES` bit iff iRules enables it), so
+        // there is no subtractive ban list — the only remaining profile-level
+        // exclusion is the operator-command one (math operators are not
+        // command heads under iRules).
+        profile.operators_as_commands
+            || !spec
+                .traits
+                .contains(crate::traits::Traits::OPERATOR_COMMAND)
     }
 
     /// Return all registered command names.
@@ -1914,7 +1922,13 @@ mod tests {
     fn tcl9_commands_gated_to_tcl90() {
         use crate::dialects::DialectSet;
         let reg = CommandRegistry::build_default();
-        for name in ["foreachLine", "readFile", "writeFile", "lpop"] {
+        // `const` (Tcl 9.0, TIP 677) joins the list: it used to carry
+        // `dialects: None` as a workaround to reach iRules events, which
+        // wrongly made it appear valid in 8.4/8.5/8.6 too. The registry-wide
+        // explicit-dialect sweep corrected it to `TCL90_PLUS` — it does not
+        // exist in iRules' embedded Tcl 8.4.6, so it is (correctly) neither
+        // pre-9.0 nor iRules-visible.
+        for name in ["foreachLine", "readFile", "writeFile", "lpop", "const"] {
             let spec = reg.get(name).expect("registered");
             // A 9.0 addition is available in 9.0 *and* 9.1 (a `.1` release is
             // additive — verified against C Tcl 9.1b0 doc/*.n), so it is gated
@@ -1927,15 +1941,8 @@ mod tests {
             assert!(spec.supports_dialect(DialectSet::TCL90));
             assert!(spec.supports_dialect(DialectSet::TCL91));
             assert!(!spec.supports_dialect(DialectSet::TCL86));
+            assert!(!spec.supports_dialect(DialectSet::IRULES));
         }
-        // Unlike the four above, `const` is `dialects = None`
-        // (universal) rather than Tcl-9.0-gated, so it is valid inside
-        // iRules events and `commands_for_event` accepts it.
-        assert_eq!(
-            reg.get("const").expect("registered").dialects,
-            None,
-            "const should be universal (it is dialect-agnostic)",
-        );
     }
 
     #[test]
@@ -1944,7 +1951,18 @@ mod tests {
         // summary and a manpage/source attribution. A short allowlist covers
         // internal pseudo-commands and dialect placeholders that have no user
         // documentation.
-        const HOVERLESS_OK: &[&str] = &["disabled_in_irules"];
+        // The four regex-quote spellings are internal idiom-recognition
+        // entries for the taint analyser (T103), not real Tcl commands --
+        // no manpage exists to cite (re_quote.html/.htm 404s on every
+        // tcl-lang.org tree for 8.4-9.1 alike; see re_quote.rs's own doc
+        // comment for the full explanation).
+        const HOVERLESS_OK: &[&str] = &[
+            "disabled_in_irules",
+            "re_quote",
+            "regex_quote",
+            "regex::quote",
+            "regexp::quote",
+        ];
         let reg = CommandRegistry::build_default();
         let mut missing_hover = Vec::new();
         let mut missing_source = Vec::new();
@@ -2149,12 +2167,21 @@ mod tests {
         assert_eq!(indices(&options, &args, ArgRole::Value), vec![1, 2, 3, 4]);
     }
 
+    /// `OptionArity::Hook` equivalent of the old bare `Rest` variant —
+    /// consumes every remaining word, always valid.
+    fn rest_value(args: &[&str], start: usize) -> crate::hover::OptionValueOutcome {
+        crate::hover::OptionValueOutcome {
+            words: args.len() - start,
+            invalid: None,
+        }
+    }
+
     #[test]
     fn option_value_rest_arity_stops_at_terminator() {
         let rest = crate::hover::OptionSpec {
             name: "-rest",
             value: crate::hover::OptionValue::Takes(crate::hover::OptionArg {
-                arity: crate::hover::OptionArity::Rest,
+                arity: crate::hover::OptionArity::Hook(rest_value),
                 ..crate::hover::OptionArg::DEFAULT
             }),
             ..crate::hover::OptionSpec::DEFAULT
@@ -2321,10 +2348,14 @@ mod tests {
             reg.command_prefixes("regsub", &["-all", "-command", "re", "s", "cb"]),
             vec![(4, AppendedArity::AtLeast(1))],
         );
-        // `-c` is an unambiguous abbreviation of `-command`.
+        // `-c` is NOT an abbreviation of `-command`: regsub's switch table
+        // resolves with Tcl_GetIndexFromObj(..., TCL_EXACT, ...), confirmed
+        // live (tclsh 8.6.14: `regsub -c {a} aaa X y` -> `bad option "-c"`)
+        // and against the real `Tcl_RegsubObjCmd` C source. Only the exact
+        // spelling `-command` enables command-prefix mode.
         assert_eq!(
             reg.command_prefixes("regsub", &["-c", "re", "s", "cb"]),
-            vec![(3, AppendedArity::AtLeast(1))],
+            Vec::new(),
         );
         // Without `-command`, subSpec is a replacement template, not a prefix.
         assert!(
@@ -2351,23 +2382,34 @@ mod tests {
             "the namespace-unknown query form has no command prefix",
         );
 
-        // `package unknown handler` → handler(name ?requirement...?) = AtLeast(1).
+        // `package unknown handler` → handler(name requirement ?requirement
+        // ...?) = AtLeast(2): verified empirically on tclsh 8.6.14 that Tcl
+        // always appends the package name *plus* at least one requirement
+        // word, synthesizing a "0-" placeholder when `package require` was
+        // given none itself — never just the bare name, so AtLeast(2), not
+        // AtLeast(1) (see the fuller note on `package_.rs`'s `unknown`
+        // subcommand).
         assert_eq!(
             reg.command_prefixes("package", &["unknown", "handler"]),
-            vec![(1, AppendedArity::AtLeast(1))],
+            vec![(1, AppendedArity::AtLeast(2))],
         );
         assert!(
             reg.command_prefixes("package", &["unknown"]).is_empty(),
             "the package-unknown query form has no command prefix",
         );
 
-        // `coroinject`/`coroprobe coroName command ?arg...?` — the injected
-        // command's appended arity depends on the coroutine's yield point, so
-        // it is a reference-only prefix (Unknown ⇒ never arity-checked).
+        // `coroinject coroName command ?arg...?` — per the Tcl 9.0/9.1
+        // coroutine(n) manpage, exactly two more words are appended when the
+        // injected command runs: the name of the command that suspended the
+        // coroutine (yield or yieldto) and its current resumption value.
         assert_eq!(
             reg.command_prefixes("coroinject", &["myCoro", "cb", "x"]),
-            vec![(1, AppendedArity::Unknown)],
+            vec![(1, AppendedArity::Exactly(2))],
         );
+        // `coroprobe coroName command ?arg...?` runs command immediately
+        // inside the suspended coroutine (not deferred through a yield/
+        // yieldto resumption), so no fixed extra-argument count is
+        // documented -- it stays a reference-only prefix (Unknown).
         assert_eq!(
             reg.command_prefixes("coroprobe", &["myCoro", "cb"]),
             vec![(1, AppendedArity::Unknown)],
@@ -3132,12 +3174,26 @@ mod tests {
             "lappend",
             "lreverse",
             "lreplace",
+            // Tcl 9.0+: shares `lreplace`'s core (see
+            // `tcl-vm/src/cmd_list.rs::cmd_ledit`); a flat single-variable
+            // read-modify-write with no eval fallback and no sublist-index
+            // descent (unlike `lset`, which deliberately stays off this
+            // list) — see `commands/tcl/ledit.rs`.
+            "ledit",
             "lrepeat",
             "lassign",
+            // Tcl 9.0+: a flat native dispatch over `tcl-cmd-core::lseq`
+            // (`tcl-vm/src/cmd_lseq.rs::cmd_lseq`) with no script-body eval
+            // fallback of its own — its only recursive edge is evaluating
+            // one argument word as an *expression* via `Vm::eval_expr`,
+            // the same evaluator `expr` (also on this list) runs on, not a
+            // general eval-a-script fallback — see `commands/tcl/lseq.rs`.
+            "lseq",
             "concat",
             "split",
             "join",
             "string",
+            "format",
             "expr",
             "global",
             "variable",
@@ -3152,6 +3208,23 @@ mod tests {
             "error",
             "continue",
             "break",
+            // `throw type message` (Tcl 8.6+) — `cmd_throw`
+            // (`tcl-vm/src/cmd_try.rs`) takes its two already-substituted
+            // arguments, validates `type` as a non-empty Tcl list, and
+            // builds its return-options dict directly with no eval
+            // fallback of any kind (it never touches `vm`), structurally
+            // identical to `cmd_error` in this respect. See
+            // `commands/tcl/throw_.rs`.
+            "throw",
+            // `::tcl::unsupported::corotype coroName` (and its
+            // namespace-relative `tcl::unsupported::corotype` spelling) — a
+            // flat lookup into the coroutine table
+            // (`tcl-vm/src/cmd_coro.rs::cmd_corotype`): no eval fallback, no
+            // `Frame` of its own. Both spellings share the same `make_spec`
+            // and so the same traits. See
+            // `commands/tcl/tcl_unsupported_corotype.rs`.
+            "::tcl::unsupported::corotype",
+            "tcl::unsupported::corotype",
         ]
         .into_iter()
         .collect();
@@ -3556,7 +3629,7 @@ mod tests {
     #[test]
     fn load_eda_synopsys() {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::SYNOPSYS);
+        reg.load_eda_packs("synopsys-eda-tcl");
         assert!(reg.len() > 100);
     }
 

@@ -40,16 +40,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "create",
                     detail: "Create a new element.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "names",
                     detail: "Return a list of all registered element names.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "options",
                     detail: "Return the list of options for an element.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -88,21 +91,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "create",
                     detail: "Create a new theme.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "names",
                     detail: "Return a list of available theme names.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "settings",
                     detail: "Evaluate a script in the context of a theme.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "use",
                     detail: "Set the current theme.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -115,11 +122,13 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "ttk::style subcommand ?arg ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

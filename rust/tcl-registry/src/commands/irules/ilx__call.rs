@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ILX::call HANDLE ?-timeout ms? ?--? METHOD ?args ...?",
+            dialects: None,
         }],
         options: const {
             &[
@@ -60,6 +61,7 @@ pub const fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "listen (<'proto' UNSIGNED_SHORT> |",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -34,6 +34,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "active_nodes ('-list')? POOL_OBJ",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {
@@ -50,6 +51,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         deprecated_replacement: Some("active_members"),
         deprecated_replacement_drop_in: true,

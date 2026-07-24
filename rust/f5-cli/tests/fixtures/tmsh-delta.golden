@@ -1,7 +1,0 @@
-tmsh modify ltm pool /Common/p1 members add { /Common/n3:80 { address 10.0.0.3 } }
-tmsh modify ltm pool /Common/p1 members delete { /Common/n2:80 }
-tmsh modify ltm pool /Common/p1 { load-balancing-mode least-connections-member members replace-all-with { /Common/n1:80 { address 10.0.0.1 } /Common/n3:80 { address 10.0.0.3 } } }
-tmsh delete ltm pool /Common/p_gone
-tmsh delete ltm node /Common/n2
-tmsh create ltm node /Common/n3 { address 10.0.0.3 }
-tmsh create ltm virtual /Common/v2 { destination /Common/10.0.0.2:80 pool /Common/p1 }

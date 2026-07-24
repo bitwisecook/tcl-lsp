@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mclocale",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Get or set the current locale for message catalogues.",

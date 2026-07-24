@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "csv::split2queue ?-alternate? q line ?sepChar?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

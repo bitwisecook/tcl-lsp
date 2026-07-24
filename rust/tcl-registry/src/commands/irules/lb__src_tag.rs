@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LB::src_tag",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

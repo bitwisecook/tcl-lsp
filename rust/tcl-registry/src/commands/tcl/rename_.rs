@@ -23,19 +23,67 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "rename oldName newName",
+    dialects: None,
 }];
 
+/// Command spec for `rename`.
+///
+/// Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
+/// (tcl-lang.org's TclCmd/rename.html, `.htm` for the 8.6 tree): the NAME,
+/// SYNOPSIS, DESCRIPTION, EXAMPLE, SEE ALSO, and KEYWORDS sections are
+/// byte-for-byte identical across all five — `rename oldName newName` has
+/// never gained an option, a third argument, or a changed default in any
+/// release; the only cross-version differences in the raw HTML are cosmetic
+/// (navigation chrome, doctype, copyright-block ordering).
+///
+/// `generic/tclCmdMZ.c`'s `Tcl_RenameObjCmd` (dispatching to
+/// `TclRenameCommand` in `generic/tclBasic.c`) is likewise unchanged in
+/// substance across the five fetched source trees (`core-8-4-20`,
+/// `core-8-5-19`, `core-8-6-16`, `core-9-0-4`, `core-9-1-b0`): `objc != 3`
+/// is a hard "wrong # args" in every release (arity is exactly 2), and the
+/// three error strings are word-for-word identical in all five — `can't
+/// {rename|delete} "oldName": command doesn't exist` when `oldName` isn't a
+/// real command, `can't rename to "newName": bad command name` when
+/// `newName`'s namespace can't be resolved, and `can't rename to "newName":
+/// command already exists` when `newName` already denotes one (8.6, 9.0,
+/// and 9.1 additionally attach a structured `-errorcode` to each of the
+/// three — `TCL LOOKUP COMMAND oldName`, `TCL VALUE COMMAND`, and `TCL
+/// OPERATION RENAME TARGET_EXISTS` respectively. `TclRenameCommand`'s
+/// three `Tcl_SetErrorCode` calls first appear in the 8.6 source and are
+/// unchanged in 9.0/9.1; 8.4's and 8.5's `TclRenameCommand` call
+/// `Tcl_SetErrorCode` on none of the three paths, so `errorCode` stays
+/// `NONE` there. The message text a user sees is the same in all five
+/// regardless). A rename also
+/// fires any `trace add command … rename` handler on `oldName`, and a
+/// deleting `rename oldName {}` fires its `… delete` handler instead —
+/// command traces (TIP 110) have been present since 8.4, so this is not
+/// version-gated either.
+///
+/// `dialects: ALL_TCL` (no `IRULES` bit) here is deliberate, not an
+/// oversight: F5 iRules is the one modelled dialect that drops `rename` —
+/// it is one of the K36322151 commands F5 bans from direct command-table
+/// surgery in the TMM event sandbox alongside its `namespace`/`interp`
+/// siblings — and that exclusion is enforced simply by this group's
+/// omission of the `IRULES` bit: an `ALL_TCL` group never intersects the
+/// bare `IRULES` availability mask, so `rename` falls out by plain
+/// intersection with no separate disable list, the same treatment
+/// `pwd`/`cd`/`open`/`glob`/`exec` get in their own spec files. Every
+/// other modelled dialect (Expect, Tk, the EDA vendor consoles, F5 iApps,
+/// F5 tmsh, incr Tcl) hosts a real Tcl core whose availability mask
+/// intersects this `ALL_TCL` group and adds no dedicated `rename` override
+/// of its own, so the command resolves there identically to plain Tcl.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_RenameObjCmd` → `TclRenameCommand`
-        // (tclNamesp.c / tclBasic.c) deletes `oldName` (an empty `newName`
+        // (tclCmdMZ.c / tclBasic.c) deletes `oldName` (an empty `newName`
         // deletes the command outright) and errors when `oldName` doesn't
         // exist — the property the W302 fire-and-forget suppression
         // (`catch {rename foo ""}`) keys off.
@@ -46,10 +94,10 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Rename or delete a command",
             synopsis: &["rename oldName newName"],
-            snippet: "Rename the command that used to be called oldName so that it is now called newName.",
-            source: "Tcl man page rename.n",
-            examples: "",
-            return_value: "",
+            snippet: "If newName is an empty string, oldName is deleted instead of renamed. Both oldName and newName may include namespace qualifiers; renaming a command into a different namespace relocates it there, and future invocations run in that namespace's context. Raises an error if oldName does not name an existing command, or if newName is non-empty and already names one — rename never silently overwrites an existing command. Any `trace add command` handler registered on the command fires as part of the operation: a rename trace when moved, a delete trace when removed. A common idiom wraps a built-in with custom logic: move the original out of the way, then define a same-named replacement that delegates to the saved name.",
+            source: "Tcl rename(n)",
+            examples: "rename ::source ::theRealSource\nset sourceCount 0\nproc ::source args {\n    global sourceCount\n    puts \"called source for the [incr sourceCount]'th time\"\n    uplevel 1 ::theRealSource $args\n}",
+            return_value: "An empty string.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

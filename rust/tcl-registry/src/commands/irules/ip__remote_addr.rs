@@ -45,12 +45,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "IP::remote_addr (clientside | serverside)?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED.union(TaintColour::IP_ADDRESS)),
         ..CommandSpec::DEFAULT

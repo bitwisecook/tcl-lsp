@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "csv::report cmd matrix ?chan?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

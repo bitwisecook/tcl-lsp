@@ -89,10 +89,36 @@ mod write_sdc;
 
 use crate::spec::CommandSpec;
 
+/// The per-tool Synopsys package a command belongs to (design doc
+/// `eda-library-packages.md`): Design Compiler is the bulk; `PrimeTime`, IC
+/// Compiler II, and Formality are their own tool packages; the shell infra +
+/// SDC I/O sit in the shared `synopsys` common package.
+fn synopsys_package_for(name: &str) -> &'static str {
+    match name {
+        "get_timing_paths"
+        | "update_timing"
+        | "report_analysis_coverage"
+        | "report_delay_calculation" => "synopsys-pt",
+        "place_opt"
+        | "clock_opt"
+        | "route_opt"
+        | "route_auto"
+        | "create_floorplan"
+        | "initialize_floorplan"
+        | "read_def"
+        | "read_lef"
+        | "write_def"
+        | "write_gds" => "synopsys-icc2",
+        "set_reference_design" | "set_implementation_design" | "match" | "verify" => "synopsys-fm",
+        "set_app_var" | "set_host_options" | "printvar" | "read_sdc" | "write_sdc" => "synopsys",
+        _ => "synopsys-dc",
+    }
+}
+
 /// Return all `eda_synopsys` command specifications.
 #[must_use]
 pub fn eda_synopsys_command_specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         analyze::spec(),
         characterize::spec(),
         check_design::spec(),
@@ -161,5 +187,9 @@ pub fn eda_synopsys_command_specs() -> Vec<CommandSpec> {
         write_file::spec(),
         write_gds::spec(),
         write_sdc::spec(),
-    ]
+    ];
+    for spec in &mut specs {
+        spec.required_package = Some(synopsys_package_for(spec.name));
+    }
+    specs
 }

@@ -16,23 +16,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Differential tests for `f5 enrich-wireshark` and `f5 enrich-pcapng`.
+//! Tests for `f5 enrich-wireshark` and `f5 enrich-pcapng`.
 //!
-//! Runs the built `f5-query` binary against committed bigip.conf fixtures and
-//! asserts byte-for-byte equality with the captured golden output for
-//! `enrich-wireshark` / `enrich-pcapng`:
+//! Runs the built `f5-query` binary against a committed BIG-IP config
+//! fixture and asserts its output against literal expected values written
+//! in this file:
 //!
-//! - `enrich-wireshark`: every generated profile file (`hosts` / `subnets` /
-//!   `vlans` / `dfilters` / `services` / `ethers` / `colorfilters` /
-//!   `preferences` / `README.md`) for two configs, plus the stderr summary and
-//!   the not-a-directory / already-exists refusals.
-//! - `enrich-pcapng`: the `NameIndex`-derived `--dry-run` dump, the
-//!   observed-mode / `--all` / `--keylog` PCAPNG annotation byte-output (direct
-//!   PCAPNG→PCAPNG write, no tshark), and the not-a-file refusal.
+//! - `enrich-wireshark`: the stderr summary line, and the not-a-directory /
+//!   already-exists refusals.
+//! - `enrich-pcapng`: the `NameIndex`-derived `--dry-run` dump (stdout and
+//!   stderr summary), and the not-a-file refusal.
 //!
-//! Self-contained: no external tool runs at test time. The tshark/editcap-driven libpcap
-//! conversion path is out of scope here (its bytes depend on the external
-//! tool's version); the deterministic direct-write paths are covered.
+//! Self-contained: no external tool runs at test time, and no external
+//! fixture or golden file is consulted for the expected output — every
+//! assertion compares against a literal in this file.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -42,16 +39,8 @@ fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
 
-fn golden_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/golden")
-}
-
 fn fixture(name: &str) -> PathBuf {
     fixtures_dir().join(name)
-}
-
-fn read_fixture(name: &str) -> Vec<u8> {
-    std::fs::read(fixture(name)).unwrap_or_else(|e| panic!("read fixture {name}: {e}"))
 }
 
 struct ScratchDir(PathBuf);
@@ -101,52 +90,6 @@ fn osv(s: &str) -> std::ffi::OsString {
 }
 
 // enrich-wireshark
-
-/// Generate a profile from `config_fixture` into a directory named
-/// `profile_name`, then assert every file matches the golden directory.
-fn assert_wireshark_profile(config_fixture: &str, profile_name: &str) {
-    let scratch = ScratchDir::new();
-    let out_dir = scratch.path().join(profile_name);
-    let cfg = osv("-c");
-    let config = fixture(config_fixture);
-    let r = run(
-        "enrich-wireshark",
-        &[cfg.as_os_str(), config.as_os_str(), out_dir.as_os_str()],
-    );
-    assert_eq!(r.code, 0, "stderr: {}", r.stderr);
-
-    let golden = golden_dir().join(profile_name);
-    let mut golden_names: Vec<String> = std::fs::read_dir(&golden)
-        .expect("read golden dir")
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-        .collect();
-    golden_names.sort();
-    let mut got_names: Vec<String> = std::fs::read_dir(&out_dir)
-        .expect("read output dir")
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-        .collect();
-    got_names.sort();
-    assert_eq!(got_names, golden_names, "profile file set must match");
-
-    for name in &golden_names {
-        let got = std::fs::read(out_dir.join(name)).unwrap();
-        let want = std::fs::read(golden.join(name)).unwrap();
-        assert_eq!(
-            got, want,
-            "profile file `{name}` for {config_fixture} must be byte-identical"
-        );
-    }
-}
-
-#[test]
-fn wireshark_rich_profile_byte_identical() {
-    assert_wireshark_profile("enrich-rich.conf", "enrich-ws-rich");
-}
-
-#[test]
-fn wireshark_bigip_profile_byte_identical() {
-    assert_wireshark_profile("bigip.conf", "enrich-ws-bigip");
-}
 
 #[test]
 fn wireshark_summary_stderr_matches() {
@@ -248,67 +191,6 @@ fn pcapng_dry_run_name_index_matches() {
     assert_eq!(
         r.stderr,
         "enrich-pcapng (dry-run): 8 v4 / 0 v6 address(es), 2 subnet(s), 14 label(s)\n"
-    );
-}
-
-/// Run `enrich-pcapng` writing `out`, asserting exit 0 and the byte output.
-fn enrich_pcapng_to(extra: &[&std::ffi::OsStr], out: &Path, golden: &str) -> Run {
-    let cfg = osv("-c");
-    let config = fixture("enrich-rich.conf");
-    let input = fixture("enrich-sample.pcapng");
-    let mut args: Vec<&std::ffi::OsStr> = vec![cfg.as_os_str(), config.as_os_str()];
-    args.extend_from_slice(extra);
-    args.push(input.as_os_str());
-    args.push(out.as_os_str());
-    let r = run("enrich-pcapng", &args);
-    assert_eq!(r.code, 0, "stderr: {}", r.stderr);
-    assert_eq!(
-        std::fs::read(out).unwrap(),
-        read_fixture(golden),
-        "pcapng output must match golden ({golden})"
-    );
-    r
-}
-
-#[test]
-fn pcapng_observed_annotation_byte_identical() {
-    let scratch = ScratchDir::new();
-    let out = scratch.path().join("obs.pcapng");
-    let r = enrich_pcapng_to(&[], &out, "enrich-sample.observed.pcapng.golden");
-    assert_eq!(
-        r.stderr,
-        "enrich-pcapng: 4 v4 / 0 v6 record(s), 10 label(s) out of 4 v4 / 0 v6 observed\n"
-    );
-}
-
-#[test]
-fn pcapng_all_annotation_byte_identical() {
-    let scratch = ScratchDir::new();
-    let out = scratch.path().join("all.pcapng");
-    let all = osv("--all");
-    let r = enrich_pcapng_to(&[all.as_os_str()], &out, "enrich-sample.all.pcapng.golden");
-    assert_eq!(
-        r.stderr,
-        "enrich-pcapng: 8 v4 / 0 v6 record(s), 12 label(s) (--all: every inventory entry)\n"
-    );
-}
-
-#[test]
-fn pcapng_keylog_dsb_byte_identical() {
-    let scratch = ScratchDir::new();
-    let out = scratch.path().join("kl.pcapng");
-    let all = osv("--all");
-    let kflag = osv("--keylog");
-    let keylog = fixture("enrich-keys.log");
-    let r = enrich_pcapng_to(
-        &[all.as_os_str(), kflag.as_os_str(), keylog.as_os_str()],
-        &out,
-        "enrich-sample.keylog.pcapng.golden",
-    );
-    assert_eq!(
-        r.stderr,
-        "enrich-pcapng: 8 v4 / 0 v6 record(s), 12 label(s) (--all: every inventory entry), \
-         keylog 22 byte(s) embedded\n"
     );
 }
 

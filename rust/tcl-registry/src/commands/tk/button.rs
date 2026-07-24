@@ -23,6 +23,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const OPTIONS: &[OptionSpec] = &[
@@ -295,6 +296,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "button pathName ?option value ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

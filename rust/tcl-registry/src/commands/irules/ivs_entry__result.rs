@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "IVS_ENTRY::result (noop | modified | response)",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

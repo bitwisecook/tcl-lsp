@@ -1,1 +1,0 @@
-error: --in-place is incompatible with --format tmsh (in-place writes must preserve the SCF source format; use --write or redirect to an explicit output file for tmsh script output)

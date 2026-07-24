@@ -1,6 +1,0 @@
-[90m# a sample script[0m
-[1;34mproc[0m greet [32m{name[0m} {
-    [1;34mset[0m message "hello, [35m$name[0m"
-    [1;34mputs[0m [35m$message[0m
-}
-[1;34mgreet[0m world

@@ -25,17 +25,39 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "while test body",
+    dialects: None,
 }];
 
 /// Command spec for `while`.
+///
+/// Synopsis, grammar, and semantics are identical across Tcl 8.4, 8.5, 8.6,
+/// 9.0, and 9.1: the while(n) manpage's SYNOPSIS, DESCRIPTION, EXAMPLE, and
+/// SEE ALSO sections are byte-for-byte identical on all five version trees
+/// (fetched and diffed directly, not paraphrased) — no wording, grammar,
+/// option, or semantics change anywhere in the range, and Tcl 9.1's
+/// while.html (a live 9.1b0 beta build) is no exception: its body text
+/// matches 9.0's exactly, character for character. The five pages differ
+/// only in cosmetic doc-tree navigation headers and a trivial KEYWORDS
+/// wording change at the 8.5/8.6 boundary ("boolean value" in 8.4/8.5,
+/// "boolean" in 8.6+ — page-metadata only, not documentation of
+/// behaviour). `while` has never taken an option, never gained or lost a
+/// form, and has no version-gated behaviour to model here.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "while",
+        // Present and unrestricted — `while` carries the `IRULES` bit
+        // explicitly (`ALL_TCL.union(IRULES)`), resolving under the bare
+        // `IRULES` mask; a pure control-flow keyword with no
+        // filesystem/process/network access, so every dialect that hosts a
+        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk)
+        // carries it unmodified.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
@@ -56,12 +78,12 @@ pub fn spec() -> CommandSpec {
             },
         )],
         hover: Some(HoverSnippet {
-            summary: "Execute script repeatedly as long as a condition is met",
+            summary: "Execute script repeatedly as long as a condition is met.",
             synopsis: &["while test body"],
-            snippet: "The while command evaluates test as an expression (in the same way that expr evaluates its argument).",
-            source: "Tcl man page while.n",
-            examples: "",
-            return_value: "",
+            snippet: "test is evaluated as an expression, the same way expr evaluates its argument, and the result must be a proper boolean value. While it is true, body is executed by passing it to the Tcl interpreter; once body finishes, test is evaluated again, and the cycle repeats until test becomes false. continue inside body terminates the current iteration and jumps straight to the next test check; break inside body causes immediate termination of the whole loop. Either way while itself always returns an empty string. test should almost always be enclosed in braces, e.g. {$x < 10}: an unbraced test is substituted once, before the loop starts, so it never sees changes body makes to the variables involved and this is likely to result in an infinite loop. Enclosing test in braces delays variable substitution until the expression is evaluated before each iteration, so changes body makes are visible on the next check.",
+            source: "Tcl while(n)",
+            examples: "set x 0\nwhile {$x < 10} {\n    puts \"x is $x\"\n    incr x\n}\n\nset lineCount 0\nwhile {[gets $chan line] >= 0} {\n    puts \"[incr lineCount]: $line\"\n}",
+            return_value: "An empty string.",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

@@ -23,13 +23,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg_mkIndex",
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Build a ``pkgIndex.tcl`` file for one or more packages.",

@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "JSON::object (",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

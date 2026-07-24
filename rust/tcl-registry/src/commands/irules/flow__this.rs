@@ -51,12 +51,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "FLOW::this",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FlowState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

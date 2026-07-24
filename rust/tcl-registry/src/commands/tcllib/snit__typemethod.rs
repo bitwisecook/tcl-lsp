@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "snit::typemethod type name arglist body",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

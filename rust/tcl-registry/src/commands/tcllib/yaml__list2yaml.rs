@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "yaml::list2yaml listValue ?indent? ?wordwrap?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

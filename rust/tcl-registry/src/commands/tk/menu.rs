@@ -118,26 +118,31 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "cascade",
                     detail: "A cascade entry that posts another menu.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "checkbutton",
                     detail: "A checkbutton entry with an on/off indicator.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "command",
                     detail: "A command entry that invokes a Tcl command.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "radiobutton",
                     detail: "A radiobutton entry with a mutual-exclusion indicator.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "separator",
                     detail: "A separator line between groups of entries.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -192,26 +197,31 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "cascade",
                     detail: "A cascade entry that posts another menu.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "checkbutton",
                     detail: "A checkbutton entry with an on/off indicator.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "command",
                     detail: "A command entry that invokes a Tcl command.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "radiobutton",
                     detail: "A radiobutton entry with a mutual-exclusion indicator.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "separator",
                     detail: "A separator line between groups of entries.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -274,6 +284,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const OPTIONS: &[OptionSpec] = &[
@@ -434,6 +445,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "menu pathName ?option value ...?",
+    dialects: None,
 }];
 
 /// `menu`'s instance command dispatches through the same subcommand

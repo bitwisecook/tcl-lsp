@@ -48,6 +48,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "timestamp ?-seconds N? ?-format fmt? ?-gmt?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

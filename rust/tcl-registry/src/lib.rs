@@ -109,14 +109,15 @@ pub mod prelude {
         VersionedConstFoldFn, WasmCodegenHookId,
     };
     pub use crate::hover::{
-        ArgValue, FormKind, FormSpec, HoverSnippet, OptionArg, OptionArity, OptionSpec, OptionValue,
+        ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity,
+        OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome,
     };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{
-        BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ObjectClassSpec,
-        SubCommand, SubSubCommand,
+        BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord,
+        ObjectClassSpec, SubCommand, SubSubCommand,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
@@ -142,8 +143,8 @@ pub use patterns::{FormatType, PatternType};
 pub use profile_queries::{ProfileQueries, VendorSurface};
 pub use registry::{CommandRegistry, ResolvedCall, ResolvedTerminator};
 pub use spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ObjectClassSpec, SubCommand,
-    SubSubCommand,
+    BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord, ObjectClassSpec,
+    SubCommand, SubSubCommand,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,

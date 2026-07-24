@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "stream_out file_name ?-mapFile map?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "stream_out",
-        dialects: Some(DialectSet::CADENCE),
+        dialects: Some(DialectSet::TCL84),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Stream out a GDSII file (legacy).",

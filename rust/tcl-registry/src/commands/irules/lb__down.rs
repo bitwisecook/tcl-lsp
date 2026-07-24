@@ -32,6 +32,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -46,6 +47,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -71,6 +73,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LB::down ?node <addr> | pool <pool> member <addr> <port>?",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[
@@ -79,6 +82,7 @@ pub const fn spec() -> CommandSpec {
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::Server,
+                dialects: None,
             },
             // Pool selection.
             SideEffect {
@@ -86,6 +90,7 @@ pub const fn spec() -> CommandSpec {
                 reads: true,
                 writes: false,
                 connection_side: ConnectionSide::Server,
+                dialects: None,
             },
         ],
         ..CommandSpec::DEFAULT

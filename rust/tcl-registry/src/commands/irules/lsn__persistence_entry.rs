@@ -37,6 +37,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LSN::persistence-entry (delete|get) CLIENT_ADDR",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {
@@ -53,6 +54,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

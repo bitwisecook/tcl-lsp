@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "elaborate design_name ?-library lib? ?-architecture arch? ?-parameters params? ?-update?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "elaborate",
-        dialects: Some(DialectSet::SYNOPSYS),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet::brief(
             "Elaborate a design from analyzed HDL.",

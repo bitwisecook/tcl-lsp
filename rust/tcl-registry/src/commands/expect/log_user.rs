@@ -30,6 +30,7 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "log_user ?-info | 0 | 1?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

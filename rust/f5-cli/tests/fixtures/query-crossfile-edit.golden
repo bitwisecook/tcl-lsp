@@ -1,7 +1,0 @@
---- __FIXTURES__/xfb.conf
-+++ __FIXTURES__/xfb.conf (modified)
-@@ -1,3 +1,3 @@
- ltm pool b_pool {
--    monitor /Common/http
-+    monitor /Common/tcp
- }

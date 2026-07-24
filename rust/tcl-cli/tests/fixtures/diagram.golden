@@ -1,7 +1,0 @@
-diagram: events=3 procedures=1
-events:
-  CLIENT_ACCEPTED (once_per_connection) nodes=1
-  HTTP_REQUEST (per_request) nodes=4
-  HTTP_RESPONSE (per_request) nodes=1
-procedures:
-  helper(h) nodes=2

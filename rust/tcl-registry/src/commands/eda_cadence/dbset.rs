@@ -21,12 +21,13 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "dbSet object_spec.attribute value",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dbSet",
-        dialects: Some(DialectSet::CADENCE),
+        dialects: Some(DialectSet::TCL84),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Set a design database object attribute (legacy).",

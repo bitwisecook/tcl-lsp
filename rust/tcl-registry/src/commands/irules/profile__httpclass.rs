@@ -36,6 +36,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         deprecated_replacement: Some("PROFILE::http"),
         ..CommandSpec::DEFAULT

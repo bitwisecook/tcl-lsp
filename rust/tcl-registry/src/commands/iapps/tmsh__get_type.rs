@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "tmsh::get_type <object>",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

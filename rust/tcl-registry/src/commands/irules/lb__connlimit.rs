@@ -33,6 +33,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -48,6 +49,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -63,6 +65,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -86,6 +89,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LB::connlimit <target> ?args?",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[
@@ -94,6 +98,7 @@ pub const fn spec() -> CommandSpec {
                 reads: false,
                 writes: true,
                 connection_side: ConnectionSide::Both,
+                dialects: None,
             },
             // Pool selection.
             SideEffect {
@@ -101,6 +106,7 @@ pub const fn spec() -> CommandSpec {
                 reads: true,
                 writes: true,
                 connection_side: ConnectionSide::Server,
+                dialects: None,
             },
         ],
         ..CommandSpec::DEFAULT

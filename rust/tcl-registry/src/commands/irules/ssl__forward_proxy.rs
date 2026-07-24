@@ -34,11 +34,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "bypass",
                     detail: "Bypass SSL forward proxy.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "intercept",
                     detail: "Intercept SSL forward proxy.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -47,6 +49,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -63,11 +66,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "response_control",
                     detail: "Control response to cert errors.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "status",
                     detail: "Set server certificate status.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -76,6 +81,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -92,11 +98,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "enable",
                     detail: "Enable verified handshake.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "disable",
                     detail: "Disable verified handshake.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -105,6 +113,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -119,6 +128,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -155,6 +165,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::forward_proxy <subcommand> ?args?",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -162,6 +173,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

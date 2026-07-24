@@ -65,6 +65,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Options accepted by the `configure` subcommand. Kept in sync with the
@@ -254,6 +255,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "place option arg ?arg ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

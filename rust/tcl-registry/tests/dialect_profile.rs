@@ -20,14 +20,15 @@
 //! registry's spec data — the two sides of the availability axis
 //! (`docs/design/dialect-profile-model.md` §5/§9).
 //!
-//! The iRules profile is SUBTRACTIVE: bare `IRULES` mask + an explicit
-//! disable list. Before the Milestone 5 retag the per-spec
-//! `NON_IRULES_OPERATORS` tags encoded the same exclusion and these tests
-//! proved the two encodings agreed *by data*; since the retag the profile
-//! side is load-bearing (specs are `dialects: None`, the disable list and
-//! the `OPERATOR_COMMAND` trait do the excluding) and these tests prove the
-//! retired encoding never creeps back while the banned surface stays
-//! banned.
+//! iRules availability is fully explicit in the spec data: the profile is a
+//! bare `IRULES` mask and every command carries an explicit `dialects` group
+//! (universal `dialects: None` was eliminated registry-wide), with the
+//! `IRULES` bit present iff iRules enables the command. A sandbox-banned
+//! command such as `exec` is `ALL_TCL` and simply never intersects the mask —
+//! there is no subtractive disable list any more; the math-operator heads are
+//! the one remaining profile-level exclusion (`OPERATOR_COMMAND` +
+//! `operators_as_commands`). These tests pin that banned surface stays banned
+//! and the retired `NON_IRULES_OPERATORS` union never creeps back as a gate.
 
 use tcl_dialect::{DialectProfile, DialectSet};
 use tcl_registry::traits::Traits;
@@ -53,21 +54,17 @@ fn is_mathop_spelling(name: &str) -> bool {
 /// enumerating the complement of the excluded dialects.
 #[test]
 fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
-    let retired = DialectSet::ALL_TCL
-        | DialectSet::IAPPS
-        | DialectSet::EXPECT
-        | DialectSet::SYNOPSYS
-        | DialectSet::CADENCE
-        | DialectSet::XILINX
-        | DialectSet::QUARTUS
-        | DialectSet::MENTOR;
+    // Reconstructed from the non-iRules/Tk/BPF dialect bits that still exist;
+    // the 5 EDA vendor bits that were also part of this union were retired by
+    // the EDA-as-packages migration (eda-library-packages.md).
+    let retired = DialectSet::ALL_TCL | DialectSet::IAPPS | DialectSet::EXPECT;
     let check = |gate: Option<DialectSet>, what: &str| {
         assert_ne!(
             gate,
             Some(retired),
             "{what}: the retired NON_IRULES_OPERATORS union must not be a \
-             spec gate — model iRules exclusion on the profile instead \
-             (disabled_commands / Traits::OPERATOR_COMMAND)"
+             spec gate — model iRules exclusion via each spec's explicit \
+             non-IRULES `dialects` group / Traits::OPERATOR_COMMAND instead"
         );
     };
     for profile in DialectProfile::all() {
@@ -97,27 +94,84 @@ fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
     }
 }
 
-/// Post-retag, the profile disable list is **load-bearing**: every banned
-/// name still exists in the f5-irules registry as spec data that the bare
-/// `IRULES` mask alone would admit (universal `dialects: None` after the
-/// retag), so the §9 disable filter — not a version tag, not a mask bit —
-/// is the only thing keeping it out. A list entry the mask already
-/// excludes would be dead weight hiding a modelling error on the wrong
-/// axis.
+/// The commands F5's TMM interpreter removes from iRules (the K36322151
+/// sandbox bans plus the project-modelled iRules-excluded internals). This
+/// used to be a subtractive `DialectProfile::disabled_commands` list; it is
+/// now encoded directly in each spec's explicit `dialects` group (a banned
+/// command carries `ALL_TCL`, never the `IRULES` bit), so the list lives
+/// here only as the test oracle for the contract below.
+const IRULES_BANNED: &[&str] = &[
+    "auto_execok",
+    "auto_import",
+    "auto_load",
+    "auto_mkindex",
+    "auto_mkindex_old",
+    "auto_qualify",
+    "auto_reset",
+    "bgerror",
+    "cd",
+    "eof",
+    "exec",
+    "exit",
+    "fblocked",
+    "fconfigure",
+    "fcopy",
+    "file",
+    "fileevent",
+    "filename",
+    "flush",
+    "gets",
+    "glob",
+    "http",
+    "interp",
+    "load",
+    "memory",
+    "namespace",
+    "open",
+    "package",
+    "pid",
+    "pkg_mkindex",
+    "pwd",
+    "re_quote",
+    "regex::quote",
+    "regex_quote",
+    "regexp::quote",
+    "rename",
+    "seek",
+    "socket",
+    "source",
+    "tcl::OptKeyDelete",
+    "tcl::OptKeyError",
+    "tcl::OptKeyParse",
+    "tcl::OptKeyRegister",
+    "tcl::OptParse",
+    "tcl::OptProc",
+    "tcl::OptProcArgGiven",
+    "tcl_findLibrary",
+    "tell",
+    "time",
+    "unknown",
+    "unload",
+    "update",
+    "vwait",
+];
+
+/// The banned-command exclusion is now encoded in the specs themselves:
+/// every banned name still exists as registered spec data (so the LSP can
+/// tell "exists, but not in iRules" from "unknown"), but each carries an
+/// explicit `dialects` group WITHOUT the `IRULES` bit — so the bare `IRULES`
+/// mask excludes it by plain intersection, with no subtractive ban list.
 #[test]
-fn irules_disable_list_is_load_bearing() {
+fn irules_banned_commands_lack_the_irules_bit() {
     let reg = registry_for_dialect("f5-irules");
-    for banned in DialectProfile::irules().disabled_commands {
+    for banned in IRULES_BANNED {
         let specs = reg.specs(banned);
+        assert!(!specs.is_empty(), "{banned}: names no registered spec");
         assert!(
-            !specs.is_empty(),
-            "{banned}: disable-list entry names no registered spec"
-        );
-        assert!(
-            specs.iter().any(|s| s.supports_dialect(DialectSet::IRULES)),
-            "{banned}: the bare IRULES mask already excludes this spec, so \
-             the disable-list entry is not load-bearing — if it is version \
-             gating, it belongs on the version axis, not in the ban list"
+            !specs.iter().any(|s| s.supports_dialect(DialectSet::IRULES)),
+            "{banned}: must NOT carry the IRULES bit — a sandbox-banned \
+             command is excluded from iRules by its explicit non-IRULES \
+             dialect group, not by a ban list"
         );
     }
 }
@@ -162,11 +216,6 @@ fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
             ireg.get_for_dialect(op, DialectSet::IRULES).is_none(),
             "{op} must not resolve via a bare mask query either (§9.2)"
         );
-        assert!(
-            !irules.is_command_disabled(op),
-            "{op}: operator heads are excluded by shape, not the ban list — \
-             keep the mechanisms separate"
-        );
     }
     // …and never under plain tcl8.4 either: `::tcl::mathop` is TIP 174,
     // added in Tcl 8.5 — a real tclsh 8.4 has no `::tcl` namespace at all,
@@ -182,11 +231,6 @@ fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
         assert!(
             reg84.get_for_dialect(op, DialectSet::TCL84).is_none(),
             "{op} must not resolve via a bare mask query either under tcl8.4"
-        );
-        assert!(
-            !tcl84.is_command_disabled(op),
-            "{op}: operator heads are excluded by shape, not the ban list — \
-             keep the mechanisms separate"
         );
     }
 }
@@ -226,14 +270,15 @@ fn irules_banned_commands_never_resolve() {
     let reg = registry_for_dialect("f5-irules");
     let irules = DialectProfile::irules();
 
-    // TP: genuinely banned commands do not resolve.
-    for banned in irules.disabled_commands {
+    // TP: genuinely banned commands do not resolve (excluded by their
+    // explicit non-IRULES `dialects` group, not a ban list).
+    for banned in IRULES_BANNED {
         assert!(
             irules.resolve_command(reg, banned).is_none(),
             "{banned}: banned command must not resolve under f5-irules"
         );
     }
-    // TN: the universal core and the F5 surface still resolve.
+    // TN: the iRules-enabled core and the F5 surface still resolve.
     for allowed in ["set", "if", "string", "foreach", "pool", "when", "log"] {
         assert!(
             irules.resolve_command(reg, allowed).is_some(),
@@ -241,15 +286,11 @@ fn irules_banned_commands_never_resolve() {
         );
     }
     // Version-gated core (8.5+/8.6) is *unavailable* under the pinned-8.4
-    // iRules runtime — via the version tags, not the disable list.
+    // iRules runtime — via the version tags (which lack the IRULES bit).
     for versioned in ["dict", "lassign", "apply", "lmap", "coroutine"] {
         assert!(
             irules.resolve_command(reg, versioned).is_none(),
             "{versioned}: 8.5+/8.6 core is never present in iRules (D3)"
-        );
-        assert!(
-            !irules.is_command_disabled(versioned),
-            "{versioned}: version-gated, not banned — keep the axes separate"
         );
     }
 }
@@ -439,43 +480,49 @@ fn available_subcommands_follow_the_profile_mask() {
     }
 }
 
-/// §9.2 pre-retag gate, enforced BY CONSTRUCTION: a bare `IRULES` mask
-/// query on the profile-built f5-irules registry can never re-admit a
-/// banned command — the registry applies its stamped profile's subtractive
-/// rules inside `get_for_dialect` itself, so every low-level consumer
+/// A bare `IRULES` mask query never admits a sandbox-banned command,
+/// enforced BY CONSTRUCTION via the spec tags themselves: exclusion is pure
+/// mask intersection inside `get_for_dialect`, so every low-level consumer
 /// (`defines_symbol` / `resolve_call` / `resolve_terminator` / the CLI
-/// snapshot's `command_names`) is covered without per-caller audits. This
-/// is the test that must hold BEFORE and AFTER the Milestone 5 data retag.
+/// snapshot's `command_names`) is covered without per-caller audits. Because
+/// the exclusion lives in each spec's `dialects` group (a banned command is
+/// `ALL_TCL`, with no `IRULES` bit) rather than in a profile-side disable
+/// list, it holds uniformly on a raw, un-stamped registry too.
 #[test]
-fn bare_irules_mask_queries_apply_the_disable_filter() {
+fn bare_irules_mask_queries_exclude_non_irules_commands() {
     let reg = registry_for_dialect("f5-irules");
-    for banned in DialectProfile::irules().disabled_commands {
+    for banned in IRULES_BANNED {
         assert!(
             reg.get_for_dialect(banned, DialectSet::IRULES).is_none(),
             "{banned}: a bare-mask query on the f5-irules registry must not \
-             re-admit a banned command (§9.2)"
+             admit a command that lacks the IRULES bit"
         );
     }
-    // The F5 surface and universal core still resolve through the same path.
+    // The F5 surface and iRules-enabled core still resolve through the same path.
     for ok in ["set", "pool", "when", "HTTP::header"] {
         assert!(
             reg.get_for_dialect(ok, DialectSet::IRULES).is_some(),
             "{ok} must resolve under the bare IRULES mask"
         );
     }
-    // A hand-assembled registry (no profile stamp) keeps raw tag semantics —
-    // the subtractive rules belong to profile-built registries only.
+    // The exclusion is intrinsic to the tags, not to the profile stamp: a
+    // raw, hand-assembled registry excludes the banned command by plain
+    // intersection just the same, while the IRULES-tagged core still resolves.
     let mut raw = tcl_registry::CommandRegistry::build_default();
     raw.load_dialect(DialectSet::IRULES);
     assert!(
         raw.get_for_dialect("set", DialectSet::IRULES).is_some(),
-        "raw registries keep working"
+        "an IRULES-tagged command resolves on a raw registry"
+    );
+    assert!(
+        raw.get_for_dialect("exec", DialectSet::IRULES).is_none(),
+        "a non-IRULES (ALL_TCL) command is excluded even on a raw registry"
     );
 }
 
 /// §5.4 out-of-registry vendor knowledge: the vendor surface summary is
-/// registry-derived (never hand-listed prose), honours the subtractive
-/// rules, and abstains for profiles without a vendor surface.
+/// registry-derived (never hand-listed prose), honours each spec's explicit
+/// dialect gate, and abstains for profiles without a vendor surface.
 #[test]
 fn vendor_surface_summarises_the_registry_truth() {
     let reg = registry_for_dialect("f5-irules");
@@ -515,7 +562,8 @@ fn vendor_surface_summarises_the_registry_truth() {
 }
 
 /// The iRules event/command cross-product never lists banned commands —
-/// `commands_for_event` routes through the same subtractive filter.
+/// `commands_for_event` resolves through the same explicit-tag intersection,
+/// so a command that lacks the `IRULES` bit is excluded there too.
 #[test]
 fn commands_for_event_excludes_banned_commands() {
     let reg = registry_for_dialect("f5-irules");

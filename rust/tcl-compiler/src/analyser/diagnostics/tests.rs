@@ -1309,7 +1309,9 @@ fn subcommand_version_gates_fire_w002() {
         ("binary decode base64 abc", "tcl8.6", "tcl8.5"),
         ("interp bgerror {}", "tcl8.5", "tcl8.4"),
         ("interp limit {} time", "tcl8.5", "tcl8.4"),
-        ("interp debug {}", "tcl8.6", "tcl8.5"),
+        // interp debug is documented from Tcl 8.5's interp.n (present in
+        // the 8.5 SYNOPSIS/body, absent from 8.4's subcommand list).
+        ("interp debug {}", "tcl8.5", "tcl8.4"),
         ("interp cancel", "tcl8.6", "tcl8.5"),
         ("interp children", "tcl8.6", "tcl8.5"),
         ("clock add 0 1 day", "tcl8.5", "tcl8.4"),
@@ -3383,7 +3385,6 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
         "intel-quartus-eda-tcl",
         "mentor-eda-tcl",
         "synopsys-eda-tcl",
-        "cadence-eda-tcl",
         "expect",
     ] {
         assert!(
@@ -3399,7 +3400,6 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
         "intel-quartus-eda-tcl",
         "mentor-eda-tcl",
         "synopsys-eda-tcl",
-        "cadence-eda-tcl",
         "expect",
     ] {
         assert_eq!(
@@ -3408,6 +3408,19 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
             "{dialect} should still gate TIP 461 'lt'"
         );
     }
+    // Cadence Innovus/Genus run an 8.4-safe core (owner decision), so —
+    // like `f5-irules` — TIP 201 `in`/`ni` (8.5+) is *also* out of
+    // grammar and must be flagged, not just TIP 461's `lt`/`le`/`gt`/`ge`.
+    assert_eq!(
+        w003_hits("expr {2 in {1 2 3}}", "cadence-eda-tcl").len(),
+        1,
+        "cadence-eda-tcl runs an 8.4 core — TIP 201 'in' must gate"
+    );
+    assert_eq!(
+        w003_hits("if {$x lt $y} { puts hi }", "cadence-eda-tcl").len(),
+        1,
+        "cadence-eda-tcl should still gate TIP 461 'lt'"
+    );
 }
 
 #[test]
@@ -9235,7 +9248,8 @@ mod arity_usage_suffix {
     fn e005_appends_command_synopsis() {
         let d = find_code("lmap a b c d\n", DiagCode::E005);
         assert!(
-            d.message.ends_with(" — usage: lmap varname list body"),
+            d.message
+                .ends_with(" — usage: lmap varlist1 list1 ?varlist2 list2 ...? body"),
             "expected the lmap synopsis: {:?}",
             d.message
         );

@@ -212,6 +212,12 @@ pub enum SideEffectTarget {
     FlowState,
     /// Large Scale NAT state (`LSN::address`, `LSN::persistence`, …).
     LsnState,
+    /// Event-handler flow control: abandons the remaining script in the
+    /// current event invocation, without touching the connection, other
+    /// events, or other rules (iRules `return` inside a `when` body).
+    /// Distinct from [`Self::ConnectionControl`], which terminates the
+    /// connection rather than just the current handler.
+    EventControl,
 
     // Application protocols
     /// FTP protocol state (`FTP::enable`, `FTP::port`, …).
@@ -990,6 +996,7 @@ fn lift_registry_target(t: RegistryTarget) -> SideEffectTarget {
         R::ProcDefinition => SideEffectTarget::ProcDefinition,
         R::NamespaceState => SideEffectTarget::NamespaceState,
         R::InterpState => SideEffectTarget::InterpState,
+        R::EventControl => SideEffectTarget::EventControl,
         // Registry-only targets with no compiler counterpart.
         R::Process | R::Unknown => SideEffectTarget::Unknown,
     }

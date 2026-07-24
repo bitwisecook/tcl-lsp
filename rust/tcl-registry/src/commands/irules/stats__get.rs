@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "STATS::get PROFILE_NAME FIELD_NAME",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::IStats,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

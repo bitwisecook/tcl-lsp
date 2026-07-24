@@ -50,12 +50,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "LSN::pool LSN_POOL",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

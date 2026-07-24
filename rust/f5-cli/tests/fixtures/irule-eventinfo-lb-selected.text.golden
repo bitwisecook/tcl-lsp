@@ -1,8 +1,0 @@
-event: LB_SELECTED
-known: yes
-deprecated: no
-multiplicity: per_request
-description: Fires when the system selects a pool member. On HTTP virtual servers, fires after HTTP_REQUEST (per-request). On UDP (9.4+), fires after CLIENT_ACCEPTED but before CLIENT_DATA.
-side: client-side and server-side
-transport: tcp/udp
-valid commands: 777

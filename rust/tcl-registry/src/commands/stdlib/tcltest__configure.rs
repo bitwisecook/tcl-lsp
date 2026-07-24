@@ -27,41 +27,49 @@ const VERBOSE_LEVELS: &[ArgValue] = &[
         value: "body",
         detail: "display the body of failed tests",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "pass",
         detail: "display all passed tests",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "skip",
         detail: "display all skipped tests",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "start",
         detail: "display each test as it starts",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "error",
         detail: "display errorInfo for failed tests",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "line",
         detail: "display source file line of failed tests (tcltest 2.3+)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "msec",
         detail: "display each test's execution time in milliseconds (tcltest 2.5+)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "usec",
         detail: "display each test's execution time in microseconds (tcltest 2.5+)",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -72,21 +80,25 @@ const DEBUG_LEVELS: &[ArgValue] = &[
         value: "0",
         detail: "no debug output (default)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "1",
         detail: "report tests skipped by match/skip patterns",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "2",
         detail: "also dump tcltest variables and flags",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "3",
         detail: "also report test-harness operations",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -96,16 +108,19 @@ const PRESERVECORE_LEVELS: &[ArgValue] = &[
         value: "0",
         detail: "do not check for core files (default)",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "1",
         detail: "notify when a core file is created",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "2",
         detail: "also save core files in -tmpdir",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -116,11 +131,13 @@ const BOOL_VALUES: &[ArgValue] = &[
         value: "0",
         detail: "off",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "1",
         detail: "on",
         min_tcl: None,
+        code: None,
     },
 ];
 

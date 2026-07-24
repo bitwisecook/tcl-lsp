@@ -50,12 +50,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ProcDefinition,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
         command_table_effect: Some(crate::command_table::CommandTableEffect::DefinesProcedure),

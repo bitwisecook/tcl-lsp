@@ -35,6 +35,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "call ?-debug? <proc_name> ?arg ...?",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {
@@ -51,6 +52,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         arg_roles: &[(0, ArgRole::Name)],
         ..CommandSpec::DEFAULT

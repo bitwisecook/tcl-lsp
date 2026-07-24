@@ -26,6 +26,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "report::stylebody styleName",
+    dialects: None,
 }];
 
 /// Command spec for `report::stylebody`.

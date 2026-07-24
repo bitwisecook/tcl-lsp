@@ -32,6 +32,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -48,26 +49,31 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "perflow.custom",
                     detail: "Custom perflow variable.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "perflow.scratchpad",
                     detail: "Scratchpad perflow variable.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "perflow.custom.flow",
                     detail: "Custom flow perflow variable.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "perflow.scratchpad.flow",
                     detail: "Scratchpad flow perflow variable.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "perflow.l7_protocol_lookup.result",
                     detail: "L7 protocol lookup result.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -76,6 +82,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -100,6 +107,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "ACCESS::perflow <get|set> <key> ?value?",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -107,6 +115,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

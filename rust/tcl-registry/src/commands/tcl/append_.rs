@@ -24,12 +24,14 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "append varName ?value value value ...?",
+    dialects: None,
 }];
 
 /// Command spec for `append`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "append",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::READS_BEFORE_WRITE
@@ -65,14 +67,15 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "Append to variable",
+            summary: "Append values to a variable, creating it if it does not already exist.",
             synopsis: &["append varName ?value value value ...?"],
-            snippet: "Append all of the value arguments to the current value of variable varName.",
+            snippet: "Append all of the value arguments to the current value of variable varName. If varName does not exist, it is created with the concatenation of the value arguments (the empty string if none are given). This is an efficient way to build up a long string incrementally: `append a $b` is much cheaper than `set a $a$b` once $a is already long. From Tcl 9.0, appending to a nonexistent element of an array that has a default value set (see `array default`) stores the concatenation of that default value and the value arguments, rather than just the value arguments.",
             source: "Tcl man page append.n",
-            examples: "",
-            return_value: "",
+            examples: "set msg \"Tcl\"\nappend msg \" is \" \"fun\"\n\nset out {}\nforeach n {1 2 3 4 5} {\n    append out $n \",\"\n}\n# out is now \"1,2,3,4,5,\"",
+            return_value: "The new value stored in varName after the append.",
         }),
         lowering_hook: Some(LoweringHookId::AppendOrLappend),
         codegen_hook: Some(CodegenHookId::Append),

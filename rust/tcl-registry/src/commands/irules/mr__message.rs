@@ -47,6 +47,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "MR::message clone (CLONE_ID)+",
+            dialects: None,
         }],
         options: const {
             &[OptionSpec {
@@ -63,6 +64,7 @@ pub const fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "HSL::send HANDLE DATA",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LogIo,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         arg_roles: &[(0, ArgRole::Channel)],
         ..CommandSpec::DEFAULT

@@ -24,7 +24,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileevent",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
         return_type: Some(TclType::String),
@@ -33,6 +33,7 @@ pub fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet::brief(
             "Execute a script when a channel becomes readable or writable.",

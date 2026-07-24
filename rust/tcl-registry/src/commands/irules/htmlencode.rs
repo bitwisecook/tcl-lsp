@@ -38,6 +38,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "htmlencode STRING",
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

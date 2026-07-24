@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "AUTH::ssl_cc_ldap_username AUTH_ID",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

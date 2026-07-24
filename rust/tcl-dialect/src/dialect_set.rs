@@ -26,10 +26,10 @@ bitflags! {
     /// `None` on a `CommandSpec` means "available in all dialects".
     /// A specific `DialectSet` restricts availability.
     ///
-    /// Backed by `u64`: 17 bits are used today (5 Tcl versions + iRules, iApps,
-    /// Tk, Expect, 5 EDA vendors, BPF, tmsh, the BIG-IP config surface),
-    /// leaving ample headroom for future dialect bits and the
-    /// versioned-library work without another width migration.
+    /// Backed by `u64`: 12 bits are used today (5 Tcl versions + iRules, iApps,
+    /// Tk, Expect, BPF, tmsh, the BIG-IP config surface); bits 8–12 were freed
+    /// by the EDA-as-packages migration, leaving ample headroom for future
+    /// dialect bits and the versioned-library work without a width migration.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct DialectSet: u64 {
         /// Tcl 8.4
@@ -48,16 +48,11 @@ bitflags! {
         const TK        = 1 << 6;
         /// Expect
         const EXPECT    = 1 << 7;
-        /// Synopsys EDA
-        const SYNOPSYS  = 1 << 8;
-        /// Cadence EDA
-        const CADENCE   = 1 << 9;
-        /// Xilinx/AMD EDA
-        const XILINX    = 1 << 10;
-        /// Intel Quartus EDA
-        const QUARTUS   = 1 << 11;
-        /// Mentor/Siemens EDA
-        const MENTOR    = 1 << 12;
+        // Bits 8–12 (formerly the Synopsys/Cadence/Xilinx/Quartus/Mentor EDA
+        // vendor bits) were retired: EDA shells are modelled as a base Tcl
+        // version plus `required_package`-gated command libraries, not vendor
+        // dialects (design doc `eda-library-packages.md`). The slots are left
+        // free for future dialects.
         /// BPF-Tcl (the eBPF framework dialect)
         const BPF       = 1 << 13;
         /// Tcl 9.1
@@ -109,13 +104,14 @@ bitflags! {
         const TK_AND_TCL = Self::ALL_TCL.bits() | Self::TK.bits();
 
         // `NON_IRULES_OPERATORS` (every dialect except iRules/Tk/BPF) was
-        // retired in Milestone 5 of the dialect-profile refactor: specs it
-        // tagged are plain universal data (`dialects: None`) now, and the
-        // exclusions it encoded live on `DialectProfile` instead — the §9
-        // `disabled_commands` list for the K36322151 bans, and
-        // `Traits::OPERATOR_COMMAND` + `operators_as_commands` for the
-        // math-operator heads. The `dialect_profile.rs` contract tests
-        // assert the union never reappears as a spec gate.
+        // retired in Milestone 5 of the dialect-profile refactor. iRules
+        // availability is now fully explicit per spec: every command carries
+        // an explicit `dialects` group (universal `dialects: None` was
+        // eliminated registry-wide), with the `IRULES` bit present iff iRules
+        // enables it — so a K36322151-banned command such as `exec` is just
+        // `ALL_TCL` and never intersects the bare `IRULES` mask. The only
+        // remaining profile-level exclusion is `Traits::OPERATOR_COMMAND` +
+        // `operators_as_commands` for the math-operator heads.
     }
 }
 
@@ -153,7 +149,46 @@ pub fn available_dialects() -> &'static [&'static str] {
     KNOWN_DIALECTS
 }
 
+// Compile-time proof that `is_valid_nested_dialects` is genuinely usable in
+// a `const` context (not just callable from one) — a command spec can copy
+// this `const _: () = assert!(...)` shape with its own fields to get a hard
+// build failure on an unreachable dialect combination, rather than relying
+// solely on the registry-wide sweep test to catch it at `cargo test` time.
+const _: () = assert!(DialectSet::is_valid_nested_dialects(None, None));
+const _: () = assert!(DialectSet::is_valid_nested_dialects(
+    None,
+    Some(DialectSet::IRULES)
+));
+const _: () = assert!(DialectSet::is_valid_nested_dialects(
+    Some(DialectSet::TCL86),
+    Some(DialectSet::TCL86_PLUS)
+));
+
 impl DialectSet {
+    /// Whether a nested dialect-gating declaration (`child`) is compatible
+    /// with its governing declaration (`parent`) — i.e. every dialect bit
+    /// `child` claims is also one `parent` claims, so `child` can actually
+    /// be reached under some dialect the parent itself supports.
+    ///
+    /// Follows the `Option<DialectSet>` convention used throughout the
+    /// registry crates: `None` means "all dialects" on either side, so a
+    /// `None` on either side is always compatible; only a `Some(child)`
+    /// claiming a bit `Some(parent)` lacks is invalid — e.g. an option
+    /// declared `IRULES`-only under a command gated to `TCL86_PLUS` could
+    /// never be reached, since the command itself is never selected
+    /// outside `TCL86_PLUS`.
+    ///
+    /// A `const fn`, so a specific spec can self-check at compile time
+    /// with a `const { assert!(...) }` block; a registry-wide sweep test
+    /// covers every spec without requiring that per-file opt-in.
+    #[must_use]
+    pub const fn is_valid_nested_dialects(child: Option<Self>, parent: Option<Self>) -> bool {
+        match (child, parent) {
+            (Some(child), Some(parent)) => parent.contains(child),
+            _ => true,
+        }
+    }
+
     /// Whether `name` denotes the F5 iRules dialect — resolved through the
     /// profile catalog, so the canonical `f5-irules` and every registered
     /// alias (`irules`, `tcl-irule`) agree with the profile predicates by
@@ -194,11 +229,6 @@ impl DialectSet {
             "f5-iapps" => Self::IAPPS,
             "tk" => Self::TK,
             "expect" => Self::EXPECT,
-            "synopsys-eda-tcl" => Self::SYNOPSYS,
-            "cadence-eda-tcl" => Self::CADENCE,
-            "xilinx-eda-tcl" => Self::XILINX,
-            "intel-quartus-eda-tcl" => Self::QUARTUS,
-            "mentor-eda-tcl" => Self::MENTOR,
             "f5-tmsh" => Self::TMSH,
             "f5-bigip" => Self::BIGIP,
             _ => return None,
@@ -221,11 +251,6 @@ impl DialectSet {
             Self::IAPPS => "f5-iapps",
             Self::TK => "tk",
             Self::EXPECT => "expect",
-            Self::SYNOPSYS => "synopsys-eda-tcl",
-            Self::CADENCE => "cadence-eda-tcl",
-            Self::XILINX => "xilinx-eda-tcl",
-            Self::QUARTUS => "intel-quartus-eda-tcl",
-            Self::MENTOR => "mentor-eda-tcl",
             Self::TMSH => "f5-tmsh",
             Self::BIGIP => "f5-bigip",
             _ => return None,
@@ -250,11 +275,6 @@ impl DialectSet {
             DialectSet::IAPPS,
             DialectSet::TK,
             DialectSet::EXPECT,
-            DialectSet::SYNOPSYS,
-            DialectSet::CADENCE,
-            DialectSet::XILINX,
-            DialectSet::QUARTUS,
-            DialectSet::MENTOR,
             DialectSet::BPF,
             DialectSet::TMSH,
             DialectSet::BIGIP,
@@ -315,14 +335,11 @@ impl DialectSet {
     #[must_use]
     pub fn expr_grammar_base_version(name: &str) -> Option<Self> {
         Some(match name {
-            "tcl8.4" | "f5-irules" => Self::TCL84,
-            "tcl8.5"
-            | "f5-iapps"
-            | "f5-tmsh"
-            | "xilinx-eda-tcl"
-            | "intel-quartus-eda-tcl"
-            | "mentor-eda-tcl" => Self::TCL85,
-            "tcl8.6" | "synopsys-eda-tcl" | "cadence-eda-tcl" | "expect" => Self::TCL86,
+            "tcl8.4" | "f5-irules" | "cadence-eda-tcl" => Self::TCL84,
+            "tcl8.5" | "f5-iapps" | "f5-tmsh" | "xilinx-eda-tcl" | "intel-quartus-eda-tcl" => {
+                Self::TCL85
+            }
+            "tcl8.6" | "synopsys-eda-tcl" | "mentor-eda-tcl" | "expect" => Self::TCL86,
             "tcl9.0" => Self::TCL90,
             "tcl9.1" => Self::TCL91,
             _ => return None,
@@ -387,6 +404,39 @@ mod tests {
     }
 
     #[test]
+    fn is_valid_nested_dialects_requires_child_subset_of_parent() {
+        // Either side `None` ("all dialects") is always compatible.
+        assert!(DialectSet::is_valid_nested_dialects(None, None));
+        assert!(DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::IRULES),
+            None
+        ));
+        assert!(DialectSet::is_valid_nested_dialects(
+            None,
+            Some(DialectSet::IRULES)
+        ));
+        // A child narrowing within the parent's set is compatible …
+        assert!(DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::TCL86),
+            Some(DialectSet::TCL86_PLUS)
+        ));
+        assert!(DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::TCL86_PLUS),
+            Some(DialectSet::TCL86_PLUS)
+        ));
+        // … but a child claiming a dialect the parent lacks is not,
+        // whether disjoint or only partially overlapping.
+        assert!(!DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::IRULES),
+            Some(DialectSet::TCL86_PLUS)
+        ));
+        assert!(!DialectSet::is_valid_nested_dialects(
+            Some(DialectSet::TCL86 | DialectSet::IRULES),
+            Some(DialectSet::TCL86_PLUS)
+        ));
+    }
+
+    #[test]
     fn from_name_roundtrip() {
         assert_eq!(DialectSet::parse("tcl8.6"), Some(DialectSet::TCL86));
         assert_eq!(DialectSet::parse("f5-irules"), Some(DialectSet::IRULES));
@@ -408,11 +458,6 @@ mod tests {
             "f5-iapps",
             "tk",
             "expect",
-            "synopsys-eda-tcl",
-            "cadence-eda-tcl",
-            "xilinx-eda-tcl",
-            "intel-quartus-eda-tcl",
-            "mentor-eda-tcl",
         ] {
             let bit = DialectSet::parse(name).unwrap_or_else(|| panic!("{name} must parse"));
             assert_eq!(bit.canonical_name(), Some(name));
@@ -453,6 +498,8 @@ mod tests {
         // iRules' *runtime* base (8.4.6) wins over its 8.6-shaped command
         // signature — version-dependent behaviour follows the runtime.
         assert_eq!(base("f5-irules"), Some(DialectSet::TCL84));
+        // Cadence Innovus/Genus run an 8.4-safe core (owner decision).
+        assert_eq!(base("cadence-eda-tcl"), Some(DialectSet::TCL84));
         // EDA / F5 vendor shells inherit their documented embedded core —
         // unlike `DialectSet::TCL85_PLUS`, which deliberately excludes them.
         for d in [
@@ -460,11 +507,11 @@ mod tests {
             "f5-tmsh",
             "xilinx-eda-tcl",
             "intel-quartus-eda-tcl",
-            "mentor-eda-tcl",
         ] {
             assert_eq!(base(d), Some(DialectSet::TCL85), "{d}");
         }
-        for d in ["synopsys-eda-tcl", "cadence-eda-tcl", "expect"] {
+        // Synopsys + modern Questa (Mentor) run an 8.6 core.
+        for d in ["synopsys-eda-tcl", "mentor-eda-tcl", "expect"] {
             assert_eq!(base(d), Some(DialectSet::TCL86), "{d}");
         }
         // Not Tcl at all / no documented base version: stay `None` rather

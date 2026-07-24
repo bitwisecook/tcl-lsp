@@ -1,5 +1,0 @@
-legacy patterns: 2
-  W100 line 2:21 Expression is not braced: may cause double substitution and prevents byte-compilation. Use expr {...} instead.
-    conversion: Unbraced expr -> braced expr
-  W110 line 3:16 Use 'eq' instead of '==' for string comparison in expressions to avoid ambiguous numeric/string coercion.
-    conversion: == / != for strings -> eq / ne

@@ -120,6 +120,7 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "interact ?-opts? ?string body ...?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

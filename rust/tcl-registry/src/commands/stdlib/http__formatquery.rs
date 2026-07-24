@@ -22,7 +22,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::formatQuery",
         traits: Traits::PURE,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Generate an x-url-encoded query string from key/value pairs.",

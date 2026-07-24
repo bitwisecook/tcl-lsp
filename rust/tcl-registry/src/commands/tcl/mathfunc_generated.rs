@@ -88,6 +88,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
             forms: leak_slice(vec![FormSpec {
                 kind: FormKind::Default,
                 synopsis,
+                dialects: None,
             }]),
             ..CommandSpec::DEFAULT
         });

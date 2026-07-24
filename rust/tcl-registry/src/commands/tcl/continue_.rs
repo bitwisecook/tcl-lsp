@@ -24,12 +24,14 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "continue",
+    dialects: None,
 }];
 
 /// Command spec for `continue`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "continue",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
@@ -43,14 +45,15 @@ pub fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             connection_side: ConnectionSide::None,
+            dialects: None,
         }],
         hover: Some(HoverSnippet {
-            summary: "Skip to the next iteration of a loop",
+            summary: "Skip to the next iteration of the innermost enclosing loop.",
             synopsis: &["continue"],
-            snippet: "This command is typically invoked inside the body of a looping command such as for or foreach or while.",
+            snippet: "Typically invoked inside the body of a looping command such as for, foreach, or while. It raises a TCL_CONTINUE exception that aborts the remainder of the current iteration and transfers control to the next iteration of the innermost containing loop — the loop's own per-iteration step (for's third clause, foreach's advance to the next list element, while's condition re-check) still runs as normal. Outside a loop the exception does not simply propagate forever: catch traps it and returns an ordinary TCL_CONTINUE result (code 4) with an empty value, and a Tk event binding script that invokes continue is terminated — skipping any further \"+\"-appended scripts for that binding — while Tk goes on to run bindings for other tags. If a continue exception instead escapes the body of a procedure, or reaches the top level of a script, without being absorbed by an enclosing loop, catch, or binding, the interpreter converts it into an error: invoked \"continue\" outside of a loop.",
             source: "Tcl man page continue.n",
-            examples: "",
-            return_value: "",
+            examples: "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 5} {\n        continue\n    }\n    puts $i\n}",
+            return_value: "None in normal use — control transfers to the next iteration of the innermost enclosing loop. Trapped with catch, the caught value is an empty string.",
         }),
         inline_codegen_hook: Some(InlineCodegenHookId::Continue),
         forms: FORMS,

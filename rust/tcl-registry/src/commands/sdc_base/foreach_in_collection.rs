@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "foreach_in_collection var collection body",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
@@ -30,13 +31,7 @@ pub fn spec() -> CommandSpec {
             | Traits::HAS_LOOP_BODY
             | Traits::NEVER_INLINE_BODY
             | Traits::LOOP_LIST_HEADER,
-        dialects: Some(
-            DialectSet::SYNOPSYS
-                | DialectSet::CADENCE
-                | DialectSet::XILINX
-                | DialectSet::QUARTUS
-                | DialectSet::MENTOR,
-        ),
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet::brief(
             "Iterate over objects in a collection.",

@@ -318,14 +318,38 @@ pub const DETECT_SCAN_BYTES: usize = 8192;
 /// is generic (`.tcl`) or unknown — in which case content heuristics decide.
 #[must_use]
 pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
-    let ext = filename.rsplit('.').next().map(str::to_ascii_lowercase)?;
-    Some(match ext.as_str() {
+    let base = filename
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(filename)
+        .to_ascii_lowercase();
+    // Vendor filename *conventions* that are not a single trailing extension:
+    // the Synopsys `.synopsys_{dc,pt}.setup` dotfiles and the Cadence
+    // Genus→Innovus handoff scripts are near-certain vendor signals by name
+    // alone (eda-library-packages.md).
+    if base.ends_with(".synopsys_dc.setup") || base.ends_with(".synopsys_pt.setup") {
+        return Some("synopsys-eda-tcl");
+    }
+    if base.ends_with(".invs_setup.tcl") || base.ends_with(".genus_setup.tcl") {
+        return Some("cadence-eda-tcl");
+    }
+    let ext = base.rsplit('.').next()?;
+    Some(match ext {
         "irul" | "irule" | "irules" => "f5-irules",
         "iapp" => "f5-iapps",
         "tmsh" => "f5-tmsh",
         "exp" | "expect" => "expect",
         "xdc" => "xilinx-eda-tcl",
         "sdc" => "synopsys-eda-tcl",
+        // Mentor/Questa simulation macro files (`.do` is Tcl).
+        "do" => "mentor-eda-tcl",
+        // Intel Quartus project / settings / IP files (Tcl-syntax).
+        "qsf" | "qpf" | "qip" => "intel-quartus-eda-tcl",
+        // Cadence Innovus/Genus `.globals` (Tcl-syntax, written by saveDesign).
+        "globals" => "cadence-eda-tcl",
+        // NOTE: `.svrf` (Calibre DRC/LVS rule decks) is a declarative DSL, not
+        // Tcl — deliberately NOT mapped, so it falls through to content/default
+        // rather than being forced to an EDA Tcl dialect.
         // Generic `.tcl`, HDL (`.sv`/`.svh`), or unknown → let content decide.
         _ => return None,
     })
@@ -385,24 +409,61 @@ const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
         "f5-tmsh",
         &["tmsh::", "tmsh create", "tmsh modify", "tmsh list"],
     ),
-    // EDA-tool Tcl (synthesis / P&R / simulation).
+    // EDA-tool Tcl (synthesis / P&R / simulation). Markers are the vendors'
+    // *proprietary* commands only — shared SDC verbs (create_clock,
+    // set_input_delay, link_design, set_max_area, get_ports, …) are excluded,
+    // as they appear in every vendor's constraint files and would misclassify
+    // a portable `.sdc` (eda-library-packages.md; the July-2026 EDA study).
     (
         "xilinx-eda-tcl",
-        &["synth_design", "launch_runs", "create_project", "read_xdc"],
+        &[
+            "synth_design",
+            "launch_runs",
+            "create_bd_design",
+            "write_bitstream",
+            "create_project",
+            "read_xdc",
+        ],
     ),
     (
         "synopsys-eda-tcl",
-        &["compile_ultra", "dc_shell", "link_design", "set_max_area"],
+        &[
+            "compile_ultra",
+            "dc_shell",
+            "pt_shell",
+            "icc2_shell",
+            "fm_shell",
+            "set_svf",
+            "set_app_var",
+        ],
     ),
     (
         "cadence-eda-tcl",
-        &["set_db", "innovus", "genus", "init_design"],
+        &[
+            "set_db",
+            "get_db",
+            "syn_generic",
+            "place_opt_design",
+            "innovus",
+            "genus",
+            "init_design",
+        ],
     ),
     (
         "intel-quartus-eda-tcl",
-        &["quartus_", "project_new", "set_global_assignment"],
+        &[
+            "quartus_",
+            "::quartus::",
+            "project_new",
+            "set_global_assignment",
+            "set_location_assignment",
+            "execute_flow",
+        ],
     ),
-    ("mentor-eda-tcl", &["vsim", "vlog", "vcom", "questa"]),
+    (
+        "mentor-eda-tcl",
+        &["vsim", "vlog", "vcom", "vlib", "vmap", "vopt", "questa"],
+    ),
     // Expect automation.
     (
         "expect",
@@ -719,6 +780,94 @@ mod detect_tests {
         assert_eq!(
             detect_dialect("package require Tcl 8.6\n", None, DEF),
             "tcl8.6"
+        );
+    }
+
+    #[test]
+    fn eda_extension_and_filename_conventions() {
+        // High-confidence Tcl-syntax EDA file extensions.
+        assert_eq!(
+            detect_dialect("run -all\n", Some("sim.do"), DEF),
+            "mentor-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("x\n", Some("top.qsf"), DEF),
+            "intel-quartus-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("x\n", Some("design.globals"), DEF),
+            "cadence-eda-tcl"
+        );
+        // Synopsys setup dotfile + Cadence handoff, by filename convention.
+        assert_eq!(
+            detect_dialect("set x 1\n", Some(".synopsys_dc.setup"), DEF),
+            "synopsys-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("x\n", Some("/p/genus.invs_setup.tcl"), DEF),
+            "cadence-eda-tcl"
+        );
+        // `.svrf` (Calibre rule decks) is NOT Tcl — falls to the caller default.
+        assert_eq!(
+            detect_dialect("LAYOUT PATH x\n", Some("drc.svrf"), DEF),
+            DEF
+        );
+    }
+
+    #[test]
+    fn eda_proprietary_content_signatures() {
+        // Cadence set_db/get_db + Genus/Innovus verbs.
+        assert_eq!(
+            detect_dialect("get_db insts -if {.is_macro}\n", None, DEF),
+            "cadence-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("place_opt_design\n", None, DEF),
+            "cadence-eda-tcl"
+        );
+        // Quartus package idiom + flow verbs.
+        assert_eq!(
+            detect_dialect("package require ::quartus::flow\n", None, DEF),
+            "intel-quartus-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("execute_flow -compile\n", None, DEF),
+            "intel-quartus-eda-tcl"
+        );
+        // Synopsys proprietary shell/app-var (not the shared-SDC verbs).
+        assert_eq!(
+            detect_dialect("set_svf -off\n", None, DEF),
+            "synopsys-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect("set_app_var target_library foo\n", None, DEF),
+            "synopsys-eda-tcl"
+        );
+        // Xilinx IP integrator.
+        assert_eq!(
+            detect_dialect("create_bd_design system\n", None, DEF),
+            "xilinx-eda-tcl"
+        );
+        // Mentor/Questa compile verbs.
+        assert_eq!(
+            detect_dialect("vlib work\nvmap work work\n", None, DEF),
+            "mentor-eda-tcl"
+        );
+    }
+
+    #[test]
+    fn shared_sdc_verbs_do_not_misclassify_as_a_vendor() {
+        // A portable constraint file using only shared SDC verbs must not be
+        // forced to a specific vendor by content — `link_design` / `set_max_area`
+        // were dropped as Synopsys markers. With no filename it falls to the
+        // caller default rather than a wrong vendor dialect.
+        assert_eq!(
+            detect_dialect(
+                "create_clock -period 10 [get_ports clk]\nset_max_area 0\n",
+                None,
+                DEF
+            ),
+            DEF
         );
     }
 }

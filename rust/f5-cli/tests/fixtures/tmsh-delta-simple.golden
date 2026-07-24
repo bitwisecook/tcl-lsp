@@ -1,1 +1,0 @@
-tmsh modify ltm pool /Common/p1 { load-balancing-mode least-connections-member }

@@ -61,14 +61,17 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::class",
+                dialects: None,
             },
             FormSpec {
                 kind: FormKind::Setter,
                 synopsis: "HTTP::class <enable | disable>",
+                dialects: None,
             },
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::class <asm | wa>",
+                dialects: None,
             },
         ],
         subcommands: SUBCOMMANDS,
@@ -77,6 +80,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         deprecated_replacement: Some("CLASSIFY::application"),
         ..CommandSpec::DEFAULT

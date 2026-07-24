@@ -22,14 +22,16 @@ use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Unknown,
-    reads: false,
-    writes: false,
+    reads: true,
+    writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
-    synopsis: "lmap varname list body",
+    synopsis: "lmap varlist1 list1 ?varlist2 list2 ...? body",
+    dialects: None,
 }];
 
 /// Dynamic arg role resolver: last argument is the body script.
@@ -47,11 +49,34 @@ fn lmap_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lmap",
-        traits: Traits::CONTROL_FLOW
+        // `BYTE_COMPILED`: dedicated bytecode handling, not the generic
+        // invoke path — the codegen loop-block emitter recognises `lmap`
+        // exactly like `foreach` (`command == "foreach" || command ==
+        // "lmap"` in `tcl_compiler::codegen::emitter::loop_blocks`),
+        // stripping the body's trailing pop and emitting `LMAP_COLLECT` so
+        // each iteration's result is gathered VM-side; aliasing the head to
+        // `$cmd` would defeat that and change semantics, exactly the
+        // hazard `BYTE_COMPILED` protects `foreach` from in the minifier.
+        // `NOT_PROC_FACTORY`: the simple form (`lmap x {a b c} {body}`) is
+        // a four-token `HEAD NAME ARGS BODY` call, incidentally identical
+        // in shape to `foreach`'s simple form and to a tcllib-style
+        // factory wrapper (`DEFC name args body`) — without this trait the
+        // signature scanner would misread it as a candidate factory call.
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_LOOP_BODY
             | Traits::NEVER_INLINE_BODY
             | Traits::LOOP_LIST_HEADER,
+        // `lmap` was added by TIP 267 for Tcl 8.6 — the 8.4 and 8.5
+        // TclCmd/lmap.html manpage trees both return a plain 404 (no
+        // lmap.n existed yet), while 8.6, 9.0, and 9.1 all serve the
+        // page with byte-identical NAME/SYNOPSIS/DESCRIPTION text (only
+        // the SEE ALSO cross-reference list grows in 9.0+, tracking the
+        // newer list commands like `lseq`/`lremove`/`lpop`/`ledit` — not
+        // a behavioural change to `lmap` itself).  `TCL86_PLUS` is
+        // therefore exact, not merely a close fit.
         dialects: Some(DialectSet::TCL86_PLUS),
         // `varList list ?varList list ...? command` — identical grammar to
         // `foreach`: n varList/list pairs (n >= 1) plus one command body, so a
@@ -81,10 +106,10 @@ pub fn spec() -> CommandSpec {
                 "lmap varname list body",
                 "lmap varlist1 list1 ?varlist2 list2 ...? body",
             ],
-            snippet: "The lmap command implements a loop where the loop variable(s) take on values from one or more lists, and the loop returns a list of results collected from each iteration.",
-            source: "Tcl man page lmap.n",
-            examples: "",
-            return_value: "",
+            snippet: "In the simple form, varname takes on each value of list in turn and body runs once per value. In the general form, each varlist/list pair is handled independently: on every iteration, the variables of each varlist are assigned consecutive values from its corresponding list, as if by lindex. Iteration continues until every value from every list has been used exactly once — enough passes to exhaust the longest list — and a list too short for its varlist supplies empty strings for the missing elements on later passes. Unlike foreach, the result of each iteration that completes normally is appended, in order, to an accumulator list that lmap returns; break and continue behave exactly as they do in foreach, except that the iteration they interrupt contributes nothing to the accumulator — continue is therefore a common way to filter values out of the result.",
+            source: "Tcl lmap(n)",
+            examples: "lmap x {1 2 3} {expr {$x * 2}}\nlmap x {1 2 3 4 5 6} {\n    if {$x % 2} {continue}\n    set x\n}\nlmap a {1 2 3} b {x y z} {\n    list $a $b\n}",
+            return_value: "The accumulator list: one element per iteration of body that completed normally (break/continue iterations contribute nothing).",
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

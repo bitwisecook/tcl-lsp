@@ -56,6 +56,22 @@ pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 /// [`CommandSpec::command_prefixes`] table — either may be set.
 pub type CommandPrefixResolver = fn(args: &[&str]) -> Vec<(u8, crate::arg_role::AppendedArity)>;
 
+/// A call-site restriction that depends on *where* the call sits — a
+/// lexical/dispatch context arity and dialect gating can't see — rather
+/// than on its own argument shape (iRules `return`: bare-only directly
+/// inside a `when EVENT { … }` body, full syntax inside any `proc`).
+/// `Some(f)`: the analyser calls `f(args, in_event_body)`; a `Some(msg)`
+/// result flags `msg` at the call site. `None` = no context-sensitive
+/// restriction.
+///
+/// Deliberately takes only the one fact `return` needs today
+/// (`in_event_body`) rather than a general context bag — extend the
+/// signature if a second context-sensitive command needs a different
+/// fact. Takes plain data rather than any analyser-internal type since
+/// this crate has no dependency on `tcl-compiler` and can't reference
+/// `Analyser`/`scope_path` directly.
+pub type ContextGate = fn(args: &[&str], in_event_body: bool) -> Option<&'static str>;
+
 /// The value shape a *non-subcommand* first word may take for a command
 /// whose first word usually dispatches to a subcommand.
 ///
@@ -513,6 +529,22 @@ pub struct CommandSpec {
     /// dangerous-arg positions are unspecified.
     pub taint_network_sink_args: Option<&'static [u8]>,
 
+    /// Positional argument indices (0-based after the command name, option
+    /// flags skipped) that are the *actual* code-execution sink for a T100
+    /// command — the only slots where a tainted value reaches `eval`-style
+    /// evaluation. `apply`'s lambda `func` and `open`'s pipeline-selecting
+    /// `fileName` are both `Some(&[0])`: their trailing arguments (the
+    /// lambda's bound parameters, `open`'s access mode / permissions) are
+    /// ordinary data, never re-evaluated as script text. `None` (the
+    /// default) means the whole command is the sink — every tainted
+    /// argument reaches evaluation — which is correct for the
+    /// `eval`/`uplevel`/`subst`/`exec` "whole tail is one script" shape.
+    /// Set this only when a specific slot, not the entire argument tail,
+    /// carries the code-execution hazard. `Some(&[])` imposes no filter
+    /// (behaves like `None`). Consumed by `tcl_compiler::taint`'s
+    /// position-aware T100 sink filter.
+    pub taint_code_sink_args: Option<&'static [u8]>,
+
     /// Subcommands that evaluate code in another interpreter
     /// (`interp eval`, `interp invokehidden`) — cross-interpreter
     /// code-execution sinks (T105). Empty = none.
@@ -717,6 +749,11 @@ pub struct CommandSpec {
     /// (unknown command).  `None` = no argument names a new command.
     pub defines_command_at: Option<u8>,
 
+    /// Additional validity gate keyed on lexical/dispatch context rather
+    /// than argument shape — see [`ContextGate`]. `None` = no
+    /// context-sensitive restriction (the common case).
+    pub context_gate: Option<ContextGate>,
+
     /// Fully-`::`-qualified namespace this ensemble's subcommands are
     /// *also* individually, separately callable under — `Some("::tcl::dict")`
     /// for `dict`, whose `exists`/`get`/etc. are genuine standalone commands
@@ -842,6 +879,7 @@ impl CommandSpec {
         taint_output_sink_subcommands: &[],
         taint_log_sink: None,
         taint_network_sink_args: None,
+        taint_code_sink_args: None,
         taint_interp_eval_subcommands: &[],
         taint_source: None,
         taint_transform: None,
@@ -871,6 +909,7 @@ impl CommandSpec {
         body_scope: None,
         creates_instance_at: None,
         defines_command_at: None,
+        context_gate: None,
         implementation_namespace: None,
     };
 

@@ -1136,15 +1136,20 @@ fn st_regexp_double_dash_ends_options_before_pattern() {
 fn st_binary_non_format_subcommand_has_no_field_override() {
     // `binary encode base64 $d` — the `encode` subcommand is not `format`/`scan`,
     // so the `bin_word` match returns None and no `BinaryFormat` override is
-    // installed; `base64` stays a plain `string` (no binarySpec/binaryCount).
+    // installed for it at all (no binarySpec/binaryCount tokens).
     // tclsh-proof: `binary encode base64` is a real subcommand. tclsh8.6/9.0:
     //   `binary encode base64 hello` -> aGVsbG8=
     let toks = decode("binary encode base64 $d\n", "tcl8.6");
     assert!(of_type(&toks, "binarySpec").is_empty(), "{toks:?}");
     assert!(of_type(&toks, "binaryCount").is_empty(), "{toks:?}");
-    // `encode` is a recognised subcommand keyword; `base64` is a string arg.
+    // `encode` is a recognised subcommand keyword; `base64` is the format-name
+    // argument, closed over exactly base64/hex/uuencode
+    // (`ENCODE_DECODE_FORMAT_VALUES` in `binary_.rs`) and so classified
+    // `enumMember` — a separate, legitimate override from the `BinaryFormat`
+    // one this test is otherwise about, not a plain string.
     assert!(
-        toks.iter().any(|t| t.ttype == "string" && t.length == 6),
-        "`base64` should be a plain string; got {toks:?}",
+        toks.iter()
+            .any(|t| t.ttype == "enumMember" && t.length == 6),
+        "`base64` is the closed-set format-name arg, not a plain string; got {toks:?}",
     );
 }

@@ -24,6 +24,7 @@ use tcl_syntax::number::{Number, parse_whole};
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "string option arg ?arg ...?",
+    dialects: None,
 }];
 
 /// Compile-time folds for pure `string`
@@ -109,8 +110,22 @@ fn fold_repeat(args: &[&str]) -> Option<String> {
     Some(s.repeat(n))
 }
 
-/// The Tcl default trim set (`string trim` with no explicit chars):
-/// space, tab, newline, CR, vertical tab, form feed.
+/// The Tcl default trim set (`string trim` with no explicit `chars`):
+/// space, tab, newline, CR, vertical tab, form feed. This matches the Tcl
+/// 8.4/8.5 documented default verbatim ("spaces, tabs, newlines, and
+/// carriage returns", plus the long-standing \v/\f inclusion the doc text
+/// itself never spelled out). From Tcl 8.6 the documented default widens
+/// to "any character for which `string is space` returns 1, and \0"
+/// (NUL) — a strict superset of this set for ASCII input.
+///
+/// This fold is registered dialect-invariantly (`const_fold`, not
+/// `const_fold_versioned`), so on an 8.6+ dialect it under-trims a
+/// literal leading/trailing NUL byte: a rare input in practice, but a
+/// real (if narrow) divergence from tclsh 8.6+/9.x that this pass
+/// deliberately leaves unfixed — closing it needs threading a version
+/// parameter through `fold_trim`/`fold_trimleft`/`fold_trimright` the way
+/// `fold_is`/`class_available` already do, which is out of scope for a
+/// spec/hover-accuracy pass.
 const TRIM_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
 
 /// `string trim` / `trimleft` / `trimright`.  ASCII-restricted so the
@@ -752,111 +767,137 @@ static IS_CLASSES: &[ArgValue] = &[
         value: "alnum",
         detail: "Any Unicode alphabet or digit character.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "alpha",
         detail: "Any Unicode alphabet character.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "ascii",
         detail: "Any character with a value less than U+0080 (7-bit ASCII).",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "boolean",
         detail: "Any valid boolean value (true/false/yes/no/on/off/0/1).",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "control",
         detail: "Any Unicode control character.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "dict",
         detail: "Any proper dict structure, with optional surrounding whitespace.",
         min_tcl: Some(TclVersion::V9_0),
+        code: None,
     },
     ArgValue {
         value: "digit",
         detail: "Any Unicode digit character.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "double",
         detail: "Any valid floating-point number.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "entier",
-        detail: "Synonym for integer.",
+        detail: "An arbitrary-size integer. On Tcl 8.6, where integer itself was still 32-bit-bounded, entier was the only arbitrary-size class; from Tcl 9.0, where integer itself became arbitrary-size, entier is a plain synonym for it.",
         min_tcl: Some(TclVersion::V8_6),
+        code: None,
     },
     ArgValue {
         value: "false",
         detail: "Any valid boolean false value.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "graph",
         detail: "Any Unicode printing character, except space.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "integer",
-        detail: "Any valid integer of arbitrary size.",
+        detail: "Any valid integer, with optional surrounding whitespace. Bounded to 32 bits through Tcl 8.6; arbitrary size from Tcl 9.0 onward.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "list",
         detail: "Any proper list structure, with optional surrounding whitespace.",
-        min_tcl: None,
+        // Absent from the Tcl 8.4 manpage's class table (18 classes, no
+        // `list`); present from 8.5 (19 classes, `list` added). `string is
+        // list ...` raises "bad class" under an 8.4 dialect rather than
+        // returning 0/1.
+        min_tcl: Some(TclVersion::V8_5),
+        code: None,
     },
     ArgValue {
         value: "lower",
         detail: "Any Unicode lower case alphabet character.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "print",
         detail: "Any Unicode printing character, including space.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "punct",
         detail: "Any Unicode punctuation character.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "space",
         detail: "Any Unicode whitespace character.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "true",
         detail: "Any valid boolean true value.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "upper",
         detail: "Any upper case alphabet character.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "wideinteger",
-        detail: "Any valid wide integer.",
+        detail: "Any valid wide integer, with optional surrounding whitespace. From Tcl 9.0 this is bounded to the signed 64-bit range; Tcl 8.5/8.6 accept a wider positive magnitude (up to 2^64-1).",
         min_tcl: Some(TclVersion::V8_5),
+        code: None,
     },
     ArgValue {
         value: "wordchar",
         detail: "Any Unicode word character (alphanumeric + connector punctuation).",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "xdigit",
         detail: "Any hexadecimal digit character (0-9, A-F, a-f).",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -864,15 +905,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "bytelength",
         arity: Arity::exact(1),
-        detail: "Return number of bytes used to represent the string in memory.",
+        detail: "Return number of bytes used to represent the string in memory (obsolete; removed in Tcl 9.0 — use `string length` or `encoding convertto`).",
         synopsis: "string bytelength string",
         pure: true,
         return_type: Some(TclType::Int),
-        dialects: Some(
-            DialectSet::TCL84
-                .union(DialectSet::TCL85)
-                .union(DialectSet::TCL86),
-        ),
+        // Documented "likely to go away in a future release" as far back
+        // as the Tcl 8.4 manpage, but only actually removed at the 9.0
+        // boundary: present (still obsolete-tagged) in the 8.4, 8.5, and
+        // 8.6 manpages; absent entirely from the 9.0 and 9.1 subcommand
+        // lists. `TCL8X` is the exact 8.4|8.5|8.6 set — not a
+        // closest-sounding stand-in.
+        dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -907,15 +950,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 OptionSpec {
                     name: "-nocase",
                     value: OptionValue::flag(),
-                    detail: "",
+                    detail: "Compare without regard to case.",
                     dialects: None,
                     aliases: &[],
                     min_version: None,
                 },
                 OptionSpec {
                     name: "-length",
-                    value: OptionValue::value("int"),
-                    detail: "",
+                    value: OptionValue::Takes(OptionArg {
+                        integer: Some(IntegerDomain::Any),
+                        hint: "length",
+                        ..OptionArg::DEFAULT
+                    }),
+                    detail: "Compare only the first length characters; a negative value is ignored (the whole string is compared).",
                     dialects: None,
                     aliases: &[],
                     min_version: None,
@@ -937,15 +984,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 OptionSpec {
                     name: "-nocase",
                     value: OptionValue::flag(),
-                    detail: "",
+                    detail: "Compare without regard to case.",
                     dialects: None,
                     aliases: &[],
                     min_version: None,
                 },
                 OptionSpec {
                     name: "-length",
-                    value: OptionValue::value("int"),
-                    detail: "",
+                    value: OptionValue::Takes(OptionArg {
+                        integer: Some(IntegerDomain::Any),
+                        hint: "length",
+                        ..OptionArg::DEFAULT
+                    }),
+                    detail: "Compare only the first length characters; a negative value is ignored (the whole string is compared).",
                     dialects: None,
                     aliases: &[],
                     min_version: None,
@@ -1070,23 +1121,43 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Test if string is a member of a character class.",
         synopsis: "string is class ?-strict? ?-failindex varname? string",
-        pure: true,
         return_type: Some(TclType::Boolean),
         const_fold_versioned: Some(fold_is),
+        // Deliberately NOT `pure: true`: `-failindex` (documented since
+        // Tcl 8.4) optionally writes its `varname` argument, and the
+        // static spec can't see whether a given call uses it — the same
+        // shape as `encoding convertfrom`/`convertto`'s `-failindex`,
+        // resolved there the same way (see `commands/tcl/encoding_.rs`).
+        // `classify_side_effects` (`tcl-compiler/src/side_effects.rs`)
+        // trusts a subcommand's `pure` flag unconditionally and never even
+        // looks at `side_effects` when it's set, so marking this pure
+        // would let dead-code-elimination/CSE silently drop or reorder a
+        // real variable write.
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Variable,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+            dialects: None,
+        }],
         options: const {
             &[
                 OptionSpec {
                     name: "-strict",
                     value: OptionValue::flag(),
-                    detail: "",
+                    detail: "Treat the empty string as not matching the class (by default the empty string matches every class).",
                     dialects: None,
                     aliases: &[],
                     min_version: None,
                 },
                 OptionSpec {
                     name: "-failindex",
-                    value: OptionValue::value("varname"),
-                    detail: "",
+                    value: OptionValue::Takes(OptionArg {
+                        role: ArgRole::VarWrite,
+                        hint: "varname",
+                        ..OptionArg::DEFAULT
+                    }),
+                    detail: "Variable to receive the index where the class test failed. Left unset when string matches the class; on failure its exact contents are class-specific (e.g. -1 for a numeric overflow, the parse-failure index for list/dict, always 0 for boolean/true/false).",
                     dialects: None,
                     aliases: &[],
                     min_version: None,
@@ -1188,7 +1259,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             &[OptionSpec {
                 name: "-nocase",
                 value: OptionValue::flag(),
-                detail: "",
+                detail: "Match keys without regard to case.",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
@@ -1243,7 +1314,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             &[OptionSpec {
                 name: "-nocase",
                 value: OptionValue::flag(),
-                detail: "",
+                detail: "Match without regard to case; the endpoints of a [x-y] range are lower-cased first, so [A-z] behaves like [A-Za-z].",
                 dialects: None,
                 aliases: &[],
                 min_version: None,
@@ -1579,9 +1650,58 @@ static SUBCOMMANDS: &[SubCommand] = &[
 ];
 
 /// Command spec for `string`.
+///
+/// The ensemble's own dispatch synopsis (`string option arg ?arg ...?`) and
+/// the bulk of its subcommands (`compare`/`equal`/`first`/`index`/`is`/
+/// `last`/`length`/`map`/`match`/`range`/`repeat`/`replace`/`tolower`/
+/// `totitle`/`toupper`/`trim`/`trimleft`/`trimright`/`wordend`/`wordstart`,
+/// each with their documented options) are unchanged Tcl 8.4 → 9.1. The
+/// subcommand *set* is not, though — each gate is on the matching
+/// `SubCommand.dialects` below, not here:
+///
+/// * `reverse` — added Tcl 8.5 (absent from the 8.4 manpage's subcommand
+///   list; present from 8.5's).
+/// * `cat` — added Tcl 8.6 (absent from 8.4 and 8.5).
+/// * `bytelength` — documented "likely to go away in a future release" as
+///   far back as 8.4, but only actually removed at the Tcl 9.0 boundary:
+///   present in 8.4, 8.5, and 8.6; gone from the 9.0 and 9.1 manpages.
+/// * `insert` — added Tcl 9.0 (absent from 8.4 through 8.6).
+///
+/// `string is`'s character-class set grows the same way — see the
+/// `IS_CLASSES` table's individual `min_tcl` gates: `list` and
+/// `wideinteger` (8.5), `entier` (8.6), `dict` (9.0 only). Every other
+/// class has been present since 8.4.
+///
+/// The generic index syntax shared by most subcommands that take one
+/// (`index`/`range`/`replace`, the `first`/`last` of `first`/`last`,
+/// `tolower`/`toupper`/`totitle`'s `first`/`last`) also widened at 8.5:
+/// the Tcl 8.4 manpage documents only a plain non-negative integer, `end`,
+/// and `end-N`; Tcl 8.5 added a dedicated "STRING INDICES" section (which
+/// 8.4's manpage has no equivalent of) documenting the further `end+N`,
+/// `M+N`, and `M-N` arithmetic forms.
+///
+/// `trim`/`trimleft`/`trimright`'s default (no explicit `chars`) character
+/// set also widened at 8.6: 8.4/8.5 document it as literally "spaces,
+/// tabs, newlines, and carriage returns"; from 8.6 the manpage instead
+/// defines it as "any character for which `string is space` returns 1,
+/// and \0" — i.e. it additionally strips NUL, plus whatever `string is
+/// space`'s own (also-growing) Unicode class covers. `TRIM_WS` below
+/// still only encodes the narrower 8.4/8.5 set (see its own doc comment).
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "string",
+        // Present and unrestricted: its `dialects` group carries the
+        // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
+        // under the bare `IRULES` availability mask — a
+        // pure value-transform ensemble with no filesystem/process/network
+        // access, so every dialect that hosts a real Tcl core (irules,
+        // iapps, tmsh, the EDA shells, expect, tk, itcl) carries it
+        // unmodified. Individual subcommands and `string is` classes still
+        // narrow per Tcl version through their own `dialects`/`min_tcl`
+        // gates (enforced generically by the profile's `version_ceiling`,
+        // the same mechanism that keeps `return`'s `-level` out of
+        // iRules) — not a whole-command dialect gate.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -1589,12 +1709,12 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         hover: Some(HoverSnippet {
-            summary: "Perform one of several string operations.",
+            summary: "Perform one of several string operations, selected by the first argument.",
             synopsis: &["string option arg ?arg ...?"],
-            snippet: "Use subcommands like `length`, `match`, `is`, `compare`, `map`, `range`, etc.",
-            source: "Tcl man page string.n",
-            examples: "",
-            return_value: "",
+            snippet: "Dispatches to a subcommand (length, match, is, compare, map, range, index, trim, ... — see completion for the full list); an unrecognised option is a runtime error, not a compile-time one, and an unambiguous prefix of a subcommand name is accepted. Nearly every subcommand is a pure value transform with no side effects; the one exception is `is`'s `-failindex varname`, which writes the class-test failure position into varname. Index arguments (string index/range/replace, the first/last of tolower/toupper/totitle, the startIndex/lastIndex of first/last) accept a plain non-negative integer, end (the last character), or end-N; Tcl 8.5+ also accepts end+N and the M+N/M-N arithmetic forms. The subcommand set itself has grown over releases: reverse and the is list/wideinteger classes need Tcl 8.5+; cat and the is entier class need Tcl 8.6+; insert and the is dict class need Tcl 9.0+; bytelength was removed at the Tcl 9.0 boundary after being documented obsolete since 8.4 — prefer string length (character count) or the encoding command (byte count) instead. trim/trimleft/trimright strip whitespace by default when chars is omitted; from Tcl 8.6 that default set also strips NUL (\\0), on top of the (also Unicode-aware and separately growing) whitespace string is space matches.",
+            source: "Tcl string(n)",
+            examples: "set s \"  Hello, World!  \"\nstring trim $s                   ;# -> \"Hello, World!\"\nstring tolower [string trim $s]  ;# -> \"hello, world!\"\nstring map {World Tcl} $s        ;# -> \"  Hello, Tcl!  \"\nstring range $s 2 6              ;# -> \"Hello\"\nstring is integer -strict 42     ;# -> 1\n\nif {[string first \"World\" $s] >= 0} {\n    puts \"found\"\n}",
+            return_value: "Depends on the subcommand: most string-valued subcommands (cat, index, insert, map, range, replace, reverse, tolower/toupper/totitle, trim/trimleft/trimright) return a (possibly empty) string; is, equal, and match return a boolean 0/1; compare returns -1/0/1; length, wordend, wordstart, and bytelength (through Tcl 8.6) return a non-negative integer; first and last return a non-negative index, or -1 when there is no match.",
         }),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::String),
         forms: FORMS,

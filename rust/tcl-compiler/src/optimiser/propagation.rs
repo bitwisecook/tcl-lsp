@@ -3854,7 +3854,11 @@ mod tests {
         assert_eq!(fold("puts [string is alpha abc]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is lower abc1]"), vec!["0".to_string()]);
         assert_eq!(fold("puts [string is boolean yes]"), vec!["1".to_string()]);
-        assert_eq!(fold("puts [string is list {a b c}]"), vec!["1".to_string()]);
+        // `list` is a Tcl 8.5+ class (absent from 8.4's 18-class table) --
+        // like `wideinteger` below, this optimiser run uses `dialect=None`,
+        // so the version-aware folder bails rather than risk folding a call
+        // that would raise "bad class" under an 8.4 profile.
+        assert!(fold("puts [string is list {a b c}]").is_empty());
         // `format` %s / %d / %% subset.
         assert_eq!(fold("puts [format %d 42]"), vec!["42".to_string()]);
         assert_eq!(fold("puts [format {v=%s} hi]"), vec!["v=hi".to_string()]);

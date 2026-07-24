@@ -32,6 +32,7 @@ const IO: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 /// Direction values, shared by every block cipher.
@@ -40,11 +41,13 @@ const DIR_VALUES: &[ArgValue] = &[
         value: "encrypt",
         detail: "Encrypt the input (the default).",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "decrypt",
         detail: "Decrypt the input.",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -54,11 +57,13 @@ const AES_MODES: &[ArgValue] = &[
         value: "ecb",
         detail: "Electronic codebook mode.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "cbc",
         detail: "Cipher block chaining mode (the default).",
         min_tcl: None,
+        code: None,
     },
 ];
 
@@ -68,21 +73,25 @@ const DES_MODES: &[ArgValue] = &[
         value: "ecb",
         detail: "Electronic codebook mode.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "cbc",
         detail: "Cipher block chaining mode (the default).",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "cfb",
         detail: "Cipher feedback mode.",
         min_tcl: None,
+        code: None,
     },
     ArgValue {
         value: "ofb",
         detail: "Output feedback mode.",
         min_tcl: None,
+        code: None,
     },
 ];
 

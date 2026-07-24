@@ -377,6 +377,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "class <subcommand> ?options? ?--? args...",
+            dialects: None,
         }],
         options: const {
             &[
@@ -444,6 +445,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

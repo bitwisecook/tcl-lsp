@@ -22,7 +22,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseInfo",
         traits: Traits::PURE,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
         return_type: Some(TclType::Dict),
         hover: Some(HoverSnippet {

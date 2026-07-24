@@ -26,11 +26,13 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "dict option arg ?arg ...?",
+    dialects: None,
 }];
 
 /// Dynamic resolver: last arg is body for `dict update`/`dict with`.
@@ -67,12 +69,50 @@ fn dict_filter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
 }
 
+/// `dict filter dictionaryValue filterType ...`'s `filterType` word (index 1
+/// after the `filter` subcommand): a closed 3-member set (`Tcl_GetIndexFromObj`
+/// over `{"key", "script", "value"}` in `DictFilterCmd`, tclDictObj.c, flags
+/// `0` — no `TCL_EXACT`, so any unique prefix is also accepted, e.g. `dict
+/// filter $d k foo*`), unchanged across 8.5–9.1.
+///
+/// The `key`/`value` rules' *trailing* glob-pattern arity is not, though: the
+/// 8.5 manpage synopsis is `dict filter dictionaryValue key globPattern`
+/// (exactly one pattern, no `?...?`), while 8.6 through 9.1 document `dict
+/// filter dictionaryValue key ?globPattern ...?` (zero or more, matching any
+/// of them) — confirmed by diffing the fetched 8.5 and 8.6 manpages. That
+/// nuance can't be expressed as an `ArgValue.min_tcl` (the *value* `key` is
+/// legal in every dict-supporting release; only what may follow it changed),
+/// so it lives in prose in each entry's `detail` instead.
+const FILTER_TYPE_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "key",
+        detail: "Keeps key/value pairs whose key matches any of the given glob patterns (string match rules). Tcl 8.5 accepts exactly one globPattern; Tcl 8.6 and later accept zero or more, matching any of them.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "script",
+        detail: "Keeps key/value pairs for which {keyVariable valueVariable} script evaluates to a true value. A TCL_BREAK result stops filtering immediately; TCL_CONTINUE excludes just that pair.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "value",
+        detail: "Keeps key/value pairs whose value matches any of the given glob patterns (string match rules). Tcl 8.5 accepts exactly one globPattern; Tcl 8.6 and later accept zero or more, matching any of them.",
+        ..ArgValue::DEFAULT
+    },
+];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "append",
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
+        // "The updated dictionary value is returned" — present in the 8.6
+        // through 9.1 manpages; the 8.5 manpage omits the closing sentence,
+        // but `DictAppendCmd` (tclDictObj.c) returns the same dict in both
+        // 8.5 and 8.6, so this is a documentation gap in 8.5, not a real
+        // behavioural difference.
+        return_type: Some(TclType::Dict),
         var_elements_effect: Some(VarElementsEffect::ExtendsDictValuesByName { values_from: 2 }),
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
@@ -133,6 +173,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        arg_values: &[(1, FILTER_TYPE_VALUES)],
+        // A single keyword word, not a list — exact whole-word matching
+        // (W127) is safe here, unlike `open`'s POSIX access-flag list.
+        closed_value_args: &[1],
+        // `Tcl_GetIndexFromObj` accepts any unique prefix (see
+        // `FILTER_TYPE_VALUES`'s doc comment).
+        arg_values_accept_prefix: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -140,6 +187,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Iterate over dictionary key/value pairs.",
         synopsis: "dict for {keyVar valueVar} dictionaryValue body",
+        // "The result of the command is an empty string" — true in every
+        // version dict exists in (8.5–9.1); unlike `update`/`with`, the
+        // result is not body's own result.
+        return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
         arg_types: &[(
             1,
@@ -218,6 +269,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
+        // "The updated dictionary value is returned" (DictLappendCmd,
+        // tclDictObj.c) — true in every version dict exists in.
+        return_type: Some(TclType::Dict),
         var_elements_effect: Some(VarElementsEffect::ListifiesDictValue),
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
@@ -350,6 +404,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // the `VarWrite` role below — so this is a key removal, not a
         // variable destroy.)
         destructive: true,
+        // "The updated dictionary value is returned" (DictUnsetCmd).
+        return_type: Some(TclType::Dict),
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,
@@ -360,6 +416,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         )],
         mutator: true,
+        // `DictUnsetCmd` calls `Tcl_NewDictObj()` when the variable reads as
+        // unset rather than erroring (`dictPtr == NULL` branch, tclDictObj.c
+        // — identical in the 8.5, 8.6, 9.0, and 9.1 sources), the same
+        // auto-vivify behaviour as `append`/`incr`/`lappend`/`set` above.
+        safe_on_uninit: Some(DialectSet::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -534,12 +595,12 @@ pub fn spec() -> CommandSpec {
         subcommands: SUBCOMMANDS,
         inferred_storage_type: Some(StorageType::Dict),
         hover: Some(HoverSnippet {
-            summary: "Manipulate dictionaries",
-            synopsis: &["dict option arg ?arg ...?", "dict subcommand ?arg ...?"],
-            snippet: "Performs one of several operations on dictionary values or variables containing dictionary values (see the DICTIONARY VALUES section below for a description), depending on option.",
-            source: "Tcl man page dict.n",
-            examples: "",
-            return_value: "",
+            summary: "Query and manipulate dictionary values — ordered key/value mappings — via a suite of subcommands.",
+            synopsis: &["dict option arg ?arg ...?"],
+            snippet: "dict was added in Tcl 8.5 (TIP 111); it does not exist in 8.4. append, create, exists, filter, for, get, incr, info, keys, lappend, merge, remove, replace, set, size, unset, update, values, and with are available from 8.5. map was added in 8.6 (TIP 405). getdef and getwithdefault (TIP 342, aliases of each other) were added in 9.0 and return a caller-supplied default instead of raising an error when the key path is absent. From Tcl 9.0, when the dictionaryVariable argument to append, incr, lappend, set, unset, update, or with names a missing element of an array that has a default value configured (see array default), that default is used as the starting dictionary value for the operation rather than an error being raised.\n\nA dictionary's string representation is any list with an even number of elements, each consecutive pair being one key/value mapping. When such a string has a repeated key, only the last value for that key is kept. Operations that derive a new dictionary from an old one preserve the existing key order, appending newly-added keys at the end and excising removed ones.",
+            source: "Tcl dict(n)",
+            examples: "set d [dict create name Alice age 30]\ndict set d age 31\ndict get $d age\ndict incr d age\ndict for {key value} $d {\n    puts \"$key -> $value\"\n}\ndict with d {\n    puts \"$name is $age\"\n}",
+            return_value: "Depends on option: append, create, filter, incr, lappend, map, merge, remove, replace, set, and unset return a new or updated dictionary value; get, getdef, getwithdefault, and getd return the plain value found at the given key path (or the caller-supplied default, for getdef/getwithdefault/getd, if absent); exists returns a boolean, size an integer, keys/values a list, info an implementation-defined string, and for/update/with return an empty string, the result of body, and the result of body respectively.",
         }),
         codegen_hook: Some(CodegenHookId::Dict),
         lowering_hook: Some(crate::hooks::LoweringHookId::Dict),

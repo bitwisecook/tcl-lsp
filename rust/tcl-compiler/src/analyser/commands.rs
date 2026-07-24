@@ -1207,6 +1207,14 @@ impl Analyser {
         {
             self.emit_e004_clause_shape_diagnostic(cmd_name, checker, args, cmd_tok, arg_tokens);
         }
+        if let Some(gate) = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .and_then(|spec| spec.context_gate)
+        {
+            self.emit_w142_context_gate(gate, args, cmd_tok);
+        }
         self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
         // W102 / W103 / W300 / W301 / W309 / W312 security-injection
         // checks.

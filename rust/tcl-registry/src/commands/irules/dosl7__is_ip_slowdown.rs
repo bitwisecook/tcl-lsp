@@ -34,12 +34,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "DOSL7::is_ip_slowdown",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Dosl7State,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

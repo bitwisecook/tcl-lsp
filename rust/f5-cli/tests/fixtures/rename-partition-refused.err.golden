@@ -1,1 +1,0 @@
-error: rename_partition: refusing to rename /Common — tenant partitions reference /Common one-way (the F5 partition-visibility model), and renaming it would silently break every cross-partition reference.  Migrate the specific objects with rename(...) instead.

@@ -24,16 +24,40 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: false,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "oo::define class defScript",
-}];
+const FORMS: &[FormSpec] = &[
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "oo::define class defScript",
+        dialects: None,
+    },
+    // Present alongside the script form in every version that has
+    // `oo::define` at all (8.6, 9.0, 9.1) — the two-form SYNOPSIS is
+    // identical across all three fetched manpages.
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "oo::define class subcommand arg ?arg ...?",
+        dialects: None,
+    },
+];
 
 /// Subcommands recognised by ``oo::define`` / ``oo::objdefine``.
 /// Used to disambiguate the script-form (`oo::define Target {body}`)
 /// from a subcommand call where `args[1]` is one of these words.
+///
+/// `classmethod` / `initialise` / `initialize` / `private` /
+/// `definitionnamespace` are Tcl 9.0+ only (absent from the 8.6
+/// `TclCmd/define.htm` SYNOPSIS/subcommand list, present in both the
+/// 9.0 and 9.1 `TclCmd/define.html` pages); every other entry is
+/// documented already at 8.6. `property` is not actually a plain
+/// `oo::define`/`oo::class` subcommand — it is installed by
+/// `oo::configurable` (Tcl 9.0+) — but is kept here since a real,
+/// legal `oo::define SomeConfigurableClass property ...` call must
+/// still resolve its trailing body correctly. Mirrored, with a
+/// per-entry description and `min_tcl`, by
+/// [`OO_DEFINE_SUBCOMMAND_VALUES`] below.
 const OO_DEFINE_SUBCOMMANDS: &[&str] = &[
     "constructor",
     "destructor",
@@ -53,6 +77,121 @@ const OO_DEFINE_SUBCOMMANDS: &[&str] = &[
     "mixin",
     "superclass",
     "variable",
+    "definitionnamespace",
+];
+
+/// Completion / hover metadata for the subcommand word at position 1
+/// (`oo::define class SUBCOMMAND ...`) — every member word
+/// `oo::define` recognises, each with a `min_tcl` reflecting the
+/// version table built from the 8.6 / 9.0 / 9.1 `TclCmd/define`
+/// manpages (8.4 and 8.5 have no such page at all — `TclOO` is 8.6+).
+/// Position 1 can *also* legitimately be the entire bare `defScript`
+/// script-form body instead of one of these words (see
+/// [`OO_DEFINE_SUBCOMMANDS`] above), so `oo::define` has no
+/// `closed_value_args` entry for this position — this is
+/// completion/hover data only, mirroring `open`'s `ACCESS_VALUES`.
+const OO_DEFINE_SUBCOMMAND_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "classmethod",
+        detail: "Defines a class method, or promotes an existing method to one: callable on the class itself as well as on its instances, with the invoking object set to the class.",
+        min_tcl: Some(TclVersion::V9_0),
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "constructor",
+        detail: "Defines or replaces the class constructor: argList is a proc-style parameter list, bodyScript runs in the new object's own namespace, and an empty bodyScript deletes the constructor. Use next inside it to invoke superclass constructors.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "definitionnamespace",
+        detail: "Sets the namespace consulted for definition-command lookups (?-class?, the default, or -instance) to namespaceName, letting a custom metaclass add its own definition-body vocabulary.",
+        min_tcl: Some(TclVersion::V9_0),
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "deletemethod",
+        detail: "Removes the named methods from the class without affecting its superclasses, subclasses, or existing instances beyond their method-resolution call chains.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "destructor",
+        detail: "Defines or replaces the class destructor (it takes no arguments); runs in the object's own namespace, and an empty bodyScript deletes it. Errors raised while destroying an object go to the bgerror handler, not back to the caller.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "export",
+        detail: "Makes the named methods, however they were defined, callable from outside an instance through the instance command; a subclass's export overrides its superclass's for that name.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "filter",
+        detail: "Adds, by default, method-call filters that guard every call to the class's methods; naming a not-yet-defined method is fine, since a subclass may still supply it.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "forward",
+        detail: "Defines a forwarded method: calling name runs cmdName, resolved by the invoking object's own namespace rules, with any given arg words prepended ahead of the caller's own arguments.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "initialise",
+        detail: "Evaluates script immediately, in the class object's own namespace — the idiomatic place to set up classvariable-backed class-scoped state.",
+        min_tcl: Some(TclVersion::V9_0),
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "initialize",
+        detail: "American-spelling alias for initialise.",
+        min_tcl: Some(TclVersion::V9_0),
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "method",
+        detail: "Defines or replaces a method; runs in the object's own namespace. An empty bodyScript makes it a no-op, it does not remove it — use deletemethod for that. Exported by default when name starts with a lowercase letter; Tcl 9.0+ also accepts an explicit -export/-private/-unexport option before argList to override that default.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "mixin",
+        detail: "Sets, by default replacing, the classes mixed into every instance of this class, ahead of the class's own hierarchy in method resolution. Takes an optional leading slot operation before the class list.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "private",
+        detail: "Runs a nested forward, method, self, or variable definition — the only class definition commands private affects — or, as `private {script}`, an entire nested script, in a private definition context restricting those members to internal use. Every other definition command (constructor, destructor, classmethod, and so on) behaves identically inside or outside private.",
+        min_tcl: Some(TclVersion::V9_0),
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "property",
+        detail: "Declares a configurable property (name ?-get script? ?-set script? ?-kind readable|writable|readwrite?); only resolves on a class created via oo::configurable (or a subclass of it), which supplies this definition command.",
+        min_tcl: Some(TclVersion::V9_0),
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "renamemethod",
+        detail: "Renames an existing class method from fromName to toName, preserving its export status; toName must not already name a method on the class.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "self",
+        detail: "Equivalent to invoking oo::objdefine on the class itself: `self subcommand ...` behaves like `oo::objdefine class subcommand ...`, and `self {script}` runs script the same way. Tcl 9.0+ also documents self with no further words at all, returning the name of the class currently being configured; Tcl 8.6 requires at least one further word and raises a wrong # args error on a bare self.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "superclass",
+        detail: "Sets, by default replacing, the class's direct superclasses; an empty list is equivalent to oo::object, and the superclasses of oo::object and oo::class themselves cannot be changed.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "unexport",
+        detail: "Makes the named methods callable only via my from inside the object's own methods, not from outside; a subclass's unexport overrides its superclass's for that name.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "variable",
+        detail: "Adds, by default, the named variables to the set automatically linked into every method/constructor/destructor of the class, equivalent to running my variable on each name first thing in the body; names must be simple, with no :: or array-element syntax.",
+        ..ArgValue::DEFAULT
+    },
 ];
 
 /// Resolve body argument indices for `oo::define` / `oo::objdefine`.
@@ -141,19 +280,18 @@ pub fn spec() -> CommandSpec {
         // `oo::define Cls {body}`.
         body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet {
-            summary: "define and configure classes and objects",
+            summary: "Reconfigure an existing class: methods, constructor/destructor, superclasses, mixins, and more.",
             synopsis: &[
                 "oo::define class defScript",
                 "oo::define class subcommand arg ?arg ...?",
-                "oo::define className ?definition?",
-                "oo::define className subcommand ?arg ...?",
             ],
-            snippet: "The oo::define command is used to control the configuration of classes, and the oo::objdefine command is used to control the configuration of objects (including classes as instance objects), with the configuration being applied to the entity named in the class or the object argument.",
-            source: "Tcl man page define.n",
-            examples: "",
-            return_value: "",
+            snippet: "oo::define class defScript evaluates defScript as a nested definition script whose member commands (method, constructor, variable, and so on) apply to class, while oo::define class subcommand arg ?arg ...? runs exactly one definition subcommand directly. Changes propagate to every subclass and instance of class; oo::objdefine is the equivalent command for reconfiguring a single object (including a class acting as an instance object). Slot-taking subcommands (variable, superclass, mixin, filter) accept an optional leading operation — -append/-set/-clear, plus -appendifnew/-prepend/-remove from Tcl 9.0 — before their name list; omitting it uses each subcommand's own default (append for variable/filter, replace for superclass/mixin). Tcl 9.0 also added the classmethod, private, initialise/initialize, and definitionnamespace subcommands (none exist under Tcl 8.6); a class created via the Tcl-9.0+ oo::configurable metaclass additionally accepts a property subcommand for declaring configurable properties.",
+            source: "Tcl oo::define(n)",
+            examples: "oo::class create Greeter\noo::define Greeter {\n    variable greeting\n    constructor {msg} {\n        set greeting $msg\n    }\n    method greet {name} {\n        puts \"$greeting, $name!\"\n    }\n    export greet\n}\n[Greeter new \"Hello\"] greet World",
+            return_value: "The empty string for most definition subcommands; the script form's own result is whatever its last embedded command returns.",
         }),
         forms: FORMS,
+        arg_values: &[(1, OO_DEFINE_SUBCOMMAND_VALUES)],
         side_effects: SIDE_EFFECTS,
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
         analyser_hook: Some(crate::hooks::AnalyserHookId::OoDefine),

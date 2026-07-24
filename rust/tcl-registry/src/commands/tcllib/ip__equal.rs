@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "ip::equal address1 address2",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

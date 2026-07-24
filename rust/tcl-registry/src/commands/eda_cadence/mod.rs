@@ -77,10 +77,24 @@ mod xsim;
 
 use crate::spec::CommandSpec;
 
+/// The per-tool Cadence package a command belongs to (design doc
+/// `eda-library-packages.md`): the Common UI attribute DB (`set_db`/`get_db`)
+/// is shared across tools; Genus (synthesis) and Xcelium (simulation) are their
+/// own packages; Innovus (P&R + MMMC) is the bulk default.
+fn cadence_package_for(name: &str) -> &'static str {
+    match name {
+        "set_db" | "get_db" | "dbget" | "dbset" | "dbquery" | "dbshape" => "cadence-common",
+        "syn_generic" | "syn_map" | "syn_opt" | "read_hdl" | "write_hdl" | "elaborate"
+        | "write_design" => "cadence-genus",
+        "xrun" | "xelab" | "xsim" => "cadence-xcelium",
+        _ => "cadence-innovus",
+    }
+}
+
 /// Return all `eda_cadence` command specifications.
 #[must_use]
 pub fn eda_cadence_command_specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         add_endcap::spec(),
         add_filler::spec(),
         add_well_tap::spec(),
@@ -137,5 +151,9 @@ pub fn eda_cadence_command_specs() -> Vec<CommandSpec> {
         xelab::spec(),
         xrun::spec(),
         xsim::spec(),
-    ]
+    ];
+    for spec in &mut specs {
+        spec.required_package = Some(cadence_package_for(spec.name));
+    }
+    specs
 }

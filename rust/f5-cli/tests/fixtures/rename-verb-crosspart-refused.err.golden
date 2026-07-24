@@ -1,1 +1,0 @@
-error: rename: moving '/Common/web_pool' to '/Tenant_A/web_pool' would break partition visibility for 3 referrer(s): /Common/route_by_host, /Common/ssl_only_vs, /Common/www_vs.  Move the referrer(s) to /Tenant_A first, drop the offending references, or pick a target partition the referrers can see.

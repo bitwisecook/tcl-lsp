@@ -1367,8 +1367,17 @@ fn special_arg_kinds(
         &mut overrides,
     );
     insert_generic_option_overrides(seg, registry, head, &mut overrides);
-    insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
+    // `insert_oo_define_keyword_overrides` must run before the generic enum
+    // pass below: `oo::define`'s inline definition word (`method`,
+    // `constructor`, …) is *also* one of `OO_DEFINE_SUBCOMMAND_VALUES`'
+    // completion/hover entries, and `overrides` is a first-writer-wins map
+    // (`.or_insert`) — the more specific inline-keyword classification must
+    // claim that span first, or the generic closed-set-value pass claims it
+    // as `EnumMember` instead (mirroring the existing `ArgRole::Keyword`
+    // carve-out in `insert_enum_value_overrides`, issue #760, which this
+    // dynamic `definition_body`-driven case isn't modelled by).
     insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
+    insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_definer_class_name_override(seg, registry, &mut overrides);
     insert_lambda_literal_overrides(seg, registry, head, deferred_role, &mut overrides);
     insert_case_list_override(seg, registry, &mut overrides);

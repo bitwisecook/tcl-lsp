@@ -37,6 +37,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "IP::addr IP_ADDR_MASK 'equals' IP_ADDR_MASK",
+            dialects: None,
         }],
         options: const {
             &[
@@ -71,6 +72,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -18,12 +18,14 @@
 
 //! Side-effect metadata for structured effect analysis.
 
+use crate::dialects::DialectSet;
+
 /// What kind of external state a command affects.
 ///
 /// Variant names match the consumer's
 /// `tcl_compiler::side_effects::SideEffectTarget`. `Process` /
 /// `ChannelIo` are registry-only — kept for the existing `exec` /
-/// `chan` core specs.
+/// `open` (pipeline form) / `chan` core specs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SideEffectTarget {
     /// Tcl variable read or write.
@@ -102,10 +104,19 @@ pub enum SideEffectTarget {
     NamespaceState,
     /// Interpreter-level state (`interp`, `package`, `load`).
     InterpState,
-    /// Process management (registry-only; `exec`).
+    /// Process management (registry-only; `exec`, and `open`'s command-
+    /// pipeline form).
     Process,
     /// Channel I/O (registry-only; `chan`).
     ChannelIo,
+    /// Event-handler flow control: abandons the remaining script in the
+    /// *current* event invocation without affecting the connection, other
+    /// events, or other rules (iRules `return` inside a `when` body;
+    /// shares the category with `event NAME disable`, a stronger version
+    /// of the same idea). Distinct from [`Self::ConnectionControl`], which
+    /// is a connection-terminating action (drop/reject/discard) — this
+    /// isn't one.
+    EventControl,
     /// Unknown or unclassified effect.
     Unknown,
 }
@@ -139,6 +150,26 @@ pub struct SideEffect {
     pub writes: bool,
     /// Connection side (iRules).
     pub connection_side: ConnectionSide,
+    /// Dialects *this effect* applies in, when narrower than the
+    /// command's own availability — e.g. `return`'s `EventControl` effect
+    /// only exists in iRules, even though `return` itself is universal
+    /// Tcl (`CommandSpec::dialects: None`). `None` = inherits the
+    /// command's own dialect gating, so every effect declared before this
+    /// field existed keeps its meaning unchanged.
+    pub dialects: Option<DialectSet>,
+}
+
+impl SideEffect {
+    /// Baseline: [`SideEffectTarget::Unknown`], no reads/writes, no
+    /// connection side, no extra dialect restriction — used with
+    /// `..SideEffect::DEFAULT`.
+    pub const DEFAULT: Self = Self {
+        target: SideEffectTarget::Unknown,
+        reads: false,
+        writes: false,
+        connection_side: ConnectionSide::None,
+        dialects: None,
+    };
 }
 
 /// Inferred storage type for a command's target variable.

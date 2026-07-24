@@ -1,5 +1,0 @@
-# ===== /Common/r1 =====
-when HTTP_REQUEST { pool /Common/p1 }
-
-# ===== /Common/sub/r2 =====
-when CLIENT_ACCEPTED { log local0. "x" }

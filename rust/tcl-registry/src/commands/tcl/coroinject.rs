@@ -17,10 +17,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `coroinject` — inject a command into a coroutine.
+//!
+//! Documented on the shared `coroutine(n)` manpage alongside `coroutine`,
+//! `yield`, `yieldto`, and `coroprobe`. Added in Tcl 9.0 — the command is
+//! absent from the 8.4/8.5/8.6 `coroutine(n)` pages (8.4/8.5 predate
+//! coroutines entirely; 8.6's page documents only `coroutine`/`yield`/
+//! `yieldto`) and unchanged, word-for-word, between the 9.0.4 and 9.1b0
+//! pages.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "coroinject coroName command ?arg ...?",
+    dialects: None,
 }];
 
 // `coroinject coroName command ?arg...?` schedules an arbitrary command to run
@@ -32,6 +40,7 @@ static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     writes: true,
     connection_side: ConnectionSide::None,
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
@@ -41,17 +50,21 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(2),
         // `coroinject coroName command ?arg ...?` — `command` (index 1) is a
-        // command prefix injected into the coroutine and invoked with the
-        // yield's args appended (variadic ⇒ Unknown).
-        command_prefixes: &[(1, AppendedArity::Unknown)],
+        // command prefix; when `coroName` next resumes, Tcl appends exactly
+        // two more words before invoking it: the name of the command that
+        // suspended the coroutine (`yield` or `yieldto`) and its current
+        // resumption value (a list, for `yieldto`) — "An additional two
+        // arguments are appended to the list of arguments to be run" per
+        // the Tcl 9.0/9.1 `coroutine(n)` manpage.
+        command_prefixes: &[(1, AppendedArity::Exactly(2))],
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {
-            summary: "Inject a command into a suspended coroutine.",
+            summary: "Queue a command to run inside a suspended coroutine when it next resumes.",
             synopsis: &["coroinject coroName command ?arg ...?"],
-            snippet: "",
-            source: "Tcl coroinject(1)",
-            examples: "",
+            snippet: "coroName must currently be suspended at a yield or yieldto call — injecting into a running (or nonexistent) coroutine is an error. command, together with any arg words already given, is queued to run the next time coroName resumes; two more arguments are appended automatically at that point: the name of the command that suspended the coroutine (yield or yieldto) and its current resumption value (a list, for yieldto). The injected command's result becomes the result of that yield/yieldto call in place of whatever value the caller supplied. coroinject does not resume the coroutine itself, so several injections can be queued before it next runs; queued injections then fire in reverse (last-queued-first) order, each one's result becoming the resumption value seen by the next. Each injection is one-off — it is discarded once it has executed — but it may itself call yield or yieldto. coroprobe is the immediate counterpart: it runs a command right away inside the suspended coroutine instead of deferring it to the next resume.",
+            source: "Tcl coroutine(n)",
+            examples: "proc collector {} {\n    set acc {}\n    for {set val [yield]} {$val ne \"\"} {set val [yield]} {\n        lappend acc $val\n    }\n    return $acc\n}\ncoroutine collect collector\ncollect abc\ncoroinject collect apply {{how val} {\n    puts \"resumed via $how with $val\"\n    return [string toupper $val]\n}}\ncollect def",
             return_value: "",
         }),
         forms: FORMS,

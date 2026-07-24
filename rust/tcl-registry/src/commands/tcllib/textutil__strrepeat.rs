@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "textutil::strRepeat char num",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {

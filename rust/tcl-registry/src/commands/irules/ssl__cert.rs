@@ -32,6 +32,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -46,6 +47,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -63,16 +65,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     value: "ignore",
                     detail: "Do not request client cert.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "request",
                     detail: "Request client cert.",
                     min_tcl: None,
+                    code: None,
                 },
                 ArgValue {
                     value: "require",
                     detail: "Require client cert.",
                     min_tcl: None,
+                    code: None,
                 },
             ],
         )],
@@ -81,6 +86,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },
@@ -108,6 +114,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "SSL::cert <subcommand|index> ?args?",
+            dialects: None,
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -115,6 +122,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Both,
+            dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

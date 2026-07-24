@@ -22,7 +22,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseLine",
         traits: Traits::PURE,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return the HTTP response status line.",

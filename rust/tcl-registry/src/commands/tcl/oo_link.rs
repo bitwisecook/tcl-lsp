@@ -35,6 +35,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "link linkName ?linkName ...?",
+    dialects: None,
 }];
 const HOVER: HoverSnippet = HoverSnippet {
     summary: "expose a method as a bareword command in the object's own namespace",

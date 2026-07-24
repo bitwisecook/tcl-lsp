@@ -45,12 +45,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "node ip_addr ?service_port?",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NodeSelection,
             reads: false,
             writes: true,
             connection_side: ConnectionSide::Server,
+            dialects: None,
         }],
         ..CommandSpec::DEFAULT
     }

@@ -1,9 +1,0 @@
-event: HTTP_REQUEST
-known: yes
-deprecated: no
-multiplicity: per_request
-description: Fires when request headers are fully parsed (pre-LB). On keep-alive connections, fires once per HTTP transaction. Pipeline: L7 iRules layer.
-side: client-side
-transport: tcp
-profiles: FASTHTTP, HTTP
-valid commands: 875

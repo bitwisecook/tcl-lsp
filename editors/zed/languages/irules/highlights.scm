@@ -60,8 +60,8 @@
 (command
   name: (simple_word) @keyword
   (#any-of? @keyword
-    "break" "continue" "error" "global" "return" "uplevel"
-    "upvar" "variable" "when"))
+    "break" "continue" "error" "eval" "global" "return"
+    "uplevel" "upvar" "variable" "when"))
 
 ; --- generated from tcl-registry: built-in commands ---
 (command
@@ -219,30 +219,27 @@
     "XML::element" "XML::enable" "XML::event" "XML::eventid" "XML::parse" "XML::payload"
     "XML::release" "XML::soap" "XML::subscribe" "accumulate" "active_members" "active_nodes"
     "after" "append" "array" "b64decode" "b64encode" "binary"
-    "call" "chan" "check" "class" "client_addr" "client_port"
-    "clientside" "clock" "clone" "close" "concat" "connect"
-    "const" "cpu" "crc32" "decode_uri" "discard" "domain"
-    "drop" "encoding" "eval" "event" "fasthash" "findclass"
-    "findstr" "format" "forward" "getfield" "gettimes" "history"
-    "html_encode" "html_escape" "htmlencode" "htonl" "htons" "http_client_ip"
-    "http_content_len_max" "http_cookie" "http_header" "http_host" "http_method" "http_uri"
-    "http_version" "ifile" "imid" "incr" "info" "ip_addr"
-    "ip_protocol" "ip_tos" "ip_ttl" "join" "lappend" "lasthop"
-    "lgen" "lindex" "link_qos" "linsert" "list" "listen"
+    "call" "check" "class" "client_addr" "client_port" "clientside"
+    "clock" "clone" "close" "concat" "connect" "cpu"
+    "crc32" "decode_uri" "discard" "domain" "drop" "encoding"
+    "event" "fasthash" "findclass" "findstr" "format" "forward"
+    "getfield" "html_encode" "html_escape" "htmlencode" "htonl" "htons"
+    "http_client_ip" "http_content_len_max" "http_cookie" "http_header" "http_host" "http_method"
+    "http_uri" "http_version" "ifile" "imid" "incr" "info"
+    "ip_addr" "ip_protocol" "ip_tos" "ip_ttl" "join" "lappend"
+    "lasthop" "lindex" "link_qos" "linsert" "list" "listen"
     "llength" "llookup" "local_addr" "local_port" "log" "lrange"
-    "lreplace" "lsearch" "lset" "lsort" "lstring" "matchclass"
-    "md4" "md5" "members" "nexthop" "node" "nodes"
-    "noop" "ntohl" "ntohs" "parray" "peer" "pem_dtos"
-    "persist" "pkg_mkIndex" "pool" "priority" "puts" "radius_authenticate"
-    "rateclass" "read" "recv" "redirect" "regexp" "regsub"
+    "lreplace" "lsearch" "lset" "lsort" "matchclass" "md4"
+    "md5" "members" "nexthop" "node" "nodes" "ntohl"
+    "ntohs" "peer" "pem_dtos" "persist" "pool" "priority"
+    "radius_authenticate" "rateclass" "recv" "redirect" "regexp" "regsub"
     "reject" "relate_client" "relate_server" "remote_addr" "remote_port" "rmd160"
     "scan" "send" "server_addr" "server_port" "serverside" "session"
     "sha1" "sha256" "sha384" "sha512" "sharedvar" "snat"
     "snatpool" "split" "string" "subst" "substr" "table"
-    "tcl_endOfWord" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tcpdump"
-    "timing" "trace" "traffic_group" "translate" "uniq_ordered_ip_list" "uniq_sorted_ip_list"
-    "unset" "urlcatblindquery" "urlcatquery" "use" "virtual" "vlan_id"
-    "whereis" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list"))
+    "tcpdump" "timing" "trace" "traffic_group" "translate" "uniq_ordered_ip_list"
+    "uniq_sorted_ip_list" "unset" "urlcatblindquery" "urlcatquery" "use" "virtual"
+    "vlan_id" "whereis" "xff_list" "xff_uniq_ordered_ip_list" "xff_uniq_sorted_ip_list"))
 
 ; Highlight unset / variable arguments as variables
 (command

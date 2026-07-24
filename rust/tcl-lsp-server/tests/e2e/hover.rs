@@ -88,7 +88,8 @@ fn socket_hover_uses_registry_snippet() {
         "hover: {text:?}"
     );
     assert!(
-        text.to_lowercase().contains("tcp client or server socket"),
+        text.to_lowercase()
+            .contains("tcp client connection or listening server socket"),
         "hover: {text:?}"
     );
 }
@@ -100,7 +101,10 @@ fn socket_server_option_hover() {
     lsp.open_ready(&uri, "socket -server accept 8080\n");
     let text = hover(&mut lsp, &uri, 0, 8);
     assert!(text.contains("-server"), "hover: {text:?}");
-    assert!(text.to_lowercase().contains("callback"), "hover: {text:?}");
+    assert!(
+        text.to_lowercase().contains("command prefix"),
+        "hover: {text:?}"
+    );
 }
 
 #[test]
@@ -324,7 +328,10 @@ fn set_hover_omits_snippet() {
     lsp.open_ready(&uri, "set x 42\n");
     let text = hover(&mut lsp, &uri, 0, 1);
     assert!(text.contains("set varName"), "hover: {text:?}");
-    assert!(text.contains("Read or write"), "hover: {text:?}");
+    assert!(
+        text.contains("Read the value of a variable"),
+        "hover: {text:?}"
+    );
     assert!(!text.contains("With one argument"), "hover: {text:?}");
 }
 

@@ -44,12 +44,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "urlcatquery URL_STRING",
+            dialects: None,
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DataGroup,
             reads: true,
             writes: false,
             connection_side: ConnectionSide::Global,
+            dialects: None,
         }],
         deprecated_replacement: Some("CATEGORY::lookup"),
         ..CommandSpec::DEFAULT

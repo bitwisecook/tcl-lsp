@@ -21,6 +21,7 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "tmsh::reset_stats ?component? ?name?",
+    dialects: None,
 }];
 
 pub fn spec() -> CommandSpec {
