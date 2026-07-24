@@ -1,4 +1,4 @@
-# v2.1.13
+# v2.1.14
 
 **2.x alpha — pre-release channel.**
 
@@ -10,71 +10,94 @@ GitHub release. The stable **1.x** line stays the default for everyone who has
 not opted into pre-releases, and a `2.1.x` build never becomes the "latest"
 GitHub release or the default Marketplace download.
 
-v2.1.12's JetBrains build failed its own packaging check, which correctly
-blocked the JetBrains Marketplace publish for that tag (the VS Code
-Marketplace publish is gated independently of the JetBrains build and was
-unaffected by this bug). This release fixes the JetBrains packaging bug and
-otherwise carries the same content forward:
-six more confirmed fixes from the issue #923 differential-audit campaign — a
-tclsh-vs-analyser sweep across tricky TclOO, namespace, and `interp` idioms —
-to reference resolution, go-to-definition, and rename, plus platform-targeted
-packaging for VS Code and JetBrains.
+This release is dominated by a large per-command audit campaign that
+cross-checks the registry backing hover, completion, and diagnostics against
+the real Tcl 8.4-9.1 manpages (and the iRules/Expect/EDA dialect surfaces)
+command by command, plus a further round of the issue #923 differential-audit
+campaign (tclsh-vs-analyser correctness fixes). Alongside that: a crash fix
+for deeply nested Tcl source, several false-positive/false-negative
+diagnostic fixes, and a run of TclOO reference-finding and code-lens fixes.
 
 ## New Features
 
-- **VS Code: platform-targeted VSIX packages.** The Marketplace now serves
-  six small, single-binary VSIX packages (Windows, Linux, and macOS, each on
-  x64/arm64) alongside the existing universal package, so most installs pull
-  down one platform's binary instead of the full multi-platform bundle. The
-  universal VSIX remains available for riscv64 Linux and manual
-  "Install from VSIX" side-loading.
-- **JetBrains: the plugin bundles a native server for every supported
-  platform.** Previously it shipped only a Linux x64 binary regardless of
-  the host, so macOS, Windows, and ARM users had no working install. The
-  plugin now bundles one binary per platform (matching the VS Code universal
-  build) and picks the right one at runtime.
+- **Two new diagnostics: W141 and W142.** W141 validates the *content* of an
+  option's value where arity alone can't express the constraint (e.g.
+  `return -errorstack`'s list must have even length). W142 flags a
+  context-gated restriction — currently `return`'s bare-only form inside an
+  iRules `when EVENT { }` body.
+- **`tcl::mathop` recognises `lt`/`le`/`gt`/`ge`.** These Tcl 9.0+ operators
+  (TIP 461) were missing from the registry entirely; the mathop spec also
+  drops three entries (`&&`, `||`, `@`) that were never real
+  `::tcl::mathop` members in any released Tcl.
+
+## Improvements
+
+- **~150 of 275 core Tcl commands re-audited against the real manpages**
+  (8.4 through 9.1) and the iRules/Expect/EDA dialect directories, correcting
+  version gates, options, arity, side effects, and hover text wherever the
+  registry disagreed with the documented (or empirically-verified) behaviour
+  — `open`, `binary`, `after`, `array`, `catch`, `coroinject`, `format`,
+  `namespace`, `interp`, `glob`, `string`, the whole TclOO family, and many
+  more.
+- **iRules/Expect/EDA dialect gating is now fully explicit.** The old
+  subtractive `IRULES_DISABLED_COMMANDS` ban-list is gone; every command
+  declares the dialects it actually belongs to instead of defaulting to
+  "universal". This closes real leaks — about 72 stdlib package commands
+  (`http::*`, `msgcat::*`, `safe::*`, `platform::*`) and a few sandbox-
+  unreachable ones (`puts`, `read`, `parray`, …) were previously visible in
+  iRules even though the sandbox can't actually reach them — while keeping
+  every genuine core command available. `::tcl::` namespace commands
+  (Tcl 8.5+) are correctly excluded from 8.4/iRules, and Expect's
+  `exit -onexit`/`-noexit` and iRules' `event` command no longer leak into
+  dialects that don't have them.
+- **Further issue #923 differential-audit fixes** (follow-up to #963):
+  more tclsh-vs-analyser correctness work across rename, workspace
+  indexing, and reference resolution, plus expanded command specs for
+  `dict`, `prefix`, `oo_link`, `tcl::optproc`, `[incr Tcl]` class linkage,
+  and Snit types/widgets/widgetadaptors.
 
 ## Bug Fixes
 
-- **JetBrains plugin packaging includes the bundled native server binaries
-  again.** v2.1.12's plugin build silently produced a package missing all
-  six platform binaries: `prepareSandbox`'s `into("$pluginName/server")`
-  stringified an unresolved Gradle provider instead of the plugin name,
-  so the staged binaries landed under the wrong directory and never made
-  it into the distributable zip. The plugin's own packaging check caught
-  this and failed the build rather than shipping a broken package, which
-  is why v2.1.12 never reached the JetBrains Marketplace.
-- **`superclass`, `mixin`, and (incr Tcl) `inherit` targets are tracked as
-  class references.** Find All References on a base class previously
-  returned only its own declaration, missing every subclass that named it,
-  and renaming a class left those subclasses dangling. Covers TclOO,
-  `oo::configurable`, `[incr Tcl]`, `self mixin`, `oo::objdefine mixin`, and
-  `forward` targets, cross-file.
-- **Fully- and relatively-qualified namespace variable references now
-  resolve.** Hover, go-to-definition, references, and rename never resolved
-  a `::`-qualified variable read like `$::ns::var` or `$ns::var` at all;
-  they now resolve via the same namespace-path lookup already used for
-  qualified command resolution.
-- **Definition spans for the second and later parameters in a parameter
-  list are correct again.** Every parameter after the first in a
-  proc/`apply`/TclOO-method parameter list previously lost its own
-  definition span and fell back to pointing at the proc or method name.
-- **A definition nested inside another proc or class body no longer
-  outranks a real builtin of the same name.** The "rename the builtin away,
-  install a same-named shadow, restore it" idiom was permanently shadowing
-  the builtin for every call site in the workspace, including ones that run
-  after the shadow is renamed back off.
-- **`interp create -safe NAME` and `NAME eval {...}` are tracked
-  correctly.** The created interpreter's name was never registered as a
-  known command (causing false-positive "unknown command" diagnostics), and
-  the handle-call spelling of `interp eval` (`NAME eval {...}`, the more
-  common form in real code) was not isolated from same-named procs in
-  unrelated interpreters. Renaming or deleting an interpreter's handle
-  command now correctly retires its tracked state.
-- **Dynamic (`$var`) `namespace eval` and `oo::define` targets no longer
-  merge unrelated call sites that happen to reuse a variable name.** Two
-  lexically unrelated `namespace eval $name {...}` or `oo::define $class
-  ...` sites sharing a variable name previously collapsed into the same
-  scope, so go-to-definition/references from one could jump into a
-  completely unrelated proc, and `oo::define` could merge methods from
-  unrelated call sites into one class's document-symbol range.
+- **Fixed a crash on deeply nested Tcl source.** The analyser could
+  `SIGABRT` the whole process on control flow nested ~100-150 levels deep —
+  the recursion-depth guard was correct, but the worker thread's default
+  2 MiB stack wasn't big enough to hold that many real stack frames.
+  Recursive analysis now runs with a larger stack.
+- **W123 "unknown command" no longer fires for commands that are actually
+  gone or actually known:** a proc, class, alias, or `rename`d command that
+  was later deleted or renamed away is now correctly treated as unknown
+  everywhere the check runs (previously only some resolution passes saw
+  the deletion); and built-in `expr` math functions like `sin($x)` /
+  `max($a, $b)` no longer draw a spurious unknown-command hint.
+- **Fixed an unsound constant-folding false positive (I230).** An
+  interprocedural parameter-constant analysis trusted a proc parameter as
+  compile-time-constant whenever every *resolvable* call site agreed, even
+  when a real call site went unresolved and silently dropped out of
+  consideration — so a genuinely-alternating parity check could be flagged
+  "always false".
+- **W129 safe-interp hidden-command detection now sees through bracket
+  substitution.** A hidden command reached only via `[...]` — most notably
+  the common `[list apply {...} $x]` deferred-command idiom used in
+  `package ifneeded`, `trace add ... command`, and `after idle` — went
+  unflagged before.
+- **`apply` lambda highlighting works through `[list apply {...} $x]`
+  indirection**, fixing the common `package ifneeded name ver
+  [list apply {dir {...}} $dir]` pattern that a narrower earlier fix
+  missed.
+- **TclOO reference-finding and code-lens fixes:**
+  - Property, constructor, and destructor members now get a
+    reference-count code lens (previously only methods did).
+  - Method and classmethod code lenses are clickable again, and
+    classmethod reference counting is correct.
+  - Method-dispatch resolution (`my`, `next`, `nextto`, `$obj method`) for
+    Find References, rename, and call hierarchy now works when the call is
+    nested inside `if`/`while`/`foreach`/`switch`/`try`/`catch`/`eval`/
+    `dict for` at any depth, not just at the top level.
+- **`return`'s new W142 context gate no longer misfires inside a `proc`
+  that is lexically written inside a `when` block** — the restriction is
+  meant only for code directly in the event body, not code inside a
+  (separately-flagged) misplaced proc.
+- **Taint analysis (T100) no longer flags `apply`'s bound parameters or
+  `open`'s access-mode argument as code-injection sinks** — only the
+  actual lambda body / pipeline-selecting filename is a real sink for
+  either command.
