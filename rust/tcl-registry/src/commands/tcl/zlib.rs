@@ -33,6 +33,28 @@
 //! three) — so no per-fact version split exists below beyond the
 //! whole-command Tcl-8.6-floor gate.
 //!
+//! Re-verified directly against live tcl-lang.org fetches (2026-07-23):
+//! 8.6.18/9.0.4/9.1b0's zlib pages diff byte-for-byte identical once tag
+//! case (8.6's page predates the site's lowercase-HTML template) and the
+//! doc-anchor line-number IDs are discounted — the *only* textual delta
+//! anywhere in the three bodies is "compression and decompression
+//! operations" (8.6 NAME line) vs "Compression and decompression
+//! operations" (9.0/9.1, capitalised), confirming both the identical-
+//! content claim above and the `stream header` `#M62`-anchor quirk.
+//! Tcl 8.5's zlib.html was likewise re-fetched live and still serves the
+//! same soft-404 "URL Not Found" page template `coroutine.rs` documents
+//! for `coroutine.n` on the same 8.4/8.5 doc trees (a 200-status page
+//! that says "The page you are looking for cannot be found", not a real
+//! manual page).
+//! Tcl 8.4's zlib.html could not be re-fetched this pass — 10+ attempts
+//! (both it and a known-good control page from the same 8.4 doc tree,
+//! `open.html`) all failed with either a bare connection timeout or a
+//! Cloudflare 522, indicating a transient host-side outage of the 8.4
+//! tree specifically rather than a real 404 — so the 8.4-absence
+//! conclusion above rests on the prior audit's finding plus today's live
+//! 8.5 reconfirmation and TIP 234 landing in 8.6 (years after 8.4's
+//! feature-freeze), not on a fresh fetch of the 8.4 page itself.
+//!
 //! The manual documents each option's *value* precisely but not which
 //! of the six `push`/`stream` modes (compress/decompress/deflate/gunzip/
 //! gzip/inflate) actually accepts which option — e.g. it describes
@@ -290,6 +312,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "zlib gunzip string ?-headerVar varName?",
         options: GUNZIP_OPTIONS,
         return_type: Some(TclType::String),
+        // -headerVar's target receives the gzip-header dict (comment/crc/
+        // filename/os/size/time/type), not this subcommand's own String
+        // return value — the same "written variable has a fixed intrep
+        // unrelated to the return value" shape as `gets chan line`
+        // (`VarWriteTyping::Fixed(TclType::String)` in gets_.rs). Without
+        // this override the type lattice defaults to `ReturnValue` and
+        // would mistype the header variable as a String.
+        var_write_typing: VarWriteTyping::Fixed(TclType::Dict),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: false,

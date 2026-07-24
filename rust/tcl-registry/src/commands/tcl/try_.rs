@@ -171,7 +171,7 @@ pub fn spec() -> CommandSpec {
         // `f5-iapps`/`f5-tmsh`/the Quartus/Mentor/Xilinx EDA shells all
         // mask in `TCL85` (their documented Tcl base) — none of those
         // five intersect `TCL86_PLUS`, so `try` is correctly unavailable
-        // in all five (`tcl-dialect/src/profile.rs`). `f5-bigip`'s mask
+        // in all six (`tcl-dialect/src/profile.rs`). `f5-bigip`'s mask
         // carries no Tcl-version bit at all (a config-file surface, not a
         // Tcl command surface), so it is unaffected either way. Expect
         // and the Cadence/Synopsys EDA shells mask in `TCL86`, and BPF
