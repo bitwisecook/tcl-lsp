@@ -1,4 +1,0 @@
-tmsh create ltm pool /Common/web_pool { members replace-all-with { /Common/n1:80 { } } }
-tmsh create ltm pool /Common/api_pool { members replace-all-with { /Common/n2:443 { } } }
-tmsh create ltm virtual /Common/vs_a { destination /Common/10.0.0.1:80 pool /Common/web_pool }
-tmsh create ltm virtual /Common/vs_b { destination /Common/10.0.0.2:443 pool /Common/web_pool }

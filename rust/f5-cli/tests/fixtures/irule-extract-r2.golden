@@ -1,3 +1,0 @@
-when CLIENT_ACCEPTED {
-        log local0. "x"
-    }

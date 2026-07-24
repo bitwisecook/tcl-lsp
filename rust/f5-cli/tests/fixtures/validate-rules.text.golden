@@ -1,9 +1,0 @@
-validate: 8 finding(s) warning=5, info=3
-  [warning] irule-deprecated-command: /Common/deprecated_rule: X509::extensions is deprecated; use X509::extensions_count + X509::extensions_get
-  [warning] irule-deprecated-command: /Common/deprecated_rule: use 'log local0.<facility> ...' (no underscore form)
-  [warning] irule-unknown-event: /Common/unknown_event_rule: iRule references unknown event 'TOTALLY_FAKE_EVENT'
-  [warning] orphan-monitor: /Partition2/orphan_mon: monitor not referenced by any pool
-  [warning] pool-without-monitor: /Common/no_monitor_pool: pool has no health monitor (pool-level or per-member)
-  [info] irule-empty-when: /Common/empty_when_rule: iRule contains a `when` block with no statements
-  [info] orphan-monitor: /Common/factory_mon: monitor not referenced by any pool in this config
-  [info] virtual-without-pool: /Common/vs_no_pool: virtual has no default pool and no iRules attached

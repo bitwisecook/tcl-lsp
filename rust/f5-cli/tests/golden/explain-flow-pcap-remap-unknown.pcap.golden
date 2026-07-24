@@ -1,7 +1,0 @@
-explain-flow: pcap-remap-unknown.pcap
-  sessions: 1 | matched: 0 | tshark: no
-
-[session 1] tcp
-  front: 93.184.216.34:80 <-> 8.8.8.8:1234 (tcp) | client→ 1 pkt
-  (no virtual server matched this destination)
-  termination: no termination observed in capture

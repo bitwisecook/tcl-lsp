@@ -1,5 +1,0 @@
-validate: 4 finding(s) warning=4
-  [warning] empty-pool: /Common/empty_pool: pool has no members
-  [warning] irule-missing-data-group: /Common/bad_references: iRule references data-group 'nonexistent_datagroup' (via `class`) but no such object exists
-  [warning] irule-missing-pool: /Common/bad_references: iRule references pool '/Common/missing_pool' (via `pool`) but no such object exists
-  [warning] irule-missing-snat-pool: /Common/bad_references: iRule references snat-pool '/Common/missing_snatpool' (via `snatpool`) but no such object exists

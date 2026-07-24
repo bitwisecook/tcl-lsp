@@ -1,5 +1,0 @@
-validate: 4 finding(s) warning=2, info=2
-  [warning] orphan-monitor: /Partition2/orphan_mon: monitor not referenced by any pool
-  [warning] pool-without-monitor: /Common/no_monitor_pool: pool has no health monitor (pool-level or per-member)
-  [info] orphan-monitor: /Common/factory_mon: monitor not referenced by any pool in this config
-  [info] virtual-without-pool: /Common/vs_no_pool: virtual has no default pool and no iRules attached

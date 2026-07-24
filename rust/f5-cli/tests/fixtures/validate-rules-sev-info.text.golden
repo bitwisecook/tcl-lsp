@@ -1,4 +1,0 @@
-validate: 3 finding(s) info=3
-  [info] irule-empty-when: /Common/empty_when_rule: iRule contains a `when` block with no statements
-  [info] orphan-monitor: /Common/factory_mon: monitor not referenced by any pool in this config
-  [info] virtual-without-pool: /Common/vs_no_pool: virtual has no default pool and no iRules attached

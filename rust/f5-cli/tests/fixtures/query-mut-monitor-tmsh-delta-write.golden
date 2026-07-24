@@ -1,3 +1,0 @@
-tmsh modify ltm pool /Common/web_pool { load-balancing-mode round-robin monitor /Common/tcp members replace-all-with { /Common/web1:80 { address 10.0.1.10 } /Common/web2:80 { address 10.0.1.11 } } }
-tmsh modify ltm pool /Common/api_pool { load-balancing-mode least-connections-member monitor /Common/tcp members replace-all-with { /Common/web2:8080 { address 10.0.1.11 } /Common/web3:8080 { address 10.0.1.12 } } }
-tmsh modify ltm pool /Common/empty_pool { monitor /Common/tcp }

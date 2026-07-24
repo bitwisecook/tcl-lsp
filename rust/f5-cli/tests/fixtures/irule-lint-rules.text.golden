@@ -1,5 +1,0 @@
-validate: 4 finding(s) warning=3, info=1
-  [warning] irule-deprecated-command: /Common/deprecated_rule: X509::extensions is deprecated; use X509::extensions_count + X509::extensions_get
-  [warning] irule-deprecated-command: /Common/deprecated_rule: use 'log local0.<facility> ...' (no underscore form)
-  [warning] irule-unknown-event: /Common/unknown_event_rule: iRule references unknown event 'TOTALLY_FAKE_EVENT'
-  [info] irule-empty-when: /Common/empty_when_rule: iRule contains a `when` block with no statements

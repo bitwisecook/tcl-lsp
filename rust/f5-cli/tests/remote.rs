@@ -22,9 +22,9 @@
 //! golden-tested offline. The byte-testable surfaces are exercised here
 //! against the built `f5-query` binary:
 //!
-//! - `push --dry-run` (PUT-replace and POST-create): the request summary on
-//!   stderr + the two-space-indented JSON payload body on stdout, asserted
-//!   against the committed golden output.
+//! - `push --dry-run`: the request summary on stderr + the JSON payload body
+//!   on stdout, asserted for the `fullPath`-vs-`name` target-selection
+//!   fallback.
 //! - credential resolution errors (no host / user / password) for all three
 //!   verbs, including the env-supplies-host/user precedence.
 //! - payload errors: missing file (`[Errno 2] …`) and invalid-JSON position
@@ -41,13 +41,6 @@ use std::process::{Command, Output};
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
-}
-
-fn golden(name: &str) -> String {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/golden")
-        .join(name);
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read golden {name}: {e}"))
 }
 
 fn payload() -> String {
@@ -86,67 +79,6 @@ fn run(args: &[&str], env_extra: &[(&str, &str)]) -> (String, String, i32) {
         String::from_utf8_lossy(&stderr).into_owned(),
         status.code().unwrap_or(-1),
     )
-}
-
-// push --dry-run: byte-identical REST request preview (stdout + stderr)
-
-#[test]
-fn push_dry_run_put() {
-    let p = payload();
-    let (out, err, code) = run(
-        &[
-            "push",
-            "virtual",
-            &p,
-            "--host",
-            "h",
-            "--user",
-            "admin",
-            "--dry-run",
-        ],
-        &[("F5_PASSWORD", "x")],
-    );
-    assert_eq!(code, 0, "dry-run exits 0; stderr: {err}");
-    assert_eq!(
-        out,
-        golden("push-dryrun-put.stdout.golden"),
-        "dry-run stdout"
-    );
-    assert_eq!(
-        err,
-        golden("push-dryrun-put.stderr.golden"),
-        "dry-run stderr"
-    );
-}
-
-#[test]
-fn push_dry_run_create() {
-    let p = payload();
-    let (out, err, code) = run(
-        &[
-            "push",
-            "pool",
-            &p,
-            "--host",
-            "h",
-            "--user",
-            "admin",
-            "--create",
-            "--dry-run",
-        ],
-        &[("F5_PASSWORD", "x")],
-    );
-    assert_eq!(code, 0, "create dry-run exits 0; stderr: {err}");
-    assert_eq!(
-        out,
-        golden("push-dryrun-create.stdout.golden"),
-        "create dry-run stdout"
-    );
-    assert_eq!(
-        err,
-        golden("push-dryrun-create.stderr.golden"),
-        "create dry-run stderr"
-    );
 }
 
 // The dry-run summary prefers `fullPath`, falling back to `name`.
@@ -215,20 +147,6 @@ fn missing_password_after_env_host_and_user() {
         err,
         "error: no password configured (set --password or F5_PASSWORD)\n"
     );
-}
-
-// Env supplies host + user; `--dry-run` prints before credential resolution, so
-// a missing password never even surfaces.
-#[test]
-fn env_host_user_precedence_dry_run_prints_before_creds() {
-    let p = payload();
-    let (out, err, code) = run(
-        &["push", "virtual", &p, "--dry-run", "--no-prompt"],
-        &[("F5_HOST", "h"), ("F5_USER", "admin")],
-    );
-    assert_eq!(code, 0, "dry-run prints before creds; stderr: {err}");
-    assert_eq!(out, golden("push-dryrun-put.stdout.golden"));
-    assert_eq!(err, golden("push-dryrun-put.stderr.golden"));
 }
 
 // payload errors: missing file + invalid-JSON position

@@ -1,3 +1,0 @@
-event order: 2 event(s)
-  1. CLIENT_ACCEPTED (once_per_connection)
-  2. HTTP_REQUEST (per_request)

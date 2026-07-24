@@ -1,3 +1,0 @@
-when HTTP_REQUEST {
-        pool /Common/p1
-    }

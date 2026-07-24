@@ -1,2 +1,0 @@
-validate: 1 finding(s) warning=1
-  [warning] irule-deprecated-command: /inline_1: X509::extensions is deprecated; use X509::extensions_count + X509::extensions_get
