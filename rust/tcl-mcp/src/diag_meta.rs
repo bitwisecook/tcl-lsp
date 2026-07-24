@@ -18,10 +18,14 @@
 
 //! Diagnostic categorisation metadata.
 //!
-//! The canonical source of the diagnostic code→category mapping, category
-//! ordering, convertible-code set, and conversion map, owned by this crate
-//! (`rust/tcl-mcp/diagnostics.json`) and compiled in via `include_str!`. The
-//! MCP server owns its own copy.
+//! The canonical source of the diagnostic code→category mapping and category
+//! ordering, owned by this crate (`rust/tcl-mcp/diagnostics.json`) and
+//! compiled in via `include_str!`. The MCP server owns its own copy.
+//!
+//! The convertible-code set and conversion map used to be a second copy
+//! here too (byte-identical to `tcl-cli`'s `find-legacy` table) — that data
+//! now comes straight from `tcl_cli::{CONVERTIBLE_CODES, conversion_for}`
+//! instead ([`crate::tools::find_legacy`]).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
@@ -40,10 +44,6 @@ pub struct DiagMeta {
     default_category: String,
     /// `(key, label)` in canonical display order.
     pub category_order: Vec<(String, String)>,
-    /// Codes the modernise/find-legacy pass can auto-convert.
-    pub convertible_codes: HashSet<String>,
-    /// Code→human conversion description (find-legacy).
-    pub conversion_map: HashMap<String, String>,
     /// Codes in the `security` category.
     pub security_codes: HashSet<String>,
     /// Codes in the `taint` category.
@@ -109,16 +109,6 @@ impl DiagMeta {
             })
             .unwrap_or_default();
 
-        let conversion_map = data
-            .get("conversion_map")
-            .and_then(Value::as_object)
-            .map(|m| {
-                m.iter()
-                    .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_owned())))
-                    .collect()
-            })
-            .unwrap_or_default();
-
         let take = |key: &str| category_codes.get(key).cloned().unwrap_or_default();
 
         Self {
@@ -133,8 +123,6 @@ impl DiagMeta {
                 .unwrap_or("style")
                 .to_owned(),
             category_order,
-            convertible_codes: str_set(data.get("convertible_codes")),
-            conversion_map,
         }
     }
 

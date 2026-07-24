@@ -66,14 +66,14 @@ KCS tag: `lexing`.
 
 Abstract Syntax Tree — a tree representation of parsed source code
 structure.  In this compiler, expression bodies (`expr {…}`) are parsed
-into `ExprNode` AST trees (`tcl_compiler::expr_ast`).
+into `ExprNode` AST trees (`tcl_syntax::expr::ast`).
 
 ```mermaid
 graph TD
-    ADD["ExprBinary<br/>op: ADD"] --> VAR_A["ExprVar<br/>$a"]
-    ADD --> MUL["ExprBinary<br/>op: MUL"]
-    MUL --> VAR_B["ExprVar<br/>$b"]
-    MUL --> LIT["ExprLiteral<br/>2"]
+    ADD["ExprNode::Binary<br/>op: Add"] --> VAR_A["ExprNode::Var<br/>$a"]
+    ADD --> MUL["ExprNode::Binary<br/>op: Mul"]
+    MUL --> VAR_B["ExprNode::Var<br/>$b"]
+    MUL --> LIT["ExprNode::Literal<br/>2"]
 ```
 
 > Example: `expr {$a + $b * 2}` — the AST respects operator precedence

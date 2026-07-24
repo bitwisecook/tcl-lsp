@@ -1104,8 +1104,8 @@ pub(crate) fn apply_scalar_binop(op: &str, lhs: Value, rhs: Value) -> Result<Val
     let lhs = value::coerce_scalar(lhs);
     let rhs = value::coerce_scalar(rhs);
     match op {
-        "==" => Ok(Value::Bool(value::py_eq(&lhs, &rhs))),
-        "!=" => Ok(Value::Bool(!value::py_eq(&lhs, &rhs))),
+        "==" => Ok(Value::Bool(value::py_eq(&lhs, &rhs, 0))),
+        "!=" => Ok(Value::Bool(!value::py_eq(&lhs, &rhs, 0))),
         "<" | "<=" | ">" | ">=" => cmp(&lhs, &rhs, op),
         "+" => add(lhs, rhs),
         "-" => sub(lhs, rhs),
@@ -1282,6 +1282,7 @@ fn sub(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
             value::py_eq(
                 &value::coerce_scalar(item.clone()),
                 &value::coerce_scalar(target.clone()),
+                0,
             )
         };
         let removed: Vec<Value> = match &rhs {

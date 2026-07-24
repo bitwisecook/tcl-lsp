@@ -41,6 +41,7 @@ use super::helpers::{
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::analyser::utils::param_name_spans;
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{ExprNode, UnaryOp};
 
 /// The read-only name/guard/suppression context for the `return`-value
@@ -1190,6 +1191,20 @@ file; this call falls through to the 'unknown' handler."
             if span.is_empty() {
                 continue;
             }
+            // A `$var` read inside an opaque body-role script that also
+            // defines `var` earlier in the same script reads that script's
+            // *own* local, not the outer variable — so it is not a read of an
+            // undefined outer name. `interp eval PATH { set x 1; expr {$x + 1}
+            // }` runs its body in a child interpreter whose statements are
+            // never flattened into this function's CFG, leaving the whole
+            // script scanned as one `Statement::Barrier` value: the `$x` read
+            // and the body-local `set x` collapse onto that single statement,
+            // so the version-0 chain shows a read with no visible def and
+            // W210 false-fired (issue #923). This is the only place the
+            // body-local write is visible.
+            if barrier_body_locally_sets(stmt_opt, var, self.registry) {
+                continue;
+            }
             // A read-modify-write command (`lappend` / `append`) that
             // auto-creates its target is not a read-before-set: it both
             // reads and defines the variable, creating it from an empty
@@ -2275,25 +2290,39 @@ file; this call falls through to the 'unknown' handler."
 /// boundary). Used to recover
 /// variable reads hidden inside `if`/`while` conditions and `expr` values.
 fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
+    // Entry point: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`collect_expr_command_texts_at`]).
+    collect_expr_command_texts_at(node, out, 0);
+}
+
+fn collect_expr_command_texts_at(node: &ExprNode, out: &mut Vec<String>, depth: u32) {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — a collector
+    // that returns the command texts gathered so far is the safe fallback
+    // (substitutions buried deeper than the cap are not collected; never a
+    // crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Command { text, .. } => out.push(text.clone()),
         ExprNode::Binary { left, right, .. } => {
-            collect_expr_command_texts(left, out);
-            collect_expr_command_texts(right, out);
+            collect_expr_command_texts_at(left, out, depth + 1);
+            collect_expr_command_texts_at(right, out, depth + 1);
         }
-        ExprNode::Unary { operand, .. } => collect_expr_command_texts(operand, out),
+        ExprNode::Unary { operand, .. } => collect_expr_command_texts_at(operand, out, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            collect_expr_command_texts(condition, out);
-            collect_expr_command_texts(true_branch, out);
-            collect_expr_command_texts(false_branch, out);
+            collect_expr_command_texts_at(condition, out, depth + 1);
+            collect_expr_command_texts_at(true_branch, out, depth + 1);
+            collect_expr_command_texts_at(false_branch, out, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                collect_expr_command_texts(arg, out);
+                collect_expr_command_texts_at(arg, out, depth + 1);
             }
         }
         ExprNode::Literal { .. }
@@ -2404,6 +2433,46 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
         .collect();
     matches.sort_unstable();
     matches.into_iter().next()
+}
+
+/// True when `stmt` is a `Statement::Barrier` whose body-role argument (an
+/// opaque script run in a separate context — `interp eval PATH { ... }`)
+/// contains a top-level `set VAR ...` for `var`.
+///
+/// Such a body is never flattened into this function's CFG (its target
+/// interpreter is unknowable to static analysis), so its whole script text is
+/// scanned as one statement's value: a `$var` read and the body's own `set
+/// var` collapse onto the same `Statement::Barrier`, and the version-0
+/// def-use chain then shows a read with no visible definition. Recovering the
+/// body's own top-level assignments here is the only place that write is
+/// visible, so a plain write-then-read *inside* the body doesn't false-fire
+/// W210 (issue #923). Deliberately conservative — it suppresses whenever the
+/// body sets the name, a false-negative direction (a genuine read-before-set
+/// entirely within the opaque body is unreported either way, and the outer
+/// interpreter-handle vs. inner-local name clash drops that outer read too),
+/// never a new false positive.
+fn barrier_body_locally_sets(
+    stmt: Option<&crate::ir::Statement>,
+    var: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
+    use crate::ir::Statement;
+    let (Some(Statement::Barrier { command, args, .. }), Some(registry)) = (stmt, registry) else {
+        return false;
+    };
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    registry
+        .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
+        .into_iter()
+        .filter_map(|idx| args.get(idx))
+        .flat_map(|body_text| crate::segmenter::segment_commands(body_text))
+        .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
+        .filter_map(|seg| {
+            seg.texts
+                .get(1)
+                .map(|w| crate::naming::normalise_var_name(w).to_owned())
+        })
+        .any(|name| name == var)
 }
 
 /// Variables this statement queries *only for
@@ -2783,4 +2852,33 @@ fn def_is_element_write(
                     if name.contains('(')
             )
         })
+}
+
+#[cfg(test)]
+mod issue996_tests {
+    use super::*;
+
+    /// Regression coverage for issue #996: `collect_expr_command_texts`
+    /// recurses once per `ExprNode` level with no depth cap before this fix.
+    /// A tree built directly is unbounded (the Pratt parser caps its own
+    /// output at 256) and empirically overflowed the native stack (SIGABRT)
+    /// in the low thousands of levels on a 2 MiB thread. 3000 is past that
+    /// crash range and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is
+    /// that it returns at all.
+    #[test]
+    fn deeply_nested_collect_expr_command_texts_survives() {
+        let mut node = ExprNode::Command {
+            text: "[x]".into(),
+            start: 0,
+            end: 3,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let mut out = Vec::new();
+        collect_expr_command_texts(&node, &mut out);
+    }
 }

@@ -141,7 +141,7 @@ fn bi_json_parse(args: &[Value]) -> Result<Value, QueryError> {
             e.column()
         ))
     })?;
-    Ok(json_to_value(&parsed))
+    Ok(json_to_value(&parsed, 0))
 }
 
 fn bi_all(args: &[Value]) -> Result<Value, QueryError> {

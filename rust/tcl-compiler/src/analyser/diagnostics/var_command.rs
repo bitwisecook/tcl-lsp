@@ -45,9 +45,16 @@ use crate::analyser::types::Severity;
 /// and class simple-name tails.
 struct W307KnownNames {
     cmds: HashSet<String>,
-    procs: HashSet<String>,
-    proc_bare: HashSet<String>,
-    class_tails: HashSet<String>,
+    /// Qualified proc name → establishing offset (issue #1010: was a
+    /// plain `HashSet`; the offset lets `is_known_command` check each
+    /// candidate is still live — not renamed/deleted away with no later
+    /// re-establishment — at the dispatch site via `fact_live_for_call`).
+    procs: HashMap<String, u32>,
+    /// Bare tail → `(qualified_name, establishing_offset)` pairs — a tail
+    /// may match several qualified procs across namespaces.
+    proc_by_tail: HashMap<String, Vec<(String, u32)>>,
+    /// [`Self::proc_by_tail`]'s twin for classes.
+    class_by_tail: HashMap<String, Vec<(String, u32)>>,
 }
 
 /// All the borrowed analysis data the W307 per-site suppression decision
@@ -130,26 +137,101 @@ impl Analyser {
         for fu in units {
             for block in fu.cfg.blocks.values() {
                 for stmt in &block.statements {
-                    let Statement::AssignValue { name, value, .. } = stmt else {
-                        continue;
-                    };
-                    let Some((head, args)) =
-                        crate::value_shapes::parse_command_substitution(value.trim())
+                    let Statement::AssignValue {
+                        name,
+                        value,
+                        span,
+                        tokens,
+                        ..
+                    } = stmt
                     else {
                         continue;
                     };
-                    if !args.first().is_some_and(|s| s == "new" || s == "create") {
-                        continue;
-                    }
-                    let class_qn = self.canonicalise_class_name(&head);
-                    if self.result.all_classes.contains_key(&class_qn)
-                        || self.result.all_classes.contains_key(&head)
+                    let trimmed = value.trim();
+                    let mut class_qn = None;
+                    if let Some((head, args)) =
+                        crate::value_shapes::parse_command_substitution(trimmed)
+                        && args.first().is_some_and(|s| s == "new" || s == "create")
                     {
+                        // The constructor call must still be live at this
+                        // assignment — a dead class fails the call, so `x`
+                        // is never assigned an object (issue #1010).
+                        let qn = self.canonicalise_class_name(&head);
+                        let off = span.start();
+                        if self.class_live_for_call(&qn, off)
+                            || self.class_live_for_call(&head, off)
+                        {
+                            class_qn = Some(qn);
+                        }
+                    }
+                    // The constructor's class head is a `$var` reference
+                    // rather than a literal bareword (issue #923 idx 121):
+                    // defer to the same flow-sensitive resolution
+                    // `instance_classes` uses, so the type lattice agrees
+                    // with hover/definition on the same dispatch.
+                    if class_qn.is_none() {
+                        class_qn = self.harvest_indirect_constructor_class(
+                            cu,
+                            fu,
+                            trimmed,
+                            tokens.as_ref(),
+                        );
+                    }
+                    if let Some(class_qn) = class_qn {
                         out.entry(name.clone()).or_default().insert(class_qn);
                     }
                 }
             }
         }
+    }
+
+    /// The `$class`-headed indirection counterpart of the literal-bareword
+    /// check above (issue #923 idx 121): resolves the class variable's
+    /// constant contributors via the flow-sensitive value model — the same
+    /// `class_var_head_constructor_subst` shape-parse
+    /// [`Analyser::record_pending_instance_class_site`] uses for
+    /// `instance_classes` — so the SSA type-lattice (W307/W308) agrees with
+    /// hover/definition on the exact same `$var`-headed constructor
+    /// dispatch. Abstains (`None`) on anything unprovable or genuinely
+    /// (branch-)ambiguous, the same soundness bar as that sibling settle
+    /// path.
+    fn harvest_indirect_constructor_class(
+        &self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        fu: &crate::compilation_unit::FunctionUnit,
+        value: &str,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) -> Option<String> {
+        let (class_var, offset) = super::super::commands::class_var_head_constructor_subst(value)?;
+        if cu.ir_module.has_dynamic_variable_trace
+            || cu.ir_module.traced_variables.contains(&class_var)
+        {
+            return None;
+        }
+        let value_start = tokens?.argv.get(2)?.start();
+        let contributors =
+            crate::value_provenance::const_contributors(fu, value_start + offset, &class_var)?;
+        let mut resolved: Option<String> = None;
+        for c in &contributors {
+            let v = c.value.trim();
+            if v.is_empty() || crate::naming::is_dynamic_word(v) {
+                return None;
+            }
+            let qn = self.canonicalise_class_name(v);
+            let known = if self.result.all_classes.contains_key(&qn) {
+                qn
+            } else if self.result.all_classes.contains_key(v) {
+                v.to_string()
+            } else {
+                return None;
+            };
+            match &resolved {
+                None => resolved = Some(known),
+                Some(existing) if *existing != known => return None,
+                Some(_) => {}
+            }
+        }
+        resolved
     }
 
     /// Per-proc `(body_start, body_end, factory_local_vars)` ranges — the
@@ -546,36 +628,70 @@ impl Analyser {
     /// qualified names + their simple-name tails, and class simple-name tails.
     fn build_w307_known_names(&self, registry: &tcl_registry::CommandRegistry) -> W307KnownNames {
         let cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
-        let procs: HashSet<String> = self.result.all_procs.keys().cloned().collect();
-        let proc_bare: HashSet<String> = procs
-            .iter()
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, tail)| tail.to_string()))
-            .filter(|s| !s.is_empty())
-            .collect();
-        let class_tails: HashSet<String> = self
+        let procs: HashMap<String, u32> = self
             .result
-            .all_classes
-            .keys()
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, tail)| tail.to_string()))
-            .filter(|s| !s.is_empty())
+            .all_procs
+            .iter()
+            .map(|(qn, def)| (qn.clone(), def.name_span.start()))
             .collect();
+        let proc_by_tail = super::unresolved::group_defs_by_tail(
+            self.result
+                .all_procs
+                .iter()
+                .map(|(qn, def)| (qn, def.name_span.start())),
+        );
+        let class_by_tail = super::unresolved::group_defs_by_tail(
+            self.result
+                .all_classes
+                .iter()
+                .map(|(qn, def)| (qn, def.name_span.start())),
+        );
         W307KnownNames {
             cmds,
             procs,
-            proc_bare,
-            class_tails,
+            proc_by_tail,
+            class_by_tail,
         }
     }
 
-    /// True when `v` resolves to a known command: a registry name, a user proc
-    /// (bare / `::`-qualified / tail), or a class command.
-    fn is_known_command(&self, known: &W307KnownNames, v: &str) -> bool {
+    /// Whether `qualified` names a class that is still live at `call_off`
+    /// — shared by the constructor-recognition sites (`[Cls new]` direct
+    /// calls and `set x [Cls new]` variable assignments alike), which
+    /// otherwise duplicate the identical `all_classes.get(...).is_some_and(...)`
+    /// call three times over (issue #1010).
+    fn class_live_for_call(&self, qualified: &str, call_off: u32) -> bool {
+        self.result
+            .all_classes
+            .get(qualified)
+            .is_some_and(|c| self.fact_live_for_call(qualified, c.name_span.start(), call_off))
+    }
+
+    /// True when `v` resolves to a known, *live* command at `call_off`: a
+    /// registry name, a user proc (bare / `::`-qualified / tail), or a
+    /// class command. A proc/class renamed or deleted away with no later
+    /// re-establishment does not count (issue #1010: this used to
+    /// wrongly suppress W307 on a dead dynamic-dispatch value —
+    /// confirmed against tclsh 8.6.14 that calling it still fails
+    /// "invalid command name" — reusing `fact_live_for_call` rather than
+    /// a third re-derivation of the same question).
+    fn is_known_command(&self, known: &W307KnownNames, v: &str, call_off: u32) -> bool {
+        let live_at = |qualified: &str, off: u32| self.fact_live_for_call(qualified, off, call_off);
+        let by_tail_live = |defs_by_tail: &HashMap<String, Vec<(String, u32)>>| {
+            defs_by_tail
+                .get(v)
+                .is_some_and(|defs| defs.iter().any(|(qn, off)| live_at(qn, *off)))
+        };
+        let global = format!("::{v}");
         known.cmds.contains(v)
-            || known.procs.contains(v)
-            || known.proc_bare.contains(v)
-            || known.procs.contains(&format!("::{v}"))
-            || known.class_tails.contains(v)
-            || self.result.all_classes.contains_key(&format!("::{v}"))
+            || known.procs.get(v).is_some_and(|&off| live_at(v, off))
+            || by_tail_live(&known.proc_by_tail)
+            || known.procs.get(&global).is_some_and(|&off| live_at(&global, off))
+            || by_tail_live(&known.class_by_tail)
+            || self
+                .result
+                .all_classes
+                .get(&global)
+                .is_some_and(|c| live_at(&global, c.name_span.start()))
             // A command bound by `CLASS create NAME` (issue #777).
             || self.result.created_instance_commands.contains(v)
     }
@@ -606,10 +722,13 @@ impl Analyser {
         let effective = precise
             .as_ref()
             .or_else(|| ctx.all_constsets.get(&site.var_name));
+        let call_off = site.cmd_span.start();
         // SCCP concrete evidence the value IS a known command — suppress.
-        if effective
-            .is_some_and(|v| !v.is_empty() && v.iter().all(|x| self.is_known_command(ctx.known, x)))
-        {
+        if effective.is_some_and(|v| {
+            !v.is_empty()
+                && v.iter()
+                    .all(|x| self.is_known_command(ctx.known, x, call_off))
+        }) {
             return true;
         }
         // SCCP concrete evidence the value is NOT a command: every feasible
@@ -618,7 +737,9 @@ impl Analyser {
         // proc-param / multi-dispatch) must not silence the real "invalid
         // command name" hazard (FP-OBJ-09 / FP-OBJ-D4-F5).
         let sccp_not_command = effective.is_some_and(|v| {
-            !v.is_empty() && v.iter().all(|x| !self.is_known_command(ctx.known, x))
+            !v.is_empty()
+                && v.iter()
+                    .all(|x| !self.is_known_command(ctx.known, x, call_off))
         });
         // ``in_method`` short-circuits W307 because OO methods routinely use
         // ``$obj method`` patterns — unless SCCP proves a non-command value.
@@ -656,17 +777,16 @@ impl Analyser {
             && !values.is_empty()
             && values
                 .iter()
-                .all(|v| self.is_known_command(ctx.known, &format!("{v}::{tail}")))
+                .all(|v| self.is_known_command(ctx.known, &format!("{v}::{tail}"), call_off))
         {
             return true;
         }
         // Object-factory provenance: `$var` holds a factory result in this scope
         // — a designed object handle, so the dispatch is not a static error.
-        let off = site.cmd_span.start();
         if ctx
             .factory_object_ranges
             .iter()
-            .any(|(s, e, names)| *s <= off && off <= *e && names.contains(&site.var_name))
+            .any(|(s, e, names)| *s <= call_off && call_off <= *e && names.contains(&site.var_name))
         {
             return true;
         }
@@ -675,7 +795,7 @@ impl Analyser {
         if ctx
             .snit_var_ranges
             .iter()
-            .any(|(s, e, vars)| *s <= off && off <= *e && vars.contains(&site.var_name))
+            .any(|(s, e, vars)| *s <= call_off && call_off <= *e && vars.contains(&site.var_name))
         {
             return true;
         }
@@ -697,12 +817,21 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) -> Vec<(u32, u32, HashSet<String>)> {
-        let class_qnames: HashSet<&String> = self.result.all_classes.keys().collect();
-        let class_tails: HashSet<&str> = class_qnames
-            .iter()
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t))
-            .filter(|t| !t.is_empty())
-            .collect();
+        // Grouped by tail (unfiltered by deletion — `is_object_returning_head`
+        // below does that, file-end granularity: this predicate classifies
+        // a bare head with no specific call site in hand, unlike
+        // `w307_site_suppressed`'s per-site checks). A class renamed or
+        // deleted away with no later re-establishment can't actually
+        // produce an object, so a `set x [ClassName new]` where
+        // `ClassName` is dead must not mark `x` a factory local (issue
+        // #1010, confirmed against tclsh 8.6.14 that the constructor call
+        // itself fails "invalid command name" first).
+        let class_by_tail = super::unresolved::group_defs_by_tail(
+            self.result
+                .all_classes
+                .iter()
+                .map(|(qn, def)| (qn, def.name_span.start())),
+        );
         let is_user_proc = |head: &str| {
             self.result.all_procs.contains_key(head)
                 || self.result.all_procs.contains_key(&format!("::{head}"))
@@ -710,7 +839,19 @@ impl Analyser {
         // A command head whose value-returning invocation yields an object
         // handle (excluding user procs, which the fixpoint classifies).
         let is_object_returning_head = |head: &str| -> bool {
-            if class_tails.contains(head) || class_qnames.contains(&format!("::{head}")) {
+            if class_by_tail.get(head).is_some_and(|defs| {
+                defs.iter()
+                    .any(|(qn, off)| self.fact_live_at_file_end(qn, *off))
+            }) {
+                return true;
+            }
+            let global = format!("::{head}");
+            if self
+                .result
+                .all_classes
+                .get(&global)
+                .is_some_and(|c| self.fact_live_at_file_end(&global, c.name_span.start()))
+            {
                 return true;
             }
             if head.contains("::") {
@@ -1067,8 +1208,10 @@ impl Analyser {
             // explicitly here — ``known_class new/create`` maps to
             // ``TclType.OBJECT`` with the class name attached.
             let class_qn = self.canonicalise_class_name(head);
-            let head_is_known_class = self.result.all_classes.contains_key(&class_qn)
-                || self.result.all_classes.contains_key(head);
+            // Renamed/deleted with no re-establishment fails the call (issue #1010).
+            let off = site.cmd_span.start();
+            let head_is_known_class =
+                self.class_live_for_call(&class_qn, off) || self.class_live_for_call(head, off);
             let is_constructor_call = head_is_known_class
                 && arg_strs
                     .first()
@@ -1263,10 +1406,6 @@ impl Analyser {
         if harvested.is_empty() {
             return;
         }
-        let known = |qualified: &str| {
-            self.result.all_procs.contains_key(qualified)
-                || self.result.all_classes.contains_key(qualified)
-        };
         let mut seen_spans: HashSet<(u32, u32)> = self
             .result
             .command_invocations
@@ -1285,6 +1424,19 @@ impl Analyser {
                 &self.result.global_scope,
                 span.start(),
             );
+            // A candidate must still be *live* at this dispatch-table
+            // entry's own position — renamed or deleted away with no
+            // later re-establishment must not synthesize a phantom
+            // reference (issue #1010, same question `unresolved.rs`'s
+            // W123 pass already answers via `fact_live_for_call`, reused
+            // here rather than reimplemented).
+            let known = |qualified: &str| {
+                self.result.all_procs.get(qualified).is_some_and(|p| {
+                    self.fact_live_for_call(qualified, p.name_span.start(), span.start())
+                }) || self.result.all_classes.get(qualified).is_some_and(|c| {
+                    self.fact_live_for_call(qualified, c.name_span.start(), span.start())
+                })
+            };
             let Some(winner) =
                 crate::naming::resolve_command_with::<&str, _>(&ns, &[], &value, known)
             else {
@@ -1301,6 +1453,7 @@ impl Analyser {
                 indirect: false,
                 rename_safe: true,
                 existence_probe: false,
+                is_mathfunc_call: false,
             });
         }
         self.result.command_invocations.extend(new_invocations);
@@ -1440,13 +1593,25 @@ impl Analyser {
         // emitter used to skip suggestions in the first pass.
         let registry = tcl_registry::CommandRegistry::build_default();
         let known_cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
-        let known_proc_tails: HashSet<String> = self
-            .result
-            .all_procs
-            .keys()
-            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
-            .filter(|s| !s.is_empty())
-            .collect();
+        // Grouped by tail (unfiltered by deletion — the per-diagnostic live
+        // check below does that): a tail may match several qualified
+        // procs, each tracked with its own establishing offset so a
+        // renamed-or-deleted-away one (with no later re-establishment)
+        // doesn't count as resolving this interpolated head (issue #1010,
+        // the same question `unresolved.rs`'s `proc_defs_by_tail` already
+        // answers for ordinary bareword W123, reused here via
+        // `fact_live_for_call` rather than reimplemented).
+        let mut proc_defs_by_tail: HashMap<String, Vec<(String, u32)>> = HashMap::new();
+        for (qn, def) in &self.result.all_procs {
+            if let Some((_, tail)) = qn.rsplit_once("::")
+                && !tail.is_empty()
+            {
+                proc_defs_by_tail
+                    .entry(tail.to_string())
+                    .or_default()
+                    .push((qn.clone(), def.name_span.start()));
+            }
+        }
 
         // Walk W123 diagnostics and remove those whose
         // interpolated command name resolves cleanly.
@@ -1470,12 +1635,30 @@ impl Analyser {
                 kept.push(d);
                 continue;
             };
-            // All resolved candidates must be known commands.
+            // All resolved candidates must be known commands — live ones,
+            // not a proc renamed or deleted away with no later
+            // re-establishment (issue #1010: this closure used to delete
+            // an already-correct W123 for e.g. `do${suffix}` folding to
+            // `doThing` after `rename doThing {}`, confirmed against
+            // tclsh 8.6.14 that the call still fails "invalid command
+            // name").
+            let call_off = d.span.start();
+            let proc_tail_live = |name: &str| {
+                proc_defs_by_tail.get(name).is_some_and(|defs| {
+                    defs.iter()
+                        .any(|(qn, off)| self.fact_live_for_call(qn, *off, call_off))
+                })
+            };
+            let proc_qualified_live = |qualified: &str| {
+                self.result.all_procs.get(qualified).is_some_and(|p| {
+                    self.fact_live_for_call(qualified, p.name_span.start(), call_off)
+                })
+            };
             let all_known = resolved.iter().all(|name| {
                 known_cmds.contains(name)
-                    || known_proc_tails.contains(name)
-                    || self.result.all_procs.contains_key(&format!("::{name}"))
-                    || self.result.all_procs.contains_key(name)
+                    || proc_tail_live(name)
+                    || proc_qualified_live(&format!("::{name}"))
+                    || proc_qualified_live(name)
             });
             if all_known {
                 // Suppress this W123 — the interpolated head

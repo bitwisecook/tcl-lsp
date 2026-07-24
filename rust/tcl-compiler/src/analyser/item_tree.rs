@@ -341,7 +341,7 @@ fn result_methods(class: &super::types::ClassDef) -> Vec<FlatMethod> {
     let mut out = Vec::new();
     for (name, m) in &class.methods {
         out.push(FlatMethod {
-            key: format!("{cq}::method::{name}"),
+            key: super::types::class_member_key(cq, name, false),
             name_span: m.name_span,
             body_span: m.body_span,
             params: m.params.clone(),
@@ -349,7 +349,7 @@ fn result_methods(class: &super::types::ClassDef) -> Vec<FlatMethod> {
     }
     for (name, m) in &class.class_methods {
         out.push(FlatMethod {
-            key: format!("{cq}::classmethod::{name}"),
+            key: super::types::class_member_key(cq, name, true),
             name_span: m.name_span,
             body_span: m.body_span,
             params: m.params.clone(),

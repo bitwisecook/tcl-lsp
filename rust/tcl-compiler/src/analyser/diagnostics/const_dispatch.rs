@@ -49,7 +49,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::analyser::state::{Analyser, ConstDispatchSite};
-use crate::analyser::types::AnalysisResult;
 use crate::signature_scan::types::SignatureCommandInvocation;
 use crate::value_provenance::{ValueContributor, const_contributors};
 
@@ -90,7 +89,7 @@ fn command_component(c: &ValueContributor, head_expanded: bool) -> Option<ValueC
 fn settle_one_site(
     cu: &crate::compilation_unit::CompilationUnit,
     site: &ConstDispatchSite,
-    result: &AnalysisResult,
+    analyser: &Analyser,
     builtins: &HashSet<String>,
     renamed_away: &HashSet<&String>,
     settled: &mut Vec<SignatureCommandInvocation>,
@@ -108,19 +107,36 @@ fn settle_one_site(
     let Some(contributors) = const_contributors(fu, site.span.start(), &site.var_name) else {
         return;
     };
+    let result = &analyser.result;
+    let call_off = site.span.start();
+    // A candidate qualified name is "user-defined" only when its own fact
+    // — the proc/class definition, or the establishing `interp alias` /
+    // `rename` — is still live at this dispatch site: renamed away or
+    // deleted with no later re-establishment no longer denotes a real
+    // command (issue #1009, the same question `unresolved.rs`'s W123
+    // pass already answers for ordinary bareword calls via
+    // `fact_live_for_call`, reused here rather than reimplemented).
+    let user_defined =
+        |qualified: &str| {
+            result.all_procs.get(qualified).is_some_and(|p| {
+                analyser.fact_live_for_call(qualified, p.name_span.start(), call_off)
+            }) || result.all_classes.get(qualified).is_some_and(|c| {
+                analyser.fact_live_for_call(qualified, c.name_span.start(), call_off)
+            }) || (result.command_aliases.contains_key(qualified)
+                && analyser
+                    .alias_offsets
+                    .get(qualified)
+                    .is_some_and(|&off| analyser.fact_live_for_call(qualified, off, call_off)))
+                || (analyser.renamed_commands.contains_key(qualified)
+                    && analyser
+                        .rename_offsets
+                        .get(qualified)
+                        .is_some_and(|&off| analyser.fact_live_for_call(qualified, off, call_off)))
+        };
     let known = |qualified: &str| {
-        result.all_procs.contains_key(qualified)
-            || result.all_classes.contains_key(qualified)
-            || result.command_aliases.contains_key(qualified)
-            || result.renamed_commands.contains_key(qualified)
+        user_defined(qualified)
             || (builtins.contains(qualified.trim_start_matches(':'))
                 && !renamed_away.contains(&qualified.to_string()))
-    };
-    let user_defined = |qualified: &str| {
-        result.all_procs.contains_key(qualified)
-            || result.all_classes.contains_key(qualified)
-            || result.command_aliases.contains_key(qualified)
-            || result.renamed_commands.contains_key(qualified)
     };
     let path: &[String] = result
         .namespace_paths
@@ -174,6 +190,7 @@ fn settle_one_site(
             indirect: true,
             rename_safe,
             existence_probe: false,
+            is_mathfunc_call: false,
         });
         for c in group {
             let Some(span) = c.literal_span else { continue };
@@ -190,6 +207,7 @@ fn settle_one_site(
                 indirect: false,
                 rename_safe: true,
                 existence_probe: false,
+                is_mathfunc_call: false,
             });
         }
     }
@@ -226,14 +244,7 @@ impl Analyser {
 
         let mut settled: Vec<SignatureCommandInvocation> = Vec::new();
         for site in &sites {
-            settle_one_site(
-                cu,
-                site,
-                &self.result,
-                builtins,
-                &renamed_away,
-                &mut settled,
-            );
+            settle_one_site(cu, site, self, builtins, &renamed_away, &mut settled);
         }
         // A literal feeding several dispatch sites (or several sites
         // resolving the same head) settles once per distinct

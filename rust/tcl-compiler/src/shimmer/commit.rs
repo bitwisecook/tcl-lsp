@@ -50,6 +50,7 @@ use tcl_registry::{CommandRegistry, TclType};
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
@@ -522,7 +523,7 @@ fn typed_reads_of_expr(
     span: Span,
 ) -> Vec<TypedRead> {
     let mut out = Vec::new();
-    collect_expr_reads(ctx, node, uses, span, &mut out);
+    collect_expr_reads(ctx, node, uses, span, &mut out, 0);
     out
 }
 
@@ -532,13 +533,21 @@ fn collect_expr_reads(
     uses: &HashMap<Symbol, u32>,
     span: Span,
     out: &mut Vec<TypedRead>,
+    depth: u32,
 ) {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — a collector
+    // that returns the typed reads gathered so far is the safe fallback
+    // (reads buried deeper than the cap are not committed; never a crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Binary {
             op, left, right, ..
         } => {
-            collect_expr_reads(ctx, left, uses, span, out);
-            collect_expr_reads(ctx, right, uses, span, out);
+            collect_expr_reads(ctx, left, uses, span, out, depth + 1);
+            collect_expr_reads(ctx, right, uses, span, out, depth + 1);
             match op {
                 BinOp::Add
                 | BinOp::Sub
@@ -564,16 +573,18 @@ fn collect_expr_reads(
                 _ => {}
             }
         }
-        ExprNode::Unary { operand, .. } => collect_expr_reads(ctx, operand, uses, span, out),
+        ExprNode::Unary { operand, .. } => {
+            collect_expr_reads(ctx, operand, uses, span, out, depth + 1);
+        }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
             ..
         } => {
-            collect_expr_reads(ctx, condition, uses, span, out);
-            collect_expr_reads(ctx, true_branch, uses, span, out);
-            collect_expr_reads(ctx, false_branch, uses, span, out);
+            collect_expr_reads(ctx, condition, uses, span, out, depth + 1);
+            collect_expr_reads(ctx, true_branch, uses, span, out, depth + 1);
+            collect_expr_reads(ctx, false_branch, uses, span, out, depth + 1);
         }
         _ => {}
     }
@@ -662,6 +673,43 @@ mod tests {
             &fu.sccp.executable_edges,
         );
         (facts, fu)
+    }
+
+    /// Regression coverage for issue #996: `collect_expr_reads` recurses once
+    /// per `ExprNode` level with no depth cap before this fix. A tree built
+    /// directly is unbounded (the Pratt parser caps its own output at 256)
+    /// and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
+    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that
+    /// `typed_reads_of_expr` (which drives `collect_expr_reads`) returns at
+    /// all.
+    #[test]
+    fn deeply_nested_collect_expr_reads_survives() {
+        use crate::expr_ast::{ExprNode, UnaryOp};
+        use tcl_lexer::Span;
+        let r = registry();
+        let cu = CompilationUnit::build_for("set v 5", &r, false);
+        let fu = cu.function("::top").unwrap();
+        let ctx = CommitCtx {
+            registry: &r,
+            ssa: &fu.ssa,
+            types: &fu.types,
+            values: &fu.sccp.values,
+        };
+        let mut node = ExprNode::Var {
+            text: "$v".into(),
+            name: "v".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let uses: HashMap<Symbol, u32> = HashMap::new();
+        let _ = typed_reads_of_expr(&ctx, &node, &uses, Span::new(0, 1));
     }
 
     /// Straight-line: `expr` commits Numeric; the state at the following

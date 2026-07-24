@@ -93,6 +93,57 @@ fn commands_90_still_offered_in_91() {
     assert!(complete_cmd(&mut lsp, "tcl9.1", "lseq").contains("lseq"));
 }
 
+// `oo::Helpers::link` version-gating (issue #923, Codex review on PR
+// #1020): a genuine core TclOO builtin only since 9.0 (confirmed against
+// tclsh 9.0.4 — no package needed); under 8.6/8.7 it exists only via the
+// Tcllib `ooutil` package (confirmed against tclsh 8.6.14 — bare `link`
+// with no `package require` is `invalid command name "link"`).
+
+#[test]
+fn link_is_unconditionally_available_in_90() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\noo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n        return [foo 1]\n    }\n}\n",
+    );
+    assert!(
+        !codes(&diags).contains("W120"),
+        "core Tcl 9.0 link needs no package require ooutil: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn link_requires_ooutil_package_require_in_86() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n        return [foo 1]\n    }\n}\n",
+    );
+    assert!(
+        codes(&diags).contains("W120"),
+        "8.6/8.7 link is Tcllib ooutil-only, not core, with no package require anywhere: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn link_stays_silent_in_86_once_ooutil_is_required() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "package require ooutil\noo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n        return [foo 1]\n    }\n}\n",
+    );
+    assert!(
+        !codes(&diags).contains("W120"),
+        "a real `package require ooutil` makes 8.6/8.7 link known: {:?}",
+        codes(&diags)
+    );
+}
+
 // -- TestTcl91Operators --------------------------------------------------
 // doc/expr.n — the `lt`/`le`/`gt`/`ge` string operators (TIP 461) are 9.0+.
 

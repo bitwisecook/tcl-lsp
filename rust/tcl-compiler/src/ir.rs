@@ -94,6 +94,19 @@ impl Script {
     }
 }
 
+/// Depth cap for [`for_each_statement`]'s recursion over nested
+/// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`uplevel` bodies —
+/// issue #996. Transitively bounded today via `MAX_LOWER_NEST_DEPTH` (every
+/// `Script` this crate hands to `for_each_statement` was built by
+/// [`crate::lowering`], which already caps its own construction at 256 and
+/// emits a `Statement::Barrier` past that point), capped here independently
+/// for defence-in-depth and consistency with every other full-tree walker in
+/// this crate (`optimiser::MAX_OPTIMISER_WALK_DEPTH`,
+/// `codegen::structured::MAX_STRUCTURED_DEPTH`), since this is a `pub`
+/// utility any future caller could hand a `Script` built some other way.
+const MAX_FOR_EACH_STATEMENT_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
+
 /// Recursively visit every statement in `script`, including nested bodies
 /// (`if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`), in source order.
 /// Each statement is visited before its own nested bodies (pre-order): a
@@ -103,7 +116,20 @@ impl Script {
 /// Shared traversal for whole-module / whole-body scans that need "every
 /// statement anywhere in this script" without each re-deriving the same
 /// nested-body match arms (e.g. [`crate::var_observability::scan_module_global_names`]).
+///
+/// Nesting past [`MAX_FOR_EACH_STATEMENT_DEPTH`] (256) is silently not
+/// descended into — `visit` still runs for every statement up to and
+/// including that depth, matching this function's existing "best-effort
+/// scan" contract (callers already tolerate this visitor skipping statements
+/// it cannot reach, e.g. inside opaque `Statement::Barrier`s).
 pub fn for_each_statement(script: &Script, visit: &mut impl FnMut(&Statement)) {
+    for_each_statement_inner(script, visit, 0);
+}
+
+fn for_each_statement_inner(script: &Script, visit: &mut impl FnMut(&Statement), depth: u32) {
+    if MAX_FOR_EACH_STATEMENT_DEPTH.exceeded(depth) {
+        return;
+    }
     for stmt in &script.statements {
         visit(stmt);
         match stmt {
@@ -112,24 +138,24 @@ pub fn for_each_statement(script: &Script, visit: &mut impl FnMut(&Statement)) {
             | Statement::While { body, .. }
             | Statement::Catch { body, .. }
             | Statement::Foreach { body, .. } => {
-                for_each_statement(body, visit);
+                for_each_statement_inner(body, visit, depth + 1);
             }
             Statement::If {
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    for_each_statement(&c.body, visit);
+                    for_each_statement_inner(&c.body, visit, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    for_each_statement(b, visit);
+                    for_each_statement_inner(b, visit, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                for_each_statement(init, visit);
-                for_each_statement(next, visit);
-                for_each_statement(body, visit);
+                for_each_statement_inner(init, visit, depth + 1);
+                for_each_statement_inner(next, visit, depth + 1);
+                for_each_statement_inner(body, visit, depth + 1);
             }
             Statement::Try {
                 body,
@@ -137,12 +163,12 @@ pub fn for_each_statement(script: &Script, visit: &mut impl FnMut(&Statement)) {
                 finally_body,
                 ..
             } => {
-                for_each_statement(body, visit);
+                for_each_statement_inner(body, visit, depth + 1);
                 for h in handlers {
-                    for_each_statement(&h.body, visit);
+                    for_each_statement_inner(&h.body, visit, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    for_each_statement(fb, visit);
+                    for_each_statement_inner(fb, visit, depth + 1);
                 }
             }
             Statement::Switch {
@@ -150,11 +176,11 @@ pub fn for_each_statement(script: &Script, visit: &mut impl FnMut(&Statement)) {
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        for_each_statement(b, visit);
+                        for_each_statement_inner(b, visit, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    for_each_statement(b, visit);
+                    for_each_statement_inner(b, visit, depth + 1);
                 }
             }
             _ => {}
@@ -809,7 +835,11 @@ pub struct Module {
     /// Synthetic *body units* — the bodies of commands that run their script
     /// argument in a fresh frame but are **not** real named procedures:
     /// `apply` lambdas and `namespace eval` bodies (keyed by a synthetic
-    /// qualified name like `::apply#0` or `::namespace-eval::NS#0`).
+    /// qualified name like `::apply#0`, or `::NS::namespace-eval#0` — `NS`
+    /// *prefixes* the marker, matching every other qname's "everything
+    /// before the last `::` is the enclosing namespace" convention, so a
+    /// bare call inside the body resolves against the namespace it actually
+    /// targets rather than always the global namespace).
     ///
     /// These are lowered into [`Procedure`]s purely so the static-analysis
     /// pipeline (CFG → SSA → SCCP → taint) reaches *inside* the body — the
@@ -968,6 +998,55 @@ mod tests {
             seen.push(name);
         });
         assert_eq!(seen, vec!["if", "inner1", "inner2"]);
+    }
+
+    /// Regression coverage for issue #996: `for_each_statement` recurses
+    /// once per nested `If`/`For`/`While`/`Foreach`/`Catch`/`Try`/`Switch`/
+    /// `UpFrame` body, with no depth cap of its own before this fix.
+    /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering
+    /// pass today (every `Script` this crate hands to `for_each_statement`
+    /// is built by `crate::lowering`), so this is defence-in-depth /
+    /// consistency with every other full-tree walker in this crate, not a
+    /// currently-reproducible crash. This test builds the nested `Script`
+    /// directly (bypassing lowering) so it genuinely exercises
+    /// `for_each_statement`'s own new cap rather than lowering's; 2000
+    /// levels is comfortably past the new 256-level cap. The assertion is
+    /// that the call returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_if_survives_for_each_statement() {
+        const DEPTH: usize = 2000;
+        let leaf = Statement::Call {
+            span: Span::new(0, 0),
+            command: "leaf".into(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        let mut script = Script::from_statements(vec![leaf]);
+        for _ in 0..DEPTH {
+            script = Script::from_statements(vec![Statement::If {
+                span: Span::new(0, 0),
+                clauses: vec![IfClause {
+                    condition: ExprNode::Raw { text: "1".into() },
+                    condition_span: Span::new(0, 0),
+                    body: script,
+                    body_span: Span::new(0, 0),
+                    condition_base: None,
+                }],
+                else_body: None,
+                else_span: None,
+            }]);
+        }
+
+        let mut count = 0usize;
+        for_each_statement(&script, &mut |_| count += 1);
+        assert!(count > 0, "must still visit statements within the cap");
+        assert!(count <= DEPTH + 1, "must not exceed the number of nodes");
     }
 
     #[test]

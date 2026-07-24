@@ -39,8 +39,12 @@
 //! active/suspended check reads "which matters when you're injecting a
 //! probe".
 //!
-//! Only the fully-qualified spelling is registered (matches the
-//! WASM `ns_resolve_qualified` path).
+//! The VM registers only the fully-qualified spelling and relies on its
+//! own generic bare→qualified namespace resolution (`ns_resolve_qualified`)
+//! to reach it either way. `tcl-registry`'s lookup has no such generic
+//! fallback in that direction (only qualified→bare, the opposite way), so —
+//! matching the `tcl::process`/`tcl::zipfs`/`tcl::idna` sibling 9.0-era
+//! additions — both spellings are registered here explicitly.
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -61,10 +65,9 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     dialects: None,
 }];
 
-/// Command spec for `::tcl::unsupported::corotype`.
-pub fn spec() -> CommandSpec {
+fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
-        name: "::tcl::unsupported::corotype",
+        name,
         // `cmd_corotype` (`tcl-vm/src/cmd_coro.rs`) is a flat hashmap lookup
         // with no eval fallback and no `Frame` of its own — genuinely
         // frame-free, like its list/string/set siblings on the audited
@@ -79,17 +82,12 @@ pub fn spec() -> CommandSpec {
         // standard-Tcl-core internal with no sibling registration anywhere
         // under `commands/irules|iapps|expect|tk|itcl|eda_*` — absent from
         // every non-Tcl-version dialect too, all of which fall outside
-        // `TCL86_PLUS`.
-        //
-        // NB: `tcl-dialect/src/profile.rs`'s `IRULES_DISABLED_COMMANDS`
-        // (the K36322151 sandbox-ban list) separately lists this name too,
-        // predating this fix (it paired with the old `dialects: None`).
-        // That entry is now redundant — the bare `TCL86_PLUS` gate above
-        // already excludes `DialectSet::IRULES` on the version axis alone
-        // — and `dialect_profile.rs`'s `irules_disable_list_is_load_bearing`
-        // will flag it as such. Left as-is here: fixing it means editing
-        // `tcl-dialect/src/profile.rs`, a shared file outside this file's
-        // single-command audit scope.
+        // `TCL86_PLUS`. `tcl-dialect/src/profile.rs`'s
+        // `IRULES_DISABLED_COMMANDS` used to separately list this name too
+        // (predating this gate, back when `dialects` was still `None`) —
+        // that entry was redundant once this `TCL86_PLUS` gate alone
+        // already excludes `DialectSet::IRULES` on the version axis, and
+        // has since been removed.
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),
@@ -105,4 +103,14 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }
+}
+
+/// Command spec for the namespace-relative form `tcl::unsupported::corotype`.
+pub fn spec() -> CommandSpec {
+    make_spec("tcl::unsupported::corotype")
+}
+
+/// Command spec for the fully-qualified form `::tcl::unsupported::corotype`.
+pub fn spec_qualified() -> CommandSpec {
+    make_spec("::tcl::unsupported::corotype")
 }

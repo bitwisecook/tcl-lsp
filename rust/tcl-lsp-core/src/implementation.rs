@@ -93,7 +93,7 @@ pub fn implementation(
     }
 
     // Case 2/3: the word names a method
-    let enclosing = enclosing_class(analysis, cursor);
+    let enclosing = crate::definition::enclosing_class_at(analysis, cursor);
 
     match enclosing {
         // Outside any class body: every class that defines the method
@@ -158,23 +158,6 @@ fn method_span(cd: &ClassDef, word: &str) -> Option<Span> {
         .get(word)
         .or_else(|| cd.class_methods.get(word))
         .map(|m| m.name_span)
-}
-
-/// The qualified name of the innermost class whose `body_span`
-/// contains the cursor, if any.
-fn enclosing_class(analysis: &AnalysisResult, cursor: u32) -> Option<&str> {
-    let mut best: Option<(&str, u32)> = None;
-    for cd in analysis.all_classes.values() {
-        let body = cd.body_span;
-        if body.start() < cursor && cursor < body.end() {
-            // Prefer the narrowest (innermost) containing body.
-            let width = body.end() - body.start();
-            if best.is_none_or(|(_, w)| width < w) {
-                best = Some((cd.qualified_name.as_str(), width));
-            }
-        }
-    }
-    best.map(|(q, _)| q)
 }
 
 /// True when `candidate` transitively lists `ancestor` among its

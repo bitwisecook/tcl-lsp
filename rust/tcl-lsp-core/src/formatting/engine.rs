@@ -27,10 +27,35 @@
 //! The entry point is [`format_tcl`]; everything else is the
 //! private machinery [`format_tcl`] drives.
 
+use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use super::config::FormatterConfig;
+
+/// Depth cap for [`format_body`]'s (and [`format_switch_body`]'s) recursion
+/// over nested control-flow bodies — issue #996. Reuses their existing
+/// `indent_level` parameter as the depth signal rather than threading a
+/// separate one: `indent_level` already increments by exactly one per
+/// nested body, the same shape the depth cap needs.
+///
+/// This crate is consumed both by binaries that run formatting on a
+/// generously-sized dedicated thread (`tcl-lsp-server`, the `tcl` CLI,
+/// `f5-cli`) and, via `bigip-query-wasm`, from a WASM host whose stack
+/// budget is outside this crate's control — so, like
+/// `tcl_runtime::interp::NATIVE_EVAL_DEPTH_LIMIT`, this must be safe on a
+/// small ambient stack, not just a generously-sized one.
+///
+/// Empirically measured on this crate's native build, run on a plain 2 MiB
+/// thread stack (`cargo test`'s per-test default): unguarded nested `if`
+/// bodies overflow the stack (SIGABRT) between depth 800 and 1200 — a much
+/// larger margin than the analyser's or the optimiser passes' (this
+/// recursion's per-level frame cost is lighter), but 128 is kept
+/// consistent with the same conservative reasoning used for the WASM
+/// runtime: comfortably safe even against a meaningfully smaller WASM
+/// stack, while still far more headroom than realistic (even
+/// generated/templated) Tcl needs to format.
+const MAX_FORMAT_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
 
 /// What kind of argument this is for formatting purposes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,6 +69,12 @@ enum ArgKind {
     Keyword,
     /// Parameter list — normalise internal whitespace.
     ParamList,
+    /// `ArgRole::LambdaLiteral` argument (`apply`'s `{argList body ?ns?}`
+    /// shape) — the parameter-list element is normalised and the body
+    /// element recursively formatted, then reassembled; never fed to
+    /// `format_body` as a whole (that would misread the parameter word as a
+    /// command name — issue #954).
+    LambdaLiteral,
 }
 
 /// A single argument to a command.
@@ -56,6 +87,10 @@ struct CommandArg {
     is_braced: bool,
     /// The argument was `"`-quoted.
     is_quoted: bool,
+    /// The recursively reformatted script content of a `Body` argument, or
+    /// (for `LambdaLiteral`) of just its body *element* — the parameter-list
+    /// element is never fed here, only normalised at reconstruction time
+    /// (`render_lambda_literal_arg`).
     formatted_body: Option<String>,
 }
 
@@ -347,10 +382,17 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     let refs: Vec<&str> = arg_texts.iter().map(String::as_str).collect();
     let body_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::Body);
     let param_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::ParamList);
+    let lambda_indices = registry.arg_indices_for_role(&name, &refs, ArgRole::LambdaLiteral);
     for idx in body_indices {
         let actual = idx + 1; // +1 for the command-name slot.
         if actual < cmd.args.len() && cmd.args[actual].is_braced {
             cmd.args[actual].kind = ArgKind::Body;
+        }
+    }
+    for idx in lambda_indices {
+        let actual = idx + 1; // +1 for the command-name slot.
+        if actual < cmd.args.len() && cmd.args[actual].is_braced {
+            cmd.args[actual].kind = ArgKind::LambdaLiteral;
         }
     }
 
@@ -997,6 +1039,64 @@ fn append_body_no_space(
     }
 }
 
+/// Reassemble an `ArgKind::LambdaLiteral` argument: its parameter-list
+/// element (normalised, not code) and its body element (`arg.formatted_body`
+/// — already recursively formatted by the caller from just the *decoded*
+/// body span, never the whole lambda literal, so the parameter word is
+/// never misread as a command name), plus an optional namespace element,
+/// wrapped back in the outer `{}`. Falls back to the original literal
+/// verbatim if the source can no longer be split (should not happen once
+/// `identify_body_args` and this function agree, but a stale token must not
+/// panic).
+///
+/// The parameter-list and namespace elements are decoded (backslash escapes
+/// collapsed for a bare/quoted element — [`split_lambda_literal_decoded`])
+/// before use, not pasted through as raw source spelling: a non-literal
+/// element's escapes would otherwise survive reformatting and change what it
+/// means (codex review of #954's follow-up). The namespace is re-quoted with
+/// [`tcl_syntax::list::list_element`] on reassembly rather than always left
+/// bare, so an element that needs quoting (e.g. an escaped space) still
+/// round-trips safely; `normalise_param_list` already unconditionally
+/// brace-wraps the parameter list, so no further quoting is needed there.
+fn render_lambda_literal_arg(
+    sm: &SourceMap,
+    arg: &CommandArg,
+    config: &FormatterConfig,
+    indent: &str,
+    current_line_len: usize,
+    never_inline: bool,
+) -> String {
+    let source = sm.source();
+    let fallback = || format!("{{{}}}", arg.text);
+    let Some(&tok) = arg.tokens.first() else {
+        return fallback();
+    };
+    let Some(elems) = split_lambda_literal_decoded(source, tok) else {
+        return fallback();
+    };
+    let Some(formatted_body) = arg.formatted_body.as_deref() else {
+        return fallback();
+    };
+    let mut body_parts: Vec<String> = Vec::new();
+    append_body_no_space(
+        &mut body_parts,
+        formatted_body,
+        config,
+        indent,
+        current_line_len,
+        never_inline,
+    );
+    let params_rendered = normalise_param_list(&elems.params);
+    let body_rendered = body_parts.concat();
+    match elems.namespace.as_deref() {
+        Some(ns) => {
+            let ns_rendered = tcl_syntax::list::list_element(ns);
+            format!("{{{params_rendered} {body_rendered} {ns_rendered}}}")
+        }
+        None => format!("{{{params_rendered} {body_rendered}}}"),
+    }
+}
+
 /// Append a plain word argument (with optional expression
 /// wrapping).  Returns `false` when nothing was emitted (an
 /// all-continuation artifact), so the caller leaves the brace
@@ -1110,6 +1210,19 @@ fn reconstruct_command(
                     current_line_len,
                     never_inline,
                 );
+                in_brace_chain = true;
+            }
+            ArgKind::LambdaLiteral if arg.formatted_body.is_some() => {
+                let current_line_len = indent.len() + parts.concat().len();
+                maybe_space(&mut parts, in_brace_chain, config.space_between_braces);
+                parts.push(render_lambda_literal_arg(
+                    sm,
+                    arg,
+                    config,
+                    indent,
+                    current_line_len,
+                    never_inline,
+                ));
                 in_brace_chain = true;
             }
             ArgKind::ParamList => {
@@ -1258,6 +1371,13 @@ pub(crate) fn format_body(
     registry: &CommandRegistry,
     indent_level: usize,
 ) -> String {
+    // Native-stack safety net — see `MAX_FORMAT_DEPTH`'s doc comment
+    // (issue #996). Past the cap, leave this (deeply nested) body
+    // unformatted rather than recursing further, matching the existing
+    // give-up-gracefully fallback just below for an unparseable body.
+    if MAX_FORMAT_DEPTH.exceeded(u32::try_from(indent_level).unwrap_or(u32::MAX)) {
+        return source.to_owned();
+    }
     let sm = SourceMap::new(source);
     let Ok(tokens) =
         Lexer::with_source_map(SourceMap::new(source), config.lexer_config).tokenise_all()
@@ -1296,6 +1416,23 @@ pub(crate) fn format_body(
                 } else {
                     format_body(&body_text, config, registry, inner_level)
                 };
+                commands[i].args[a].formatted_body = Some(formatted);
+            } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
+                && commands[i].args[a].is_braced
+                && let Some(&tok) = commands[i].args[a].tokens.first()
+                && let Some(elems) = split_lambda_literal_decoded(source, tok)
+                && let Some(body_text) = elems.body
+            {
+                // Format only the real, *decoded* body element —
+                // `render_lambda_literal_arg` re-derives the parameter list /
+                // namespace elements from the original source at
+                // reconstruction time and reassembles them. Decoding first
+                // (rather than reformatting the raw source spelling) matters
+                // for a non-literal (bare/quoted) body: its backslash escapes
+                // must be collapsed before the result is parsed as a script,
+                // exactly as Tcl's own list-then-script evaluation would
+                // (codex review of #954's follow-up).
+                let formatted = format_body(&body_text, config, registry, inner_level);
                 commands[i].args[a].formatted_body = Some(formatted);
             }
         }
@@ -1443,6 +1580,38 @@ mod tests {
     fn fmt_with(src: &str, config: &FormatterConfig) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, config, &registry)
+    }
+
+    /// Regression coverage for issue #996: `format_body` recurses once per
+    /// nested control-flow body. Empirically, unguarded nested `if` bodies
+    /// overflowed the native stack (SIGABRT) between depth 800 and 1200 on
+    /// a 2 MiB thread (`cargo test`'s per-test default). 2000 is
+    /// comfortably past both that crash range and `MAX_FORMAT_DEPTH` (128);
+    /// the assertion is that formatting returns at all, not what it
+    /// returns — past the cap, `format_body` leaves the excess nesting
+    /// unformatted rather than crashing.
+    #[test]
+    fn deeply_nested_if_survives_formatting() {
+        const DEPTH: usize = 2000;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set done 1\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        let _ = fmt(&src);
+    }
+
+    /// A moderately nested body (well under `MAX_FORMAT_DEPTH`) still
+    /// formats normally — the safety net must not fire on realistic
+    /// nesting depths.
+    #[test]
+    fn moderately_nested_if_still_formats() {
+        let src = "if {1} {\nif {2} {\nset x 1\n}\n}\n";
+        let out = fmt(src);
+        assert!(out.contains("set x 1"), "{out:?}");
     }
 
     #[test]
@@ -1781,6 +1950,41 @@ mod tests {
     #[test]
     fn quoted_string_preserved() {
         check("puts \"hello $name\"\n", "puts \"hello $name\"\n");
+    }
+
+    /// Issue #954: `apply`'s lambda-literal argument (`ArgRole::LambdaLiteral`,
+    /// not `Body`) must have its real body element reformatted — not the
+    /// whole `{argList} {body}` blob re-segmented as one script (which
+    /// misreads the parameter word as a command name and never reaches the
+    /// real body). The parameter list is normalised the same way a `proc`'s
+    /// is (bare `dir` → braced `{dir}`), matching `param_list_normalised`.
+    #[test]
+    fn apply_lambda_body_indents_and_params_normalise() {
+        check(
+            "apply {dir {\nputs    $dir\nset x 1\n}} /tmp\n",
+            "apply {{dir} {\n    puts $dir\n    set x 1\n}} /tmp\n",
+        );
+    }
+
+    /// The optional namespace element (lambda literal position 2) survives
+    /// reassembly untouched. A short single-command body inlines (matching
+    /// ordinary body formatting), so this also confirms the inline path
+    /// reassembles the namespace element correctly.
+    #[test]
+    fn apply_lambda_namespace_element_preserved() {
+        check(
+            "apply {dir {\nputs    $dir\n} ::foo} /tmp\n",
+            "apply {{dir} { puts $dir } ::foo} /tmp\n",
+        );
+    }
+
+    /// Codex review of #954's follow-up: a bare body element's backslash
+    /// escape must be decoded before reformatting, not reformatted from its
+    /// raw source spelling — `puts\ hi`'s real runtime body is the two-word
+    /// command `puts hi`, not one word containing a literal backslash.
+    #[test]
+    fn apply_lambda_body_with_backslash_escape_decodes() {
+        check(r"apply {{} puts\ hi}", "apply {{} { puts hi }}\n");
     }
 
     #[test]

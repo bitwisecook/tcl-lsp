@@ -52,6 +52,7 @@ use std::collections::HashSet;
 use tcl_lexer::{ExprTokenType, tokenise_expr};
 
 use crate::compilation_unit::FunctionUnit;
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr;
 use crate::naming::normalise_var_name;
@@ -480,8 +481,20 @@ fn strip_ws(expr: &str) -> String {
 /// Apply one pass of local simplifications to `node`, returning
 /// the rewritten subtree. Used as the step function in
 /// [`simplify_to_fixpoint`].
-fn simplify_node_once(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'_>) -> ExprNode {
+fn simplify_node_once(
+    node: &ExprNode,
+    bool_context: bool,
+    numeric: NumericCtx<'_>,
+    depth: u32,
+) -> ExprNode {
     use crate::expr_ast::UnaryOp;
+    // Native-stack safety net (issue #996): this bottom-up rewriter recurses
+    // once per `ExprNode` level. Past the cap, pass the node through
+    // unchanged (no rewrite) rather than recurse — a safe no-op for a
+    // simplifier, and the same shape it returns for any node it can't rewrite.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return node.clone();
+    }
     // First, recurse into children — bottom-up rewriting. The boolean
     // context propagates only where the operand's *value* is consumed as a
     // truth value: the operands of `&&`/`||`/`!` and a ternary condition.
@@ -492,15 +505,15 @@ fn simplify_node_once(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'
             let child_bool = matches!(op, BinOp::And | BinOp::Or | BinOp::WordAnd | BinOp::WordOr);
             ExprNode::Binary {
                 op: *op,
-                left: Box::new(simplify_node_once(left, child_bool, numeric)),
-                right: Box::new(simplify_node_once(right, child_bool, numeric)),
+                left: Box::new(simplify_node_once(left, child_bool, numeric, depth + 1)),
+                right: Box::new(simplify_node_once(right, child_bool, numeric, depth + 1)),
             }
         }
         ExprNode::Unary { op, operand } => {
             let child_bool = matches!(op, UnaryOp::Not | UnaryOp::WordNot);
             ExprNode::Unary {
                 op: *op,
-                operand: Box::new(simplify_node_once(operand, child_bool, numeric)),
+                operand: Box::new(simplify_node_once(operand, child_bool, numeric, depth + 1)),
             }
         }
         ExprNode::Ternary {
@@ -508,9 +521,19 @@ fn simplify_node_once(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'
             true_branch,
             false_branch,
         } => ExprNode::Ternary {
-            condition: Box::new(simplify_node_once(condition, true, numeric)),
-            true_branch: Box::new(simplify_node_once(true_branch, bool_context, numeric)),
-            false_branch: Box::new(simplify_node_once(false_branch, bool_context, numeric)),
+            condition: Box::new(simplify_node_once(condition, true, numeric, depth + 1)),
+            true_branch: Box::new(simplify_node_once(
+                true_branch,
+                bool_context,
+                numeric,
+                depth + 1,
+            )),
+            false_branch: Box::new(simplify_node_once(
+                false_branch,
+                bool_context,
+                numeric,
+                depth + 1,
+            )),
         },
         other => other.clone(),
     };
@@ -551,7 +574,7 @@ fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
                 return None;
             }
             let mut terms = Vec::new();
-            let constant = collect_add_terms(node, &mut terms)?;
+            let constant = collect_add_terms(node, &mut terms, 0)?;
             if constant == i64::MIN {
                 return None; // `-constant` would overflow in the builder
             }
@@ -573,7 +596,7 @@ fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
                 return None;
             }
             let mut terms = Vec::new();
-            let constant = collect_mul_terms(node, &mut terms)?;
+            let constant = collect_mul_terms(node, &mut terms, 0)?;
             // Conservative: don't drop terms without a numeric proof.
             if constant == 0 || (constant == 1 && terms.len() == 1) {
                 return None;
@@ -603,17 +626,25 @@ fn is_mul(n: &ExprNode) -> bool {
 /// non-literal term onto `terms`. A `-` is followed only when its RHS is an
 /// integer literal (otherwise the whole node is an opaque term — a
 /// non-literal subtrahend is not negated here). `None` on integer overflow.
-fn collect_add_terms(node: &ExprNode, terms: &mut Vec<ExprNode>) -> Option<i64> {
+fn collect_add_terms(node: &ExprNode, terms: &mut Vec<ExprNode>, depth: u32) -> Option<i64> {
+    // Native-stack safety net (issue #996): past the cap, stop flattening and
+    // treat the whole remaining subtree as one opaque term contributing the
+    // additive identity — the same handling as any non-chain leaf, so the
+    // reassociation stays sound (all non-constant terms preserved).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        terms.push(node.clone());
+        return Some(0);
+    }
     if let ExprNode::Binary { op, left, right } = node {
         match op {
             BinOp::Add => {
-                let l = collect_add_terms(left, terms)?;
-                let r = collect_add_terms(right, terms)?;
+                let l = collect_add_terms(left, terms, depth + 1)?;
+                let r = collect_add_terms(right, terms, depth + 1)?;
                 return l.checked_add(r);
             }
             BinOp::Sub => {
                 if let Some(rhs) = int_literal_value(right) {
-                    let l = collect_add_terms(left, terms)?;
+                    let l = collect_add_terms(left, terms, depth + 1)?;
                     return l.checked_sub(rhs);
                 }
             }
@@ -656,15 +687,22 @@ fn build_add_expr(terms: &[ExprNode], constant: i64) -> ExprNode {
 
 /// Flatten a `*` chain: multiply the literal constants, push non-literals.
 /// `None` on integer overflow.
-fn collect_mul_terms(node: &ExprNode, terms: &mut Vec<ExprNode>) -> Option<i64> {
+fn collect_mul_terms(node: &ExprNode, terms: &mut Vec<ExprNode>, depth: u32) -> Option<i64> {
+    // Native-stack safety net (issue #996): past the cap, stop flattening and
+    // treat the remaining subtree as one opaque term contributing the
+    // multiplicative identity — same handling as any non-chain leaf.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        terms.push(node.clone());
+        return Some(1);
+    }
     if let ExprNode::Binary {
         op: BinOp::Mul,
         left,
         right,
     } = node
     {
-        let l = collect_mul_terms(left, terms)?;
-        let r = collect_mul_terms(right, terms)?;
+        let l = collect_mul_terms(left, terms, depth + 1)?;
+        let r = collect_mul_terms(right, terms, depth + 1)?;
         return l.checked_mul(r);
     }
     if let Some(v) = int_literal_value(node) {
@@ -703,7 +741,7 @@ fn build_mul_expr(terms: &[ExprNode], constant: i64) -> ExprNode {
 fn simplify_to_fixpoint(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'_>) -> ExprNode {
     let mut cur = node.clone();
     for _ in 0..16 {
-        let next = simplify_node_once(&cur, bool_context, numeric);
+        let next = simplify_node_once(&cur, bool_context, numeric, 0);
         if render_expr(&next) == render_expr(&cur) {
             return next;
         }
@@ -907,6 +945,13 @@ fn reduce_unary(
     }
 
     // `!(x <cmp> y)` → inverted comparison, and DeMorgan for `!(a && b)`.
+    // `BinOp::inverse()` (tcl_syntax::expr::operators, issue #983's
+    // unification) is the single source for which comparison inverts to
+    // which — used to be a local 8-arm match missing the TIP 461
+    // string-ordering four (`lt`/`le`/`gt`/`ge`) and list membership
+    // (`in`/`ni`), so `!(x lt y)`/`!(x in list)` never simplified even
+    // though the same total-order/negation identity holds for them as for
+    // the numeric/string-eq forms already covered.
     if matches!(op, UnaryOp::Not | UnaryOp::WordNot)
         && let ExprNode::Binary {
             op: inner_op,
@@ -914,7 +959,7 @@ fn reduce_unary(
             right,
         } = operand
     {
-        if let Some(new_op) = invert_comparison_op(*inner_op) {
+        if let Some(new_op) = inner_op.inverse() {
             return Some(ExprNode::Binary {
                 op: new_op,
                 left: left.clone(),
@@ -939,21 +984,6 @@ fn reduce_unary(
     }
 
     None
-}
-
-/// Return the opposite comparison operator, or `None` for non-comparisons.
-fn invert_comparison_op(op: BinOp) -> Option<BinOp> {
-    match op {
-        BinOp::Eq => Some(BinOp::Ne),
-        BinOp::Ne => Some(BinOp::Eq),
-        BinOp::Lt => Some(BinOp::Ge),
-        BinOp::Ge => Some(BinOp::Lt),
-        BinOp::Gt => Some(BinOp::Le),
-        BinOp::Le => Some(BinOp::Gt),
-        BinOp::StrEq => Some(BinOp::StrNe),
-        BinOp::StrNe => Some(BinOp::StrEq),
-        _ => None,
-    }
 }
 
 /// De Morgan operator flip: `&&` ↔ `||`, otherwise `None`.
@@ -1392,22 +1422,36 @@ fn make_int_literal(value: i64) -> ExprNode {
 /// subtree.
 #[must_use]
 pub fn expr_has_command_subst(node: &ExprNode) -> bool {
+    // Public entry: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`expr_has_command_subst_at`]).
+    expr_has_command_subst_at(node, 0)
+}
+
+fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
+    // Native-stack safety net (issue #996): past the cap, assume "yes, has a
+    // command substitution" — the conservative direction, since callers use
+    // this to *suppress* an optimisation when a command sub is present, so a
+    // false `true` only forgoes a rewrite, never enables an unsound one.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return true;
+    }
     match node {
         ExprNode::Command { .. } => true,
         ExprNode::Binary { left, right, .. } => {
-            expr_has_command_subst(left) || expr_has_command_subst(right)
+            expr_has_command_subst_at(left, depth + 1)
+                || expr_has_command_subst_at(right, depth + 1)
         }
-        ExprNode::Unary { operand, .. } => expr_has_command_subst(operand),
+        ExprNode::Unary { operand, .. } => expr_has_command_subst_at(operand, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expr_has_command_subst(condition)
-                || expr_has_command_subst(true_branch)
-                || expr_has_command_subst(false_branch)
+            expr_has_command_subst_at(condition, depth + 1)
+                || expr_has_command_subst_at(true_branch, depth + 1)
+                || expr_has_command_subst_at(false_branch, depth + 1)
         }
-        ExprNode::Call { args, .. } => args.iter().any(expr_has_command_subst),
+        ExprNode::Call { args, .. } => args.iter().any(|a| expr_has_command_subst_at(a, depth + 1)),
         ExprNode::Literal { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. }
@@ -1433,27 +1477,46 @@ pub fn expr_uses_shadowed_mathfunc<S: std::hash::BuildHasher>(
     node: &ExprNode,
     procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
 ) -> bool {
+    // Public entry: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`expr_uses_shadowed_mathfunc_at`]).
+    expr_uses_shadowed_mathfunc_at(node, procedures, 0)
+}
+
+fn expr_uses_shadowed_mathfunc_at<S: std::hash::BuildHasher>(
+    node: &ExprNode,
+    procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
+    depth: u32,
+) -> bool {
+    // Native-stack safety net (issue #996): past the cap, assume "yes, uses a
+    // shadowed mathfunc" — the conservative direction, since callers use this
+    // to *suppress* constant folding when a mathfunc may be shadowed, so a
+    // false `true` only forgoes a fold, never performs an unsound one.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return true;
+    }
     match node {
         ExprNode::Call { function, args, .. } => {
             let key = format!("::tcl::mathfunc::{}", function.to_ascii_lowercase());
             procedures.contains_key(&key)
                 || args
                     .iter()
-                    .any(|a| expr_uses_shadowed_mathfunc(a, procedures))
+                    .any(|a| expr_uses_shadowed_mathfunc_at(a, procedures, depth + 1))
         }
         ExprNode::Binary { left, right, .. } => {
-            expr_uses_shadowed_mathfunc(left, procedures)
-                || expr_uses_shadowed_mathfunc(right, procedures)
+            expr_uses_shadowed_mathfunc_at(left, procedures, depth + 1)
+                || expr_uses_shadowed_mathfunc_at(right, procedures, depth + 1)
         }
-        ExprNode::Unary { operand, .. } => expr_uses_shadowed_mathfunc(operand, procedures),
+        ExprNode::Unary { operand, .. } => {
+            expr_uses_shadowed_mathfunc_at(operand, procedures, depth + 1)
+        }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expr_uses_shadowed_mathfunc(condition, procedures)
-                || expr_uses_shadowed_mathfunc(true_branch, procedures)
-                || expr_uses_shadowed_mathfunc(false_branch, procedures)
+            expr_uses_shadowed_mathfunc_at(condition, procedures, depth + 1)
+                || expr_uses_shadowed_mathfunc_at(true_branch, procedures, depth + 1)
+                || expr_uses_shadowed_mathfunc_at(false_branch, procedures, depth + 1)
         }
         ExprNode::Literal { .. }
         | ExprNode::Var { .. }
@@ -1499,6 +1562,78 @@ mod tests {
     fn fold_empty_expression() {
         assert!(try_fold_expr("", None).is_none());
         assert!(try_fold_expr("   ", None).is_none());
+    }
+
+    /// Regression coverage for issue #996: `simplify_node_once`,
+    /// `collect_add_terms`, `collect_mul_terms`, `expr_has_command_subst` and
+    /// `expr_uses_shadowed_mathfunc` each recurse once per `ExprNode` level
+    /// with no depth cap before this fix. The Pratt parser caps *its* output
+    /// at 256 levels, but a tree built directly is unbounded and empirically
+    /// overflowed the native stack (SIGABRT) in the low thousands of levels
+    /// on a 2 MiB thread (`cargo test`'s default). 3000 is comfortably past
+    /// that crash range and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is
+    /// that each walker returns at all.
+    #[test]
+    fn deeply_nested_expr_simplify_walks_survive() {
+        use crate::expr_ast::UnaryOp;
+
+        fn var_x() -> ExprNode {
+            ExprNode::Var {
+                text: "$x".into(),
+                name: "x".into(),
+                start: 0,
+                end: 2,
+            }
+        }
+
+        // A 3000-deep nested-unary `!` tree — drives `simplify_node_once`
+        // (its `reduce_unary`/`reassociate_node` helpers never render or eval
+        // this Unary shape, so this isolates the walker's own recursion) and
+        // the two boolean predicates.
+        let mut unary = var_x();
+        for _ in 0..3000 {
+            unary = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(unary),
+            };
+        }
+        let _ = simplify_node_once(&unary, false, None, 0);
+        assert!(expr_has_command_subst(&ExprNode::Command {
+            text: "[x]".into(),
+            start: 0,
+            end: 3,
+        }));
+        // Deep tree with no command subst / no mathfunc → the walkers descend
+        // fully (capped) and answer `false` for realistic input; the point is
+        // they do not overflow.
+        let _ = expr_has_command_subst(&unary);
+        let procs: std::collections::HashMap<String, crate::ir::Procedure> =
+            std::collections::HashMap::new();
+        let _ = expr_uses_shadowed_mathfunc(&unary, &procs);
+
+        // A 3000-deep left-nested `+` chain drives `collect_add_terms`.
+        let mut add = var_x();
+        for _ in 0..3000 {
+            add = ExprNode::Binary {
+                op: BinOp::Add,
+                left: Box::new(add),
+                right: Box::new(make_int_literal(1)),
+            };
+        }
+        let mut terms = Vec::new();
+        let _ = collect_add_terms(&add, &mut terms, 0);
+
+        // A 3000-deep left-nested `*` chain drives `collect_mul_terms`.
+        let mut mul = var_x();
+        for _ in 0..3000 {
+            mul = ExprNode::Binary {
+                op: BinOp::Mul,
+                left: Box::new(mul),
+                right: Box::new(make_int_literal(2)),
+            };
+        }
+        let mut mterms = Vec::new();
+        let _ = collect_mul_terms(&mul, &mut mterms, 0);
     }
 
     // try_unwrap_expr_in_expr

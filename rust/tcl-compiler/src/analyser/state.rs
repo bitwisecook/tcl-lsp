@@ -51,6 +51,29 @@ pub(super) struct ConstDispatchSite {
     pub head_expanded: bool,
 }
 
+/// One `$class`-headed `TclOO` instance-creation site (issue #923 idx
+/// 121), pending settlement against the compiler's flow-sensitive value
+/// model once the CFG/SSA `CompilationUnit` is built — the same
+/// settle-late discipline [`ConstDispatchSite`] uses, since `class_var`'s
+/// value can't be proven constant until SSA reaching-definitions exist.
+/// Recorded by [`super::commands::Analyser::record_instance_creation`]
+/// when the constructor call's class head is a plain `$var` reference
+/// instead of the literal bareword
+/// [`super::commands::Analyser::class_from_constructor_subst`] resolves
+/// directly (`set class ::Derived; set obj [$class create NAME]`,
+/// tcllib's `httpd/httpd.tcl`).
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct PendingInstanceClassSite {
+    /// The class-naming variable's name (no leading `$`).
+    pub class_var: String,
+    /// Span of the `$class` head, for the SSA use-position lookup.
+    pub span: Span,
+    /// The `instance_classes` key to bind once `class_var` resolves to a
+    /// single known user class — the assigned variable (`set obj [...]`)
+    /// or created instance-command name.
+    pub target_name: String,
+}
+
 /// The recorded state of one child interpreter (issue #945 faults 7–8):
 /// safe flag plus the explicit hide / expose deltas layered over the
 /// registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base set.
@@ -189,6 +212,18 @@ pub struct Analyser {
     /// Keyed on the path vector so snapshot/restore doesn't have to
     /// remap pointers.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+    /// Per-scope set of const-string bindings whose *current* value was
+    /// last written inside an ``if`` / ``try`` body (``conditional_depth >
+    /// 0``) — a write that does **not** dominate code after the conditional
+    /// join. [`Self::set_const_string`] adds a name here when the write is
+    /// conditional and removes it on a later straight-line (depth-0) write;
+    /// [`Self::lookup_dominating_const_string`] consults it so identity
+    /// resolution (`source`/`rename` targets via
+    /// [`Self::resolve_dynamic_word`]) abstains rather than pick a
+    /// branch-dependent value (Codex review, PR #1020). Kept as a side set
+    /// so the many other `const_strings` readers (regex vars, expansion
+    /// counts, …) keep their existing last-write-wins behaviour untouched.
+    pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
     /// Variables known to contain regex patterns:
     /// ``(scope_path, var_name)``.
     pub regex_vars: HashSet<(Vec<usize>, String)>,
@@ -245,6 +280,13 @@ pub struct Analyser {
     /// Body-nesting depth — incremented on entry to a braced
     /// body. Used for top-level-only command checks.
     pub body_depth: u32,
+    /// Whether **E207** (nesting depth exceeds the analysis limit — see
+    /// `commands::MAX_BODY_DEPTH`) has already been emitted for this walk.
+    /// The depth cap trips once per nested body past the limit — on
+    /// pathologically deep input that could be hundreds of bodies — so this
+    /// flags it emitted at most once rather than flooding
+    /// `result.diagnostics` with duplicates that all say the same thing.
+    pub(super) e207_emitted: bool,
     /// Stack of active scoped command environments — pushed while walking a
     /// command body whose spec carries a
     /// [`body_scope`](tcl_registry::CommandSpec::body_scope) (e.g. inside a
@@ -293,6 +335,20 @@ pub struct Analyser {
     /// [`Self::rename_offsets`]), instead of still validating it against
     /// a definition that's no longer callable under that name.
     pub deleted_commands: HashMap<String, u32>,
+    /// Earliest source offset, among this file's recorded command
+    /// invocations, of a *top-level* (not inside any proc/class body) call
+    /// resolving to each qualified name — keyed by `resolved_qualified_name`.
+    /// Populated once by [`Self::finalise_invocation_resolutions`] from the
+    /// already-settled `command_invocations`, and consulted by
+    /// [`Self::fact_live_for_call`] when the call site under test is itself
+    /// nested inside a body: a proven top-level invocation of the
+    /// *enclosing* definition that ran before a later unconditional
+    /// deletion means that invocation's own nested calls already resolved
+    /// (issue #1009 Codex review: `proc helper {}`, `proc caller {} {
+    /// helper }`, `caller`, `rename helper {}` resolves in real Tcl —
+    /// confirmed against tclsh 8.6.14 — because `caller`'s own top-level
+    /// invocation runs before the rename).
+    pub(super) top_level_call_offsets: HashMap<String, u32>,
     /// Static `namespace path {…}` declarations: ``declaring namespace →
     /// raw path entries`` (each declaration replaces the whole path, as in
     /// C Tcl, so the lexically-last one wins). Entries are stored as
@@ -318,6 +374,11 @@ pub struct Analyser {
     /// alive).  Anything unprovable is dropped (sound abstention — no
     /// phantom invocation, no W123 delta).
     pub(super) pending_const_dispatches: Vec<ConstDispatchSite>,
+    /// `TclOO` instance-creation sites whose class head is a `$var`
+    /// reference (issue #923 idx 121), pending settlement alongside
+    /// [`Self::pending_const_dispatches`] once the CFG/SSA
+    /// `CompilationUnit` exists.
+    pub(super) pending_instance_class_sites: Vec<PendingInstanceClassSite>,
     /// M9: the namespace key a seeded analysis wraps the whole file in (set
     /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it
     /// creates becomes the top-level walk's base path.
@@ -341,6 +402,16 @@ pub struct Analyser {
     /// Namespaces where ``namespace ensemble create`` was seen —
     /// their tail names become valid commands.
     pub ensemble_namespaces: HashSet<String>,
+    /// `namespace ensemble create|configure ... -map {sub target ...}`
+    /// subcommand-to-target maps, keyed by the ensemble's own qualified
+    /// command name (`-command NAME`, or the enclosing namespace's own
+    /// qualified name when `-command` is absent — Tcl's default). Consulted
+    /// by the W129 safe-interpreter gate (issue #1001 follow-up, tracked
+    /// separately from #979's interprocedural call-site concern) so a
+    /// hidden command reached only through an ensemble redirect (`myens sub
+    /// ...` → target) is still flagged, mirroring a literal call to the
+    /// target.
+    pub ensemble_command_maps: HashMap<String, HashMap<String, String>>,
     /// Vars where ``oo::objdefine`` was applied — the per-instance
     /// method table may extend the class definition.
     pub objdefined_vars: HashSet<String>,
@@ -378,6 +449,19 @@ pub struct Analyser {
     /// side-effect happens — so no source / package / definition edges
     /// may be built from it either; issue #945 fault 7).
     pub(super) safe_interp_stack: Vec<SafeInterpCtx>,
+    /// The scope-chain-aware **interpreter value-flow map** (issue #923
+    /// idx 9): `set VAR [interp create ...]` binds `VAR`, in the scope it
+    /// was written, to the `interpreters` domain key recorded for that
+    /// call — a literal path's qualified key, or a synthetic
+    /// per-call-site key when the call captured no literal path. Mirrors
+    /// `const_strings`'s scope-chain shape (never `instance_classes`'s
+    /// flat, file-wide one — a raw-name collision there only softens a
+    /// diagnostic; here it would corrupt real go-to-definition targets),
+    /// so two unrelated procs binding the same variable name to
+    /// different interpreters never collide. Consulted by
+    /// [`Self::resolve_dynamic_interp_path`] from the call sites that
+    /// used to require the interpreter path to be a source literal.
+    pub(super) interp_var_bindings: HashMap<Vec<usize>, HashMap<String, String>>,
     /// Guard against double W123 emission across
     /// ``analyse_commands`` / ``analyse_irule_event``.
     pub unresolved_commands_emitted: bool,
@@ -424,6 +508,39 @@ pub struct Analyser {
     /// per command) cost ``O(log N)`` instead of ``O(N)`` per
     /// call.  ``None`` outside an active analysis run.
     pub line_offsets: Option<Vec<usize>>,
+    /// Cached [`tcl_lexer::LineIndex`] over [`Self::source`], precomputed
+    /// once at the top of [`Self::analyse`] / [`Self::analyse_chunked`] /
+    /// [`Self::analyse_commands`] (alongside [`Self::line_offsets`]).
+    ///
+    /// Every recursive-body handler needs a [`tcl_lexer::SourceMap`] to
+    /// resolve token text / positions; before this cache existed, each of
+    /// the ~14 call sites called `SourceMap::new(&self.source)`, which
+    /// rescans the **entire document** to rebuild the line index from
+    /// scratch. Called once per command at every nesting level, that
+    /// turned an `O(document size)` per-command cost into `O(document
+    /// size × nesting depth)` overall — a genuine, severe (though
+    /// non-crashing) `DoS`: deeply-nested or merely large documents could
+    /// take many seconds even where the recursion depth itself stayed
+    /// safely under the analyser's caps (issue #996). Use
+    /// [`Self::source_map`] instead of `SourceMap::new(&self.source)` —
+    /// cloning a [`tcl_lexer::LineIndex`] is one allocation plus a copy of
+    /// its line-start offsets (`O(line count)`), not a document rescan.
+    ///
+    /// [`Self::source`] is a `pub` field that plenty of unit tests (and, in
+    /// principle, any other consumer) assign directly rather than through
+    /// [`Self::analyse`], so this cache can legitimately go stale relative
+    /// to it. [`Self::cached_line_index_source_len`] guards that: a length
+    /// mismatch means the cache doesn't describe the current `source`, and
+    /// [`Self::source_map`] falls back to a fresh scan rather than trusting
+    /// it. This is a cheap, not perfect, staleness check (same length,
+    /// different content, set outside `analyse` would slip through) — good
+    /// enough because every real entry point keeps the two in lock-step;
+    /// only direct test-only field pokes can desync them, and those change
+    /// the length in every case in this codebase's test suite.
+    pub(super) cached_line_index: tcl_lexer::LineIndex,
+    /// `self.source.len()` at the point [`Self::cached_line_index`] was
+    /// built — see that field's doc comment.
+    pub(super) cached_line_index_source_len: usize,
     /// Candidate E002 / E003 arity diagnostics, W004
     /// (dialect-invalid-option) diagnostics, **and** W001 (unknown
     /// subcommand) diagnostics collected during the command walk, as
@@ -631,6 +748,37 @@ impl Analyser {
         tcl_lexer::LexerConfig::from_grammar(self.profile.grammar)
     }
 
+    /// A [`tcl_lexer::SourceMap`] over [`Self::source`], built from the
+    /// cached [`Self::cached_line_index`] rather than rescanning the
+    /// document. Use this instead of `SourceMap::new(&self.source)` in any
+    /// handler that runs once per command (i.e. potentially once per
+    /// nesting level) — see the doc comment on [`Self::cached_line_index`]
+    /// for why the naive rescan is a real `DoS`, not just an inefficiency.
+    ///
+    /// Falls back to a fresh `SourceMap::new(source)` scan when
+    /// `cached_line_index_len != source.len()` — see
+    /// [`Self::cached_line_index`]'s doc comment for why the cache can be
+    /// stale and why a length mismatch is how this detects it.
+    ///
+    /// A free function taking the fields explicitly, **not** a `&self`
+    /// method: a method call always borrows all of `self`, which would tie
+    /// up `self.result` for the returned `SourceMap`'s whole lifetime and
+    /// break the many call sites that build a map and later push a
+    /// diagnostic in the same scope. Called as
+    /// `Analyser::source_map(&self.source, &self.cached_line_index,
+    /// self.cached_line_index_source_len)`.
+    pub(super) fn source_map<'src>(
+        source: &'src str,
+        cached_line_index: &tcl_lexer::LineIndex,
+        cached_line_index_len: usize,
+    ) -> tcl_lexer::SourceMap<'src> {
+        if source.len() == cached_line_index_len {
+            tcl_lexer::SourceMap::with_line_index(source, cached_line_index.clone())
+        } else {
+            tcl_lexer::SourceMap::new(source)
+        }
+    }
+
     /// The active dialect's canonical name — the string that round-trips
     /// through configuration and the providers (`self.profile.name`).
     #[must_use]
@@ -668,6 +816,7 @@ impl Analyser {
             last_comment: String::new(),
             file_path: None,
             const_strings: HashMap::new(),
+            nondominating_consts: HashMap::new(),
             regex_vars: HashSet::new(),
             current_event: None,
             tk_possibly_active: false,
@@ -682,33 +831,40 @@ impl Analyser {
             builtin_dialect: None,
             conditional_depth: 0,
             body_depth: 0,
+            e207_emitted: false,
             body_scope_stack: Vec::new(),
             command_aliases: HashMap::new(),
             renamed_commands: HashMap::new(),
             alias_offsets: HashMap::new(),
             rename_offsets: HashMap::new(),
             deleted_commands: HashMap::new(),
+            top_level_call_offsets: HashMap::new(),
             namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
             pending_const_dispatches: Vec::new(),
+            pending_instance_class_sites: Vec::new(),
             seed_namespace_key: None,
             seed_scope_path: Vec::new(),
             widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
             ns_cache: HashMap::new(),
             ensemble_namespaces: HashSet::new(),
+            ensemble_command_maps: HashMap::new(),
             objdefined_vars: HashSet::new(),
             interpreters: HashMap::new(),
             dynamic_interp_ops: false,
             interp_epochs: HashMap::new(),
             interp_path_stack: Vec::new(),
             safe_interp_stack: Vec::new(),
+            interp_var_bindings: HashMap::new(),
             unresolved_commands_emitted: false,
             registry: None,
             recovery_known_commands: HashSet::new(),
             deep_param_traits: false,
             stub_overlay: None,
             line_offsets: None,
+            cached_line_index: tcl_lexer::LineIndex::new(""),
+            cached_line_index_source_len: 0,
             pending_arity: Vec::new(),
             pending_user_call_arity: Vec::new(),
             pending_ctor_arity: Vec::new(),
@@ -916,6 +1072,8 @@ impl Analyser {
         // ``apply_preceding_noqa`` (which runs per command and
         // would otherwise be ``O(N)`` per call).
         self.line_offsets = Some(compute_line_offsets(source));
+        self.cached_line_index = tcl_lexer::LineIndex::new(source);
+        self.cached_line_index_source_len = source.len();
         // The recovery known-command universe (registry + this document's
         // own procs/classes/aliases) — see `recovery_known_commands`. Stored
         // on `self` so the per-command E100/E201/E202/E203 detectors below
@@ -1175,7 +1333,11 @@ impl Analyser {
     /// every *other* message maps to the catch-all E200.
     fn emit_lexer_warning_diagnostics(&mut self) {
         let lexer = tcl_lexer::Lexer::with_source_map(
-            tcl_lexer::SourceMap::new(&self.source),
+            Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            ),
             self.lexer_config(),
         );
         let Ok((_tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
@@ -1266,6 +1428,8 @@ impl Analyser {
             &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
+        self.cached_line_index = tcl_lexer::LineIndex::new(source);
+        self.cached_line_index_source_len = source.len();
 
         // Whole-file scoped environment (tclpkg manifests) — same seeding as
         // `analyse`, spanning every chunk's walk.
@@ -1344,6 +1508,8 @@ impl Analyser {
             &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
+        self.cached_line_index = tcl_lexer::LineIndex::new(source);
+        self.cached_line_index_source_len = source.len();
 
         // Stub-directive pre-scan + overlay, matching ``analyse`` so command
         // resolution (W123 / W307 / param-trait inference) sees the same stub
@@ -1644,6 +1810,9 @@ impl Analyser {
         self.seed_scope_path.clear();
         self.recovery_known_commands.clear();
         self.line_offsets = None;
+        self.cached_line_index = tcl_lexer::LineIndex::new("");
+        self.cached_line_index_source_len = 0;
+        self.e207_emitted = false;
         self.defer_proc_bodies = false;
         self.deferred_bodies.clear();
         self.cu_override = None;
@@ -1820,6 +1989,54 @@ mod tests {
     }
 
     #[test]
+    fn apply_with_namespace_element_records_a_namespace_override() {
+        // TP — issue #923 idx 116 Part 1 (the core mechanism): a literal
+        // `apply {{params} body ns}` must record a namespace_overrides
+        // entry spanning the body, so `tcl-lsp-core`'s command-resolution
+        // lookups can pin bareword calls inside the body to `ns` — the
+        // `Scope` subtree `reconstruct_proc_scope` builds for `ns` is
+        // rooted under body_span-less wrapper nodes the ordinary lexical
+        // walk can never reach.
+        let mut a = Analyser::new();
+        let src = "apply {{} { cleanup done } ::real}";
+        let r = a.analyse(src, "tcl");
+        assert_eq!(
+            r.namespace_overrides.len(),
+            1,
+            "{:?}",
+            r.namespace_overrides
+        );
+        let (span, ns) = &r.namespace_overrides[0];
+        assert_eq!(ns, "::real");
+        // The recorded span is the body token's raw span (opening brace
+        // included, per this codebase's lexer-span convention — the
+        // closing brace is excluded, one byte short of the token's end).
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "{ cleanup done "
+        );
+    }
+
+    #[test]
+    fn apply_without_namespace_element_does_not_record_an_override() {
+        // TN — a 2-element lambda (no namespace argument) defaults to
+        // global, which `command_resolution_namespace_at` already reports
+        // with no override present; pushing a `(span, "::")` entry would
+        // be a no-op relative to today's behaviour, but the plan
+        // deliberately still records it (uniform code path) — confirm the
+        // recorded namespace is exactly `"::"`, not skipped or wrong.
+        let mut a = Analyser::new();
+        let r = a.analyse("apply {{} { cleanup done }}", "tcl");
+        assert_eq!(
+            r.namespace_overrides.len(),
+            1,
+            "{:?}",
+            r.namespace_overrides
+        );
+        assert_eq!(r.namespace_overrides[0].1, "::");
+    }
+
+    #[test]
     fn unknown_lexer_warning_maps_to_e200() {
         // An unterminated `$arr(idx` array index makes the lexer emit a
         // "missing )" warning, which has no dedicated recovery code — it
@@ -1880,6 +2097,82 @@ mod tests {
         assert_eq!(
             r.instance_classes.get("d").map(String::as_str),
             Some("::Dog")
+        );
+    }
+
+    #[test]
+    fn analyse_records_instance_class_through_a_var_headed_create() {
+        // TP — issue #923 idx 121: tcllib's `httpd/httpd.tcl` flows the
+        // constructor's class name through a single, unconditional `set`
+        // one line earlier (`set class ::Derived; set obj [$class create
+        // NAME]`) rather than writing the class as a literal bareword.
+        // Verified against real tclsh9.0/8.6: `$obj`'s methods dispatch to
+        // `Dog` either way, so the analyser must bind `obj` -> `::Dog`
+        // exactly like the literal-bareword shape already does.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\nset class Dog\nset obj [$class create rex]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj").map(String::as_str),
+            Some("::Dog"),
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_records_instance_class_through_a_var_headed_new() {
+        // TP — same gap, the `new` constructor spelling.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\nset class Dog\nset obj [$class new]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj").map(String::as_str),
+            Some("::Dog"),
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_abstains_on_a_branch_ambiguous_class_var() {
+        // TN — a class variable whose reaching definitions genuinely
+        // disagree (one arm `Dog`, the other `Cat`) is unprovable at the
+        // constructor call: binding *either* class would be a guess, so
+        // the analyser must abstain (no `instance_classes` entry) rather
+        // than pick one arbitrarily.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog {}\noo::class create Cat {}\nif {$flag} { set class Dog } else { set class Cat }\nset obj [$class create x]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj"),
+            None,
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_abstains_on_a_genuinely_dynamic_class_var() {
+        // TN — a class variable fed by a computed value (no exact
+        // constant) can't be proven at all; must abstain exactly like the
+        // pre-fix behaviour rather than binding a wrong/empty class.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog {}\nset class [someFactory]\nset obj [$class create x]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj"),
+            None,
+            "{:?}",
+            r.instance_classes
         );
     }
 

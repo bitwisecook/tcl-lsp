@@ -395,8 +395,28 @@ fn run() -> Result<(), (u8, String)> {
     Ok(())
 }
 
+/// Stack budget for the dedicated worker thread the CLI runs on.
+///
+/// Matches `WORKER_STACK_SIZE` in `f5-cli`/`tcl-lsp-server`/`tcl-mcp`/
+/// `tcl-cli`'s entry points — see `f5-cli/src/lib.rs`'s doc comment for the
+/// full rationale. Short version: this binary calls straight into the
+/// `tcl-bigip-query` DSL parser/evaluator, `tcl-bigip` config parser, and
+/// `tcl_diagram::irule_flowchart_graph` (IR/CFG-based) for every iRule body
+/// in the report — the same depth-capped-but-stack-hungry recursion chain
+/// that crashed `tcl-lsp-server` in issue #996. The OS-provided main-thread
+/// stack this binary would otherwise inherit is outside this crate's
+/// control (8 MiB by default on Linux, far less guaranteed elsewhere), so
+/// the CLI runs on an explicitly-sized thread instead.
+const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
+
 fn main() -> ExitCode {
-    match run() {
+    let result = std::thread::Builder::new()
+        .stack_size(WORKER_STACK_SIZE)
+        .spawn(run)
+        .expect("failed to spawn the bigip-report-gen CLI worker thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    match result {
         Ok(()) | Err((0, _)) => ExitCode::SUCCESS,
         Err((_, msg)) => {
             if !msg.is_empty() {

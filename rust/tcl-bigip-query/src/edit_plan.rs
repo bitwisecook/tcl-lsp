@@ -39,7 +39,7 @@ use regex::Regex;
 
 use crate::errors::QueryError;
 use crate::rewrite::{RenameReport, rename_object};
-use crate::value::{FieldSlot, Value};
+use crate::value::{FieldSlot, MAX_VALUE_WALK_DEPTH, Value};
 
 /// Identity fields whose location is the stanza header — writes to these route
 /// through the [`rename_object`] token-rewrite engine.
@@ -456,7 +456,7 @@ fn splice_edits(source: &str, ops: &[&EditOp], uri: &str) -> Result<String, Quer
     let mut placed: Vec<(usize, usize, String, &EditOp)> = Vec::new();
     for op in ops {
         if let Some(slot) = &op.field_slot {
-            let new_text = format_value(&op.new_value, &slot.raw_text, &op.field_name)?;
+            let new_text = format_value(&op.new_value, &slot.raw_text, &op.field_name, 0)?;
             placed.push((slot.start, slot.end, new_text, op));
             continue;
         }
@@ -497,16 +497,34 @@ fn splice_edits(source: &str, ops: &[&EditOp], uri: &str) -> Result<String, Quer
 
 /// Render *value* for splicing back into source text.
 ///
+/// `depth` is the nesting level of this call (0 at the top); past
+/// [`MAX_VALUE_WALK_DEPTH`] this returns [`QueryError::Edit`] instead of
+/// descending into another nested list (issue #996) — silently truncating
+/// the rendered SCF output here would corrupt the spliced source, so an
+/// error is the only sound fallback.
+///
 /// # Errors
 /// Returns [`QueryError::Edit`] when a string value contains a character with
-/// no safe SCF representation (newlines / braces / control chars).
-fn format_value(value: &Value, original_raw: &str, field_name: &str) -> Result<String, QueryError> {
+/// no safe SCF representation (newlines / braces / control chars), or when
+/// `value` nests deeper than [`MAX_VALUE_WALK_DEPTH`].
+fn format_value(
+    value: &Value,
+    original_raw: &str,
+    field_name: &str,
+    depth: u32,
+) -> Result<String, QueryError> {
+    if MAX_VALUE_WALK_DEPTH.exceeded(depth) {
+        return Err(QueryError::edit(format!(
+            "cannot render value for field {}: nests too deeply for SCF output",
+            crate::eval::pyr_pub(field_name)
+        )));
+    }
     match value {
         Value::PathRef(p) => Ok(p.full_path.clone()),
         Value::List(items) => {
             let mut parts = Vec::with_capacity(items.len());
             for v in items {
-                parts.push(format_value(v, "", field_name)?);
+                parts.push(format_value(v, "", field_name, depth + 1)?);
             }
             let joined = parts.join(" ");
             if original_raw.starts_with('{') {
@@ -641,7 +659,7 @@ fn materialise_compound_block<'a>(
 
     let mut items = Vec::with_capacity(new_value.len());
     for v in new_value {
-        items.push(format_value(v, "", &op.field_name)?);
+        items.push(format_value(v, "", &op.field_name, 0)?);
     }
     let items_text = items.join(" ");
 
@@ -754,4 +772,64 @@ fn match_name_open_brace(body: &str, pos: usize, name: &str) -> Option<usize> {
         return Some(j + 1);
     }
     None
+}
+
+#[cfg(test)]
+mod recursion_tests {
+    use super::*;
+
+    /// A list nested `depth` levels deep, wrapping a single `Int(1)` leaf.
+    fn deep_nested_list(depth: usize) -> Value {
+        let mut v = Value::Int(1);
+        for _ in 0..depth {
+            v = Value::List(vec![v]);
+        }
+        v
+    }
+
+    /// Run *f* on a worker thread with a 256 MiB stack (mirroring
+    /// `tests/hardening.rs`'s `with_big_stack`). Building — and, at scope
+    /// end, dropping — a several-thousand-level-deep `Value` costs one
+    /// native stack frame per level, since `Value`'s derived `Clone`/`Drop`
+    /// have no depth cap of their own (unlike `format_value` under test
+    /// here), so the fixture itself needs more room than the harness's
+    /// default ~2 MiB per-test thread provides — independently of whether
+    /// the guard is correct.
+    fn with_big_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn(f)
+            .expect("spawn worker thread")
+            .join()
+            .expect("worker thread did not panic / overflow")
+    }
+
+    /// Regression coverage for issue #996: `format_value` recurses once per
+    /// nested `List` level when rendering an assignment value for SCF
+    /// splicing, with no depth cap before this fix — reachable via a
+    /// `setpath`/`=`-style edit whose right-hand side is a deeply nested
+    /// list value. 5000 is comfortably past `MAX_VALUE_WALK_DEPTH` (64);
+    /// silently truncating rendered SCF output would corrupt the spliced
+    /// source, so the assertion is specifically that the cap surfaces as a
+    /// clean [`QueryError::Edit`], not a crash or malformed output.
+    #[test]
+    fn deeply_nested_list_value_returns_error_not_crash() {
+        with_big_stack(|| {
+            let value = deep_nested_list(5000);
+            let result = format_value(&value, "", "test-field", 0);
+            assert!(
+                matches!(result, Err(QueryError::Edit(_))),
+                "expected a clean Edit error past the depth cap, got {result:?}"
+            );
+        });
+    }
+
+    /// A list nested well under `MAX_VALUE_WALK_DEPTH` still renders exactly
+    /// as before this fix.
+    #[test]
+    fn moderately_nested_list_value_is_unchanged() {
+        let value = Value::List(vec![Value::List(vec![Value::Int(1), Value::Int(2)])]);
+        let rendered = format_value(&value, "", "test-field", 0).expect("well under the cap");
+        assert_eq!(rendered, "1 2");
+    }
 }

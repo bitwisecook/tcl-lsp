@@ -1309,8 +1309,45 @@ fn unknown_method(vm: &Vm, obj_key: &str, method: &str, external: bool) -> Compl
 /// Execute step `index` of `chain` on `obj_key`, for the invoked `method`
 /// (empty = constructor, `<destructor>` = destructor). Pushes an [`OoFrame`] so
 /// `self`/`next` see the chain.
+///
+/// Native-stack safety net — see `interp::OO_DISPATCH_DEPTH_LIMIT`'s doc
+/// comment (issue #996). This is the single choke point every method-body
+/// execution funnels through — `$obj method` (via [`oo_dispatch`] →
+/// [`oo_invoke`]), `my method` (via `cmd_my` → [`oo_invoke`]), and
+/// `next`/`nextto` (directly) — so guarding here covers every recursive
+/// path, not just the `Command::Object` engine dispatch.
 #[allow(clippy::too_many_arguments)] // A method activation genuinely carries this context.
 fn run_step(
+    vm: &mut Vm,
+    obj_key: &str,
+    chain: &[Step],
+    index: usize,
+    method: String,
+    args: &[Value],
+    external: bool,
+    invoked: String,
+    usage_prefix: String,
+) -> Completion<Value> {
+    if let Err(c) = vm.enter_oo_dispatch() {
+        return c;
+    }
+    let result = run_step_inner(
+        vm,
+        obj_key,
+        chain,
+        index,
+        method,
+        args,
+        external,
+        invoked,
+        usage_prefix,
+    );
+    vm.exit_oo_dispatch();
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_step_inner(
     vm: &mut Vm,
     obj_key: &str,
     chain: &[Step],

@@ -70,7 +70,7 @@ use super::{Optimisation, PassContext};
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // Top-level script.
     let top_env = sccp_env_for(&cu.top_level);
-    walk_script(ctx, &cu.ir_module.top_level, &top_env);
+    walk_script(ctx, &cu.ir_module.top_level, &top_env, 0);
 
     // Procedures.
     for (qname, fu) in &cu.procedures {
@@ -78,7 +78,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             continue;
         };
         let env = sccp_env_for(fu);
-        walk_script(ctx, &ir_proc.body, &env);
+        walk_script(ctx, &ir_proc.body, &env, 0);
     }
 }
 
@@ -119,20 +119,25 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
 
 /// Recursively walk `script`'s statements, trying to eliminate
 /// each compound statement and then descending into its bodies.
-fn walk_script(ctx: &mut PassContext<'_>, script: &Script, env: &Env) {
+/// `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
+fn walk_script(ctx: &mut PassContext<'_>, script: &Script, env: &Env, depth: u32) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, env);
+        walk_statement(ctx, stmt, env, depth);
     }
 }
 
-fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
+fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
     match stmt {
-        Statement::If { .. } => visit_if(ctx, stmt, env),
-        Statement::While { .. } => visit_while(ctx, stmt, env),
-        Statement::For { .. } => visit_for(ctx, stmt, env),
-        Statement::Switch { .. } => visit_switch(ctx, stmt, env),
+        Statement::If { .. } => visit_if(ctx, stmt, env, depth),
+        Statement::While { .. } => visit_while(ctx, stmt, env, depth),
+        Statement::For { .. } => visit_for(ctx, stmt, env, depth),
+        Statement::Switch { .. } => visit_switch(ctx, stmt, env, depth),
         Statement::Catch { body, .. } | Statement::Foreach { body, .. } => {
-            walk_script(ctx, body, env);
+            walk_script(ctx, body, env, depth + 1);
         }
         Statement::Try {
             body,
@@ -140,19 +145,19 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, env);
+            walk_script(ctx, body, env, depth + 1);
             for h in handlers {
-                walk_script(ctx, &h.body, env);
+                walk_script(ctx, &h.body, env, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, env);
+                walk_script(ctx, fb, env, depth + 1);
             }
         }
         _ => {}
     }
 }
 
-fn visit_if(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
+fn visit_if(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
     let Statement::If {
         span,
         clauses,
@@ -164,14 +169,14 @@ fn visit_if(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
     };
     try_eliminate_if(ctx, *span, clauses, else_body.as_ref(), *else_span, env);
     for clause in clauses {
-        walk_script(ctx, &clause.body, env);
+        walk_script(ctx, &clause.body, env, depth + 1);
     }
     if let Some(body) = else_body {
-        walk_script(ctx, body, env);
+        walk_script(ctx, body, env, depth + 1);
     }
 }
 
-fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
+fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
     let Statement::While {
         span,
         condition,
@@ -192,10 +197,10 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
             "",
         ));
     }
-    walk_script(ctx, body, env);
+    walk_script(ctx, body, env, depth + 1);
 }
 
-fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
+fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
     let Statement::For {
         span,
         init,
@@ -229,12 +234,12 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
             ));
         }
     }
-    walk_script(ctx, init, env);
-    walk_script(ctx, body, env);
-    walk_script(ctx, next, env);
+    walk_script(ctx, init, env, depth + 1);
+    walk_script(ctx, body, env, depth + 1);
+    walk_script(ctx, next, env, depth + 1);
 }
 
-fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
+fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
     let Statement::Switch {
         span,
         subject,
@@ -263,11 +268,11 @@ fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
     );
     for arm in arms {
         if let Some(body) = &arm.body {
-            walk_script(ctx, body, env);
+            walk_script(ctx, body, env, depth + 1);
         }
     }
     if let Some(body) = default_body {
-        walk_script(ctx, body, env);
+        walk_script(ctx, body, env, depth + 1);
     }
 }
 

@@ -120,6 +120,7 @@ pub(super) fn scan(
                 indirect: false,
                 rename_safe: true,
                 existence_probe: false,
+                is_mathfunc_call: false,
             });
         // Record command-prefix callback heads (`lsort -command cb`, `trace
         // add … cb`, …) as their own invocations so background-scanned files
@@ -218,6 +219,17 @@ fn dispatch_definer(
             }
         };
     }
+    // `tcl::OptProc name optlist body` (issue #923 idx 90): a real proc
+    // definer, but `optlist` is never the arity-relevant param list the
+    // way `proc`'s own second argument is — the runtime always installs
+    // a plain `args` catch-all — so it needs its own handler rather than
+    // `handle_proc`'s literal `parse_param_list(&texts[2])`, which would
+    // record `optlist`'s own descriptor words as the recorded arity and
+    // misreport a cross-file caller's true argument count.
+    if spec.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::OptProc) {
+        handlers::handle_opt_proc(texts, argv, ns_prefix, ctx);
+        return true;
+    }
     if spec.traits.contains(Traits::DEFINES_PROCEDURE) {
         handlers::handle_proc(texts, argv, ns_prefix, ctx);
         return true;
@@ -264,6 +276,7 @@ fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &m
                 indirect: false,
                 rename_safe: true,
                 existence_probe: false,
+                is_mathfunc_call: false,
             });
     }
 }

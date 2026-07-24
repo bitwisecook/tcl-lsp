@@ -201,6 +201,141 @@ mod proc_analysis {
 }
 
 // ===========================================================================
+// `tcl::OptProc` — the `opt` package's automatic-option-parsing proc
+// definer (issue #923 idx 90). Runtime mechanism (tclsh9.0/8.6-verified):
+// installs `::proc $name args {...}` unconditionally — the real Tcl-level
+// signature is always the single `args` catch-all, regardless of what
+// `optlist` declares; `optlist`'s own descriptor words are bound as local
+// variables in the body by `::tcl::OptKeyParse`, with a leading `-` on a
+// flag descriptor stripped for the bound name.
+// ===========================================================================
+mod opt_proc_definer {
+    use super::*;
+
+    #[test]
+    fn records_proc_with_real_args_only_arity() {
+        // TP — the analyser must record the *real* Tcl-level signature,
+        // never `optlist`'s own descriptor words.
+        let r = Analyser::new().analyse(
+            "tcl::OptProc greet {child -use -display} { return $child }",
+            D,
+        );
+        let proc = r.all_procs.get("::greet").expect("greet recorded");
+        assert_eq!(
+            proc.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["args"],
+            "the real Tcl-level signature is always the single args catch-all"
+        );
+    }
+
+    #[test]
+    fn fully_qualified_spelling_also_registers() {
+        // TP — real corpus code commonly writes this fully qualified;
+        // `resolve_analyser_hook` must resolve it identically to the bare
+        // spelling (issue #923 idx 90).
+        let r = Analyser::new().analyse(
+            "::tcl::OptProc greet {child -use -display} { return $child }",
+            D,
+        );
+        assert!(r.all_procs.contains_key("::greet"), "{:?}", r.all_procs);
+    }
+
+    #[test]
+    fn call_with_any_arity_draws_no_wrong_arg_count_diagnostic() {
+        // TP — the finding's own headline claim: every real call
+        // previously misreported "wrong number of arguments" because the
+        // stub proc's `{}`-arity `ProcDef` was never overwritten.
+        let src = "tcl::OptProc greet {child -use -display} { return $child }\ngreet a b c d\n";
+        assert!(!fires(src, D, "E003"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn optlist_flag_descriptor_dash_is_stripped_for_the_bound_local() {
+        // TP — `::tcl::OptKeyParse` binds `-use`/`-display` as `use`/
+        // `display`, never with the leading dash.
+        let src =
+            "tcl::OptProc greet {child -use -display} { return \"$use $display\" }\ngreet a\n";
+        assert!(
+            !fires(src, D, "W210"),
+            "use/display must resolve as bound locals, not read-before-set: {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn args_catch_all_is_readable_in_the_body() {
+        // TP — `$args` still holds the whole original argument list after
+        // `OptKeyParse` runs, so a body reference to it (inspecting
+        // leftovers) is legitimate, not a false read-before-set.
+        let src = "tcl::OptProc greet {child} { return $args }\ngreet a\n";
+        assert!(!fires(src, D, "W210"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn dash_stripped_local_does_not_collide_with_its_own_optlist_declaration() {
+        // FN guard: a naive anchor for the synthetic `args` binding (this
+        // idiom writes no literal `args` word anywhere) could collide with
+        // another symbol's own span and silently hide it — every
+        // optlist-derived local must still resolve to its own name, not
+        // `args` (issue #923 idx 90 regression: the fix's first attempt
+        // anchored `args` to the whole `optlist` word, which swallowed
+        // every one of its own descriptor sub-spans).
+        let r = Analyser::new().analyse(
+            "tcl::OptProc greet {child -use -display} { return $child }",
+            D,
+        );
+        let scope = &r.global_scope.children[0];
+        assert!(
+            scope.variables.contains_key("child"),
+            "{:?}",
+            scope.variables
+        );
+        assert!(scope.variables.contains_key("use"), "{:?}", scope.variables);
+        assert!(
+            scope.variables.contains_key("display"),
+            "{:?}",
+            scope.variables
+        );
+        assert!(
+            scope.variables.contains_key("args"),
+            "{:?}",
+            scope.variables
+        );
+    }
+
+    #[test]
+    fn unrelated_proc_still_gets_real_arity_checked() {
+        // FP guard: the fix must not loosen arity checking for ordinary
+        // procs elsewhere in the same document.
+        let src = "proc real {a b} { return [+ $a $b] }\nreal 1\n";
+        assert!(fires(src, D, "E002"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn plain_double_proc_redefinition_still_last_definition_wins() {
+        // TN — control: an ordinary double-`proc` redefinition (unrelated
+        // to `tcl::OptProc`) is unaffected by any of this fix's changes.
+        let r = Analyser::new().analyse(
+            "proc greet {} { return 1 }\nproc greet {x} { return $x }\n",
+            D,
+        );
+        let proc = r.all_procs.get("::greet").expect("greet recorded");
+        assert_eq!(
+            proc.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["x"],
+            "last definition wins: {:?}",
+            proc.params
+        );
+    }
+}
+
+// ===========================================================================
 // Variable definitions across scopes.
 // ===========================================================================
 mod variable_analysis {
@@ -480,6 +615,127 @@ mod diagnostics {
         // The proc-shadow suppression above is scoped to `string` only — a
         // different, unshadowed ensemble in the same file still fires.
         let src = "proc string {op args} { return $op }\ninfo bogus\n";
+        assert!(fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn dynamically_mapped_dict_ensemble_subcommand_suppresses_w001() {
+        // FP — regression for issue #923 idx 105 Part B: the real tcllib
+        // `dicttool.tcl` idiom patches the `dict` ensemble's `-map` at
+        // runtime to add `getnull` (`namespace ensemble configure dict -map
+        // [dict replace [namespace ensemble configure dict -map] getnull
+        // ::tcl::dict::getnull]`), which a static `SUBCOMMANDS` table can't
+        // reflect. Must not fire "Unknown subcommand 'getnull' for 'dict'"
+        // once the backing proc exists at `::tcl::dict::getnull` — this was
+        // previously inconsistent with hover/definition, which already
+        // resolved the same call site correctly.
+        let src = "proc ::tcl::dict::getnull {dictionary args} {\n\
+             if {[exists $dictionary {*}$args]} { get $dictionary {*}$args }\n\
+             }\n\
+             namespace ensemble configure dict -map \
+             [dict replace [namespace ensemble configure dict -map] \
+             getnull ::tcl::dict::getnull]\n\
+             proc demo {} {\n\
+             set clay [dict create a 1 b 2]\n\
+             return [dict getnull $clay a]\n\
+             }\n";
+        assert!(!fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn dynamically_mapped_dict_ensemble_fix_is_not_overfit_to_getnull() {
+        // FP — a second, differently-named sibling from the same real
+        // tcllib idiom (`is_dict`), proving the fix isn't hardcoded to one
+        // subcommand name. This block never calls bare `exists`/`get`, so it
+        // exercises Part B in isolation from Part A.
+        let src = "proc ::tcl::dict::is_dict {d} {\n\
+             if {[catch {dict size $d} err]} { return 0 }\n\
+             return 1\n\
+             }\n\
+             namespace ensemble configure dict -map \
+             [dict replace [namespace ensemble configure dict -map] \
+             is_dict ::tcl::dict::is_dict]\n\
+             dict is_dict [dict create a 1]\n";
+        assert!(!fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn genuinely_unknown_dict_subcommand_still_fires_w001() {
+        // TP — regression guard: a real, non-existent `dict` subcommand
+        // (no proc named `zzzznotreal` anywhere, no ensemble patch) must
+        // still fire — proves `dynamic_ensemble_subcommand_known` doesn't
+        // over-suppress.
+        let src = "proc demo {} {\n\
+             set d [dict create a 1 b 2]\n\
+             return [dict zzzznotreal $d a]\n\
+             }\n";
+        assert!(fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn dict_proc_at_conventional_location_without_ensemble_patch_is_an_accepted_false_negative() {
+        // FN — deliberately ACCEPTED gap (idx 105 Part B's primary/simple
+        // design, chosen over the more precise "observed an actual
+        // `namespace ensemble configure -map` call" variant): a proc
+        // defined at `::tcl::dict::<name>` is treated as "this ensemble
+        // subcommand is known" even when the ensemble's `-map` was never
+        // actually reconfigured to include it. Real tclsh would still error
+        // `unknown or ambiguous subcommand "stray"` here. If this gap is
+        // ever closed (tracking whether `-map` was truly reconfigured, see
+        // idx 105's research plan for the harder variant), this test's
+        // assertion flips and documents the improvement.
+        let src = "proc ::tcl::dict::stray {d} { return $d }\n\
+             dict stray [dict create a 1]\n";
+        assert!(
+            !fires(src, D, "W001"),
+            "documents the accepted FN gap; got {:?}",
+            analyser_diags(src, D),
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_on_tk_suppresses_w001_for_systray_and_sysnotify() {
+        // FP — regression for issue #923 idx 84: the real
+        // `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
+        // `accessibility.tcl`) idiom splices `systray`/`sysnotify` into the
+        // *pre-existing, registry-builtin* `tk` ensemble via `namespace
+        // ensemble configure tk -map [dict merge [namespace ensemble
+        // configure tk -map] {systray ::tk::systray sysnotify
+        // ::tk::sysnotify::sysnotify}]` — a `CONFIGURE`, not `CREATE`, on an
+        // ensemble this file never itself created. tclsh9.0/8.6 both
+        // confirm `tk systray create`/`tk sysnotify ...` are correct,
+        // documented calls; must not fire "Unknown subcommand".
+        let src = "proc ::tk::systray {args} {}\n\
+             proc ::tk::sysnotify::sysnotify {a b} {}\n\
+             namespace ensemble configure tk -map \
+             [dict merge [namespace ensemble configure tk -map] \
+             {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]\n\
+             tk systray create -image book\n\
+             tk sysnotify Alert message\n";
+        assert!(!fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_genuinely_unknown_tk_subcommand_still_fires_w001() {
+        // TP — regression guard: a real, non-existent `tk` subcommand (no
+        // splice recorded for it) must still fire — proves
+        // `statically_mapped_ensemble_subcommand_known` doesn't over-suppress
+        // the whole `tk` ensemble once *any* subcommand has been spliced in.
+        let src = "namespace ensemble configure tk -map \
+             [dict merge [namespace ensemble configure tk -map] \
+             {systray ::tk::systray}]\n\
+             tk zzznotreal\n";
+        assert!(fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
+    }
+
+    #[test]
+    fn ensemble_without_implementation_namespace_is_unaffected_by_dynamic_map_check() {
+        // TN — regression guard: `dynamic_ensemble_subcommand_known` is
+        // inert for every ensemble whose `CommandSpec` doesn't set
+        // `implementation_namespace` (only `dict`, currently) — a
+        // same-named proc existing elsewhere must not suppress an unrelated
+        // ensemble's genuinely unknown subcommand.
+        let src = "proc bogus {} {}\nstring bogus hello\n";
         assert!(fires(src, D, "W001"), "got {:?}", analyser_diags(src, D));
     }
 
@@ -1372,10 +1628,18 @@ mod interp_alias {
 
     #[test]
     fn real_world_safe_and_cross_interp_aliases_945() {
-        // A *dynamic* source path (`interp alias $i add …`) names no
-        // literal domain — the record abstains, exactly as before.
+        // A dynamic source path bound by a tracked `set i [interp create
+        // ...]` (issue #923 idx 9) resolves through that binding rather
+        // than aborting: `add` is defined *inside* `$i`'s domain (calling
+        // `::api::add` back in the parent), so it homes under `$i`'s
+        // synthetic `@interp@@autoname@<offset>` domain — never under the
+        // bare `::add` a plain top-level alias would use.
         let safe = "set i [interp create -safe]\ninterp alias $i add {} ::api::add\nproc ::api::add {a b} {\n    return [expr {$a + $b}]\n}\n";
         assert!(alias(safe, "::add").is_none());
+        assert_eq!(
+            alias(safe, "::@interp@@autoname@6::add"),
+            Some(("::api::add".to_string(), vec![])),
+        );
         // A literal parent-side alias into a live child is tracked with a
         // domain-qualified target (issue #945 fault 8): `localGreet` runs
         // the child's `greet`, so navigation follows the alias link into
@@ -1419,6 +1683,525 @@ mod interp_alias {
         assert!(!fires(original, D, "W214"));
         let reopened = "interp alias {} = {} expr\nset scriptPath [file dirname [file normalize [info script]]]\nproc pdPsCalc {width length} {\n    return [= {2*$width+2*$length}]\n}\nset vSupply 2.0\nset inpFreq 850e6\n";
         assert!(!fires(reopened, D, "W214"));
+    }
+}
+
+// ===========================================================================
+// interp_value_flow — issue #923 idx 9: `set VAR [interp create ...]`
+// binds VAR to an interpreter-domain key, so a later dynamic `$VAR` operand
+// to `interp alias` / `interp eval` / the handle's own object command can
+// resolve through the tracked binding instead of abstaining outright.
+// ===========================================================================
+mod interp_value_flow {
+    use super::*;
+
+    fn command_alias_targets(src: &str) -> std::collections::HashMap<String, String> {
+        Analyser::new()
+            .analyse(src, D)
+            .command_aliases
+            .iter()
+            .map(|(k, v)| (k.clone(), v.target.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn primary_repro_cross_domain_alias_through_tracked_binding_resolves() {
+        // TP — issue #923 idx 9 exact repro (tclsh9.0-verified: prints 42).
+        // `set s [interp create -safe]` binds `s`; `interp alias $s greet {}
+        // ::app::Helper` previously abstained outright because the source
+        // path was dynamic text, leaving `greet` unresolved inside the
+        // child's eval body (spurious W123 + 0 definition locations).
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset s [interp create -safe]\ninterp alias $s greet {} ::app::Helper\ninterp eval $s { greet }\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn object_command_handle_eval_form_resolves_through_tracked_binding() {
+        // TP — the object-command spelling (`$mpip eval { ... }`) doctools.tcl
+        // actually uses, exercising `handle_interp_handle_eval_command` rather
+        // than the literal `interp eval PATH` form. `$mpip eval {...}` is
+        // itself a non-literal command dispatch — `mpip` is tracked only as
+        // an interpreter handle, not a known TclOO object
+        // (`var_command.rs`'s separate, unrelated dispatch-suppression
+        // system), so it legitimately still draws W307 the same as any
+        // other untracked `$var subcommand` call. What this fix controls is
+        // narrower: `greet` must resolve *inside* the eval body — no W123
+        // (unknown command) and no W140 (never-created interpreter).
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset mpip [interp create -safe]\ninterp alias $mpip greet {} ::app::Helper\n$mpip eval { greet }\n";
+        let diags = analyser_diags(src, D);
+        assert!(
+            diags.iter().all(|(c, _, _)| c != "W123" && c != "W140"),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn explicit_literal_name_variant_records_no_spurious_w140() {
+        // TP — `set s [interp create -safe literalName]` now records
+        // `literalName` in the interpreter map via the value-flow path, so a
+        // later literal `interp eval literalName {...}` no longer sees an
+        // apparently-uncreated interpreter, even though the path never
+        // reaches `handle_interp_create_command` directly (it's nested
+        // inside a `set`, not a bare top-level statement).
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset s [interp create -safe literalName]\ninterp alias literalName greet {} ::app::Helper\ninterp eval literalName { greet }\n";
+        assert!(!fires(src, D, "W140"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn two_procs_sharing_a_variable_name_never_collide() {
+        // TP — cross-contamination guard (secondary issue #2 found during
+        // this fix's research): each proc's `set s [interp create -safe]`
+        // must get its own per-call-site `@autoname@<offset>` domain, not
+        // one shared domain keyed off the raw variable text `s`. Before the
+        // fix (verified live against the LSP binary) makeA's `helper` call
+        // resolved into makeB's definition.
+        let src = "proc makeA {} {\n    set s [interp create -safe]\n    interp eval $s {\n        proc helper {} { return A }\n        helper\n    }\n}\nproc makeB {} {\n    set s [interp create -safe]\n    interp eval $s {\n        proc helper {} { return B }\n        helper\n    }\n}\n";
+        let r = Analyser::new().analyse(src, D);
+        let helper_keys: Vec<&String> = r
+            .all_procs
+            .keys()
+            .filter(|k| k.ends_with("::helper"))
+            .collect();
+        assert_eq!(
+            helper_keys.len(),
+            2,
+            "expected 2 distinct helper domains: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert_ne!(helper_keys[0], helper_keys[1]);
+    }
+
+    #[test]
+    fn untracked_dynamic_interp_path_stays_conservative() {
+        // FP guard — a `$VAR` never bound by `set VAR [interp create ...]`
+        // (here a bare proc parameter) must stay exactly as conservative as
+        // before this fix: no crash, no spurious W140 (existence stays
+        // unknowable for a genuinely untracked dynamic path).
+        let src = "proc useEval {ip} {\n    interp eval $ip { someCmd }\n}\n";
+        assert!(!fires(src, D, "W140"), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn reassigning_the_variable_clears_the_stale_interp_binding() {
+        // FP guard — a later plain-string `set` of the same variable must
+        // clear the interp binding, so a stale domain is never resolved and
+        // the cross-domain alias falls through exactly as it does today for
+        // a genuinely-unresolvable dynamic src_path.
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset mpip [interp create -safe]\nset mpip \"not an interpreter\"\ninterp alias $mpip greet {} ::app::Helper\n";
+        assert!(
+            command_alias_targets(src).is_empty(),
+            "{:?}",
+            command_alias_targets(src)
+        );
+    }
+
+    #[test]
+    fn existing_literal_top_level_behaviour_is_unchanged() {
+        // TN — byte-for-byte unchanged control (scratchpad/audit/a): the
+        // same shape as the primary repro, but with a literal path
+        // throughout instead of a tracked variable binding.
+        let src = "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\ninterp create -safe s\ninterp alias s greet {} ::app::Helper\ninterp eval s { greet }\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn builtins_only_dynamic_interp_eval_body_stays_silent() {
+        // TN — a tracked dynamic-path eval body containing only builtins
+        // must stay diagnostic-free, confirming the fix doesn't newly
+        // over-fire (scratchpad/audit/c).
+        let src = "set s [interp create -safe]\ninterp eval $s {\n    set x 1\n    expr {$x + 1}\n    puts \"hi\"\n}\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn builtins_only_literal_interp_eval_body_stays_silent() {
+        // TN — the same false-fire (W210 on `x`) reproduced with a *literal*
+        // interpreter path, no dynamic tracking involved at all: `interp
+        // eval`'s script argument is a `Plain`-body-kind `ArgRole::Body`
+        // (unlike an `if`/`while`/`catch` body, never flattened into its
+        // own CFG since the target interpreter is opaque to static
+        // analysis), so it was scanned as ordinary value text with no
+        // notion of its own `set x 1` write before the later `$x` read.
+        let src = "interp create child\ninterp eval child {\n    set x 1\n    expr {$x + 1}\n}\n";
+        assert!(codes(src, D).is_empty(), "{:?}", codes(src, D));
+    }
+
+    #[test]
+    fn synthetic_autoname_key_used_for_pathless_interp_create() {
+        // TP — pins the synthetic per-call-site key convention (mirrors
+        // `handle_namespace_eval_dynamic_target_gets_a_synthetic_span_keyed_name`'s
+        // `@dynns@15` pin): a pathless `interp create` inside `set` gets an
+        // `@autoname@<offset-of-the-substitution's-opening-bracket>` key,
+        // not the variable's raw text, so `foo`'s definition homes under a
+        // synthetic, call-site-unique domain rather than one keyed on `s`.
+        let src = "set s [interp create -safe]\ninterp eval $s { proc foo {} {} }\n";
+        let r = Analyser::new().analyse(src, D);
+        assert!(
+            r.all_procs.keys().any(|k| k.contains("@autoname@6")),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+}
+
+// ===========================================================================
+// rename — issue #923 idx 3: constant-folding a dynamic-but-resolvable
+// `rename OLD NEW` argument instead of unconditionally giving up.
+// ===========================================================================
+mod rename {
+    use super::*;
+
+    fn renamed_commands(src: &str) -> std::collections::HashMap<String, String> {
+        Analyser::new().analyse(src, D).renamed_commands.clone()
+    }
+
+    #[test]
+    fn static_rename_recorded_unchanged() {
+        // TN — control check: a fully literal rename never even reaches
+        // the new constant-folding resolver and must keep working
+        // byte-for-byte as before.
+        let src = "proc ::foo_impl {} { return impl }\nrename ::foo_impl ::foo\n";
+        assert_eq!(
+            renamed_commands(src).get("::foo"),
+            Some(&"::foo_impl".to_string())
+        );
+    }
+
+    #[test]
+    fn single_var_old_name_resolves_via_constant_folding() {
+        // TP — finding's own simplest repro #1: a single whole-word
+        // `$var` holding a known-constant command name.
+        let src = "proc ::foo_impl {} { return impl }\nset old ::foo_impl\nrename $old ::foo\n";
+        assert_eq!(
+            renamed_commands(src).get("::foo"),
+            Some(&"::foo_impl".to_string())
+        );
+    }
+
+    #[test]
+    fn concatenated_var_new_name_resolves_via_constant_folding() {
+        // TP — finding's own simplest repro #2: a literal-plus-`$var`
+        // concatenation.
+        let src = "proc ::foo_impl {} { return impl }\nset key impl\nrename ::foo_$key ::foo\n";
+        assert_eq!(
+            renamed_commands(src).get("::foo"),
+            Some(&"::foo_impl".to_string())
+        );
+    }
+
+    #[test]
+    fn two_concatenated_vars_in_same_straight_line_scope_resolve() {
+        // TP — both OLD and NEW built from resolvable variables in the
+        // same straight-line proc scope, the closest Tier-1-fixable
+        // approximation of the tcllib `json::SwitchTo` idiom (which
+        // additionally needs a `foreach` var and a proc parameter — see
+        // the two FN tests below, deliberately out of scope for Tier 1).
+        let src = "namespace eval ::mypkg {}\n\
+             proc ::mypkg::greet_tcl {name} { return \"hi $name\" }\n\
+             proc ::mypkg::activate {} {\n    \
+                 set c greet\n    \
+                 set key tcl\n    \
+                 rename ::mypkg::${c}_$key ::mypkg::${c}\n\
+             }\n";
+        assert_eq!(
+            renamed_commands(src).get("::mypkg::greet"),
+            Some(&"::mypkg::greet_tcl".to_string())
+        );
+    }
+
+    #[test]
+    fn genuinely_dynamic_value_stays_unresolved() {
+        // TN — regression guard against over-eager folding: a value
+        // that's never a compile-time constant (piped through `gets`)
+        // must still be reported dynamic (no entry recorded).
+        let src = "proc ::foo_impl {} { return impl }\nset old [gets stdin]\nrename $old ::foo\n";
+        assert!(!renamed_commands(src).contains_key("::foo"));
+    }
+
+    #[test]
+    fn foreach_loop_variable_over_a_literal_list_is_constant_folded() {
+        // Was FN (documented at idx 3's landing) — closed by issue #923 idx
+        // 86: a `foreach VAR {literal list} { ... }` loop over a fully
+        // literal list now binds `VAR` to each element in turn before
+        // simulating the body's own `rename`/`proc` sub-commands (the two
+        // constant-fold-sensitive callers go-to-definition/references/
+        // rename care about), rather than leaving the loop variable out of
+        // the constant-string lattice entirely. `renamed_commands` is
+        // populated the same as if `c` had been a plain top-level `set`
+        // constant.
+        let src =
+            "proc ::foo_impl {} { return impl }\nforeach c {foo} { rename ::${c}_impl ::${c} }\n";
+        assert_eq!(
+            renamed_commands(src).get("::foo"),
+            Some(&"::foo_impl".to_string())
+        );
+    }
+
+    #[test]
+    fn foreach_over_a_braced_list_element_is_not_mis_split_on_whitespace() {
+        // Codex review (PR #1020): the literal-`foreach` simulation parsed
+        // its value with `split_whitespace`, so a braced element `{bar baz}`
+        // in `foreach c {a {bar baz}} { proc ::$c {} {} }` was mis-sliced
+        // into `{bar` + `baz}` and the re-dispatched `proc` created bogus
+        // commands `::{bar` / `::baz}`. Parsed as a real Tcl list, that value
+        // is exactly two elements — `a` and `bar baz` — so no brace-fragment
+        // proc is ever recorded.
+        let procs = Analyser::new()
+            .analyse("foreach c {a {bar baz}} { proc ::$c {} {} }\n", D)
+            .all_procs;
+        assert!(
+            !procs.keys().any(|k| k.contains('{') || k.contains('}')),
+            "no brace-fragment proc from a mis-split braced element: {:?}",
+            procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn rename_target_set_only_in_a_conditional_branch_does_not_resolve() {
+        // Codex review (PR #1020): a `rename`/`source` target read from the
+        // last-write-wins const map is unsound across an `if` join. Here `t`
+        // is `::foo` straight-line but reassigned `::bar` inside an `if`
+        // body, so at the `rename` it could be either — the analyser must
+        // abstain (leave the rename dynamic), never pin it to the branch
+        // value `::bar` the lexical map happens to hold last.
+        let renamed = renamed_commands(
+            "proc ::foo_impl {} {}\nset t ::foo\nif {$cond} { set t ::bar }\nrename ::foo_impl $t\n",
+        );
+        assert!(
+            !renamed.contains_key("::bar") && !renamed.contains_key("::foo"),
+            "a branch-dependent rename target must not resolve to either branch: {renamed:?}"
+        );
+    }
+
+    #[test]
+    fn rename_target_set_straight_line_still_resolves() {
+        // Control for the above: without the conditional, the single
+        // straight-line `set` dominates the `rename`, so it still resolves
+        // (issue #923 idx 3 behaviour unchanged).
+        let renamed =
+            renamed_commands("proc ::foo_impl {} {}\nset t ::foo\nrename ::foo_impl $t\n");
+        assert_eq!(renamed.get("::foo"), Some(&"::foo_impl".to_string()));
+    }
+
+    #[test]
+    fn proc_parameter_is_not_constant_folded() {
+        // FN (expected, documented — explicitly out of scope per idx 3's
+        // research plan: closing this needs interprocedural single-
+        // call-site literal-argument propagation, a materially larger,
+        // separate feature).
+        let src = "proc ::foo_impl {} { return impl }\n\
+             proc activate {key} { rename ::foo_$key ::foo }\n\
+             activate impl\n";
+        assert!(!renamed_commands(src).contains_key("::foo"));
+    }
+
+    #[test]
+    fn resolvable_dynamic_rename_no_longer_widens_has_dynamic_providers() {
+        // TN (bonus side effect) — before this fix, ANY dynamic-*looking*
+        // rename set `has_dynamic_providers`, which blanket-suppresses
+        // W123 for the whole file (diagnostics/unresolved.rs). Once the
+        // rename resolves statically, that flag must stay false so W123
+        // keeps firing on genuinely unknown commands elsewhere in the
+        // file.
+        let src = "proc ::foo_impl {} { return impl }\nset old ::foo_impl\nrename $old ::foo\n";
+        assert!(!Analyser::new().analyse(src, D).has_dynamic_providers);
+    }
+
+    #[test]
+    fn unresolvable_rename_still_widens_has_dynamic_providers() {
+        // TN — control check for the above: a genuinely unresolvable
+        // dynamic rename must still widen `has_dynamic_providers`,
+        // unchanged from before this fix.
+        let src = "proc ::foo_impl {} { return impl }\nset old [gets stdin]\nrename $old ::foo\n";
+        assert!(Analyser::new().analyse(src, D).has_dynamic_providers);
+    }
+}
+
+// ===========================================================================
+// EvalUplevelIndirectDispatch — issue #923 idx 94: a bare `$var` body of an
+// `ArgRole::Body`-marked argument (`eval $cmd`, `uplevel #0 $cmd …`)
+// dynamically evaluates $var's value as a script at runtime, whose first
+// word is the command actually dispatched — previously invisible to
+// `command_invocations` (found by hover/go-to-definition via an independent
+// cursor-token walk, missed by references/rename).
+// ===========================================================================
+mod eval_uplevel_indirect_dispatch {
+    use super::*;
+
+    fn invocations(
+        src: &str,
+    ) -> Vec<tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
+        Analyser::new().analyse(src, D).command_invocations.clone()
+    }
+
+    #[test]
+    fn eval_of_a_list_computed_var_resolves_the_real_head() {
+        // TP — the finding's own minimal repro: `eval $cmdD` where `$cmdD`
+        // is built via `[list greetD World]` — a computed value, not a
+        // simple lexical literal the *lowering*-phase's simpler const-map
+        // can fold (see `try_lower_eval_static`'s `const_map_lookup`), so
+        // only the analyser's own flow-sensitive SSA-based
+        // `settle_const_dispatches` can resolve it. Real tclsh9.0/8.6-
+        // verified: `eval $cmdD` dispatches to `greetD World`.
+        let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
+        let invs = invocations(src);
+        assert!(
+            invs.iter()
+                .any(|i| i.indirect && i.resolved_qualified_name.as_deref() == Some("::greetD")),
+            "expected an indirect invocation resolving to ::greetD: {invs:?}"
+        );
+        // The `greetD` word inside `[list greetD World]` is also a
+        // separate, *direct*, rename-writable invocation at its own span
+        // (byte 45..51, `&src[45..51] == "greetD"`) — the actual command
+        // name as written, not just the `$cmdD` dispatch anchor.
+        assert!(
+            invs.iter().any(|i| !i.indirect
+                && i.rename_safe
+                && i.range == tcl_lexer::Span::new(45, 51)
+                && i.resolved_qualified_name.as_deref() == Some("::greetD")),
+            "expected a direct, rename-safe invocation anchored on greetD's own word: {invs:?}"
+        );
+    }
+
+    #[test]
+    fn uplevel_hash_zero_of_a_var_headed_script_resolves_the_real_head() {
+        // TP — the real `tk/library/tearoff.tcl` `MenuDup`-analogue shape:
+        // `uplevel #0 $cmd [list $w $newMenu]`. `$cmd`'s own value is the
+        // command name; the trailing `[list …]` argument supplies its
+        // arguments (uplevel concatenates all its post-level arguments into
+        // one script). tclsh9.0/8.6-verified: dispatches to `target`.
+        let src =
+            "proc target {a b} {puts \"$a-$b\"}\nset cmd target\nuplevel #0 $cmd [list x y]\n";
+        let invs = invocations(src);
+        assert!(
+            invs.iter()
+                .any(|i| i.indirect && i.resolved_qualified_name.as_deref() == Some("::target")),
+            "expected an indirect invocation resolving to ::target: {invs:?}"
+        );
+    }
+
+    #[test]
+    fn plain_eval_of_a_braced_literal_body_is_unaffected() {
+        // TN — control check: the ordinary literal-body `eval {…}` shape
+        // (handled entirely by `analyse_body`'s existing `Str`-token path)
+        // must keep resolving exactly as before; the new `Var`-token branch
+        // is additive, not a replacement.
+        let src = "proc target {} { return hi }\neval { target }\n";
+        let invs = invocations(src);
+        assert!(
+            invs.iter()
+                .any(|i| !i.indirect && i.resolved_qualified_name.as_deref() == Some("::target")),
+            "expected a direct (non-indirect) invocation resolving to ::target: {invs:?}"
+        );
+    }
+
+    #[test]
+    fn genuinely_dynamic_eval_body_stays_unresolved() {
+        // TN — regression guard: a value with no provable constant origin
+        // (piped through `gets`) must still abstain — no invocation
+        // recorded, matching the analyser's existing conservative default.
+        let src = "proc target {} { return hi }\nset cmd [gets stdin]\neval $cmd\n";
+        let invs = invocations(src);
+        assert!(
+            !invs
+                .iter()
+                .any(|i| i.resolved_qualified_name.as_deref() == Some("::target")),
+            "a genuinely dynamic eval body must not resolve: {invs:?}"
+        );
+    }
+
+    #[test]
+    fn resolves_identically_inside_a_proc_body() {
+        // TN (confirms a hypothesis in the finding's own root-cause hint is
+        // moot): the auditor flagged "worth checking whether per-proc
+        // FunctionUnits reach settle_one_site with usable SSA/def-use data
+        // the same way the top-level unit does" as a second, compounding
+        // gap. Empirically it isn't one — `function_unit_at`/
+        // `const_contributors` have no top-level-vs-proc special-casing,
+        // and this resolves identically to the top-level repro above.
+        let src = "proc greetD {n} {puts \"D $n\"}\nproc caller {} {\n    set cmdD [list greetD World]\n    eval $cmdD\n}\n";
+        let invs = invocations(src);
+        assert!(
+            invs.iter()
+                .any(|i| i.indirect && i.resolved_qualified_name.as_deref() == Some("::greetD")),
+            "expected an indirect invocation resolving to ::greetD even inside a proc body: {invs:?}"
+        );
+    }
+}
+
+// ===========================================================================
+// `apply [list {params} {body} ns]` — the list-constructor lambda idiom
+// (issue #923 idx 116). Each list element must reach the body walk with its
+// list delimiters removed, exactly as a literal braced lambda does.
+// ===========================================================================
+mod apply_list_lambda {
+    use super::*;
+
+    #[test]
+    fn apply_list_constructor_body_element_is_delimiter_stripped() {
+        // Codex review (PR #1020): `resolve_dynamic_apply_lambda`'s `[list
+        // …]` path sliced each element's raw source span, keeping the braces
+        // of a `{frobnicate arg}` body element, so the body re-segmented as a
+        // single braced word and the real `frobnicate` call was never seen.
+        // With the element text delimiter-stripped (zipped from the
+        // segmenter's `texts`, the same shape the literal-lambda path uses),
+        // the body walks as `frobnicate arg` and records `frobnicate` as its
+        // own command invocation.
+        let invs = Analyser::new()
+            .analyse("apply [list {} {frobnicate arg} ::myns]\n", D)
+            .command_invocations;
+        assert!(
+            invs.iter().any(|i| i.name == "frobnicate"),
+            "apply [list ...] body must segment to the real `frobnicate` call: {:?}",
+            invs.iter().map(|i| &i.name).collect::<Vec<_>>()
+        );
+    }
+}
+
+// ===========================================================================
+// `::tcl::dict::*` standalone spellings (issue #923 idx 105) must carry the
+// same analysis contract as the `dict` subcommands they mirror, not a
+// `CommandSpec::DEFAULT` stub (Codex review, PR #1020).
+// ===========================================================================
+mod dict_qualified_specs {
+    use super::*;
+
+    #[test]
+    fn qualified_dict_for_binds_loop_vars_and_walks_body() {
+        // The standalone `::tcl::dict::for` must carry `dict for`'s arg-roles
+        // (`LoopVarList` + `Body`) and its `DictFor` analyser hook, so its
+        // body is analysed and `k`/`v` are bound — `CommandSpec::DEFAULT`
+        // left it inert, so a call inside the body was never seen.
+        let invs = Analyser::new()
+            .analyse(
+                "set d {a 1 b 2}\n::tcl::dict::for {k v} $d { frobnicate $k $v }\n",
+                D,
+            )
+            .command_invocations;
+        assert!(
+            invs.iter().any(|i| i.name == "frobnicate"),
+            "::tcl::dict::for body must be analysed like dict for: {:?}",
+            invs.iter().map(|i| &i.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn qualified_dict_set_body_walks_a_nested_dict_for() {
+        // A `::tcl::dict::for` nested inside another command's body still
+        // carries its analysis contract, so the inner body's own call is
+        // seen — a stronger check than a top-level call that the generic
+        // walk would reach anyway.
+        let invs = Analyser::new()
+            .analyse(
+                "proc p {d} { ::tcl::dict::for {k v} $d { frobnicate $k } }\n",
+                D,
+            )
+            .command_invocations;
+        assert!(
+            invs.iter().any(|i| i.name == "frobnicate"),
+            "nested ::tcl::dict::for body must be analysed: {:?}",
+            invs.iter().map(|i| &i.name).collect::<Vec<_>>()
+        );
     }
 }
 
@@ -1508,6 +2291,66 @@ mod unresolved_command {
     }
 
     #[test]
+    fn bare_dict_ensemble_builtin_resolves_from_inside_tcl_dict_namespace() {
+        // FP — regression for issue #923 idx 105: `exists`/`get` are real,
+        // separately-callable commands (`::tcl::dict::exists`,
+        // `::tcl::dict::get`), backing the `dict` ensemble's own
+        // subcommands (confirmed against tclsh9.0.4/8.6.14: `info commands
+        // ::tcl::dict::*` lists them). A proc lexically defined *inside*
+        // `::tcl::dict` (the real tcllib `dicttool.tcl` idiom) resolves a
+        // bare call to them via ordinary current-namespace-then-global
+        // lookup, so it must not fire W123 — isolated from any
+        // `namespace ensemble configure` patching (idx 105 Part B, tested
+        // separately) to prove this half is a pure namespace-resolution fact.
+        let src = "proc ::tcl::dict::myhelper {d k} {\n\
+             if {[exists $d $k]} { return [get $d $k] }\n\
+             return MISSING\n\
+             }\n\
+             ::tcl::dict::myhelper [dict create a 1 b 2] a\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn bare_dict_ensemble_builtin_outside_tcl_dict_namespace_still_fires_w123() {
+        // TP — regression guard: `exists`/`get` called bare *outside*
+        // `::tcl::dict` must still fire (tclsh-confirmed real error:
+        // "invalid command name \"exists\"") — proves the fix is properly
+        // namespace-scoped, not a blanket allow-list for these two names.
+        let d = w123("proc foo {} { return [exists bar] }\n");
+        assert_eq!(d.len(), 1, "got {d:?}");
+        assert!(d[0].contains("exists"));
+    }
+
+    #[test]
+    fn fully_qualified_tcl_dict_builtin_calls_are_unaffected() {
+        // TN — regression guard: the qualified spelling already worked via
+        // the pre-existing `name.contains("::")` conservative skip; the new
+        // resolution-candidate check must not change that.
+        let src = "proc demo {} {\n\
+             set d [dict create a 1 b 2]\n\
+             if {[::tcl::dict::exists $d a]} { return [::tcl::dict::get $d a] }\n\
+             }\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn ordinary_namespace_bare_name_resolution_is_unaffected_by_dict_fix() {
+        // TN — regression guard: the common case (a bare call resolving to
+        // an ordinary user proc via its own namespace) must be unaffected by
+        // the new resolution-candidate check, which is a no-op there (the
+        // bare-name check above it already resolves it).
+        assert!(
+            w123(
+                "namespace eval ::foo {\n\
+                 proc helper {} { return 42 }\n\
+                 proc bar {} { return [helper] }\n\
+                 }\n"
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
     fn coroutine_name_is_a_known_command() {
         // `coroutine NAME cmd ?arg …?` creates the command NAME
         // (`TclNRCoroutineObjCmd`) — calling it is not an unknown command,
@@ -1565,6 +2408,91 @@ mod unresolved_command {
         // the default — neither suppresses.
         assert_eq!(w123("namespace unknown\nmystery_cmd 1\n").len(), 1);
         assert_eq!(w123("namespace unknown {}\nmystery_cmd 1\n").len(), 1);
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_installer_suppresses_w123() {
+        // FP — issue #923 idx 110: `namespace eval $ns [list namespace
+        // unknown $handler]` (tcllib's `namespacex::hook::Set` idiom) is
+        // a `Cmd`-kind body — `analyse_body`'s literal-`{...}`-only gate
+        // never walks it, and the generic nested-substitution scan
+        // resolves the head to `list`, never `namespace unknown` — so
+        // the installer was previously invisible to every path.
+        let src = "proc handler {args} { puts $args }\nnamespace eval ::target [list namespace unknown handler]\nmystery_cmd 1\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_full_tcllib_idiom_suppresses_w123() {
+        // FP — the full attested shape (mirrors tcllib
+        // modules/namespacex/namespacex.tcl:157-162's `hook::Set`, and
+        // the finding's own repro): the installer is itself wrapped in
+        // another proc, and the handler is installed from inside a
+        // namespace body.
+        let src = "proc ::hooklib::Set {ns handler} {\n    namespace eval $ns [list namespace unknown $handler]\n}\nnamespace eval ::target {\n    proc fallbackHandler {args} { return \"handled:$args\" }\n    ::hooklib::Set ::target [namespace code fallbackHandler]\n    proc run {} { return [mystery arg1 arg2] }\n}\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_via_namespace_inscope_suppresses_w123() {
+        // FP — `namespace inscope` shares the same
+        // `AnalyserHookId::NamespaceEval` hook as `namespace eval`, so
+        // one fix covers both call forms.
+        let src = "proc handler {args} { puts $args }\nnamespace inscope ::target [list namespace unknown handler]\nmystery_cmd 1\n";
+        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_requires_the_exact_shape() {
+        // TP — over-suppression guards: each of these must still fire
+        // W123, proving the recogniser requires the literal `list
+        // namespace unknown` head with a non-empty handler, not "any
+        // list-wrapped namespace eval body".
+        assert_eq!(
+            w123("namespace eval ::target [list puts hello]\nmystery_cmd 1\n").len(),
+            1,
+            "an unrelated list-wrapped body must not suppress W123"
+        );
+        assert_eq!(
+            w123("namespace eval ::target [list namespace export foo]\nmystery_cmd 1\n").len(),
+            1,
+            "a different namespace subcommand must not suppress W123"
+        );
+        assert_eq!(
+            w123("namespace eval ::target [list namespace unknown]\nmystery_cmd 1\n").len(),
+            1,
+            "the bare query form installs nothing"
+        );
+        assert_eq!(
+            w123("namespace eval ::target [list namespace unknown {}]\nmystery_cmd 1\n").len(),
+            1,
+            "an empty handler resets to the default, installs nothing"
+        );
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_does_not_blanket_suppress_the_namespace() {
+        // TP — negative control: with no `namespace unknown` installer
+        // anywhere, a genuinely unknown command inside the namespace
+        // body must still be flagged.
+        let src = "namespace eval ::target {\n    proc run {} { return [mystery arg1 arg2] }\n}\n";
+        assert_eq!(w123(src).len(), 1);
+    }
+
+    #[test]
+    fn list_wrapped_namespace_unknown_via_concat_is_a_known_remaining_gap() {
+        // FP (documented, NOT fixed by this change) — the same idiom
+        // built via `concat` instead of a literal `list` call is
+        // intentionally out of scope (issue #923 idx 110's fix is
+        // narrow to the exact attested `list namespace unknown` shape).
+        // Pinned so nobody mistakes the narrow fix for a full
+        // generalisation.
+        let src = "proc handler {args} { puts $args }\nnamespace eval ::target [concat namespace unknown handler]\nmystery_cmd 1\n";
+        assert_eq!(
+            w123(src).len(),
+            1,
+            "concat-built installers are a documented, out-of-scope gap"
+        );
     }
 
     #[test]
@@ -2008,6 +2936,186 @@ mod tcloo_classes {
         // ClassDef registered on the enclosing scope by simple name.
         let r2 = Analyser::new().analyse("oo::class create Dog {\n    method bark {} {}\n}\n", D);
         assert!(r2.global_scope.classes.contains_key("Dog"));
+    }
+
+    #[test]
+    fn self_method_body_is_walked_for_internal_diagnostics() {
+        // TP — issue #923 idx 120 Part 1 bonus: before the fix, a
+        // wrong-arity call inside a `self method`/`private method` body
+        // drew no diagnostic at all (the body was never walked, only the
+        // literal keywords "method"/"classmethod"/"constructor"/
+        // "destructor" were recognised, "self"/"private" fell through
+        // untouched). `string length` takes exactly one argument.
+        let src = "oo::class create Widget {\n    self method make {n} {\n        string length a b c d\n        return \"made $n\"\n    }\n}\n";
+        assert_eq!(
+            count(src, D, "E003"),
+            1,
+            "the wrong-arity call inside a self-method body must now be walked: {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn private_method_body_is_also_walked_for_internal_diagnostics() {
+        // TP — the sibling gap `private method` shared with `self method`
+        // (both go through the same `unwrap_wrapper_member`-based
+        // `collect_method_body`), confirming the fix isn't scoped to
+        // `self` alone.
+        let src = "oo::class create Widget {\n    private method helper {} {\n        string length a b c d\n    }\n}\n";
+        assert_eq!(
+            count(src, D, "E003"),
+            1,
+            "the wrong-arity call inside a private-method body must now be walked: {:?}",
+            codes(src, D)
+        );
+    }
+
+    #[test]
+    fn self_method_declaration_site_recorded_as_a_classmethod() {
+        // TP — proves Part 1 alone (record shape + span), independent of
+        // the definition.rs-side call-site receiver-resolution bug Part 2
+        // fixes.
+        let cd = class(
+            "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\n",
+            "::Widget",
+        );
+        assert!(!cd.methods.contains_key("make"));
+        let md = cd
+            .class_methods
+            .get("make")
+            .expect("recorded as a classmethod");
+        assert_eq!(md.kind, "classmethod");
+        assert!(md.is_self_method);
+    }
+}
+
+// ===========================================================================
+// oo::Helpers::link — ClassDef::linked_members population (issue #923
+// idx 113). Consumer-side (definition/hover resolution) is covered in
+// tcl-lsp-core; this module is about `collect_oo_links` itself.
+// ===========================================================================
+mod oo_link {
+    use super::*;
+    use tcl_compiler::analyser::ClassDef;
+
+    fn class(src: &str, qn: &str) -> ClassDef {
+        Analyser::new()
+            .analyse(src, D)
+            .all_classes
+            .get(qn)
+            .cloned()
+            .expect("class recorded")
+    }
+
+    #[test]
+    fn single_name_link_records_alias_to_itself() {
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo }\n    method foo {x} { return $x }\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("foo").map(String::as_str),
+            Some("foo")
+        );
+    }
+
+    #[test]
+    fn two_element_link_records_alias_to_a_different_target() {
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link {shortcut realMethod} }\n    method realMethod {x} { return $x }\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("shortcut").map(String::as_str),
+            Some("realMethod")
+        );
+    }
+
+    #[test]
+    fn link_called_from_destructor_is_recorded() {
+        // TP — `collect_method_body` covers constructor/method/destructor
+        // uniformly, and the link scan must too.
+        let cd = class(
+            "oo::class create C {\n    method foo {x} {return $x}\n    destructor { link foo }\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("foo").map(String::as_str),
+            Some("foo")
+        );
+    }
+
+    #[test]
+    fn multiple_single_name_aliases_in_one_link_call_all_record() {
+        // `link foo bar` is TWO independent one-element arguments, not a
+        // single two-element pair — both must be recorded.
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo bar }\n    method foo {x} {return $x}\n    method bar {y} {return $y}\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("foo").map(String::as_str),
+            Some("foo")
+        );
+        assert_eq!(
+            cd.linked_members.get("bar").map(String::as_str),
+            Some("bar")
+        );
+    }
+
+    #[test]
+    fn links_from_different_method_bodies_all_accumulate() {
+        // Links recorded from different member bodies (not just the
+        // constructor) must all accumulate onto the same ClassDef.
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo }\n    method setup {} { link bar }\n    method foo {x} {return $x}\n    method bar {y} {return $y}\n}\n",
+            "::C",
+        );
+        assert_eq!(
+            cd.linked_members.get("foo").map(String::as_str),
+            Some("foo")
+        );
+        assert_eq!(
+            cd.linked_members.get("bar").map(String::as_str),
+            Some("bar")
+        );
+    }
+
+    #[test]
+    fn dynamic_link_target_is_not_recorded() {
+        // TN — a dynamic `link $which` is skipped (mirrors
+        // `detect_interp_alias`'s literal-only requirement): no
+        // fabricated alias, conservative fallback to "not reachable".
+        let cd = class(
+            "oo::class create C {\n    variable which\n    constructor {w} { set which $w; link $which }\n    method foo {x} {return $x}\n}\n",
+            "::C",
+        );
+        assert!(cd.linked_members.is_empty(), "{:?}", cd.linked_members);
+    }
+
+    #[test]
+    fn link_for_one_name_does_not_blanket_legitimize_others() {
+        // Precision guard — a link for a DIFFERENT name must not
+        // blanket-legitimize every bareword in the class.
+        let cd = class(
+            "oo::class create C {\n    constructor {} { link foo }\n    method foo {x} {return $x}\n    method other {y} {return $y}\n}\n",
+            "::C",
+        );
+        assert!(cd.linked_members.contains_key("foo"));
+        assert!(!cd.linked_members.contains_key("other"));
+    }
+
+    #[test]
+    fn link_nested_inside_a_conditional_is_not_recorded() {
+        // Deliberately shallow — only a top-level `link` call is
+        // recognised, not one nested inside an `if`/`catch`/… body
+        // argument (matches `scan_my_method_region`'s own accepted
+        // scope boundary for this class of problem).
+        let cd = class(
+            "oo::class create C {\n    constructor {} { if {1} { link foo } }\n    method foo {x} {return $x}\n}\n",
+            "::C",
+        );
+        assert!(cd.linked_members.is_empty(), "{:?}", cd.linked_members);
     }
 }
 

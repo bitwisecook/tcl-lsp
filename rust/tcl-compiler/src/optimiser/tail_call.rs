@@ -107,7 +107,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     for (qname, proc) in &cu.ir_module.procedures {
         let self_names = self_name_variants(qname);
         let mut sites: Vec<TailSite> = Vec::new();
-        collect_tail_sites(ctx, &proc.body, &self_names, proc, &mut sites, emit_o121);
+        collect_tail_sites(ctx, &proc.body, &self_names, proc, &mut sites, emit_o121, 0);
 
         let total_self_calls = count_self_calls_in_script(&proc.body, &self_names);
         if !sites.is_empty() && sites.len() == total_self_calls {
@@ -124,7 +124,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
         // O123: any non-tail self-call embedded in an expression
         // → accumulator candidate (hint-only).
-        if non_tail_self_call_in_expression(&proc.body, &self_names, ctx.registry) {
+        if non_tail_self_call_in_expression(&proc.body, &self_names, ctx.registry, 0) {
             let mut opt = Optimisation::new(
                 DiagCode::O123,
                 format!(
@@ -424,13 +424,19 @@ fn is_accumulator_pattern(
 
 /// Detect a non-tail self-call embedded in an expression body
 /// or a return's command substitution — the accumulator pattern.
+/// `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn non_tail_self_call_in_expression(
     script: &Script,
     self_names: &HashSet<String>,
     registry: Option<&tcl_registry::CommandRegistry>,
+    depth: u32,
 ) -> bool {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return false;
+    }
     for stmt in &script.statements {
-        if non_tail_in_stmt(stmt, self_names, registry) {
+        if non_tail_in_stmt(stmt, self_names, registry, depth) {
             return true;
         }
     }
@@ -441,6 +447,7 @@ fn non_tail_in_stmt(
     stmt: &Statement,
     self_names: &HashSet<String>,
     registry: Option<&tcl_registry::CommandRegistry>,
+    depth: u32,
 ) -> bool {
     match stmt {
         Statement::Return {
@@ -462,33 +469,33 @@ fn non_tail_in_stmt(
         } => {
             clauses
                 .iter()
-                .any(|c| non_tail_self_call_in_expression(&c.body, self_names, registry))
-                || else_body
-                    .as_ref()
-                    .is_some_and(|b| non_tail_self_call_in_expression(b, self_names, registry))
+                .any(|c| non_tail_self_call_in_expression(&c.body, self_names, registry, depth + 1))
+                || else_body.as_ref().is_some_and(|b| {
+                    non_tail_self_call_in_expression(b, self_names, registry, depth + 1)
+                })
         }
         Statement::Switch {
             arms, default_body, ..
         } => {
             arms.iter().any(|a| {
-                a.body
-                    .as_ref()
-                    .is_some_and(|b| non_tail_self_call_in_expression(b, self_names, registry))
-            }) || default_body
-                .as_ref()
-                .is_some_and(|b| non_tail_self_call_in_expression(b, self_names, registry))
+                a.body.as_ref().is_some_and(|b| {
+                    non_tail_self_call_in_expression(b, self_names, registry, depth + 1)
+                })
+            }) || default_body.as_ref().is_some_and(|b| {
+                non_tail_self_call_in_expression(b, self_names, registry, depth + 1)
+            })
         }
         Statement::For {
             init, body, next, ..
         } => {
-            non_tail_self_call_in_expression(init, self_names, registry)
-                || non_tail_self_call_in_expression(body, self_names, registry)
-                || non_tail_self_call_in_expression(next, self_names, registry)
+            non_tail_self_call_in_expression(init, self_names, registry, depth + 1)
+                || non_tail_self_call_in_expression(body, self_names, registry, depth + 1)
+                || non_tail_self_call_in_expression(next, self_names, registry, depth + 1)
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
         | Statement::Foreach { body, .. } => {
-            non_tail_self_call_in_expression(body, self_names, registry)
+            non_tail_self_call_in_expression(body, self_names, registry, depth + 1)
         }
         Statement::Try {
             body,
@@ -496,13 +503,13 @@ fn non_tail_in_stmt(
             finally_body,
             ..
         } => {
-            non_tail_self_call_in_expression(body, self_names, registry)
-                || handlers
-                    .iter()
-                    .any(|h| non_tail_self_call_in_expression(&h.body, self_names, registry))
-                || finally_body
-                    .as_ref()
-                    .is_some_and(|fb| non_tail_self_call_in_expression(fb, self_names, registry))
+            non_tail_self_call_in_expression(body, self_names, registry, depth + 1)
+                || handlers.iter().any(|h| {
+                    non_tail_self_call_in_expression(&h.body, self_names, registry, depth + 1)
+                })
+                || finally_body.as_ref().is_some_and(|fb| {
+                    non_tail_self_call_in_expression(fb, self_names, registry, depth + 1)
+                })
         }
         _ => false,
     }
@@ -534,6 +541,8 @@ fn self_name_variants(qname: &str) -> HashSet<String> {
 /// still collected (so O122 loop conversion can still fire if every
 /// self-call is in tail position) but the O121 `tailcall`
 /// rewrite suggestion is suppressed.
+/// `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn collect_tail_sites(
     ctx: &mut PassContext<'_>,
     script: &Script,
@@ -541,7 +550,11 @@ fn collect_tail_sites(
     proc: &Procedure,
     sites: &mut Vec<TailSite>,
     emit_o121: bool,
+    depth: u32,
 ) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     let Some(last) = script.statements.last() else {
         return;
     };
@@ -611,10 +624,10 @@ fn collect_tail_sites(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                collect_tail_sites(ctx, &c.body, self_names, proc, sites, emit_o121);
+                collect_tail_sites(ctx, &c.body, self_names, proc, sites, emit_o121, depth + 1);
             }
             if let Some(eb) = else_body {
-                collect_tail_sites(ctx, eb, self_names, proc, sites, emit_o121);
+                collect_tail_sites(ctx, eb, self_names, proc, sites, emit_o121, depth + 1);
             }
         }
         Statement::Switch {
@@ -622,11 +635,11 @@ fn collect_tail_sites(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    collect_tail_sites(ctx, b, self_names, proc, sites, emit_o121);
+                    collect_tail_sites(ctx, b, self_names, proc, sites, emit_o121, depth + 1);
                 }
             }
             if let Some(db) = default_body {
-                collect_tail_sites(ctx, db, self_names, proc, sites, emit_o121);
+                collect_tail_sites(ctx, db, self_names, proc, sites, emit_o121, depth + 1);
             }
         }
         _ => {}
@@ -708,6 +721,43 @@ mod tests {
         ctx.registry = Some(&reg);
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    /// Regression coverage for issue #996: `collect_tail_sites` and the
+    /// mutually-recursive `non_tail_self_call_in_expression`/
+    /// `non_tail_in_stmt` pair recurse once per nested `if`/`for`/`while`/
+    /// `foreach`/`catch`/`try`/`switch` body, with no depth cap of their
+    /// own before this fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+    /// (256) by the lowering pass today, so this is defence-in-depth /
+    /// consistency with every other full-tree walker in this crate, not a
+    /// currently-reproducible crash. 1000 levels of source nesting is
+    /// comfortably past this new cap; the assertion is that `run_pass`
+    /// returns at all, not what it returns. Spawns its own big-stack
+    /// thread since the lexer/CST/segmenter stages upstream of the
+    /// lowering cap still walk the full un-truncated source nesting before
+    /// that cap trims it — same rationale as
+    /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn deeply_nested_if_survives_tail_call_scan() {
+        const DEPTH: usize = 1000;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = "proc f {n} {\n".to_owned();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("f $n\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        src.push_str("}\n");
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = run_pass(&src);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]

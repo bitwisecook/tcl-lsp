@@ -55,6 +55,24 @@ updates every namespace's call sites together. For the full contract,
 see
 [resolution soundness](../../design/resolution-soundness-945.md).
 
+Renaming a `TclOO` method rewrites the declaration plus every `my method`
+dispatch site (however deeply nested in `[…]` substitutions or same-frame
+control-flow / `eval` bodies — see [Find References](kcs-feature-references.md)),
+every external `$obj method` site, and every override-family member (a
+superclass or subclass that (re)defines the same method) — all as one
+rename. Renaming a property rewrites the declaration plus every `my
+<property>` read; a property has no `$obj` dispatch or inheritance model,
+so those are out of scope by design, not a gap. Because a method is never a
+bare-callable command (only `my method` dispatches it), a method / property
+rename only ever rewrites `my`-dispatched sites — never an unrelated bare
+command invocation that happens to share the renamed name.
+
+A method, a classmethod, and a property can share one name within the same
+class (rare, but each lives in its own independent table, so it's legal);
+renaming resolves to whichever declaration the cursor actually sits on
+rather than a fixed priority, so the rename never silently retargets a
+different member than the one you clicked.
+
 ## Failure modes
 
 - The rename updates some but not all of the references. This almost

@@ -1733,6 +1733,67 @@ fn report_commands_gated_out_of_tcl84() {
     }
 }
 
+/// The `::tcl::` namespace does not exist at all before Tcl 8.5 (TIP 174
+/// added `::tcl::mathop`; there is no `::tcl` namespace in a real Tcl 8.4).
+/// Every dated addition under it must be gated to its real introduction
+/// release, not left universally available (`dialects: None`), which would
+/// wrongly resolve under `tcl8.4` and every pre-that-version profile.
+#[test]
+fn tcl_namespace_commands_gated_to_their_real_introduction_version() {
+    // (command, dialects it must resolve under, dialects it must not)
+    let cases: &[(&str, &[&str], &[&str])] = &[
+        // Tcl Modules (TIP 189) — 8.5+.
+        (
+            "tcl::tm::path",
+            &["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"],
+            &["tcl8.4"],
+        ),
+        (
+            "tcl::tm::roots",
+            &["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"],
+            &["tcl8.4"],
+        ),
+        // Coroutines (TIP 396) and their `corotype` introspection — 8.6+;
+        // empirically confirmed present on a real tclsh 8.6.14, not 9.0
+        // only as an earlier (incorrect) version of this data claimed.
+        (
+            "::tcl::unsupported::corotype",
+            &["tcl8.6", "tcl9.0", "tcl9.1"],
+            &["tcl8.4", "tcl8.5"],
+        ),
+        // `cookiejar` package's IDNA helpers — bundled since Tcl 8.6.
+        (
+            "tcl::idna::decode",
+            &["tcl8.6", "tcl9.0", "tcl9.1"],
+            &["tcl8.4", "tcl8.5"],
+        ),
+        (
+            "tcl::idna::encode",
+            &["tcl8.6", "tcl9.0", "tcl9.1"],
+            &["tcl8.4", "tcl8.5"],
+        ),
+        // `::tcl::build-info` — Tcl 9.0+ (both spellings carry their own spec).
+        (
+            "tcl::build-info",
+            &["tcl9.0", "tcl9.1"],
+            &["tcl8.4", "tcl8.5", "tcl8.6"],
+        ),
+        (
+            "::tcl::build-info",
+            &["tcl9.0", "tcl9.1"],
+            &["tcl8.4", "tcl8.5", "tcl8.6"],
+        ),
+    ];
+    for &(cmd, present, absent) in cases {
+        for d in present {
+            assert!(present_in(d, cmd), "{cmd} must be available under {d}");
+        }
+        for d in absent {
+            assert!(!present_in(d, cmd), "{cmd} must be unavailable under {d}");
+        }
+    }
+}
+
 // ===========================================================================
 // defines_command_at — spec-declared "argument names a new command" facts.
 // ===========================================================================

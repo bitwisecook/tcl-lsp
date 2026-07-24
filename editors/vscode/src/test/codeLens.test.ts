@@ -164,47 +164,120 @@ suite("Code Lens", () => {
   // Regression for issue #864: the reference-count lens above a TclOO method
   // must count external `$obj method` dispatch, not just intra-class calls.
   // `puts [$b get foo]` (with `set b [Bar new]`) is one reference to `get`.
-  test("method lens counts external \\$obj method dispatch", async () => {
+  // Also the exact repro shape from issue #956 — a `variable` and
+  // `constructor` declared before the `method`, the method body reading the
+  // instance variable — so this doubles as the #956 regression: the lens
+  // must resolve to a *clickable* `tcl-lsp.showReferences` command, not the
+  // count-only-but-inert shape the #724 defect left for methods
+  // specifically (proc/class lenses were fixed under #724; methods were not,
+  // until #956).
+  test("method lens counts external \\$obj method dispatch and is clickable", async () => {
     const refsUri = getDocUri("codeLensMethodRefs.tcl");
     await activate(refsUri);
-    // Method / member lenses are informational: the server attaches their
-    // count eagerly as `command.title` (no separate resolve round-trip), so
-    // poll until the lenses on the member lines under test carry a title.
+    // Since #956, method / classmethod lenses resolve lazily the same way
+    // proc/class lenses do — `executeCodeLensProvider`'s resolveCount arg
+    // drives VS Code to call `codeLens/resolve` itself, so poll until the
+    // lenses on the member lines under test carry a resolved command.
     const lenses = (await pollUntil(
       () => vscode.commands.executeCommand("vscode.executeCodeLensProvider", refsUri, 100),
       (r) => {
         const ls = r as vscode.CodeLens[] | undefined;
         if (!ls) return false;
-        const titledLines = new Set(
-          ls
-            .filter((l) => l.command && typeof l.command.title === "string")
-            .map((l) => l.range.start.line),
-        );
+        const resolvedLines = new Set(ls.filter((l) => l.command).map((l) => l.range.start.line));
         // `method get` on line 6, `method unused` on line 10.
-        return [6, 10].every((line) => titledLines.has(line));
+        return [6, 10].every((line) => resolvedLines.has(line));
       },
       { timeout: 10_000, label: "resolved method code lenses" },
     )) as vscode.CodeLens[] | undefined;
     assert.ok(lenses, "codeLens result should not be null");
 
-    const titleByLine = new Map<number, string>();
+    const commandByLine = new Map<number, vscode.Command>();
     for (const lens of lenses) {
-      if (lens.command && typeof lens.command.title === "string") {
-        titleByLine.set(lens.range.start.line, lens.command.title);
+      if (lens.command) {
+        commandByLine.set(lens.range.start.line, lens.command);
       }
     }
 
     // Line 6: `method get` — dispatched once via `puts [$b get foo]`.
+    const getCommand = commandByLine.get(6);
     assert.strictEqual(
-      titleByLine.get(6),
+      getCommand?.title,
       "1 reference",
-      `TclOO method with an external \$obj dispatch: got "${titleByLine.get(6)}"`,
+      `TclOO method with an external \$obj dispatch: got "${getCommand?.title}"`,
     );
-    // Line 10: `method unused` — never dispatched.
     assert.strictEqual(
-      titleByLine.get(10),
+      getCommand?.command,
+      "tcl-lsp.showReferences",
+      `method lens must be clickable, not inert: got "${getCommand?.command}"`,
+    );
+
+    // Line 10: `method unused` — never dispatched, but still clickable (an
+    // empty peek is a valid target; zero references must not leave the lens
+    // inert).
+    const unusedCommand = commandByLine.get(10);
+    assert.strictEqual(
+      unusedCommand?.title,
       "0 references",
-      `uncalled TclOO method: got "${titleByLine.get(10)}"`,
+      `uncalled TclOO method: got "${unusedCommand?.title}"`,
+    );
+    assert.strictEqual(
+      unusedCommand?.command,
+      "tcl-lsp.showReferences",
+      `uncalled method lens must still be clickable: got "${unusedCommand?.command}"`,
+    );
+  });
+
+  // Regression for issue #956 (a distinct gap found while fixing the method
+  // lens's clickability): a `classmethod` dispatches on the *class's own*
+  // command (`Factory make`) — never on an instance — so the reference count
+  // and lens above `classmethod make` must count that bare dispatch too, and
+  // the lens must resolve to a clickable command exactly like an instance
+  // method's.
+  test("classmethod lens counts bare class-command dispatch and is clickable", async () => {
+    const refsUri = getDocUri("codeLensClassmethodRefs.tcl");
+    await activate(refsUri);
+    const lenses = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeLensProvider", refsUri, 100),
+      (r) => {
+        const ls = r as vscode.CodeLens[] | undefined;
+        if (!ls) return false;
+        const resolvedLines = new Set(ls.filter((l) => l.command).map((l) => l.range.start.line));
+        // `classmethod make` on line 1, `classmethod idle` on line 5.
+        return [1, 5].every((line) => resolvedLines.has(line));
+      },
+      { timeout: 10_000, label: "resolved classmethod code lenses" },
+    )) as vscode.CodeLens[] | undefined;
+    assert.ok(lenses, "codeLens result should not be null");
+
+    const commandByLine = new Map<number, vscode.Command>();
+    for (const lens of lenses) {
+      if (lens.command) {
+        commandByLine.set(lens.range.start.line, lens.command);
+      }
+    }
+
+    const makeCommand = commandByLine.get(1);
+    assert.strictEqual(
+      makeCommand?.title,
+      "1 reference",
+      `classmethod dispatched via the bare class command: got "${makeCommand?.title}"`,
+    );
+    assert.strictEqual(
+      makeCommand?.command,
+      "tcl-lsp.showReferences",
+      `classmethod lens must be clickable: got "${makeCommand?.command}"`,
+    );
+
+    const idleCommand = commandByLine.get(5);
+    assert.strictEqual(
+      idleCommand?.title,
+      "0 references",
+      `uncalled classmethod: got "${idleCommand?.title}"`,
+    );
+    assert.strictEqual(
+      idleCommand?.command,
+      "tcl-lsp.showReferences",
+      `uncalled classmethod lens must still be clickable: got "${idleCommand?.command}"`,
     );
   });
 

@@ -38,6 +38,9 @@
 mod diag_code;
 pub use diag_code::{DiagCode, DiagFamily, DiagSection, DocRow, OptCategory, UnknownDiagCode};
 
+mod recursion;
+pub use recursion::{RecursionGuard, RecursionLimit};
+
 /// A Tcl completion code (`tcl.h` `TCL_OK`..`TCL_CONTINUE`, plus arbitrary user
 /// codes from `return -code N` / `try on N`).
 ///

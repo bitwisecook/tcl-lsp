@@ -135,9 +135,13 @@ pub fn spec() -> CommandSpec {
         // The default form's deferred script runs later, at global level
         // outside the context of any Tcl procedure (Tcl man page after.n:
         // "The command will be executed at global level (outside the
-        // context of any Tcl procedure)") — confirmed empirically the same
-        // way as `idle`'s (see the `idle` SubCommand's `body_kind` comment).
-        // SSA must not treat it as sharing the caller's frame.
+        // context of any Tcl procedure)") — confirmed empirically: a bare
+        // variable reference inside the script does not see the
+        // registering proc's locals when it fires, any more than a
+        // `TclOO` method's per-invocation `my`/`next` survive past that
+        // method's own call (same reasoning as `idle`'s `body_kind`
+        // comment and `uplevel`'s). Neither SSA dataflow nor `my`/`next`/
+        // `$obj method` dispatch scanning must treat it as same-frame.
         body_kind: BodyKind::Structural,
         subcommands: SUBCOMMANDS,
         // `after 200 …` — an integer first word selects the default

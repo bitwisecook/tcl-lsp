@@ -184,6 +184,53 @@ fn global_call_fallback_is_deterministic_across_repeats() {
     }
 }
 
+// -- TestMathFunctionDefinition -------------------------------------------
+// `expr` math-function calls (`sin(...)`) dispatch through the fixed
+// `::tcl::mathfunc` sub-namespace, never the calling namespace — a generic
+// one-hop resolver that (mis)treated the qualified dispatch name as
+// `{callingNamespace}::{name}` could mis-jump to an unrelated same-named
+// top-level proc. These pin the fix at the go-to-definition layer, not just
+// the underlying resolved-name data.
+
+#[test]
+fn no_definition_for_mathfunc_call_despite_unrelated_same_named_proc() {
+    // `proc sin` is an ordinary, unrelated top-level command — it has zero
+    // effect on `expr {sin(...)}`, which only ever dispatches through
+    // `::tcl::mathfunc::sin` (a real Tcl builtin with no source location).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc sin {x} { return bogus }\nset y [expr {sin(1.0)}]\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.definition(&uri, 1, 14);
+    assert!(
+        locations(&result).is_empty(),
+        "must not jump to the unrelated proc sin: {result:?}"
+    );
+}
+
+#[test]
+fn mathfunc_call_jumps_to_namespace_local_override() {
+    // TIP 232: a namespace-local `proc ::nsa::tcl::mathfunc::pf` shadows the
+    // global `::tcl::mathfunc::pf` for a call made from inside `::nsa` (real
+    // Tcl behaviour — see the VM's
+    // `namespace_local_mathfunc_shadows_global_in_expr`). Go-to-definition
+    // on the call must land on the local override, not report nothing.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "namespace eval ::nsa::tcl::mathfunc {}\n\
+               proc ::nsa::tcl::mathfunc::pf {x} { return 20 }\n\
+               namespace eval ::nsa {\n    proc caller {} { return [expr {pf(1)}] }\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.definition(&uri, 3, 36);
+    let locs = locations(&result);
+    assert!(!locs.is_empty(), "{result:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        1,
+        "must resolve to the local override"
+    );
+}
+
 // -- TestVariableDefinition ----------------------------------------------
 
 #[test]
@@ -228,4 +275,238 @@ fn namespace_var_definition() {
     let locs = locations(&result);
     assert!(!locs.is_empty());
     assert_eq!(start_line(&locs[0]), 1);
+}
+
+// -- wildcard namespace import bareword resolution (issue #923 idx 18) --
+//
+// `namespace import NS::*` makes every command `NS` has `namespace
+// export`ed callable bare wherever the import is in scope, including
+// across files — but real Tcl only imports *exported* names, so an
+// unexported sibling in `NS` stays unreachable through the import.
+
+#[test]
+fn wildcard_namespace_import_resolves_cross_document_proc() {
+    // TP (headline case, cross-document): `lib.tcl` defines and exports
+    // `bar`; `main.tcl` wildcard-imports `::Lib::*` and calls `bar` bare.
+    // Both files are opened in the same session, exercising the real
+    // `textDocument/didOpen` → workspace-index → cross-document
+    // go-to-definition path a user's editor would hit.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, "namespace import ::Lib::*\nbar\n");
+    let result = lsp.definition(&main_uri, 1, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, lib_uri, "must jump into lib.tcl");
+    assert_eq!(start_line(&locs[0]), 1, "proc bar is declared on line 1");
+}
+
+#[test]
+fn wildcard_namespace_import_does_not_resolve_unexported_sibling_cross_document() {
+    // FP guard (CRITICAL, cross-document): `lib.tcl`'s `other` is never
+    // exported, so `main.tcl`'s wildcard import must not resolve a bare
+    // `other` call to it — matches real tclsh's own `invalid command name`
+    // error there (tclsh9.0/8.6-verified; Tcl manual, `namespace` —
+    // `namespace import` only imports exported names).
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval Lib {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, "namespace import ::Lib::*\nother\n");
+    let result = lsp.definition(&main_uri, 1, 0);
+    assert!(
+        locations(&result).is_empty(),
+        "an unexported sibling must stay unresolved through the wildcard import: {result:?}"
+    );
+}
+
+/// idx 33 (differential-audit main audit wave, high severity): a class
+/// *instantiation* call (`GSA new`, the real corpus's
+/// `georgtree_tclopt`'s `arbitaryTest.tcl` idiom — `GSA new -funct
+/// fRastrigin ...`) reached only through a cross-document wildcard
+/// `namespace import NS::*`. Same root cause as idx 18 — the finding's
+/// own root-cause citation is `WorkspaceIndex::index_command_links`'s
+/// glob-pattern skip, the exact mechanism idx 18 fixed — found
+/// independently before idx 18 landed. Verified fixed via this reliable
+/// `Lsp::tcl()` e2e harness after an *unreliable* CLI-script (`lsp_client.py`)
+/// verification pass initially reported this as still broken, even for
+/// same-document, non-wildcard, fully-qualified calls that the
+/// `tcl-lsp-core::definition::definition()` unit-level test harness (and
+/// this e2e test) both proved resolve correctly — the CLI script's result
+/// was misleading here (a tooling artifact, not a real regression), so
+/// treat any future CLI-only "class instantiation doesn't resolve" report
+/// with suspicion until cross-checked against the real server via this
+/// harness or the Rust unit-test level.
+#[test]
+fn class_instantiation_resolves_cross_document_via_wildcard_import() {
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval ::optlib {\n    namespace export GSA\n    oo::class create GSA {\n        method run {} { return 1 }\n    }\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    // line 1: `set optimizer [GSA new]` — `GSA` starts at column 15.
+    lsp.open_ready(
+        &main_uri,
+        "namespace import ::optlib::*\nset optimizer [GSA new]\n",
+    );
+    let result = lsp.definition(&main_uri, 1, 15);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, lib_uri, "must jump into the library file");
+    assert_eq!(start_line(&locs[0]), 2, "oo::class create GSA is on line 2");
+}
+
+/// idx 52 (differential-audit main audit wave, high severity): a class
+/// created via `oo::class create` with no body, then extended by every
+/// one of its methods through a *separate*, later `oo::define ClassName {
+/// ... }` block — exactly the real corpus shape (`ticklecharts::chart`:
+/// `oo::class create` at one line, every method — including the `my
+/// AddBarSeries`-style internal dispatch calls in its switch arms — added
+/// via a later, separate `oo::define` block). tclsh9.0/8.6 both prove `my
+/// Helper` genuinely dispatches to `Helper` here; go-to-definition
+/// previously abstained (0 locations) because `ClassDef::body_span` only
+/// ever covered the *first* block recorded for the class, so a cursor
+/// inside the separate `oo::define` block's own text never satisfied the
+/// "which class am I lexically inside" containment check `my`-dispatch
+/// resolution depends on.
+#[test]
+fn my_dispatch_resolves_when_class_extended_via_separate_oo_define() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n",
+    );
+    // Line 5: `    method Caller {} { my Helper }` — cursor on the `Helper`
+    // word inside `my Helper` (column 26).
+    let result = lsp.definition(&uri, 5, 26);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        4,
+        "must resolve to the Helper method declaration on line 4"
+    );
+}
+
+/// idx 70 (differential-audit main audit wave, high severity, pix corpus):
+/// the real, unmodified `docs/pixdoc.tcl` shape — a parallel/lock-step
+/// multi-list `foreach dirName {...} name {...} {...}` followed, ~300
+/// lines later, by a wholly unrelated `foreach name {...}` reusing the
+/// same bare name. `handle_foreach_command` only ever bound the *first*
+/// varList, so the first loop's own `name` was never a tracked variable at
+/// all — go-to-definition on any `$name` use inside the first loop's body
+/// silently resolved to the coincidentally same-named second loop instead,
+/// ~300 lines away in the wrong part of the file.
+#[test]
+fn multi_list_foreach_name_resolves_to_its_own_loop_not_a_later_unrelated_one() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "foreach dirName {src src {src core}} name {alpha beta gamma} {\n    puts \"$dirName $name\"\n    if {$name eq \"pixutils\"} { puts skip }\n}\nforeach name {examples color changes} {\n    puts $name.ruff\n}\n",
+    );
+    // Line 1: `    puts "$dirName $name"` — cursor on the first loop's own
+    // `$name` read (column 21).
+    let result = lsp.definition(&uri, 1, 21);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        0,
+        "must resolve to the first loop's own `name` clause (line 0), not the unrelated second loop (line 4): {locs:?}"
+    );
+}
+
+/// idx 84 (differential-audit main audit wave, high severity, tk corpus):
+/// the real `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
+/// `accessibility.tcl`) idiom splices `systray` into the pre-existing,
+/// registry-builtin `tk` ensemble at runtime via `namespace ensemble
+/// configure tk -map [dict merge [namespace ensemble configure tk -map]
+/// {systray ::tk::systray}]` — a `CONFIGURE`, not `CREATE`, statement,
+/// previously invisible to the analyser. tclsh9.0/8.6 both proved `tk
+/// systray create` really calls `::tk::systray`; the LSP instead fell
+/// through to `fallback_proc_by_simple_name` and wrongly resolved to a
+/// same-tail-name decoy proc in an unrelated namespace.
+#[test]
+fn tk_ensemble_configure_splice_resolves_to_the_real_target_not_a_decoy() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "namespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n",
+    );
+    // Line 5: `tk systray create -image book` — cursor on "systray".
+    let result = lsp.definition(&uri, 5, 5);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        3,
+        "must resolve to the real `proc ::tk::systray` (line 3), not the same-tail-name decoy inside ::decoy (line 1): {locs:?}"
+    );
+}
+
+/// idx 86 (differential-audit main audit wave, high severity, tk corpus):
+/// the real `tk/library/accessibility.tcl` idiom renames each classic
+/// widget command away and reinstalls a wrapper proc under the same
+/// original name, once per element of a literal `foreach` list —
+/// `foreach wtype {button entry ...} { rename ::$wtype ::tk::accessible::
+/// orig_$wtype ; proc ::$wtype {args} {...} }`. tclsh9.0/8.6 both prove
+/// `button` is the *new* wrapper afterwards; the old body survives only as
+/// `::tk::accessible::orig_button`. The dynamic `$wtype` name previously
+/// never attempted constant-folding at all (unlike `rename`'s own operands,
+/// fixed for idx 3), so both `rename` and `proc` registered under garbled
+/// literal text instead — go-to-definition on a `button` call site fell
+/// through to the stale, pre-rename `proc button` declaration.
+#[test]
+fn foreach_rename_reinstall_idiom_resolves_to_the_wrapper_not_the_stale_original() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc button {args} {return orig_button}\nproc entry {args} {return orig_entry}\nnamespace eval ::tk::accessible {\n    foreach wtype {button entry} {\n        rename ::$wtype ::tk::accessible::orig_$wtype\n        proc ::$wtype {args} {return wrapped}\n    }\n}\nset r1 [button .b1]\nset r2 [entry .e1]\n",
+    );
+    // Line 8: `set r1 [button .b1]` — cursor on "button".
+    let result = lsp.definition(&uri, 8, 9);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        5,
+        "must resolve to the wrapper's own `proc ::$wtype` declaration (line 5) inside the loop, not the stale original `proc button` (line 0): {locs:?}"
+    );
+}
+
+/// idx 90 (differential-audit main audit wave, high severity): `tcl::OptProc`
+/// had no `AnalyserHookId` at all, so go-to-definition from a real call
+/// site fell through to nothing (the stub proc's stale, unresolved
+/// `ProcDef` never got overwritten).
+#[test]
+fn opt_proc_call_site_resolves_to_its_declaration_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "package require opt\n::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n",
+    );
+    // Line 2: `greet foo` — cursor on "greet".
+    let result = lsp.definition(&uri, 2, 0);
+    let locs = locations(&result);
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        start_line(&locs[0]),
+        1,
+        "must resolve to the tcl::OptProc declaration (line 1): {locs:?}"
+    );
 }

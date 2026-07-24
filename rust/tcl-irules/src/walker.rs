@@ -25,6 +25,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_compiler::lambda_literal::{LambdaLiteralElements, split_lambda_literal};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::LexerConfig;
 use tcl_lexer::{Span, Token, TokenType};
@@ -32,6 +33,17 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 
 use crate::resolve_object_ref_args;
+
+/// Depth cap for [`walk`]'s (and [`recurse_token`]'s) recursion over nested
+/// bodies / `apply` lambdas / `[…]` command substitutions — issue #996.
+///
+/// This crate is reachable from a WASM host with no stack-size guarantee
+/// (via `bigip-query-wasm`, transitively through `tcl-bigip`), so, like
+/// `tcl_lsp_core::formatting::engine::MAX_FORMAT_DEPTH` /
+/// `tcl_lsp_core::minify::MAX_MINIFY_DEPTH`, this must be safe on a small
+/// ambient stack, not just a generously-sized one — same value and
+/// reasoning; see those constants' doc comments.
+const MAX_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
 
 /// One iRules object reference resolved from a literal command argument
 /// (mirrors `IrulesObjectReference`).
@@ -106,6 +118,7 @@ pub fn extract_irules_object_references(
         registry,
         &mut scope,
         &mut out,
+        0,
     );
     out.sort_by(|a, b| {
         (a.range.start(), a.range.end(), &a.name).cmp(&(b.range.start(), b.range.end(), &b.name))
@@ -115,7 +128,9 @@ pub fn extract_irules_object_references(
 
 /// Segment `slice` (a substring of `full` starting at byte `base`) and collect
 /// references, recursing into body / expr / command-substitution arguments with
-/// child scopes. Token spans are absolute into `full`.
+/// child scopes. Token spans are absolute into `full`. `depth` is this call's
+/// nesting level — see [`MAX_WALK_DEPTH`].
+#[allow(clippy::too_many_arguments)] // one context threaded through a recursive walk
 fn walk(
     full: &str,
     slice: &str,
@@ -124,7 +139,14 @@ fn walk(
     registry: &CommandRegistry,
     scope: &mut BindingScope,
     out: &mut Vec<IrulesObjectReference>,
+    depth: u32,
 ) {
+    // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment (issue
+    // #996). Past the cap, stop descending — the references collected up
+    // to this nesting level still stand.
+    if MAX_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     // Always the iRules dialect: segment with the f5-irules preset so an iRule's
     // `if {expr}{body}` (`}{` valid in TMM) splits into distinct words and its
     // pool/node references are attributed to the right command, not swallowed by
@@ -158,7 +180,7 @@ fn walk(
                 && !inner_is_empty(full, tok)
             {
                 let mut child = scope.child();
-                recurse_token(full, tok, rule_module, registry, &mut child, out);
+                recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
                 if matches!(tok.kind, TokenType::Cmd) {
                     recursed.insert((tok.span.start(), tok.span.end()));
                 }
@@ -176,7 +198,46 @@ fn walk(
                 && !inner_is_empty(full, tok)
             {
                 let mut child = scope.child();
-                recurse_token(full, tok, rule_module, registry, &mut child, out);
+                recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
+            }
+        }
+
+        // `apply {argList body ?ns?} …` (and any future command sharing the
+        // shape) — recurse into the real body *element*, not the whole
+        // lambda literal (issue #954): re-segmenting the whole `{argList}
+        // {body}` blob as a script previously misread the parameter word as
+        // a command name, so an object referenced only inside an apply
+        // lambda body embedded in an iRule event handler was invisible to
+        // this walker — and thus, per `bigip-cleanup`, looked unreferenced.
+        //
+        // Unlike an `if`/`foreach`/`switch` body (which shares the enclosing
+        // frame — `scope.child()` is correct there), an `apply` body runs in
+        // a *fresh* call frame: it does not inherit the caller's `set`-bound
+        // constants, only whatever its own actual arguments bind to its own
+        // params (`lambda_frame_scope` builds exactly that).
+        for lambda_idx in registry.arg_indices_for_role(cmd.name(), &args, ArgRole::LambdaLiteral) {
+            let word_index = lambda_idx + 1;
+            if let Some(tok) = cmd.argv.get(word_index)
+                && matches!(tok.kind, TokenType::Str)
+                && let Some(elems) = split_lambda_literal(full, *tok)
+                && let Some(body_span) = elems.body
+            {
+                let (bstart, bend) = (body_span.start() as usize, body_span.end() as usize);
+                if let Some(inner) = full.get(bstart..bend)
+                    && !inner.trim().is_empty()
+                {
+                    let mut child = lambda_frame_scope(full, &cmd, lambda_idx, elems, scope);
+                    walk(
+                        full,
+                        inner,
+                        body_span.start(),
+                        rule_module,
+                        registry,
+                        &mut child,
+                        out,
+                        depth + 1,
+                    );
+                }
             }
         }
 
@@ -195,7 +256,15 @@ fn walk(
         {
             for body in case_list_body_tokens(full, &tok, spec) {
                 let mut child = scope.child();
-                recurse_token(full, &body, rule_module, registry, &mut child, out);
+                recurse_token(
+                    full,
+                    &body,
+                    rule_module,
+                    registry,
+                    &mut child,
+                    out,
+                    depth + 1,
+                );
             }
         }
 
@@ -210,9 +279,44 @@ fn walk(
             }
             recursed.insert(key);
             let mut child = scope.child();
-            recurse_token(full, tok, rule_module, registry, &mut child, out);
+            recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
         }
     }
+}
+
+/// Build the fresh binding scope an `apply` lambda body runs in: empty
+/// (unlike `scope.child()`'s full clone, this inherits none of the
+/// enclosing frame's `set`-bound constants), with the lambda's own params
+/// bound to whatever their corresponding actual argument resolves to.
+///
+/// Inheriting the full scope would let an unrelated enclosing binding that
+/// happens to share a lambda-local variable's name (or, in the case of a
+/// zero-param lambda, *any* enclosing binding at all) misattribute an
+/// object reference to the wrong constant — a lambda body does not close
+/// over the caller's locals. `lambda_idx` is the lambda-literal argument's
+/// own 0-based (head-excluded) index in `cmd`, so its actual arguments run
+/// from `lambda_idx + 1`; each is resolved via the same literal /
+/// `$var`-propagation [`resolve_arg_value`] already uses for ordinary
+/// references, against the *enclosing* `scope`.
+fn lambda_frame_scope(
+    full: &str,
+    cmd: &SegmentedCommand,
+    lambda_idx: usize,
+    elems: LambdaLiteralElements,
+    scope: &BindingScope,
+) -> BindingScope {
+    let mut child = BindingScope::default();
+    let Some(params_text) = full.get(elems.params.start() as usize..elems.params.end() as usize)
+    else {
+        return child;
+    };
+    let lambda_params = tcl_compiler::signature_scan::params::parse_param_list(params_text);
+    for (k, param) in lambda_params.iter().enumerate() {
+        if let Some((value, _span)) = resolve_arg_value(full, cmd, lambda_idx + 1 + k, scope) {
+            child.set_const(&param.name, value);
+        }
+    }
+    child
 }
 
 /// The clause-list word of `cmd` (`switch … {pat body …}`), per the registry's
@@ -294,6 +398,7 @@ fn recurse_token(
     registry: &CommandRegistry,
     scope: &mut BindingScope,
     out: &mut Vec<IrulesObjectReference>,
+    depth: u32,
 ) {
     let (start, end) = content_range(full, tok);
     if start >= end {
@@ -311,6 +416,7 @@ fn recurse_token(
         registry,
         scope,
         out,
+        depth,
     );
 }
 
@@ -453,6 +559,26 @@ mod tests {
         assert!(by_name.contains(&("class".to_owned(), "/Common/host_dg".to_owned())));
         assert!(by_name.contains(&("snatpool".to_owned(), "/Common/sp1".to_owned())));
         assert!(by_name.contains(&("pool".to_owned(), "/Common/web_pool".to_owned())));
+    }
+
+    /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual
+    /// recursion over nested command-substitution bodies is now capped at
+    /// `MAX_WALK_DEPTH` (128). 300 nested `[…]` command substitutions is
+    /// comfortably past the cap; the assertion is that extraction returns
+    /// at all, not what it returns.
+    #[test]
+    fn deeply_nested_command_substitution_does_not_crash() {
+        const DEPTH: usize = 300;
+        let mut source = "when HTTP_REQUEST {\n    set x ".to_owned();
+        for _ in 0..DEPTH {
+            source.push('[');
+        }
+        source.push_str("pool /Common/p");
+        for _ in 0..DEPTH {
+            source.push(']');
+        }
+        source.push_str("\n}\n");
+        let _ = refs(&source);
     }
 
     #[test]

@@ -932,6 +932,52 @@ mod tests {
         assert!(opts.is_empty());
     }
 
+    /// Regression coverage for issue #996: every optimiser pass
+    /// (`propagation`, `expr_simplify`, `pattern_recognition`,
+    /// `structure_elimination`, `code_sinking`) walks `Script`/`Statement`
+    /// bodies recursively and is now depth-capped
+    /// (`super::MAX_OPTIMISER_WALK_DEPTH`). In this end-to-end pipeline
+    /// `lowering`'s own cap (`MAX_LOWER_NEST_DEPTH`, matching value) is the
+    /// first line of defence — it truncates source nesting before the
+    /// optimiser passes ever see it — so this asserts the *whole pipeline*
+    /// survives deep nesting rather than isolating the optimiser-level caps
+    /// specifically (those are unit-verified by construction: every
+    /// recursive call site threads `depth + 1`, matching the pattern
+    /// already proven in `lowering`/`param_traits`).
+    ///
+    /// `tcl-compiler` is a library — it does not own the stack its callers
+    /// run it on. Every real consumer (`tcl-lsp-server`/`tcl-mcp`/the `tcl`
+    /// CLI/`f5-cli`/`tcl-debugger`) already wraps calls into it with a
+    /// dedicated 64 MiB thread (issue #996's primary fix); `cargo test`'s
+    /// bare ~2 MiB per-test default is not representative of that and was
+    /// never the depth caps' design target — they bound *frame count*, not
+    /// the stack cost of each frame (see `docs/design/compiler/
+    /// recursive-descent-depth-limits.md`). So this spawns its own
+    /// production-sized thread rather than asserting on the test harness's
+    /// thread directly.
+    #[test]
+    fn deeply_nested_if_survives_full_optimiser_pipeline() {
+        const DEPTH: usize = 400;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut src = String::new();
+        for _ in 0..DEPTH {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set done 1\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        // The assertion is that this returns at all, not what it returns.
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let _ = optimise(&src, &registry());
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
     fn optimised(src: &str) -> String {
         let opts = optimise(src, &registry());
         apply_optimisations(src, &opts)

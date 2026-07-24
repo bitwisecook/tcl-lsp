@@ -44,12 +44,44 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
+use tcl_core_types::RecursionLimit;
+
 use crate::interp::{
     obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
 };
 use crate::list;
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
+
+/// Maximum superclass/mixin linearisation depth for [`Interp::linearize_class`]
+/// / [`Interp::gather_class_props`] (issue #996). `tcl_syntax::mro::MAX_MRO_DEPTH`
+/// fixed the identical algorithm (TclOO's DFS + late-placement) in the
+/// *diagnostics* linearizer under the internal tracking label RUST_ISSUE_076,
+/// settling on 1024 there — but that pass runs on a host-controlled analysis
+/// stack, not this runtime's live call stack. Confirmed crash reproduction
+/// (this sweep): a deep `mixin` chain (`oo::class create C$i { mixin C[i-1]
+/// }`) SIGABRTs between depth 100-150 on a 256 KiB stack, and still crashes
+/// at depth 2000 on a 1 MiB stack, so 1024 would not actually stop the crash
+/// on a small-stack embedding (a caught P1 review finding on the fix that
+/// first introduced this guard). 64 — the same cap `MAX_ARRAY_INDEX_DEPTH` /
+/// `MAX_SCAN_PARTS_DEPTH` / `MAX_RESOLVE_PARTS_DEPTH` settled on for the same
+/// crash class elsewhere in this crate — is comfortably under the measured
+/// 100-150 floor, with margin for a smaller WASM host stack, and still far
+/// past any real class hierarchy.
+const MAX_MRO_DEPTH: RecursionLimit = RecursionLimit(64);
+
+/// Maximum total mixin/superclass node visits across one linearisation call
+/// ([`Interp::class_precedence`]'s `linearize_class` walk, or one
+/// `Interp::class_property_list`'s `gather_class_props` walk). Mirrors
+/// `tcl_syntax::mro::MAX_MRO_VISITS`: `linearize_class`'s cycle guard
+/// (`path`) only blocks a class currently on the active DFS branch, so a
+/// class reachable via multiple sibling branches (a diamond) is deliberately
+/// re-explored once per reaching path — needed for the caller's keep-last
+/// dedup to match TclOO's real "as late as possible" placement — which makes
+/// a hierarchy of `k` stacked diamonds cost Θ(2^k) calls. Depth alone would
+/// not bound that (a diamond is wide, not deep); this second, independent
+/// cap does.
+const MAX_MRO_VISITS: u32 = 200_000;
 
 /// A native method handler `(interp, object, args) -> Code`, invoked without a
 /// Tcl call frame (so `info level` inside any method it calls is unchanged) —
@@ -5087,17 +5119,22 @@ impl Interp {
         };
         let mut seq: Vec<(Vec<u8>, bool)> = Vec::new();
         let mut path: Vec<Vec<u8>> = Vec::new();
+        // One visit budget shared across every mixin and the class chain below
+        // (issue #996 — see `MAX_MRO_VISITS`): the cap is on *this whole
+        // dispatch's* total linearisation work, not on each sub-walk
+        // independently.
+        let mut budget = MAX_MRO_VISITS;
         // Mixins and the class hierarchy contribute *class*-facet steps; the
         // object itself sits between the object mixins and its class chain.
         for mx in &obj_mixins {
             let mut tmp: Vec<Vec<u8>> = Vec::new();
-            self.linearize_class(mx, &mut tmp, &mut path);
+            self.linearize_class(mx, &mut tmp, &mut path, 0, &mut budget);
             seq.extend(tmp.into_iter().map(|c| (c, false)));
         }
         seq.push((obj.to_vec(), true));
         if let Some(cls) = cls {
             let mut tmp: Vec<Vec<u8>> = Vec::new();
-            self.linearize_class(&cls, &mut tmp, &mut path);
+            self.linearize_class(&cls, &mut tmp, &mut path, 0, &mut budget);
             seq.extend(tmp.into_iter().map(|c| (c, false)));
         }
         // Keep each (provider, facet) at its last occurrence (drop earlier dups).
@@ -5242,7 +5279,8 @@ impl Interp {
     fn class_precedence(&self, class: &[u8]) -> Vec<Vec<u8>> {
         let mut seq: Vec<Vec<u8>> = Vec::new();
         let mut path: Vec<Vec<u8>> = Vec::new();
-        self.linearize_class(class, &mut seq, &mut path);
+        let mut budget = MAX_MRO_VISITS;
+        self.linearize_class(class, &mut seq, &mut path, 0, &mut budget);
         let mut out: Vec<Vec<u8>> = Vec::with_capacity(seq.len());
         for (i, c) in seq.iter().enumerate() {
             if !seq[i + 1..].iter().any(|x| x == c) {
@@ -5256,7 +5294,27 @@ impl Interp {
     /// the caller's keep-last dedup): the class's mixins (recursively), then the
     /// class itself, then its superclasses. `path` breaks cycles in a malformed
     /// hierarchy without suppressing the legitimate re-visits keep-last relies on.
-    fn linearize_class(&self, class: &[u8], seq: &mut Vec<Vec<u8>>, path: &mut Vec<Vec<u8>>) {
+    ///
+    /// `depth` is this call's nesting level (0 at the root) and `budget` is the
+    /// remaining total-visit allowance shared across the whole linearisation
+    /// (both callers') — see [`MAX_MRO_DEPTH`]/[`MAX_MRO_VISITS`] (issue #996).
+    /// Past either cap, this call stops descending without recursing further:
+    /// the already-linearised prefix in `seq` is kept as-is, the same graceful
+    /// "just stop" degradation the `path` cycle guard above already applies to
+    /// a malformed hierarchy, rather than overflowing the native stack or
+    /// hanging on an adversarial diamond-mixin shape.
+    fn linearize_class(
+        &self,
+        class: &[u8],
+        seq: &mut Vec<Vec<u8>>,
+        path: &mut Vec<Vec<u8>>,
+        depth: u32,
+        budget: &mut u32,
+    ) {
+        if MAX_MRO_DEPTH.exceeded(depth) || *budget == 0 {
+            return;
+        }
+        *budget -= 1;
         if path.iter().any(|c| c == class) {
             return;
         }
@@ -5269,11 +5327,11 @@ impl Interp {
             }
         };
         for mx in &mixins {
-            self.linearize_class(mx, seq, path);
+            self.linearize_class(mx, seq, path, depth + 1, budget);
         }
         seq.push(class.to_vec());
         for s in &supers {
-            self.linearize_class(s, seq, path);
+            self.linearize_class(s, seq, path, depth + 1, budget);
         }
         path.pop();
     }
@@ -5285,7 +5343,8 @@ impl Interp {
         let mut acc: Vec<Vec<u8>> = Vec::new();
         if all {
             let mut seen: Vec<Vec<u8>> = Vec::new();
-            self.gather_class_props(class, writable, &mut acc, &mut seen);
+            let mut budget = MAX_MRO_VISITS;
+            self.gather_class_props(class, writable, &mut acc, &mut seen, 0, &mut budget);
         } else if let Some(c) = self.oo.borrow().classes.get(class) {
             let src = if writable {
                 &c.writable_properties
@@ -5299,13 +5358,28 @@ impl Interp {
         acc
     }
 
+    /// `depth`/`budget` — see [`linearize_class`](Self::linearize_class), which
+    /// this mirrors (issue #996). Unlike `linearize_class`'s `path`,
+    /// `gather_class_props`'s `seen` is a *global* (never-popped) visited set,
+    /// so a diamond is naturally visited once, not once per reaching path —
+    /// `budget` is therefore more a defensive second layer than a load-bearing
+    /// one here, added for consistency with the sibling walk rather than
+    /// because this shape is independently known to blow up; `depth` is the
+    /// one that matters, guarding a long mixin/superclass *chain* the same way
+    /// `linearize_class`'s does.
     fn gather_class_props(
         &self,
         class: &[u8],
         writable: bool,
         acc: &mut Vec<Vec<u8>>,
         seen: &mut Vec<Vec<u8>>,
+        depth: u32,
+        budget: &mut u32,
     ) {
+        if MAX_MRO_DEPTH.exceeded(depth) || *budget == 0 {
+            return;
+        }
+        *budget -= 1;
         if seen.iter().any(|c| c == class) {
             return;
         }
@@ -5330,10 +5404,10 @@ impl Interp {
             }
         }
         for m in &mixins {
-            self.gather_class_props(m, writable, acc, seen);
+            self.gather_class_props(m, writable, acc, seen, depth + 1, budget);
         }
         for s in &supers {
-            self.gather_class_props(s, writable, acc, seen);
+            self.gather_class_props(s, writable, acc, seen, depth + 1, budget);
         }
     }
 
@@ -7685,6 +7759,85 @@ mod tests {
                 ok(i, b"lsort [info class subclasses ::oo::class]"),
                 b"::oo::abstract ::oo::configurable ::oo::singleton"
             );
+        });
+    }
+
+    /// Regression coverage for issue #996: `linearize_class` (backing
+    /// `method_chain_faceted` — the hot path for every ordinary method
+    /// dispatch — and `class_precedence`, `info class call`) and
+    /// `gather_class_props` (`info class properties -all`) recursed once
+    /// per mixin/superclass level, with only a same-branch cycle guard and
+    /// no depth cap before this fix. Confirmed crash reproduction (this
+    /// sweep): a deep `mixin` chain (`oo::class create C$i { mixin C[i-1]
+    /// }`, no `{*}` needed) SIGABRTs between depth 100-150 on a 256 KiB
+    /// stack, and still crashes at depth 2000 on a 1 MiB stack (a plain
+    /// `superclass` chain hits the same recursion but is masked by
+    /// `self_reachable`'s separate O(n²)-ish cycle-check cost, which makes
+    /// naive *construction* slow before reaching crash depth — mixins avoid
+    /// that and reproduce cleanly). This builds a 2000-deep mixin chain
+    /// (matching that confirmed-still-crashing depth) and drives both fixed
+    /// functions over the whole thing via `info class call` and `info class
+    /// properties -all`; the assertion is that both complete at all, not
+    /// what they return — `MAX_MRO_DEPTH` (64) means the reported
+    /// precedence/property set is legitimately truncated for a hierarchy
+    /// this deep, the same graceful "just stop descending" degradation the
+    /// pre-existing `path`/`seen` cycle guards already apply to a malformed
+    /// hierarchy, rather than erroring the whole dispatch out or crashing.
+    #[test]
+    fn deeply_nested_mixin_chain_survives_linearisation_and_property_gathering() {
+        leak_free(|i| {
+            const DEPTH: usize = 2000;
+            ok(i, b"oo::class create C0");
+            for n in 1..DEPTH {
+                ok(
+                    i,
+                    format!("oo::class create C{n} {{ mixin C{} }}", n - 1).as_bytes(),
+                );
+            }
+            let last = DEPTH - 1;
+            let _ = i.eval_str(format!("info class call C{last} foo").as_bytes());
+            let _ = i.eval_str(format!("info class properties C{last} -all").as_bytes());
+            for n in (0..DEPTH).rev() {
+                let _ = i.eval_str(format!("C{n} destroy").as_bytes());
+            }
+        });
+    }
+
+    /// A moderately nested mixin chain (well under `MAX_MRO_DEPTH`) still
+    /// linearises completely and correctly — the safety net must not fire,
+    /// let alone truncate anything, on realistic nesting depths. Checks both
+    /// fixed functions: method dispatch still resolves through the whole
+    /// mixin chain to the base class's implementation (`linearize_class` via
+    /// `method_chain_faceted`), and `-all` property gathering still unions
+    /// every level's declared properties (`gather_class_props`) — exactly
+    /// the behaviour before this fix, not merely "does not crash".
+    #[test]
+    fn moderately_nested_mixin_chain_still_behaves_identically() {
+        leak_free(|i| {
+            ok(i, b"oo::class create C0 { method foo {} { return from-c0 } }");
+            ok(i, b"oo::class create C1 { mixin C0 }");
+            ok(i, b"oo::class create C2 { mixin C1 }");
+            ok(i, b"oo::class create C3 { mixin C2 }");
+            ok(i, b"C3 create obj");
+            assert_eq!(ok(i, b"obj foo"), b"from-c0");
+            ok(i, b"obj destroy");
+
+            ok(i, b"oo::configurable create Base { property p0 -kind readable }");
+            ok(
+                i,
+                b"oo::configurable create P1 { mixin Base; property p1 -kind readable }",
+            );
+            ok(
+                i,
+                b"oo::configurable create P2 { mixin P1; property p2 -kind readable }",
+            );
+            assert_eq!(
+                ok(i, b"lsort [info class properties P2 -all]"),
+                b"-p0 -p1 -p2"
+            );
+
+            ok(i, b"C3 destroy; C2 destroy; C1 destroy; C0 destroy");
+            ok(i, b"P2 destroy; P1 destroy; Base destroy");
         });
     }
 }

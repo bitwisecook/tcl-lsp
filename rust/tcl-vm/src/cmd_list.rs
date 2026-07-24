@@ -262,38 +262,57 @@ fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(removed)
 }
 
-/// Remove the element at the (possibly nested) `indices` path from `items`,
-/// returning `(removed_element, rebuilt_list)`. A non-integer index is a "bad
-/// index" error; an in-form but out-of-bounds index is "index … out of range"
-/// — matching C's `Tcl_LpopObjCmd`.
-fn lpop_remove(
-    items: &[Value],
-    indices: &[Value],
-) -> Result<(Value, Vec<Value>), Completion<Value>> {
-    let (first, rest) = indices.split_first().expect("lpop has at least one index");
-    let spec = first.to_str();
-    let Some(idx) = crate::command::resolve_index(&spec, items.len()) else {
+/// Resolve `spec` against a length-`len` list for `lpop`/`lset`-style index
+/// descent: a non-integer index is a "bad index" error; an in-form but
+/// out-of-bounds index is "index … out of range" — matching C's
+/// `Tcl_LpopObjCmd`.
+fn resolve_bounded_index(spec: &str, len: usize) -> Result<usize, Completion<Value>> {
+    let Some(idx) = crate::command::resolve_index(spec, len) else {
         return Err(err(format!(
             "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
         )));
     };
-    if idx < 0 || usize::try_from(idx).is_ok_and(|i| i >= items.len()) {
+    if idx < 0 || usize::try_from(idx).is_ok_and(|i| i >= len) {
         return Err(err(format!("index \"{spec}\" out of range")));
     }
-    let i = usize::try_from(idx).expect("idx >= 0 checked above");
-    let mut new = items.to_vec();
-    if rest.is_empty() {
-        let removed = new.remove(i);
-        Ok((removed, new))
-    } else {
-        let sub = match items[i].as_list() {
+    Ok(usize::try_from(idx).expect("idx >= 0 checked above"))
+}
+
+/// Remove the element at the (possibly nested) `indices` path from `items`,
+/// returning `(removed_element, rebuilt_list)`.
+///
+/// Issue #996: this used to recurse once per index natively, with no depth
+/// cap — trivially inflated via `lpop v {*}[lrepeat 100000 0]`. Rewritten
+/// iteratively — an explicit work-stack instead of one native call per
+/// index — which eliminates the native-stack risk entirely: walk down every
+/// index but the last, recording each level's element vector and the index
+/// it descends through, remove the final element, then rebuild bottom-up.
+/// Byte-for-byte equivalent to the old recursive version (same index
+/// resolution, in the same order, so error precedence is unchanged too).
+fn lpop_remove(
+    items: &[Value],
+    indices: &[Value],
+) -> Result<(Value, Vec<Value>), Completion<Value>> {
+    let (last, front) = indices.split_last().expect("lpop has at least one index");
+    let mut frames: Vec<(Vec<Value>, usize)> = Vec::with_capacity(front.len());
+    let mut cur: Vec<Value> = items.to_vec();
+    for spec_val in front {
+        let i = resolve_bounded_index(&spec_val.to_str(), cur.len())?;
+        let sub = match cur[i].as_list() {
             Ok(s) => (*s).clone(),
             Err(e) => return Err(err(e.message)),
         };
-        let (removed, new_sub) = lpop_remove(&sub, rest)?;
-        new[i] = Value::list(new_sub);
-        Ok((removed, new))
+        frames.push((cur, i));
+        cur = sub;
     }
+    let i = resolve_bounded_index(&last.to_str(), cur.len())?;
+    let removed = cur.remove(i);
+    let mut rebuilt = cur;
+    for (mut outer, i) in frames.into_iter().rev() {
+        outer[i] = Value::list(rebuilt);
+        rebuilt = outer;
+    }
+    Ok((removed, rebuilt))
 }
 
 /// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
@@ -377,5 +396,80 @@ fn cmd_split(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [s] => ok(list_core::split(vm, s, None)),
         [s, c] => ok(list_core::split(vm, s, Some(c))),
         _ => err_wrong_args("split string ?splitChars?"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression coverage for issue #996: `lpop_remove` recurses once per
+    /// index in `lpop`'s (possibly nested) index path, with no depth cap
+    /// before this fix — trivially inflated via `lpop v {*}[lrepeat 100000
+    /// 0]`. Empirically (a throwaway `zzz_probe_depth lpop <depth>`
+    /// harness, deleted before this fix landed), unguarded input
+    /// overflowed the native stack (SIGABRT) between depth 1600 and 1800 on
+    /// a 2 MiB thread (`cargo test`'s per-test default). Rewritten
+    /// iteratively (no depth cap at all); 2000 is comfortably past that
+    /// crash range, and the result is checked for exact correctness at
+    /// this depth (the right leaf comes back out, and the trimmed list has
+    /// the same shape as the input), not merely survival.
+    ///
+    /// Deliberately NOT 50,000+: constructing (and, at the end of this
+    /// test, dropping) a `Value::list` chain nested that deep is its own,
+    /// unrelated native-stack risk — `Value` has no custom `Drop` impl, so
+    /// the compiler-generated recursive drop glue walks the same chain
+    /// `to_str` used to (empirically, SIGABRT between depth 3500 and 4000
+    /// on a 2 MiB thread for construction+drop alone, independent of any
+    /// operation performed on the value). That is a separate, genuinely
+    /// unbounded-depth concern in `Value`'s representation itself, not in
+    /// `lpop_remove`'s now-iterative logic — out of scope for this fix.
+    #[test]
+    fn deeply_nested_lpop_survives_and_is_correct() {
+        const DEPTH: usize = 2_000;
+        // `whole` = `DEPTH` levels of `[list $v]` around a scalar leaf;
+        // `items` is `whole` with one layer already stripped off (mirroring
+        // what `cmd_lpop` passes in: the already-`as_list()`-ed variable).
+        let mut whole = Value::string("leaf");
+        for _ in 0..DEPTH {
+            whole = Value::list(vec![whole]);
+        }
+        let items: Vec<Value> = (*whole.as_list().expect("built as a list")).clone();
+        let indices: Vec<Value> = (0..DEPTH).map(|_| Value::string("0")).collect();
+        let (removed, rest) =
+            lpop_remove(&items, &indices).expect("lpop_remove survives and succeeds");
+        assert_eq!(&*removed.to_str(), "leaf");
+        // The outermost shape (one element) is preserved; only the
+        // innermost slot the path bottomed out at was actually emptied.
+        assert_eq!(rest.len(), 1);
+    }
+
+    /// A moderately nested `lpop` index path (well within realistic use) is
+    /// byte-for-byte unaffected by the iterative rewrite.
+    #[test]
+    fn moderately_nested_lpop_matches_previous_behavior() {
+        let items = vec![
+            Value::list(vec![Value::int(1), Value::int(2)]),
+            Value::list(vec![Value::int(3), Value::int(4)]),
+        ];
+        let (removed, rest) =
+            lpop_remove(&items, &[Value::string("1"), Value::string("0")]).unwrap();
+        assert_eq!(&*removed.to_str(), "3");
+        assert_eq!(rest.len(), 2);
+        assert_eq!(&*rest[0].to_str(), "1 2");
+        assert_eq!(&*rest[1].to_str(), "4");
+
+        // Single-level removal.
+        let flat = vec![Value::int(1), Value::int(2), Value::int(3)];
+        let (removed, rest) = lpop_remove(&flat, &[Value::string("1")]).unwrap();
+        assert_eq!(&*removed.to_str(), "2");
+        assert_eq!(rest.len(), 2);
+        assert_eq!(&*rest[0].to_str(), "1");
+        assert_eq!(&*rest[1].to_str(), "3");
+
+        // A non-integer index is still a "bad index" error.
+        assert!(lpop_remove(&flat, &[Value::string("bogus")]).is_err());
+        // An in-form but out-of-bounds index is still "out of range".
+        assert!(lpop_remove(&flat, &[Value::string("10")]).is_err());
     }
 }

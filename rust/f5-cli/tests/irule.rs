@@ -144,3 +144,43 @@ fn help_works_for_all_subs() {
         assert!(!out.is_empty(), "irule {sub} --help should print usage");
     }
 }
+
+// ===========================================================================
+// Native-stack safety (issue #996) — `irule minify` calls straight into
+// `tcl_lsp_core::minify`, which recurses into `tcl_compiler::analyser`
+// (`Analyser::analyse`), on caller-supplied `.irule` file content. Before
+// this fix, `f5_cli::run` had no stack-size guard at all (unlike
+// `tcl-lsp-server`/`tcl-mcp`/the `tcl` CLI), so deeply nested iRule input
+// crashed the process with an uncatchable SIGABRT.
+// ===========================================================================
+
+/// `irule minify --aggressive` on a deeply nested iRule (well past the
+/// analyser's `MAX_BODY_DEPTH` of 256) must exit cleanly — with a real
+/// result or a reported error — not crash the process.
+#[test]
+fn minify_aggressive_survives_deeply_nested_irule() {
+    const DEPTH: usize = 500;
+    let mut source = String::from("when HTTP_REQUEST {\n");
+    for _ in 0..DEPTH {
+        source.push_str("if {1} {\n");
+    }
+    source.push_str("pool /Common/p\n");
+    for _ in 0..DEPTH {
+        source.push_str("}\n");
+    }
+    source.push_str("}\n");
+
+    let path = std::env::temp_dir().join(format!(
+        "f5-irule-issue996-deepnest-{}.irule",
+        std::process::id()
+    ));
+    std::fs::write(&path, &source).expect("write deeply nested fixture");
+
+    let (code, out, err) = run(&["irule", "minify", "--aggressive", path.to_str().unwrap()]);
+    let _ = std::fs::remove_file(&path);
+
+    assert!(
+        code == 0 || code == 2,
+        "expected a clean exit (0 or a reported error, 2), got {code}; stdout={out:?} stderr={err:?}"
+    );
+}

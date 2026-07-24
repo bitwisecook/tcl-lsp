@@ -1447,6 +1447,22 @@ fn mathop_string_comparisons() {
 }
 
 #[test]
+fn mathop_lt_le_gt_ge_are_lexicographic_not_numeric() {
+    // Adversarial-review finding (issue #984): every existing lt/le/gt/ge
+    // case above (`a`/`b`, `1`/`1`, `2`/`1`, `2`/`2`) happens to agree
+    // whether compared as strings or as numbers, so none of them would
+    // catch a regression that silently flipped these operators to numeric
+    // comparison. `9` vs `10` is a genuine divergence: numerically 9 < 10,
+    // but lexicographically "9" > "10" (`'9'` > `'1'` byte-wise) — the
+    // opposite ordering. TIP 461 specifies lt/le/gt/ge as always string
+    // comparisons, confirmed against tclsh9.0.
+    cmd_eq("::tcl::mathop::lt 9 10", "0"); // "9" < "10" is false lexically
+    cmd_eq("::tcl::mathop::le 9 10", "0"); // "9" <= "10" is false lexically
+    cmd_eq("::tcl::mathop::gt 9 10", "1"); // "9" > "10" is true lexically
+    cmd_eq("::tcl::mathop::ge 9 10", "1"); // "9" >= "10" is true lexically
+}
+
+#[test]
 fn mathop_membership() {
     // tclsh: shared 8.6/9.0
     cmd_eq("::tcl::mathop::in b {a b c}", "1");

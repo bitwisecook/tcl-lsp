@@ -30,10 +30,34 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use tcl_core_types::RecursionLimit;
 use tcl_syntax::list;
 use tcl_syntax::number::{self, Number};
 
 use crate::error::TclError;
+
+/// Depth cap for [`Value::to_str`]'s descent into nested `IntRep::List`
+/// children — issue #996. A plain `for {set i 0} {$i<N} {incr i} {set v
+/// [list $v]}` loop builds a value that nests one list inside another N
+/// times; forcing its string form (`string length $v`, `puts $v`, a
+/// comparison, …) used to recurse once per nesting level with no depth cap
+/// — no `{*}` tricks needed, `dict`'s printing shares this path (a dict is
+/// represented as a list here too). Empirically (a throwaway
+/// `zzz_probe_depth to_str <depth>` harness, deleted before this fix
+/// landed), unguarded input overflowed the native stack (SIGABRT) between
+/// depth 1200 and 1250 on a 2 MiB thread (`cargo test`'s per-test default).
+/// 256 leaves better than 4x margin under that measured crash floor while
+/// staying far past any realistic nested-list depth. Past the cap, a
+/// nested list element is rendered as [`TOO_DEEPLY_NESTED_PLACEHOLDER`]
+/// instead of its true (recursively generated) string — see
+/// [`Value::to_str_at_depth`].
+const MAX_LIST_TO_STR_DEPTH: RecursionLimit = RecursionLimit(256);
+
+/// The placeholder text substituted for a nested list element past
+/// [`MAX_LIST_TO_STR_DEPTH`] — see [`Value::to_str_at_depth`]. Passed
+/// through [`list::join_list`] like any other element, so it is quoted
+/// exactly as safely as real data would be.
+const TOO_DEEPLY_NESTED_PLACEHOLDER: &str = "<list too deeply nested to render, see issue #996>";
 
 /// A Tcl value handle. Cloning bumps an `Rc`; the underlying object is shared.
 #[derive(Clone)]
@@ -110,21 +134,54 @@ impl Value {
     /// on first call (Tcl's `Tcl_GetString` / lazy `updateStringProc`).
     #[must_use]
     pub fn to_str(&self) -> Rc<str> {
+        self.to_str_at_depth(0).0
+    }
+
+    /// [`Value::to_str`]'s recursive engine, with an explicit nesting-depth
+    /// parameter — issue #996 (see [`MAX_LIST_TO_STR_DEPTH`]). `depth` is
+    /// this value's nesting level within the *current* top-level `to_str()`
+    /// call (0 at the root). Returns the string alongside whether rendering
+    /// it anywhere in this subtree hit the depth cap — when it did, the
+    /// result must not be cached (`self.0.string`): the same shared `Rc<Obj>`
+    /// may also be reachable directly (or at a shallower offset) from
+    /// elsewhere, where a fresh call starting back at depth 0 could
+    /// legitimately render it in full, and caching the truncated result
+    /// here would wrongly leak into that unrelated call. A value entirely
+    /// within the cap is unaffected either way — same output, same caching
+    /// — as the pre-fix implementation.
+    fn to_str_at_depth(&self, depth: u32) -> (Rc<str>, bool) {
         if let Some(s) = self.0.string.borrow().as_ref() {
-            return Rc::clone(s);
+            return (Rc::clone(s), false);
         }
-        let generated: Rc<str> = match &*self.0.intrep.borrow() {
-            IntRep::Str => Rc::from(""),
-            IntRep::Int(n) => Rc::from(n.to_string().as_str()),
-            IntRep::Double(f) => Rc::from(number::format_double(*f).as_str()),
-            IntRep::Bool(b) => Rc::from(if *b { "1" } else { "0" }),
+        let (generated, past_cap): (Rc<str>, bool) = match &*self.0.intrep.borrow() {
+            IntRep::Str => (Rc::from(""), false),
+            IntRep::Int(n) => (Rc::from(n.to_string().as_str()), false),
+            IntRep::Double(f) => (Rc::from(number::format_double(*f).as_str()), false),
+            IntRep::Bool(b) => (Rc::from(if *b { "1" } else { "0" }), false),
             IntRep::List(items) => {
-                let parts: Vec<String> = items.iter().map(|v| v.to_str().to_string()).collect();
-                Rc::from(list::join_list(parts.iter().map(String::as_str)).as_str())
+                if MAX_LIST_TO_STR_DEPTH.exceeded(depth) {
+                    (Rc::from(TOO_DEEPLY_NESTED_PLACEHOLDER), true)
+                } else {
+                    let mut any_past_cap = false;
+                    let parts: Vec<String> = items
+                        .iter()
+                        .map(|v| {
+                            let (s, capped) = v.to_str_at_depth(depth + 1);
+                            any_past_cap |= capped;
+                            s.to_string()
+                        })
+                        .collect();
+                    (
+                        Rc::from(list::join_list(parts.iter().map(String::as_str)).as_str()),
+                        any_past_cap,
+                    )
+                }
             }
         };
-        *self.0.string.borrow_mut() = Some(Rc::clone(&generated));
-        generated
+        if !past_cap {
+            *self.0.string.borrow_mut() = Some(Rc::clone(&generated));
+        }
+        (generated, past_cap)
     }
 
     /// The value as a wide integer (`Tcl_GetWideIntFromObj`), caching the typed
@@ -339,5 +396,92 @@ mod tests {
             err.message
         );
         assert!(Value::string("o").as_bool().is_err(), "ambiguous prefix");
+    }
+
+    /// Regression coverage for issue #996: `Value::to_str`'s descent into
+    /// `IntRep::List` children recurses once per nesting level, with no
+    /// depth cap before this fix — a plain `for {set i 0} {$i<N} {incr i}
+    /// {set v [list $v]}` loop builds the input, no `{*}` tricks needed.
+    /// Empirically (a throwaway `zzz_probe_depth to_str <depth>` harness,
+    /// deleted before this fix landed), unguarded input overflowed the
+    /// native stack (SIGABRT) between depth 1200 and 1250 on a 2 MiB thread
+    /// (`cargo test`'s per-test default). 2000 is comfortably past both
+    /// that crash range and `MAX_LIST_TO_STR_DEPTH` (256); the assertion is
+    /// that `to_str` returns at all, not what it returns.
+    ///
+    /// Deliberately NOT 50,000+: constructing (and, at the end of this
+    /// test, dropping) a `Value::list` chain nested that deep is its own,
+    /// unrelated native-stack risk — `Value` has no custom `Drop` impl, so
+    /// the compiler-generated recursive drop glue walks the same chain
+    /// `to_str` used to (empirically, SIGABRT between depth 3500 and 4000
+    /// on a 2 MiB thread for construction+drop alone, independent of
+    /// `to_str` or any other operation). That is a separate, genuinely
+    /// unbounded-depth concern in `Value`'s representation itself — out of
+    /// scope for this fix.
+    #[test]
+    fn deeply_nested_list_to_str_survives() {
+        const DEPTH: usize = 2_000;
+        let mut v = Value::string("leaf");
+        for _ in 0..DEPTH {
+            v = Value::list(vec![v]);
+        }
+        let s = v.to_str();
+        assert!(!s.is_empty());
+    }
+
+    /// A moderately nested `[list $v]` chain (well under
+    /// `MAX_LIST_TO_STR_DEPTH`) is byte-for-byte unaffected by the depth
+    /// cap: its output matches an independent oracle (hand-driving
+    /// `list::join_list` the same number of times, entirely outside
+    /// `Value`) exactly.
+    #[test]
+    fn moderately_nested_list_to_str_matches_naive_join() {
+        const DEPTH: usize = 20;
+        let mut v = Value::string("a b");
+        let mut expected = "a b".to_string();
+        for _ in 0..DEPTH {
+            v = Value::list(vec![v]);
+            expected = list::join_list(std::iter::once(expected.as_str()));
+        }
+        assert_eq!(&*v.to_str(), expected.as_str());
+    }
+
+    /// The depth-cap fallback must not poison the shared string cache: a
+    /// value that only exceeds `MAX_LIST_TO_STR_DEPTH` because of *where*
+    /// it happens to be nested inside a deeper structure (reached via a
+    /// shared `Rc<Obj>`, e.g. the same sublist embedded in two different
+    /// places) must still render its true value when addressed directly
+    /// afterwards, starting fresh at depth 0 — not a cached placeholder
+    /// left over from the capped render.
+    #[test]
+    fn depth_cap_fallback_does_not_poison_the_shared_string_cache() {
+        // `chain`: 10 levels of `[list $v]` around a value that needs
+        // brace-quoting ("a b"), well within the cap on its own.
+        let mut chain = Value::string("a b");
+        let mut expected = "a b".to_string();
+        for _ in 0..10 {
+            chain = Value::list(vec![chain]);
+            expected = list::join_list(std::iter::once(expected.as_str()));
+        }
+        // `far_outer`: the *same* `chain` object (`Rc` clone), wrapped 300
+        // more levels deep — deep enough that reaching `chain` from here
+        // exceeds `MAX_LIST_TO_STR_DEPTH` (256), even though `chain` itself
+        // is shallow.
+        let mut far_outer = chain.clone();
+        for _ in 0..300 {
+            far_outer = Value::list(vec![far_outer]);
+        }
+        // Force the deep, capped render first: `chain`'s own `Obj` must come
+        // out of this untouched (not cached with the placeholder).
+        let far_str = far_outer.to_str();
+        assert!(
+            far_str.contains(TOO_DEEPLY_NESTED_PLACEHOLDER),
+            "expected the placeholder somewhere in: {far_str}"
+        );
+        // A fresh call directly on the same shared value, starting back at
+        // depth 0, must render its true (well-within-cap) value — not the
+        // placeholder that would have leaked in had the capped render above
+        // wrongly cached it.
+        assert_eq!(&*chain.to_str(), expected.as_str());
     }
 }

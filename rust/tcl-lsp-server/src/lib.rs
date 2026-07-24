@@ -1903,6 +1903,16 @@ pub struct Backend {
     /// `package require myTkPackage` (transitively) pulls in Tk (#723).
     /// Rebuilt by `scan_workspace_folders`.
     package_resolver: Arc<RwLock<PackageResolver>>,
+    /// Held for the duration of every `scan_workspace_folders` call (the
+    /// blocking tree walk + analysis that rebuilds `package_resolver`).
+    /// `ensure_autoload_indexed` acquires (and immediately releases) this
+    /// before consulting `package_resolver`, so a request that lands while a
+    /// scan is in flight waits for that scan rather than reading a
+    /// possibly-still-empty resolver — otherwise a rename / go-to-definition
+    /// fired shortly after startup (or a workspace-folder / config change)
+    /// could race the scan and silently find nothing, even though the same
+    /// request moments later would have resolved correctly (issue #1003).
+    workspace_scan_gate: tokio::sync::Mutex<()>,
     /// Library files the autoload tier (M8) has merged into the workspace
     /// index on demand, so references / rename keep reaching them.  Cleared
     /// (and their index entries dropped) whenever the package database is
@@ -2402,6 +2412,7 @@ impl Backend {
             severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            workspace_scan_gate: tokio::sync::Mutex::new(()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
@@ -3690,7 +3701,7 @@ impl Backend {
         // still identifies the method, and access-context-aware so an
         // external call resolves the exported dispatch entry only
         // (issue #945 faults 4 + 6).
-        if let Some((class_q, method, access)) = self
+        if let Some((class_q, method, _is_classmethod, access)) = self
             .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
             .await
         {
@@ -3776,7 +3787,15 @@ impl Backend {
     /// repeated queries stay cheap.  The merged URIs are remembered so a
     /// package-database rebuild can drop them (see
     /// [`Self::scan_workspace_folders`]).
+    ///
+    /// Waits out an in-flight [`Self::scan_workspace_folders`] first (see
+    /// `workspace_scan_gate`'s field doc) — otherwise a request landing
+    /// shortly after startup, a workspace-folder change, or a config change
+    /// could read `package_resolver` before that scan has (re)built it and
+    /// wrongly conclude the command isn't auto-loadable at all (issue
+    /// #1003).
     async fn ensure_autoload_indexed(&self, word: &str, namespace: &str) -> Option<String> {
+        drop(self.workspace_scan_gate.lock().await);
         let (files, candidates) = {
             let resolver = self.package_resolver.read().await;
             (
@@ -3996,6 +4015,29 @@ impl Backend {
                 .seed_mapped_symbols(uri, class_def.qualified_name.clone())
                 .await;
         }
+        // A proc declared twice, verbatim, in the same document (plain
+        // Tcl's own "last redefinition wins" semantics) — the cursor may
+        // sit on the *shadowed* (non-winning) declaration's own name
+        // token, which `all_procs` above can never match: it is a map
+        // keyed by qualified name, so only the winner's span survives a
+        // duplicate insert. `proc_declaration_sites` is the flat,
+        // never-deduplicated companion recording every declaration site;
+        // finding the cursor there still means "this token declares
+        // qualified name X", so resolve through `all_procs` to whichever
+        // definition currently wins for X — never the shadowed span
+        // itself (issue #923 idx 31, main audit wave: a rename or
+        // find-references issued from the shadowed declaration must reach
+        // the same cross-file callers as one issued from the winning
+        // declaration or a call site, or a rename silently corrupts the
+        // program by leaving callers bound to the dead definition).
+        if let Some((qualified, _)) = analysis
+            .proc_declaration_sites
+            .iter()
+            .find(|(_, span)| covers(*span))
+            && analysis.all_procs.contains_key(qualified)
+        {
+            return self.seed_mapped_symbols(uri, qualified.clone()).await;
+        }
 
         let Some(inv) = analysis
             .command_invocations
@@ -4037,6 +4079,23 @@ impl Backend {
                 // that command's.
                 return vec![index.resolve_command_target(cand)];
             }
+            // The exact-candidate loop above only ever matches a *real*
+            // command (or an exact `namespace import`'s `WorkspaceCommandLink`)
+            // — a wildcard `namespace import NS::*` introduces no fixed
+            // linked name, so it never appears there. Try it once more,
+            // separately: does an in-scope glob import (`namespace import`
+            // binds to the namespace, not the file it was written in, so
+            // this is not restricted to imports recorded in this document)
+            // whose source namespace actually exported the name cover this
+            // call? (issue #923 idx 18; the same gate
+            // `definition::resolve_called_proc` / `resolve_class_target_at`
+            // already apply in-document, extended here to a source
+            // namespace defined in another file.)
+            if let Some(target) =
+                index.resolve_wildcard_import(&inv.name, &inv.resolution_candidates)
+            {
+                return vec![target];
+            }
         }
         // Autoload tier (M8): the command resolves nowhere in the open
         // workspace.  Ask the auto-load / package database, merging the
@@ -4061,6 +4120,14 @@ impl Backend {
     /// definition sites in other documents when
     /// `include_declaration`.  Returns `Location`s resolved
     /// against their defining documents.
+    ///
+    /// Excludes the current document (`uri`) throughout — correct only when
+    /// the single-document provider already covers it, i.e. `uri` holds a
+    /// local declaration of the symbol. When it doesn't (a pure-consumer
+    /// document whose only trace of the symbol is a `source`d-in or
+    /// workspace-sibling declaration), use
+    /// [`Self::workspace_resolved_references`] instead, which is identical
+    /// but excludes nothing.
     async fn cross_document_references(
         &self,
         uri: &Uri,
@@ -4068,6 +4135,58 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         include_declaration: bool,
+    ) -> Vec<Location> {
+        self.gather_reference_targets(
+            uri,
+            source,
+            analysis,
+            pos,
+            include_declaration,
+            uri.as_str(),
+        )
+        .await
+    }
+
+    /// Consumer-document references fallback (mirrors rename's "M8"
+    /// pattern, [`Self::add_workspace_resolved_rename_edits`]): the
+    /// cursor's command has no local declaration in the current document,
+    /// so the single-document reference pass found nothing to anchor on —
+    /// not a genuine zero-references case, since
+    /// [`Self::cross_document_references`]'s exclusion of the current
+    /// document assumes that pass already covers it (issue #923 idx 71:
+    /// nico-robert/pix's `test_context.test` `source`s `data_b64.test` for
+    /// `isEqual`/`getbase64`, then calls them bare — every one of
+    /// `test_context.test`'s *own* call sites, including the one the
+    /// cursor sits on, was silently dropped). Resolves through the
+    /// workspace oracle and gathers every reference the index knows,
+    /// current-document call sites included.
+    async fn workspace_resolved_references(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        self.gather_reference_targets(uri, source, analysis, pos, include_declaration, "")
+            .await
+    }
+
+    /// Shared core of [`Self::cross_document_references`] /
+    /// [`Self::workspace_resolved_references`]: every invocation, name-link,
+    /// and (when `include_declaration`) definition site the workspace index
+    /// has for the symbol at `pos`, excluding `exclude_uri` — the caller's
+    /// own document URI for the ordinary case, or `""` (matching no real
+    /// document) to exclude nothing, mirroring
+    /// [`core_rename::workspace_symbol_rename_edits`]'s identical trick.
+    async fn gather_reference_targets(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+        exclude_uri: &str,
     ) -> Vec<Location> {
         self.refresh_source_rehoming().await;
         let symbols = self
@@ -4090,19 +4209,19 @@ impl Backend {
                 // such a declaration.
                 t.extend(
                     index
-                        .linked_invocations_of(qualified, uri.as_str())
+                        .linked_invocations_of(qualified, exclude_uri)
                         .into_iter()
                         .map(|i| (i.uri.clone(), i.range)),
                 );
-                t.extend(index.link_target_spans(qualified, uri.as_str()));
+                t.extend(index.link_target_spans(qualified, exclude_uri));
                 if include_declaration {
                     // Match the declaration sites by *qualified* name — a same
                     // simple name in an unrelated namespace/file is a different
                     // symbol and must not be surfaced as this one's declaration.
-                    for p in index.proc_definitions_qualified(qualified, uri.as_str()) {
+                    for p in index.proc_definitions_qualified(qualified, exclude_uri) {
                         t.push((p.uri.clone(), p.name_span));
                     }
-                    for c in index.class_definitions_qualified(qualified, uri.as_str()) {
+                    for c in index.class_definitions_qualified(qualified, exclude_uri) {
                         t.push((c.uri.clone(), c.name_span));
                     }
                 }
@@ -4143,16 +4262,24 @@ impl Backend {
         })
         .await
         .unwrap_or_default();
+        // A pure-consumer document (issue #923 idx 71) has no local
+        // declaration to anchor the single-document pass on, so an empty
+        // `ranges` here does not mean "genuinely zero" — see
+        // `workspace_resolved_references`'s own doc.
         let mut locations: Vec<Location> = ranges
-            .into_iter()
+            .iter()
             .map(|r| Location {
                 uri: uri.clone(),
-                range: lift_lsp_range(r),
+                range: lift_lsp_range(*r),
             })
             .collect();
-        let cross = self
-            .cross_document_references(uri, text, analysis, position, false)
-            .await;
+        let cross = if ranges.is_empty() {
+            self.workspace_resolved_references(uri, text, analysis, position, false)
+                .await
+        } else {
+            self.cross_document_references(uri, text, analysis, position, false)
+                .await
+        };
         locations.extend(cross);
         dedup_locations(&mut locations);
         locations
@@ -4193,7 +4320,7 @@ impl Backend {
         dialect: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Option<(String, String, core_workspace_index::MethodAccess)> {
+    ) -> Option<(String, String, bool, core_workspace_index::MethodAccess)> {
         if let Some(target) =
             core_rename::method_target_with_access(source, pos.line, pos.character, analysis)
         {
@@ -4201,6 +4328,45 @@ impl Backend {
         }
         let oracle = self.analyse_with_workspace_classes(source, dialect).await;
         core_rename::method_target_with_access(source, pos.line, pos.character, &oracle)
+    }
+
+    /// Whether `method` is a `classmethod` on any of `definers`, and — if
+    /// so — the (qualified + simple name) set of every class in
+    /// `definers`/`inheritors` valid as a bare classmethod-dispatch head
+    /// (`Factory make`).
+    ///
+    /// A `classmethod` dispatches on the *class's own* command, never on an
+    /// instance, so the same-document analyser can only widen its dispatch
+    /// scan to bare `ClassName method` calls when the querying document's own
+    /// `all_classes` has the defining `ClassDef` (with its `class_methods`
+    /// populated) — true for a document that declares or `oo::define`-extends
+    /// the class, false for a document that only *inherits* it (a pure
+    /// subclass-only file) or only *consumes* it (`Factory make` with no
+    /// class mention at all).  For those two cases, the workspace index's
+    /// per-method `kind` (`"method"` / `"classmethod"` / `"forward"` —
+    /// [`core_workspace_index::WorkspaceMethod::kind`]) is the centralised
+    /// answer instead of guessing from the command name, exactly as the
+    /// same-document path reads `ClassDef::class_methods` locally.
+    fn classmethod_dispatch_names(
+        definers: &[&core_workspace_index::WorkspaceClass],
+        inheritors: &[&core_workspace_index::WorkspaceClass],
+        is_classmethod: bool,
+        dialect: &str,
+    ) -> Vec<String> {
+        // `is_classmethod` is the caller's already-resolved fact (from the
+        // cursor, or the caller's own test fixture) about which of a
+        // possibly-same-named `method` / `classmethod` pair is meant — not
+        // re-derived from workspace membership, which can't disambiguate
+        // when a class legally defines both (Codex review on #971, P2).
+        if !is_classmethod {
+            return Vec::new();
+        }
+        definers
+            .iter()
+            .chain(inheritors.iter())
+            .filter(|wc| !wc.is_itcl(dialect))
+            .flat_map(|wc| [wc.name.clone(), wc.qualified_name.clone()])
+            .collect()
     }
 
     /// Cross-file references from **pure-consumer** documents: `$obj method`
@@ -4222,30 +4388,40 @@ impl Backend {
         current_dialect: &str,
         seed_class: &str,
         method: &str,
+        is_classmethod: bool,
     ) -> Vec<Location> {
         // The family + inheritor classes whose instances dispatch `method` to
         // the family, the workspace class oracle, and the candidate consumer
         // documents — collected under one index read.
-        let (family, consumer_uris) = {
+        //
+        // `classmethod_cmd_names` carries the workspace-wide answer to "given
+        // `is_classmethod` is true, which class names bare-dispatch it" — a
+        // pure-consumer document (e.g. one that only calls `Factory make`)
+        // has no local `ClassDef` for `Factory`, so
+        // `core_references::obj_method_call_sites` cannot derive this itself
+        // the way the same-document path does.
+        let (family, consumer_uris, classmethod_cmd_names) = {
             let index = self.workspace_index.read().await;
-            let mut family: Vec<String> = index
-                .method_override_family(seed_class, method)
+            let definers = index.method_override_family(seed_class, method);
+            let inheritors = index.method_inheritor_classes(seed_class, method);
+            let classmethod_cmd_names = Self::classmethod_dispatch_names(
+                &definers,
+                &inheritors,
+                is_classmethod,
+                current_dialect,
+            );
+            let mut family: Vec<String> = definers
                 .iter()
                 .map(|wc| wc.qualified_name.clone())
                 .collect();
-            family.extend(
-                index
-                    .method_inheritor_classes(seed_class, method)
-                    .iter()
-                    .map(|wc| wc.qualified_name.clone()),
-            );
+            family.extend(inheritors.iter().map(|wc| wc.qualified_name.clone()));
             if family.is_empty() {
                 return Vec::new();
             }
             let family_norm: std::collections::HashSet<&str> =
                 family.iter().map(|s| s.trim_start_matches("::")).collect();
             let consumer_uris = index.documents_invoking_classes(&family_norm);
-            (family, consumer_uris)
+            (family, consumer_uris, classmethod_cmd_names)
         };
         let mut out = Vec::new();
         let mut scanned: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -4283,6 +4459,7 @@ impl Backend {
             let analysis = self.analyse_with_workspace_classes(&source, &dialect).await;
             let family_cl = family.clone();
             let method_owned = method.to_owned();
+            let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
             let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
                 let mut all: Vec<tcl_lexer::Span> = Vec::new();
                 for cq in &family_cl {
@@ -4292,6 +4469,8 @@ impl Backend {
                         &analysis,
                         cq,
                         &method_owned,
+                        is_classmethod,
+                        &classmethod_cmd_names_cl,
                     ));
                 }
                 all
@@ -4344,6 +4523,8 @@ impl Backend {
         seed_class: &str,
         method: &str,
         new_name: &str,
+        is_classmethod: bool,
+        dialect: &str,
     ) -> std::collections::HashMap<Uri, Vec<TextEdit>> {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
@@ -4351,23 +4532,32 @@ impl Backend {
         // declaration + call sites rename) and the pure inheritors (whose
         // `my method` / `$obj method` sites rename, but which declare no copy
         // of the method).  A document may contribute either or both.
-        let by_uri: std::collections::HashMap<String, (Vec<String>, Vec<String>)> = {
+        //
+        // `classmethod_cmd_names`: see [`Self::classmethod_dispatch_names`] —
+        // a pure-inheritor document's own `all_classes` never lists the
+        // definer's `class_methods`, so it cannot tell a classmethod's bare
+        // dispatch heads apart from any other bare word without this.
+        let (by_uri, classmethod_cmd_names) = {
             let index = self.workspace_index.read().await;
+            let definers = index.method_override_family(seed_class, method);
+            let inheritors = index.method_inheritor_classes(seed_class, method);
+            let classmethod_cmd_names =
+                Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
             let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
-            for wc in index.method_override_family(seed_class, method) {
+            for wc in definers {
                 m.entry(wc.uri.clone())
                     .or_default()
                     .0
                     .push(wc.qualified_name.clone());
             }
-            for wc in index.method_inheritor_classes(seed_class, method) {
+            for wc in inheritors {
                 m.entry(wc.uri.clone())
                     .or_default()
                     .1
                     .push(wc.qualified_name.clone());
             }
-            m
+            (m, classmethod_cmd_names)
         };
         for (u, (definers, inheritors)) in by_uri {
             let Ok(parsed) = Uri::from_str(&u) else {
@@ -4382,6 +4572,7 @@ impl Backend {
             let src = target_doc.text.clone();
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
+            let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
             let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
                 let mut all: Vec<tcl_lexer::Span> = Vec::new();
                 for cq in &definers {
@@ -4391,6 +4582,7 @@ impl Backend {
                         &analysis,
                         cq,
                         &method_owned,
+                        is_classmethod,
                     ));
                 }
                 for cq in &inheritors {
@@ -4400,6 +4592,8 @@ impl Backend {
                         &analysis,
                         cq,
                         &method_owned,
+                        is_classmethod,
+                        &classmethod_cmd_names_cl,
                     ));
                 }
                 all
@@ -4453,24 +4647,30 @@ impl Backend {
         seed_class: &str,
         method: &str,
         include_declaration: bool,
+        is_classmethod: bool,
+        dialect: &str,
     ) -> Vec<Location> {
-        let by_uri: std::collections::HashMap<String, (Vec<String>, Vec<String>)> = {
+        let (by_uri, classmethod_cmd_names) = {
             let index = self.workspace_index.read().await;
+            let definers = index.method_override_family(seed_class, method);
+            let inheritors = index.method_inheritor_classes(seed_class, method);
+            let classmethod_cmd_names =
+                Self::classmethod_dispatch_names(&definers, &inheritors, is_classmethod, dialect);
             let mut m: std::collections::HashMap<String, (Vec<String>, Vec<String>)> =
                 std::collections::HashMap::new();
-            for wc in index.method_override_family(seed_class, method) {
+            for wc in definers {
                 m.entry(wc.uri.clone())
                     .or_default()
                     .0
                     .push(wc.qualified_name.clone());
             }
-            for wc in index.method_inheritor_classes(seed_class, method) {
+            for wc in inheritors {
                 m.entry(wc.uri.clone())
                     .or_default()
                     .1
                     .push(wc.qualified_name.clone());
             }
-            m
+            (m, classmethod_cmd_names)
         };
         let mut out = Vec::new();
         for (u, (definers, inheritors)) in by_uri {
@@ -4489,6 +4689,7 @@ impl Backend {
             let src = target_doc.text.clone();
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
+            let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
             let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
                 let mut all: Vec<tcl_lexer::Span> = Vec::new();
                 for cq in &definers {
@@ -4499,6 +4700,7 @@ impl Backend {
                         cq,
                         &method_owned,
                         include_declaration,
+                        is_classmethod,
                     ));
                 }
                 for cq in &inheritors {
@@ -4508,6 +4710,8 @@ impl Backend {
                         &analysis,
                         cq,
                         &method_owned,
+                        is_classmethod,
+                        &classmethod_cmd_names_cl,
                     ));
                 }
                 all
@@ -4534,6 +4738,54 @@ impl Backend {
             }
         }
         out
+    }
+
+    /// The method-dispatch half of [`Self::references`]: resolves the
+    /// cursor to a `(class, method)` target (oracle-aware, so a
+    /// pure-consumer cursor whose `$obj`'s class lives in another file still
+    /// identifies it), then gathers its sites across the override family in
+    /// sibling documents plus pure-consumer documents the family pass can't
+    /// see.  Empty when the cursor names no method.
+    async fn cross_file_method_and_consumer_references(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_decl: bool,
+    ) -> Vec<Location> {
+        let mut locations = Vec::new();
+        if let Some((seed_class, method, is_classmethod, _access)) = self
+            .resolve_method_target(&doc.text, &doc.dialect, analysis, pos)
+            .await
+        {
+            locations.extend(
+                self.cross_file_method_references(
+                    uri,
+                    &seed_class,
+                    &method,
+                    include_decl,
+                    is_classmethod,
+                    &doc.dialect,
+                )
+                .await,
+            );
+            // Pure-consumer documents (including this one) whose `$obj method`
+            // sites neither the single-document provider nor the family pass
+            // sees without the workspace class oracle.
+            locations.extend(
+                self.cross_file_consumer_method_references(
+                    uri,
+                    &doc.text,
+                    &doc.dialect,
+                    &seed_class,
+                    &method,
+                    is_classmethod,
+                )
+                .await,
+            );
+        }
+        locations
     }
 
     /// Cross-file go-to-definition for a `TclOO` method: the declaration
@@ -6853,11 +7105,17 @@ impl Backend {
     }
 
     async fn scan_workspace_folders(&self) {
+        // Held for the whole scan so `ensure_autoload_indexed` can wait out
+        // an in-flight scan instead of racing it — see the field doc on
+        // `workspace_scan_gate` (issue #1003).
+        let _scan_guard = self.workspace_scan_gate.lock().await;
+        let scan_started = std::time::Instant::now();
         let folders = self.workspace_folder_urls().await;
         let roots: Vec<PathBuf> = folders
             .iter()
             .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
+        let roots_count = roots.len();
         // Note: we deliberately do NOT early-return when `roots.is_empty()`.
         // The package resolver must still be (re)built from the editor library
         // paths + `TCLLIBPATH` + discovered installations so single-file /
@@ -6952,6 +7210,7 @@ impl Backend {
                 index.remove_document(uri);
             }
         }
+        let files_count = analysed.len();
         self.merge_workspace_scan_results(&analysed).await;
         // Re-home sourced documents under their source-site namespaces (M9).
         self.refresh_source_rehoming().await;
@@ -6959,6 +7218,21 @@ impl Backend {
         // per-file analysis in parallel (#844 Gap 3) so the first cross-file /
         // enriched-token query finds cache hits instead of a serial cold walk.
         self.spawn_workspace_warm();
+        // Readiness signal for `package_resolver` / `workspace_index` having
+        // just been (re)built from disk — a client (or a test) that needs to
+        // know the autoload / cross-file workspace state is current rather
+        // than racing this scan should wait on this line instead of an
+        // unrelated per-document signal (issue #1003).
+        let elapsed_ms = scan_started.elapsed().as_secs_f64() * 1000.0;
+        self.client
+            .log_message(
+                MessageType::LOG,
+                format!(
+                    "[timing] workspace_folders_scan {elapsed_ms:.0}ms \
+                     (roots={roots_count}, files={files_count})"
+                ),
+            )
+            .await;
     }
 
     /// Merge disk-backed workspace scan results into the shared index **and** the
@@ -8286,7 +8560,14 @@ impl LanguageServer for Backend {
             message: format!("references worker panicked: {err}").into(),
             data: None,
         })?;
-        // Current-document hits.
+        // Current-document hits. Empty here does not necessarily mean
+        // genuinely zero: a pure-consumer document (issue #923 idx 71 —
+        // the cursor's proc/class has no local declaration, only a
+        // `source`d-in or workspace-sibling one) leaves the single-document
+        // pass with nothing to anchor on even though this very document's
+        // own call sites (including the one under the cursor) are real
+        // references — see `workspace_resolved_references`'s own doc.
+        let local_found_nothing = ranges.is_empty();
         let mut locations: Vec<Location> = ranges
             .into_iter()
             .map(|r| Location {
@@ -8295,39 +8576,33 @@ impl LanguageServer for Backend {
             })
             .collect();
         // Cross-document call sites (and, when requested,
-        // sibling-document definition sites).
-        let cross = self
-            .cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
-            .await;
+        // sibling-document definition sites). A pure-consumer document
+        // (issue #923 idx 71) resolves through the workspace oracle without
+        // excluding the current document, so its own call sites aren't
+        // silently dropped alongside it.
+        let cross = if local_found_nothing {
+            self.workspace_resolved_references(&uri, &doc.text, &analysis, pos, include_decl)
+                .await
+        } else {
+            self.cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
+                .await
+        };
         locations.extend(cross);
         // Cross-document TclOO method sites: when the cursor names a method
         // (its declaration inside a class body, or an `$obj method` / `my
         // method` call), gather the method's sites across its override family in
-        // sibling documents — the single-document provider above only sees this
-        // file.  The target is resolved oracle-aware so a pure-consumer cursor
-        // (`$obj`'s class defined in another file) still identifies the method.
-        if let Some((seed_class, method, _access)) = self
-            .resolve_method_target(&doc.text, &doc.dialect, &analysis, pos)
-            .await
-        {
-            let method_cross = self
-                .cross_file_method_references(&uri, &seed_class, &method, include_decl)
-                .await;
-            locations.extend(method_cross);
-            // Pure-consumer documents (including this one) whose `$obj method`
-            // sites neither the single-document provider nor the family pass
-            // sees without the workspace class oracle.
-            let consumer = self
-                .cross_file_consumer_method_references(
-                    &uri,
-                    &doc.text,
-                    &doc.dialect,
-                    &seed_class,
-                    &method,
-                )
-                .await;
-            locations.extend(consumer);
-        }
+        // sibling documents, plus pure-consumer documents the family pass can't
+        // see — the single-document provider above only sees this file.
+        locations.extend(
+            self.cross_file_method_and_consumer_references(
+                &uri,
+                &doc,
+                &analysis,
+                pos,
+                include_decl,
+            )
+            .await,
+        );
         dedup_locations(&mut locations);
         if locations.is_empty() {
             return Ok(None);
@@ -9328,9 +9603,11 @@ impl LanguageServer for Backend {
                     range: lift_lsp_range(l.range),
                     // Carry the qualified name *and* the document URI so
                     // `codeLens/resolve` can recompute the count against the
-                    // live workspace and attach the clickable command.
-                    // Method / class-member lenses have no qname and stay
-                    // informational (their eager title is authoritative).
+                    // live workspace and attach the clickable command.  Every
+                    // lens kind (proc, class, method, classmethod) carries a
+                    // qname today; a lens with none stays eagerly-resolved
+                    // below as a defensive fallback for a future lens kind
+                    // that genuinely has no re-identifiable symbol.
                     data: has_qname
                         .then(|| serde_json::json!({ "qname": l.qname, "uri": uri_str.clone() })),
                     // A reference-count lens is returned WITHOUT a command so the
@@ -9339,8 +9616,8 @@ impl LanguageServer for Backend {
                     // `[uri, position, locations]` arguments.  Setting a command
                     // here would mark the lens resolved, the client would skip
                     // `resolve`, and the lens would render as an inert bare title
-                    // (#724 — "reference is not active").  Informational lenses
-                    // keep their eager title+command (they are never resolved).
+                    // (#724 / #956 — "reference is not active", the latter for
+                    // TclOO method / classmethod lenses specifically).
                     command: (!has_qname).then_some(tower_lsp_server::ls_types::Command {
                         title: l.command_title,
                         command: l.command,
@@ -9360,8 +9637,10 @@ impl LanguageServer for Backend {
     /// workspace keeps the title consistent with Find All References even
     /// when the workspace changed since the lens was produced.
     ///
-    /// A lens with no `{qname, uri}` data (the informational method /
-    /// class-member lenses) is returned unchanged — its eager title stands.
+    /// A lens with no `{qname, uri}` data is returned unchanged — its eager
+    /// title stands.  Every lens kind this server currently emits (proc,
+    /// class, method, classmethod) carries `data`, so this is a defensive
+    /// fallback rather than the common case.
     async fn code_lens_resolve(&self, lens: CodeLens) -> jsonrpc::Result<CodeLens> {
         let Some((qname, uri)) = lens
             .data
@@ -9789,11 +10068,17 @@ impl LanguageServer for Backend {
         // single-document path when the family is empty (e.g. the index is
         // not yet populated) so nothing regresses.
         if core_rename::is_safe_symbol_name(&new_name)
-            && let Some((seed_class, method)) =
+            && let Some((seed_class, method, is_classmethod)) =
                 core_rename::method_rename_target(&doc.text, pos.line, pos.character, &analysis)
         {
             let changes = self
-                .cross_file_method_rename(&seed_class, &method, &new_name)
+                .cross_file_method_rename(
+                    &seed_class,
+                    &method,
+                    &new_name,
+                    is_classmethod,
+                    &doc.dialect,
+                )
                 .await;
             if !changes.is_empty() {
                 return Ok(Some(WorkspaceEdit {
@@ -12087,6 +12372,16 @@ fn is_tcl_source(path: &Path) -> bool {
                 | "impl"
                 | "exp"
                 | "apl"
+                // The standard `tcltest` test-file extension (tcllib's own
+                // test suite, and every mined corpus, use it throughout —
+                // e.g. `test/argparse.test`). Omitting it meant a proc's
+                // call sites inside an un-opened `.test` file were invisible
+                // to the background workspace scan, so cross-document
+                // find-references / rename-safety silently missed them
+                // (issue #923 differential-audit finding idx 10, main audit
+                // wave) — even though opening the file directly worked fine,
+                // since that path doesn't go through this scan at all.
+                | "test"
         )
     )
 }
@@ -15253,6 +15548,7 @@ mod tests {
             severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
+            workspace_scan_gate: tokio::sync::Mutex::new(()),
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
@@ -17529,6 +17825,7 @@ mod tests {
     fn is_tcl_source_matches_the_full_tcl_family_extension_set() {
         for ext in [
             "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl",
+            "test",
         ] {
             assert!(
                 is_tcl_source(Path::new(&format!("/a/b.{ext}"))),
@@ -17537,6 +17834,17 @@ mod tests {
         }
         assert!(!is_tcl_source(Path::new("/a/b.txt")));
         assert!(!is_tcl_source(Path::new("/a/b")));
+    }
+
+    #[test]
+    fn is_tcl_source_recognises_tcltest_files() {
+        // TP — differential-audit finding idx 10 (main audit wave): the
+        // standard `tcltest` extension (`test/argparse.test`, and every
+        // `.test` file throughout tcllib's own test suite) was omitted from
+        // the background workspace scan's allowlist, so a proc's call sites
+        // living in an un-opened `.test` file were invisible to
+        // cross-document find-references / rename-safety.
+        assert!(is_tcl_source(Path::new("/ws/test/argparse.test")));
     }
 
     #[test]
@@ -17586,6 +17894,32 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
 
         assert_eq!(names, vec!["mod.tm", "nested.tcl", "top.tcl"]);
+    }
+
+    #[test]
+    fn collect_tcl_files_picks_up_tcltest_files() {
+        // TP — differential-audit finding idx 10 (main audit wave): a
+        // `.test` file (the standard `tcltest` extension — every mined
+        // corpus, and tcllib's own test suite, use it throughout, e.g.
+        // `test/argparse.test`) was invisible to the background workspace
+        // scan, so cross-document find-references / rename-safety
+        // silently missed call sites living in an un-opened `.test` file.
+        let root = unique_scratch_dir("tcltest");
+        std::fs::create_dir_all(root.join("test")).unwrap();
+        std::fs::write(root.join("lib.tcl"), "proc plain {} { return 1 }\n").unwrap();
+        std::fs::write(root.join("test/argparse.test"), "plain\n").unwrap();
+
+        let mut out = Vec::new();
+        collect_tcl_files(&root, 100, &mut out);
+        let mut names: Vec<String> = out
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+
+        std::fs::remove_dir_all(&root).ok();
+
+        assert_eq!(names, vec!["argparse.test", "lib.tcl"]);
     }
 
     #[test]
@@ -17802,6 +18136,94 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cross_document_definition_resolves_wildcard_imported_proc() {
+        // issue #923 idx 18 (TP, cross-document): `lib.tcl` defines and
+        // exports `bar`; `main.tcl` wildcard-imports `::Lib::*` and calls
+        // `bar` bare. `main.tcl`'s own in-document resolver can't see
+        // `::Lib::bar` (a different file's proc), so this exercises the
+        // NEW cross-document fallback in `resolve_workspace_symbols`
+        // (`WorkspaceIndex::resolve_wildcard_import`). Both documents must
+        // be indexed: the `namespace import` itself is recorded in
+        // `main.tcl`'s own analysis.
+        let backend = test_backend();
+        let lib_uri = Uri::from_str("file:///wc_lib.tcl").unwrap();
+        let main_uri = Uri::from_str("file:///wc_main.tcl").unwrap();
+        let lib_src = "namespace eval ::Lib {\n    proc bar {} {}\n    namespace export bar\n}\n";
+        let main_src = "namespace import ::Lib::*\nbar\n";
+        {
+            let mut docs = backend.documents.lock().await;
+            docs.insert(
+                lib_uri.clone(),
+                DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
+            );
+            docs.insert(
+                main_uri.clone(),
+                DocumentState::new(main_src.to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        {
+            let mut index = backend.workspace_index.write().await;
+            let mut a = Analyser::new();
+            let lib_analysis = a.analyse(lib_src, "tcl8.6").clone();
+            index.add_document(lib_uri.as_str(), &lib_analysis);
+            let mut a2 = Analyser::new();
+            let main_analysis = a2.analyse(main_src, "tcl8.6").clone();
+            index.add_document(main_uri.as_str(), &main_analysis);
+        }
+        // Cursor on the bareword `bar` call (line 1, col 0).
+        let locs = backend
+            .compute_definition(&main_uri, Position::new(1, 0))
+            .await
+            .expect("definition ok");
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].uri, lib_uri);
+        // `proc bar` — name token starts at column 9 on line 1 of lib.tcl.
+        assert_eq!(locs[0].range.start.line, 1);
+        assert_eq!(locs[0].range.start.character, 9);
+    }
+
+    #[tokio::test]
+    async fn cross_document_wildcard_import_does_not_resolve_unexported_sibling() {
+        // FP guard (CRITICAL, cross-document, server layer): `lib.tcl`'s
+        // `other` is never exported, so `main.tcl`'s wildcard import must
+        // not resolve a bare `other` call to it — matches real tclsh's own
+        // `invalid command name` error there (tclsh9.0/8.6-verified).
+        let backend = test_backend();
+        let lib_uri = Uri::from_str("file:///wc_lib2.tcl").unwrap();
+        let main_uri = Uri::from_str("file:///wc_main2.tcl").unwrap();
+        let lib_src = "namespace eval ::Lib {\n    proc bar {} {}\n    proc other {} {}\n    namespace export bar\n}\n";
+        let main_src = "namespace import ::Lib::*\nother\n";
+        {
+            let mut docs = backend.documents.lock().await;
+            docs.insert(
+                lib_uri.clone(),
+                DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
+            );
+            docs.insert(
+                main_uri.clone(),
+                DocumentState::new(main_src.to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        {
+            let mut index = backend.workspace_index.write().await;
+            let mut a = Analyser::new();
+            let lib_analysis = a.analyse(lib_src, "tcl8.6").clone();
+            index.add_document(lib_uri.as_str(), &lib_analysis);
+            let mut a2 = Analyser::new();
+            let main_analysis = a2.analyse(main_src, "tcl8.6").clone();
+            index.add_document(main_uri.as_str(), &main_analysis);
+        }
+        let locs = backend
+            .compute_definition(&main_uri, Position::new(1, 0))
+            .await
+            .expect("definition ok");
+        assert!(
+            locs.is_empty(),
+            "an unexported sibling must stay unresolved through the wildcard import: {locs:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn minify_document_command_returns_minified_source() {
         let backend = test_backend();
         let uri = Uri::from_str("file:///m.tcl").unwrap();
@@ -18001,6 +18423,182 @@ mod tests {
         assert!(cross.iter().all(|l| l.uri == consumer));
     }
 
+    /// Issue #923 idx 71 (main audit wave, high severity, pix corpus):
+    /// reduces nico-robert/pix's `test_context.test` (`source [file join
+    /// [file dirname [info script]] data_b64.test]`, then calls `isEqual`
+    /// bare) to its literal-`source` control shape — the finding's own
+    /// control repro (`71_control`) proved the identical bug reproduces
+    /// with a trivial `source b.tcl`, no `[info script]` at all. `a.tcl`
+    /// sources `b.tcl` (which declares `helper`) and calls `helper` twice
+    /// itself; `c.tcl` calls it once more. `a.tcl` has no local declaration
+    /// of `helper` to anchor `cross_document_references`'s exclusion of
+    /// the current document on, so both of `a.tcl`'s own calls — including
+    /// the one under the cursor — were previously dropped entirely.
+    #[tokio::test]
+    async fn workspace_resolved_references_reaches_the_current_documents_own_calls() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        let c = Uri::from_str("file:///c.tcl").unwrap();
+        let b_src = "proc helper {} {}\n";
+        register(&backend, &b, b_src).await;
+        let a_src = "source b.tcl\nhelper\nhelper\n";
+        register(&backend, &a, a_src).await;
+        register(&backend, &c, "helper\n").await;
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(a_src, "tcl8.6").clone()
+        };
+        // Cursor on a.tcl's own first `helper` call (line 1).
+        let refs = backend
+            .workspace_resolved_references(&a, a_src, &analysis, Position::new(1, 3), true)
+            .await;
+        let a_hits = refs.iter().filter(|l| l.uri == a).count();
+        assert_eq!(
+            a_hits, 2,
+            "both of a.tcl's own calls must be reached, not just the sourced-in decl: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b),
+            "b.tcl's declaration must still be reached: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == c),
+            "c.tcl's call must still be reached: {refs:?}"
+        );
+    }
+
+    /// End-to-end analogue of the test above, through the real
+    /// `textDocument/references` handler — proving the handler picks the
+    /// workspace-resolved fallback automatically (no caller-side branching
+    /// needed) whenever the single-document pass finds nothing local to
+    /// anchor on.
+    #[tokio::test]
+    async fn references_handler_reaches_own_calls_in_a_pure_consumer_document() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a2.tcl").unwrap();
+        let b = Uri::from_str("file:///b2.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        let a_src = "source b2.tcl\nhelper\nhelper\n";
+        register(&backend, &a, a_src).await;
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: a.clone() },
+                position: Position::new(1, 3), // on a.tcl's own first `helper` call
+            },
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let refs = backend
+            .references(params)
+            .await
+            .expect("ok")
+            .expect("some references");
+        let a_hits: Vec<_> = refs.iter().filter(|l| l.uri == a).collect();
+        assert_eq!(
+            a_hits.len(),
+            2,
+            "both of a.tcl's own calls must be reached: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b),
+            "b.tcl's declaration must still be reached: {refs:?}"
+        );
+    }
+
+    /// idx 31 (differential-audit main audit wave, high severity): a proc
+    /// declared twice, verbatim, in the same document (plain Tcl's own
+    /// "last redefinition wins" semantics, tclsh9.0/8.6-verified) — the
+    /// real corpus shape is `georgtree_tclopt`'s `tclopt.tcl` declaring
+    /// `::tclopt::List2array` at two separate line ranges.
+    /// `resolve_workspace_symbols` identified "the symbol at cursor" only
+    /// via `all_procs.values().find(|p| covers(p.name_span))`, and
+    /// `all_procs` (keyed by qualified name) retains only the *winning*
+    /// declaration's span on a duplicate insert — so a cursor on the
+    /// *shadowed* (non-winning) declaration's own name token could never
+    /// match, silently dropping every cross-file caller from
+    /// find-references, and — far worse — from rename: applying that
+    /// incomplete `WorkspaceEdit` leaves a cross-file caller still bound
+    /// to the old name, which a second, dead definition (the very shadowed
+    /// declaration the rename was issued from) is still lying around to
+    /// silently satisfy, changing the program's behaviour with no error
+    /// surfaced anywhere.
+    #[tokio::test]
+    async fn cross_document_references_reach_caller_from_shadowed_duplicate_decl() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib31_refs.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer31_refs.tcl").unwrap();
+        let lib_src =
+            "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n";
+        register(&backend, &lib, lib_src).await;
+        register(&backend, &consumer, "List2array x\n").await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        // Cursor on the SHADOWED (first, non-winning) declaration's own
+        // name token (line 0, col 6 — `proc List2array`).
+        let cross = backend
+            .cross_document_references(&lib, lib_src, &analysis, Position::new(0, 6), false)
+            .await;
+        assert_eq!(
+            cross.len(),
+            1,
+            "cross-file call site in consumer.tcl must not be silently \
+             dropped when querying from the shadowed declaration: {cross:?}"
+        );
+        assert!(cross.iter().all(|l| l.uri == consumer));
+    }
+
+    /// Same root cause as
+    /// `cross_document_references_reach_caller_from_shadowed_duplicate_decl`,
+    /// but for rename — the more severe half of the finding: an
+    /// LSP-presented "complete" rename issued from the shadowed
+    /// declaration must still rewrite the cross-file caller, or accepting
+    /// the edit silently resurrects the dead first definition for that
+    /// caller (proven end-to-end in the finding's own repro: applying the
+    /// pre-fix `WorkspaceEdit` verbatim changed real program output with
+    /// no error).
+    #[tokio::test]
+    async fn cross_document_rename_reaches_caller_from_shadowed_duplicate_decl() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib31_rename.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer31_rename.tcl").unwrap();
+        let lib_src =
+            "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n";
+        register(&backend, &lib, lib_src).await;
+        register(&backend, &consumer, "List2array x\n").await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        // Cursor on the SHADOWED (first, non-winning) declaration.
+        backend
+            .add_cross_document_rename_edits(
+                &lib,
+                lib_src,
+                &analysis,
+                Position::new(0, 6),
+                "ListToArray",
+                &mut changes,
+            )
+            .await;
+        let consumer_edits = changes.get(&consumer).cloned().unwrap_or_default();
+        assert_eq!(
+            consumer_edits.len(),
+            1,
+            "the cross-file caller must be rewritten, or it stays bound \
+             to the old name while the dead shadowed definition (also \
+             renamed away) silently resurrects for it: {changes:?}"
+        );
+        assert_eq!(consumer_edits[0].new_text, "ListToArray");
+    }
+
     /// Build an on-disk autoload library (`tclIndex` + defining file, like a
     /// `TCLLIBPATH` entry) whose `Rbc_Wire` also calls `Rbc_ActiveLegend`
     /// internally, and point the backend's package database at it.  Returns
@@ -18093,6 +18691,40 @@ mod tests {
         );
     }
 
+    /// Regression (issue #1003): `ensure_autoload_indexed` must wait out an
+    /// in-flight `scan_workspace_folders` rather than reading
+    /// `package_resolver` while it is still being rebuilt — otherwise a
+    /// rename / go-to-definition request landing during a scan (startup, a
+    /// workspace-folder change, a config change) could race it and wrongly
+    /// conclude the command isn't auto-loadable, even though the very same
+    /// request moments later would have resolved correctly. Simulates the
+    /// race directly by holding `workspace_scan_gate` (as a real scan would
+    /// for its whole duration) and asserting a concurrent query blocks until
+    /// it is released, rather than trusting incidental timing.
+    #[tokio::test]
+    async fn autoload_indexed_query_waits_out_an_in_flight_workspace_scan() {
+        let backend = Arc::new(test_backend());
+        seed_autoload_library(&backend, "autoload-race").await;
+        let guard = backend.workspace_scan_gate.lock().await;
+        let query_backend = Arc::clone(&backend);
+        let query = tokio::spawn(async move {
+            query_backend
+                .ensure_autoload_indexed("Rbc_ActiveLegend", "::")
+                .await
+        });
+        tokio::task::yield_now().await;
+        assert!(
+            !query.is_finished(),
+            "must wait for the in-flight scan rather than racing it"
+        );
+        drop(guard);
+        let resolved = query.await.expect("query task panicked");
+        assert!(
+            resolved.is_some(),
+            "resolves once the in-flight scan's gate is released"
+        );
+    }
+
     /// FP guard: when the workspace itself defines the command, the autoload
     /// tier must not fire — the workspace definition wins and no library file
     /// is merged into the index.
@@ -18133,6 +18765,36 @@ mod tests {
         let b = Uri::from_str("file:///proj/b.tcl").unwrap();
         register(&backend, &b, "proc helper {} {}\nhelper\n").await;
         let a_src = "namespace eval ::x { source b.tcl }\n::x::helper\n";
+        register(&backend, &a, a_src).await;
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(a_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&a, a_src, &analysis, Position::new(1, 3), true)
+            .await;
+        assert!(
+            refs.iter().any(|l| l.uri == b && l.range.start.line == 0),
+            "the sourced declaration must be a reference target: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b && l.range.start.line == 1),
+            "the sourced file's own bare call re-homes too: {refs:?}"
+        );
+    }
+
+    /// M9 + issue #923 idx 46: the same re-homing must also fire when the
+    /// `source` target is a same-file constant variable rather than a
+    /// literal path (`set b "b.tcl"; source $b`, the corpus's `set p
+    /// "e.tcl"; source $p` idiom) — previously this whole `source` call
+    /// went untracked, silently abstaining from M9 rehoming entirely.
+    #[tokio::test]
+    async fn sourced_file_defs_rehome_through_a_same_file_constant_variable_idx_46() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\nhelper\n").await;
+        let a_src = "namespace eval ::x { set b \"b.tcl\"; source $b }\n::x::helper\n";
         register(&backend, &a, a_src).await;
         let analysis = {
             let mut an = Analyser::new();
@@ -18509,6 +19171,229 @@ mod tests {
         assert_eq!(locations.len(), 2, "two call sites: {locations:?}");
     }
 
+    /// Resolve the single member lens on `src` whose declaration sits on
+    /// `decl_line` (0-based) — the harness shared by the `TclOO` method /
+    /// classmethod lens tests below.
+    async fn resolve_member_lens_at_line(
+        backend: &Backend,
+        uri: &Uri,
+        src: &str,
+        decl_line: u32,
+    ) -> CodeLens {
+        register(backend, uri, src).await;
+        let lens_params = CodeLensParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let lenses = backend
+            .code_lens(lens_params)
+            .await
+            .expect("ok")
+            .expect("some lenses");
+        let lens = lenses
+            .into_iter()
+            .find(|l| l.range.start.line == decl_line)
+            .unwrap_or_else(|| panic!("no lens anchored at line {decl_line}: src={src:?}"));
+        backend.code_lens_resolve(lens).await.expect("resolve ok")
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_wires_show_references_command_for_method() {
+        // FN→TP regression for issue #956: the *exact* reported repro — a
+        // TclOO class whose body declares `variable` and `constructor`
+        // before the `method`, with the method body reading the instance
+        // variable and the external dispatch nested in `puts [...]`. The
+        // method lens must resolve to a *clickable* `tcl-lsp.showReferences`
+        // command, not an inert bare title (the `#724` defect recurring for
+        // methods specifically — the count was already correct; only the
+        // command was empty).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///bar956.tcl").unwrap();
+        let src = "oo::class create Bar {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n\n    method get {key} {\n        return [dict get $_options $key]\n    }\n\n}\nset b [Bar new]\nputs [$b get foo]\n";
+        let resolved = resolve_member_lens_at_line(&backend, &uri, src, 6).await;
+        let command = resolved
+            .command
+            .expect("method lens must resolve to a command, not stay inert");
+        assert_eq!(
+            command.command, "tcl-lsp.showReferences",
+            "method lens must invoke the show-references wrapper, got {command:?}",
+        );
+        assert!(
+            !command.command.is_empty(),
+            "command id must never be empty"
+        );
+        assert_eq!(command.title, "1 reference", "{command:?}");
+        let args = command.arguments.expect("showReferences needs arguments");
+        let locations = args[2].as_array().expect("locations array");
+        assert_eq!(
+            locations.len(),
+            1,
+            "the `puts [$b get foo]` dispatch is the one call site: {locations:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_wires_show_references_command_for_classmethod() {
+        // TP: a classmethod lens resolves the same way a method lens does.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///classmethod.tcl").unwrap();
+        let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nset f [Factory make]\n";
+        let resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let command = resolved
+            .command
+            .expect("classmethod lens must resolve to a command, not stay inert");
+        assert_eq!(command.command, "tcl-lsp.showReferences", "{command:?}");
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name() {
+        // `method make` and `classmethod make` on the same class are two
+        // distinct, independently-dispatched members (TclOO allows both:
+        // one on the instance, one on the class object) — Codex review on
+        // #971 (P2) caught that `member_ref_count`/`method_references_for_class`
+        // received only the bare name and combined `$obj make` with
+        // `Factory make` for *both* lenses. Each lens must count and
+        // resolve to *only* its own dispatch shape.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dual_make.tcl").unwrap();
+        let src = "oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return [Factory new] }\n}\nset f [Factory new]\n$f make\nFactory make\n";
+        let method_lens = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let classmethod_lens = resolve_member_lens_at_line(&backend, &uri, src, 2).await;
+
+        let method_cmd = method_lens
+            .command
+            .expect("method lens must resolve to a command");
+        assert_eq!(method_cmd.title, "1 reference", "{method_cmd:?}");
+        let method_locations = method_cmd.arguments.expect("args")[2]
+            .as_array()
+            .expect("locations array")
+            .clone();
+        assert_eq!(
+            method_locations.len(),
+            1,
+            "method lens must count only `$f make` (l5), not `Factory make` (l6): {method_locations:?}"
+        );
+
+        let classmethod_cmd = classmethod_lens
+            .command
+            .expect("classmethod lens must resolve to a command");
+        assert_eq!(classmethod_cmd.title, "1 reference", "{classmethod_cmd:?}");
+        let classmethod_locations = classmethod_cmd.arguments.expect("args")[2]
+            .as_array()
+            .expect("locations array")
+            .clone();
+        assert_eq!(
+            classmethod_locations.len(),
+            1,
+            "classmethod lens must count only `Factory make` (l6), not `$f make` (l5): {classmethod_locations:?}"
+        );
+        assert_ne!(
+            method_locations, classmethod_locations,
+            "the two lenses must resolve to different call sites"
+        );
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_for_unused_method_is_clickable_with_zero_locations() {
+        // TN: a declared-but-never-dispatched method still resolves to a
+        // real command (an empty peek is a valid "0 references" click
+        // target) rather than staying inert because the count is zero.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///solo.tcl").unwrap();
+        let src = "oo::class create Solo {\n    method ping {} { return pong }\n}\n";
+        let resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let command = resolved
+            .command
+            .expect("even a 0-reference method lens must carry a real command");
+        assert_eq!(command.command, "tcl-lsp.showReferences", "{command:?}");
+        assert_eq!(command.title, "0 references", "{command:?}");
+        let args = command.arguments.expect("showReferences needs arguments");
+        let locations = args[2].as_array().expect("locations array");
+        assert!(locations.is_empty(), "{locations:?}");
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_disambiguates_same_named_methods_on_different_classes() {
+        // FP guard: two unrelated classes each declaring a method named
+        // `get` must resolve to *independent* lenses — the qname-based
+        // resolve match (`::Bar::method::get` vs `::Foo::method::get`) must
+        // never cross-contaminate the two, and each lens's clickable command
+        // must carry only its own class's call site.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///two_classes.tcl").unwrap();
+        let src = "oo::class create Bar {\n    method get {} { return 1 }\n}\noo::class create Foo {\n    method get {} { return 2 }\n}\nset b [Bar new]\nputs [$b get]\n";
+        let bar_resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let bar_command = bar_resolved.command.expect("Bar::get must resolve");
+        assert_eq!(bar_command.title, "1 reference", "{bar_command:?}");
+
+        let foo_resolved = resolve_member_lens_at_line(&backend, &uri, src, 3).await;
+        let foo_command = foo_resolved.command.expect("Foo::get must resolve");
+        assert_eq!(
+            foo_command.title, "0 references",
+            "Foo::get must not see Bar's dispatch: {foo_command:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn code_lens_resolve_for_inherited_method_counts_subclass_dispatch() {
+        // TP: a subclass that inherits (does not override) a method is a
+        // valid dispatch target for the ancestor's lens — mirrors the
+        // existing `find_obj_method_call_sites` inheritance coverage, wired
+        // through the resolve round-trip.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///inherit.tcl").unwrap();
+        let src = "oo::class create Base {\n    method get {key} { return $key }\n}\noo::class create Sub {\n    superclass Base\n}\nset s [Sub new]\n$s get x\n";
+        let resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+        let command = resolved.command.expect("Base::get must resolve");
+        assert_eq!(
+            command.title, "1 reference",
+            "`$s get x` dispatches to the inherited Base::get: {command:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_code_lens_ever_carries_an_inert_empty_command() {
+        // Broad regression guard for the #724 / #956 defect class: every
+        // lens this server can emit for a rich TclOO document — proc,
+        // class, method, classmethod, across inheritance — must resolve to
+        // a real, non-empty command id.  A future lens kind that forgets to
+        // carry a qname would be caught here rather than shipping silently
+        // inert.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///rich.tcl").unwrap();
+        let src = "proc helper {} {}\nhelper\noo::class create Base {\n    variable _options\n    constructor {args} { set _options $args }\n    method get {key} { return [dict get $_options $key] }\n    classmethod make {} { return [Base new] }\n    method unused {} { return 0 }\n}\noo::class create Sub {\n    superclass Base\n}\nset b [Base new]\nputs [$b get foo]\nBase make\nset s [Sub new]\n$s get bar\n";
+        register(&backend, &uri, src).await;
+        let lens_params = CodeLensParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let lenses = backend
+            .code_lens(lens_params)
+            .await
+            .expect("ok")
+            .expect("some lenses");
+        assert!(
+            lenses.len() >= 4,
+            "expected proc + class + 2 member lenses, got {lenses:?}"
+        );
+        for lens in lenses {
+            let resolved = backend
+                .code_lens_resolve(lens.clone())
+                .await
+                .expect("resolve ok");
+            let command = resolved.command.unwrap_or_else(|| {
+                panic!("lens at {:?} resolved with no command at all", lens.range)
+            });
+            assert!(
+                !command.command.is_empty(),
+                "lens at {:?} resolved to an inert empty command id: {command:?}",
+                lens.range,
+            );
+        }
+    }
+
     #[tokio::test]
     async fn references_handler_merges_local_and_cross_document() {
         let backend = test_backend();
@@ -18834,6 +19719,100 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn classmethod_rename_reaches_subclass_only_document() {
+        // The classmethod analogue, end-to-end through the production
+        // `rename` handler: `SubFactory` inherits `make` (no override) in
+        // its own file and dispatches it via `SubFactory make` — a bare
+        // classmethod dispatch on the *subclass's* own command, which
+        // `subfactory.tcl`'s own `all_classes` cannot classify as a
+        // classmethod call by itself (it never declares `make`).
+        let backend = test_backend();
+        let factory = Uri::from_str("file:///factory5.tcl").unwrap();
+        let subfactory = Uri::from_str("file:///subfactory5.tcl").unwrap();
+        register(
+            &backend,
+            &factory,
+            "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\n",
+        )
+        .await;
+        register(
+            &backend,
+            &subfactory,
+            "oo::class create SubFactory {\n    superclass Factory\n}\nSubFactory make\n",
+        )
+        .await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: factory.clone(),
+                },
+                position: Position::new(1, 16), // on `make` in Factory's decl
+            },
+            new_name: "build".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok").expect("some");
+        let changes = edit.changes.expect("changes");
+        assert!(
+            changes.contains_key(&subfactory),
+            "subclass-only doc edits missing: {changes:?}"
+        );
+        let sub_edits = &changes[&subfactory];
+        assert!(
+            sub_edits
+                .iter()
+                .any(|e| e.range.start.line == 3 && e.new_text == "build"),
+            "expected `SubFactory make` (l3) rewritten to `build`: {sub_edits:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn rename_disambiguates_method_and_classmethod_of_the_same_name() {
+        // Same fixture as `code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name`,
+        // but through the production `rename` handler: renaming from the
+        // cursor on `method make`'s declaration must rewrite only the
+        // method's own declaration and its `$f make` dispatch — never the
+        // unrelated `classmethod make`'s declaration or its `Factory make`
+        // dispatch (Codex review on #971, P2).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dual_make_rename.tcl").unwrap();
+        let src = "oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return [Factory new] }\n}\nset f [Factory new]\n$f make\nFactory make\n";
+        register(&backend, &uri, src).await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                position: Position::new(1, 11), // on `make` in `method make`'s decl
+            },
+            new_name: "build".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok").expect("some");
+        let changes = edit.changes.expect("changes");
+        let edits = &changes[&uri];
+        let renamed_lines: Vec<u32> = edits
+            .iter()
+            .filter(|e| e.new_text == "build")
+            .map(|e| e.range.start.line)
+            .collect();
+        assert!(
+            renamed_lines.contains(&1),
+            "method decl (l1) must be renamed: {edits:?}"
+        );
+        assert!(
+            renamed_lines.contains(&5),
+            "`$f make` (l5) must be renamed: {edits:?}"
+        );
+        assert!(
+            !renamed_lines.contains(&2),
+            "classmethod decl (l2) must NOT be renamed: {edits:?}"
+        );
+        assert!(
+            !renamed_lines.contains(&6),
+            "`Factory make` (l6, classmethod dispatch) must NOT be renamed: {edits:?}"
+        );
+    }
+
     /// Register `animal.tcl` (`Animal::speak`) and `dog.tcl` (a `Dog` subclass
     /// that overrides `speak` and calls `$d speak`).  Returns the backend and
     /// the two URIs.
@@ -18863,7 +19842,7 @@ mod tests {
         // had no cross-file reference support at all.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", true)
+            .cross_file_method_references(&animal, "::Animal", "speak", true, false, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -18889,7 +19868,7 @@ mod tests {
         // (l2) is dropped but the `$d speak` call site (l5) stays.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", false)
+            .cross_file_method_references(&animal, "::Animal", "speak", false, false, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -18921,7 +19900,7 @@ mod tests {
         )
         .await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", false)
+            .cross_file_method_references(&animal, "::Animal", "speak", false, false, "tcl8.6")
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -18934,14 +19913,176 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cross_file_method_references_reach_inheritor_document_for_classmethod() {
+        // The classmethod analogue: SubFactory *inherits* `make` (no
+        // override) and dispatches it via its own command, in a document
+        // holding no definer of `Factory` at all — unlike the pure-consumer
+        // case, this document *does* declare a class (SubFactory), so it
+        // goes through the inheritor pass (`inherited_method_call_sites`),
+        // not `cross_file_consumer_method_references`.
+        let backend = test_backend();
+        let factory = Uri::from_str("file:///factory4.tcl").unwrap();
+        let subfactory = Uri::from_str("file:///subfactory4.tcl").unwrap();
+        register(
+            &backend,
+            &factory,
+            "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\n",
+        )
+        .await;
+        register(
+            &backend,
+            &subfactory,
+            "oo::class create SubFactory {\n    superclass Factory\n}\nSubFactory make\n",
+        )
+        .await;
+        let refs = backend
+            .cross_file_method_references(&factory, "::Factory", "make", false, true, "tcl8.6")
+            .await;
+        let sub_lines: Vec<u32> = refs
+            .iter()
+            .filter(|l| l.uri == subfactory)
+            .map(|l| l.range.start.line)
+            .collect();
+        assert!(
+            sub_lines.contains(&3),
+            "`SubFactory make` (l3) in the inheritor-only document missing: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn cross_file_method_references_empty_for_unrelated_method() {
         // A method name no family class defines yields nothing — no spurious
         // cross-file sites.
         let (backend, animal, _dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "nonexistent", true)
+            .cross_file_method_references(&animal, "::Animal", "nonexistent", true, false, "tcl8.6")
             .await;
         assert!(refs.is_empty(), "{refs:?}");
+    }
+
+    #[tokio::test]
+    async fn cross_file_consumer_finds_classmethod_bare_dispatch() {
+        // A `classmethod` dispatches on the class's own command, never an
+        // instance — so a *pure-consumer* document that never
+        // declares/extends the class (only calls `Factory make`) has no
+        // entry for `::Factory` in its own `all_classes`, unlike the
+        // instance path (`$obj method`, resolved via a plain
+        // `instance_classes` string match that needs no `all_classes` at
+        // all). `cross_file_consumer_method_references` closes this gap by
+        // asking the *workspace index* whether `method` is a classmethod
+        // (`WorkspaceMethod::kind`) and, if so, passing the family's class
+        // names down as valid bare-dispatch heads — the same centralised
+        // `kind` field the same-document path already reads locally.
+        let backend = test_backend();
+        let factory = Uri::from_str("file:///factory.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
+        let factory_src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\n";
+        register(&backend, &factory, factory_src).await;
+        register(&backend, &consumer, "Factory make\n").await;
+        let refs = backend
+            .cross_file_consumer_method_references(
+                &factory,
+                factory_src,
+                "tcl8.6",
+                "::Factory",
+                "make",
+                true,
+            )
+            .await;
+        assert!(
+            refs.iter()
+                .any(|l| l.uri == consumer && l.range.start.line == 0),
+            "`Factory make` in the pure-consumer document missing: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cross_file_consumer_finds_inheriting_subclass_classmethod_dispatch() {
+        // The same gap, one level of inheritance deeper: `SubFactory` inherits
+        // (does not override) `make`, and the pure-consumer document
+        // dispatches via `SubFactory`'s own command.
+        let backend = test_backend();
+        let factory = Uri::from_str("file:///factory2.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer2.tcl").unwrap();
+        let factory_src = "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\noo::class create SubFactory {\n    superclass Factory\n}\n";
+        register(&backend, &factory, factory_src).await;
+        register(&backend, &consumer, "SubFactory make\n").await;
+        let refs = backend
+            .cross_file_consumer_method_references(
+                &factory,
+                factory_src,
+                "tcl8.6",
+                "::Factory",
+                "make",
+                true,
+            )
+            .await;
+        assert!(
+            refs.iter()
+                .any(|l| l.uri == consumer && l.range.start.line == 0),
+            "`SubFactory make` (inherited classmethod) in the pure-consumer document missing: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cross_file_consumer_does_not_bare_dispatch_a_plain_instance_method() {
+        // FP guard: a plain (non-classmethod) `method` must not gain bare
+        // class-command dispatch cross-file, any more than it does
+        // same-document — `Factory get` (no `$obj`) is not a valid TclOO
+        // call for an instance method.
+        let backend = test_backend();
+        let factory = Uri::from_str("file:///factory3.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer3.tcl").unwrap();
+        let factory_src = "oo::class create Factory {\n    method get {} { return 1 }\n}\n";
+        register(&backend, &factory, factory_src).await;
+        register(&backend, &consumer, "Factory get\n").await;
+        let refs = backend
+            .cross_file_consumer_method_references(
+                &factory,
+                factory_src,
+                "tcl8.6",
+                "::Factory",
+                "get",
+                false,
+            )
+            .await;
+        assert!(
+            !refs.iter().any(|l| l.uri == consumer),
+            "a plain method must not gain phantom class-command dispatch: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cross_file_consumer_does_not_bare_dispatch_an_itcl_class_proc() {
+        // FP guard, cross-file: [incr Tcl]'s class-scoped `proc` lands in the
+        // same `class_methods` bucket as a `classmethod`/`typemethod` (so the
+        // workspace index also sees it as `WorkspaceMethod::kind ==
+        // "classmethod"`), but itcl dispatches it as a single
+        // `::`-qualified identifier (`Factory::make`), never the two-word
+        // `Factory make` shape — which is itcl's own instance-creation
+        // syntax (`ClassName instanceName`) for an unrelated object named
+        // "make".  `classmethod_dispatch_names` must exclude itcl definers
+        // the same way the same-document scanner does.
+        let backend = test_backend();
+        let factory = Uri::from_str("file:///factory5.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer5.tcl").unwrap();
+        let factory_src = "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\n";
+        register(&backend, &factory, factory_src).await;
+        register(&backend, &consumer, "Factory make\n").await;
+        let refs = backend
+            .cross_file_consumer_method_references(
+                &factory,
+                factory_src,
+                "tcl8.6",
+                "::Factory",
+                "make",
+                true,
+            )
+            .await;
+        assert!(
+            !refs.iter().any(|l| l.uri == consumer),
+            "itcl class-proc must not gain phantom two-word dispatch: {refs:?}"
+        );
     }
 
     #[tokio::test]
@@ -19137,6 +20278,7 @@ mod tests {
                 "tcl8.6",
                 "::Animal",
                 "speak",
+                false,
             )
             .await;
         assert!(

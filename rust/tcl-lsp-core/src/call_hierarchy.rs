@@ -33,13 +33,19 @@
 //!
 //! Class-method edges are computed differently: the analyser's
 //! `command_invocations` collection only records top-level
-//! invocations, so method bodies are re-segmented on demand via
-//! [`tcl_compiler::segmenter::segment_commands_with_offset`] —
-//! the same strategy the rename / references / code-lens
-//! class-member walks use.  A method item is identified by the
-//! synthetic name `<class-qualified-name>::<method-name>` (e.g.
-//! `::C::greet`); intra-class calls match on the bare method
-//! name.
+//! invocations, so method bodies are re-segmented on demand.  A
+//! method item is identified by the synthetic name
+//! `<class-qualified-name>::<method-name>` (e.g. `::C::greet`);
+//! intra-class calls match through
+//! [`crate::references::scan_my_method_sites`] — a `TclOO` method is
+//! never a bare-callable command (`greet` alone errors "invalid
+//! command name"; only `my greet` dispatches), so this is the same
+//! `my`-aware, control-flow-recursing matcher Find-References / rename
+//! / the code lens use (issue #957's general form), not a bare-head
+//! comparison.  Plain proc calls inside a method body — genuinely
+//! bare-headed — still use
+//! [`tcl_compiler::segmenter::segment_commands_with_offset`] directly
+//! via [`segment_body_calls`].
 //!
 //! The in-document computations above need no workspace index.
 //! Cross-document edges are layered on top by the server: it
@@ -48,6 +54,26 @@
 //! resolve sibling-file definitions, and runs
 //! [`incoming_calls_for_target`] over each other document to find
 //! sibling-file call sites.
+//!
+//! Scope: method edges are intra-class `my <method>` dispatch only. A
+//! `next` / `nextto` super-dispatch is not a call-hierarchy edge (it *is*
+//! a reference — see [`crate::references::method_next_dispatch_spans`] —
+//! but attributing it a call-graph direction is a distinct question this
+//! provider doesn't yet answer). An external `$obj method` site (a
+//! different class or document dispatching in) is likewise not an
+//! incoming edge here — that is [`crate::references::references`]'s
+//! concern, not this provider's.
+//!
+//! A `method` and a `classmethod` sharing a name (rare, but `TclOO` keeps
+//! them in independent tables, so it's legal) never collide: `my <word>`
+//! dispatch scope depends on which table the *caller's own body* belongs to
+//! (`self` is the class object inside a `classmethod`, the instance
+//! everywhere else — the two tables are never merged), so
+//! [`dispatch_reaches`] gates every incoming/outgoing edge by matching
+//! caller/callee kind, and [`resolve_method_item`] disambiguates a
+//! round-tripped item by its exact `selection_range` rather than a
+//! methods-first guess (mirroring [`find_proc_for_item`]'s same-named-proc
+//! disambiguation).
 
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, MethodDef, ProcDef};
 use tcl_lexer::LineIndex;
@@ -170,51 +196,104 @@ fn item_for_method(
     }
 }
 
+/// `true` when `offset` falls within `span` (inclusive of both ends — a
+/// cursor sitting right at either edge of a name token still counts).
+fn span_contains_offset(span: tcl_lexer::Span, offset: u32) -> bool {
+    span.start() <= offset && offset <= span.end()
+}
+
 /// Find the class + method whose body contains `cursor_offset`
 /// and whose method name matches `word`.  Searches `methods`
-/// then `class_methods`.
+/// then `class_methods` — except when `cursor_offset` sits inside a
+/// `classmethod`'s own declaration or body, in which case `class_methods`
+/// is tried first.
+///
+/// `my <word>` dispatch scope depends on *whose* body the cursor is
+/// currently inside: a classmethod's body runs with `self` bound to the
+/// class object (its own method table is `class_methods`); an ordinary
+/// method's / constructor's / destructor's body runs with `self` bound to
+/// the instance (`methods`) — the two tables are never merged (confirmed
+/// against tclsh 9.0.4, see
+/// [`tcl_compiler::analyser::diagnostics::var_command`]'s dispatch-scope
+/// note). Preferring whichever table the surrounding body belongs to
+/// resolves a name shared by both kinds (rare, but real) to the one
+/// actually reachable from the cursor's own scope.
 fn enclosing_class_method<'a>(
     analysis: &'a AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<(&'a ClassDef, &'a MethodDef)> {
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        if let Some(m) = class_def.methods.get(word) {
-            return Some((class_def, m));
-        }
-        if let Some(m) = class_def.class_methods.get(word) {
-            return Some((class_def, m));
-        }
+    let class_def = analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(
+            analysis,
+            cursor_offset,
+        )?)?;
+    let in_classmethod_territory = class_def.class_methods.values().any(|m| {
+        span_contains_offset(m.name_span, cursor_offset)
+            || span_contains_offset(m.body_span, cursor_offset)
+    });
+    if in_classmethod_territory && let Some(m) = class_def.class_methods.get(word) {
+        return Some((class_def, m));
+    }
+    if let Some(m) = class_def.methods.get(word) {
+        return Some((class_def, m));
+    }
+    if let Some(m) = class_def.class_methods.get(word) {
+        return Some((class_def, m));
     }
     None
 }
 
-/// Resolve a method item name (`<class-qual>::<method>`) back to
-/// its [`ClassDef`] + [`MethodDef`].  Splits on the final `::`.
+/// Resolve a call-hierarchy `item` back to its [`ClassDef`] + [`MethodDef`].
+///
+/// The item name is `<class-key>::<method>` — a construction; split it by
+/// the construction-inverse rule so a colon-bearing class key (or method
+/// name) survives (#934).  A method and a classmethod sharing a name (rare,
+/// but `TclOO` keeps them in independent tables, so it's legal) collide on
+/// this name alone, so disambiguate first by the item's exact
+/// `selection_range` — the declaration's name-token location, which
+/// round-trips through every incoming/outgoing-calls request — mirroring
+/// [`find_proc_for_item`]'s same-named-proc disambiguation.  Only falls back
+/// to the methods-first default when neither declaration's range lines up
+/// (a synthetic / hand-built item).
 fn resolve_method_item<'a>(
+    source: &str,
     analysis: &'a AnalysisResult,
-    item_name: &str,
+    item: &CallHierarchyItem,
+    line_index: &LineIndex,
 ) -> Option<(&'a ClassDef, &'a MethodDef)> {
-    // The item name is `<class-key>::<method>` — a construction; split it by
-    // the construction-inverse rule so a colon-bearing class key (or method
-    // name) survives (#934).
-    let (class_q, method_name) = tcl_syntax::naming::key_holder_and_tail(item_name);
-    if class_q.is_empty() && method_name.len() == item_name.len() {
+    let (class_q, method_name) = tcl_syntax::naming::key_holder_and_tail(&item.name);
+    if class_q.is_empty() && method_name.len() == item.name.len() {
         return None;
     }
     let class_def = analysis
         .all_classes
         .values()
         .find(|c| c.qualified_name == class_q)?;
-    let method = class_def
-        .methods
-        .get(method_name)
+    let by_range = [
+        class_def.methods.get(method_name),
+        class_def.class_methods.get(method_name),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|m| span_to_range(source, line_index, m.name_span) == item.selection_range);
+    let method = by_range
+        .or_else(|| class_def.methods.get(method_name))
         .or_else(|| class_def.class_methods.get(method_name))?;
     Some((class_def, method))
+}
+
+/// Whether `my <word>` dispatch from a body of kind `caller_kind` can reach
+/// a member of kind `target_kind`.  `self` is the class object inside a
+/// `classmethod` body (its own method table is `class_methods`) and the
+/// instance everywhere else — a `method` / `forward` / `constructor` /
+/// `destructor` body all run with `self` bound to the instance (`methods`)
+/// — so the two tables never merge (confirmed against tclsh 9.0.4, see
+/// [`tcl_compiler::analyser::diagnostics::var_command`]'s dispatch-scope
+/// note).
+fn dispatch_reaches(caller_kind: &str, target_kind: &str) -> bool {
+    (caller_kind == "classmethod") == (target_kind == "classmethod")
 }
 
 /// Re-segment a method body and return `(head_word, head_span)`
@@ -439,7 +518,13 @@ pub fn unresolved_outgoing_calls(
 
 /// Method-body variant of [`unresolved_outgoing_calls`]: keeps
 /// the call sites inside a class method that name neither a
-/// sibling method nor a local top-level proc.
+/// local top-level proc nor a `TclOO` dispatch keyword.
+///
+/// A bare head matching a *sibling method* name is **not** excluded here —
+/// unlike a proc, a method is never a bare-callable command (`greet` alone
+/// errors "invalid command name"; only `my greet` dispatches), so a bare
+/// `greet` site names no real target and is correctly surfaced as
+/// unresolved, not silently treated as if it had resolved to the method.
 fn unresolved_method_outgoing_calls(
     source: &str,
     dialect: &str,
@@ -447,14 +532,18 @@ fn unresolved_method_outgoing_calls(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Vec<UnresolvedOutgoingCall> {
-    let Some((class_def, source_method)) = resolve_method_item(analysis, &item.name) else {
+    let Some((class_def, source_method)) = resolve_method_item(source, analysis, item, line_index)
+    else {
         return Vec::new();
     };
     let mut by_head: std::collections::BTreeMap<String, Vec<LspRange>> =
         std::collections::BTreeMap::new();
     for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        // Sibling method?
-        if class_def.methods.contains_key(&head) || class_def.class_methods.contains_key(&head) {
+        // `my` / `next` / `nextto` are `TclOO` dispatch keywords, not
+        // unresolved command references — the actual dispatch target (the
+        // word *after* `my`) is handled by `method_outgoing_calls`'s
+        // `scan_my_method_sites` pass, never by this bare-head scan.
+        if matches!(head.as_str(), "my" | "next" | "nextto") {
             continue;
         }
         // Local top-level proc?  Resolved from the class's namespace (a
@@ -635,10 +724,15 @@ pub fn outgoing_calls(
         .collect()
 }
 
-/// Incoming calls for a class method — every call site naming
-/// the method inside any sibling method body, grouped by the
-/// enclosing method.  Intra-class calls match on the bare
-/// method name.
+/// Incoming calls for a class method — every `my <method>` dispatch site
+/// inside any sibling method body, grouped by the enclosing method.
+///
+/// Intra-class dispatch of a `TclOO` method is `my <method>`, never a bare
+/// `<method>` call (a method is not a command in the body's namespace — a
+/// bare head errors "invalid command name" at runtime), so this matches
+/// through [`crate::references::scan_my_method_sites`] — the same
+/// control-flow-recursing matcher Find-References / rename / the code lens
+/// use (issue #957's general form) — rather than comparing a bare head.
 fn method_incoming_calls(
     source: &str,
     dialect: &str,
@@ -646,29 +740,38 @@ fn method_incoming_calls(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Vec<IncomingCall> {
-    let Some((class_def, target_method)) = resolve_method_item(analysis, &item.name) else {
+    let Some((class_def, target_method)) = resolve_method_item(source, analysis, item, line_index)
+    else {
         return Vec::new();
     };
     let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
     for caller in class_methods_iter(class_def) {
-        for (head, span) in segment_body_calls(source, dialect, caller.body_span) {
-            if head != target_method.name {
-                continue;
-            }
-            // Skip the declaration site itself.
-            if span == target_method.name_span {
-                continue;
-            }
-            let key = method_item_name(class_def, caller);
-            let entry = by_caller.entry(key).or_insert_with(|| {
-                (
-                    item_for_method(source, class_def, caller, line_index),
-                    Vec::new(),
-                )
-            });
-            entry.1.push(span_to_range(source, line_index, span));
+        if !dispatch_reaches(&caller.kind, &target_method.kind) {
+            continue;
         }
+        let spans = crate::references::scan_my_method_sites(
+            source,
+            dialect,
+            &[caller.body_span],
+            &target_method.name,
+            Some(target_method.name_span),
+        );
+        if spans.is_empty() {
+            continue;
+        }
+        let key = method_item_name(class_def, caller);
+        let entry = by_caller.entry(key).or_insert_with(|| {
+            (
+                item_for_method(source, class_def, caller, line_index),
+                Vec::new(),
+            )
+        });
+        entry.1.extend(
+            spans
+                .into_iter()
+                .map(|s| span_to_range(source, line_index, s)),
+        );
     }
     by_caller
         .into_values()
@@ -676,9 +779,19 @@ fn method_incoming_calls(
         .collect()
 }
 
-/// Outgoing calls from a class method — every call site inside
-/// the method's body that names a sibling method (→ method
-/// item) or a top-level user proc (→ proc item).
+/// Outgoing calls from a class method — every `my <method>` dispatch site
+/// inside the method's body that names a sibling method (→ method item),
+/// plus every bare-headed call to a top-level user proc (→ proc item).
+///
+/// The sibling-method half matches through
+/// [`crate::references::scan_my_method_sites`] (the same matcher
+/// Find-References / rename / the code lens use — issue #957's general
+/// form): a bare `<method>` call is never a valid `TclOO` dispatch (it
+/// errors "invalid command name" at runtime), so bare-head comparison
+/// against a sibling method name would never match real code.  The proc
+/// half keeps bare-head matching — an ordinary proc call genuinely is
+/// bare-headed — but skips `my` / `next` / `nextto` heads so a `TclOO`
+/// dispatch keyword is never misread as a proc-call attempt.
 fn method_outgoing_calls(
     source: &str,
     dialect: &str,
@@ -686,36 +799,49 @@ fn method_outgoing_calls(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Vec<OutgoingCall> {
-    let Some((class_def, source_method)) = resolve_method_item(analysis, &item.name) else {
+    let Some((class_def, source_method)) = resolve_method_item(source, analysis, item, line_index)
+    else {
         return Vec::new();
     };
     let mut by_target: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
+    for callee in class_methods_iter(class_def) {
+        if !dispatch_reaches(&source_method.kind, &callee.kind) {
+            continue;
+        }
+        let spans = crate::references::scan_my_method_sites(
+            source,
+            dialect,
+            &[source_method.body_span],
+            &callee.name,
+            None,
+        );
+        if spans.is_empty() {
+            continue;
+        }
+        let key = method_item_name(class_def, callee);
+        let entry = by_target.entry(key).or_insert_with(|| {
+            (
+                item_for_method(source, class_def, callee, line_index),
+                Vec::new(),
+            )
+        });
+        entry.1.extend(
+            spans
+                .into_iter()
+                .map(|s| span_to_range(source, line_index, s)),
+        );
+    }
+    let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
     for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        let range = span_to_range(source, line_index, span);
-        // Sibling method?
-        if let Some(callee) = class_def
-            .methods
-            .get(&head)
-            .or_else(|| class_def.class_methods.get(&head))
-        {
-            // Skip self-recursion's own declaration site only;
-            // recursive calls are legitimate outgoing edges.
-            let key = method_item_name(class_def, callee);
-            let entry = by_target.entry(key).or_insert_with(|| {
-                (
-                    item_for_method(source, class_def, callee, line_index),
-                    Vec::new(),
-                )
-            });
-            entry.1.push(range);
+        if matches!(head.as_str(), "my" | "next" | "nextto") {
             continue;
         }
         // Top-level user proc?  Resolved from the class's namespace (a
-        // method body's commands resolve there) — the former first-hit
-        // `p.name == head` scan could edge the hierarchy to an arbitrary
+        // method body's commands resolve there) — a deterministic
+        // simple-name fallback, never a namespace-blind `p.name == head`
+        // first-hit scan that could edge the hierarchy to an arbitrary
         // same-named proc in an unrelated namespace.
-        let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
         if let Some(proc_def) =
             crate::definition::resolve_called_proc(analysis, source, class_ns, &head, None)
         {
@@ -726,7 +852,7 @@ fn method_outgoing_calls(
                     Vec::new(),
                 )
             });
-            entry.1.push(range);
+            entry.1.push(span_to_range(source, line_index, span));
         }
     }
     by_target
@@ -938,7 +1064,7 @@ mod tests {
 
     #[test]
     fn prepare_resolves_method_at_cursor() {
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1, col 11).
         let items = prepare(src, 1, 11, &analysis);
@@ -946,9 +1072,15 @@ mod tests {
         assert_eq!(items[0].name, "::C::greet");
     }
 
+    /// Regression: a bare `greet` call (no `my`) is not valid `TclOO`
+    /// dispatch — it errors "invalid command name" at runtime (confirmed
+    /// against tclsh 9.0.4 elsewhere in this crate, e.g.
+    /// `references::tests::fp_bare_head_is_not_a_call`) — so intra-class
+    /// incoming/outgoing method calls must match `my <method>`
+    /// (issue #957's general form), never a bare head.
     #[test]
     fn incoming_calls_for_method_grouped_by_caller_method() {
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         let items = prepare(src, 1, 11, &analysis);
         let incoming = incoming_calls(src, "tcl", &items[0], &analysis);
@@ -958,9 +1090,69 @@ mod tests {
         assert_eq!(incoming[0].from_ranges.len(), 2, "{incoming:?}");
     }
 
+    /// FP guard: a bare `greet` call inside a sibling method is *not* a
+    /// `TclOO` dispatch (unlike a plain proc, a method is never a
+    /// bare-callable command), so it must not be counted as an incoming
+    /// call — the previous bare-head matcher would have (wrongly) found
+    /// this, while missing the one real (`my`-prefixed) shape entirely.
+    #[test]
+    fn incoming_calls_excludes_bare_head_that_is_not_valid_tcl() {
+        let src =
+            "oo::class create C {\n    method greet {} {}\n    method twice {} { greet }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 11, &analysis);
+        let incoming = incoming_calls(src, "tcl", &items[0], &analysis);
+        assert!(incoming.is_empty(), "{incoming:?}");
+    }
+
+    /// Regression: `prepare()` must resolve the *classmethod* when the
+    /// cursor sits on its own declaration, even though a same-named
+    /// instance method exists in the same class — the previous
+    /// methods-first lookup ignored where the cursor actually was and would
+    /// have silently returned the instance method's item instead.
+    #[test]
+    fn prepare_resolves_classmethod_over_same_named_method_by_cursor() {
+        let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the *classmethod* declaration (line 2, col 16).
+        let items = prepare(src, 2, 16, &analysis);
+        assert_eq!(items.len(), 1, "{items:?}");
+        assert_eq!(
+            items[0].detail.as_deref(),
+            Some("classmethod of ::C (0 params)"),
+            "{items:?}"
+        );
+    }
+
+    /// Regression: a `method` and a `classmethod` sharing a name (rare, but
+    /// `TclOO` keeps them in independent tables, so it's legal) must not
+    /// collide. `my greet` dispatched from an ordinary method's body can
+    /// only reach the *instance* method `greet` — never the classmethod of
+    /// the same name, since `self` inside an instance method is the
+    /// instance, whose method table never includes classmethods.
+    /// Previously `class_methods_iter` matched both by name alone, which
+    /// double-counted the single real call site under one item key.
+    #[test]
+    fn outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name() {
+        let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n    method twice {} { my greet }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 3, 11, &analysis);
+        assert_eq!(items[0].name, "::C::twice");
+        let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
+        assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+        assert_eq!(
+            outgoing[0].from_ranges.len(),
+            1,
+            "must not double-count the single `my greet` site: {outgoing:?}"
+        );
+        // The resolved item is the instance method (line 1), not the
+        // classmethod (line 2).
+        assert_eq!(outgoing[0].to.selection_range.start_line, 1, "{outgoing:?}");
+    }
+
     #[test]
     fn outgoing_calls_from_method_to_sibling_method() {
-        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         // Resolve the `twice` method (line 2, col 11).
         let items = prepare(src, 2, 11, &analysis);
@@ -970,6 +1162,38 @@ mod tests {
         assert_eq!(names, vec!["::C::greet"], "{outgoing:?}");
         // Two call sites collapse into one target entry.
         assert_eq!(outgoing[0].from_ranges.len(), 2, "{outgoing:?}");
+    }
+
+    /// FN→TP (issue #957's general form): a `my method` dispatch nested
+    /// inside `if` / `foreach` / `switch` control flow is an outgoing call
+    /// too — `scan_my_method_sites` recurses generically via the
+    /// registry's `Plain`-`BodyKind` body roles, so call hierarchy inherits
+    /// the same coverage Find-References / rename / the code lens gained.
+    #[test]
+    fn outgoing_calls_from_method_nested_in_control_flow() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} {\n        if {1} {\n            switch -- 1 {\n                default {\n                    my greet\n                }\n            }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 2, 11, &analysis);
+        assert_eq!(items[0].name, "::C::twice");
+        let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
+        let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert_eq!(names, vec!["::C::greet"], "{outgoing:?}");
+    }
+
+    /// FN→TP (issue #957's general form): a `my method` dispatch nested
+    /// inside control flow is an *incoming* call edge too, mirroring
+    /// `outgoing_calls_from_method_nested_in_control_flow` — previously
+    /// verified only via a VS Code integration test, never at the Rust
+    /// unit level.
+    #[test]
+    fn incoming_calls_for_method_nested_in_control_flow() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} {\n        if {1} {\n            switch -- 1 {\n                default {\n                    my greet\n                }\n            }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 11, &analysis);
+        assert_eq!(items[0].name, "::C::greet");
+        let incoming = incoming_calls(src, "tcl", &items[0], &analysis);
+        assert_eq!(incoming.len(), 1, "{incoming:?}");
+        assert_eq!(incoming[0].from.name, "::C::twice", "{incoming:?}");
     }
 
     #[test]
@@ -982,6 +1206,20 @@ mod tests {
         let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["helper"], "{outgoing:?}");
+    }
+
+    /// Regression: a `my <method>` dispatch inside a method body must not
+    /// leak "my" itself into the unresolved-outgoing-calls list — `my` is
+    /// a `TclOO` dispatch keyword, not an unresolved command reference.
+    #[test]
+    fn unresolved_method_outgoing_calls_excludes_my_keyword() {
+        let src =
+            "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 2, 11, &analysis);
+        assert_eq!(items[0].name, "::C::twice");
+        let unresolved = unresolved_outgoing_calls(src, "tcl", &items[0], &analysis);
+        assert!(unresolved.iter().all(|u| u.name != "my"), "{unresolved:?}");
     }
 
     // workspace-index: cross-document incoming calls

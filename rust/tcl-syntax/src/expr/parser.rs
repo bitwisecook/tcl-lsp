@@ -572,6 +572,34 @@ mod tests {
         parse_expr(s, Some("f5-irules"))
     }
 
+    /// Drift guard for this module's own `binop_from_text`/`unaryop_from_text`
+    /// — a same-crate duplicate of `operators.rs`'s `BinOp`/`UnaryOp` ↔
+    /// spelling mapping (`as_str()`, `ALL_BIN_OPS`/`ALL_UNARY_OPS`), with no
+    /// dependency-direction excuse for the duplication. Proves the parser's
+    /// reverse lookup agrees with the canonical spelling for every variant,
+    /// in both directions.
+    #[test]
+    fn binop_and_unaryop_from_text_agree_with_operators_rs_for_every_variant() {
+        use crate::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+
+        for &op in ALL_BIN_OPS {
+            let spelling = op.as_str();
+            assert_eq!(
+                binop_from_text(spelling),
+                Some(op),
+                "binop_from_text({spelling:?}) should round-trip to {op:?}"
+            );
+        }
+        for &op in ALL_UNARY_OPS {
+            let spelling = op.as_str();
+            assert_eq!(
+                unaryop_from_text(spelling),
+                Some(op),
+                "unaryop_from_text({spelling:?}) should round-trip to {op:?}"
+            );
+        }
+    }
+
     // Adversarial nesting — must not overflow the stack
 
     #[test]

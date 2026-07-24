@@ -28,21 +28,42 @@
 //!
 //! Tower-gated like `expr`. Semantics verified against tclsh 9.0.
 
+use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
 use tcl_syntax::naming::qualifier_segments;
 
 use crate::expr::Owned;
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
-/// Every operator spelling, registered as `::tcl::mathop::<op>`.
-const MATHOPS: &[&str] = &[
-    "~", "!", "+", "-", "*", "/", "%", "**", "&", "|", "^", "<<", ">>", "==", "!=", "<", "<=", ">",
-    ">=", "eq", "ne", "lt", "le", "gt", "ge", "in", "ni",
-];
+/// Every operator spelling with a `::tcl::mathop` command form — derived from
+/// `tcl_syntax::expr::operators`, the single source of truth for which
+/// operators exist and whether they have a mathop command form at all
+/// (issue #983's registry/runtime convergence: this used to be a hand-typed
+/// list that could silently drift from the operator grammar it mirrors).
+///
+/// `BinOp`/`UnaryOp` share a spelling for `-`/`+` (`Sub`/`Neg`, `Add`/`Pos`) —
+/// one command handles both the fold and the single-argument reading, so the
+/// binary pass alone already covers them; the unary pass only contributes
+/// truly unary-only spellings (`~`, `!`).
+fn mathop_names() -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = ALL_BIN_OPS
+        .iter()
+        .filter_map(|op| op.spec().mathop_shape.map(|_| op.spec().spelling))
+        .collect();
+    for op in ALL_UNARY_OPS {
+        if op.spec().mathop_shape.is_some() {
+            let spelling = op.spec().spelling;
+            if !names.contains(&spelling) {
+                names.push(spelling);
+            }
+        }
+    }
+    names
+}
 
 /// Register `::tcl::mathop::*`.
 pub fn install(interp: &mut Interp) {
-    for op in MATHOPS {
+    for op in mathop_names() {
         let mut full = b"::tcl::mathop::".to_vec();
         full.extend_from_slice(op.as_bytes());
         interp.register_builtin(&full, mathop);

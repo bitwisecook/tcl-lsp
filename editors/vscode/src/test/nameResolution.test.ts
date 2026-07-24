@@ -181,6 +181,29 @@ suite("Name resolution matrix (issues #954-#958)", () => {
     );
   });
 
+  // ── #957 (general form) — `my method` nested in control flow ───────────
+  test("#957 TP: `my method` nested in if/foreach/switch is a reference and the lens counts it", async () => {
+    const uri = getDocUri("myMethodDispatchControlFlow.tcl");
+    await activate(uri);
+    // `method getOptions` — cursor inside `getOptions` on line 1 (col 11).
+    const position = new vscode.Position(1, 11);
+    const locations = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeReferenceProvider", uri, position),
+      (r) => Array.isArray(r) && (r as vscode.Location[]).length >= 4,
+      { timeout: 10_000, label: "references for my method nested in control flow" },
+    )) as vscode.Location[];
+    const lines = new Set(locations.map((l) => l.range.start.line));
+    assert.ok(
+      lines.has(1) && lines.has(4) && lines.has(9) && lines.has(15),
+      `#957 (general form): decl + if/foreach/switch-nested dispatch, got ${[...lines]}`,
+    );
+    assert.strictEqual(
+      await lensTitleOnLine(uri, 1),
+      "3 references",
+      "#957 (general form): lens counts all three nested dispatches",
+    );
+  });
+
   // ── #958 — `::tcl::mathfunc` expr functions ────────────────────────────
   test("#958 TP: an expr math-function application is a reference to its proc", async () => {
     const uri = getDocUri("mathfunc.tcl");

@@ -84,17 +84,30 @@ fn token_type_of(lsp: &mut Lsp, uri: &str, src: &str, needle: &str) -> Option<St
         .map(|t| legend[usize::try_from(t.ttype).unwrap()].clone())
 }
 
-/// The reference-count lens title anchored on `line` (member lenses carry an
-/// eager `command.title`).
+/// The reference-count lens title anchored on `line`, resolved.  Since
+/// issue #956, a method / classmethod lens resolves lazily the same way a
+/// proc/class lens does (range + `data`, no `command` until
+/// `codeLens/resolve`), so the raw listing has no `command.title` for a
+/// caller to read directly.
 fn member_lens_title(lsp: &mut Lsp, uri: &str, line: i64) -> Option<String> {
     let ls = match lsp.code_lens(uri) {
         Value::Array(a) => a,
         _ => Vec::new(),
     };
-    ls.iter()
-        .find(|l| l["range"]["start"]["line"].as_i64() == Some(line))
-        .and_then(|l| l["command"]["title"].as_str())
-        .map(str::to_owned)
+    let lens = ls
+        .iter()
+        .find(|l| l["range"]["start"]["line"].as_i64() == Some(line))?
+        .clone();
+    let resolved = lsp.code_lens_resolve(lens);
+    // Every lens this server emits resolves to a real, clickable command
+    // (issue #956 — a member lens must never stay inert with an empty
+    // command id).
+    assert_ne!(
+        resolved["command"]["command"].as_str(),
+        Some(""),
+        "lens at line {line} resolved to an inert empty command id: {resolved:?}"
+    );
+    resolved["command"]["title"].as_str().map(str::to_owned)
 }
 
 /// Whether any diagnostic carries the string `code` (W-codes are strings).
@@ -250,6 +263,72 @@ mod my_method_dispatch {
             "oo::class create C {\n    method getOptions {k} { return $k }\n    method other {k} { return $k }\n    method run {} { my other 1 }\n}\n",
         );
         // `getOptions` has no dispatch — the lens reads zero.
+        assert_eq!(
+            member_lens_title(&mut lsp, &uri, 1).as_deref(),
+            Some("0 references")
+        );
+    }
+
+    /// FN→TP: the *exact* shape from the reopened issue #957 report —
+    /// `variable`, a `constructor {args}`, and `getOptions`'s own body doing
+    /// `[dict get $_options $key]` (its own nested command substitution) —
+    /// none of which should perturb the `my getOptions` dispatch inside
+    /// `get`'s `return [ … ]`.  This is the literal reporter repro, kept
+    /// as its own regression test distinct from the minimal shapes above.
+    #[test]
+    fn tp_original_issue_957_repro_reference_and_lens() {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        lsp.open_ready(
+            &uri,
+            "oo::class create Bar957Repro {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n    method getOptions {key} {\n        return [dict get $_options $key]\n    }\n    method get {key} {\n        return [my getOptions $key]\n    }\n\n}\nset b [Bar957Repro new]\n",
+        );
+        // `getOptions` declares on line 5; `get`'s `my getOptions` call is
+        // line 9.
+        let lines = start_lines(&lsp.references(&uri, 5, 11, true));
+        assert!(lines.contains(&5) && lines.contains(&9), "{lines:?}");
+        assert_eq!(
+            member_lens_title(&mut lsp, &uri, 5).as_deref(),
+            Some("1 reference")
+        );
+    }
+
+    /// FN→TP (issue #957's general form): a `my method` dispatch nested
+    /// inside `if` / `foreach` / `while` / `switch` / `try` / `eval` bodies
+    /// — not just `return [ … ]` — is a reference and is counted by the
+    /// lens.  The previous fix (cb10e7c9) only added `[...]`
+    /// command-substitution recursion; this is the control-flow-nested
+    /// shape that was still missed.
+    #[test]
+    fn tp_my_dispatch_nested_in_control_flow_reference_and_lens() {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        lsp.open_ready(
+            &uri,
+            "oo::class create Bar957Ctrl {\n    method getOptions {key} { return $key }\n    method get {key} {\n        if {1} {\n            my getOptions $key\n        }\n    }\n    method get2 {key} {\n        foreach k $key {\n            my getOptions $k\n        }\n    }\n    method get3 {key} {\n        switch -- $key {\n            default {\n                my getOptions $key\n            }\n        }\n    }\n}\n",
+        );
+        let lines = start_lines(&lsp.references(&uri, 1, 11, true));
+        assert!(
+            lines.contains(&1) && lines.contains(&4) && lines.contains(&9) && lines.contains(&15),
+            "{lines:?}"
+        );
+        assert_eq!(
+            member_lens_title(&mut lsp, &uri, 1).as_deref(),
+            Some("3 references")
+        );
+    }
+
+    /// FP guard: a control-flow-nested `my other` must not count as a
+    /// reference to `getOptions` — the recursion must not blur distinct
+    /// method names together.
+    #[test]
+    fn fp_control_flow_nested_other_method_not_counted() {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        lsp.open_ready(
+            &uri,
+            "oo::class create C957Fp {\n    method getOptions {k} { return $k }\n    method other {k} { return $k }\n    method run {k} {\n        if {1} {\n            switch -- $k {\n                default {\n                    my other $k\n                }\n            }\n        }\n    }\n}\n",
+        );
         assert_eq!(
             member_lens_title(&mut lsp, &uri, 1).as_deref(),
             Some("0 references")

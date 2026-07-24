@@ -102,6 +102,7 @@ pub mod connection_scope;
 pub mod dataflow_graph;
 pub mod dead_stores;
 pub mod def_use;
+mod depth_guard;
 pub mod execution_intent;
 // The `expr` AST + Pratt parser now live in the shared `tcl-syntax` crate
 // (consumed by both the compiler and the runtime port). Re-exported under the
@@ -118,6 +119,7 @@ pub mod intervals;
 pub mod ir;
 pub mod ir_helpers;
 pub mod irules_checks;
+pub mod lambda_literal;
 mod lattice_rebase;
 pub use lattice_rebase::rebase_script;
 pub mod loops;

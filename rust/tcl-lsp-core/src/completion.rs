@@ -379,9 +379,11 @@ fn context_aware_completions(
         if let Some((recv, is_dollar)) = receiver
             && let Some(class_q) =
                 crate::definition::receiver_instance_class(analysis, &recv, is_dollar)
-            && let Some(items) = method_completions(analysis, registry, class_q, partial)
         {
-            return Some(items);
+            let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
+            if let Some(items) = method_completions(analysis, registry, class_q, bucket, partial) {
+                return Some(items);
+            }
         }
     }
 
@@ -1186,9 +1188,10 @@ fn method_completions(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     class_q: &str,
+    bucket: crate::definition::MethodBucket,
     partial: &str,
 ) -> Option<Vec<CompletionItem>> {
-    let all = method_items(analysis, Some(registry), class_q)?;
+    let all = method_items(analysis, Some(registry), class_q, bucket)?;
     let FilteredCandidates {
         candidates: items,
         fuzzy,
@@ -1196,20 +1199,33 @@ fn method_completions(
     (!fuzzy && !items.is_empty()).then_some(items)
 }
 
-/// Every method item callable on an instance of `class_q` (label-sorted) —
-/// gathered across the whole MRO so **inherited** methods appear, not just
-/// the receiver class's own.  Overridden methods appear once (the
-/// most-derived provider wins).  Only public methods plus the universal
-/// `destroy` are offered (an external `$obj method` dispatch cannot reach
-/// private / unexported methods).  A class unknown to the analysis falls
-/// through to the registry (`ObjectClassSpec` / a self-referential Tk
-/// widget spec — issue #927).  The candidate universe behind
-/// [`method_completions`] and [`fuzzy_command_fallback`].
+/// Every method item callable on `class_q` in the given `bucket`
+/// (label-sorted) — gathered across the whole MRO so **inherited** methods
+/// appear, not just the receiver class's own.  Overridden methods appear
+/// once (the most-derived provider wins).  Only public methods are
+/// offered (an external dispatch cannot reach private / unexported ones);
+/// `destroy` is added as a universal instance method.  A class unknown to
+/// the analysis falls through to the registry (`ObjectClassSpec` / a
+/// self-referential Tk widget spec — issue #927), which models no
+/// class/instance distinction, so `bucket` is moot there.  The candidate
+/// universe behind [`method_completions`] and [`fuzzy_command_fallback`].
+///
+/// Instance dispatch (`$obj method` / a bound `CLASS create NAME` command
+/// — [`MethodBucket::Instance`]) reaches *instance* methods only.
+/// Class-command dispatch (`CLASS method`, issue #923 idx 120 —
+/// [`MethodBucket::Class`]) reaches class-side methods only, and an
+/// ancestor-provided `self method` (not `ooutil`'s `classmethod`, which
+/// does propagate — see [`crate::definition::MethodBucket`]'s doc) only
+/// from the exact class that declared it.  Each bucket excludes the
+/// other's methods to avoid suggesting one that would error at the
+/// receiver's dispatch site.
 fn method_items(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
     class_q: &str,
+    bucket: crate::definition::MethodBucket,
 ) -> Option<Vec<CompletionItem>> {
+    use crate::definition::MethodBucket;
     if !analysis.all_classes.contains_key(class_q) {
         return registry_method_items(registry?, class_q);
     }
@@ -1225,13 +1241,16 @@ fn method_items(
         let Some(cd) = analysis.all_classes.get(cls) else {
             continue;
         };
-        // Instance dispatch (`$obj method`) reaches *instance* methods only.
-        // Class-side methods (`self method` / classmethod) are callable on
-        // the class command, not the instance command — so they are excluded
-        // here to avoid suggesting methods that would error on `$obj`.
-        let mut methods: Vec<(&String, &str)> = cd
-            .methods
-            .iter()
+        let bucketed: Vec<(&String, &tcl_compiler::analyser::MethodDef)> = match bucket {
+            MethodBucket::Instance => cd.methods.iter().collect(),
+            MethodBucket::Class => cd
+                .class_methods
+                .iter()
+                .filter(|(_, m)| cls.as_str() == class_q || !m.is_self_method)
+                .collect(),
+        };
+        let mut methods: Vec<(&String, &str)> = bucketed
+            .into_iter()
             .filter(|(_, m)| m.visibility == "public")
             .map(|(n, _)| (n, cls.as_str()))
             .collect();
@@ -1254,8 +1273,9 @@ fn method_items(
             });
         }
     }
-    // The universal object method (present on every object).
-    if seen.insert("destroy".to_string()) {
+    // The universal object method (present on every instance, never on a
+    // class command).
+    if bucket == MethodBucket::Instance && seen.insert("destroy".to_string()) {
         items.push(CompletionItem {
             label: "destroy".to_string(),
             insert_text: "destroy".to_string(),
@@ -1660,11 +1680,6 @@ fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Ve
     items
 }
 
-/// Math operators that the registry registers as commands
-/// (Tcl 9's `tcl::mathop` exposes them as commands) but that
-/// don't make sense as completion items at a command position.
-const SKIP_BUILTIN_NAMES: &[&str] = &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="];
-
 /// Map a usage count to its sort bucket (lower is better).
 fn usage_bucket(count: usize) -> u8 {
     match count {
@@ -1725,7 +1740,12 @@ fn builtin_completions(
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
-        .filter(|n| !SKIP_BUILTIN_NAMES.iter().any(|skip| skip == n))
+        .filter(|n| {
+            !registry.get(n).is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::prelude::Traits::OPERATOR_COMMAND)
+            })
+        })
         .filter(|n| profile.resolve_command(registry, n).is_some())
         // Tk commands (`required_package == "Tk"`) are only offered once Tk
         // is loaded — see the `tk_loaded` computation in `completions` — and
@@ -1936,9 +1956,11 @@ fn fuzzy_command_fallback(
         if let Some((recv, is_dollar)) = receiver
             && let Some(class_q) =
                 crate::definition::receiver_instance_class(analysis, &recv, is_dollar)
-            && let Some(methods) = method_items(analysis, registry, class_q)
         {
-            universe.extend(methods);
+            let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
+            if let Some(methods) = method_items(analysis, registry, class_q, bucket) {
+                universe.extend(methods);
+            }
         }
     }
     universe.extend(proc_completions(analysis, "", &usage));
@@ -2356,6 +2378,25 @@ mod tests {
             assert!(
                 !labels.contains(op),
                 "math operator `{op}` should be filtered out; got {labels:?}",
+            );
+        }
+    }
+
+    /// Issue #986: `SKIP_BUILTIN_NAMES` only ever named the 10 symbolic
+    /// operators, so word-form mathop commands (`eq`/`ne`/`in`/`ni`, and the
+    /// 9.0+ `lt`/`le`/`gt`/`ge`) leaked through as completion suggestions —
+    /// a nonsensical "did you mean `eq`?" at a command position.
+    #[test]
+    fn builtin_completion_skips_word_form_operators() {
+        let src = "\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 0, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        for op in &["eq", "ne", "in", "ni", "lt", "le", "gt", "ge"] {
+            assert!(
+                !labels.contains(op),
+                "word-form operator `{op}` should be filtered out; got {labels:?}",
             );
         }
     }

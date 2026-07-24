@@ -74,8 +74,11 @@ const LIBS_TCL86_PLUS: &[LibraryPin] = &[
 /// The commands F5's TMM interpreter removes from iRules: the K36322151
 /// bans (file system, process, channel-config, event-loop, and
 /// introspection commands the data-plane sandbox strips) plus the
-/// project-modelled iRules-excluded internals (`tcl::build-info`,
-/// `tcl_findLibrary`, the regex-quote helpers).
+/// project-modelled iRules-excluded internals (`tcl_findLibrary`, the
+/// regex-quote helpers, and the legacy `opt` library package — it needs
+/// `package require`/`auto_load`, both banned below, so it can never
+/// actually load in the TMM sandbox even though its specs are universal
+/// data).
 ///
 /// This is the **subtractive** half of the iRules profile: the
 /// [`DialectProfile::availability_mask`] is the *bare* `IRULES` bit and every
@@ -94,9 +97,13 @@ const LIBS_TCL86_PLUS: &[LibraryPin] = &[
 /// that is version-gating on the pinned 8.4 base, a different axis. The
 /// math-operator heads are not here either: they are excluded by
 /// `Traits::OPERATOR_COMMAND` + [`DialectProfile::operators_as_commands`],
-/// a dialect *shape* fact, not a K36322151 ban.)
+/// a dialect *shape* fact, not a K36322151 ban. `tcl::build-info` and
+/// `::tcl::unsupported::corotype` used to live here too, but that was
+/// exactly this "version gating in the ban list" mistake the comment warns
+/// against — both are real per-spec `dialects` gates now (`TCL90_PLUS` /
+/// `TCL86_PLUS`), which already excludes the bare `IRULES` mask with no
+/// list entry needed.)
 const IRULES_DISABLED_COMMANDS: &[&str] = &[
-    "::tcl::build-info",
     "auto_execok",
     "auto_import",
     "auto_load",
@@ -136,7 +143,13 @@ const IRULES_DISABLED_COMMANDS: &[&str] = &[
     "seek",
     "socket",
     "source",
-    "tcl::build-info",
+    "tcl::OptKeyDelete",
+    "tcl::OptKeyError",
+    "tcl::OptKeyParse",
+    "tcl::OptKeyRegister",
+    "tcl::OptParse",
+    "tcl::OptProc",
+    "tcl::OptProcArgGiven",
     "tcl_findLibrary",
     "tell",
     "time",
@@ -665,7 +678,11 @@ static CATALOG: [DialectProfile; 16] = [
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_4),
         grammar: GRAMMAR_TCL84,
-        operators_as_commands: true,
+        // The `::tcl::mathop` operator-command heads (and the whole `::tcl::`
+        // namespace they live in) are TIP 174, added in Tcl 8.5 — plain 8.4
+        // has no `::tcl` namespace at all, so operators are never command
+        // heads there, matching iRules' embedded-8.4 reasoning (§9).
+        operators_as_commands: false,
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
@@ -1227,7 +1244,7 @@ mod tests {
         // commands — and the disable list must be present and sorted.
         let p = DialectProfile::irules();
         assert_eq!(p.availability_mask, DialectSet::IRULES);
-        assert_eq!(p.disabled_commands.len(), 50);
+        assert_eq!(p.disabled_commands.len(), 54);
         let mut sorted = p.disabled_commands.to_vec();
         sorted.sort_unstable();
         assert_eq!(p.disabled_commands, sorted.as_slice(), "list stays sorted");
@@ -1487,13 +1504,16 @@ mod tests {
     }
 
     #[test]
-    fn operators_are_commands_everywhere_but_irules() {
-        // §9: the math-operator heads exist in every command dialect except
-        // iRules (operators live only inside expr there). `tk` is a
-        // library pin, not a profile, so it does not appear here. f5-bigip
-        // has no command surface at all.
+    fn operators_are_commands_everywhere_but_irules_bigip_and_tcl84() {
+        // §9: the math-operator heads (`::tcl::mathop`, TIP 174) exist in
+        // every command dialect except iRules (operators live only inside
+        // expr there — an embedded-8.4 fact) and plain tcl8.4 (the
+        // `::tcl::` namespace itself is 8.5+, so 8.4 has the identical
+        // reasoning as iRules, just without a vendor bit to key off). `tk`
+        // is a library pin, not a profile, so it does not appear here.
+        // f5-bigip has no command surface at all.
         for p in all_with_fallback() {
-            let expected = !(p.is_irules() || p.name == "f5-bigip");
+            let expected = !(p.is_irules() || p.name == "f5-bigip" || p.name == "tcl8.4");
             assert_eq!(p.operators_as_commands, expected, "{}", p.name);
         }
     }

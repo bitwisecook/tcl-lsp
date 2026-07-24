@@ -190,7 +190,31 @@ pub fn infer_param_traits_deep_with_config(
     stub_overlay: Option<&StubOverlay>,
     config: LexerConfig,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
-    if params.is_empty() || body_source.trim().is_empty() {
+    infer_param_traits_deep_at_depth(params, body_source, registry, stub_overlay, config, 0)
+}
+
+/// [`infer_param_traits_deep_with_config`] with an explicit starting depth.
+///
+/// The public entry points always start at `0`; `scan_deep`'s own `apply`
+/// (`ArgRole::LambdaLiteral`) handling calls this with `depth + 1` instead
+/// of re-entering at `0`. A lambda body is inferred in its own frame (see
+/// the doc comment at that call site for why), but it is still lexically
+/// nested inside the enclosing scan — starting it back at depth `0` would
+/// let alternating `if {…} { apply {x {…}} … }` nesting reset the logical
+/// counter on every `apply`, defeating [`MAX_DEPTH`] while the *native*
+/// call stack keeps growing one `scan_deep` ↔
+/// `infer_param_traits_deep_at_depth` frame group per level regardless —
+/// the same "guard exists but doesn't cover every recursive edge" bug
+/// class as issue #996 / #997.
+fn infer_param_traits_deep_at_depth(
+    params: &[&str],
+    body_source: &str,
+    registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
+    config: LexerConfig,
+    depth: u8,
+) -> HashMap<String, HashSet<ProcArgTrait>> {
+    if params.is_empty() || body_source.trim().is_empty() || depth > MAX_DEPTH {
         return HashMap::new();
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
@@ -204,7 +228,7 @@ pub fn infer_param_traits_deep_with_config(
         stub_overlay,
         config,
     };
-    scan_deep(body_source, &ctx, &mut traits, &mut aliases, 0);
+    scan_deep(body_source, &ctx, &mut traits, &mut aliases, depth);
 
     finalise_traits(traits)
 }
@@ -427,6 +451,84 @@ fn scan_deep<'p>(
                 continue;
             }
             scan_deep(body_text, ctx, traits, aliases, depth + 1);
+        }
+
+        // `apply {argList body ?ns?} …` — an apply body runs in a *fresh*
+        // call frame with its own parameters; recursing into it with the
+        // enclosing proc's own `ctx`/`traits` (as a plain `Body` arg would)
+        // conflates the two frames. A lambda-local variable that happens to
+        // share a name with an enclosing param (`proc f {body} { apply {x
+        // {eval $body}} 1 }`) would wrongly mark `f`'s `body` param as
+        // evaluated, while the real forwarding case (`apply {x {eval $x}}
+        // $body`) would be missed entirely (codex review of #954's
+        // follow-up). Instead: infer the lambda's own traits in complete
+        // isolation — as if it were its own tiny proc — then propagate a
+        // lambda param's trait back onto an enclosing param only when the
+        // corresponding actual argument is a bare, unadorned reference to
+        // that enclosing param, i.e. only when the value genuinely flows
+        // from the caller's frame into the lambda's.
+        for idx in ctx
+            .registry
+            .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::LambdaLiteral)
+        {
+            let Some(&tok) = seg.argv.get(idx + 1) else {
+                continue;
+            };
+            if tok.kind != tcl_lexer::TokenType::Str {
+                continue;
+            }
+            let Some(elems) = crate::lambda_literal::split_lambda_literal(source, tok) else {
+                continue;
+            };
+            let Some(body_span) = elems.body else {
+                continue;
+            };
+            let Some(body_text) = source.get(body_span.start() as usize..body_span.end() as usize)
+            else {
+                continue;
+            };
+            if body_text.trim().is_empty() {
+                continue;
+            }
+            let Some(params_text) =
+                source.get(elems.params.start() as usize..elems.params.end() as usize)
+            else {
+                continue;
+            };
+            let lambda_param_defs = crate::signature_scan::params::parse_param_list(params_text);
+            let lambda_param_names: Vec<&str> =
+                lambda_param_defs.iter().map(|p| p.name.as_str()).collect();
+            if lambda_param_names.is_empty() {
+                continue;
+            }
+            let lambda_traits = infer_param_traits_deep_at_depth(
+                &lambda_param_names,
+                body_text,
+                ctx.registry,
+                ctx.stub_overlay,
+                ctx.config,
+                depth + 1,
+            );
+            if lambda_traits.is_empty() {
+                continue;
+            }
+            // Positional actual arguments following the lambda literal bind
+            // to `argList`'s names in order (`apply {argList body} a1 a2 …`).
+            for (param_name, actual) in lambda_param_names.iter().copied().zip(&cmd_args[idx + 1..])
+            {
+                let Some(outer_name) = extract_var_name(actual) else {
+                    continue;
+                };
+                let Some(outer_param) = ctx.param_set.get(outer_name).copied() else {
+                    continue;
+                };
+                if let Some(lambda_param_traits) = lambda_traits.get(param_name) {
+                    traits
+                        .entry(outer_param)
+                        .or_default()
+                        .extend(lambda_param_traits.iter().copied());
+                }
+            }
         }
     }
 }
@@ -1064,6 +1166,45 @@ mod tests {
         assert_trait(&traits, "body", ProcArgTrait::Eval);
     }
 
+    /// Issue #954's param-trait sibling gap: the *deep* pass
+    /// (`infer_param_traits_deep`, which alone recurses into braced body
+    /// arguments) must reach real commands *inside* an `apply` lambda body,
+    /// not misread the whole `{argList} {body}` blob as one script (which
+    /// would treat the parameter word as a command name and never find the
+    /// `eval` at all) — mirrors `overlay_deep_recurses_through_stub_body_args`,
+    /// swapping the registry-known `apply`/`LambdaLiteral` shape in for a
+    /// stub-declared `Body` shape. The lambda's own param is `x`, bound to
+    /// the literal `1` — an enclosing `body` param is neither the lambda's
+    /// param nor forwarded into the call, so it must record nothing (codex
+    /// review of #954's follow-up: a lambda body runs in a fresh frame, and
+    /// a same-named enclosing param is not implicitly in scope there).
+    #[test]
+    fn eval_inside_apply_lambda_body_does_not_leak_to_unrelated_enclosing_param() {
+        let registry = CommandRegistry::build_default();
+        let traits =
+            infer_param_traits_deep(&["body"], "apply {x {eval $body}} 1", &registry, None);
+        assert!(
+            !traits
+                .get("body")
+                .is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
+            "an apply lambda's fresh frame must not leak a same-named \
+             enclosing param's trait when that param is never forwarded \
+             into the call; got {traits:?}"
+        );
+    }
+
+    /// The real forwarding case: the lambda's own param `x` is `eval`'d
+    /// inside its body, and the enclosing `body` param is passed as the
+    /// actual argument that binds to `x` — so `body`'s value genuinely does
+    /// flow into an `eval`, and the trait must propagate back to it.
+    #[test]
+    fn eval_param_forwarded_into_apply_lambda_records_eval_trait() {
+        let registry = CommandRegistry::build_default();
+        let traits =
+            infer_param_traits_deep(&["body"], "apply {x {eval $x}} $body", &registry, None);
+        assert_trait(&traits, "body", ProcArgTrait::Eval);
+    }
+
     #[test]
     fn trait_inference_is_dialect_aware_via_expand_syntax() {
         // `extract_commands` / `scan_deep` re-segment under the document
@@ -1519,6 +1660,57 @@ mod tests {
                 .get("deep_var")
                 .is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
             "MAX_DEPTH bound should keep deeply-nested eval from being surfaced, got {deep:?}",
+        );
+    }
+
+    /// Same-bug-class regression as issue #996's own fix, in the sibling
+    /// walker the issue explicitly calls out (`param_traits.rs`): before
+    /// this fix, `scan_deep`'s `apply` (`ArgRole::LambdaLiteral`) handling
+    /// re-entered `infer_param_traits_deep_with_config` — the *public*,
+    /// depth-0 entry point — instead of threading its own `depth + 1`
+    /// through. Alternating `if {1} { apply {x {…}} … }` nesting therefore
+    /// reset the *logical* [`MAX_DEPTH`] counter back to 0 on every `apply`
+    /// boundary while the *native* Rust call stack (`scan_deep` ↔
+    /// `infer_param_traits_deep_at_depth`) kept growing one frame group per
+    /// level regardless of the reset — unboundedly, for however deep the
+    /// input alternates. `MAX_DEPTH` (8) never actually bit.
+    ///
+    /// 2000 alternating pairs (4000 real nesting levels) is far beyond
+    /// anything the old bypass would have tolerated on a small-stack
+    /// thread; this must terminate cleanly, not hang or overflow the
+    /// stack — the same rationale as the big-stack helpers in
+    /// `analyser::commands::tests` / `lowering::tests` (`cargo test`'s
+    /// per-test thread has the same undersized default stack that made
+    /// issue #996 reproduce in production).
+    #[test]
+    fn deep_pass_bounds_alternating_if_apply_nesting() {
+        const PAIRS: usize = 2000;
+        let mut body = String::from("puts leaf");
+        for _ in 0..PAIRS {
+            body = format!("if {{1}} {{ apply {{x {{ {body} }}}} 1 }}");
+        }
+        // With `depth` correctly threaded, an `if`/`apply` pair costs 2
+        // logical levels, so real recursion stops at MAX_DEPTH (8) — a
+        // handful of native frames regardless of PAIRS. This deliberately
+        // runs on the *default* test-thread stack (no big-stack wrapper,
+        // unlike the sibling tests in this file and in
+        // `commands::tests`/`lowering::tests`): if the reset bug ever comes
+        // back, real recursion runs all the way down through every one of
+        // PAIRS × 2 levels again — verified locally, reverting just the
+        // `depth + 1` fix below to `0` reliably overflows the stack and
+        // aborts the test process outright on this same (small,
+        // default-sized) thread, before the wall-clock assertion even gets
+        // a chance to run. The elapsed-time check below is a second,
+        // softer signal for the rare platform/build where the crash
+        // threshold happens to sit a little higher.
+        let registry = CommandRegistry::build_default();
+        let start = std::time::Instant::now();
+        let _ = infer_param_traits_deep(&["p"], &body, &registry, None);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_secs(2),
+            "took {elapsed:?} — alternating if/apply nesting is no longer bounded by \
+             MAX_DEPTH (reset-to-0 bypass regression?)"
         );
     }
 

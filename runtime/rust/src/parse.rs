@@ -51,6 +51,7 @@
 
 use std::borrow::Cow;
 
+use tcl_core_types::RecursionLimit;
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 
 /// How a word was delimited in the source.
@@ -186,6 +187,23 @@ fn scan_var_name(src: &[u8], start: usize) -> usize {
     p
 }
 
+/// Cap on `$name(index)` nesting depth [`scan_parts`] will recurse into while
+/// parsing an array-index expression's own substitution components. The
+/// index-parsing call is self-recursive with no natural bound —
+/// `$a($b($c(...)))` recurses one native-stack frame group per `(` — so
+/// pathologically deep/generated input (reachable via ordinary `subst`/word
+/// substitution, no special syntax needed) could otherwise abort the process
+/// with an uncatchable stack overflow (issue #996). Empirically, the same
+/// class of unguarded nested-array-index recursion overflowed the native
+/// stack (SIGABRT) between depth 100-150 on a 256 KiB stack, still crashing
+/// at depth 2000 on a 1 MiB stack (this crate's own sweep; see
+/// `tcl_lexer::lexer::MAX_ARRAY_INDEX_DEPTH`, which measured the same
+/// construct at the lexer layer and crashed in the same 20,000-25,000 range
+/// on a 2 MiB thread). 64 mirrors that constant: far past any array-index
+/// nesting real Tcl code uses, comfortably under every measured crash
+/// threshold above with room to spare for a smaller WASM host stack.
+const MAX_SCAN_PARTS_DEPTH: RecursionLimit = RecursionLimit(64);
+
 /// Decompose a span into substitution components, with each substitution kind
 /// independently enabled (`do_vars`/`do_cmds`/`do_bs` ↔ `subst`'s
 /// `-novariables`/`-nocommands`/`-nobackslashes`). Returns [`WordBody::Literal`]
@@ -195,6 +213,23 @@ fn scan_var_name(src: &[u8], start: usize) -> usize {
 /// [`crate::subst`]. Does **not** evaluate — `Variable`/`Command` parts carry
 /// spans for the eval loop (T1.3/T1.4) to resolve.
 pub fn scan_parts(src: &[u8], do_vars: bool, do_cmds: bool, do_bs: bool) -> WordBody<'_> {
+    scan_parts_at_depth(src, do_vars, do_cmds, do_bs, 0)
+}
+
+/// [`scan_parts`]'s implementation, threading the `$name(index)` nesting
+/// `depth` through the self-recursive index-parsing call — see
+/// [`MAX_SCAN_PARTS_DEPTH`]. Past the cap, a nested `$name(index)`'s index is
+/// no longer itself scanned for substitutions; it is kept as a literal text
+/// run instead (mirroring `tcl_lexer::lexer::scan_array_index_body`'s
+/// graceful degradation), so pathologically deep input degrades gracefully
+/// rather than recursing further.
+fn scan_parts_at_depth(
+    src: &[u8],
+    do_vars: bool,
+    do_cmds: bool,
+    do_bs: bool,
+    depth: u32,
+) -> WordBody<'_> {
     let len = src.len();
     let triggered = src
         .iter()
@@ -202,6 +237,10 @@ pub fn scan_parts(src: &[u8], do_vars: bool, do_cmds: bool, do_bs: bool) -> Word
     if !triggered {
         return WordBody::Literal(src);
     }
+    // Computed once per call (not per-character): whether this call is
+    // already at/past the depth cap, so any `$name(index)` found in this
+    // span keeps its index as literal text instead of recursing further.
+    let past_cap = MAX_SCAN_PARTS_DEPTH.exceeded(depth);
 
     let mut parts: Vec<WordPart> = Vec::new();
     let mut lit_start = 0usize;
@@ -246,10 +285,17 @@ pub fn scan_parts(src: &[u8], do_vars: bool, do_cmds: bool, do_bs: bool) -> Word
                     if i < len {
                         i += 1; // consume `)`
                     }
-                    // The index is itself substituted at eval time.
-                    let index = match scan_parts(&src[ks..ke], do_vars, do_cmds, do_bs) {
-                        WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
-                        WordBody::Parts(p) => p,
+                    // The index is itself substituted at eval time — unless
+                    // this call is already past the depth cap, in which case
+                    // the index is kept as a literal run instead of recursing.
+                    let index = if past_cap {
+                        vec![WordPart::Text(Cow::Borrowed(&src[ks..ke]))]
+                    } else {
+                        match scan_parts_at_depth(&src[ks..ke], do_vars, do_cmds, do_bs, depth + 1)
+                        {
+                            WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
+                            WordBody::Parts(p) => p,
+                        }
                     };
                     parts.push(WordPart::Variable(VarRef {
                         name,
@@ -887,6 +933,63 @@ mod tests {
             },
             other => panic!("expected Parts, got {other:?}"),
         }
+    }
+
+    /// Regression coverage for issue #996: `scan_parts` recurses once per
+    /// `$name(index)` nesting level while parsing an array index's own
+    /// substitution components, with no depth cap before this fix —
+    /// reachable via ordinary `subst {...}`/variable substitution on nested
+    /// array-index text, no special syntax needed. Empirically, this same
+    /// class of unguarded nested-array-index recursion overflowed the native
+    /// stack (SIGABRT) between depth 100-150 on a 256 KiB thread stack, still
+    /// crashing at depth 2000 on a 1 MiB stack (this crate's own sweep; see
+    /// `MAX_SCAN_PARTS_DEPTH`'s doc comment). 5000 is comfortably past both
+    /// that crash range and `MAX_SCAN_PARTS_DEPTH` (64); the assertion is
+    /// that parsing returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_array_index_survives_scan_parts() {
+        const DEPTH: usize = 5000;
+        let mut src = String::from("$a0");
+        for i in 0..DEPTH {
+            src.push('(');
+            src.push_str(&format!("$a{}", i + 1));
+        }
+        src.push('1');
+        for _ in 0..DEPTH {
+            src.push(')');
+        }
+        let _ = scan_parts(src.as_bytes(), true, true, true);
+    }
+
+    /// A moderately nested array index (well under `MAX_SCAN_PARTS_DEPTH`)
+    /// still scans into the full nested `Variable`/`index` component tree —
+    /// the safety net must not fire, let alone flatten anything, on
+    /// realistic nesting depths. (The trailing `Text("))")`s are a pre-
+    /// existing, unrelated property of this scanner's `)`-terminator search
+    /// — it does not skip over a nested `$name(…)`'s own parens the way
+    /// `tcl_lexer`'s does, so only the *innermost* `)` closes each
+    /// outer-to-inner index in a multi-level chain like this one; not a
+    /// behaviour this fix changes.)
+    #[test]
+    fn moderately_nested_array_index_still_scans_fully() {
+        // $a($b($c(1)))
+        let body = scan_parts(b"$a($b($c(1)))", true, true, true);
+        assert_eq!(
+            body,
+            WordBody::Parts(vec![
+                WordPart::Variable(VarRef {
+                    name: b"a",
+                    index: Some(vec![WordPart::Variable(VarRef {
+                        name: b"b",
+                        index: Some(vec![WordPart::Variable(VarRef {
+                            name: b"c",
+                            index: Some(vec![WordPart::Text(Cow::Borrowed(&b"1"[..]))]),
+                        })]),
+                    })]),
+                }),
+                WordPart::Text(Cow::Borrowed(&b"))"[..])),
+            ])
+        );
     }
 
     #[test]

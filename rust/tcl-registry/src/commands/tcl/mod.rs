@@ -99,6 +99,8 @@ mod lsearch_;
 mod lseq;
 mod lset;
 mod lsort_;
+mod mathfunc;
+mod mathfunc_generated;
 mod mathop;
 mod mathop_generated;
 mod memory;
@@ -110,6 +112,7 @@ mod oo_classvariable;
 mod oo_configurable;
 mod oo_copy;
 mod oo_define;
+mod oo_link;
 mod oo_my;
 mod oo_next;
 mod oo_objdefine;
@@ -122,6 +125,7 @@ mod parray;
 mod pid;
 mod pkg__create;
 mod pkg_mkindex;
+mod prefix_;
 mod proc_;
 mod puts_;
 mod pwd;
@@ -188,6 +192,11 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
     specs.extend(tcl_specs_m_through_z());
     // The `tcl::mathop` operator ensemble (every spelling).
     specs.extend(mathop_generated::specs());
+    // The `tcl::mathfunc` math-function ensemble (both qualified spellings).
+    specs.extend(mathfunc_generated::specs());
+    // Standalone specs for `dict` subcommands that are also genuine,
+    // separately-callable `::tcl::dict::<name>` commands (issue #923 idx 105).
+    specs.extend(dict::qualified_specs());
     // Simple named commands not yet implemented. (`vec!` — the spec
     // table is past clippy's stack-array size threshold.)
     specs.extend(vec![
@@ -296,6 +305,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
 /// [`tcl_specs_a_through_l`].
 fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
     vec![
+        mathfunc::spec(),
         mathop::spec(),
         namespace_::spec(),
         oo_abstract::spec(),
@@ -304,6 +314,8 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         oo_configurable::spec(),
         oo_copy::spec(),
         oo_define::spec(),
+        oo_link::spec(),
+        oo_link::spec_ooutil_86(),
         oo_my::spec(),
         oo_next::spec(),
         oo_objdefine::spec(),
@@ -314,6 +326,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         package_::spec(),
         parray::spec(),
         pid::spec(),
+        prefix_::spec(),
         proc_::spec(),
         puts_::spec(),
         re_quote::spec(),
@@ -342,6 +355,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         tcl_process::spec(),
         tcl_process::spec_qualified(),
         tcl_unsupported_corotype::spec(),
+        tcl_unsupported_corotype::spec_qualified(),
         tcl_zipfs::spec(),
         tcl_zipfs::spec_qualified(),
         tell_::spec(),

@@ -871,9 +871,11 @@ fn run_function(
     // runs an independent def-use-chain scan that never consults `fu.sccp`.
     let constants = sccp_constants_for(fu);
     let numeric = operand_types(fu);
-    walk_script(ctx, cu, script, &constants, Some(&numeric), namespace);
+    walk_script(ctx, cu, script, &constants, Some(&numeric), namespace, 0);
 }
 
+/// `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn walk_script(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
@@ -881,9 +883,13 @@ fn walk_script(
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
     namespace: &str,
+    depth: u32,
 ) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for stmt in &script.statements {
-        walk_statement(ctx, cu, stmt, constants, numeric, namespace);
+        walk_statement(ctx, cu, stmt, constants, numeric, namespace, depth);
     }
 }
 
@@ -894,6 +900,7 @@ fn walk_statement(
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
     namespace: &str,
+    depth: u32,
 ) {
     match stmt {
         Statement::Call {
@@ -964,23 +971,23 @@ fn walk_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, cu, &c.body, constants, numeric, namespace);
+                walk_script(ctx, cu, &c.body, constants, numeric, namespace, depth + 1);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, cu, b, constants, numeric, namespace);
+                walk_script(ctx, cu, b, constants, numeric, namespace, depth + 1);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, cu, init, constants, numeric, namespace);
-            walk_script(ctx, cu, next, constants, numeric, namespace);
-            walk_script(ctx, cu, body, constants, numeric, namespace);
+            walk_script(ctx, cu, init, constants, numeric, namespace, depth + 1);
+            walk_script(ctx, cu, next, constants, numeric, namespace, depth + 1);
+            walk_script(ctx, cu, body, constants, numeric, namespace, depth + 1);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
         | Statement::Foreach { body, .. } => {
-            walk_script(ctx, cu, body, constants, numeric, namespace);
+            walk_script(ctx, cu, body, constants, numeric, namespace, depth + 1);
         }
         Statement::Try {
             body,
@@ -988,12 +995,12 @@ fn walk_statement(
             finally_body,
             ..
         } => {
-            walk_script(ctx, cu, body, constants, numeric, namespace);
+            walk_script(ctx, cu, body, constants, numeric, namespace, depth + 1);
             for h in handlers {
-                walk_script(ctx, cu, &h.body, constants, numeric, namespace);
+                walk_script(ctx, cu, &h.body, constants, numeric, namespace, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, cu, fb, constants, numeric, namespace);
+                walk_script(ctx, cu, fb, constants, numeric, namespace, depth + 1);
             }
         }
         Statement::Switch {
@@ -1001,11 +1008,11 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, cu, b, constants, numeric, namespace);
+                    walk_script(ctx, cu, b, constants, numeric, namespace, depth + 1);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, cu, b, constants, numeric, namespace);
+                walk_script(ctx, cu, b, constants, numeric, namespace, depth + 1);
             }
         }
         _ => {}

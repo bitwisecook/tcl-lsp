@@ -189,7 +189,7 @@ pub fn document_symbols_from_analysis(
         return Vec::new();
     }
     let line_index = LineIndex::new(source);
-    scope_symbols(source, &analysis.global_scope, &line_index)
+    scope_symbols(source, &analysis.global_scope, &line_index, 0)
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LineRange {
@@ -372,7 +372,15 @@ fn method_symbol(
 ///
 /// Classes, then procs, then variables (global / namespace scopes
 /// only), then nested namespace scopes.
-fn scope_symbols(source: &str, scope: &Scope, line_index: &LineIndex) -> Vec<DocumentSymbol> {
+fn scope_symbols(
+    source: &str,
+    scope: &Scope,
+    line_index: &LineIndex,
+    depth: u32,
+) -> Vec<DocumentSymbol> {
+    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+        return Vec::new();
+    }
     let mut symbols: Vec<DocumentSymbol> = Vec::new();
 
     let mut class_pairs: Vec<(&String, &ClassDef)> = scope.classes.iter().collect();
@@ -384,7 +392,7 @@ fn scope_symbols(source: &str, scope: &Scope, line_index: &LineIndex) -> Vec<Doc
     let mut proc_pairs: Vec<(&String, &ProcDef)> = scope.procs.iter().collect();
     proc_pairs.sort_by_key(|(_, pd)| pd.name_span.start());
     for (_, proc_def) in proc_pairs {
-        symbols.push(proc_symbol(source, proc_def, scope, line_index));
+        symbols.push(proc_symbol(source, proc_def, scope, line_index, depth));
     }
 
     if matches!(scope.kind, ScopeKind::Global | ScopeKind::Namespace) {
@@ -424,7 +432,7 @@ fn scope_symbols(source: &str, scope: &Scope, line_index: &LineIndex) -> Vec<Doc
             && let Some(span) = child.body_span
         {
             let ns_range = span_to_range(source, line_index, span);
-            let child_syms = scope_symbols(source, child, line_index);
+            let child_syms = scope_symbols(source, child, line_index, depth + 1);
             symbols.push(DocumentSymbol {
                 name: child.name.clone(),
                 detail: None,
@@ -463,6 +471,7 @@ fn proc_symbol(
     proc_def: &ProcDef,
     scope: &Scope,
     line_index: &LineIndex,
+    depth: u32,
 ) -> DocumentSymbol {
     // Find the proc's body scope to recurse into for nested definitions by its
     // body span, which is identical between the `ProcDef` and its `Scope`.
@@ -476,7 +485,7 @@ fn proc_symbol(
         .find(|child| {
             matches!(child.kind, ScopeKind::Proc) && child.body_span == Some(proc_def.body_span)
         })
-        .map(|child| scope_symbols(source, child, line_index))
+        .map(|child| scope_symbols(source, child, line_index, depth + 1))
         .unwrap_or_default();
 
     let body_range = span_to_range(source, line_index, proc_def.body_span);
@@ -495,6 +504,7 @@ fn proc_symbol(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
 
     fn names(symbols: &[DocumentSymbol]) -> Vec<&str> {
         symbols.iter().map(|s| s.name.as_str()).collect()
@@ -936,6 +946,46 @@ mod tests {
         assert_eq!(symbols[0].detail.as_deref(), Some("()"));
     }
 
+    /// Regression coverage for issue #996: `scope_symbols`/`proc_symbol`
+    /// recurse once per nested namespace/proc scope, with no depth cap
+    /// before this fix (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). A `Scope`
+    /// tree built by the real analyser can never exceed its own
+    /// `MAX_BODY_DEPTH` (256) in practice, so this exercises deep-but-valid
+    /// nesting rather than this crate's own cap tripping — that cap is
+    /// defence-in-depth against a scope tree built/received some other way.
+    ///
+    /// `namespace eval` nesting costs meaningfully more native stack per
+    /// level than `if`-nesting does (empirically: 300 levels overflows
+    /// `cargo test`'s bare ~2 MiB per-test default, unlike the 2000-level
+    /// `if` case elsewhere in this codebase) — so, like
+    /// `tcl-compiler`'s own `deeply_nested_if_survives_full_optimiser_pipeline`,
+    /// this spawns its own production-sized (64 MiB) thread rather than
+    /// asserting on the test harness's thread directly; every real
+    /// consumer already wraps analysis in one (issue #996's primary fix).
+    /// The assertion is that this returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_namespaces_produce_a_symbol_tree() {
+        const DEPTH: usize = 300;
+        const STACK_SIZE: usize = 64 * 1024 * 1024;
+        let mut source = String::new();
+        for i in 0..DEPTH {
+            let _ = writeln!(source, "namespace eval ns{i} {{");
+        }
+        source.push_str("proc leaf {} { return 1 }\n");
+        for _ in 0..DEPTH {
+            source.push_str("}\n");
+        }
+        std::thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(move || {
+                let symbols = document_symbols(&source, "tcl8.6");
+                assert!(!symbols.is_empty());
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
     #[test]
     fn proc_symbol_range_contains_selection_range() {
         let source = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
@@ -1153,5 +1203,44 @@ mod tests {
             default_value: None,
         }];
         assert_eq!(format_param_list(&params), "({x })");
+    }
+
+    #[test]
+    fn foreach_rename_reinstall_idiom_outline_has_no_garbled_dollar_symbol() {
+        // TP — issue #923 idx 86: the finding's own outline complaint
+        // (`tk/library/accessibility.tcl`'s rename-and-reinstall idiom
+        // showing a `Function ${wtype}(args)` outline entry — the raw,
+        // unresolved dynamic-name text — instead of the real per-element
+        // wrapper names). Every symbol name in the outline must be real
+        // Tcl identifier text; none may contain the literal `$` of an
+        // unresolved substitution.
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n";
+        let symbols = document_symbols(src, "tcl8.6");
+        let all = flat(&symbols);
+        assert!(
+            !all.iter().any(|(name, _)| name.contains('$')),
+            "garbled dynamic-name symbol leaked into the outline: {all:?}"
+        );
+        assert!(find(&symbols, "button").is_some(), "{all:?}");
+        assert!(find(&symbols, "entry").is_some(), "{all:?}");
+    }
+
+    #[test]
+    fn opt_proc_outline_shows_the_real_args_only_signature() {
+        // TP — issue #923 idx 90: before the fix, the missing analyser hook
+        // left the stub's `{}`-arity `ProcDef` in place, so the outline
+        // showed an empty (or missing) signature instead of the real
+        // `(args)` one.
+        let src = "::tcl::OptProc greet {child -use -display} { return $child }\n";
+        let symbols = document_symbols(src, "tcl8.6");
+        let greet = find(&symbols, "greet").expect("greet symbol");
+        assert_eq!(greet.detail.as_deref(), Some("(args)"), "{greet:?}");
     }
 }

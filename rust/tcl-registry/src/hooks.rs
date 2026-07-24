@@ -269,6 +269,16 @@ pub enum AnalyserHookId {
     /// `proc name params body` — records the proc and walks its body
     /// in a fresh proc scope.
     Proc,
+    /// `tcl::OptProc name optlist body` — the Tcl `opt` package's
+    /// automatic-option-parsing proc definer (`uplevel 1 [list ::proc
+    /// $name args ...]`, so the real Tcl-level formal is the single
+    /// literal word `args`; `optlist`'s own descriptor names are bound as
+    /// locals in the body instead of being treated as a normal formal
+    /// parameter list).  Records the proc the same last-definition-wins
+    /// way a literal `proc` does — a real corpus idiom (`tk/library/
+    /// safetk.tcl`) declares a throwaway 0-arg literal `proc` stub, then
+    /// unconditionally redefines it this way (issue #923 idx 90).
+    OptProc,
     /// `apply {{params} body ?ns?} ?arg ...?` — models the lambda like
     /// a `proc` (params bind in a fresh scope; element 1 is the body).
     Apply,
@@ -286,6 +296,15 @@ pub enum AnalyserHookId {
     /// import patterns; a dynamic pattern flips the dynamic-providers
     /// flag.
     NamespaceImport,
+    /// `namespace export ?-clear? pattern ...` — records which command
+    /// names the declaring namespace exposes; `-clear` resets the
+    /// namespace's previously recorded patterns first. Gates whether a
+    /// bareword call reached only through a wildcard `namespace import
+    /// NS::*` may resolve to a command in `NS` (issue #923 idx 18): Tcl
+    /// only imports names a source namespace actually exported
+    /// (`Tcl_Export`, `tclNamesp.c`), so an unexported sibling command
+    /// must stay unresolved through the import.
+    NamespaceExport,
     /// `namespace path {ns ...}` — records the namespace's
     /// command-resolution search path.
     NamespacePath,

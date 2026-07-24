@@ -92,6 +92,55 @@ fn outgoing_calls() {
     assert!(callees.contains("helper"), "{callees:?}");
 }
 
+/// Regression: intra-class `TclOO` method call-hierarchy edges must match
+/// through `my <method>` dispatch, never a bare head — a method is not a
+/// bare-callable command (`greet` alone errors "invalid command name" at
+/// runtime; only `my greet` dispatches). The previous bare-head matcher
+/// found nothing for this shape and would have (wrongly) matched a bare
+/// `greet` call instead.
+#[test]
+fn method_incoming_and_outgoing_calls_match_my_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create C {\n    method greet {} { return hi }\n    method twice {} { my greet ; my greet }\n}\n";
+    lsp.open_ready(&uri, src);
+    // `greet`'s incoming calls: `twice` dispatches via `my greet` twice.
+    let greet_item = items(&lsp.prepare_call_hierarchy(&uri, 1, 11))[0].clone();
+    let incoming = calls(&lsp.incoming_calls(greet_item));
+    let incoming_from: std::collections::BTreeSet<String> = incoming
+        .iter()
+        .map(|c| name_of(c.get("from").unwrap_or(&Value::Null)))
+        .collect();
+    assert!(incoming_from.contains("::C::twice"), "{incoming_from:?}");
+    // `twice`'s outgoing calls: dispatches to `greet`.
+    let twice_item = items(&lsp.prepare_call_hierarchy(&uri, 2, 11))[0].clone();
+    let outgoing = calls(&lsp.outgoing_calls(twice_item));
+    let outgoing_to: std::collections::BTreeSet<String> = outgoing
+        .iter()
+        .map(|c| name_of(c.get("to").unwrap_or(&Value::Null)))
+        .collect();
+    assert!(outgoing_to.contains("::C::greet"), "{outgoing_to:?}");
+}
+
+/// FN→TP (issue #957's general form): a `my method` dispatch nested inside
+/// `if` control flow is an outgoing/incoming call edge too — call hierarchy
+/// shares the same control-flow-recursing matcher Find-References / the
+/// code lens use.
+#[test]
+fn method_outgoing_calls_nested_in_control_flow() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create C {\n    method greet {} { return hi }\n    method twice {} {\n        if {1} {\n            my greet\n        }\n    }\n}\n";
+    lsp.open_ready(&uri, src);
+    let twice_item = items(&lsp.prepare_call_hierarchy(&uri, 2, 11))[0].clone();
+    let outgoing = calls(&lsp.outgoing_calls(twice_item));
+    let callees: std::collections::BTreeSet<String> = outgoing
+        .iter()
+        .map(|c| name_of(c.get("to").unwrap_or(&Value::Null)))
+        .collect();
+    assert!(callees.contains("::C::greet"), "{callees:?}");
+}
+
 // -- TestImplementation --------------------------------------------------
 
 #[test]

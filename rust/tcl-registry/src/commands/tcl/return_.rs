@@ -48,8 +48,19 @@ const FORMS: &[FormSpec] = &[
     },
     FormSpec {
         kind: FormKind::Default,
+        // `TCL84 | IRULES`, not bare `TCL84`: these are separate
+        // `DialectSet` bits (iRules' own embedded-8.4.6 base doesn't
+        // imply the `TCL84` bit), and this form — return used inside a
+        // `proc`, not directly in a `when EVENT { … }` body — is exactly
+        // what an iRules-defined proc uses: the full Tcl 8.4
+        // -code/-errorinfo/-errorcode option set, unrestricted, since the
+        // event-body-only bare-return restriction (see the `IRULES` form
+        // below and `return_context_gate`) never fires inside a proc.
+        // Without the explicit union here, this form would incorrectly
+        // read as invisible to iRules even though it's the form every
+        // iRules proc actually uses.
         synopsis: "return ?-code code? ?-errorinfo info? ?-errorcode code? ?string?",
-        dialects: Some(DialectSet::TCL84),
+        dialects: Some(DialectSet::TCL84.union(DialectSet::IRULES)),
     },
     // F5 `return(1)`: directly inside a `when EVENT { … }` body, `return`
     // takes no arguments — `return_context_gate` below enforces this

@@ -178,6 +178,25 @@ pub struct SignatureNamespaceImport {
     pub conjectured: bool,
 }
 
+/// A `namespace export` declaration recorded by the signature scanner.
+///
+/// Gates which commands a wildcard `namespace import NS::*` elsewhere may
+/// actually reach: real Tcl only imports names `NS` has exported
+/// (`Tcl_Export`, `tclNamesp.c`) — an unexported sibling command living in
+/// `NS` is not reachable through the import at all (tclsh9.0/8.6-verified:
+/// `invalid command name` calling it bare). Issue #923 idx 18.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureNamespaceExport {
+    /// Exporting namespace, with leading `::`.
+    pub ns: String,
+    /// Exported pattern text, exactly as written. Always relative to `ns`
+    /// (Tcl's `namespace export` patterns are simple, unqualified glob
+    /// patterns matched against a command's tail name — never `::`-qualified).
+    pub pattern: String,
+    /// Source span of the pattern argument.
+    pub range: Span,
+}
+
 /// An `auto_path` mutation recorded by the signature scanner.
 ///
 /// Covers both `lappend auto_path …` and `set auto_path …` forms.
@@ -206,6 +225,7 @@ pub struct SignatureAutoPathEntry {
 /// sites against a proc's qualified name even when the call
 /// site uses a relative form.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // independent per-call-site flags, not a state machine
 pub struct SignatureCommandInvocation {
     /// Command head as written at the call site (no namespace
     /// resolution performed).
@@ -275,6 +295,20 @@ pub struct SignatureCommandInvocation {
     /// are orthogonal (issue #945 fault 9).  Navigation and rename treat
     /// the record exactly like any other direct reference.
     pub existence_probe: bool,
+    /// `true` for an `expr` math-function call (`sin($x)`, `max($a, $b)`,
+    /// recorded by `record_expr_function_invocations`). `name` is the bare
+    /// function word and `resolved_qualified_name` is the *local-first*
+    /// `{ns}::tcl::mathfunc::name` candidate for the call's own namespace —
+    /// unlike every other invocation, whose resolved name has the ordinary
+    /// `{ns}::{name}` shape (`ns` a single hop from `name`), a mathfunc
+    /// invocation always carries the fixed two-segment `tcl::mathfunc`
+    /// dispatch prefix between them. This flag — not a shape guess re-derived
+    /// from the resolved string — is what tells
+    /// [`crate::analyser::Analyser::finalise_invocation_resolutions`] to
+    /// settle it against the dedicated two-candidate mathfunc rule instead of
+    /// the generic one-hop suffix-strip, which would otherwise misparse
+    /// `tcl::mathfunc` as if it were the calling namespace.
+    pub is_mathfunc_call: bool,
 }
 
 /// The full result returned by `extract_signatures`.

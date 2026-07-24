@@ -269,3 +269,64 @@ fn into_one<T>(args: Vec<T>) -> T {
 fn into_n<O: ExprOps, const N: usize>(args: Vec<O::Value>) -> Option<[O::Value; N]> {
     <[O::Value; N]>::try_from(args).ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+
+    /// `eval`'s own recognised operator spellings — kept as a literal list
+    /// (rather than probed by calling `eval` itself) because a wrong-arity
+    /// call to a *recognised* operator can coincidentally produce the exact
+    /// same `WrongArgs("value ?value ...?")` message as the catch-all
+    /// unrecognised-operator arm, so a runtime probe can't reliably tell
+    /// "recognised" from "not" apart. This is `eval`'s half of issue
+    /// #983/#987's registry/runtime convergence: a drift gate proving this
+    /// match's arms still exactly match layer 1
+    /// (`tcl_syntax::expr::operators`), in both directions — see the
+    /// matching tests in `tcl-vm`'s and `runtime/rust`'s `cmd_mathop.rs`.
+    const EVAL_RECOGNISES: &[&str] = &[
+        "+", "*", "&", "|", "^", "-", "/", "**", "%", "<<", ">>", "~", "!", "==", "<", ">", "<=",
+        ">=", "eq", "lt", "gt", "le", "ge", "!=", "ne", "in", "ni",
+    ];
+
+    fn layer1_mathop_spellings() -> Vec<&'static str> {
+        let mut names: Vec<&'static str> = ALL_BIN_OPS
+            .iter()
+            .filter_map(|op| op.spec().mathop_shape.map(|_| op.spec().spelling))
+            .collect();
+        for op in ALL_UNARY_OPS {
+            if op.spec().mathop_shape.is_some() {
+                let spelling = op.spec().spelling;
+                if !names.contains(&spelling) {
+                    names.push(spelling);
+                }
+            }
+        }
+        names
+    }
+
+    #[test]
+    fn eval_recognises_every_layer1_mathop_operator_and_nothing_else() {
+        let expected = layer1_mathop_spellings();
+        for &spelling in EVAL_RECOGNISES {
+            assert!(
+                expected.contains(&spelling),
+                "eval() recognises {spelling:?} but tcl_syntax::expr::operators has no \
+                 mathop_shape for it — stale arm?"
+            );
+        }
+        for spelling in &expected {
+            assert!(
+                EVAL_RECOGNISES.contains(spelling),
+                "{spelling:?} has a mathop_shape in tcl_syntax::expr::operators but eval() \
+                 has no arm for it — missing arm?"
+            );
+        }
+        assert_eq!(
+            EVAL_RECOGNISES.len(),
+            expected.len(),
+            "eval()'s recognised operators and layer 1's mathop-shaped operators have \
+             drifted apart (different counts)"
+        );
+    }
+}

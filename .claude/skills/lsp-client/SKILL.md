@@ -2,10 +2,10 @@
 name: lsp-client
 description: >
   Use when verifying Tcl LSP server behavior: semantic tokens, diagnostics,
-  formatting, hover, completion, definition, references, code actions,
-  optimizations, document symbols, diagram extraction, event/command registry
-  lookups, or benchmarking server performance and collecting timing logs.
-  Tests the server directly over JSON-RPC without VS Code.
+  formatting, hover, completion, definition, references, code lenses, code
+  actions, optimizations, document symbols, diagram extraction, event/command
+  registry lookups, or benchmarking server performance and collecting timing
+  logs. Tests the server directly over JSON-RPC without VS Code.
 allowed-tools: Bash, Read
 ---
 
@@ -37,6 +37,7 @@ The script auto-detects the `tcl-lsp/` server directory.  Override with
 | `completion` | `<file.tcl> <line> <col>` | Show completions at a 0-based position |
 | `definition` | `<file.tcl> <line> <col>` | Show go-to-definition locations |
 | `references` | `<file.tcl> <line> <col>` | Show all reference locations |
+| `code-lens` | `<file.tcl>` | Show code lenses (reference-count lenses), auto-resolving each via `codeLens/resolve` |
 | `code-actions` | `<file.tcl> <l> <c> <el> <ec>` | Show code actions in a 0-based range |
 | `optimize` | `<file.tcl>` | Show optimization suggestions and rewritten source |
 | `symbols` | `<file.tcl>` | Show document symbol hierarchy (procs, events, namespaces, variables) |
@@ -149,6 +150,22 @@ Shows the markdown content the editor would display on hover.
 ### Completions
 Shows label, kind (Keyword, Function, Variable), and detail.
 
+### Code Lenses
+Shows every reference-count lens, resolved.  Proc / class / method /
+classmethod lenses are all returned lazily (range + `data`, no `command`)
+so the server can recompute the count at resolve time — `code-lens` calls
+`codeLens/resolve` on each one automatically, the way a real editor does,
+rather than showing the raw unresolved list:
+```
+=== Code Lenses (2 lenses) ===
+  0:17-0:20  '1 reference'  [tcl-lsp.showReferences, 3 args]
+  6:11-6:14  '1 reference'  [tcl-lsp.showReferences, 3 args]
+```
+A lens whose `command` carries an empty command id renders as
+`[inert — empty command id]` — a lens in that shape is clickable-broken
+(the "reference is not active" defect, #724 / #956): it shows a count but
+does nothing when clicked.
+
 ### Bench
 Measures wall-clock time from request to semantic token response, plus
 server-side timing breakdown from `[timing]` log entries:
@@ -201,6 +218,7 @@ to filter to just `[timing]` entries for performance analysis.
 python3 .claude/skills/lsp-client/lsp_client.py semantic-tokens tcl-lsp/samples/for_screenshots/03-completions.tcl
 python3 .claude/skills/lsp-client/lsp_client.py diagnostics tcl-lsp/editors/vscode/testFixture/diagnostics.tcl
 python3 .claude/skills/lsp-client/lsp_client.py hover tcl-lsp/editors/vscode/testFixture/procs.tcl 1 6
+python3 .claude/skills/lsp-client/lsp_client.py code-lens tcl-lsp/editors/vscode/testFixture/objMethodDispatch.tcl
 python3 .claude/skills/lsp-client/lsp_client.py optimize tcl-lsp/samples/for_screenshots/22-optimiser-before.tcl
 python3 .claude/skills/lsp-client/lsp_client.py symbols tcl-lsp/samples/for_screenshots/ai-scene.irul
 python3 .claude/skills/lsp-client/lsp_client.py diagram tcl-lsp/samples/for_screenshots/ai-scene.irul

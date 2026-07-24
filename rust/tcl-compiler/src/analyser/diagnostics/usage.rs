@@ -35,6 +35,7 @@ use tcl_lexer::SourceMap;
 use super::helpers::{find_dotted_quads, has_substitution, is_braced_word, source_slice};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 
 impl Analyser {
@@ -922,7 +923,11 @@ Use braces: {{ \u{2026} }}"
         if cmd.texts.is_empty() {
             return;
         }
-        let sm = SourceMap::new(&self.source);
+        let sm = Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let source = self.source.as_bytes();
         // Word-start offsets the command reads as a variable name; a
         // `${name}(idx)` Pattern-(1) match starting there is the indirect
@@ -1658,14 +1663,47 @@ fn single_braced_group(body: &str) -> Option<&str> {
     (depth == 0).then(|| &body[1..body.len() - 1])
 }
 
-/// True when `text` contains a standalone `eq` / `ne` / `in` / `ni`
-/// word — the expr string-comparison operators whose verdict a nested
-/// `expr`'s numeric normalisation can influence.  Deliberately scans
-/// the whole outer expression (a coarse, conservative over-match).
+/// The word-form `expr` operators whose verdict a nested `expr`'s numeric
+/// normalisation can influence — string equality (`eq`/`ne`), string
+/// ordering (`lt`/`le`/`gt`/`ge`, TIP 461), and list membership (`in`/`ni`).
+/// Derived from `tcl_syntax::expr::operators` (issue #983's unification):
+/// every `BinOp` whose mathop shape is a string-only `BoolChain`/`NeBinary`,
+/// or `Membership` — rather than a hand-typed 4-entry list that used to
+/// miss `lt`/`le`/`gt`/`ge` entirely, a real gap since those four share
+/// exactly the same numeric-normalisation risk `eq`/`ne` already guarded
+/// against (`{[expr {$x}] lt "007"}` could have its verdict silently
+/// flipped by W114's unwrap fix the same way `==`'s can).
+fn string_comparison_op_spellings() -> &'static [&'static str] {
+    use tcl_syntax::expr::operators::{ALL_BIN_OPS, OperatorShape};
+    static OPS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    OPS.get_or_init(|| {
+        ALL_BIN_OPS
+            .iter()
+            .filter_map(|op| {
+                let spec = op.spec();
+                let is_string_family = matches!(
+                    spec.mathop_shape,
+                    Some(
+                        OperatorShape::BoolChain { string_only: true }
+                            | OperatorShape::NeBinary { string_only: true }
+                            | OperatorShape::Membership { .. }
+                    )
+                );
+                is_string_family.then_some(spec.spelling)
+            })
+            .collect()
+    })
+}
+
+/// True when `text` contains a standalone word from
+/// [`string_comparison_op_spellings`] — the expr string-comparison
+/// operators whose verdict a nested `expr`'s numeric normalisation can
+/// influence.  Deliberately scans the whole outer expression (a coarse,
+/// conservative over-match).
 fn contains_string_comparison_word(text: &str) -> bool {
     let bytes = text.as_bytes();
     let is_word_byte = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
-    for op in ["eq", "ne", "in", "ni"] {
+    for op in string_comparison_op_spellings() {
         let mut from = 0;
         while let Some(pos) = text.get(from..).and_then(|t| t.find(op)) {
             let at = from + pos;
@@ -1727,15 +1765,28 @@ fn is_safe_bare_word(text: &str) -> bool {
 /// the variables may hold integer values, making `==` correct.
 fn find_string_eq_ne_ops(node: &ExprNode, text: &str) -> Vec<(BinOp, Option<u32>)> {
     let mut found = Vec::new();
-    walk_string_eq_ne(node, text, &mut found);
+    walk_string_eq_ne(node, text, &mut found, 0);
     found
 }
 
-fn walk_string_eq_ne(node: &ExprNode, text: &str, found: &mut Vec<(BinOp, Option<u32>)>) {
+fn walk_string_eq_ne(
+    node: &ExprNode,
+    text: &str,
+    found: &mut Vec<(BinOp, Option<u32>)>,
+    depth: u32,
+) {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — a collector
+    // that returns the `==`/`!=`-against-string findings gathered so far is
+    // the safe fallback (occurrences buried deeper than the cap go
+    // unreported; never a crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Binary { op, left, right } => {
-            walk_string_eq_ne(left, text, found);
-            walk_string_eq_ne(right, text, found);
+            walk_string_eq_ne(left, text, found, depth + 1);
+            walk_string_eq_ne(right, text, found, depth + 1);
             if matches!(op, BinOp::Eq | BinOp::Ne)
                 && (matches!(**left, ExprNode::String { .. })
                     || matches!(**right, ExprNode::String { .. }))
@@ -1743,19 +1794,19 @@ fn walk_string_eq_ne(node: &ExprNode, text: &str, found: &mut Vec<(BinOp, Option
                 found.push((*op, op_offset_between(text, left, right, *op)));
             }
         }
-        ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, text, found),
+        ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, text, found, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            walk_string_eq_ne(condition, text, found);
-            walk_string_eq_ne(true_branch, text, found);
-            walk_string_eq_ne(false_branch, text, found);
+            walk_string_eq_ne(condition, text, found, depth + 1);
+            walk_string_eq_ne(true_branch, text, found, depth + 1);
+            walk_string_eq_ne(false_branch, text, found, depth + 1);
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                walk_string_eq_ne(arg, text, found);
+                walk_string_eq_ne(arg, text, found, depth + 1);
             }
         }
         _ => {}
@@ -1766,6 +1817,20 @@ fn walk_string_eq_ne(node: &ExprNode, text: &str, found: &mut Vec<(BinOp, Option
 /// leaves' offsets (`end` inclusive — the expr lexer's convention).
 /// `None` when a `Raw` child makes the extent unknowable.
 fn node_extent(node: &ExprNode) -> Option<(u32, u32)> {
+    // Entry point: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`node_extent_at`]).
+    node_extent_at(node, 0)
+}
+
+fn node_extent_at(node: &ExprNode, depth: u32) -> Option<(u32, u32)> {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, report an unknowable extent
+    // (`None`) — the same conservative answer this function already returns
+    // for a `Raw` child, so callers fall back to a coarser span rather than
+    // crashing.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return None;
+    }
     match node {
         ExprNode::Literal { start, end, .. }
         | ExprNode::String { start, end, .. }
@@ -1773,18 +1838,18 @@ fn node_extent(node: &ExprNode) -> Option<(u32, u32)> {
         | ExprNode::Command { start, end, .. }
         | ExprNode::Call { start, end, .. } => Some((*start, *end)),
         ExprNode::Binary { left, right, .. } => {
-            let (ls, _) = node_extent(left)?;
-            let (_, re) = node_extent(right)?;
+            let (ls, _) = node_extent_at(left, depth + 1)?;
+            let (_, re) = node_extent_at(right, depth + 1)?;
             Some((ls, re))
         }
-        ExprNode::Unary { operand, .. } => node_extent(operand),
+        ExprNode::Unary { operand, .. } => node_extent_at(operand, depth + 1),
         ExprNode::Ternary {
             condition,
             false_branch,
             ..
         } => {
-            let (cs, _) = node_extent(condition)?;
-            let (_, fe) = node_extent(false_branch)?;
+            let (cs, _) = node_extent_at(condition, depth + 1)?;
+            let (_, fe) = node_extent_at(false_branch, depth + 1)?;
             Some((cs, fe))
         }
         ExprNode::Raw { .. } => None,
@@ -1807,25 +1872,38 @@ fn op_offset_between(text: &str, left: &ExprNode, right: &ExprNode, op: BinOp) -
 /// Count the total number of `==`/`!=` operators in the expression
 /// tree.
 fn count_eq_ne_ops(node: &ExprNode) -> usize {
+    // Entry point: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`count_eq_ne_ops_at`]).
+    count_eq_ne_ops_at(node, 0)
+}
+
+fn count_eq_ne_ops_at(node: &ExprNode, depth: u32) -> usize {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop counting (return 0 for the
+    // deeper sub-tree) — a conservative under-count only reachable past 256
+    // levels of expression nesting; never a crash.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return 0;
+    }
     match node {
         ExprNode::Binary { op, left, right } => {
-            let mut n = count_eq_ne_ops(left) + count_eq_ne_ops(right);
+            let mut n = count_eq_ne_ops_at(left, depth + 1) + count_eq_ne_ops_at(right, depth + 1);
             if matches!(op, BinOp::Eq | BinOp::Ne) {
                 n += 1;
             }
             n
         }
-        ExprNode::Unary { operand, .. } => count_eq_ne_ops(operand),
+        ExprNode::Unary { operand, .. } => count_eq_ne_ops_at(operand, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            count_eq_ne_ops(condition)
-                + count_eq_ne_ops(true_branch)
-                + count_eq_ne_ops(false_branch)
+            count_eq_ne_ops_at(condition, depth + 1)
+                + count_eq_ne_ops_at(true_branch, depth + 1)
+                + count_eq_ne_ops_at(false_branch, depth + 1)
         }
-        ExprNode::Call { args, .. } => args.iter().map(count_eq_ne_ops).sum(),
+        ExprNode::Call { args, .. } => args.iter().map(|a| count_eq_ne_ops_at(a, depth + 1)).sum(),
         _ => 0,
     }
 }
@@ -1882,4 +1960,37 @@ fn rewrite_string_compare_ops(text: &str) -> String {
         i += 1;
     }
     out
+}
+
+#[cfg(test)]
+mod issue996_tests {
+    use super::*;
+    use crate::expr_ast::UnaryOp;
+
+    /// Regression coverage for issue #996: `walk_string_eq_ne`, `node_extent`
+    /// and `count_eq_ne_ops` each recurse once per `ExprNode` level with no
+    /// depth cap before this fix (`walk_string_eq_ne` also drives
+    /// `node_extent` via `op_offset_between`). A tree built directly is
+    /// unbounded (the Pratt parser caps its own output at 256) and
+    /// empirically overflowed the native stack (SIGABRT) in the low thousands
+    /// of levels on a 2 MiB thread. 3000 is past that crash range and past
+    /// `MAX_EXPR_NODE_DEPTH` (256); the assertion is that each returns at all.
+    #[test]
+    fn deeply_nested_eq_ne_walks_survive() {
+        let mut node = ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let _ = find_string_eq_ne_ops(&node, "");
+        let _ = count_eq_ne_ops(&node);
+        let _ = node_extent(&node);
+    }
 }

@@ -39,6 +39,7 @@ use std::collections::BTreeSet;
 use rustc_hash::FxHashSet;
 
 use tcl_compiler::analyser::{Analyser, Scope, ScopeKind};
+use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
@@ -347,7 +348,7 @@ struct FoldCtx<'a> {
 /// Defensive recursion bound for nested-body fold collection, set to match the
 /// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
 /// keeps full folding support. Real source never nests anywhere near this.
-const MAX_FOLD_DEPTH: u32 = 256;
+const MAX_FOLD_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 fn collect_body_folds(
     body_source: &str,
@@ -356,7 +357,7 @@ fn collect_body_folds(
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     ctx: &mut FoldCtx<'_>,
 ) {
-    if depth > MAX_FOLD_DEPTH {
+    if MAX_FOLD_DEPTH.exceeded(depth) {
         return;
     }
     let commands = segment_commands_with_offset_and_config(body_source, base_offset, ctx.config);
@@ -433,6 +434,49 @@ fn collect_body_folds(
                 next_grammar,
                 ctx,
             );
+        }
+
+        // `apply {argList body ?ns?} …` (and any future command sharing the
+        // shape) — fold the whole lambda literal as one region, but recurse
+        // only into the real body element (`split_lambda_literal`, issue
+        // #954): the argument-list element is a plain word/list, not code,
+        // so re-segmenting the whole literal as a script previously mis-read
+        // the params word as a command name and never found the real body's
+        // own nested folds.
+        for idx in
+            ctx.registry
+                .arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::LambdaLiteral)
+        {
+            let arg_tokens = cmd.arg_tokens();
+            let Some(&lambda_tok) = arg_tokens.get(idx) else {
+                continue;
+            };
+            if !matches!(lambda_tok.kind, TokenType::Str) {
+                continue;
+            }
+            emit_body_span_fold(
+                lambda_tok.span,
+                ctx.original_source,
+                ctx.line_index,
+                ctx.seen,
+                ctx.ranges,
+            );
+            let Some(elems) = split_lambda_literal(ctx.original_source, lambda_tok) else {
+                continue;
+            };
+            let Some(body_span) = elems.body else {
+                continue;
+            };
+            let (bstart, bend) = (body_span.start() as usize, body_span.end() as usize);
+            if bend <= bstart {
+                continue;
+            }
+            let Some(inner) = ctx.original_source.get(bstart..bend) else {
+                continue;
+            };
+            // The body runs in a fresh, non-OO frame (`apply`'s own scope),
+            // never the enclosing definer's grammar.
+            collect_body_folds(inner, body_span.start(), depth + 1, None, ctx);
         }
     }
 }
@@ -701,6 +745,30 @@ mod tests {
         let source = "while {1} {\n    puts \"loop\"\n    puts \"again\"\n}\n";
         let ranges = folding_ranges_default(source, "tcl8.6");
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
+    }
+
+    /// Issue #954: `apply`'s lambda-literal argument is
+    /// `ArgRole::LambdaLiteral`, not `Body` — re-segmenting the whole
+    /// `{argList} {body}` blob as a script (the old generic-`Body` path)
+    /// misread the parameter word as a command name, so a nested foldable
+    /// region *inside* the real body (here, the `if`) was never found. A
+    /// fold must cover the whole lambda literal (line 0) and the walk must
+    /// also recurse far enough to find the `if` block's own nested fold.
+    #[test]
+    fn apply_lambda_body_folds_and_recurses_into_nested_blocks() {
+        let source = "apply {dir {\n    if {1} {\n        puts \"yes\"\n        puts \"again\"\n    }\n}} /tmp\n";
+        let ranges = folding_ranges_default(source, "tcl8.6");
+        let regions = fold_lines(&ranges, FoldKind::Region);
+        assert!(
+            regions.iter().any(|&(s, _)| s == 0),
+            "expected a region fold for the whole lambda literal at line 0, got {regions:?}"
+        );
+        assert!(
+            regions.iter().any(|&(s, _)| s == 1),
+            "expected the `if` block nested inside the real body to fold too \
+             (proves recursion reached the actual body, not a params-as-head \
+             misparse), got {regions:?}"
+        );
     }
 
     #[test]

@@ -186,9 +186,16 @@ fn dequote(value: &str) -> &str {
 
 /// Yield every `VarDef` in `scope` and its descendants.
 fn walk_scopes(scope: &Scope) -> Vec<&VarDef> {
+    walk_scopes_at_depth(scope, 0)
+}
+
+fn walk_scopes_at_depth(scope: &Scope, depth: u32) -> Vec<&VarDef> {
+    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+        return Vec::new();
+    }
     let mut out: Vec<&VarDef> = scope.variables.values().collect();
     for child in &scope.children {
-        out.extend(walk_scopes(child));
+        out.extend(walk_scopes_at_depth(child, depth + 1));
     }
     out
 }
@@ -196,6 +203,7 @@ fn walk_scopes(scope: &Scope) -> Vec<&VarDef> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
     use tcl_compiler::analyser::Analyser;
 
     fn run(source: &str, cursor: u32) -> Option<String> {
@@ -203,6 +211,28 @@ mod tests {
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         let li = LineIndex::new(source);
         inline_variable(source, cursor, &analysis, &reg, &li).map(|r| r.apply(source))
+    }
+
+    /// Regression coverage for issue #996: `walk_scopes_at_depth` recurses
+    /// once per nested namespace/proc scope, with no depth cap before this
+    /// fix (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested `namespace
+    /// eval` levels is past the point (confirmed empirically: 100+) where
+    /// unguarded namespace-scope recursion overflows `cargo test`'s bare
+    /// ~2 MiB per-test default. The assertion is that this returns at
+    /// all, not what it returns.
+    #[test]
+    fn deeply_nested_namespaces_survive_scope_walk() {
+        const DEPTH: usize = 80;
+        let mut source = String::new();
+        for i in 0..DEPTH {
+            let _ = writeln!(source, "namespace eval ns{i} {{");
+        }
+        source.push_str("set x 1\nputs $x\n");
+        for _ in 0..DEPTH {
+            source.push_str("}\n");
+        }
+        let analysis = Analyser::new().analyse(&source, "tcl8.6").clone();
+        let _ = walk_scopes(&analysis.global_scope);
     }
 
     #[test]

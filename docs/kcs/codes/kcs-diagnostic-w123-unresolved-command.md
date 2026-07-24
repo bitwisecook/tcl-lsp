@@ -31,6 +31,32 @@ unknownCmd $arg
 
 The analyser reports **`W123`** on `unknownCmd`.
 
+A proc, class, `rename` target, or `interp alias` that was renamed or
+deleted away, with no later re-establishment under the same name, is also
+unresolved — calling it fails `invalid command name` at runtime just like
+a name that was never defined:
+
+```tcl
+proc helper {} { return 1 }
+rename helper {}
+proc caller {} { helper }
+```
+
+The analyser reports **`W123`** on `helper` inside `caller`. Defining a
+fresh `helper` (or `rename`-ing a different command to that name) after
+the deletion re-establishes it and clears the warning.
+
+## What does not trigger it
+
+A built-in `expr` math function (`sin`, `max`, `abs`, …) called with
+function-call syntax inside `expr` resolves to the command it dispatches to
+(`::tcl::mathfunc::<name>`) and never draws `W123`, whether or not it has
+also been overridden by a `proc ::tcl::mathfunc::<name>` in the file:
+
+```tcl
+set x [expr {sin(1.0) + max(1, 2, 3)}]
+```
+
 ## Fix
 
 ```tcl

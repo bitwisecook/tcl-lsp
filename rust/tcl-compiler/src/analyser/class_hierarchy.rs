@@ -148,6 +148,77 @@ impl ClassHierarchy {
         })
     }
 
+    /// Resolve `TclOO` `next` / `nextto` from *within* `class`'s own
+    /// constructor: the class after `class` in its MRO that provides an
+    /// *effective* constructor (mirrors [`Self::next_provider`], but for the
+    /// unnamed constructor slot rather than a named method — "effective"
+    /// carries the same empty-body caveat as [`Self::constructor_provider`],
+    /// whose doc explains it).
+    ///
+    /// For plain `next`, pass `start_from = None`; the search begins one
+    /// past `class` itself. For `nextto SomeClass`, pass `start_from =
+    /// Some("::SomeClass")`; the search begins *at* that class. `source` is
+    /// the document text `body_span`s index into. Returns `None` when the
+    /// chain is exhausted or `class` is unknown.
+    #[must_use]
+    pub fn constructor_next_provider(
+        &self,
+        class: &str,
+        start_from: Option<&str>,
+        source: &str,
+    ) -> Option<&str> {
+        let mro = self.mro_map.get(class)?;
+        let anchor = start_from.unwrap_or(class);
+        let anchor_pos = mro.iter().position(|c| c == anchor)?;
+        let scan_from = if start_from.is_some() {
+            anchor_pos
+        } else {
+            anchor_pos + 1
+        };
+        mro.iter().skip(scan_from).find_map(|c| {
+            self.classes
+                .get(c)
+                .filter(|cd| {
+                    cd.constructors
+                        .last()
+                        .is_some_and(|ctor| !is_empty_method_body(source, ctor.body_span))
+                })
+                .map(|_| c.as_str())
+        })
+    }
+
+    /// Resolve `TclOO` `next` / `nextto` from *within* `class`'s own
+    /// destructor: the class after `class` in its MRO that declares a
+    /// destructor.
+    ///
+    /// Unlike [`Self::constructor_next_provider`], a destructor's
+    /// "effective" test is plain existence (`ClassDef::destructor.is_some()`)
+    /// — `TclOO`'s empty-body-elides-the-constructor quirk is verified
+    /// (against tclsh 9.0.4) for constructors specifically; no equivalent
+    /// claim has been checked for destructors, so an explicitly empty
+    /// destructor body is conservatively still treated as a real override
+    /// here rather than assumed to share the constructor's special case.
+    ///
+    /// Same `start_from` convention as [`Self::constructor_next_provider`].
+    /// Returns `None` when the chain is exhausted or `class` is unknown.
+    #[must_use]
+    pub fn destructor_next_provider(&self, class: &str, start_from: Option<&str>) -> Option<&str> {
+        let mro = self.mro_map.get(class)?;
+        let anchor = start_from.unwrap_or(class);
+        let anchor_pos = mro.iter().position(|c| c == anchor)?;
+        let scan_from = if start_from.is_some() {
+            anchor_pos
+        } else {
+            anchor_pos + 1
+        };
+        mro.iter().skip(scan_from).find_map(|c| {
+            self.classes
+                .get(c)
+                .filter(|cd| cd.destructor.is_some())
+                .map(|_| c.as_str())
+        })
+    }
+
     /// Return all `(class, defining_class)` pairs that
     /// implement `method_name`.  Order matches the iteration
     /// order of `method_providers` (`HashMap` — non-deterministic
@@ -575,6 +646,7 @@ mod tests {
                     name_span: span(),
                     body_span: span(),
                     kind: "method".to_string(),
+                    is_self_method: false,
                     visibility: "public".to_string(),
                     doc: String::new(),
                     forward_target: None,
@@ -760,6 +832,7 @@ mod tests {
             name_span: span(),
             body_span,
             kind: "constructor".to_string(),
+            is_self_method: false,
             visibility: "public".to_string(),
             doc: String::new(),
             forward_target: None,
@@ -831,6 +904,134 @@ mod tests {
         assert!(is_empty_method_body("\"\"", Span::new(0, 2)));
         // Out-of-range span — must not panic, must not report empty.
         assert!(!is_empty_method_body("{}", Span::new(0, 5)));
+    }
+
+    // `constructor_next_provider` / `destructor_next_provider` — issue #992's
+    // constructor/destructor next-chain lens support.
+
+    #[test]
+    fn constructor_next_provider_none_when_class_unknown() {
+        let classes = map(vec![cls_with_ctor("::A", &[])]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_next_provider("::Nope", None, CTOR_SRC), None);
+    }
+
+    #[test]
+    fn constructor_next_provider_direct_superclass() {
+        // `Sub`'s own `next` (no explicit target) resolves one past `Sub`
+        // itself in `Sub`'s own MRO — its direct superclass `Base`.
+        let classes = map(vec![
+            cls_with_ctor("::Base", &[]),
+            cls_with_ctor("::Sub", &["::Base"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(
+            h.constructor_next_provider("::Sub", None, CTOR_SRC),
+            Some("::Base")
+        );
+    }
+
+    #[test]
+    fn constructor_next_provider_skips_ancestor_with_no_effective_constructor() {
+        // `Mid` declares no constructor of its own (a pure pass-through), so
+        // `Sub`'s `next` must skip past it and reach `Base`'s — the same
+        // "effective provider" skip `constructor_provider` already performs,
+        // just starting one class later.
+        let classes = map(vec![
+            cls_with_ctor("::Base", &[]),
+            cls("::Mid", &["::Base"], &[], &[]),
+            cls_with_ctor("::Sub", &["::Mid"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(
+            h.constructor_next_provider("::Sub", None, CTOR_SRC),
+            Some("::Base")
+        );
+    }
+
+    #[test]
+    fn constructor_next_provider_skips_ancestor_with_empty_bodied_constructor() {
+        // `Mid` declares an explicit but empty-bodied constructor — `TclOO`
+        // treats that as "no constructor", so `next` from `Sub` must skip
+        // past it too, exactly like `constructor_provider` does.
+        let classes = map(vec![
+            cls_with_ctor("::Base", &[]),
+            cls_with_ctor_body("::Mid", &["::Base"], EMPTY_BODY),
+            cls_with_ctor("::Sub", &["::Mid"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(
+            h.constructor_next_provider("::Sub", None, CTOR_SRC),
+            Some("::Base")
+        );
+    }
+
+    #[test]
+    fn constructor_next_provider_none_when_chain_exhausted() {
+        let classes = map(vec![cls_with_ctor("::Sub", &[])]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.constructor_next_provider("::Sub", None, CTOR_SRC), None);
+    }
+
+    #[test]
+    fn constructor_next_provider_nextto_explicit_target() {
+        // `nextto Grandparent` jumps straight to the named class, skipping
+        // `Base` even though `Base` also has an effective constructor.
+        let classes = map(vec![
+            cls_with_ctor("::Grandparent", &[]),
+            cls_with_ctor("::Base", &["::Grandparent"]),
+            cls_with_ctor("::Sub", &["::Base"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(
+            h.constructor_next_provider("::Sub", Some("::Grandparent"), CTOR_SRC),
+            Some("::Grandparent")
+        );
+    }
+
+    /// A class with a real (non-empty) destructor.
+    fn cls_with_dtor(qname: &str, supers: &[&str]) -> ClassDef {
+        let mut cd = cls(qname, supers, &[], &[]);
+        cd.destructor = Some(MethodDef {
+            name: "<destructor>".to_string(),
+            params: Vec::new(),
+            name_span: span(),
+            body_span: NON_EMPTY_BODY,
+            kind: "destructor".to_string(),
+            visibility: "public".to_string(),
+            doc: String::new(),
+            forward_target: None,
+            is_self_method: false,
+        });
+        cd
+    }
+
+    #[test]
+    fn destructor_next_provider_direct_superclass() {
+        let classes = map(vec![
+            cls_with_dtor("::Base", &[]),
+            cls_with_dtor("::Sub", &["::Base"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.destructor_next_provider("::Sub", None), Some("::Base"));
+    }
+
+    #[test]
+    fn destructor_next_provider_skips_ancestor_with_no_destructor() {
+        let classes = map(vec![
+            cls_with_dtor("::Base", &[]),
+            cls("::Mid", &["::Base"], &[], &[]),
+            cls_with_dtor("::Sub", &["::Mid"]),
+        ]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.destructor_next_provider("::Sub", None), Some("::Base"));
+    }
+
+    #[test]
+    fn destructor_next_provider_none_when_chain_exhausted() {
+        let classes = map(vec![cls_with_dtor("::Sub", &[])]);
+        let h = build_class_hierarchy(classes);
+        assert_eq!(h.destructor_next_provider("::Sub", None), None);
     }
 
     #[test]

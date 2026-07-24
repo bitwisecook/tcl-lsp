@@ -27,7 +27,7 @@
 //! feeding find-references, call-hierarchy, call-graph, code-lens, W123, and
 //! the callback-arity check off one substrate.
 //!
-//! Two prefix shapes are recognised:
+//! Three prefix shapes are recognised:
 //!
 //! - A **literal bareword** head (a single `Esc` token, not quoted, not a
 //!   `$var`/`[cmd]` substitution) — mirroring the highlight guard in
@@ -39,8 +39,16 @@
 //!   the callback head and every further element is a *baked* argument the
 //!   callback-arity check (`tcl_lsp_db::apply_callback_arity`) adds to the
 //!   command's own appended count.
+//! - A **list-quoted prefix** (`[list cmd extra1 extra2]`, a single `Cmd`
+//!   token whose sole content is a call to a `Traits::BUILDS_COMMAND_PREFIX`
+//!   command — `list` — with a literal bareword as its own first argument):
+//!   the idiomatic way to build a callback around a dynamic value
+//!   (`-command [list doSomething $x]`) rather than a fixed literal prefix.
+//!   Same head/baked-count semantics as the braced shape, just constructed
+//!   dynamically; the *value* of the trailing arguments isn't needed, only
+//!   their count.
 //!
-//! A dynamic head (`$var`/`[cmd]`, in either shape) can't be resolved to a
+//! A dynamic head (`$var`/`[cmd]`, in any shape) can't be resolved to a
 //! proc and recording it would false-fire W123, so it stays unrecorded.
 //!
 //! [`ArgRole::CommandPrefix`]: tcl_registry::arg_role::ArgRole::CommandPrefix
@@ -48,6 +56,8 @@
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::{AppendedArity, CommandRegistry};
 use tcl_syntax::list::find_element;
+
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset};
 
 /// A command-prefix callback head extracted from a call site.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,9 +93,12 @@ pub(crate) fn command_prefix_invocations(
         let (Some(&tok), Some(text)) = (arg_tokens.get(idx), arg_texts.get(idx)) else {
             continue;
         };
-        if let Some((head, span, baked)) =
-            extract_prefix_head(tok, text, arg_single.get(idx).copied().unwrap_or(false))
-        {
+        if let Some((head, span, baked)) = extract_prefix_head(
+            registry,
+            tok,
+            text,
+            arg_single.get(idx).copied().unwrap_or(false),
+        ) {
             out.push(CommandPrefixInvocation {
                 head,
                 span,
@@ -124,6 +137,7 @@ pub(crate) fn instance_method_command_prefix_invocations(
             continue;
         };
         if let Some((head, span, baked)) = extract_prefix_head(
+            registry,
             tok,
             text,
             method_arg_single.get(idx).copied().unwrap_or(false),
@@ -159,16 +173,19 @@ fn looks_unresolvable(text: &str) -> bool {
 /// argument, or `None` when it isn't a literal, resolvable command
 /// reference.
 ///
-/// Two shapes are recognised (see the module docs): a literal bareword head
-/// — a single `Esc` token, unquoted, with no leading `$`/`[` substitution
-/// and not a widget path, mirroring the highlight retag guard so recording
-/// and highlighting agree exactly — bakes 0; a braced multi-word prefix —
-/// a single `Str` token — is list-parsed via [`find_element`], with the
-/// first element as the head (subject to the same guard) and every further
-/// element counted as a baked argument. A malformed list (unmatched
+/// Three shapes are recognised (see the module docs): a literal bareword
+/// head — a single `Esc` token, unquoted, with no leading `$`/`[`
+/// substitution and not a widget path, mirroring the highlight retag guard
+/// so recording and highlighting agree exactly — bakes 0; a braced
+/// multi-word prefix — a single `Str` token — is list-parsed via
+/// [`find_element`], with the first element as the head (subject to the
+/// same guard) and every further element counted as a baked argument; a
+/// list-quoted prefix — a single `Cmd` token — delegates to
+/// [`extract_list_quoted_prefix_head`]. A malformed list (unmatched
 /// brace/quote, typically mid-edit) or an empty list abstains rather than
 /// guessing.
 fn extract_prefix_head(
+    registry: &CommandRegistry,
     tok: Token,
     text: &str,
     single_token: bool,
@@ -212,5 +229,79 @@ fn extract_prefix_head(
         }
         return Some((head.to_string(), head_span, baked));
     }
+    if tok.kind == TokenType::Cmd {
+        return extract_list_quoted_prefix_head(registry, tok, text);
+    }
     None
+}
+
+/// Extract `(head, head_span, baked_arg_count)` from a `[list cmd a b]`
+/// command-prefix argument.
+///
+/// `text` is the reconstructed word text for a `Cmd` token, which — unlike
+/// the `Str` shape above — keeps its surrounding `[`/`]` (the segmenter's
+/// convention for command-substitution words); strip them to reach the
+/// inner script. That script must be exactly one call to a
+/// `Traits::BUILDS_COMMAND_PREFIX` command (`list`; resolved via
+/// `registry.get`, which strips a leading `::`) whose own first argument is
+/// a literal, resolvable bareword — the same guard as the bareword shape,
+/// applied one level in. The baked count is simply the remaining word
+/// count: unlike the braced-list shape, the trailing words don't need
+/// list-parsing, since `list`'s own arguments are already individually
+/// segmented words, not list elements packed into one.
+fn extract_list_quoted_prefix_head(
+    registry: &CommandRegistry,
+    tok: Token,
+    text: &str,
+) -> Option<(String, Span, usize)> {
+    let seg = list_quoted_command_segment(registry, tok, text)?;
+    let head_tok = seg.argv[1];
+    let baked = seg.texts.len().saturating_sub(2);
+    Some((seg.texts[1].clone(), head_tok.span, baked))
+}
+
+/// Extract the full segmented `list HEAD arg1 arg2 …` command from a
+/// `[list …]` `Cmd` token: `Some` when the token's sole inner command is a
+/// call to a [`tcl_registry::Traits::BUILDS_COMMAND_PREFIX`] command
+/// (`list`) whose own first argument is a literal, resolvable bareword.
+///
+/// `seg.texts[1]` / `seg.argv[1]` is the resolved head; `seg.texts[2..]` /
+/// `seg.argv[2..]` are the words `list` appends after it when the value is
+/// later invoked as a command. Shared by [`extract_list_quoted_prefix_head`]
+/// (which only needs the head/span/baked-count) and the W129 safe-interpreter
+/// gate's deferred-call resolution (`analyser::commands`), which also needs
+/// the full remaining words to recurse into an `apply` lambda body the same
+/// way a direct `apply {…} $x` call would.
+pub(crate) fn list_quoted_command_segment(
+    registry: &CommandRegistry,
+    tok: Token,
+    text: &str,
+) -> Option<SegmentedCommand> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    let content_start = tok.span.start() + u32::from(tok.content_offset);
+    let mut segs = segment_commands_with_offset(inner, content_start);
+    if segs.len() != 1 {
+        return None;
+    }
+    let seg = segs.pop()?;
+    if seg.texts.len() < 2 {
+        return None;
+    }
+    if !registry.get(&seg.texts[0]).is_some_and(|s| {
+        s.traits
+            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+    }) {
+        return None;
+    }
+    let head_tok = *seg.argv.get(1)?;
+    if head_tok.kind != TokenType::Esc
+        || head_tok.in_quote
+        || seg.single_token_word.get(1) != Some(&true)
+    {
+        return None;
+    }
+    if looks_unresolvable(seg.texts.get(1)?) {
+        return None;
+    }
+    Some(seg)
 }

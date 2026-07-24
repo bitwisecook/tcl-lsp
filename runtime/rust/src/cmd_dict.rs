@@ -576,9 +576,43 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// One level of a `dict_path_set`/`dict_path_unset` descent, in the order the
+/// iterative rewrite (below) needs to unwind it: the parent dict, the key
+/// this level's `sub` sits under in that parent, `sub` itself, and whether
+/// `sub` was freshly duplicated/created (so an aborted path knows whether it
+/// owns `sub` and must free it, vs. `sub` being a borrow already owned by its
+/// parent).
+type DictPathLevel = (*mut TclObj, *mut TclObj, *mut TclObj, bool);
+
+/// Drop every freshly duplicated/created sub-dict still in `chain` that has
+/// not yet been re-bound into its parent, after a multi-segment `dict
+/// set`/`dict unset` path failed partway through. The iterative form of the
+/// original recursive `dict_path_set`/`dict_path_unset`'s per-frame
+/// `if sub_fresh { drop_fresh(sub) }` unwind on the way back out of a failed
+/// recursive call (RUST_ISSUE_090) — same bookkeeping, expressed over an
+/// explicit stack instead of the native call stack.
+fn unwind_fresh_chain(chain: &[DictPathLevel]) {
+    for &(_, _, sub, fresh) in chain {
+        if fresh {
+            drop_fresh(sub);
+        }
+    }
+}
+
 /// Set `value` at the key path `keys` (len ≥ 1) within the **unshared** dict
 /// `dict`, descending through (and copy-on-write replacing) intermediate
 /// sub-dicts, creating empty ones for missing path segments.
+///
+/// Iterative, not recursive (issue #996): `dict set d {*}[lrepeat N k] v`
+/// makes `keys.len()` — and so the native recursion depth this used to cost —
+/// trivially attacker-controlled via `{*}` argument expansion, and the
+/// original recursive form (one Rust stack-frame group per key segment) had
+/// no depth cap, so pathologically deep input could abort the process with
+/// an uncatchable native-stack overflow. Rewriting the descend-then-rebind
+/// shape as an explicit loop + stack removes the recursion (and so the whole
+/// crash class) rather than merely bounding it, so there is no `MAX_X_DEPTH`
+/// to calibrate here: an arbitrarily long path now just does more work
+/// (heap-bounded, like any other `Vec`-backed loop), not more native stack.
 fn dict_path_set(
     dict: *mut TclObj,
     keys: &[*mut TclObj],
@@ -587,27 +621,58 @@ fn dict_path_set(
     if let [last] = keys {
         return dict::dict_set(dict, *last, value);
     }
-    let (head, rest) = keys.split_first().expect("len >= 2 here");
-    // The sub-dict for `head`: an unshared one we can mutate (copy a shared one,
-    // create an empty one for a missing segment).
-    let (sub, sub_fresh) = match dict::dict_get(dict, &obj_bytes(*head))? {
-        Some(s) if !obj::is_shared(s) => (s, false),
-        Some(s) => (obj::duplicate(s), true),    // rc 0
-        None => (dict::new_dict_obj(&[]), true), // rc 0
-    };
-    // A freshly duplicated / created `sub` (rc 0) is only retained by the
-    // `dict_set` re-bind below; if the recursive descent errors first, drop it
-    // here so it is not orphaned (RUST_ISSUE_090).
-    if let Err(e) = dict_path_set(sub, rest, value) {
-        if sub_fresh {
-            drop_fresh(sub);
-        }
+    // Descend through every intermediate key segment, recording each level
+    // (the sub-dict for `head`: an unshared one we can mutate — copy a shared
+    // one, create an empty one for a missing segment) so the loop below can
+    // walk back up and re-bind the (possibly modified) chain into its parents,
+    // or unwind it cleanly on failure.
+    let mut chain: Vec<DictPathLevel> = Vec::with_capacity(keys.len() - 1);
+    let mut cur = dict;
+    for &head in &keys[..keys.len() - 1] {
+        let got = match dict::dict_get(cur, &obj_bytes(head)) {
+            Ok(g) => g,
+            Err(e) => {
+                unwind_fresh_chain(&chain);
+                return Err(e);
+            }
+        };
+        let (sub, sub_fresh) = match got {
+            Some(s) if !obj::is_shared(s) => (s, false),
+            Some(s) => (obj::duplicate(s), true),    // rc 0
+            None => (dict::new_dict_obj(&[]), true), // rc 0
+        };
+        chain.push((cur, head, sub, sub_fresh));
+        cur = sub;
+    }
+    let last = *keys.last().expect("keys is non-empty: the [last] case above handles len 1");
+    if let Err(e) = dict::dict_set(cur, last, value) {
+        // A freshly duplicated/created `sub` (rc 0) at any level is only
+        // retained once re-bound into its parent below; nothing in `chain` has
+        // been re-bound yet, so unwind all of it (RUST_ISSUE_090).
+        unwind_fresh_chain(&chain);
         return Err(e);
     }
-    // Re-bind the (modified) sub-dict into its parent. This is required even when
-    // `sub` was mutated in place: it invalidates the parent's string rep so the
-    // nested change is visible up the chain.
-    dict::dict_set(dict, *head, sub)
+    // Walk back up, re-binding each (possibly modified) sub-dict into its
+    // parent. This is required even when a level was mutated in place: it
+    // invalidates the parent's string rep so the nested change is visible up
+    // the chain.
+    let mut sub_result = cur;
+    while let Some((parent, head, sub, fresh)) = chain.pop() {
+        debug_assert!(core::ptr::eq(sub, sub_result));
+        if let Err(e) = dict::dict_set(parent, head, sub_result) {
+            // Effectively unreachable: `parent` was already proven a valid
+            // dict by the `dict_get` above that produced `sub`, and nothing
+            // between then and now could have changed that. Handled anyway,
+            // strictly more leak-safe than leaving `sub_result` dangling.
+            if fresh {
+                drop_fresh(sub_result);
+            }
+            unwind_fresh_chain(&chain);
+            return Err(e);
+        }
+        sub_result = parent;
+    }
+    Ok(())
 }
 
 /// `dict unset dictVarName key ?key ...?` — remove the value at a (possibly
@@ -660,26 +725,59 @@ enum PathErr {
 /// Remove the value at the key path `keys` (len ≥ 1) within the **unshared**
 /// dict `dict`, descending through (and re-binding) intermediate sub-dicts. A
 /// missing intermediate segment errors; a missing final key is a no-op.
+///
+/// Iterative, not recursive (issue #996) — see [`dict_path_set`]'s doc
+/// comment: the same `{*}`-expansion-controlled path length made the
+/// original recursive form (one Rust stack-frame group per key segment)
+/// capable of an uncatchable native-stack overflow on deep/adversarial input,
+/// and the same descend-then-rebind loop + stack rewrite removes that
+/// recursion entirely rather than bounding it.
 fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathErr> {
     if let [last] = keys {
         dict::dict_unset(dict, &obj_bytes(*last)).map_err(PathErr::Bad)?;
         return Ok(());
     }
-    let (head, rest) = keys.split_first().expect("len >= 2 here");
-    let (sub, sub_fresh) = match dict::dict_get(dict, &obj_bytes(*head)).map_err(PathErr::Bad)? {
-        Some(s) if !obj::is_shared(s) => (s, false),
-        Some(s) => (obj::duplicate(s), true), // rc 0
-        None => return Err(PathErr::KeyMissing(obj_bytes(*head))),
-    };
-    // Drop a freshly duplicated `sub` if the recursive descent errors before the
-    // `dict_set` re-bind retains it (RUST_ISSUE_090).
-    if let Err(e) = dict_path_unset(sub, rest) {
-        if sub_fresh {
-            drop_fresh(sub);
-        }
-        return Err(e);
+    let mut chain: Vec<DictPathLevel> = Vec::with_capacity(keys.len() - 1);
+    let mut cur = dict;
+    for &head in &keys[..keys.len() - 1] {
+        let got = match dict::dict_get(cur, &obj_bytes(head)) {
+            Ok(g) => g,
+            Err(e) => {
+                unwind_fresh_chain(&chain);
+                return Err(PathErr::Bad(e));
+            }
+        };
+        let (sub, sub_fresh) = match got {
+            Some(s) if !obj::is_shared(s) => (s, false),
+            Some(s) => (obj::duplicate(s), true), // rc 0
+            None => {
+                unwind_fresh_chain(&chain);
+                return Err(PathErr::KeyMissing(obj_bytes(head)));
+            }
+        };
+        chain.push((cur, head, sub, sub_fresh));
+        cur = sub;
     }
-    dict::dict_set(dict, *head, sub).map_err(PathErr::Bad)
+    let last = *keys.last().expect("keys is non-empty: the [last] case above handles len 1");
+    // Drop a freshly duplicated `sub` still in `chain` if this (or the descent
+    // above) errors before the re-bind loop below retains it (RUST_ISSUE_090).
+    if let Err(e) = dict::dict_unset(cur, &obj_bytes(last)) {
+        unwind_fresh_chain(&chain);
+        return Err(PathErr::Bad(e));
+    }
+    let mut sub_result = cur;
+    while let Some((parent, head, sub, fresh)) = chain.pop() {
+        debug_assert!(core::ptr::eq(sub, sub_result));
+        if let Err(e) = dict::dict_set(parent, head, sub_result) {
+            if fresh {
+                drop_fresh(sub_result);
+            }
+            unwind_fresh_chain(&chain);
+            return Err(PathErr::Bad(e));
+        }
+        sub_result = parent;
+    }
+    Ok(())
 }
 
 // -- iteration -------------------------------------------------------------
@@ -1072,6 +1170,61 @@ mod tests {
             ok(b"dict set d x 1; dict set d y 2; dict set d x 9"),
             b"x 9 y 2"
         );
+    }
+
+    /// A moderately nested `dict set`/`dict unset` key path (well under any
+    /// depth that would have stressed the original recursion) still produces
+    /// exactly the nested structure the recursive version did — the
+    /// iterative rewrite must not change ordinary behaviour.
+    #[test]
+    fn moderately_nested_dict_path_set_unset_unaffected() {
+        assert_eq!(ok(b"dict set d a b c 1"), b"a {b {c 1}}");
+        assert_eq!(
+            ok(b"set d {a {b {c 1 d 2}}}; dict unset d a b c; set d"),
+            b"a {b {d 2}}"
+        );
+        // A missing intermediate segment still errors the same way.
+        let (c, b) = run(b"set d {a {}}; dict unset d a b c");
+        assert_eq!(c, Code::Error);
+        assert_eq!(b, b"key \"b\" not known in dictionary");
+    }
+
+    /// Regression coverage for issue #996: `dict_path_set`/`dict_path_unset`
+    /// recursed once per key-path segment, with no depth cap before this
+    /// fix — `dict set d {*}[lrepeat N k] v` makes the path length (and so
+    /// the native recursion depth this used to cost) trivially attacker-
+    /// controlled via `{*}` argument expansion. The fix (see
+    /// `dict_path_set`'s doc comment) rewrites the descend-then-rebind shape
+    /// as an explicit loop + stack, removing the recursion — and so the
+    /// whole crash class — entirely, rather than merely bounding it.
+    ///
+    /// Empirically (a throwaway probe temporarily reproducing the exact
+    /// pre-fix recursive shape in-place, run then reverted per this sweep's
+    /// calibration process — see `docs/design/compiler/
+    /// recursive-descent-depth-limits.md`): via this exact
+    /// `dict set d {*}[lrepeat N k] v` pipeline, unguarded `dict_path_set`
+    /// overflowed the native stack (SIGABRT) between depth 3000-3600 on
+    /// `cargo test`'s per-test default stack. 3800 is past that crash range.
+    /// It is deliberately not much larger: constructing this deep a dict also
+    /// builds a linked chain of that many nested `TclObj` dicts, and freeing
+    /// that chain recursively (this runtime's refcounted `TclObj` drop,
+    /// entirely unrelated to `dict_path_set`/`dict_path_unset` and out of
+    /// scope for this fix) is itself unguarded and was independently observed
+    /// to overflow the same stack between depth 4200-4300 — noted here for
+    /// whoever triages that separately, matching this sweep's note about
+    /// `self_reachable`'s distinct algorithmic-complexity issue in
+    /// `cmd_oo.rs`. The assertion is that a deep `dict set`/`dict unset`
+    /// completes (`Code::Ok`) at all, not what the resulting (huge) dict
+    /// string is.
+    #[test]
+    fn deeply_nested_dict_path_set_and_unset_survive() {
+        const DEPTH: usize = 3800;
+        let set_src = format!("dict set d {{*}}[lrepeat {DEPTH} k] v");
+        ok(set_src.as_bytes());
+        let unset_src = format!(
+            "dict set d {{*}}[lrepeat {DEPTH} k] v; dict unset d {{*}}[lrepeat {DEPTH} k]"
+        );
+        ok(unset_src.as_bytes());
     }
 
     #[test]

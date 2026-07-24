@@ -40,6 +40,7 @@ use tcl_registry::TclType;
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
@@ -123,7 +124,7 @@ pub(crate) fn find_expr_shimmers(
                         seen: &mut seen,
                         out: &mut out,
                     };
-                    collect_expr_shimmers(&mut ctx, expr);
+                    collect_expr_shimmers(&mut ctx, expr, 0);
                 }
                 _ => {}
             }
@@ -154,7 +155,7 @@ pub(crate) fn find_expr_shimmers(
                 seen: &mut seen,
                 out: &mut out,
             };
-            collect_expr_shimmers(&mut ctx, condition);
+            collect_expr_shimmers(&mut ctx, condition, 0);
         }
     }
 
@@ -206,14 +207,21 @@ impl ExprShimmerCtx<'_> {
     }
 }
 
-fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
+fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, depth: u32) {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, stop descending — a collector
+    // that returns the shimmer warnings gathered so far is the safe fallback
+    // (operands buried deeper than the cap go unflagged; never a crash).
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return;
+    }
     match node {
         ExprNode::Binary {
             op, left, right, ..
         } => {
             // Recurse into children first.
-            collect_expr_shimmers(ctx, left);
-            collect_expr_shimmers(ctx, right);
+            collect_expr_shimmers(ctx, left, depth + 1);
+            collect_expr_shimmers(ctx, right, depth + 1);
 
             match op {
                 // Arithmetic, bitwise, and shift operators are an unconditional
@@ -296,7 +304,7 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
         }
 
         ExprNode::Unary { operand, .. } => {
-            collect_expr_shimmers(ctx, operand);
+            collect_expr_shimmers(ctx, operand, depth + 1);
         }
 
         ExprNode::Ternary {
@@ -305,9 +313,9 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode) {
             false_branch,
             ..
         } => {
-            collect_expr_shimmers(ctx, condition);
-            collect_expr_shimmers(ctx, true_branch);
-            collect_expr_shimmers(ctx, false_branch);
+            collect_expr_shimmers(ctx, condition, depth + 1);
+            collect_expr_shimmers(ctx, true_branch, depth + 1);
+            collect_expr_shimmers(ctx, false_branch, depth + 1);
         }
 
         _ => {}
@@ -614,6 +622,72 @@ mod tests {
             registry,
             &facts,
         )
+    }
+
+    /// Regression coverage for issue #996: `collect_expr_shimmers` recurses
+    /// once per `ExprNode` level with no depth cap before this fix. A tree
+    /// built directly is unbounded (the Pratt parser caps its own output at
+    /// 256) and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
+    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns
+    /// at all.
+    #[test]
+    fn deeply_nested_collect_expr_shimmers_survives() {
+        use crate::expr_ast::ExprNode;
+        use std::collections::HashSet;
+        use tcl_lexer::Span;
+
+        let r = registry();
+        let cu = CompilationUnit::build_for("set v 5", &r, false);
+        let fu = cu.function("::top").unwrap();
+        let cctx = super::super::commit::CommitCtx {
+            registry: &r,
+            ssa: &fu.ssa,
+            types: &fu.types,
+            values: &fu.sccp.values,
+        };
+        let facts = super::super::commit::compute_commit_facts(
+            &fu.cfg,
+            &cctx,
+            &fu.sccp.executable_blocks,
+            &fu.sccp.executable_edges,
+        );
+        let walker = facts.walker(&cctx, fu.cfg.entry);
+
+        let uses: HashMap<Symbol, u32> = HashMap::new();
+        let mut seen: HashSet<(Span, String)> = HashSet::new();
+        let mut out: Vec<ShimmerWarning> = Vec::new();
+        let mut sctx = ExprShimmerCtx {
+            uses: &uses,
+            types: &fu.types,
+            values: &fu.sccp.values,
+            ssa: &fu.ssa,
+            commit: &walker,
+            stmt_span: Span::new(0, 1),
+            expr_base: None,
+            in_loop: false,
+            seen: &mut seen,
+            out: &mut out,
+        };
+
+        let mut node = ExprNode::Var {
+            text: "$v".into(),
+            name: "v".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Binary {
+                op: crate::expr_ast::BinOp::Add,
+                left: Box::new(node),
+                right: Box::new(ExprNode::Literal {
+                    text: "1".into(),
+                    start: 0,
+                    end: 1,
+                }),
+            };
+        }
+        collect_expr_shimmers(&mut sctx, &node, 0);
     }
 
     /// An Int variable in arithmetic — no shimmer.

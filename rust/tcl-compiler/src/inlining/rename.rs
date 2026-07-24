@@ -45,6 +45,7 @@
 
 use std::collections::HashMap;
 
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{IfClause, Script, Statement, SwitchArm, TryHandler};
 
@@ -559,6 +560,21 @@ fn split_array(name: &str) -> (&str, &str) {
 /// Walk an [`ExprNode`] tree and return a clone with `rename` applied to
 /// every [`ExprNode::Var`] name.
 fn rewrite_expr(node: &ExprNode, rename: &HashMap<String, String>) -> ExprNode {
+    // Public entry: the top of an expression tree is nesting depth 0 (issue
+    // #996 — the recursion cap lives in [`rewrite_expr_at`]).
+    rewrite_expr_at(node, rename, 0)
+}
+
+fn rewrite_expr_at(node: &ExprNode, rename: &HashMap<String, String>, depth: u32) -> ExprNode {
+    // Native-stack safety net (issue #996): this both walks the input tree
+    // and constructs a renamed clone, one native frame per level. Past the
+    // cap, pass the node through *unchanged* (a full `clone`) — this stops
+    // transforming deeper vars but preserves the tree's structure intact
+    // (never truncates or panics). Only reachable past 256 levels of
+    // expression nesting, which the Pratt parser never produces.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return node.clone();
+    }
     match node {
         ExprNode::Var {
             text,
@@ -585,21 +601,21 @@ fn rewrite_expr(node: &ExprNode, rename: &HashMap<String, String>) -> ExprNode {
         },
         ExprNode::Binary { op, left, right } => ExprNode::Binary {
             op: *op,
-            left: Box::new(rewrite_expr(left, rename)),
-            right: Box::new(rewrite_expr(right, rename)),
+            left: Box::new(rewrite_expr_at(left, rename, depth + 1)),
+            right: Box::new(rewrite_expr_at(right, rename, depth + 1)),
         },
         ExprNode::Unary { op, operand } => ExprNode::Unary {
             op: *op,
-            operand: Box::new(rewrite_expr(operand, rename)),
+            operand: Box::new(rewrite_expr_at(operand, rename, depth + 1)),
         },
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => ExprNode::Ternary {
-            condition: Box::new(rewrite_expr(condition, rename)),
-            true_branch: Box::new(rewrite_expr(true_branch, rename)),
-            false_branch: Box::new(rewrite_expr(false_branch, rename)),
+            condition: Box::new(rewrite_expr_at(condition, rename, depth + 1)),
+            true_branch: Box::new(rewrite_expr_at(true_branch, rename, depth + 1)),
+            false_branch: Box::new(rewrite_expr_at(false_branch, rename, depth + 1)),
         },
         ExprNode::Call {
             function,
@@ -608,7 +624,10 @@ fn rewrite_expr(node: &ExprNode, rename: &HashMap<String, String>) -> ExprNode {
             end,
         } => ExprNode::Call {
             function: function.clone(),
-            args: args.iter().map(|a| rewrite_expr(a, rename)).collect(),
+            args: args
+                .iter()
+                .map(|a| rewrite_expr_at(a, rename, depth + 1))
+                .collect(),
             start: *start,
             end: *end,
         },
@@ -631,6 +650,36 @@ mod tests {
             .iter()
             .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
             .collect()
+    }
+
+    /// Regression coverage for issue #996: `rewrite_expr` recurses once per
+    /// `ExprNode` level — walking the input *and* constructing a renamed
+    /// clone — with no depth cap before this fix. A tree built directly is
+    /// unbounded (the Pratt parser caps its own output at 256) and
+    /// empirically overflowed the native stack (SIGABRT) in the low thousands
+    /// of levels on a 2 MiB thread. 3000 is past that crash range and past
+    /// `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns a tree
+    /// (past the cap it passes the sub-tree through unchanged rather than
+    /// truncating or panicking).
+    #[test]
+    fn deeply_nested_rewrite_expr_survives() {
+        use crate::expr_ast::UnaryOp;
+        let mut node = ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let r = rn(&[("x", "y")]);
+        // Returns a full tree (never truncated) without overflowing.
+        let out = rewrite_expr(&node, &r);
+        assert!(matches!(out, ExprNode::Unary { .. }));
     }
 
     #[test]

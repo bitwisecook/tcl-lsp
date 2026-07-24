@@ -737,6 +737,24 @@ pub struct CommandSpec {
     /// than argument shape — see [`ContextGate`]. `None` = no
     /// context-sensitive restriction (the common case).
     pub context_gate: Option<ContextGate>,
+
+    /// Fully-`::`-qualified namespace this ensemble's subcommands are
+    /// *also* individually, separately callable under — `Some("::tcl::dict")`
+    /// for `dict`, whose `exists`/`get`/etc. are genuine standalone commands
+    /// (`::tcl::dict::exists`, verified via `info commands ::tcl::dict::*`
+    /// against tclsh9.0/8.6), not merely ensemble-dispatch subcommand specs.
+    /// A proc lexically defined *inside* that namespace (tcllib's
+    /// `dicttool.tcl`: `proc ::tcl::dict::getnull {d args} { if {[exists
+    /// $d {*}$args]} {...} }`) resolves a bare `exists` call to the real
+    /// command through ordinary current-namespace-then-global lookup, so
+    /// W123 needs a registry entry for it (see each ensemble's own
+    /// `qualified_specs()`-shaped helper, e.g. `commands::tcl::dict`).  Also
+    /// the namespace `dynamic_ensemble_subcommand_known` searches for a
+    /// same-named proc when an ensemble's `-map` may have been reconfigured
+    /// at runtime (`namespace ensemble configure dict -map …`).  `None` for
+    /// every ensemble whose subcommands are C `switch`-statement arms with
+    /// no individually-callable backing command (`string`, `array`, …).
+    pub implementation_namespace: Option<&'static str>,
 }
 
 /// Count the leading words of `args` that are declared options in
@@ -875,6 +893,7 @@ impl CommandSpec {
         creates_instance_at: None,
         defines_command_at: None,
         context_gate: None,
+        implementation_namespace: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's

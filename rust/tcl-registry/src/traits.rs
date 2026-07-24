@@ -105,6 +105,25 @@ bitflags! {
         /// Produces a canonical Tcl list (`list`, `concat`).
         const PRODUCES_CANONICAL_LIST   = 1 << 28;
 
+        /// Quotes its arguments into a well-formed command reference: when
+        /// the first argument is a literal command name, evaluating the
+        /// result invokes that command with the remaining arguments
+        /// appended verbatim (`list cmd $a $b` → `cmd $a $b`, each word
+        /// preserved regardless of its runtime value). Set on `list` only —
+        /// **not** `concat`, whose plain string-join does not give the same
+        /// per-word quoting guarantee for a dynamic value, so it is unsafe
+        /// to reinterpret the same way. The idiomatic way to build a
+        /// deferred callback / command prefix around a dynamic value
+        /// (`package ifneeded name ver [list apply {params} {body} $dir]`,
+        /// `button .b -command [list doSomething $x]`) rather than a
+        /// literal braced prefix. Consulted wherever a
+        /// [`crate::arg_role::ArgRole::CommandPrefix`] /
+        /// [`crate::arg_role::ArgRole::Body`] /
+        /// [`crate::arg_role::ArgRole::LambdaLiteral`] argument position
+        /// needs to recognise this quoting shape generically — no command
+        /// name appears in the consumer.
+        const BUILDS_COMMAND_PREFIX     = 1 << 30;
+
         // Safety
         /// Inherently dangerous command.
         const UNSAFE                    = 1 << 29;

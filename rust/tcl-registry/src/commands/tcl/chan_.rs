@@ -536,6 +536,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
         arg_values: &[(1, EVENT_VALUES)],
         closed_value_args: &[1],
+        // The script fires later, when the channel event occurs — a
+        // different call frame than the one that registered it (same
+        // reasoning as `after`'s `body_kind`, which see).
+        body_kind: BodyKind::Structural,
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,

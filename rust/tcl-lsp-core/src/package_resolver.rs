@@ -226,15 +226,31 @@ fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
 }
 
 /// Walk `commands` collecting `source <arg>` targets that exist under
+/// Cap on `[...]`/`{...}`/`"..."` wrapper-word nesting depth
+/// [`collect_source_targets`] will descend into — pathologically deep
+/// nesting in a `pkgIndex.tcl` `package ifneeded` body could otherwise
+/// blow the native stack when the workspace indexer scans it. See
+/// `docs/design/compiler/recursive-descent-depth-limits.md`.
+const MAX_SOURCE_TARGET_SCAN_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(256);
+
 /// `pkg_dir` (per `exists`), descending into `[...]` / `{...}` / `"..."`
 /// wrapper words. Mirrors `resolver.py::_collect_source_targets`.
+///
+/// `depth` is the nesting level of this call (0 at the top); past
+/// [`MAX_SOURCE_TARGET_SCAN_DEPTH`] this stops descending into wrapper
+/// words rather than recursing further.
 fn collect_source_targets(
     text: &str,
     commands: &[Vec<Vec<Token>>],
     pkg_dir: &Path,
     exists: &dyn Fn(&Path) -> bool,
     out: &mut Vec<PathBuf>,
+    depth: u32,
 ) {
+    if MAX_SOURCE_TARGET_SCAN_DEPTH.exceeded(depth) {
+        return;
+    }
     for words in commands {
         for (i, word) in words.iter().enumerate() {
             if word_raw(text, word) == "source"
@@ -249,7 +265,14 @@ fn collect_source_targets(
         }
         for word in words {
             if let Some(inner) = word_unwrap(text, word) {
-                collect_source_targets(&inner, &walk_command_words(&inner), pkg_dir, exists, out);
+                collect_source_targets(
+                    &inner,
+                    &walk_command_words(&inner),
+                    pkg_dir,
+                    exists,
+                    out,
+                    depth + 1,
+                );
             }
         }
     }
@@ -321,6 +344,7 @@ pub fn parse_pkg_index(
             pkg_dir,
             exists,
             &mut source_files,
+            0,
         );
         if source_files.is_empty() {
             for f in list_tcl_files(pkg_dir) {

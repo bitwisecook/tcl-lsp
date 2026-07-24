@@ -194,12 +194,12 @@ pub(crate) fn eval_special_form(
                 Value::Stream(items) => Value::List(items),
                 other => other,
             };
-            set_at_path(current.clone(), &path, new_value)
+            set_at_path(current.clone(), &path, new_value, 0)
         }
         "del" => {
             let path_value = eval(&args[0], current, ctx)?;
             let path = coerce_path_list(&path_value, "del", 1)?;
-            Ok(delete_at_path(current.clone(), &path))
+            Ok(delete_at_path(current.clone(), &path, 0))
         }
         "delpaths" => {
             let paths_value = eval(&args[0], current, ctx)?;
@@ -211,11 +211,11 @@ pub(crate) fn eval_special_form(
             paths.sort_by_key(|p| std::cmp::Reverse(p.len()));
             let mut out = current.clone();
             for p in &paths {
-                out = delete_at_path(out, p);
+                out = delete_at_path(out, p, 0);
             }
             Ok(out)
         }
-        "walk" => walk(&args[0], current.clone(), ctx),
+        "walk" => walk(&args[0], current.clone(), ctx, 0),
         "recurse" => eval_recurse(args, current, ctx),
         "recurse_down" => eval_recurse(&[], current, ctx),
         "until" => {
@@ -276,7 +276,7 @@ pub(crate) fn eval_special_form(
             })
         }
         "debug" => {
-            let jsonable = to_jsonable(current);
+            let jsonable = to_jsonable(current, 0);
             let payload = if args.is_empty() {
                 Value::List(vec![Value::Str("DEBUG:".to_string()), jsonable])
             } else {
@@ -289,7 +289,7 @@ pub(crate) fn eval_special_form(
                 };
                 Value::List(vec![
                     Value::Str("DEBUG:".to_string()),
-                    to_jsonable(&label),
+                    to_jsonable(&label, 0),
                     jsonable,
                 ])
             };
@@ -297,7 +297,7 @@ pub(crate) fn eval_special_form(
             Ok(current.clone())
         }
         "stderr" => {
-            eprintln!("{}", crate::jsonfmt::to_compact(&to_jsonable(current)));
+            eprintln!("{}", crate::jsonfmt::to_compact(&to_jsonable(current, 0)));
             Ok(current.clone())
         }
         "IN" => {
@@ -307,7 +307,7 @@ pub(crate) fn eval_special_form(
                 candidates.extend(flatten(v));
             }
             Ok(Value::Bool(
-                candidates.iter().any(|c| value::py_eq(current, c)),
+                candidates.iter().any(|c| value::py_eq(current, c, 0)),
             ))
         }
         "INDEX" => {
@@ -394,37 +394,46 @@ fn extreme_item(items: &[Value], want_min: bool) -> Value {
     best.clone()
 }
 
-fn walk(body: &Expr, value: Value, ctx: &mut EvalContext) -> Result<Value, QueryError> {
-    let rebuilt = match value {
-        Value::ObjectRef(o) => {
-            let mut m = IndexMap::new();
-            for (k, v) in &o.fields {
-                m.insert(k.clone(), walk(body, v.clone(), ctx)?);
+/// `depth` is the nesting level of this call (0 at the top); past
+/// [`value::MAX_VALUE_WALK_DEPTH`] this stops descending into `value`'s
+/// children — matching the `scalar => scalar` arm below, `body` still runs
+/// once on the (now-opaque) subtree — rather than recursing further
+/// (issue #996).
+fn walk(body: &Expr, value: Value, ctx: &mut EvalContext, depth: u32) -> Result<Value, QueryError> {
+    let rebuilt = if value::MAX_VALUE_WALK_DEPTH.exceeded(depth) {
+        value
+    } else {
+        match value {
+            Value::ObjectRef(o) => {
+                let mut m = IndexMap::new();
+                for (k, v) in &o.fields {
+                    m.insert(k.clone(), walk(body, v.clone(), ctx, depth + 1)?);
+                }
+                Value::Object(m)
             }
-            Value::Object(m)
-        }
-        Value::Object(map) => {
-            let mut m = IndexMap::new();
-            for (k, v) in map {
-                m.insert(k, walk(body, v, ctx)?);
+            Value::Object(map) => {
+                let mut m = IndexMap::new();
+                for (k, v) in map {
+                    m.insert(k, walk(body, v, ctx, depth + 1)?);
+                }
+                Value::Object(m)
             }
-            Value::Object(m)
-        }
-        Value::List(items) => {
-            let mut out = Vec::with_capacity(items.len());
-            for v in items {
-                out.push(walk(body, v, ctx)?);
+            Value::List(items) => {
+                let mut out = Vec::with_capacity(items.len());
+                for v in items {
+                    out.push(walk(body, v, ctx, depth + 1)?);
+                }
+                Value::List(out)
             }
-            Value::List(out)
-        }
-        Value::Stream(items) => {
-            let mut out = Vec::with_capacity(items.len());
-            for v in items {
-                out.push(walk(body, v, ctx)?);
+            Value::Stream(items) => {
+                let mut out = Vec::with_capacity(items.len());
+                for v in items {
+                    out.push(walk(body, v, ctx, depth + 1)?);
+                }
+                Value::List(out)
             }
-            Value::List(out)
+            scalar => scalar,
         }
-        scalar => scalar,
     };
     Ok(flatten_one_value(eval(body, &rebuilt, ctx)?))
 }
@@ -590,7 +599,7 @@ fn eval_pick(args: &[Expr], current: &Value, ctx: &mut EvalContext) -> Result<Va
         if !exists {
             continue;
         }
-        out = set_at_path(out, p, value_at)?;
+        out = set_at_path(out, p, value_at, 0)?;
     }
     Ok(out)
 }
@@ -691,5 +700,75 @@ fn py_str_key(v: &Value) -> String {
         Value::Bool(b) => if *b { "True" } else { "False" }.to_string(),
         Value::Null => "None".to_string(),
         other => other.describe(),
+    }
+}
+
+#[cfg(test)]
+mod recursion_tests {
+    use super::*;
+    use crate::eval::Root;
+
+    /// A list nested `depth` levels deep, wrapping a single `Int(0)` leaf.
+    fn deep_nested_list(depth: usize) -> Value {
+        let mut v = Value::Int(0);
+        for _ in 0..depth {
+            v = Value::List(vec![v]);
+        }
+        v
+    }
+
+    /// An identity body (`.`) — `walk`'s cheapest possible transform, so
+    /// these tests exercise only `walk`'s own structural recursion.
+    fn identity() -> Expr {
+        Expr::Identity { offset: 0 }
+    }
+
+    fn new_ctx() -> EvalContext {
+        EvalContext::new(Root::json("test.json", Value::Null))
+    }
+
+    /// Run *f* on a worker thread with a 256 MiB stack (mirroring
+    /// `tests/hardening.rs`'s `with_big_stack`). Building — and, at scope
+    /// end, dropping — a several-thousand-level-deep `Value` costs one
+    /// native stack frame per level, since `Value`'s derived `Clone`/`Drop`
+    /// have no depth cap of their own (unlike `walk` under test here) — and
+    /// `walk`'s own past-the-cap fallback still runs the identity body once
+    /// on the (still-deep) opaque subtree, which clones it — so the fixture
+    /// needs more room than the harness's default ~2 MiB per-test thread
+    /// provides, independently of whether the guard is correct.
+    fn with_big_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn(f)
+            .expect("spawn worker thread")
+            .join()
+            .expect("worker thread did not panic / overflow")
+    }
+
+    /// Regression coverage for issue #996: the `walk` special form (`walk`
+    /// builtin body) recurses once per nested `Value` level, with no depth
+    /// cap before this fix — reachable with a fully generator-controlled
+    /// nesting depth (e.g. `walk(.)` over deeply nested `fromjson` input).
+    /// 5000 is comfortably past `value::MAX_VALUE_WALK_DEPTH` (64); the
+    /// assertion is that `walk` returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_value_walk_does_not_crash() {
+        with_big_stack(|| {
+            let body = identity();
+            let mut ctx = new_ctx();
+            let result = walk(&body, deep_nested_list(5000), &mut ctx, 0);
+            assert!(result.is_ok(), "expected Ok past the cap, got {result:?}");
+        });
+    }
+
+    /// A value nested well under `MAX_VALUE_WALK_DEPTH` still walks exactly
+    /// as before this fix — the identity body leaves every value unchanged.
+    #[test]
+    fn moderately_nested_value_walk_is_unchanged() {
+        let body = identity();
+        let mut ctx = new_ctx();
+        let value = deep_nested_list(5);
+        let result = walk(&body, value, &mut ctx, 0).expect("walk(.)");
+        assert_eq!(crate::jsonfmt::to_compact(&result), "[[[[[0]]]]]");
     }
 }

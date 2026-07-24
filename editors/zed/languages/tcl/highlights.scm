@@ -76,21 +76,21 @@
     "const" "coroinject" "coroprobe" "dict" "divmod" "encoding"
     "eof" "eq" "eval" "exec" "exit" "fblocked"
     "fconfigure" "fcopy" "file" "fileevent" "filename" "flush"
-    "format" "frexp" "gets" "gettimes" "glob" "history"
-    "http" "in" "incr" "info" "join" "lappend"
-    "lassign" "ledit" "lgen" "lindex" "linsert" "list"
-    "llength" "load" "lpop" "lrange" "lremove" "lrepeat"
-    "lreplace" "lreverse" "lsearch" "lseq" "lset" "lsort"
-    "lstring" "memory" "modf" "ne" "ni" "noop"
-    "oo::copy" "oo::object" "open" "parray" "pid" "pkg::create"
-    "pkg_mkIndex" "pkg_mkindex" "puts" "pwd" "re_quote" "read"
-    "readFile" "regex::quote" "regex_quote" "regexp" "regexp::quote" "registry"
-    "regsub" "remquo" "scan" "seek" "socket" "split"
-    "string" "subst" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord"
-    "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
-    "time" "timer" "timerate" "trace" "unicode" "unknown"
-    "unload" "unset" "update" "vwait" "writeFile" "zipfs"
-    "zlib"))
+    "format" "frexp" "ge" "gets" "gettimes" "glob"
+    "gt" "history" "http" "in" "incr" "info"
+    "join" "lappend" "lassign" "le" "ledit" "lgen"
+    "lindex" "linsert" "list" "llength" "load" "lpop"
+    "lrange" "lremove" "lrepeat" "lreplace" "lreverse" "lsearch"
+    "lseq" "lset" "lsort" "lstring" "lt" "memory"
+    "modf" "ne" "ni" "noop" "oo::copy" "oo::object"
+    "open" "parray" "pid" "pkg::create" "pkg_mkIndex" "pkg_mkindex"
+    "puts" "pwd" "re_quote" "read" "readFile" "regex::quote"
+    "regex_quote" "regexp" "regexp::quote" "registry" "regsub" "remquo"
+    "scan" "seek" "socket" "split" "string" "subst"
+    "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord"
+    "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell" "time" "timer"
+    "timerate" "trace" "unicode" "unknown" "unload" "unset"
+    "update" "vwait" "writeFile" "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command
@@ -102,18 +102,24 @@
 (command
   name: (simple_word) @function)
 
-; Operators
+; Operators recognised as dedicated tokens by the vendored tree-sitter-tcl
+; grammar
 (unpack) @operator
 
-["**" "/" "*" "%" "+" "-"
- "<<" ">>"
- ">" "<" ">=" "<="
- "==" "!="
- "eq" "ne"
- "in" "ni"
- "&" "^" "|"
- "&&" "||"
+[
+    "!" "!=" "%" "&" "&&" "*"
+    "**" "+" "-" "/" "<" "<<"
+    "<=" "==" ">" ">=" ">>" "^"
+    "eq" "in" "ne" "ni" "|" "||"
+    "~"
 ] @operator
+
+; Word-shaped operators (TIP 461 string-ordering, iRules words) the vendored
+; grammar parses as a plain word rather than a dedicated token — matched by
+; content, like `@boolean` below.
+((simple_word) @operator
+  (#any-of? @operator
+    "ge" "gt" "le" "lt"))
 
 ; Punctuation
 ["{" "}" "[" "]" ";"] @punctuation.bracket

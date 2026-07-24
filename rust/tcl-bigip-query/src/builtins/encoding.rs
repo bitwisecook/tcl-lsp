@@ -44,7 +44,7 @@ use base64::engine::general_purpose::STANDARD;
 use crate::builtins::{BuiltinSpec, as_str, plain, to_jsonable, type_name};
 use crate::errors::QueryError;
 use crate::jsonfmt;
-use crate::value::Value;
+use crate::value::{MAX_VALUE_WALK_DEPTH, Value};
 
 pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![
@@ -118,7 +118,7 @@ fn hex_upper(nibble: u8) -> char {
 
 fn bi_tojson(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(jsonfmt::to_compact_sorted(&to_jsonable(
-        &args[0],
+        &args[0], 0,
     ))))
 }
 
@@ -126,13 +126,27 @@ fn bi_fromjson(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "fromjson", 1)?;
     let parsed: serde_json::Value = serde_json::from_str(&s)
         .map_err(|e| QueryError::builtin(format!("fromjson: invalid JSON: {e}")))?;
-    Ok(json_to_value(&parsed))
+    Ok(json_to_value(&parsed, 0))
 }
 
 /// Convert a parsed `serde_json::Value` into the query value model:
 /// integers stay `Int`, anything else `Float`, objects preserve
 /// key insertion order (the `preserve_order` feature backs this).
-pub(crate) fn json_to_value(j: &serde_json::Value) -> Value {
+///
+/// `depth` is the nesting level of this call (0 at the top); past
+/// [`MAX_VALUE_WALK_DEPTH`] this returns `Value::Null` in place of the
+/// over-deep subtree instead of recursing further (issue #996). Every
+/// current caller (`fromjson`, `http_body_json`, `json_load`, `json_parse`,
+/// …) builds `j` via `serde_json::from_str`, which already enforces its own
+/// ~128-level default recursion limit before `json_to_value` ever sees the
+/// result — but that limit lives in `serde_json`, not here, so this guard is
+/// what actually protects `json_to_value` itself for defence-in-depth and
+/// consistency with every other `Value`-walker in this crate, independent
+/// of how any future caller happens to construct its `serde_json::Value`.
+pub(crate) fn json_to_value(j: &serde_json::Value, depth: u32) -> Value {
+    if MAX_VALUE_WALK_DEPTH.exceeded(depth) {
+        return Value::Null;
+    }
     match j {
         serde_json::Value::Null => Value::Null,
         serde_json::Value::Bool(b) => Value::Bool(*b),
@@ -146,11 +160,16 @@ pub(crate) fn json_to_value(j: &serde_json::Value) -> Value {
             }
         }
         serde_json::Value::String(s) => Value::Str(s.clone()),
-        serde_json::Value::Array(items) => Value::List(items.iter().map(json_to_value).collect()),
+        serde_json::Value::Array(items) => Value::List(
+            items
+                .iter()
+                .map(|item| json_to_value(item, depth + 1))
+                .collect(),
+        ),
         serde_json::Value::Object(map) => {
             let mut m = indexmap::IndexMap::new();
             for (k, v) in map {
-                m.insert(k.clone(), json_to_value(v));
+                m.insert(k.clone(), json_to_value(v, depth + 1));
             }
             Value::Object(m)
         }
@@ -230,5 +249,38 @@ mod tests {
             "'a' 'b c'"
         );
         assert_eq!(call(bi_sh, &[s("a'b")]), "'a'\\''b'");
+    }
+
+    /// A `serde_json::Value` nested `depth` levels deep, wrapping a single
+    /// `Number(0)` leaf. Built with a plain loop (no recursion), so
+    /// constructing the fixture itself cannot trip `serde_json::from_str`'s
+    /// own ~128-level default recursion limit the way parsing equivalent
+    /// JSON *text* would — this is exactly the shape that limit does not
+    /// protect `json_to_value` against (issue #996).
+    fn deep_json_array(depth: usize) -> serde_json::Value {
+        let mut v = serde_json::Value::Number(0.into());
+        for _ in 0..depth {
+            v = serde_json::Value::Array(vec![v]);
+        }
+        v
+    }
+
+    /// Regression coverage for issue #996: `json_to_value` recurses once
+    /// per nested JSON array/object level, with no depth cap before this
+    /// fix. 5000 is comfortably past `MAX_VALUE_WALK_DEPTH` (64); the
+    /// assertion is that it returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_json_to_value_does_not_crash() {
+        let j = deep_json_array(5000);
+        let _ = json_to_value(&j, 0);
+    }
+
+    /// JSON nested well under `MAX_VALUE_WALK_DEPTH` still converts exactly
+    /// as before this fix.
+    #[test]
+    fn moderately_nested_json_to_value_is_unchanged() {
+        let j = deep_json_array(3);
+        let v = json_to_value(&j, 0);
+        assert_eq!(jsonfmt::to_compact(&v), "[[[0]]]");
     }
 }

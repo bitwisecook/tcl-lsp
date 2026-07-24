@@ -304,6 +304,26 @@ fn invert_comparison_flips_relational_operator() {
 }
 
 #[test]
+fn invert_comparison_flips_tip461_string_ordering_operator() {
+    // Issue #983/#986: the hand-typed inversion list never included the
+    // 9.0+ `lt`/`le`/`gt`/`ge` word-form comparisons at all, so this quick
+    // fix silently never offered itself for one of them.
+    //
+    // tclsh 9.0: `$a lt $b` ≡ `!($a ge $b)` for any string pair (a total
+    // order, same identity as the numeric/`<=` case above).
+    let src = "if {$a lt $b} { puts hi }\n";
+    let analysis = analyse(src);
+    // `if {` is 4 chars; `$a lt $b` spans cols 4..12.
+    let actions = code_actions(src, selection(0, 4, 12), Some(&analysis));
+    let inv = find(&actions, "Invert comparison").expect("an invert-comparison rewrite");
+    assert_eq!(
+        inv.edits[0].new_text, "$a ge $b",
+        "lt should invert to ge: {:?}",
+        inv.edits[0].new_text,
+    );
+}
+
+#[test]
 fn invert_comparison_absent_without_top_level_operator() {
     // A selection with no space-delimited top-level comparison operator offers
     // no inversion (a bare `$a` can't be inverted).
@@ -349,6 +369,53 @@ fn demorgan_reverse_collapses_disjunction_of_negations() {
     assert_eq!(
         dm.edits[0].new_text, "!($a && $b)",
         "reverse De Morgan of `|| of negations` is `!(… && …)`: {:?}",
+        dm.edits[0].new_text,
+    );
+}
+
+#[test]
+fn demorgan_forward_recognises_irules_word_operators() {
+    // Adversarial-review finding: `demorgan_transform` only recognised the
+    // symbolic `&&`/`||`/`!` forms, so it silently never offered the rewrite
+    // for a selection written in iRules' word style — `!($a and $b)` (the
+    // same shape `demorgan_reverse_collapses_disjunction_of_negations`
+    // above exercises symbolically) got no "Apply De Morgan's law" action
+    // at all, an inconsistent gap given the sibling `invert_comparison` fix
+    // in this same file already handles TIP 461's word operators.
+    //
+    // tclsh (f5-irules dialect): `!($a and $b)` ≡ `!$a or !$b` (the outer
+    // `!` prefix's negation style is kept for the operands; only the
+    // connective switches, `and` -> `or`, matching its own inner spelling).
+    let src = "if {!($a and $b)} { puts hi }\n";
+    let analysis = analyse_dialect(src, "f5-irules");
+    // `if {` is 4 chars; `!($a and $b)` spans cols 4..16.
+    let actions = code_actions(src, selection(0, 4, 16), Some(&analysis));
+    let dm =
+        find(&actions, "De Morgan").expect("a forward-direction word-operator De Morgan rewrite");
+    assert_eq!(dm.kind, ActionKind::RefactorRewrite);
+    assert!(edits_well_formed(dm) && edits_in_bounds(dm, src), "{dm:?}");
+    assert_eq!(
+        dm.edits[0].new_text, "!$a or !$b",
+        "forward De Morgan of `!($a and $b)` is `!$a or !$b`: {:?}",
+        dm.edits[0].new_text,
+    );
+}
+
+#[test]
+fn demorgan_reverse_recognises_irules_word_operators() {
+    // The reverse direction for the word-operator forms: `not $a or not $b`
+    // → `not ($a and $b)`.
+    //
+    // tclsh (f5-irules dialect): the two forms are equivalent booleans.
+    let src = "if {not $a or not $b} { puts hi }\n";
+    let analysis = analyse_dialect(src, "f5-irules");
+    // `if {` is 4 chars; `not $a or not $b` spans cols 4..20.
+    let actions = code_actions(src, selection(0, 4, 20), Some(&analysis));
+    let dm =
+        find(&actions, "De Morgan").expect("a reverse-direction word-operator De Morgan rewrite");
+    assert_eq!(
+        dm.edits[0].new_text, "not ($a and $b)",
+        "reverse De Morgan of `not X or not Y` is `not (X and Y)`: {:?}",
         dm.edits[0].new_text,
     );
 }

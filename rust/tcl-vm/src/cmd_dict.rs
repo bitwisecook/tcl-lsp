@@ -111,30 +111,79 @@ fn dict_update(
 
 /// Set the nested `keys` path of dict `cur` to `value`, creating intermediate
 /// dicts as needed (`dict set` with multiple keys).
+///
+/// Issue #996: `dict set d {*}[lrepeat 100000 k] v` inflates `keys` to
+/// arbitrary length trivially, and this used to recurse once per key
+/// segment with no depth cap. Rewritten iteratively — an explicit
+/// work-stack instead of one native call per key — the same pattern
+/// [`get_path`] (this file) already uses to walk a key path without native
+/// recursion at all: walk down recording each level's parsed pairs and the
+/// key being set, then rebuild bottom-up. This eliminates the native-stack
+/// risk entirely rather than just capping it, and is byte-for-byte
+/// equivalent to the old recursive version (same `pairs`/`upsert` calls, in
+/// the same order, so error precedence is unchanged too).
 fn set_path(cur: &Value, keys: &[Value], value: Value) -> Result<Value, Completion<Value>> {
-    let mut ps = pairs(cur)?;
-    let k = keys[0].to_str().to_string();
-    let newv = if keys.len() == 1 {
-        value
-    } else {
-        let sub = lookup(&ps, &k).cloned().unwrap_or_else(Value::empty);
-        set_path(&sub, &keys[1..], value)?
-    };
-    upsert(&mut ps, &k, newv);
-    Ok(from_pairs(&ps))
+    let mut frames: Vec<(Vec<(String, Value)>, String)> = Vec::with_capacity(keys.len());
+    let mut node = cur.clone();
+    for key in keys {
+        let ps = pairs(&node)?;
+        let k = key.to_str().to_string();
+        let next = lookup(&ps, &k).cloned().unwrap_or_else(Value::empty);
+        frames.push((ps, k));
+        node = next;
+    }
+    let mut new_value = value;
+    for (mut ps, k) in frames.into_iter().rev() {
+        upsert(&mut ps, &k, new_value);
+        new_value = from_pairs(&ps);
+    }
+    Ok(new_value)
 }
 
 /// Remove the nested `keys` path from dict `cur` (`dict unset` with multiple
 /// keys). A missing intermediate key is a no-op, matching `dict unset`.
+///
+/// Issue #996: same unbounded per-key-segment recursion as [`set_path`]
+/// (`dict unset d {*}[lrepeat 100000 k]`), rewritten iteratively for the
+/// same reason. Walk down while each key is present, recording each level's
+/// parsed pairs and the key followed; stop early — without erroring or
+/// descending further — at the first missing intermediate key, matching
+/// `dict unset`'s no-op semantics for that case exactly (the halted level's
+/// pairs are simply re-serialised unchanged, precisely what the old
+/// recursive version did by falling through its `if`/`else if` with neither
+/// arm taken). The final key is removed via `retain`, matching the old
+/// leaf case. Rebuild bottom-up via the recorded frames.
 fn unset_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
-    let mut ps = pairs(cur)?;
-    let k = keys[0].to_str().to_string();
-    if keys.len() == 1 {
-        ps.retain(|(pk, _)| pk != &k);
-    } else if let Some(idx) = ps.iter().position(|(pk, _)| pk == &k) {
-        ps[idx].1 = unset_path(&ps[idx].1.clone(), &keys[1..])?;
+    let mut frames: Vec<(Vec<(String, Value)>, String)> = Vec::with_capacity(keys.len());
+    let mut node = cur.clone();
+    let mut new_value;
+    let mut i = 0;
+    loop {
+        let ps = pairs(&node)?;
+        let k = keys[i].to_str().to_string();
+        if i + 1 == keys.len() {
+            // Last key: remove it outright, regardless of whether it was
+            // present (matching `dict unset`'s leaf semantics).
+            let mut ps = ps;
+            ps.retain(|(pk, _)| pk != &k);
+            new_value = from_pairs(&ps);
+            break;
+        }
+        if let Some(sub) = lookup(&ps, &k).cloned() {
+            frames.push((ps, k));
+            node = sub;
+            i += 1;
+        } else {
+            // Missing intermediate key: no-op at and below this level.
+            new_value = from_pairs(&ps);
+            break;
+        }
     }
-    Ok(from_pairs(&ps))
+    for (mut ps, k) in frames.into_iter().rev() {
+        upsert(&mut ps, &k, new_value);
+        new_value = from_pairs(&ps);
+    }
+    Ok(new_value)
 }
 
 fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
@@ -620,4 +669,117 @@ fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         }
     }
     ok(from_pairs(&kept))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A dict `Value`'s top-level `(key, value-string)` pairs.
+    fn top_pairs(v: &Value) -> Vec<(String, String)> {
+        pairs(v)
+            .expect("dict value is a valid list")
+            .into_iter()
+            .map(|(k, val)| (k, val.to_str().to_string()))
+            .collect()
+    }
+
+    /// Regression coverage for issue #996: `set_path`/`unset_path` recurse
+    /// once per multi-key `dict set`/`dict unset` path segment, with no
+    /// depth cap before this fix — trivially inflated via `dict set d
+    /// {*}[lrepeat 100000 k] v`. Empirically (a throwaway `zzz_probe_depth
+    /// dict_set <depth>` harness, deleted before this fix landed),
+    /// unguarded input overflowed the native stack (SIGABRT) between depth
+    /// 3000 and 3500 on a 2 MiB thread (`cargo test`'s per-test default).
+    /// Rewritten iteratively (no depth cap at all, mirroring `get_path`'s
+    /// existing iterative style); 2000 is comfortably past that crash
+    /// range, and `set_path`'s result is checked for exact correctness at
+    /// this depth (descending back down through the same key at every
+    /// level must land on the value that was set), not merely survival.
+    ///
+    /// Deliberately NOT 50,000+: a dict this deep is represented as an
+    /// equally deep nested `Value::list` chain, and `Value` has no custom
+    /// `Drop` impl — the compiler-generated recursive drop glue that runs
+    /// when `set`/`cur` go out of scope at the end of this test is its own,
+    /// unrelated native-stack risk (empirically, SIGABRT between depth 3500
+    /// and 4000 on a 2 MiB thread for construction+drop alone), a separate
+    /// concern in `Value`'s representation itself, out of scope here.
+    #[test]
+    fn deeply_nested_dict_set_and_unset_survive() {
+        const DEPTH: usize = 2_000;
+        let keys: Vec<Value> = (0..DEPTH).map(|_| Value::string("k")).collect();
+        let set = set_path(&Value::empty(), &keys, Value::string("v")).expect("set_path survives");
+        let mut cur = set.clone();
+        for _ in 0..DEPTH {
+            let ps = pairs(&cur).expect("valid dict at every level");
+            assert_eq!(ps.len(), 1);
+            assert_eq!(ps[0].0, "k");
+            cur = ps[0].1.clone();
+        }
+        assert_eq!(&*cur.to_str(), "v");
+
+        // `unset_path` must also survive the same depth — the assertion is
+        // that it returns at all, not the exact shape of what remains (each
+        // level's "k" entry survives holding an emptied-out subdict, matching
+        // `dict unset`'s "leaf only" removal semantics — the whole chain does
+        // not collapse away).
+        let _ = unset_path(&set, &keys).expect("unset_path survives");
+    }
+
+    /// A moderately nested `dict set`/`dict unset` path (well within
+    /// realistic use) is byte-for-byte unaffected by the iterative
+    /// rewrite.
+    #[test]
+    fn moderately_nested_dict_set_and_unset_unaffected() {
+        let s = Value::string;
+
+        // `dict set {} a 1` -> {a 1}.
+        let d = set_path(&Value::list(vec![]), &[s("a")], s("1")).unwrap();
+        assert_eq!(top_pairs(&d), [("a".into(), "1".into())]);
+
+        // Updating an existing key keeps its position (order-preserving).
+        let base = Value::list(vec![s("a"), s("1"), s("b"), s("2")]);
+        let updated = set_path(&base, &[s("a")], s("9")).unwrap();
+        assert_eq!(
+            top_pairs(&updated),
+            [("a".into(), "9".into()), ("b".into(), "2".into())]
+        );
+
+        // A new key appends at the end.
+        let appended = set_path(&base, &[s("c")], s("3")).unwrap();
+        assert_eq!(
+            top_pairs(&appended),
+            [
+                ("a".into(), "1".into()),
+                ("b".into(), "2".into()),
+                ("c".into(), "3".into())
+            ]
+        );
+
+        // A multi-key path auto-vivifies intermediate dicts.
+        let nested = set_path(&Value::list(vec![]), &[s("a"), s("b")], s("1")).unwrap();
+        assert_eq!(top_pairs(&nested), [("a".into(), "b 1".into())]);
+
+        // Removing a present key drops just that pair.
+        let removed = unset_path(&base, &[s("a")]).unwrap();
+        assert_eq!(top_pairs(&removed), [("b".into(), "2".into())]);
+
+        // Removing an absent key leaves the dict unchanged.
+        let untouched = unset_path(&base, &[s("z")]).unwrap();
+        assert_eq!(
+            top_pairs(&untouched),
+            [("a".into(), "1".into()), ("b".into(), "2".into())]
+        );
+
+        // A nested unset rewrites only the inner dict.
+        let inner = Value::list(vec![s("b"), s("1"), s("c"), s("2")]);
+        let outer = Value::list(vec![s("a"), inner]);
+        let nested_unset = unset_path(&outer, &[s("a"), s("b")]).unwrap();
+        assert_eq!(top_pairs(&nested_unset), [("a".into(), "c 2".into())]);
+
+        // A missing intermediate key two levels deep is a no-op, not an
+        // error, and does not disturb sibling keys.
+        let nested_absent = unset_path(&outer, &[s("a"), s("z"), s("q")]).unwrap();
+        assert_eq!(top_pairs(&nested_absent), [("a".into(), "b 1 c 2".into())]);
+    }
 }

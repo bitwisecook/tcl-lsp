@@ -266,6 +266,7 @@ fn collect_type_hints(
         source,
         line_index,
         out,
+        0,
     );
 }
 
@@ -279,6 +280,7 @@ fn normalise_fn_name(name: &str) -> String {
 /// Recursively emit type hints for every variable definition in `scope`
 /// (and its children) whose name carries a known type and whose
 /// definition falls within `range`.
+#[allow(clippy::too_many_arguments)]
 fn walk_scope_type_hints(
     scope: &Scope,
     by_function: &FxHashMap<String, FxHashMap<String, String>>,
@@ -287,7 +289,11 @@ fn walk_scope_type_hints(
     source: &str,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
+    depth: u32,
 ) {
+    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     for var_def in scope.variables.values() {
         let Some(type_str) = type_map.get(&var_def.name) else {
             continue;
@@ -329,6 +335,7 @@ fn walk_scope_type_hints(
             source,
             line_index,
             out,
+            depth + 1,
         );
     }
 }
@@ -929,7 +936,11 @@ fn lookup_proc<'a>(
     name: &str,
     registry: Option<&CommandRegistry>,
 ) -> Option<&'a ProcDef> {
-    let ns = crate::definition::namespace_context_at(&analysis.global_scope, cmd_off);
+    let ns = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        cmd_off,
+        &analysis.namespace_overrides,
+    );
     crate::definition::resolve_called_proc(analysis, source, &ns, name, registry)
 }
 
@@ -993,6 +1004,7 @@ fn position_within_range(line: u32, character: u32, range: LspRange) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
     use tcl_compiler::analyser::Analyser;
 
     fn analyse(source: &str) -> AnalysisResult {
@@ -1192,6 +1204,37 @@ mod tests {
 
     fn registry() -> tcl_registry::CommandRegistry {
         tcl_registry::CommandRegistry::build_default()
+    }
+
+    /// Regression coverage for issue #996: `walk_scope_type_hints`
+    /// recurses once per nested namespace/proc scope, with no depth cap
+    /// before this fix (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested
+    /// `namespace eval` levels is past the point (confirmed empirically:
+    /// 100+) where unguarded namespace-scope recursion overflows `cargo
+    /// test`'s bare ~2 MiB per-test default. The assertion is that
+    /// `inlay_hints` returns at all, not what it returns.
+    #[test]
+    fn deeply_nested_namespaces_survive_type_hints() {
+        const DEPTH: usize = 80;
+        let mut src = String::new();
+        for i in 0..DEPTH {
+            let _ = writeln!(src, "namespace eval ns{i} {{");
+        }
+        src.push_str("proc leaf {} { set x 1 }\n");
+        for _ in 0..DEPTH {
+            src.push_str("}\n");
+        }
+        let analysis = analyse(&src);
+        let reg = registry();
+        let _ = inlay_hints(
+            &src,
+            "tcl",
+            whole_document_range(&src),
+            Some(&analysis),
+            Some(&reg),
+            true,
+            false,
+        );
     }
 
     #[test]

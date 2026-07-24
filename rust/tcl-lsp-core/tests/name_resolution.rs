@@ -156,6 +156,187 @@ mod obj_method_dispatch {
         let src = "oo::class create Solo {\n    method ping {} { return pong }\n}\n";
         assert_eq!(refs_at(src, 1, 11), vec![1], "declaration only");
     }
+
+    /// FN→TP (issue #957's general form): an external `$obj method` /
+    /// `NAME method` dispatch nested inside `if` / `foreach` at the
+    /// top level (not inside any proc/method) is a reference too — the
+    /// top-level scan region gets the same `Plain`-`BodyKind` recursion
+    /// as every proc / method body scan.
+    #[test]
+    fn tp_obj_dispatch_nested_in_top_level_control_flow() {
+        let src = "oo::class create Bar {\n    method get {key} { return $key }\n}\nset b [Bar new]\nif {1} {\n    $b get foo\n}\nforeach x {1 2} {\n    $b get foo\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 5, 8],
+            "decl + if-nested + foreach-nested dispatch"
+        );
+    }
+
+    /// FP guard: a control-flow-nested dispatch of a *different* method on
+    /// the same class must not count toward `get`.
+    #[test]
+    fn fp_obj_dispatch_other_method_excluded_when_control_flow_nested() {
+        let src = "oo::class create Bar {\n    method get {key} { return $key }\n    method other {key} { return $key }\n}\nset b [Bar new]\nif {1} {\n    $b other foo\n}\n";
+        assert_eq!(refs_at(src, 1, 11), vec![1], "no `other` leakage");
+    }
+
+    /// FN→TP regression for the *exact* issue #956 repro: a `variable` and
+    /// `constructor` declared before the `method`, with the method body
+    /// reading the instance variable.  The previous investigation of #956
+    /// tested a simplified `Bar956` fixture without these members and
+    /// concluded the count was already correct — true for the count, but
+    /// the codeLens *command* was still empty (fixed separately in
+    /// `tcl-lsp-core::code_lens` / `tcl-lsp-server`); this locks in that
+    /// find-references itself was never affected by the extra members.
+    #[test]
+    fn fn_to_tp_exact_issue_956_repro_with_constructor_and_variable() {
+        let src = "oo::class create Bar {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n\n    method get {key} {\n        return [dict get $_options $key]\n    }\n\n}\nset b [Bar new]\nputs [$b get foo]\n";
+        // cursor on the `get` declaration name (line 6, col 11).
+        assert_eq!(
+            refs_at(src, 6, 11),
+            vec![6, 12],
+            "decl + `puts [$b get foo]`"
+        );
+    }
+}
+
+// ─────────────────── classmethod dispatch on the class's own command ──────
+
+mod classmethod_dispatch {
+    use super::*;
+
+    /// FN→TP: a `classmethod` dispatches on the *class's own* command
+    /// (`Factory make`) — never on an instance.  Before this fix,
+    /// `find_obj_method_call_sites` only tracked instance handles, so a
+    /// classmethod's reference count and codeLens were always "0
+    /// references" regardless of how many times it was actually called —
+    /// the common (in fact only) classmethod dispatch shape was invisible.
+    #[test]
+    fn tp_bare_class_command_dispatch_is_a_reference() {
+        let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n";
+        // cursor on the `make` declaration name (line 1, col 16); the bare
+        // `Factory make` dispatch is on line 5.
+        assert_eq!(refs_at(src, 1, 16), vec![1, 5], "decl + `Factory make`");
+    }
+
+    /// FN→TP: the reverse direction of the previous test — cursor on the
+    /// *call site* itself (`Factory make`, line 5), not the declaration.
+    /// Previously resolved to nothing at all (Codex review on #971, P2):
+    /// `$obj`/`my` resolution doesn't match a bare two-word receiver, and
+    /// the declaration-side resolver requires the cursor inside the class
+    /// body, so Find References / Rename triggered from the actual dispatch
+    /// site silently did nothing.
+    #[test]
+    fn tp_bare_class_command_dispatch_resolves_from_the_call_site_itself() {
+        let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nFactory make\n";
+        // cursor on `make` in `Factory make` (line 5, col 8).
+        assert_eq!(refs_at(src, 5, 8), vec![1, 5], "decl + `Factory make`");
+    }
+
+    /// TP: a subclass that inherits (does not override) the classmethod
+    /// dispatches on its *own* command and still counts as a reference to
+    /// the ancestor's declaration — mirrors the existing instance-method
+    /// inheritance handling.
+    #[test]
+    fn tp_inheriting_subclass_own_command_dispatch_is_a_reference() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\noo::class create SubFactory {\n    superclass Factory\n}\nSubFactory make\n";
+        assert_eq!(
+            refs_at(src, 1, 16),
+            vec![1, 6],
+            "decl + inheriting subclass's own-command dispatch"
+        );
+    }
+
+    /// FP guard: an *overriding* subclass's own dispatch must attribute to
+    /// its own declaration, not the ancestor's — the ancestor's reference
+    /// set must not include it.
+    #[test]
+    fn fp_overriding_subclass_dispatch_excluded_from_ancestor() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n}\noo::class create SubFactory {\n    superclass Factory\n    classmethod make {} { return 2 }\n}\nSubFactory make\n";
+        // cursor on Factory::make (line 1). References must be its
+        // declaration only — `SubFactory make` resolves to SubFactory's own
+        // override, never Factory's.
+        assert_eq!(refs_at(src, 1, 16), vec![1], "override excluded");
+    }
+
+    /// FP guard: a regular *instance* method must never gain bare
+    /// class-command dispatch — `Factory get` (no `$obj`/instance) is not a
+    /// valid `TclOO` call for an instance method, so it must not be
+    /// synthesised as a reference just because the class's own command
+    /// shares a name-set entry point with classmethod dispatch.
+    #[test]
+    fn fp_instance_method_gets_no_bare_class_command_dispatch() {
+        let src = "oo::class create Factory {\n    method get {} { return 1 }\n}\nFactory get\n";
+        // `Factory get` is not a `$obj`/instance dispatch, so it must not be
+        // pulled in — declaration only.
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1],
+            "no phantom class-command dispatch"
+        );
+    }
+
+    /// TN: a declared-but-never-dispatched classmethod has only its
+    /// declaration.
+    #[test]
+    fn tn_uncalled_classmethod_only_declaration() {
+        let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n}\n";
+        assert_eq!(refs_at(src, 1, 16), vec![1], "declaration only");
+    }
+
+    /// FN→TP: snit's `typemethod` is snit's equivalent of `TclOO`'s
+    /// `classmethod` — dispatched the same way, on the type's own command
+    /// (`Factory make`), never an instance. The definition-body grammar maps
+    /// both to the same `class_methods` map (a registry-driven fact, not a
+    /// TclOO-specific hardcoded check), so this generalises for free with no
+    /// snit-specific code in `find_obj_method_call_sites`.
+    #[test]
+    fn tp_snit_typemethod_bare_dispatch_is_a_reference() {
+        let src = "snit::type Factory {\n    typemethod make {} {\n        return [Factory create x]\n    }\n}\nFactory make\n";
+        assert_eq!(
+            refs_at(src, 1, 15),
+            vec![1, 5],
+            "decl + `Factory make` (snit typemethod)"
+        );
+    }
+
+    /// FP guard: [incr Tcl]'s class-scoped `proc` maps to the same
+    /// `class_methods` bucket as `classmethod`/`typemethod` (so the
+    /// declaration-side lookup reaches this fix's code path too), but itcl
+    /// dispatches it as a single `::`-qualified identifier
+    /// (`Factory::make`), never the two-word `Factory make` form this fix's
+    /// `cmd_set` scan matches. Widening `cmd_set` with `Factory`'s bare name
+    /// must not fabricate a phantom reference for an unrelated bare `Factory`
+    /// command elsewhere, and the real `Factory::make` call is simply out of
+    /// this scanner's shape (a distinct, pre-existing gap — namespace-style
+    /// dispatch is a job for the ordinary proc-reference path, not this
+    /// object-method scanner).
+    #[test]
+    fn fp_itcl_class_proc_colon_dispatch_not_confused_with_bare_dispatch() {
+        let src = "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\nFactory::make\n";
+        // Only the declaration; the `::`-qualified call is not the
+        // two-word shape this scanner looks for, so it must not appear —
+        // and no bare `Factory make` exists here to spuriously match either.
+        assert_eq!(refs_at(src, 1, 9), vec![1], "declaration only");
+    }
+
+    /// FP guard: a bare two-word `Factory make` must not be treated as a
+    /// class-proc dispatch either — itcl's real syntax for creating (and
+    /// naming) a new instance is `ClassName instanceName`, so `Factory make`
+    /// in real itcl code names a *new object* called `make`, never a call to
+    /// the class-scoped `proc make`.  Folding every `class_methods` entry
+    /// into the bare two-word `cmd_set` regardless of definer family would
+    /// wrongly count (and rewrite, under rename) this unrelated construct.
+    #[test]
+    fn fp_itcl_bare_two_word_text_is_not_confused_with_class_proc_dispatch() {
+        let src =
+            "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\nFactory make\n";
+        assert_eq!(
+            refs_at(src, 1, 9),
+            vec![1],
+            "declaration only — `Factory make` is itcl instance creation, not a class-proc dispatch"
+        );
+    }
 }
 
 // ───────────────────────── #957 — `my method` references ──────────────────
@@ -217,6 +398,201 @@ mod my_method_dispatch {
     fn fp_bare_head_is_not_a_call() {
         let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method run {} { getOptions 1 }\n}\n";
         assert_eq!(refs_at(src, 1, 11), vec![1], "bare head is not a dispatch");
+    }
+
+    /// FN→TP (issue #957's general form, reopened after the `[...]`-only
+    /// fix): a `my method` dispatch nested inside `if` / `while` /
+    /// `foreach` / `try` / `catch` / `eval` bodies is a reference.  The
+    /// registry-driven `Plain`-`BodyKind` recursion (`plain_body_arg_indices`)
+    /// covers every same-frame body generically — no per-command-name
+    /// branch is needed for any of these.
+    #[test]
+    fn tp_my_dispatch_nested_in_if() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        if {1} {\n            my getOptions $k\n        }\n    }\n}\n";
+        assert_eq!(refs_at(src, 1, 11), vec![1, 4], "decl + `my` inside `if`");
+    }
+
+    #[test]
+    fn tp_my_dispatch_nested_in_while() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        while {1} {\n            my getOptions $k\n            break\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 4],
+            "decl + `my` inside `while`"
+        );
+    }
+
+    #[test]
+    fn tp_my_dispatch_nested_in_foreach() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        foreach x $k {\n            my getOptions $x\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 4],
+            "decl + `my` inside `foreach`"
+        );
+    }
+
+    #[test]
+    fn tp_my_dispatch_nested_in_try_and_catch() {
+        let try_src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        try {\n            my getOptions $k\n        } on error e {\n            puts $e\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(try_src, 1, 11),
+            vec![1, 4],
+            "decl + `my` inside `try`"
+        );
+        let catch_src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        catch {\n            my getOptions $k\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(catch_src, 1, 11),
+            vec![1, 4],
+            "decl + `my` inside `catch`"
+        );
+    }
+
+    #[test]
+    fn tp_my_dispatch_nested_in_eval() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        eval {my getOptions $k}\n    }\n}\n";
+        assert_eq!(refs_at(src, 1, 11), vec![1, 3], "decl + `my` inside `eval`");
+    }
+
+    /// TP: `switch`'s inline pattern/body-pairs form (form 1) — already
+    /// standalone-body-per-pair, so this worked before the fix too, but is
+    /// pinned here alongside form 2 for the full switch matrix.
+    #[test]
+    fn tp_my_dispatch_in_switch_inline_form() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        switch -- $k a {\n            my getOptions $k\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 4],
+            "decl + `my` inside inline switch arm"
+        );
+    }
+
+    /// FN→TP: `switch`'s single-braced clause-list form (form 2) — the
+    /// registry's `switch_arg_roles` marks the *whole* clause list
+    /// `ArgRole::Body`, so naively re-segmenting it as one script misreads
+    /// `pattern { body }` as one bogus command and never reaches the arm
+    /// body.  Splitting it via the registry's `case_list` vocabulary
+    /// (never a hardcoded "switch" check) recovers each arm's own body.
+    #[test]
+    fn tp_my_dispatch_in_switch_braced_form() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        switch -- $k {\n            default {\n                my getOptions $k\n            }\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 5],
+            "decl + `my` inside braced switch arm"
+        );
+    }
+
+    /// TP: arbitrarily-deep combinations of control flow, `[...]`
+    /// substitution, and `eval` all compose — the recursion is generic,
+    /// not a fixed nesting-depth allowance.
+    #[test]
+    fn tp_my_dispatch_deeply_nested_combination() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        foreach x $k {\n            if {$x} {\n                switch -- $x {\n                    default {\n                        return [my getOptions $x]\n                    }\n                }\n            }\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 7],
+            "decl + `my` nested 4 levels deep"
+        );
+    }
+
+    /// TP: the generic `Plain`-`BodyKind` mechanism covers *any* command
+    /// whose registry spec declares a same-frame body — `dict for` here,
+    /// not just the hand-enumerable control-flow keywords — proving the
+    /// fix is registry-driven rather than a hardcoded command list.
+    #[test]
+    fn tp_my_dispatch_nested_in_dict_for() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {opts} {\n        dict for {k v} $opts {\n            my getOptions $k\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1, 4],
+            "decl + `my` inside `dict for`"
+        );
+    }
+
+    /// FP guard: `my other` nested arbitrarily deep in control flow must
+    /// still not count as a reference to `getOptions` — the recursion must
+    /// not blur distinct method names together just because it now looks
+    /// inside more constructs.
+    #[test]
+    fn fp_my_other_method_excluded_when_control_flow_nested() {
+        let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method other {k} { return $k }\n    method run {k} {\n        if {1} {\n            switch -- $k {\n                default {\n                    my other $k\n                }\n            }\n        }\n    }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1],
+            "no `my other` leakage through nested control flow"
+        );
+    }
+
+    /// TN / documented limitation: `uplevel 1 { my getOptions }` runs in a
+    /// *different* call frame (the registry marks `uplevel`'s body
+    /// `BodyKind::Structural` for exactly this reason — level `0` and
+    /// level `1`+ can't be told apart from the static spec alone), and a
+    /// bare `apply {{} { my getOptions }}` lambda likewise gets its own
+    /// frame with no route back to the enclosing object's `my` unless the
+    /// lambda is explicitly constructed with the object's namespace
+    /// (confirmed Tcl semantics: `apply`'s body runs in the *global*
+    /// namespace by default). Both are conservatively **not** followed —
+    /// matching this codebase's "fall through rather than guess wrong"
+    /// rule — rather than guessing whether the frame still resolves `my`.
+    #[test]
+    fn tn_uplevel_and_apply_bodies_conservatively_not_followed() {
+        let uplevel_src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        uplevel 1 {my getOptions $k}\n    }\n}\n";
+        assert_eq!(
+            refs_at(uplevel_src, 1, 11),
+            vec![1],
+            "uplevel body not followed"
+        );
+        let apply_src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        apply {{} {my getOptions $k}}\n    }\n}\n";
+        assert_eq!(
+            refs_at(apply_src, 1, 11),
+            vec![1],
+            "apply lambda body not followed"
+        );
+    }
+}
+
+// ─────────────── #957 (general form) — `next` / `nextto` references ───────
+
+mod next_dispatch {
+    use super::*;
+
+    /// FN→TP: `next` inside `Bar::getOptions`'s own body is a polymorphic
+    /// reference to `Bar::getOptions` itself (the established attribution:
+    /// a `next`/`nextto` site counts toward whichever method's body it is
+    /// *written inside*, not the ancestor it dispatches to at runtime —
+    /// `next` never mentions a method name for a rename to rewrite, so
+    /// there is nothing there to attribute to the ancestor). This must be
+    /// found however deeply the `next` call is nested in control flow.
+    #[test]
+    fn tp_next_dispatch_nested_in_if() {
+        let src = "oo::class create Base {\n    method getOptions {key} { return $key }\n}\noo::class create Bar {\n    superclass Base\n    method getOptions {key} {\n        if {1} {\n            next $key\n        }\n    }\n}\n";
+        // cursor on Bar's own `getOptions` declaration (line 5, col 11).
+        assert_eq!(
+            refs_at(src, 5, 11),
+            vec![5, 7],
+            "Bar decl + nested `next` site"
+        );
+    }
+
+    /// TP: same for `nextto CLASS`, and at the top level (no extra nesting).
+    #[test]
+    fn tp_nextto_dispatch_top_level() {
+        let src = "oo::class create Base {\n    method getOptions {key} { return $key }\n}\noo::class create Bar {\n    superclass Base\n    method getOptions {key} {\n        nextto Base $key\n    }\n}\n";
+        assert_eq!(refs_at(src, 5, 11), vec![5, 6], "Bar decl + `nextto` site");
+    }
+
+    /// FP guard: cursor on the *superclass*'s own declaration does not pick
+    /// up a subclass override's `next` call — `Base::getOptions`'s own
+    /// body has no `next`/`nextto` of its own.
+    #[test]
+    fn fp_superclass_declaration_excludes_subclass_next_site() {
+        let src = "oo::class create Base {\n    method getOptions {key} { return $key }\n}\noo::class create Bar {\n    superclass Base\n    method getOptions {key} {\n        next $key\n    }\n}\n";
+        assert_eq!(
+            refs_at(src, 1, 11),
+            vec![1],
+            "Base decl only — Bar's `next` is not Base's own"
+        );
     }
 }
 

@@ -78,3 +78,78 @@ mathops! {
     "lt" => mathop_slt, "le" => mathop_sle, "gt" => mathop_sgt, "ge" => mathop_sge,
     "in" => mathop_in, "ni" => mathop_ni,
 }
+
+#[cfg(test)]
+mod tests {
+    use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+
+    use crate::interp::Vm;
+
+    /// Every operator spelling with a `::tcl::mathop` command form, per
+    /// `tcl_syntax::expr::operators` — the same derivation
+    /// `runtime/rust/src/cmd_mathop.rs` uses to build its registration list
+    /// mechanically. The VM's own list above is a `macro_rules!` invocation
+    /// (fn-pointer-per-operator, so it can't be generated the same way), so
+    /// this test is this crate's half of issue #983/#987's registry/runtime
+    /// convergence: a drift gate proving the macro's hand-typed spellings
+    /// still exactly match layer 1, in both directions.
+    fn expected_mathop_spellings() -> Vec<&'static str> {
+        let mut names: Vec<&'static str> = ALL_BIN_OPS
+            .iter()
+            .filter_map(|op| op.spec().mathop_shape.map(|_| op.spec().spelling))
+            .collect();
+        for op in ALL_UNARY_OPS {
+            if op.spec().mathop_shape.is_some() {
+                let spelling = op.spec().spelling;
+                if !names.contains(&spelling) {
+                    names.push(spelling);
+                }
+            }
+        }
+        names
+    }
+
+    #[test]
+    fn every_layer1_mathop_operator_is_registered_in_the_vm() {
+        let vm = Vm::new();
+        for spelling in expected_mathop_spellings() {
+            let full = format!("::tcl::mathop::{spelling}");
+            assert!(
+                vm.lookup_command(&full).is_some(),
+                "{full}: exists in tcl_syntax::expr::operators but not registered in the VM"
+            );
+        }
+    }
+
+    #[test]
+    fn the_vm_registers_no_mathop_command_beyond_layer1() {
+        let vm = Vm::new();
+        let expected = expected_mathop_spellings();
+        // The macro's own operator list, kept in sync with `expected` by this
+        // test — if a future edit adds/removes a spelling here without a
+        // matching layer-1 change (or vice versa), one of these two tests
+        // catches it.
+        let registered = [
+            "~", "!", "+", "-", "*", "/", "%", "**", "&", "|", "^", "<<", ">>", "==", "!=", "<",
+            "<=", ">", ">=", "eq", "ne", "lt", "le", "gt", "ge", "in", "ni",
+        ];
+        for spelling in registered {
+            let full = format!("::tcl::mathop::{spelling}");
+            assert!(
+                vm.lookup_command(&full).is_some(),
+                "{full}: in this test's own registered list but not actually registered"
+            );
+            assert!(
+                expected.contains(&spelling),
+                "{full}: registered in the VM but has no `mathop_shape` in \
+                 tcl_syntax::expr::operators — stale entry?"
+            );
+        }
+        assert_eq!(
+            registered.len(),
+            expected.len(),
+            "the VM's registered mathop spellings and layer 1's mathop-shaped \
+             operators have drifted apart (different counts)"
+        );
+    }
+}

@@ -18,6 +18,7 @@
 | E204 | error | Extra characters after the close brace of a `${name}` variable reference. | ✓ |
 | E205 | error | Extra characters after the close quote in a variable name. | ✓ |
 | E206 | error | Missing close brace for a `${name}` variable reference. | ✓ |
+| E207 | error | Nesting depth exceeds the analysis limit — diagnostics past this point are not collected (matches Tcl's own `interp recursionlimit` error, but reported as a diagnostic rather than a runtime error). | ✓ |
 | W001 | warning | Unknown subcommand. | ✓ |
 | W002 | warning | Command is disabled in active dialect profile. | ✓ |
 | W003 | warning | Expression operator not available in active dialect. | ✓ |

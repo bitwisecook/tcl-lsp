@@ -5,20 +5,20 @@
 > command, or on a stale classification entry (`RUST_ISSUE_006`).
 
 Source of truth: `tcl-registry` core command specs (`required_package == None`),
-restricted to those available in Tcl 9.0. Backing: a `register_builtin`
+restricted to those available at Tcl 9.0 or later. Backing: a `register_builtin`
 handler in `runtime/rust/`, a native non-`register_builtin` registration
 (TclOO metaclass, per-object `my`), an embedded-init.tcl (stdlib) fallback,
 or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 104 |
-| handler (native) | 6 |
+| handler | 105 |
+| handler (native) | 123 |
 | stdlib | 11 |
-| not-required | 105 |
-| known-gap (`RUST_ISSUE_007`) | 0 |
+| not-required | 108 |
+| known-gap (`RUST_ISSUE_007`) | 32 |
 | **UNCLASSIFIED** | 0 |
-| **total** | 226 |
+| **total** | 379 |
 
 | command | backing | note |
 | --- | --- | --- |
@@ -26,18 +26,95 @@ or an explicit *not required* classification.
 | `!=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `%` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `&&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `*` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `**` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `-` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `/` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::build-info` | handler |  |
+| `::tcl::dict::append` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::create` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::exists` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::filter` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::for` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::get` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::getdef` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::getwithdefault` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::incr` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::info` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::keys` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::lappend` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::map` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::merge` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::remove` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::replace` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::set` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::size` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::unset` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::update` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::values` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::with` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::mathfunc::abs` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::acos` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::acosh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::asin` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::asinh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::atan` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::atan2` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::atanh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::bool` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::cbrt` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::ceil` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::copysign` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::cos` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::cosh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::dim` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::double` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::entier` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::erf` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::erfc` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::exp` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::exp2` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::expm1` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::floor` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::fma` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::fmod` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::gamma` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::hypot` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::int` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::isfinite` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::isinf` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::isnan` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::isnormal` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::isqrt` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::issubnormal` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::isunordered` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::ldexp` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::lgamma` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::log` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::log10` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::log1p` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::log2` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::logb` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::max` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::min` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::nextafter` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::pow` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::rand` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::remainder` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::round` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::signbit` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::sin` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::sinh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::sqrt` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::srand` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::tan` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::tanh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::trunc` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `::tcl::mathfunc::wide` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::mathop::!` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::!=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::%` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::&&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::*` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::**` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -50,17 +127,20 @@ or an explicit *not required* classification.
 | `::tcl::mathop::>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::>=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::>>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::@` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::gt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::le` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `::tcl::mathop::lt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::mathop::||` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `::tcl::process` | not-required | OS subprocess management; needs host processes |
 | `::tcl::unsupported::corotype` | handler |  |
+| `::tcl::zipfs` | known-gap | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
 | `<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -68,7 +148,6 @@ or an explicit *not required* classification.
 | `>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `>=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `>>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `@` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `after` | handler |  |
 | `append` | handler |  |
@@ -99,6 +178,7 @@ or an explicit *not required* classification.
 | `coroutine` | handler |  |
 | `dict` | handler |  |
 | `disabled_in_irules` | not-required | F5 iRules dialect artifact, not a real Tcl 9 command |
+| `divmod` | known-gap | TIP 745 (Tcl 9.1) combined quotient/remainder list command; not yet implemented in runtime/rust |
 | `encoding` | handler |  |
 | `eof` | handler |  |
 | `eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -118,9 +198,12 @@ or an explicit *not required* classification.
 | `foreach` | handler |  |
 | `foreachLine` | not-required | non-core EDA/dialect file helper, absent from bare tclsh 9 |
 | `format` | handler |  |
+| `frexp` | known-gap | TIP 745 (Tcl 9.1) IEEE-754 mantissa/exponent split; not yet implemented in runtime/rust |
+| `ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `gets` | handler |  |
 | `glob` | handler |  |
 | `global` | handler |  |
+| `gt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `http` | not-required | the `http` package (`package require http`), not a core command |
 | `if` | handler |  |
 | `in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -130,8 +213,11 @@ or an explicit *not required* classification.
 | `join` | handler |  |
 | `lappend` | handler |  |
 | `lassign` | handler |  |
+| `le` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `ledit` | handler |  |
+| `lfilter` | known-gap | Tcl 9.1 list-filter command; not yet implemented in runtime/rust |
 | `lindex` | handler |  |
+| `link` | known-gap | TclOO oo::Helpers::link (issue #923 idx 113) — installs a per-object-namespace alias to a method via the object's own command table, not a standalone dispatchable command; no runtime handler |
 | `linsert` | handler |  |
 | `list` | handler |  |
 | `llength` | handler |  |
@@ -147,7 +233,9 @@ or an explicit *not required* classification.
 | `lseq` | handler |  |
 | `lset` | handler |  |
 | `lsort` | handler |  |
+| `lt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `memory` | not-required | TCL_MEM_DEBUG-only heap-debug command |
+| `modf` | known-gap | TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust |
 | `my` | handler (native) | per-object command created by TclOO method dispatch (oo_register_my) |
 | `namespace` | handler |  |
 | `ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -180,6 +268,7 @@ or an explicit *not required* classification.
 | `regexp::quote` | not-required | non-core dialect helper, absent from bare tclsh 9 |
 | `registry` | not-required | Windows registry package, platform-specific |
 | `regsub` | handler |  |
+| `remquo` | known-gap | TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; not yet implemented in runtime/rust |
 | `rename` | handler |  |
 | `return` | handler |  |
 | `scan` | handler |  |
@@ -194,12 +283,70 @@ or an explicit *not required* classification.
 | `switch` | handler |  |
 | `tailcall` | handler |  |
 | `tcl::build-info` | handler |  |
+| `tcl::mathfunc` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::abs` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::acos` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::acosh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::asin` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::asinh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::atan` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::atan2` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::atanh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::bool` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::cbrt` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::ceil` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::copysign` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::cos` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::cosh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::dim` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::double` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::entier` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::erf` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::erfc` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::exp` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::exp2` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::expm1` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::floor` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::fma` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::fmod` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::gamma` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::hypot` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::int` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::isfinite` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::isinf` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::isnan` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::isnormal` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::isqrt` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::issubnormal` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::isunordered` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::ldexp` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::lgamma` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::log` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::log10` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::log1p` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::log2` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::logb` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::max` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::min` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::nextafter` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::pow` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::rand` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::remainder` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::round` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::signbit` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::sin` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::sinh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::sqrt` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::srand` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::tan` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::tanh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::trunc` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
+| `tcl::mathfunc::wide` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `tcl::mathop` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::!` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::!=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::%` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::&&` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::*` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::**` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -212,16 +359,20 @@ or an explicit *not required* classification.
 | `tcl::mathop::>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::>=` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::>>` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::@` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::^` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::eq` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::gt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::in` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::le` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::mathop::lt` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `tcl::mathop::||` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `tcl::mathop::~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `tcl::prefix` | handler |  |
 | `tcl::process` | not-required | OS subprocess management; needs host processes |
+| `tcl::unsupported::corotype` | handler |  |
 | `tclLog` | stdlib | init.tcl |
 | `tclPkgSetup` | stdlib | package.tcl |
 | `tclPkgUnknown` | stdlib | package.tcl |
@@ -229,9 +380,11 @@ or an explicit *not required* classification.
 | `tell` | handler |  |
 | `throw` | handler |  |
 | `time` | handler |  |
+| `timer` | known-gap | Tcl 9.1 timer command; not yet implemented in runtime/rust |
 | `timerate` | handler |  |
 | `trace` | handler |  |
 | `try` | handler |  |
+| `unicode` | known-gap | Tcl 9.1 Unicode-introspection ensemble; not yet implemented in runtime/rust |
 | `unknown` | stdlib | init.tcl |
 | `unload` | not-required | native library unloading (counterpart to load) |
 | `unset` | handler |  |
@@ -244,7 +397,7 @@ or an explicit *not required* classification.
 | `writeFile` | not-required | non-core EDA/dialect file helper, absent from bare tclsh 9 |
 | `yield` | handler |  |
 | `yieldto` | handler |  |
+| `zipfs` | known-gap | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
 | `zlib` | handler |  |
 | `|` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `||` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `~` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |

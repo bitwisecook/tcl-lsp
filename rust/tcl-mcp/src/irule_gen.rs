@@ -650,10 +650,28 @@ fn build_assertion(cmd: &str, args: &[String]) -> Vec<String> {
 
 /// Build request-setup lines based on path conditions (`_build_request_setup`).
 fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
+    // The alternation used to hardcode a bare "matches", which never
+    // matched real iRules syntax at all — the actual word operators are
+    // `matches_glob`/`matches_regex` (`tcl_syntax::expr::ast::BinOp`'s
+    // `MatchesGlob`/`MatchesRegex`), so a condition like
+    // `HTTP::uri matches_glob "/api/*"` silently fell through to the
+    // bare-value fallback below (or no hint at all) instead of extracting
+    // "/api/*". Derived from `BinOp` rather than hand-typed again so this
+    // can't drift a second time.
+    let uri_ops = [
+        tcl_syntax::expr::ast::BinOp::StrEq.as_str(),
+        tcl_syntax::expr::ast::BinOp::StartsWith.as_str(),
+        tcl_syntax::expr::ast::BinOp::MatchesGlob.as_str(),
+        tcl_syntax::expr::ast::BinOp::MatchesRegex.as_str(),
+    ]
+    .join("|");
     let host_re = Regex::new(r#"eq\s+"([^"]+)""#).expect("valid regex");
     let host_bare_re = Regex::new(r"eq\s+(\S+)").expect("valid regex");
-    let uri_re = Regex::new(r#"(?:eq|starts_with|matches)\s+"([^"]+)""#).expect("valid regex");
-    let uri_bare_re = Regex::new(r"(?:eq|starts_with|matches)\s+(\S+)").expect("valid regex");
+    // Captures the operator too (group 1), not just the pattern (group 2):
+    // `matches_glob`/`matches_regex` need the pattern *synthesized* into a
+    // concrete example (see `synthesize_uri_example`), not reused verbatim.
+    let uri_re = Regex::new(&format!(r#"({uri_ops})\s+"([^"]+)""#)).expect("valid regex");
+    let uri_bare_re = Regex::new(&format!(r"({uri_ops})\s+(\S+)")).expect("valid regex");
     let header_re = Regex::new(r#"HTTP::header\s+"?([^"\s]+)"?"#).expect("valid regex");
 
     let mut host_hint: Option<String> = None;
@@ -695,11 +713,11 @@ fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
         }
         if uri_related && uri_hint.is_none() {
             if let Some(m) = uri_re.captures(cond_text) {
-                uri_hint = Some(m[1].to_owned());
+                uri_hint = Some(synthesize_uri_example(&m[1], &m[2]));
             } else if let Some(m) = uri_bare_re.captures(cond_text) {
-                let v = &m[1];
+                let v = &m[2];
                 if !v.starts_with('$') {
-                    uri_hint = Some(trim_quotes_braces(v).to_owned());
+                    uri_hint = Some(synthesize_uri_example(&m[1], trim_quotes_braces(v)));
                 }
             }
         }
@@ -736,6 +754,50 @@ fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
 
 fn trim_quotes_braces(s: &str) -> &str {
     s.trim_matches(|c| matches!(c, '"' | '{' | '}'))
+}
+
+/// Build a concrete example URI that actually satisfies a condition using
+/// `op`, given the raw pattern text extracted from it.
+///
+/// `eq`/`starts_with` patterns are already literal strings that trivially
+/// satisfy themselves, so they pass through unchanged. `matches_glob`/
+/// `matches_regex` patterns are not: reusing `"^/api/.*$"` (a regex) or
+/// `"/api/*"` (a glob) as the literal simulated request URI produces a
+/// generated test whose own simulated request doesn't satisfy the very
+/// condition its branch exercises (confirmed against tclsh8.6:
+/// `regexp {^/api/.*$} {^/api/.*$}` is false — the literal pattern text
+/// starts with `^`, not `/api/`). This substitutes each wildcard with a
+/// concrete placeholder instead: `matches_glob`'s `*`/`?` each become `x`;
+/// `matches_regex`'s anchors (`^`/`$`) are stripped and its `.*`/`.+`/`.`
+/// spans each become `x` too. This is a heuristic, not a full glob/regex
+/// solver — good enough for the common single-wildcard URI patterns this
+/// generator actually sees, not a claim to handle arbitrary regex.
+fn synthesize_uri_example(op: &str, pattern: &str) -> String {
+    use tcl_syntax::expr::ast::BinOp;
+    if op == BinOp::MatchesGlob.as_str() {
+        pattern
+            .chars()
+            .map(|c| if matches!(c, '*' | '?') { 'x' } else { c })
+            .collect()
+    } else if op == BinOp::MatchesRegex.as_str() {
+        let stripped = pattern.strip_prefix('^').unwrap_or(pattern);
+        let stripped = stripped.strip_suffix('$').unwrap_or(stripped);
+        let mut out = String::with_capacity(stripped.len());
+        let mut chars = stripped.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '.' {
+                while matches!(chars.peek(), Some('*' | '+')) {
+                    chars.next();
+                }
+                out.push('x');
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    } else {
+        pattern.to_owned()
+    }
 }
 
 /// Convert a switch glob/regex pattern to a concrete test value
@@ -956,4 +1018,105 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
     );
     out.push('}');
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn if_cond(condition: &str) -> Value {
+        json!({"kind": "if", "condition": condition})
+    }
+
+    /// The URI-hint regex used to hardcode a bare "matches" alternative,
+    /// which never matches real iRules syntax — the actual word operators
+    /// are `matches_glob`/`matches_regex`. A condition using either used to
+    /// fall straight through to the "/" default instead of extracting the
+    /// real pattern.
+    #[test]
+    fn uri_hint_extracts_matches_glob_and_matches_regex() {
+        let cond = if_cond(r#"[HTTP::uri] matches_glob "/api/*""#);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        assert!(
+            lines.iter().any(|l| l.contains(r#"-uri "/api/x""#)),
+            "{lines:?}"
+        );
+
+        let cond = if_cond(r#"[HTTP::uri] matches_regex "^/api/.*$""#);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        assert!(
+            lines.iter().any(|l| l.contains(r#"-uri "/api/x""#)),
+            "{lines:?}"
+        );
+    }
+
+    /// Adversarial-review finding: reusing the raw `matches_glob`/
+    /// `matches_regex` pattern text verbatim as the simulated request URI
+    /// produces a generated test whose own simulated request doesn't
+    /// satisfy the very condition its branch exercises — confirmed against
+    /// a real `tclsh8.6`: `regexp {^/api/.*$} {^/api/.*$}` is false (the
+    /// pattern text starts with `^`, not `/api/`), and `string match
+    /// {/api/*} {/api/*}` happens to be true only by coincidence (a literal
+    /// `*` in the subject also matches the glob's own `*`), a degenerate,
+    /// unrepresentative example either way. Confirms `synthesize_uri_example`
+    /// actually produces a self-consistent example for both operators.
+    #[test]
+    fn synthesized_uri_actually_satisfies_its_own_condition() {
+        let glob_uri = synthesize_uri_example("matches_glob", "/api/*");
+        assert!(
+            tcl_string_match("/api/*", &glob_uri),
+            "{glob_uri:?} must satisfy string match {{/api/*}}"
+        );
+
+        let regex_uri = synthesize_uri_example("matches_regex", "^/api/.*$");
+        assert!(
+            tcl_regex_match(r"^/api/.*$", &regex_uri),
+            "{regex_uri:?} must satisfy regexp {{^/api/.*$}}"
+        );
+    }
+
+    /// A minimal `string match` implementation covering the `*`/`?`
+    /// wildcards this test needs — just enough to verify
+    /// `synthesize_uri_example`'s glob output against its own pattern
+    /// without depending on a real `tclsh`.
+    fn tcl_string_match(pattern: &str, subject: &str) -> bool {
+        fn go(p: &[char], s: &[char]) -> bool {
+            match p.first() {
+                None => s.is_empty(),
+                Some('*') => go(&p[1..], s) || (!s.is_empty() && go(p, &s[1..])),
+                Some('?') => !s.is_empty() && go(&p[1..], &s[1..]),
+                Some(c) => s.first() == Some(c) && go(&p[1..], &s[1..]),
+            }
+        }
+        let p: Vec<char> = pattern.chars().collect();
+        let s: Vec<char> = subject.chars().collect();
+        go(&p, &s)
+    }
+
+    /// `regex` crate stand-in for tclsh's `regexp` on the narrow pattern
+    /// shape this generator produces (anchors + literal + `.*`) — real
+    /// ARE/Tcl regex and Rust `regex` agree on this subset.
+    fn tcl_regex_match(pattern: &str, subject: &str) -> bool {
+        Regex::new(pattern).expect("valid regex").is_match(subject)
+    }
+
+    /// Regression guard: `eq`/`starts_with` (already working before this
+    /// fix) must keep working now that the alternation is built from
+    /// `BinOp` spellings instead of hand-typed.
+    #[test]
+    fn uri_hint_still_extracts_eq_and_starts_with() {
+        let cond = if_cond(r#"[HTTP::uri] eq "/login""#);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        assert!(
+            lines.iter().any(|l| l.contains(r#"-uri "/login""#)),
+            "{lines:?}"
+        );
+
+        let cond = if_cond(r#"[HTTP::uri] starts_with "/admin""#);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        assert!(
+            lines.iter().any(|l| l.contains(r#"-uri "/admin""#)),
+            "{lines:?}"
+        );
+    }
 }

@@ -44,41 +44,21 @@
 // base Tcl core version of 9.0 or later
 // (`DialectSet::expr_grammar_base_version` tops out at 8.6 for every one
 // of them; f5-tmsh in particular runs an 8.5 base per
-// `tcl-dialect/src/profile.rs`), so a `TCL90_PLUS` gate would already
-// exclude every one of them on the version axis alone — the same
+// `tcl-dialect/src/profile.rs`), so a `TCL90_PLUS` gate below already
+// excludes every one of them on the version axis alone — the same
 // reasoning `lremove.rs` documents for its own plain `TCL90_PLUS` gate.
-//
-// That said, this spec's `CommandSpec::dialects` deliberately stays
-// `None` rather than `Some(DialectSet::TCL90_PLUS)`, unlike
-// `lremove`/`lpop`/`ledit`/`tcl::process`/`zipfs`: both spellings of this
-// command ("::tcl::build-info" and "tcl::build-info") are named in
-// `IRULES_DISABLED_COMMANDS` (`tcl-dialect/src/profile.rs`), and the
-// `irules_disable_list_is_load_bearing` contract test
-// (`tcl-registry/tests/dialect_profile.rs`) requires every disable-list
-// entry's registered spec(s) to still satisfy
-// `supports_dialect(DialectSet::IRULES)`. Narrowing this spec's
-// `dialects` to `TCL90_PLUS` would fail that assertion for the bare
-// "tcl::build-info" entry (the "::tcl::build-info" entry is separately —
-// and, on inspection, only accidentally — satisfied by an unrelated
-// stray `CommandSpec` literally named "::tcl::build-info" sitting inside
-// `commands/tcl/mathop_generated.rs`'s generated `tcl::mathop` operator
-// table, between the `-` and `/` operator entries; that looks like a
-// generator artifact, not a deliberate registration, and carries none of
-// the fixes made here). Both ban-list entries look like a modelling
-// mistake predating the `TCL90_PLUS` convention: iRules is pinned to a
-// genuine embedded Tcl 8.4.6 core (see `return_.rs`'s and `pwd.rs`'s notes
-// on `f5-irules`'s signature_base/runtime_base/version_ceiling), so a
-// Tcl-9.0-only command could never reach it regardless of any subtractive
-// ban — unlike the real K36322151 TMM-sandbox bans this list otherwise
-// encodes (filesystem/process/event-loop commands that DO exist on
-// iRules' 8.4 surface and are deliberately stripped from it). Properly
-// fixing this means editing `tcl-dialect/src/profile.rs` (dropping both
-// entries) and likely registering a `spec_qualified()` counterpart here
-// for the "::tcl::build-info" spelling (mirroring `tcl_process.rs`/
-// `tcl_zipfs.rs`) plus removing the stray mathop_generated.rs entry —
-// out of scope for a single-file, single-command audit. The
-// version-accurate gate is applied at the `FORMS` level below instead,
-// which the load-bearing test does not inspect.
+// Both spellings ("::tcl::build-info" and "tcl::build-info") used to also
+// carry a redundant `IRULES_DISABLED_COMMANDS` ban-list entry — version
+// gating in the ban list, the exact mistake that list's own doc comment
+// warns against, since iRules' genuine embedded Tcl 8.4.6 core
+// (`return_.rs`'s/`pwd.rs`'s notes on `f5-irules`'s
+// signature_base/runtime_base/version_ceiling) could never reach a
+// Tcl-9.0-only command regardless of any subtractive ban. Both entries are
+// now removed (`tcl-dialect/src/profile.rs`); a stray, generator-artifact
+// `CommandSpec` literally named "::tcl::build-info" that used to sit inside
+// `commands/tcl/mathop_generated.rs`'s hand-expanded `tcl::mathop` operator
+// table (between the `-` and `/` entries) is also gone now that file is
+// derived directly from `tcl_syntax::expr::operators`.
 
 use crate::prelude::*;
 
@@ -258,7 +238,7 @@ const FIELD_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::build-info",
-        dialects: None,
+        dialects: Some(DialectSet::TCL90_PLUS),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),

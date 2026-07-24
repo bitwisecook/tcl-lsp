@@ -31,6 +31,29 @@ pub fn spec() -> CommandSpec {
         name: "tcl::OptProc",
         dialects: None,
         arity: Arity::exact(3),
+        // `DEFINES_PROCEDURE` drives the proc-name-declaration semantic
+        // token/hover override (`semantic_tokens.rs`'s `ArgOverride::ProcNameDef`)
+        // the same way it does for `proc` (issue #923 idx 90). The runtime
+        // installs the defined proc as an ordinary, byte-compiled Tcl proc
+        // (`NOT_PROC_FACTORY`/`BYTE_COMPILED`/`NEVER_INLINE_BODY` all follow
+        // `proc`'s own precedent); `LANGUAGE_KEYWORD` and
+        // `IRULES_TOP_LEVEL_ONLY` are deliberately omitted — this is a
+        // `package require opt` library proc, not a core keyword, and
+        // nothing establishes the iRules-top-level restriction for it.
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::DEFINES_PROCEDURE
+            | Traits::NEVER_INLINE_BODY,
+        arg_roles: &[
+            (0, ArgRole::Name),
+            (1, ArgRole::ParamList),
+            (2, ArgRole::Body),
+        ],
+        // Runs in its own fresh call frame on each call, exactly like
+        // `proc` — lets generic `body_indices_to_skip` consumers (SSA,
+        // dead-store, def-use) treat it like every other structural-body
+        // definer without a string-match special case (issue #923 idx 90).
+        body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet {
             summary: "Define a proc with automatic option parsing.",
             synopsis: &["tcl::OptProc name optlist body"],
@@ -41,6 +64,8 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("opt"),
         side_effects: SIDE_EFFECTS,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::OptProc),
+        command_table_effect: Some(crate::command_table::CommandTableEffect::DefinesProcedure),
         ..CommandSpec::DEFAULT
     }
 }

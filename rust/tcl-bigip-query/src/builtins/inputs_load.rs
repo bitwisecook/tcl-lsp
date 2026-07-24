@@ -105,7 +105,7 @@ fn bi_json_load(args: &[Value]) -> Result<Value, QueryError> {
             e.column()
         ))
     })?;
-    Ok(crate::builtins::json_to_value(&parsed))
+    Ok(crate::builtins::json_to_value(&parsed, 0))
 }
 
 fn bi_jsonl_load(args: &[Value]) -> Result<Value, QueryError> {

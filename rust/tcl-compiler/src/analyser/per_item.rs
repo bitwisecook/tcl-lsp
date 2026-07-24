@@ -94,6 +94,26 @@ pub struct DeferredBody {
     /// pass below only needs the names, so this stays `Vec<String>` (and salsa
     /// -interning-friendly — see `tcl-lsp-db`'s `ItemBodyKey`).
     pub class_variables: Vec<String>,
+    /// A flattened snapshot of `self.safe_interp_stack`'s *top* entry (issue
+    /// #1001 follow-up) at the moment this body was deferred — `(base_hidden,
+    /// hidden_extra, exposed)`, sorted `Vec<String>`s rather than the live
+    /// `HashSet`-based `SafeInterpCtx` (which isn't `Hash`, so can't key
+    /// `tcl-lsp-db`'s `ItemBodyKey` directly) so this stays deterministic and
+    /// salsa-interning-friendly, matching `class_variables` above.
+    /// `None` outside any tracked safe interpreter (the overwhelming common
+    /// case — no new work, no behaviour change from before this field
+    /// existed). Every safe-interp check only ever consults the *top* of the
+    /// stack (`safe_interp_visibility_gate`'s `.last()`), never an older
+    /// entry, so this single flattened snapshot is sufficient — a proc/apply
+    /// body nested several `interp eval`s deep still only needs the
+    /// innermost one. [`analyse_proc_body_isolated`] seeds the isolated
+    /// `Analyser`'s own `safe_interp_stack` from this before walking the
+    /// body, so a hidden call inside the body hits the same, unmodified gate
+    /// a directly-written call already does — without this, W129 silently
+    /// missed *any* hidden call inside *any* proc/apply body nested in a
+    /// safe interpreter under incremental (`analyse_per_item`) analysis,
+    /// which is what the live LSP server always uses for diagnostics.
+    pub safe_interp_ctx: Option<(bool, Vec<String>, Vec<String>)>,
 }
 
 impl Analyser {
@@ -403,9 +423,17 @@ impl Analyser {
         self.result.command_aliases.extend(r.command_aliases);
         self.result.alias_offsets.extend(r.alias_offsets);
         self.result.renamed_commands.extend(r.renamed_commands);
-        self.result
-            .rename_target_spans
-            .extend(r.rename_target_spans);
+        self.result.rename_offsets.extend(r.rename_offsets);
+        // Per-ensemble union, not a flat `.extend()` — the outer key is the
+        // ensemble's own name, and a flat extend would replace one grafted
+        // body's whole inner subcommand map instead of merging into it.
+        for (ensemble, subs) in r.ensemble_subcommand_targets {
+            self.result
+                .ensemble_subcommand_targets
+                .entry(ensemble)
+                .or_default()
+                .extend(subs);
+        }
         // Per-object methods accumulate per receiver name across bodies —
         // the binding-identity consumer scopes them by objdefine site
         // (issue #945 fault 5), so records from different procs coexist.
@@ -427,8 +455,16 @@ impl Analyser {
         self.result.package_provides.extend(r.package_provides);
         self.result.source_targets.extend(r.source_targets);
         self.result.namespace_imports.extend(r.namespace_imports);
+        self.result.namespace_exports.extend(r.namespace_exports);
+        self.result
+            .proc_declaration_sites
+            .extend(r.proc_declaration_sites);
+        self.result.class_body_spans.extend(r.class_body_spans);
         self.result.auto_path_entries.extend(r.auto_path_entries);
         self.result.regex_patterns.extend(r.regex_patterns);
+        self.result
+            .namespace_overrides
+            .extend(r.namespace_overrides);
         self.result.has_dynamic_providers |= r.has_dynamic_providers;
         if self.result.unknown_proc_info.is_none() {
             self.result.unknown_proc_info = r.unknown_proc_info;
@@ -671,6 +707,20 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         a.define_var(base, dummy, &proc_path, false, Some(placeholder));
     }
     a.suppress_w215 = false;
+    // Restore the enclosing safe-interpreter visibility context (issue #1001
+    // follow-up) so a hidden call inside this body — reached only via
+    // incremental analysis's isolated second pass — still hits
+    // `safe_interp_visibility_gate` the same way it would in a directly-
+    // written body under the whole-file `analyse` path. `None` (the
+    // overwhelming common case) leaves the fresh analyser's stack empty,
+    // exactly as before this field existed.
+    if let Some((base_hidden, hidden_extra, exposed)) = &db.safe_interp_ctx {
+        a.safe_interp_stack.push(super::state::SafeInterpCtx {
+            base_hidden: *base_hidden,
+            hidden_extra: hidden_extra.iter().cloned().collect(),
+            exposed: exposed.iter().cloned().collect(),
+        });
+    }
     a.analyse_body(&db.body_text, body_tok, &proc_path);
     let proc_scope = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
         .expect("reconstructed proc scope")
@@ -835,10 +885,19 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     for x in &mut r.namespace_imports {
         x.range = shift(x.range, d);
     }
-    for sp in r.rename_target_spans.values_mut() {
-        *sp = shift(*sp, d);
+    for x in &mut r.namespace_exports {
+        x.range = shift(x.range, d);
+    }
+    for (_, span) in &mut r.proc_declaration_sites {
+        *span = shift(*span, d);
+    }
+    for (_, span) in &mut r.class_body_spans {
+        *span = shift(*span, d);
     }
     for off in r.alias_offsets.values_mut() {
+        *off += d;
+    }
+    for off in r.rename_offsets.values_mut() {
         *off += d;
     }
     for records in r.object_methods.values_mut() {
@@ -853,6 +912,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for x in &mut r.regex_patterns {
         x.range = shift(x.range, d);
+    }
+    for (span, _) in &mut r.namespace_overrides {
+        *span = shift(*span, d);
     }
     if !r.suppressed_lines.is_empty() {
         let old = std::mem::take(&mut r.suppressed_lines);
@@ -970,6 +1032,16 @@ fn body_needs_enclosing_context(body_text: &str) -> bool {
             if w == "namespace" && words.clone().next() == Some("import") {
                 return true;
             }
+            // Symmetric with the `import` guard above: a `namespace export`
+            // *inside a body* leaks into the whole-file walk's global
+            // `namespace_exports` the same way, and its `-clear` variant only
+            // makes sense relative to the shell's already-recorded entries —
+            // book-keeping the isolated per-item walk can't reproduce from
+            // this body alone. Rare (export declarations are normally
+            // top-level), so a fallback here costs only a redundant rebuild.
+            if w == "namespace" && words.clone().next() == Some("export") {
+                return true;
+            }
         }
     }
     false
@@ -1058,6 +1130,31 @@ mod tests {
         // paths (a body-local import falls back — see
         // `namespace_import_inside_body_falls_back`).
         eq("namespace import ::acme::widgets::render_*\nrender_box 10\nfrobnicate 1\n");
+    }
+
+    #[test]
+    fn wildcard_namespace_import_gated_by_export_matches() {
+        // The headline shape (issue #923 idx 18) exercised through the
+        // incremental/whole-file equivalence harness: `namespace export`
+        // gates which commands a wildcard import can resolve
+        // (`result.namespace_exports`), recorded identically by the shell
+        // pass on both paths.
+        eq("namespace eval Foo {\n    proc bar {} { return 1 }\n    \
+             proc other {} { return 2 }\n    namespace export bar\n}\n\
+             namespace import ::Foo::*\nbar\nother\n");
+    }
+
+    #[test]
+    fn namespace_export_inside_body_falls_back() {
+        // A `namespace export` buried in a proc body leaks into the
+        // whole-file walk's global export set (reached by a later
+        // sibling's wildcard import); the per-item decomposition can't
+        // reproduce that cross-body effect from the isolated body alone,
+        // so it falls back to a full rebuild — still byte-identical. See
+        // `body_needs_enclosing_context`.
+        eq("namespace eval Foo {\n    proc bar {} { return 1 }\n    \
+             proc setup {} { namespace export bar }\n}\n\
+             namespace import ::Foo::*\nbar\n");
     }
 
     #[test]

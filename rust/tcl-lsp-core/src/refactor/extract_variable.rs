@@ -27,18 +27,67 @@ use crate::code_actions::ActionKind;
 /// Whitespace-delimited binary operators that mark an arithmetic /
 /// logical expression which must be wrapped in `[expr { … }]` so the
 /// resulting `set` stays a valid two-argument call.
-const EXPR_OPS: &[&str] = &[
-    "**", "==", "!=", "<=", ">=", "&&", "||", "eq", "ne", "in", "ni", "+", "-", "*", "/", "%", "<",
-    ">",
-];
-
-/// `true` when `text` contains a whitespace-delimited binary operator.
 ///
-/// A whitespace-delimited operator has a single whitespace byte on
-/// each side (`\s OP \s`); this scans for ` OP ` with single ASCII
-/// spaces.
+/// Every [`BinOp`](tcl_syntax::expr::ast::BinOp) variant is, by
+/// construction, a genuine infix binary operator — derived from
+/// `tcl_syntax::expr::operators::ALL_BIN_OPS` (issue #983's unification)
+/// rather than a hand-typed 17-entry list that used to miss the bitwise/
+/// shift symbols (`<<`/`>>`/`&`/`|`/`^`), the TIP 461 string-ordering words
+/// (`lt`/`le`/`gt`/`ge`), and every iRules word operator (`contains`/
+/// `starts_with`/…). That wasn't just a missed suggestion: selecting
+/// `$a << 2` and extracting it produced `set myvar $a << 2` — a 4-argument
+/// `set` call, which is a Tcl runtime error (`set` takes 1 or 2 args), not
+/// merely a semantic difference.
+fn expr_op_spellings() -> &'static [&'static str] {
+    static OPS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    OPS.get_or_init(|| {
+        tcl_syntax::expr::operators::ALL_BIN_OPS
+            .iter()
+            .map(|op| op.spec().spelling)
+            .collect()
+    })
+}
+
+/// `true` when `text` contains a whitespace-delimited binary operator
+/// outside of a quoted string or a nested `(…)`/`{…}`/`[…]` substitution.
+///
+/// A whitespace-delimited operator has a single whitespace byte on each
+/// side (`\s OP \s`); this scans for ` OP ` with single ASCII spaces,
+/// skipping any byte range inside a `"…"` word or inside nested
+/// brackets/braces/parens. Without the quote check, an ordinary string
+/// selection like `"salt and pepper"` matched the iRules `and` word
+/// operator as if it were a real operator token, wrapping a plain string
+/// in `[expr {…}]` — which then fails at runtime (`"salt"` isn't a valid
+/// `expr` bareword).
 fn looks_like_expr(text: &str) -> bool {
-    EXPR_OPS.iter().any(|op| text.contains(&format!(" {op} ")))
+    let bytes = text.as_bytes();
+    let mut depth = 0i32;
+    let mut in_quotes = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => {
+                i += 2;
+                continue;
+            }
+            b'"' => in_quotes = !in_quotes,
+            b'(' | b'{' | b'[' if !in_quotes => depth += 1,
+            b')' | b'}' | b']' if !in_quotes => depth -= 1,
+            b' ' if !in_quotes && depth == 0 => {
+                let rest = &text[i + 1..];
+                let hit = expr_op_spellings().iter().any(|op| {
+                    rest.strip_prefix(op)
+                        .is_some_and(|after| after.starts_with(' '))
+                });
+                if hit {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
 }
 
 /// Extract the selection `[start_off, end_off)` into a `set` assignment.
@@ -159,5 +208,67 @@ mod tests {
         let r = extract_variable(source, 5, 12, "sum", &li).expect("result");
         let applied = r.apply(source);
         assert!(applied.contains("set sum [expr {$a + $b}]"), "{applied:?}");
+    }
+
+    /// Issue #983/#986: `EXPR_OPS` used to be a hand-typed 17-entry list
+    /// missing every bitwise/shift symbol and every TIP 461 string-ordering
+    /// word — a genuinely broken (not just suboptimal) output, since the
+    /// unwrapped `set myvar $a << $b` is a 4-argument `set` call (a Tcl
+    /// runtime error, `set` takes 1 or 2 args).
+    #[test]
+    fn bitwise_and_tip461_expressions_are_wrapped_in_expr() {
+        let li = LineIndex::new("puts $a << $b");
+        let r = extract_variable("puts $a << $b", 5, 13, "shifted", &li).expect("result");
+        assert!(
+            r.apply("puts $a << $b")
+                .contains("set shifted [expr {$a << $b}]"),
+            "{:?}",
+            r.apply("puts $a << $b")
+        );
+
+        let li2 = LineIndex::new("puts $a lt $b");
+        let r2 = extract_variable("puts $a lt $b", 5, 13, "ordered", &li2).expect("result");
+        assert!(
+            r2.apply("puts $a lt $b")
+                .contains("set ordered [expr {$a lt $b}]"),
+            "{:?}",
+            r2.apply("puts $a lt $b")
+        );
+    }
+
+    /// Adversarial-review finding: `expr_op_spellings()` includes the
+    /// iRules word operators (`and`/`or`/`contains`/…), and an ordinary
+    /// quoted string containing one of those words as English prose must
+    /// NOT be mistaken for a real operator token — `set myvar "salt and
+    /// pepper"` is already valid, wrapping it in `expr {…}` breaks it.
+    #[test]
+    fn quoted_string_containing_operator_words_is_not_wrapped_in_expr() {
+        let source = r#"puts "salt and pepper""#;
+        let li = LineIndex::new(source);
+        let r = extract_variable(source, 5, 22, "seasoning", &li).expect("result");
+        let applied = r.apply(source);
+        assert!(
+            applied.contains(r#"set seasoning "salt and pepper""#),
+            "{applied:?}"
+        );
+        assert!(!applied.contains("[expr"), "{applied:?}");
+    }
+
+    /// A word-operator spelling nested inside a brace-quoted argument
+    /// (depth > 0) is not a real top-level operator token — a plain
+    /// command call like `helper {a and b} $x` must not be wrapped in
+    /// `expr {…}` just because "and" appears somewhere inside its braces.
+    #[test]
+    fn braced_word_operator_at_nonzero_depth_does_not_trigger_expr_wrap() {
+        let source = "puts helper {a and b} $x";
+        let li = LineIndex::new(source);
+        // selection of `helper {a and b} $x` (cols 5..24).
+        let r = extract_variable(source, 5, 24, "result", &li).expect("result");
+        let applied = r.apply(source);
+        assert!(
+            applied.contains("set result helper {a and b} $x"),
+            "{applied:?}"
+        );
+        assert!(!applied.contains("[expr"), "{applied:?}");
     }
 }

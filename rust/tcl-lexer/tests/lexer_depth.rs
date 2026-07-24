@@ -47,6 +47,7 @@
 //!   `\NNN`  octal, 1-3 digits capped to a byte — `\400` is space + `0`.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use tcl_lexer::{
     BraceIndex, BracketIndex, ByteCol, ExprParenIndex, ExprTokenType, LexError, LexWarning, Lexer,
@@ -1004,6 +1005,31 @@ fn expr_math_function_set_is_exposed() {
     assert!(funcs.len() > 25);
 }
 
+/// Regression coverage for issue #996: the expr lexer's
+/// `Inner::scan_array_index` self-recurses once per nested `$name(…)`
+/// array-index reference, with no depth cap before this fix.
+/// Empirically, unguarded input overflowed the native stack (SIGABRT)
+/// between depth 100,000-200,000 on a 2 MiB thread (`cargo test`'s
+/// per-test default) — bypassing the Pratt parser's own `MAX_EXPR_DEPTH`
+/// cap entirely, since the whole nested chain is swallowed into one
+/// `Variable` token during lexing. 5000 is comfortably past
+/// `MAX_EXPR_ARRAY_INDEX_DEPTH` (64); the assertion is that tokenising
+/// returns at all, not what it returns.
+#[test]
+fn deeply_nested_expr_array_index_survives_lexing() {
+    const DEPTH: usize = 5000;
+    let mut src = String::from("$a0");
+    for i in 0..DEPTH {
+        src.push('(');
+        let _ = write!(src, "a{}", i + 1);
+    }
+    src.push('1');
+    for _ in 0..DEPTH {
+        src.push(')');
+    }
+    let _ = tokenise_expr(&src, None);
+}
+
 #[test]
 fn expr_unterminated_quote_and_command_do_not_panic() {
     // tclsh treats these as incomplete; the lexer must still produce
@@ -1138,6 +1164,68 @@ fn command_boundaries_split_only_top_level_separators() {
     // The `if` body's interior newlines did not create extra boundaries:
     // only two top-level commands.
     assert_eq!(b.len(), 2);
+}
+
+/// Regression coverage for issue #996: `BracketIndex`/`BraceIndex`'s
+/// `scan_cmd_sub`/`scan_script`/`scan_quoted`, and the
+/// `script_is_complete`/`command_boundaries` scanner's
+/// `scan_complete`/`scan_complete_quoted`, all recurse once per nested
+/// `[...]`, with no depth cap before this fix. Empirically, unguarded
+/// input overflowed the native stack (SIGABRT) around depth 10,000-50,000
+/// on a 2 MiB thread (`cargo test`'s per-test default). 5000 is
+/// comfortably past both that crash range and `MAX_NESTED_BRACKET_DEPTH`
+/// (128); the assertion is that each call returns at all, not what it
+/// returns.
+#[test]
+fn deeply_nested_brackets_survive_structural_scanning() {
+    const DEPTH: usize = 5000;
+    let mut src = String::from("set x ");
+    for _ in 0..DEPTH {
+        src.push('[');
+    }
+    src.push_str("a 1");
+    for _ in 0..DEPTH {
+        src.push(']');
+    }
+    src.push('\n');
+
+    let _ = script_is_complete(&src);
+    let _ = command_boundaries(&src);
+    let _ = BracketIndex::build(&src);
+    let _ = BraceIndex::build(&src);
+}
+
+/// Same regression, but nested inside a quoted string — exercises
+/// `scan_quoted`/`scan_complete_quoted`'s own recursive `[` dispatch
+/// rather than the top-level script scanner's.
+#[test]
+fn deeply_nested_brackets_in_a_quoted_string_survive_structural_scanning() {
+    const DEPTH: usize = 5000;
+    let mut src = String::from("set x \"");
+    for _ in 0..DEPTH {
+        src.push('[');
+    }
+    src.push_str("a 1");
+    for _ in 0..DEPTH {
+        src.push(']');
+    }
+    src.push_str("\"\n");
+
+    let _ = script_is_complete(&src);
+    let _ = command_boundaries(&src);
+    let _ = BracketIndex::build(&src);
+    let _ = BraceIndex::build(&src);
+}
+
+/// A moderately nested bracket chain (well under
+/// `MAX_NESTED_BRACKET_DEPTH`) is still classified exactly as before — the
+/// safety net must not fire on realistic nesting depths.
+#[test]
+fn moderately_nested_brackets_still_scan_correctly() {
+    let src = "set x [a [b [c 1]]]\n";
+    assert!(script_is_complete(src));
+    let idx = BracketIndex::build(src);
+    assert_eq!(idx.unterminated_count(), 0);
 }
 
 #[test]

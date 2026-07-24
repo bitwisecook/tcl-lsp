@@ -45,6 +45,7 @@
 //! command substitution.
 
 use crate::compilation_unit::CompilationUnit;
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use tcl_core_types::DiagCode;
@@ -54,13 +55,18 @@ use super::{Optimisation, PassContext};
 
 /// Run the code-sinking pass.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    walk_script(ctx, &cu.ir_module.top_level);
+    walk_script(ctx, &cu.ir_module.top_level, 0);
     for proc in cu.ir_module.procedures.values() {
-        walk_script(ctx, &proc.body);
+        walk_script(ctx, &proc.body, 0);
     }
 }
 
-fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
+/// `depth` is the nesting level of `script` — see
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
+fn walk_script(ctx: &mut PassContext<'_>, script: &Script, depth: u32) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
     let stmts = &script.statements;
     for i in 0..stmts.len().saturating_sub(1) {
         let stmt = &stmts[i];
@@ -88,12 +94,12 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
         if decision_condition_uses_var(decision, &var) {
             continue;
         }
-        if !any_decision_body_uses_var(decision, &var) {
+        if !any_decision_body_uses_var(decision, &var, depth) {
             continue;
         }
         let mut later_use = false;
         for later in &stmts[i + 2..] {
-            if statement_uses_var(later, &var) {
+            if statement_uses_var(later, &var, depth) {
                 later_use = true;
                 break;
             }
@@ -120,34 +126,34 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    walk_script(ctx, &c.body);
+                    walk_script(ctx, &c.body, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    walk_script(ctx, b);
+                    walk_script(ctx, b, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                walk_script(ctx, init);
-                walk_script(ctx, next);
-                walk_script(ctx, body);
+                walk_script(ctx, init, depth + 1);
+                walk_script(ctx, next, depth + 1);
+                walk_script(ctx, body, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
-            | Statement::Foreach { body, .. } => walk_script(ctx, body),
+            | Statement::Foreach { body, .. } => walk_script(ctx, body, depth + 1),
             Statement::Try {
                 body,
                 handlers,
                 finally_body,
                 ..
             } => {
-                walk_script(ctx, body);
+                walk_script(ctx, body, depth + 1);
                 for h in handlers {
-                    walk_script(ctx, &h.body);
+                    walk_script(ctx, &h.body, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    walk_script(ctx, fb);
+                    walk_script(ctx, fb, depth + 1);
                 }
             }
             Statement::Switch {
@@ -155,11 +161,11 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        walk_script(ctx, b);
+                        walk_script(ctx, b, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    walk_script(ctx, b);
+                    walk_script(ctx, b, depth + 1);
                 }
             }
             _ => {}
@@ -231,7 +237,7 @@ fn emit_sink(
 fn decision_sink_targets<'a>(decision: &'a Statement, var: &str) -> Vec<&'a Statement> {
     let mut targets = Vec::new();
     for body in decision_branch_bodies(decision) {
-        targets.extend(find_deepest_targets(body, var));
+        targets.extend(find_deepest_targets(body, var, 0));
     }
     targets
 }
@@ -273,23 +279,30 @@ fn decision_branch_bodies(decision: &Statement) -> Vec<&Script> {
 /// is itself a decision the var's condition does not read, descend into
 /// its branches; otherwise anchor at the first using statement of this
 /// body.
-fn find_deepest_targets<'a>(body: &'a Script, var: &str) -> Vec<&'a Statement> {
+///
+/// `depth` is this recursion's own nesting level — independent of
+/// `walk_script`'s (a decision `walk_script` reached within its cap can
+/// still nest arbitrarily deeper below that point); past
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`] this stops descending and anchors at
+/// the current body's first using statement, same as the `using.len() != 1`
+/// case — a shallower-than-ideal sink target, not an unsound one.
+fn find_deepest_targets<'a>(body: &'a Script, var: &str, depth: u32) -> Vec<&'a Statement> {
     let using: Vec<usize> = body
         .statements
         .iter()
         .enumerate()
-        .filter(|(_, s)| statement_uses_var(s, var))
+        .filter(|(_, s)| statement_uses_var(s, var, depth))
         .map(|(i, _)| i)
         .collect();
     let Some(&first) = using.first() else {
         return Vec::new();
     };
-    if using.len() == 1 {
+    if using.len() == 1 && !super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         let no_prior_redefine = !body.statements[..first]
             .iter()
             .any(|s| statement_defines_var(s, var));
         if no_prior_redefine && is_decision(&body.statements[first]) {
-            let deeper = try_deeper_sink(&body.statements[first], var);
+            let deeper = try_deeper_sink(&body.statements[first], var, depth + 1);
             if !deeper.is_empty() {
                 return deeper;
             }
@@ -301,13 +314,13 @@ fn find_deepest_targets<'a>(body: &'a Script, var: &str) -> Vec<&'a Statement> {
 /// Descend into a decision's branches for a deeper sink — but only when
 /// the var's value is not read by any condition (which would make sinking
 /// past it unsound).
-fn try_deeper_sink<'a>(stmt: &'a Statement, var: &str) -> Vec<&'a Statement> {
+fn try_deeper_sink<'a>(stmt: &'a Statement, var: &str, depth: u32) -> Vec<&'a Statement> {
     if decision_condition_uses_var(stmt, var) {
         return Vec::new();
     }
     let mut targets = Vec::new();
     for body in decision_branch_bodies(stmt) {
-        targets.extend(find_deepest_targets(body, var));
+        targets.extend(find_deepest_targets(body, var, depth));
     }
     targets
 }
@@ -356,7 +369,7 @@ fn sink_rhs_clobbered_by_decision(sink: &Statement, decision: &Statement) -> boo
     }
     decision_branch_bodies(decision)
         .iter()
-        .any(|body| script_redefines_sink_read(body, sink))
+        .any(|body| script_redefines_sink_read(body, sink, 0))
 }
 
 /// Whether the assignment `sink` reads at least one variable in its RHS.
@@ -386,17 +399,27 @@ fn decision_condition_has_command_subst(decision: &Statement) -> bool {
 
 /// Whether any statement in `script` (recursively) redefines a variable the
 /// `sink` assignment's RHS reads.
-fn script_redefines_sink_read(script: &Script, sink: &Statement) -> bool {
+fn script_redefines_sink_read(script: &Script, sink: &Statement, depth: u32) -> bool {
     script
         .statements
         .iter()
-        .any(|s| stmt_redefines_sink_read(s, sink))
+        .any(|s| stmt_redefines_sink_read(s, sink, depth))
 }
 
-fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement) -> bool {
+/// `depth` is this recursion's own nesting level (independent of
+/// `walk_script`'s — see [`find_deepest_targets`]'s doc comment). Past
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`], conservatively answers `true`
+/// ("might redefine it") — this query gates whether a sink is *safe*
+/// (`sink_rhs_clobbered_by_decision`), so an unresolved deep answer must
+/// lean toward blocking the sink, never toward permitting one that could be
+/// a miscompile.
+fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement, depth: u32) -> bool {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return true;
+    }
     if stmt_defined_vars(stmt)
         .iter()
-        .any(|d| statement_uses_var(sink, d))
+        .any(|d| statement_uses_var(sink, d, 0))
     {
         return true;
     }
@@ -408,36 +431,36 @@ fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement) -> bool {
         } => {
             clauses
                 .iter()
-                .any(|c| script_redefines_sink_read(&c.body, sink))
+                .any(|c| script_redefines_sink_read(&c.body, sink, depth + 1))
                 || else_body
                     .as_ref()
-                    .is_some_and(|b| script_redefines_sink_read(b, sink))
+                    .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1))
         }
         Statement::For {
             init, next, body, ..
         } => {
-            script_redefines_sink_read(init, sink)
-                || script_redefines_sink_read(next, sink)
-                || script_redefines_sink_read(body, sink)
+            script_redefines_sink_read(init, sink, depth + 1)
+                || script_redefines_sink_read(next, sink, depth + 1)
+                || script_redefines_sink_read(body, sink, depth + 1)
         }
         Statement::While { body, .. }
         | Statement::Foreach { body, .. }
         | Statement::Catch { body, .. }
         | Statement::UpFrame { body, .. }
-        | Statement::Block { body, .. } => script_redefines_sink_read(body, sink),
+        | Statement::Block { body, .. } => script_redefines_sink_read(body, sink, depth + 1),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            script_redefines_sink_read(body, sink)
+            script_redefines_sink_read(body, sink, depth + 1)
                 || handlers
                     .iter()
-                    .any(|h| script_redefines_sink_read(&h.body, sink))
+                    .any(|h| script_redefines_sink_read(&h.body, sink, depth + 1))
                 || finally_body
                     .as_ref()
-                    .is_some_and(|fb| script_redefines_sink_read(fb, sink))
+                    .is_some_and(|fb| script_redefines_sink_read(fb, sink, depth + 1))
         }
         Statement::Switch {
             arms, default_body, ..
@@ -445,10 +468,10 @@ fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement) -> bool {
             arms.iter().any(|a| {
                 a.body
                     .as_ref()
-                    .is_some_and(|b| script_redefines_sink_read(b, sink))
+                    .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1))
             }) || default_body
                 .as_ref()
-                .is_some_and(|b| script_redefines_sink_read(b, sink))
+                .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1))
         }
         _ => false,
     }
@@ -509,36 +532,54 @@ fn decision_condition_uses_var(stmt: &Statement, var: &str) -> bool {
     }
 }
 
-fn any_decision_body_uses_var(stmt: &Statement, var: &str) -> bool {
+fn any_decision_body_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
     match stmt {
         Statement::If {
             clauses, else_body, ..
         } => {
-            clauses.iter().any(|c| script_uses_var(&c.body, var))
-                || else_body.as_ref().is_some_and(|b| script_uses_var(b, var))
+            clauses.iter().any(|c| script_uses_var(&c.body, var, depth))
+                || else_body
+                    .as_ref()
+                    .is_some_and(|b| script_uses_var(b, var, depth))
         }
         Statement::Switch {
             arms, default_body, ..
         } => {
-            arms.iter()
-                .any(|a| a.body.as_ref().is_some_and(|b| script_uses_var(b, var)))
-                || default_body
+            arms.iter().any(|a| {
+                a.body
                     .as_ref()
-                    .is_some_and(|b| script_uses_var(b, var))
+                    .is_some_and(|b| script_uses_var(b, var, depth))
+            }) || default_body
+                .as_ref()
+                .is_some_and(|b| script_uses_var(b, var, depth))
         }
         _ => false,
     }
 }
 
-fn script_uses_var(script: &Script, var: &str) -> bool {
-    script.statements.iter().any(|s| statement_uses_var(s, var))
+fn script_uses_var(script: &Script, var: &str, depth: u32) -> bool {
+    script
+        .statements
+        .iter()
+        .any(|s| statement_uses_var(s, var, depth))
 }
 
 /// Inspect an IR statement for a textual `$var` / `${var}` use.
 /// Walks `Call` args, `AssignValue` RHS text, `Incr` amount,
 /// `ExprEval` / conditions via the parsed AST, and descends into
 /// compound-statement bodies.
-fn statement_uses_var(stmt: &Statement, var: &str) -> bool {
+///
+/// `depth` is this recursion's own nesting level (independent of
+/// `walk_script`'s — see [`find_deepest_targets`]'s doc comment). Past
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`], conservatively answers `true`
+/// ("might use it") rather than descending further: every caller of this
+/// query uses a `true` answer to *decline* an optimisation (skip a sink, or
+/// treat a variable as still-needed), so an unresolved deep answer must
+/// lean toward "don't touch it", never toward "safe to rewrite".
+fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return true;
+    }
     match stmt {
         Statement::AssignConst { .. } | Statement::Barrier { .. } => false,
         Statement::AssignValue { value, .. } => text_references_var(value, var),
@@ -558,10 +599,11 @@ fn statement_uses_var(stmt: &Statement, var: &str) -> bool {
         Statement::If {
             clauses, else_body, ..
         } => {
-            clauses
-                .iter()
-                .any(|c| expr_references_var(&c.condition, var) || script_uses_var(&c.body, var))
-                || else_body.as_ref().is_some_and(|b| script_uses_var(b, var))
+            clauses.iter().any(|c| {
+                expr_references_var(&c.condition, var) || script_uses_var(&c.body, var, depth + 1)
+            }) || else_body
+                .as_ref()
+                .is_some_and(|b| script_uses_var(b, var, depth + 1))
         }
         Statement::For {
             init,
@@ -570,36 +612,38 @@ fn statement_uses_var(stmt: &Statement, var: &str) -> bool {
             body,
             ..
         } => {
-            script_uses_var(init, var)
+            script_uses_var(init, var, depth + 1)
                 || expr_references_var(condition, var)
-                || script_uses_var(next, var)
-                || script_uses_var(body, var)
+                || script_uses_var(next, var, depth + 1)
+                || script_uses_var(body, var, depth + 1)
         }
         Statement::While {
             condition, body, ..
-        } => expr_references_var(condition, var) || script_uses_var(body, var),
+        } => expr_references_var(condition, var) || script_uses_var(body, var, depth + 1),
         Statement::Foreach {
             iterators, body, ..
         } => {
             iterators
                 .iter()
                 .any(|it| text_references_var(&it.list_arg, var))
-                || script_uses_var(body, var)
+                || script_uses_var(body, var, depth + 1)
         }
         Statement::Catch { body, .. }
         | Statement::UpFrame { body, .. }
-        | Statement::Block { body, .. } => script_uses_var(body, var),
+        | Statement::Block { body, .. } => script_uses_var(body, var, depth + 1),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            script_uses_var(body, var)
-                || handlers.iter().any(|h| script_uses_var(&h.body, var))
+            script_uses_var(body, var, depth + 1)
+                || handlers
+                    .iter()
+                    .any(|h| script_uses_var(&h.body, var, depth + 1))
                 || finally_body
                     .as_ref()
-                    .is_some_and(|fb| script_uses_var(fb, var))
+                    .is_some_and(|fb| script_uses_var(fb, var, depth + 1))
         }
         Statement::Switch {
             subject,
@@ -608,12 +652,14 @@ fn statement_uses_var(stmt: &Statement, var: &str) -> bool {
             ..
         } => {
             text_references_var(subject, var)
-                || arms
-                    .iter()
-                    .any(|a| a.body.as_ref().is_some_and(|b| script_uses_var(b, var)))
+                || arms.iter().any(|a| {
+                    a.body
+                        .as_ref()
+                        .is_some_and(|b| script_uses_var(b, var, depth + 1))
+                })
                 || default_body
                     .as_ref()
-                    .is_some_and(|db| script_uses_var(db, var))
+                    .is_some_and(|db| script_uses_var(db, var, depth + 1))
         }
     }
 }
@@ -669,22 +715,39 @@ fn text_references_var(text: &str, var: &str) -> bool {
 }
 
 fn expr_references_var(node: &ExprNode, var: &str) -> bool {
+    // Entry point: the top of a condition expression is nesting depth 0
+    // (issue #996 — the recursion cap lives in [`expr_references_var_at`]).
+    expr_references_var_at(node, var, 0)
+}
+
+fn expr_references_var_at(node: &ExprNode, var: &str, depth: u32) -> bool {
+    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // native frame per level. Past the cap, assume the var *is* referenced —
+    // the conservative direction, since callers use this to *suppress* code
+    // sinking when the sunk value's variable appears in a guard, so a false
+    // `true` only forgoes a sink, never performs an unsound one.
+    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return true;
+    }
     match node {
         ExprNode::Var { name, .. } => name == var,
         ExprNode::Binary { left, right, .. } => {
-            expr_references_var(left, var) || expr_references_var(right, var)
+            expr_references_var_at(left, var, depth + 1)
+                || expr_references_var_at(right, var, depth + 1)
         }
-        ExprNode::Unary { operand, .. } => expr_references_var(operand, var),
+        ExprNode::Unary { operand, .. } => expr_references_var_at(operand, var, depth + 1),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expr_references_var(condition, var)
-                || expr_references_var(true_branch, var)
-                || expr_references_var(false_branch, var)
+            expr_references_var_at(condition, var, depth + 1)
+                || expr_references_var_at(true_branch, var, depth + 1)
+                || expr_references_var_at(false_branch, var, depth + 1)
         }
-        ExprNode::Call { args, .. } => args.iter().any(|a| expr_references_var(a, var)),
+        ExprNode::Call { args, .. } => args
+            .iter()
+            .any(|a| expr_references_var_at(a, var, depth + 1)),
         _ => false,
     }
 }
@@ -705,6 +768,30 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    /// Regression coverage for issue #996: `expr_references_var` recurses
+    /// once per `ExprNode` level with no depth cap before this fix. A tree
+    /// built directly is unbounded (the Pratt parser caps its own output at
+    /// 256) and empirically overflowed the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
+    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns
+    /// at all.
+    #[test]
+    fn deeply_nested_expr_references_var_survives() {
+        let mut node = ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        };
+        for _ in 0..3000 {
+            node = ExprNode::Unary {
+                op: crate::expr_ast::UnaryOp::Not,
+                operand: Box::new(node),
+            };
+        }
+        let _ = expr_references_var(&node, "y");
     }
 
     #[test]

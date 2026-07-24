@@ -27,6 +27,16 @@
 
 use std::collections::HashSet;
 
+use tcl_core_types::RecursionLimit;
+
+/// Cap on `$name(…)` array-index nesting depth for `Inner::scan_array_index`
+/// — mirrors the main lexer's `MAX_ARRAY_INDEX_DEPTH` (`crate::lexer`) and
+/// exists for the same reason: unbounded self-recursion on
+/// `$a($b($c(...)))` could otherwise abort the process with an
+/// uncatchable native-stack overflow on pathologically deep input. See
+/// `docs/design/compiler/recursive-descent-depth-limits.md`.
+const MAX_EXPR_ARRAY_INDEX_DEPTH: RecursionLimit = RecursionLimit(64);
+
 /// Token types specific to Tcl expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExprTokenType {
@@ -105,12 +115,81 @@ fn p(n: usize) -> u32 {
 /// the compiler) can check for shadowed functions. In the lexer
 /// itself, any identifier not in the `Bool` or `Operator` sets
 /// becomes `Function` regardless (the default fallback).
+///
+/// `tcl-lexer` sits below `tcl-syntax` in the dependency graph (see
+/// `tcl-syntax`'s own architecture doc comment), so this can't derive from
+/// `tcl_syntax::expr::mathfunc::ALL_NAMES` directly — the two lists are kept
+/// in sync by `tcl-syntax`'s own drift-guard test
+/// (`expr::operators::tests::tcl_lexer_recognises_every_mathfunc_name`), which
+/// fails the moment this list and `mathfunc::all()` disagree. Was missing
+/// TIP 521 (9.0) and TIP 745 (9.1)'s additions until that guard caught it —
+/// a real gap (`tcl-lsp-core::semantic_tokens` reads this set to decide
+/// which `Function`-kind expr tokens get the "known math function"
+/// modifier, so `expr {gamma(2.5)}`/`expr {isfinite($x)}` were previously
+/// under-classified in a 9.1-dialect document).
 #[must_use]
 pub fn math_functions() -> HashSet<&'static str> {
     [
-        "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double", "entier",
-        "exp", "floor", "fmod", "hypot", "int", "isinf", "isnan", "isqrt", "log", "log10", "max",
-        "min", "pow", "rand", "round", "sin", "sinh", "sqrt", "srand", "tan", "tanh", "wide",
+        "abs",
+        "acos",
+        "asin",
+        "atan",
+        "atan2",
+        "bool",
+        "ceil",
+        "cos",
+        "cosh",
+        "double",
+        "entier",
+        "exp",
+        "floor",
+        "fmod",
+        "hypot",
+        "int",
+        "isinf",
+        "isnan",
+        "isqrt",
+        "log",
+        "log10",
+        "max",
+        "min",
+        "pow",
+        "rand",
+        "round",
+        "sin",
+        "sinh",
+        "sqrt",
+        "srand",
+        "tan",
+        "tanh",
+        "wide",
+        // TIP 521 (Tcl 9.0): floating-point classification.
+        "isfinite",
+        "isnormal",
+        "issubnormal",
+        "isunordered",
+        // TIP 745 (Tcl 9.1): the C99 math function batch.
+        "acosh",
+        "asinh",
+        "atanh",
+        "cbrt",
+        "copysign",
+        "dim",
+        "erf",
+        "erfc",
+        "exp2",
+        "expm1",
+        "fma",
+        "gamma",
+        "ldexp",
+        "lgamma",
+        "log1p",
+        "log2",
+        "logb",
+        "nextafter",
+        "remainder",
+        "signbit",
+        "trunc",
     ]
     .into_iter()
     .collect()
@@ -346,7 +425,7 @@ impl<'s> Inner<'s> {
             }
             if self.i < self.b.len() && self.b[self.i] == b'(' {
                 self.i += 1;
-                self.scan_array_index();
+                self.scan_array_index(0);
             }
         }
         self.tok(ExprTokenType::Variable, start)
@@ -362,7 +441,14 @@ impl<'s> Inner<'s> {
     /// tokens are scanned so their inner `)` are not the terminator. The old
     /// paren-counting left `$a((b)` unterminated and ended `$a(x\)y)` at the
     /// escaped `)` (`RUST_ISSUE_085`).
-    fn scan_array_index(&mut self) {
+    ///
+    /// `depth` is the nesting level of this call (0 at the top); past
+    /// [`MAX_EXPR_ARRAY_INDEX_DEPTH`] a nested `$name(` is scanned as an
+    /// ordinary character rather than recursed into, so pathologically
+    /// deep `$a($b($c(...)))` input degrades gracefully rather than
+    /// overflowing the native stack.
+    fn scan_array_index(&mut self, depth: u32) {
+        let past_cap = MAX_EXPR_ARRAY_INDEX_DEPTH.exceeded(depth);
         while self.i < self.b.len() {
             match self.b[self.i] {
                 b')' => {
@@ -388,7 +474,7 @@ impl<'s> Inner<'s> {
                         }
                     }
                 }
-                b'$' => {
+                b'$' if !past_cap => {
                     self.i += 1;
                     if self.i < self.b.len() && self.b[self.i] == b'{' {
                         self.i += 1;
@@ -414,7 +500,7 @@ impl<'s> Inner<'s> {
                         }
                         if self.i < self.b.len() && self.b[self.i] == b'(' {
                             self.i += 1;
-                            self.scan_array_index(); // nested index
+                            self.scan_array_index(depth + 1); // nested index
                         }
                     }
                 }

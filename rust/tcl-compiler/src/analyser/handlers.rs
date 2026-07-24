@@ -32,9 +32,13 @@
 //! alias resolution.
 
 use tcl_core_types::DiagCode;
-use tcl_lexer::{Span, Token, TokenType};
+use tcl_lexer::{SourceMap, Span, Token, TokenType};
+use tcl_syntax::list::find_element;
 
 use crate::alias::{detect_interp_alias, resolve_alias};
+use crate::parsing::syntax::descend::descend_token;
+use crate::parsing::syntax::segment::segments_from_tree;
+use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
@@ -83,6 +87,46 @@ pub(super) fn interp_path_key(path: &str) -> String {
     path.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Parse `interp create`'s `?-safe? ?--? ?path?` leading words (issue
+/// #923 idx 9): returns `(safe, path)`, where `path` is the first
+/// non-flag word (or `None` for a bare, uncaptured `interp create
+/// -safe`). Shared by `Analyser::handle_interp_create_command` and the
+/// `set VAR [interp create ...]` value-flow detector in
+/// `Analyser::handle_set_command`, so both parse the flag/path shape
+/// identically.
+fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
+    let mut safe = false;
+    let mut path: Option<&str> = None;
+    let mut past_flags = false;
+    for &word in words {
+        if !past_flags && word == "-safe" {
+            safe = true;
+            continue;
+        }
+        if !past_flags && word == "--" {
+            past_flags = true;
+            continue;
+        }
+        path = Some(word);
+        break;
+    }
+    (safe, path)
+}
+
+/// `set VAR [interp create ?-safe? ?--? ?path?]`'s value word, stripped
+/// to just the words after `interp`/`create`, when `text` is exactly
+/// that literal `[...]` substitution shape and nothing else — feeds
+/// `Analyser::handle_set_command`'s value-flow detector through
+/// [`parse_interp_create_words`] (issue #923 idx 9).
+fn interp_create_words_from_value(text: &str) -> Option<Vec<&str>> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    let mut words = inner.split_whitespace();
+    if words.next()? != "interp" || words.next()? != "create" {
+        return None;
+    }
+    Some(words.collect())
+}
+
 /// Condense a definition's description argument into a single-line outline
 /// detail: the first non-empty line, trimmed, and length-capped so a verbose
 /// multi-line description doesn't bloat the outline entry.
@@ -100,37 +144,6 @@ fn summarise_detail(description: &str) -> String {
     } else {
         line.to_string()
     }
-}
-
-/// Split a form-2 ``switch`` braced body into its flat list of
-/// pattern/body elements.
-///
-/// Uses the segmenter to split the body: every word across every
-/// command in the body is one element, producing a flat
-/// alternating pattern/body sequence.
-///
-/// Returns `(text, token)` pairs in source order.  The token's
-/// span is rebased into the outer source's offset space via the
-/// body token's `content_offset`.  Dynamic bodies (non-`Str`
-/// tokens) yield an empty list — the caller must fall back to
-/// form-1-style alternation when the form-2 body cannot be
-/// statically split.
-pub(super) fn parse_switch_body_elements(body_text: &str, body_tok: Token) -> Vec<(String, Token)> {
-    if body_tok.kind != TokenType::Str {
-        return Vec::new();
-    }
-    let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-    let cmds = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
-    let mut elements = Vec::new();
-    for cmd in cmds {
-        if cmd.is_partial {
-            continue;
-        }
-        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()) {
-            elements.push((text.clone(), *tok));
-        }
-    }
-    elements
 }
 
 impl Analyser {
@@ -182,8 +195,50 @@ impl Analyser {
         let value_token_kind = value_token.kind;
         if value_is_single_token && matches!(value_token_kind, TokenType::Esc | TokenType::Str) {
             self.set_const_string(&args[0], args[1].clone(), value_token.span, scope_path);
+            self.clear_interp_var_binding(&args[0], scope_path);
+        } else if let Some(words) = interp_create_words_from_value(&args[1]) {
+            // `set VAR [interp create ?-safe? ?--? ?path?]` (issue #923
+            // idx 9) — bind VAR, in this scope, to the interpreter-domain
+            // key this call records. Mirrors `record_instance_creation`'s
+            // TclOO `set g [Foo new]` value-flow shape, but scope-chain
+            // -aware like `const_strings` rather than flat like
+            // `instance_classes` — see `interp_var_bindings`'s doc for why.
+            self.clear_const_string(&args[0], scope_path);
+            let (safe, path) = parse_interp_create_words(&words);
+            match path {
+                Some(p) if crate::naming::is_dynamic_word(p) => {
+                    // A dynamic path argument (not just a missing one) —
+                    // mirrors `handle_interp_create_command`'s own
+                    // handling of the identical shape: existence becomes
+                    // unknowable file-wide, nothing recorded.
+                    self.dynamic_interp_ops = true;
+                    self.clear_interp_var_binding(&args[0], scope_path);
+                }
+                _ => {
+                    // A literal path resolves to its qualified key; a
+                    // missing path (Tcl auto-generates a fresh, always-
+                    // unique name) gets a synthetic per-call-site key —
+                    // mirrors `handle_namespace_eval_command`'s
+                    // `@dynns@<offset>` pattern — so two unrelated `set
+                    // VAR [interp create -safe]` call sites never collide
+                    // just because they wrote the same variable name.
+                    let key = path.map_or_else(
+                        || format!("@autoname@{}", value_token.span.start()),
+                        |p| self.qualified_interp_key(p),
+                    );
+                    self.interpreters.insert(
+                        key.clone(),
+                        super::state::InterpState {
+                            safe,
+                            ..Default::default()
+                        },
+                    );
+                    self.set_interp_var_binding(&args[0], key, scope_path);
+                }
+            }
         } else {
             self.clear_const_string(&args[0], scope_path);
+            self.clear_interp_var_binding(&args[0], scope_path);
         }
     }
 
@@ -434,7 +489,11 @@ impl Analyser {
         match tok.kind {
             TokenType::Str | TokenType::Esc => Some(text.to_string()),
             TokenType::Var => {
-                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
                 let var_name = sm.token_text(tok);
                 self.lookup_const_string(var_name, scope_path)
                     .map(str::to_string)
@@ -668,6 +727,7 @@ impl Analyser {
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
         if args.len() < 3 || arg_tokens.len() < 3 {
@@ -675,6 +735,22 @@ impl Analyser {
         }
 
         let raw_name = &args[0];
+        let name_tok = arg_tokens[0];
+        // A constant-foldable dynamic name (`proc ::$wtype {args} {...}` with
+        // `wtype` a known constant) resolves the same way `rename`'s operands
+        // already do (issue #923 idx 86: `tk/library/accessibility.tcl`'s
+        // rename-away-and-reinstall idiom names its wrapper proc this way).
+        // An unresolvable dynamic name falls back to the raw written text
+        // unchanged — this only *improves* the resolvable case, the same
+        // scope boundary `resolve_dynamic_word`'s other callers keep.
+        let resolved_name = self
+            .resolve_dynamic_word(
+                raw_name,
+                Some(name_tok),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .unwrap_or_else(|| raw_name.clone());
         // Home the proc to the *command-resolution* namespace, not the purely
         // lexical one: a proc defined inside another proc's body homes to that
         // enclosing proc's **defining** namespace (the prefix of its qualified
@@ -687,15 +763,14 @@ impl Analyser {
         // `qualify` takes the constructed (rooted) namespace key verbatim and
         // `key_tail` inverts the construction — a `char`-pattern colon trim or
         // an `rsplit("::")` here would collapse a lone-colon name (#934).
-        let qualified = qualify(&ns_prefix, raw_name);
+        let qualified = qualify(&ns_prefix, &resolved_name);
         let simple = crate::naming::key_tail(&qualified).to_string();
-        let name_tok = arg_tokens[0];
         let name_span = name_tok.span;
         let body_tok = arg_tokens[2];
         let body_span = body_tok.span;
 
         // **W113** — proc name shadows a built-in command.
-        self.emit_w113_proc_shadows_builtin(raw_name, &qualified, name_span);
+        self.emit_w113_proc_shadows_builtin(&resolved_name, &qualified, name_span);
         // **W314** — the name has no absolute written form (#934).
         self.emit_w314_no_absolute_name(raw_name, name_span);
 
@@ -741,6 +816,9 @@ impl Analyser {
         self.result
             .all_procs
             .insert(qualified.clone(), proc.clone());
+        self.result
+            .proc_declaration_sites
+            .push((qualified.clone(), name_span));
         let simple_key = proc.name.clone();
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
@@ -802,6 +880,7 @@ impl Analyser {
             // created with params; a second pass fills it in place).
             let body_text = args[2].clone();
             if self.defer_proc_bodies {
+                let safe_interp_ctx = self.safe_interp_ctx_snapshot();
                 self.deferred_bodies.push(super::per_item::DeferredBody {
                     body_text,
                     body_tok,
@@ -812,6 +891,7 @@ impl Analyser {
                     scope_name: raw_name.clone(),
                     params: params.clone(),
                     class_variables: Vec::new(),
+                    safe_interp_ctx,
                 });
             } else {
                 self.analyse_body(&body_text, body_tok, &child_path);
@@ -821,6 +901,204 @@ impl Analyser {
         }
 
         true
+    }
+
+    /// `tcl::OptProc name optlist body` — the `opt` package's automatic-
+    /// option-parsing proc definer (issue #923 idx 90).
+    ///
+    /// At runtime this installs a REAL proc via `uplevel 1 [list ::proc
+    /// $name args ...]` — the Tcl-level formal parameter is always the
+    /// single literal word `args` (any call arity is accepted; `optlist`
+    /// itself is never arity-checked). `optlist`'s own descriptor entries
+    /// (`{child -use -display}`) share `proc`'s own `{name default}` /
+    /// bare-`name` list shape, so [`parse_param_list`] applies directly —
+    /// but they are bound as LOCAL VARIABLES inside the body by
+    /// `::tcl::OptKeyParse`, with a leading `-` on a flag descriptor
+    /// STRIPPED for the bound name (tclsh9.0/8.6-verified: `-use`/
+    /// `-display` bind as `use`/`display`, never with the dash).
+    ///
+    /// Mirrors [`Self::handle_proc_command`]'s register/scope/walk glue
+    /// largely as a separate function rather than a shared abstraction —
+    /// the two definers' arity/local-binding stories diverge enough
+    /// (`ProcDef.params` is `[args]` here, never `optlist`'s own entries)
+    /// that factoring out a shared helper would need as many branches as
+    /// duplicating the glue outright.
+    pub fn handle_opt_proc_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        if args.len() < 3 || arg_tokens.len() < 3 {
+            return false;
+        }
+
+        let raw_name = &args[0];
+        let name_tok = arg_tokens[0];
+        let resolved_name = self
+            .resolve_dynamic_word(
+                raw_name,
+                Some(name_tok),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .unwrap_or_else(|| raw_name.clone());
+        let ns_prefix = self.command_resolution_namespace(scope_path);
+        let qualified = qualify(&ns_prefix, &resolved_name);
+        let simple = crate::naming::key_tail(&qualified).to_string();
+        let name_span = name_tok.span;
+        let body_tok = arg_tokens[2];
+        let body_span = body_tok.span;
+
+        self.emit_w113_proc_shadows_builtin(&resolved_name, &qualified, name_span);
+        self.emit_w314_no_absolute_name(raw_name, name_span);
+
+        let (real_params, opt_locals) = Self::opt_proc_params(&args[1]);
+
+        let mut doc = std::mem::take(&mut self.last_comment);
+        if doc.is_empty() && args.len() >= 3 {
+            doc = super::utils::extract_body_docstring(&args[2]);
+        }
+
+        // Combined list — the real `args` catch-all plus every
+        // optlist-derived local — feeds hover/param-trait inference and
+        // the body's own local-variable scope (never `ProcDef.params`,
+        // which stays `[args]`-only for correct arity).
+        let mut combined_params = real_params.clone();
+        combined_params.extend(opt_locals.iter().cloned());
+
+        let body_text = &args[2];
+        let param_traits = self.infer_proc_param_traits(&combined_params, body_text);
+
+        let proc = ProcDef {
+            name: simple,
+            qualified_name: qualified.clone(),
+            params: real_params,
+            name_span,
+            body_span,
+            doc,
+            param_traits,
+        };
+
+        self.result
+            .all_procs
+            .insert(qualified.clone(), proc.clone());
+        self.result
+            .proc_declaration_sites
+            .push((qualified.clone(), name_span));
+        let simple_key = proc.name.clone();
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.procs.insert(simple_key.clone(), proc);
+        }
+        self.mark_locally_defined_in_enclosing_interp(&simple_key);
+
+        if body_tok.kind == TokenType::Str {
+            let proc_scope_idx = {
+                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+                    .expect("scope_path resolved when registering proc must still resolve");
+                let mut child =
+                    super::types::Scope::new(super::types::ScopeKind::Proc, raw_name.clone());
+                child.body_span = Some(body_span);
+                parent.children.push(child);
+                parent.children.len() - 1
+            };
+            let mut child_path = path.clone();
+            child_path.push(proc_scope_idx);
+
+            // Bind the real `args` catch-all — a body reference to
+            // `$args` (inspecting leftovers `::tcl::OptKeyParse` didn't
+            // consume) is legitimate, exactly like an ordinary proc's own
+            // `args` parameter. No literal `args` word is ever written for
+            // this idiom, so — unlike an ordinary proc's own parameters,
+            // each anchored to its own written span — there is no sensible
+            // non-synthetic span to anchor it to: `name_tok` collides with
+            // the proc *name*'s own span (`$args` hover would resolve to
+            // the declaration token instead of `greet`), and the whole
+            // `optlist` word collides with every one of its own descriptor
+            // sub-spans (`child`'s / `-use`'s own hover would resolve to
+            // `args` instead). A zero-width span at the `optlist` word's
+            // own opening brace sits before any descriptor's span starts,
+            // so it collides with neither.
+            let params_tok = arg_tokens[1];
+            let args_span = Span::new(params_tok.span.start(), params_tok.span.start());
+            self.define_var("args", params_tok, &child_path, false, Some(args_span));
+            // Bind every optlist-derived local, anchored to its own
+            // descriptor's span (dash included — the written token, not a
+            // byte-sliced substring) so go-to-definition / references /
+            // rename on the parameter land on the real declaration.
+            let param_spans = param_name_spans_for_token(&self.source, params_tok);
+            for (i, p) in opt_locals.iter().enumerate() {
+                self.define_var(
+                    &p.name,
+                    name_tok,
+                    &child_path,
+                    false,
+                    param_spans.get(i).copied(),
+                );
+            }
+
+            let saved_comment = std::mem::take(&mut self.last_comment);
+            let body_text = args[2].clone();
+            if self.defer_proc_bodies {
+                let safe_interp_ctx = self.safe_interp_ctx_snapshot();
+                self.deferred_bodies.push(super::per_item::DeferredBody {
+                    body_text,
+                    body_tok,
+                    scope_path: child_path.clone(),
+                    is_method: false,
+                    oo_global_resolution: false,
+                    namespace: ns_prefix.clone(),
+                    scope_name: raw_name.clone(),
+                    params: combined_params,
+                    class_variables: Vec::new(),
+                    safe_interp_ctx,
+                });
+            } else {
+                self.analyse_body(&body_text, body_tok, &child_path);
+            }
+
+            self.last_comment = saved_comment;
+        }
+
+        true
+    }
+
+    /// Split `tcl::OptProc`'s `optlist` argument into `(real_params,
+    /// opt_locals)` (issue #923 idx 90): the real, arity-relevant Tcl-level
+    /// signature — always the single catch-all `args`, regardless of what
+    /// `optlist` declares — and `optlist`'s own descriptors, dash-stripped
+    /// to the LOCAL VARIABLE name `::tcl::OptKeyParse` actually binds at
+    /// runtime (used only for local-variable binding in the body, never
+    /// for arity). A pure text transform — no analyser state needed — kept
+    /// out of [`Self::handle_opt_proc_command`] purely to stay within the
+    /// line-count lint.
+    fn opt_proc_params(
+        optlist_text: &str,
+    ) -> (
+        Vec<crate::signature_scan::types::ParamDef>,
+        Vec<crate::signature_scan::types::ParamDef>,
+    ) {
+        let real_params = vec![crate::signature_scan::types::ParamDef {
+            name: "args".to_string(),
+            has_default: false,
+            default_value: None,
+        }];
+        let opt_locals: Vec<crate::signature_scan::types::ParamDef> =
+            parse_param_list(optlist_text)
+                .into_iter()
+                .map(|p| crate::signature_scan::types::ParamDef {
+                    name: p
+                        .name
+                        .strip_prefix('-')
+                        .map(str::to_string)
+                        .unwrap_or(p.name),
+                    has_default: p.has_default,
+                    default_value: p.default_value,
+                })
+                .collect();
+        (real_params, opt_locals)
     }
 
     /// Split an `apply` call's lambda-literal first argument
@@ -838,6 +1116,109 @@ impl Analyser {
     /// so both consumers agree on exactly what counts as a
     /// statically-inspectable lambda, rather than each re-implementing the
     /// brace-literal guard and segmentation independently.
+    /// Resolve a *dynamic* `apply` lambda argument — `apply $lambda …` or
+    /// `apply [list {params} $body ns] …` — one hop through the constant-
+    /// value lattice, to the same `Vec<(Token, String)>` shape
+    /// [`Self::parse_apply_lambda_elements`] returns for a literal braced
+    /// lambda (issue #923 idx 116): so `handle_apply_command`'s downstream
+    /// code (`elements[0]` = params, `[1]` = body, `[2]` = namespace)
+    /// needs no changes regardless of which path supplied it.
+    ///
+    /// `arg_tok`'s kind decides the strategy:
+    /// - `Var` (`$lambda` / `$ns::lambda`): resolve the variable — a bare
+    ///   name via [`Self::lookup_const_string_with_span`] (the lexical
+    ///   ancestor-chain lookup), a `::`-qualified one via the namespace-
+    ///   targeted [`Self::lookup_const_string_in_namespace`] (Tcl variable
+    ///   qualifiers never search — exactly one namespace is consulted).
+    ///   A braced-literal resolution (`{` at the resolved span's start,
+    ///   the same guard `parse_apply_lambda_elements` itself applies)
+    ///   delegates straight to it — no re-implementation.
+    /// - `Cmd` (`[list {params} $body ns]`): the mined idiom's actual
+    ///   shape — a `list`-constructor call whose own arguments *are* the
+    ///   three lambda elements, positionally. Requires the inner command's
+    ///   head to be literally `"list"`; each of its own arguments is kept
+    ///   verbatim (already a real absolute span) unless it is itself a
+    ///   `Var`, which gets exactly one more hop through the same bare/
+    ///   qualified lookup (no further recursion — a deliberate depth
+    ///   bound). Anything else at any position aborts the whole fold
+    ///   (`None`) rather than emit a partial, misleading result.
+    ///
+    /// Bounded to one hop by design: `set a $lambda; apply $a` remains
+    /// unresolved (a second `$var`-to-`$var` forward), as does any deeper
+    /// list-element indirection — see the type's own module docs on the
+    /// `apply`-namespace-override limitation for the full rationale.
+    fn resolve_dynamic_apply_lambda(
+        &self,
+        arg_tok: Token,
+        scope_path: &[usize],
+    ) -> Option<Vec<(Token, String)>> {
+        let one_hop = |word_tok: Token| -> Option<(Token, String)> {
+            if word_tok.kind != TokenType::Var {
+                let word_text =
+                    &self.source[word_tok.span.start() as usize..word_tok.span.end() as usize];
+                return Some((word_tok, word_text.to_string()));
+            }
+            let sm = tcl_lexer::SourceMap::new(&self.source);
+            let var_name = sm.token_text(word_tok);
+            let (holder, base_name) = crate::naming::key_holder_and_tail(var_name);
+            let (value, span) = if holder.is_empty() {
+                self.lookup_const_string_with_span(var_name, scope_path)?
+            } else {
+                let target_ns = if holder.starts_with("::") {
+                    holder.to_string()
+                } else {
+                    let caller_ns = self.command_resolution_namespace(scope_path);
+                    crate::naming::qualify(caller_ns.trim_start_matches(':'), holder)
+                };
+                self.lookup_const_string_in_namespace(&target_ns, base_name)?
+            };
+            Some((
+                Token::with_content_offset(TokenType::Str, span, 1),
+                value.to_string(),
+            ))
+        };
+
+        match arg_tok.kind {
+            TokenType::Var => {
+                let (tok, text) = one_hop(arg_tok)?;
+                if text.as_bytes().first() != Some(&b'{') {
+                    return None;
+                }
+                self.parse_apply_lambda_elements(&[text], &[tok])
+            }
+            TokenType::Cmd => {
+                let (inner, base) = super::scope::inner_of(&self.source, arg_tok)?;
+                let segmented = crate::segmenter::segment_commands_with_offset(inner, base);
+                let [cmd] = segmented.as_slice() else {
+                    return None;
+                };
+                if cmd.texts.first().map(String::as_str) != Some("list") {
+                    return None;
+                }
+                let mut out = Vec::with_capacity(cmd.texts.len().saturating_sub(1));
+                for (tok, text) in cmd.argv.iter().skip(1).zip(cmd.texts.iter().skip(1)) {
+                    if tok.kind == TokenType::Var {
+                        // A `$body` / `$ns` list element still needs one hop
+                        // through the constant-value lattice.
+                        out.push(one_hop(*tok)?);
+                    } else {
+                        // Use the segmenter's already-delimiter-stripped
+                        // element text (`cmd.texts`) paired with its token —
+                        // the same shape `parse_apply_lambda_elements` yields
+                        // for a literal lambda. Slicing the token's raw source
+                        // span instead would keep a `{cleanup done}` element's
+                        // braces, so the body re-segments as one braced word
+                        // and the real `cleanup` call is missed (Codex review,
+                        // PR #1020).
+                        out.push((*tok, text.clone()));
+                    }
+                }
+                Some(out)
+            }
+            _ => None,
+        }
+    }
+
     pub(in crate::analyser) fn parse_apply_lambda_elements(
         &self,
         args: &[String],
@@ -908,8 +1289,21 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) else {
-            return false;
+        // A literal braced lambda parses directly; a dynamic one (`apply
+        // $lambda`, `apply [list {params} $body ns]`) gets one hop through
+        // the constant-value lattice (issue #923 idx 116) before giving up
+        // — same downstream shape either way, so nothing past this point
+        // needs to know which path supplied `elements`.
+        let elements = if let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) {
+            elements
+        } else {
+            let Some(&arg_tok) = arg_tokens.first() else {
+                return false;
+            };
+            let Some(elements) = self.resolve_dynamic_apply_lambda(arg_tok, scope_path) else {
+                return false;
+            };
+            elements
         };
         // A lambda needs at least a parameter list and a body.
         if elements.len() < 2 {
@@ -949,6 +1343,17 @@ impl Analyser {
         // in `all_variables` (keyed `"<scope_name>::<var>"`).
         let scope_name = format!("apply@{}", arg_tokens[0].span.start());
 
+        // Record the namespace override for `tcl-lsp-core`'s command-
+        // resolution lookups (issue #923 idx 116): the `Scope` subtree
+        // rooted below, via `reconstruct_proc_scope`, sits under fresh
+        // `body_span`-less namespace wrapper nodes the ordinary lexical
+        // span-containment walk can never reach — `namespace_overrides` is
+        // a separate, flat, span-keyed fast path consulted ahead of that
+        // walk. Pushed once regardless of the inline/deferred split below.
+        self.result
+            .namespace_overrides
+            .push((body_span, body_ns.clone()));
+
         // Root the lambda scope at `body_ns` under the global scope — NOT under
         // the caller — via the same `reconstruct_proc_scope` the per-item path
         // uses, so the inline (full) and per-item (incremental) walks build
@@ -983,6 +1388,7 @@ impl Analyser {
         // doc-comment inside the lambda body doesn't bleed to what follows.
         let saved_comment = std::mem::take(&mut self.last_comment);
         if self.defer_proc_bodies {
+            let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
                 body_text,
                 body_tok,
@@ -993,6 +1399,7 @@ impl Analyser {
                 scope_name,
                 params,
                 class_variables: Vec::new(),
+                safe_interp_ctx,
             });
         } else {
             self.analyse_body(&body_text, body_tok, &child_path);
@@ -1032,6 +1439,12 @@ impl Analyser {
         let body_span = arg_tokens.get(2).map(|t| t.span);
         let body_text = args.get(2).cloned();
         let body_tok = arg_tokens.get(2).copied();
+        // `namespace eval $ns [list namespace unknown $handler]` — the
+        // list-wrapped installer idiom `analyse_body`'s literal-`{...}`
+        // -only gate below never sees (issue #923 idx 110).
+        if let Some(tok) = body_tok {
+            self.detect_list_wrapped_namespace_unknown(tok);
+        }
 
         // A dynamic target (`namespace eval $name { … }`, the irc.tcl
         // per-connection idiom) can't be resolved to a real namespace path —
@@ -1114,14 +1527,24 @@ impl Analyser {
         }
         // The interpreter path is a *list* relative to the current
         // interpreter — inside a child's eval body it is relative to that
-        // child — so qualify against the walk's interpreter-path stack.
+        // child — so qualify against the walk's interpreter-path stack. A
+        // dynamic path also resolves through a tracked `set VAR [interp
+        // create ...]` binding (issue #923 idx 9) — that key is already
+        // fully qualified at bind time, so it's used as-is, not
+        // requalified.
         let literal_path = !crate::naming::is_dynamic_word(&args[1]);
-        let key = self.qualified_interp_key(&args[1]);
-        if literal_path {
+        let resolved_dynamic = (!literal_path)
+            .then(|| self.resolve_dynamic_interp_path(&args[1], scope_path))
+            .flatten();
+        let key = resolved_dynamic
+            .clone()
+            .unwrap_or_else(|| self.qualified_interp_key(&args[1]));
+        if literal_path || resolved_dynamic.is_some() {
             // Interpreter existence (issue #945 fault 8): evaluating into a
-            // literal child this file never creates raises `could not find
+            // known-but-never-created child raises `could not find
             // interpreter` at run time.  Abstains when any interp operation
-            // in the file used a dynamic path (existence then unknowable).
+            // in the file used a dynamic, *unresolvable* path (existence
+            // then unknowable).
             if !self.interpreters.contains_key(&key)
                 && !self.dynamic_interp_ops
                 && let Some(tok) = arg_tokens.get(1)
@@ -1255,15 +1678,14 @@ impl Analyser {
     /// first word, wrong arity, an untracked head) falls through to the
     /// generic per-command dispatch by returning `false`.
     ///
-    /// Deliberately narrower than the mined idiom's `$handle eval { … }`
-    /// spelling: `cmd_name` is the literal, unsubstituted head text, so a
-    /// `$`-prefixed handle (the value of a variable, not a name this file
-    /// spells out) never matches an entry in [`Self::interpreters`] (which is
-    /// keyed by literal `interp create`/`interp eval` path text) and falls
-    /// through untouched — resolving a *variable's* interpreter value is the
-    /// separate, harder value-flow problem `interp alias`'s cross-domain
-    /// tracking already has its own narrower literal-path requirement for
-    /// (issue #945 fault 8), not one this handler takes on.
+    /// Handles the mined idiom's `$handle eval { … }` spelling too (issue
+    /// #923 idx 9): `cmd_name` is the literal, unsubstituted head text, so
+    /// a `$`-prefixed handle only resolves through a tracked `set VAR
+    /// [interp create ...]` binding
+    /// ([`Self::resolve_dynamic_interp_path`]) — a handle sourced any
+    /// other way (a proc parameter, a value read from elsewhere) still
+    /// falls through untouched, the same conservative fallback this
+    /// handler has always used for an untracked head.
     ///
     /// Dispatched from [`Self::dispatch_analyser_hook`]'s hookless fallback
     /// chain — `cmd_name` never matches a registry command (it's a
@@ -1279,7 +1701,14 @@ impl Analyser {
         if args.len() != 2 || args[0] != "eval" {
             return false;
         }
-        let key = self.qualified_interp_key(cmd_name);
+        let key = if crate::naming::is_dynamic_word(cmd_name) {
+            let Some(resolved) = self.resolve_dynamic_interp_path(cmd_name, scope_path) else {
+                return false;
+            };
+            resolved
+        } else {
+            self.qualified_interp_key(cmd_name)
+        };
         if !self.interpreters.contains_key(&key) {
             return false;
         }
@@ -1312,6 +1741,48 @@ impl Analyser {
         }
     }
 
+    /// Resolve a `$name`/`${name}` word to the interpreter-domain key a
+    /// tracked `set name [interp create ...]` bound it to (issue #923
+    /// idx 9) — the key is already fully resolved/qualified at bind
+    /// time, so callers must NOT re-run [`Self::qualified_interp_key`]/
+    /// interp-path-stack qualification on it.
+    ///
+    /// `None` for anything that isn't a plain scalar reference to a
+    /// tracked binding: [`crate::naming::split_array_name`] rejects an
+    /// array-indexed read (`$arr(idx)`) by returning an index, and a
+    /// concatenated/substituted word (`prefix$s`, `[cmd]`) is never a
+    /// key any `set` binds — [`Self::lookup_interp_var_binding`] simply
+    /// finds no entry for it, the same "fails closed" shape as looking
+    /// up an unknown name in `const_strings`.
+    fn resolve_dynamic_interp_path(&self, word: &str, scope_path: &[usize]) -> Option<String> {
+        let (base, index) = crate::naming::split_array_name(word);
+        if index.is_some() {
+            return None;
+        }
+        self.lookup_interp_var_binding(base, scope_path)
+            .map(str::to_string)
+    }
+
+    /// Resolve an `interp alias` path operand to the domain prefix its
+    /// alias/target command name qualifies under (issue #923 idx 9): the
+    /// plain-current-interpreter sentinel (`""`/`"{}"`) is the empty
+    /// prefix; a literal word resolves via [`Self::qualified_interp_key`]
+    /// and then [`Self::interp_domain_name`]; a dynamic word resolves
+    /// ONLY through [`Self::resolve_dynamic_interp_path`] — anything else
+    /// (an untracked dynamic word) returns `None`, aborting the whole
+    /// cross-domain alias (unchanged conservative behaviour).
+    fn resolve_alias_domain_prefix(&self, path: &str, scope_path: &[usize]) -> Option<String> {
+        if matches!(path, "" | "{}") {
+            return Some(String::new());
+        }
+        let key = if crate::naming::is_dynamic_word(path) {
+            self.resolve_dynamic_interp_path(path, scope_path)?
+        } else {
+            self.qualified_interp_key(path)
+        };
+        Some(format!("::{}", self.interp_domain_name(&key)))
+    }
+
     /// Handle `interp create ?-safe? ?--? ?path?` — record the child
     /// interpreter's existence and safe state in the interpreter-domain
     /// map (issue #945 faults 7–8).  A dynamic path makes interpreter
@@ -1321,21 +1792,8 @@ impl Analyser {
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpCreate`];
     /// `args[0]` is the subcommand word.
     pub fn handle_interp_create_command(&mut self, args: &[String]) {
-        let mut safe = false;
-        let mut path: Option<&str> = None;
-        let mut past_flags = false;
-        for word in &args[1..] {
-            if !past_flags && word == "-safe" {
-                safe = true;
-                continue;
-            }
-            if !past_flags && word == "--" {
-                past_flags = true;
-                continue;
-            }
-            path = Some(word);
-            break;
-        }
+        let words: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+        let (safe, path) = parse_interp_create_words(&words);
         let Some(path) = path else { return };
         if crate::naming::is_dynamic_word(path) {
             self.dynamic_interp_ops = true;
@@ -1605,14 +2063,57 @@ impl Analyser {
         if args.len() < 2 {
             return;
         }
-        if args[1] != "create" {
+        // `create` operates on the *current* namespace, with no explicit name
+        // argument; `configure NAME ...` (issue #1001 follow-up — the ensemble
+        // side of the `namespace ensemble configure -map` gap, previously
+        // silently ignored here entirely) names an *existing* ensemble
+        // command explicitly, resolved like any other command reference.
+        // Both share the same `-command`/`-map`/`-subcommands` option set.
+        let is_create = args[1] == "create";
+        let is_configure = args[1] == "configure";
+        if !is_create && !is_configure {
             return;
         }
         let ns = self.namespace_from_scope_path(scope_path);
-        if !ns.is_empty() && ns != "::" {
-            self.ensemble_namespaces.insert(ns.clone());
-        }
         let ns_prefix = ns.trim_start_matches(':').to_owned();
+
+        let (opts, opt_tokens, configure_target) = if is_create {
+            if !ns.is_empty() && ns != "::" {
+                self.ensemble_namespaces.insert(ns.clone());
+            }
+            (&args[2..], arg_tokens.get(2..).unwrap_or(&[]), None)
+        } else {
+            let Some(name) = args.get(2) else { return };
+            if crate::naming::is_dynamic_word(name) {
+                return;
+            }
+            let target = self.resolve_command_qualified_name(name, scope_path);
+            (
+                args.get(3..).unwrap_or(&[]),
+                arg_tokens.get(3..).unwrap_or(&[]),
+                Some(target),
+            )
+        };
+
+        // The ensemble's own resolved command name (issue #1001 follow-up):
+        // `-command NAME`, when present, *replaces* the default naming
+        // entirely (tclsh 8.6.14-verified: `namespace ensemble create
+        // -command ::alt` creates only `::alt`, never the enclosing
+        // namespace's own name too) — so scan for it before recording any
+        // `-map`, rather than defaulting eagerly the way `ensemble_namespaces`
+        // (a broader, over-inclusive "valid command name" recovery set) does.
+        let explicit_command = is_create
+            .then(|| {
+                opts.iter()
+                    .enumerate()
+                    .find_map(|(i, o)| (o == "-command").then(|| opts.get(i + 1)).flatten())
+            })
+            .flatten()
+            .filter(|v| !v.is_empty() && !crate::naming::is_dynamic_word(v))
+            .map(|v| qualify(&ns_prefix, v));
+        let ensemble_key = configure_target
+            .or(explicit_command)
+            .or_else(|| (is_create && !ns.is_empty() && ns != "::").then(|| ns.clone()));
 
         let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
             .registry
@@ -1624,8 +2125,6 @@ impl Analyser {
             })
             .unwrap_or_default();
 
-        let opts = &args[2..];
-        let opt_tokens = arg_tokens.get(2..).unwrap_or(&[]);
         let mut i = 0usize;
         while i < opts.len() {
             let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
@@ -1649,17 +2148,34 @@ impl Analyser {
                 }
                 // `-map {sub target sub target …}` — every *target* (an
                 // odd-indexed element) is a command the ensemble dispatches to,
-                // recorded so it is reached by references / definition / rename.
+                // recorded so it is reached by references / definition / rename
+                // — and, keyed by the ensemble's own resolved command name, so
+                // the W129 safe-interpreter gate can resolve a call through
+                // this redirect to the target (issue #1001 follow-up).
                 "-map" => {
-                    if let (Some(value), Some(tok)) = (value, value_tok) {
-                        self.record_ensemble_map_targets(value, tok, scope_path);
+                    if let (Some(value), Some(tok)) = (value, value_tok)
+                        && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
+                    {
+                        self.record_ensemble_map_targets(
+                            &text,
+                            text_tok,
+                            scope_path,
+                            ensemble_key.as_deref(),
+                        );
                     }
                 }
                 // `-subcommands {a b c}` — each subcommand `a` dispatches to
                 // the command `<ns>::a` in the ensemble's namespace.
                 "-subcommands" => {
-                    if let (Some(value), Some(tok)) = (value, value_tok) {
-                        self.record_ensemble_subcommands(value, tok, &ns_prefix);
+                    if let (Some(value), Some(tok)) = (value, value_tok)
+                        && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
+                    {
+                        self.record_ensemble_subcommands(
+                            &text,
+                            text_tok,
+                            &ns_prefix,
+                            ensemble_key.as_deref(),
+                        );
                     }
                 }
                 _ => {}
@@ -1668,49 +2184,256 @@ impl Analyser {
         }
     }
 
-    /// The `(element, span)` pairs of a whitespace-separated list word, with
-    /// each element's span located inside the token's content (`content_offset`
-    /// skips the opening delimiter).  Shared by the ensemble `-map` /
-    /// `-subcommands` extraction; a dynamic element is left for the caller to
-    /// skip.
+    /// Resolve a `-map`/`-subcommands` option value to its statically-known
+    /// list text + representative token, or `None` when nothing static can
+    /// be extracted.
+    ///
+    /// A plain literal (`{sub target …}`) passes through unchanged — the
+    /// pre-existing, common case, where `-command`'s own equivalent
+    /// dynamic-value check (`starts_with('$')`/`starts_with('[')`) already
+    /// guards a *whole*-value dynamic. `-map`/`-subcommands` additionally
+    /// tolerate one dynamic *element* among literal ones today
+    /// ([`Self::list_word_elements`]'s per-element `is_dynamic_word`), but a
+    /// value that is itself one whole dynamic `[...]` substitution is not a
+    /// list at all — naively word-splitting
+    /// `[dict merge [namespace ensemble configure tk -map] {systray
+    /// ::tk::systray}]` would misread fragments of the *expression*
+    /// (`"tk"`, `"configure"`, …) as bogus subcommand/target pairs, which is
+    /// worse than abstaining. Falls back to
+    /// [`Self::dict_merge_literal_tail`] for the one dynamic shape real code
+    /// needs (issue #923 idx 84); anything else abstains.
+    fn ensemble_list_literal(&self, value: &str, value_tok: Token) -> Option<(String, Token)> {
+        if !crate::naming::is_dynamic_word(value) {
+            return Some((value.to_owned(), value_tok));
+        }
+        self.dict_merge_literal_tail(value_tok)
+    }
+
+    /// Recognise the `[dict merge EXISTING {literal}]`-shaped value the real
+    /// `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
+    /// `accessibility.tcl`) idiom uses to splice new entries onto a
+    /// pre-existing ensemble's `-map`/`-subcommands` without a literal
+    /// `{...}` value of its own (issue #923 idx 84): `namespace ensemble
+    /// configure tk -map [dict merge [namespace ensemble configure tk -map]
+    /// {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]`.
+    /// `EXISTING` (whatever it evaluates to — typically a self-referential
+    /// query of the ensemble's own current map) is left unknown, but the
+    /// spliced literal tail is a statically known fact regardless of what
+    /// `EXISTING` is.
+    ///
+    /// Deliberately narrow, matching the issue #923 idx 110 precedent:
+    /// exactly `dict merge ARG {literal}` (2 dict-merge operands, the
+    /// second a literal word) — does not recognise `dict set`/`dict
+    /// replace`/`concat`/a list-building helper proc, or a `dict merge`
+    /// with more than 2 operands. A documented scope boundary, not an
+    /// oversight (no attested real-world instance of those forms).
+    fn dict_merge_literal_tail(&self, value_tok: Token) -> Option<(String, Token)> {
+        if value_tok.kind != TokenType::Cmd {
+            return None;
+        }
+        let config = self.lexer_config();
+        let sm = SourceMap::new(&self.source);
+        let descended = descend_token(&sm, value_tok, config);
+        let segs = segments_from_tree(descended.tree(), &sm);
+        let [seg] = segs.as_slice() else { return None };
+        if seg.texts.len() != 4 || seg.texts[0] != "dict" || seg.texts[1] != "merge" {
+            return None;
+        }
+        let tail = seg.texts[3].clone();
+        if crate::naming::is_dynamic_word(&tail) {
+            return None;
+        }
+        seg.argv.get(3).map(|tok| (tail, *tok))
+    }
+
+    /// The `(element, span)` pairs of a list word's *top-level* Tcl-list
+    /// elements — proper brace/quote-aware splitting
+    /// ([`find_element`]), not naive whitespace splitting, so a braced
+    /// multi-word element (`{source b.tcl}`, the shape a `-map` *target*
+    /// commonly takes — see [`Self::record_ensemble_map_targets`]) comes
+    /// back as one element instead of being shredded into stray fragments
+    /// that no longer line up in pairs (codex review, #1001 follow-up: a
+    /// naive `split_whitespace` turned `-map {go {source b.tcl}}` into
+    /// `["go", "{source", "b.tcl}"]`, an unmatched three-way split that
+    /// silently dropped the pairing entirely). Each element's span is
+    /// located inside the token's content (`content_offset` skips the
+    /// opening delimiter). A malformed trailing element (unmatched
+    /// brace/quote, typically mid-edit) simply stops the scan early,
+    /// matching this codebase's established lenient-list-parsing
+    /// convention (`tcl_syntax::list::split_list_lenient`) rather than
+    /// discarding everything already parsed. Shared by the ensemble
+    /// `-map` / `-subcommands` extraction; a dynamic element is left for
+    /// the caller to skip.
     fn list_word_elements(list_text: &str, tok: Token) -> Vec<(String, Span)> {
         let content_start = tok.span.start() + u32::from(tok.content_offset);
         let mut out = Vec::new();
-        let mut search_start = 0usize;
-        for elem in list_text.split_whitespace() {
-            if let Some(rel) = list_text[search_start..].find(elem) {
-                let idx = search_start + rel;
-                let start = content_start + u32::try_from(idx).unwrap_or(0);
-                let end = start + u32::try_from(elem.len()).unwrap_or(0);
-                out.push((elem.to_owned(), Span::new(start, end)));
-                search_start = idx + elem.len();
+        let mut pos = 0usize;
+        while let Ok(Some(el)) = find_element(list_text, pos) {
+            if let Some(text) = list_text.get(el.value.clone()) {
+                let start = content_start + u32::try_from(el.value.start).unwrap_or(0);
+                let end = content_start + u32::try_from(el.value.end).unwrap_or(0);
+                out.push((text.to_string(), Span::new(start, end)));
             }
+            pos = el.next;
         }
         out
     }
 
+    /// The head word `(text, span)` of a command-prefix string — Tcl-list
+    /// parses `text` and returns just its first element, the command
+    /// actually invoked once the prefix's trailing words and the caller's
+    /// own arguments are appended (mirrors
+    /// `signature_scan::command_prefix::extract_prefix_head`'s
+    /// braced-multi-word case, applied to a string with no lexer token of
+    /// its own — a `-map` target sits *inside* another list element, not
+    /// as a distinct token). `base_start` is `text`'s own absolute start
+    /// offset in the source, so the returned span locates the head word
+    /// there, not merely within `text`. `None` for an empty or malformed
+    /// (unmatched brace/quote) prefix.
+    fn command_prefix_head(text: &str, base_start: u32) -> Option<(String, Span)> {
+        let head_el = find_element(text, 0).ok().flatten()?;
+        let head = text.get(head_el.value.clone())?;
+        if head.is_empty() {
+            return None;
+        }
+        let start = base_start + u32::try_from(head_el.value.start).ok()?;
+        let end = base_start + u32::try_from(head_el.value.end).ok()?;
+        Some((head.to_string(), Span::new(start, end)))
+    }
+
     /// Record every `-map` target (the odd elements of the `sub target …`
-    /// list) as a command reference resolved in the caller's namespace.
-    fn record_ensemble_map_targets(&mut self, list_text: &str, tok: Token, scope_path: &[usize]) {
-        for (idx, (elem, span)) in Self::list_word_elements(list_text, tok)
-            .into_iter()
-            .enumerate()
-        {
-            if idx % 2 == 1 && !crate::naming::is_dynamic_word(&elem) {
-                let resolved = self.resolve_command_qualified_name(&elem, scope_path);
-                self.push_command_reference(elem, span, resolved, None);
+    /// list) as a command reference resolved in the caller's namespace, and
+    /// — when `ensemble_key` is `Some` (the ensemble's own resolved
+    /// qualified command name, computed by [`Self::handle_namespace_ensemble`])
+    /// — also record each `sub -> target` pair into
+    /// `self.ensemble_command_maps`, so the W129 safe-interpreter gate can
+    /// resolve a call reaching a hidden command only through this ensemble's
+    /// redirect (issue #1001 follow-up; `None` when the ensemble's own name
+    /// couldn't be resolved statically, matching every other guard in this
+    /// handler), *and* — when the paired subcommand word is also static —
+    /// file the same `sub -> target` fact under `ensemble_key` in
+    /// [`AnalysisResult::ensemble_subcommand_targets`] so `definition`/
+    /// `hover`/`references` can resolve a `<ensemble> <subcommand>` call site
+    /// (issue #923 idx 106) — a distinct field from `ensemble_command_maps`
+    /// above, serving navigation rather than the safe-interpreter gate.
+    ///
+    /// A `-map` target is a command name **or a command prefix** in real
+    /// Tcl (tclsh 8.6.14-verified: `-map {go {string length}}` dispatches
+    /// `myens go hello` to `string length hello`) — the command actually
+    /// invoked is the prefix's *head*; the rest are baked-in arguments, not
+    /// part of the command's identity. [`Self::command_prefix_head`]
+    /// extracts just that head (codex review, #1001 follow-up: recording
+    /// the whole multi-word target text verbatim, or worse, splitting it
+    /// on whitespace before pairing it with its subcommand at all, means
+    /// a target like `{source b.tcl}` never matches the registry's bare
+    /// `source` and W129 stays silently missed for this valid indirection
+    /// shape) — the reference, the map entry, and the navigation entry all
+    /// use only the head.
+    ///
+    /// Every `-map` value **replaces** the ensemble's entire subcommand
+    /// table in real Tcl, whether given at `create` or a later
+    /// `configure` (tclsh 8.6.14-verified: `configure myens -map {ok
+    /// puts}` after `create ... -map {bad source ok puts}` turns `myens
+    /// bad` into an "unknown or ambiguous subcommand" error, not a
+    /// leftover redirect to `source`) — codex review, #1001 follow-up:
+    /// merging new pairs into the existing cached map instead of
+    /// replacing it would leave a subcommand a later `-map` dropped still
+    /// resolving to its stale target, a false-positive risk. The cached
+    /// map for `ensemble_key` is cleared before any of its new pairs are
+    /// inserted.
+    ///
+    /// The map stores the *raw written* head text (`"source"`), not
+    /// `resolved` (the namespace-qualified form used for the reference
+    /// below) — [`Self::check_ensemble_redirect_hiding`] hands it straight
+    /// to [`Self::safe_interp_visibility_gate`], which — like the direct
+    /// literal-head case and every other indirection path this fix adds —
+    /// checks the bare written spelling against the registry, not a
+    /// namespace-qualified path. This matters concretely: a `-map` target is
+    /// namespace-qualified relative to the ensemble's own (possibly
+    /// synthetic, interp-domain-rooted) home namespace by real Tcl's own
+    /// rule (tclsh 8.6.14-verified: `-map {go source}` inside `namespace
+    /// eval myns {…}` really dispatches `go` to `::myns::source`, not the
+    /// global builtin, and raises its own unrelated `invalid command name
+    /// ::myns::source` in every interpreter, safe or not, when no such proc
+    /// exists) — using the qualified form here would make the check depend
+    /// on the interp-domain namespace model lining up with the registry's
+    /// flat, unqualified command-name keying, which it structurally can't.
+    /// The raw-text check this uses instead only fires for a target that is
+    /// unqualified or explicitly `::`-rooted, matching the shape a
+    /// `SAFE_INTERP_HIDDEN` registry command's name actually takes; a
+    /// locally shadowing `proc` by the same bare name, anywhere in the
+    /// tracked safe interpreter body, still suppresses it via the *existing*
+    /// `ctx.exposed` check inside `safe_interp_visibility_gate` (populated
+    /// by `mark_locally_defined_in_enclosing_interp`, which is namespace-
+    /// blind in exactly the same way already, for the direct-call case).
+    fn record_ensemble_map_targets(
+        &mut self,
+        list_text: &str,
+        tok: Token,
+        scope_path: &[usize],
+        ensemble_key: Option<&str>,
+    ) {
+        if let Some(key) = ensemble_key {
+            self.ensemble_command_maps
+                .entry(key.to_string())
+                .or_default()
+                .clear();
+        }
+        for pair in Self::list_word_elements(list_text, tok).chunks(2) {
+            let [(sub, _), (target, span)] = pair else {
+                continue;
+            };
+            if crate::naming::is_dynamic_word(target) {
+                continue;
             }
+            let Some((head, head_span)) = Self::command_prefix_head(target, span.start()) else {
+                continue;
+            };
+            if let Some(key) = ensemble_key {
+                self.ensemble_command_maps
+                    .entry(key.to_string())
+                    .or_default()
+                    .insert(sub.clone(), head.clone());
+            }
+            let resolved = self.resolve_command_qualified_name(&head, scope_path);
+            if let Some(key) = ensemble_key
+                && !crate::naming::is_dynamic_word(sub)
+            {
+                self.result
+                    .ensemble_subcommand_targets
+                    .entry(key.to_owned())
+                    .or_default()
+                    .insert(sub.clone(), resolved.clone());
+            }
+            self.push_command_reference(head, head_span, resolved, None);
         }
     }
 
     /// Record each `-subcommands` name as a reference to the command
-    /// `<ns>::<name>` the ensemble maps it to.
-    fn record_ensemble_subcommands(&mut self, list_text: &str, tok: Token, ns_prefix: &str) {
+    /// `<ns>::<name>` the ensemble maps it to, and file the same
+    /// `subcommand → resolved target` fact under `ensemble_key` in
+    /// [`AnalysisResult::ensemble_subcommand_targets`] — the `-subcommands`
+    /// sibling of [`Self::record_ensemble_map_targets`]'s issue #923 idx 106
+    /// fix (same one-directional-only gap, same fix shape).
+    fn record_ensemble_subcommands(
+        &mut self,
+        list_text: &str,
+        tok: Token,
+        ns_prefix: &str,
+        ensemble_key: Option<&str>,
+    ) {
         for (elem, span) in Self::list_word_elements(list_text, tok) {
             if crate::naming::is_dynamic_word(&elem) {
                 continue;
             }
             let resolved = qualify(ns_prefix, &elem);
+            if let Some(key) = ensemble_key {
+                self.result
+                    .ensemble_subcommand_targets
+                    .entry(key.to_owned())
+                    .or_default()
+                    .insert(elem.clone(), resolved.clone());
+            }
             self.push_command_reference(elem, span, resolved, None);
         }
     }
@@ -1742,12 +2465,15 @@ impl Analyser {
         }
     }
 
-    /// Handle `foreach var list body` (and the `foreach_in_collection`
-    /// dialect variant, whose spec carries the same hook).
+    /// Handle `foreach varList1 list1 ?varList2 list2 ...? body` (and the
+    /// `foreach_in_collection` dialect variant, whose spec carries the same
+    /// hook).
     ///
-    /// Defines the loop-variable list in the active scope, then
-    /// recurses into the body so vars defined inside the loop land
-    /// in the enclosing scope.
+    /// Defines every `varListN` (the registry's own arity spec,
+    /// `Arity::stepped(3, Arity::UNLIMITED, 2)`, documents an unlimited
+    /// number of `varList`/`list` pairs, tclsh 8.6/9.0-verified — issue
+    /// #923 idx 70) in the active scope, then recurses into the body so
+    /// vars defined inside the loop land in the enclosing scope.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Foreach`].
     pub fn handle_foreach_command(
@@ -1759,15 +2485,150 @@ impl Analyser {
         if args.len() < 3 {
             return false;
         }
-        if let Some(tok) = arg_tokens.first() {
-            self.define_vars_from_list(&args[0], *tok, scope_path);
+        // Every `varList` sits at an even index, paired with its `list` at
+        // the next odd index; the final argument (odd count, since each
+        // pair contributes 2 and the body adds 1 more) is always the body,
+        // so this walks pairs only up to (not including) the last index.
+        for i in (0..args.len() - 1).step_by(2) {
+            if let Some(tok) = arg_tokens.get(i) {
+                self.define_vars_from_list(&args[i], *tok, scope_path);
+            }
+        }
+        // A single-pair `foreach VAR {literal list} { rename ::$VAR ... ;
+        // proc ::$VAR ... }` loop over a fully literal list (issue #923 idx
+        // 86: the real `tk/library/accessibility.tcl` rename-away-and
+        // -reinstall idiom) binds `VAR` to a *different* value each
+        // iteration — a fact the single-value `const_strings` scope map
+        // can't represent generally (`foreach` shares one flat cell for the
+        // whole loop, confirmed against tclsh: no per-iteration scope to key
+        // a value under). Bind `VAR` to the *first* literal element before
+        // the one normal body walk below, so `rename`/`proc`'s own
+        // constant-fold (unchanged) resolves that iteration correctly;
+        // `simulate_remaining_foreach_iterations` afterwards narrowly
+        // re-dispatches just `rename`/`proc` for every *additional* literal
+        // element, since those are the only two commands go-to-definition/
+        // references/rename need to see resolved here.
+        let literal_binding = (args.len() == 3)
+            .then(|| Self::literal_foreach_binding(&args[0], &args[1]))
+            .flatten();
+        if let Some((var, elements)) = &literal_binding
+            && let Some(first) = elements.first()
+        {
+            self.set_const_string(var, first.clone(), arg_tokens[1].span, scope_path);
         }
         // The body is always the last argument; recurse so vars
         // defined inside the loop land in the enclosing scope.
         if let (Some(body_text), Some(body_tok)) = (args.last(), arg_tokens.last().copied()) {
             self.analyse_body(body_text, body_tok, scope_path);
+            if let Some((var, elements)) = &literal_binding {
+                self.simulate_remaining_foreach_iterations(var, elements, body_tok, scope_path);
+            }
         }
         true
+    }
+
+    /// Whether a `foreach`'s only var/list pair (`var_list_text`/
+    /// `list_text`) is the narrow, fully-literal shape
+    /// [`Self::simulate_remaining_foreach_iterations`] can simulate: a
+    /// single plain identifier (not itself dynamic, not a multi-name list)
+    /// bound to a Tcl-list-valued sequence of literal (non-dynamic)
+    /// elements. Returns `(var, elements)`.
+    fn literal_foreach_binding(
+        var_list_text: &str,
+        list_text: &str,
+    ) -> Option<(String, Vec<String>)> {
+        let mut vars = var_list_text.split_whitespace();
+        let var = vars.next()?;
+        if vars.next().is_some() || crate::naming::is_dynamic_word(var) {
+            return None;
+        }
+        // Parse the value as a real Tcl list, not `split_whitespace`: a
+        // braced element like `{bar baz}` in `foo {bar baz}` is a *single*
+        // list element (`bar baz`), and whitespace-splitting would mis-slice
+        // it into `{bar` + `baz}` and bind the loop var to those bogus
+        // fragments — the re-dispatched `rename`/`proc` handlers would then
+        // invent command facts for `{bar`/`baz}` and miss the real `bar baz`
+        // iteration (Codex review, PR #1020). A malformed list (unbalanced
+        // brace/quote) is not a valid `foreach` value at all — real Tcl
+        // errors on it — so `split_list`'s `Err` means abstain entirely.
+        let elements: Vec<String> = tcl_syntax::list::split_list(list_text)
+            .ok()?
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect();
+        if elements.is_empty() || elements.iter().any(|e| crate::naming::is_dynamic_word(e)) {
+            return None;
+        }
+        Some((var.to_owned(), elements))
+    }
+
+    /// For each literal element *after* the first (the first iteration is
+    /// already covered by [`Self::handle_foreach_command`]'s own
+    /// pre-binding + the loop's one normal body walk), narrowly re-dispatch
+    /// just the body's own `rename`/`proc` sub-commands with `var`
+    /// temporarily rebound to that element — the two commands whose
+    /// handlers already resolve a constant-foldable dynamic word via
+    /// [`Self::resolve_dynamic_word`], and the two go-to-definition/
+    /// references/rename need correctly resolved per iteration (issue #923
+    /// idx 86). Every *other* command in the body keeps the single
+    /// evaluation the normal walk above already gave it — deliberately
+    /// narrow, matching the issue #923 idx 110 precedent: this does not
+    /// generally re-walk the body per iteration (which would duplicate
+    /// diagnostics/scope entries for everything else), only these two.
+    /// Leaves `var` bound to the *last* element afterwards — the same
+    /// value real Tcl leaves the loop variable holding once `foreach`
+    /// completes.
+    fn simulate_remaining_foreach_iterations(
+        &mut self,
+        var: &str,
+        elements: &[String],
+        body_tok: Token,
+        scope_path: &[usize],
+    ) {
+        if elements.len() < 2 || body_tok.kind != TokenType::Str {
+            return;
+        }
+        // `body_tok`'s span must address real text in `self.source` — a
+        // direct unit-level `handle_foreach_command` call (bypassing the
+        // real tokeniser) can pass a synthetic span that doesn't, the same
+        // out-of-bounds guard `Self::cmd_fragments` already needs for the
+        // identical reason.
+        let start = body_tok.span.start() as usize;
+        let end = body_tok.span.end() as usize;
+        if start >= self.source.len() || end > self.source.len() || start >= end {
+            return;
+        }
+        let config = self.lexer_config();
+        let segs: Vec<SegmentedCommand> = {
+            let sm = SourceMap::new(&self.source);
+            let descended = descend_token(&sm, body_tok, config);
+            segments_from_tree(descended.tree(), &sm)
+        };
+        for element in &elements[1..] {
+            self.set_const_string(var, element.clone(), body_tok.span, scope_path);
+            for seg in &segs {
+                match seg.name() {
+                    "rename" => {
+                        self.handle_rename(
+                            seg.args(),
+                            seg.arg_tokens(),
+                            seg.arg_single_token(),
+                            scope_path,
+                            seg.span.start(),
+                        );
+                    }
+                    "proc" => {
+                        self.handle_proc_command(
+                            seg.args(),
+                            seg.arg_tokens(),
+                            seg.arg_single_token(),
+                            scope_path,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 
     /// Handle `for init test next body`.
@@ -1813,8 +2674,8 @@ impl Analyser {
     ///    — pattern and body args alternate inline.
     /// 2. ``switch ?options? string {pattern body ?pattern body? ...}``
     ///    — pattern/body pairs live inside a single braced
-    ///    block.  See `parse_switch_body_elements` for how that
-    ///    braced form is split.
+    ///    block.  See [`crate::segmenter::flatten_clause_list_elements`]
+    ///    for how that braced form is split.
     ///
     /// Bodies that are literally ``-`` are fall-through markers
     /// (the next arm's body fires) and are skipped — recursing
@@ -1866,7 +2727,7 @@ impl Analyser {
             let Some(body_tok) = arg_tokens.get(i).copied() else {
                 return true;
             };
-            let elements = parse_switch_body_elements(&body_text, body_tok);
+            let elements = crate::segmenter::flatten_clause_list_elements(&body_text, body_tok);
             let mut j = 0;
             while j + 1 < elements.len() {
                 let (pat_text, pat_tok) = &elements[j];
@@ -2263,7 +3124,7 @@ impl Analyser {
     /// [`tcl_registry::hooks::AnalyserHookId::InterpAlias`] (stamped on
     /// `interp`'s `alias` subcommand); `args[0]` is still the
     /// subcommand word the detectors expect.
-    pub fn handle_interp_alias(&mut self, args: &[String], offset: u32) {
+    pub fn handle_interp_alias(&mut self, args: &[String], scope_path: &[usize], offset: u32) {
         if let Some(deleted) = crate::alias::detect_interp_alias_delete(args) {
             self.deleted_commands.insert(deleted, offset);
             return;
@@ -2278,36 +3139,26 @@ impl Analyser {
         // running `target` resolved in the *target* interpreter.  With
         // literal paths both sides home under their `@interp@` domains, so
         // calls of the alias inside the child's eval bodies resolve to the
-        // target through the ordinary alias link machinery.
+        // target through the ordinary alias link machinery. A path need
+        // not itself be a source literal any more (issue #923 idx 9): it
+        // also resolves through a tracked `set VAR [interp create ...]`
+        // binding — only the alias/target *command* names stay hard
+        // literal requirements (a dynamic one genuinely names nothing
+        // statically, same reasoning `crate::alias::detect_interp_alias`
+        // already documents for the same-interpreter form).
         if args.len() >= 5 {
             let (src_path, alias_name, target_path, target_cmd) =
                 (&args[1], &args[2], &args[3], &args[4]);
             let literal = |w: &String| !crate::naming::is_dynamic_word(w);
-            let plain_path = |w: &String| matches!(w.as_str(), "" | "{}");
             if literal(alias_name)
                 && literal(target_cmd)
-                && literal(src_path)
-                && literal(target_path)
-                && !(plain_path(src_path) && plain_path(target_path))
+                && let Some(src_prefix) = self.resolve_alias_domain_prefix(src_path, scope_path)
+                && let Some(target_prefix) =
+                    self.resolve_alias_domain_prefix(target_path, scope_path)
+                && !(src_prefix.is_empty() && target_prefix.is_empty())
             {
-                let domain_prefix = |path: &String| {
-                    if plain_path(path) {
-                        String::new()
-                    } else {
-                        let key = self.qualified_interp_key(path);
-                        format!("::{}", self.interp_domain_name(&key))
-                    }
-                };
-                let qualified = format!(
-                    "{}::{}",
-                    domain_prefix(src_path),
-                    alias_name.trim_start_matches(':')
-                );
-                let target = format!(
-                    "{}::{}",
-                    domain_prefix(target_path),
-                    target_cmd.trim_start_matches(':')
-                );
+                let qualified = format!("{src_prefix}::{}", alias_name.trim_start_matches(':'));
+                let target = format!("{target_prefix}::{}", target_cmd.trim_start_matches(':'));
                 let prepended: Vec<String> = args[5..].to_vec();
                 self.record_interp_alias(qualified, target, prepended, offset);
             }
@@ -2337,6 +3188,65 @@ impl Analyser {
         );
     }
 
+    /// Resolve one command argument word to a constant string: the word
+    /// unchanged when it's already static, else an attempt to
+    /// constant-fold it through the same lexical (last-write-wins)
+    /// constant-string lattice [`Self::lookup_const_string`] already
+    /// serves [`Self::resolve_expansion_count`] for the analogous
+    /// `{*}$var`-with-known-value case (issue #923 idx 3) — first via
+    /// [`Self::resolve_const_word`] (a pure single `Var`/literal token),
+    /// then via [`crate::text::fold_interpolation_single`] for a
+    /// multi-token concatenation (`::mypkg::${c}_$key`). `None` means
+    /// genuinely unresolvable: no token to inspect, a command
+    /// substitution (`[…]`) anywhere in the word, or a variable that
+    /// isn't a tracked constant.
+    ///
+    /// Shared by any command whose argument names something else purely
+    /// as data rather than computing it — [`Self::handle_rename`]'s
+    /// `OLD`/`NEW` words, and [`Self::handle_source_command`]'s path word
+    /// (issue #923 idx 46: `set p "e.tcl"; source $p`, the same shape
+    /// `rename $old new` already resolved for idx 3).
+    fn resolve_dynamic_word(
+        &self,
+        text: &str,
+        tok: Option<Token>,
+        is_single: bool,
+        scope_path: &[usize],
+    ) -> Option<String> {
+        if !crate::naming::is_dynamic_word(text) {
+            return Some(text.to_string());
+        }
+        let tok = tok?;
+        // Identity resolution (a `source`/`rename` target) must resolve only
+        // through const values that *dominate* this use site — never the
+        // last-write-wins branch value the lexical map otherwise carries.
+        // `set p a.tcl; if {$c} {set p b.tcl}; source $p` must abstain here,
+        // not pin the source to `b.tcl` (Codex review, PR #1020): a
+        // branch-conditional binding cannot prove a unique target, so
+        // `lookup_dominating_const_string` yields `None` for it. This differs
+        // from `resolve_const_word` / `lookup_const_string`, which other
+        // callers (expansion counts, regex-var tagging) still use with their
+        // existing last-write-wins semantics.
+        if is_single && matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+            return Some(text.to_string());
+        }
+        if is_single && tok.kind == TokenType::Var {
+            let sm = Analyser::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
+            let var_name = sm.token_text(tok);
+            return self
+                .lookup_dominating_const_string(var_name, scope_path)
+                .map(str::to_string);
+        }
+        crate::text::fold_interpolation_single(text, |name| {
+            self.lookup_dominating_const_string(name, scope_path)
+                .map(str::to_string)
+        })
+    }
+
     /// Handle `rename OLD NEW` — record a static rename so calls to
     /// `NEW` resolve to whatever `OLD` denoted (the same proc, unchanged
     /// signature — a rename is a pure name move, never an arity change).
@@ -2345,10 +3255,14 @@ impl Analyser {
     /// "invalid command name" afterwards, not a "wrong # args" against
     /// its original signature).
     ///
-    /// Returns `true` when the rename is *dynamic* (`rename $x y` /
-    /// `rename x [y]`, per [`crate::naming::is_dynamic_word`]) and so
-    /// could not be resolved statically — the caller widens
-    /// `has_dynamic_providers` in that case, the same wildcard-collapse
+    /// `OLD`/`NEW` need not themselves be literal words: each is first
+    /// run through [`Self::resolve_dynamic_word`], which also resolves a
+    /// constant-foldable dynamic word (`rename $old ::new`, `set key
+    /// impl; rename ::foo_$key ::foo`) — a bare variable read of a
+    /// runtime value (`rename [somecommand] ::new`) or one that folding
+    /// can't pin down still can't be, and only *that* residual case
+    /// returns `true` (dynamic) — the caller widens
+    /// `has_dynamic_providers` then, the same wildcard-collapse
     /// convention `command_binding.rs`'s flow-sensitive lattice uses for
     /// the identical shape. A malformed `rename` (wrong argument count,
     /// already flagged by the registry arity check) is not treated as
@@ -2360,18 +3274,67 @@ impl Analyser {
     /// command name" afterwards) — there is no `NEW` to map it to.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Rename`].
-    pub fn handle_rename(&mut self, args: &[String], arg_tokens: &[Token], offset: u32) -> bool {
+    pub fn handle_rename(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        offset: u32,
+    ) -> bool {
         if args.len() != 2 {
             return false;
         }
-        if crate::naming::is_dynamic_word(&args[0]) || crate::naming::is_dynamic_word(&args[1]) {
+        let Some(old_resolved) = self.resolve_dynamic_word(
+            &args[0],
+            arg_tokens.first().copied(),
+            arg_single.first().copied().unwrap_or(false),
+            scope_path,
+        ) else {
             return true;
-        }
-        let old = crate::naming::normalise_qualified_name(&args[0]);
-        let new = crate::naming::normalise_qualified_name(&args[1]);
+        };
+        let Some(new_resolved) = self.resolve_dynamic_word(
+            &args[1],
+            arg_tokens.get(1).copied(),
+            arg_single.get(1).copied().unwrap_or(false),
+            scope_path,
+        ) else {
+            return true;
+        };
+        let old = crate::naming::normalise_qualified_name(&old_resolved);
+        let new = crate::naming::normalise_qualified_name(&new_resolved);
         if old.is_empty() {
             return false;
         }
+        // `OLD` names an existing command as data — manipulated, not called —
+        // the same shape `ArgRole::CommandName` already models for `info body
+        // PROC` / `namespace origin NAME`. Recorded as an ordinary command
+        // invocation so find-references / go-to-definition / rename see this
+        // exact token like any other reference, including for a deleting
+        // `rename OLD {}` (there is no `NEW` in that case, so a NEW-keyed
+        // span map could never have covered it either way). Real Tcl requires
+        // `OLD` to exist (`can't rename "X": command doesn't exist`
+        // otherwise), so this also correctly feeds W123 like a real reference
+        // would (issue #923 idx 39, main audit wave: a rename applied without
+        // rewriting this occurrence leaves it pointing at a now-nonexistent
+        // command, crashing the program at runtime with no diagnostic
+        // warning).
+        if let Some(tok) = arg_tokens.first() {
+            self.push_command_reference(args[0].clone(), tok.span, old.clone(), None);
+        }
+        // `OLD`'s own deletion must not appear to have already happened *at*
+        // the reference just pushed above for it — `deleted_commands` is
+        // keyed by a single load-order offset compared with `>=` (see
+        // `registry_name_deleted_before`), and `OLD`'s token always sits
+        // textually after the `rename` command's own start (`offset`), so
+        // recording the deletion at `offset` would make that offset compare
+        // as "at or after" a call site that is really the deletion's own
+        // trigger — wrongly W123-flagging `rename puts myputs`'s own `puts`
+        // as a call to an already-dead builtin. Anchoring the deletion to
+        // just past `OLD`'s own token keeps every *other*, later call site's
+        // ordering unaffected (nothing else can sit between `OLD`'s token
+        // and here) while excluding this one.
+        let deletion_offset = arg_tokens.first().map_or(offset, |t| t.span.end());
         // A rename moves whatever real Tcl object `OLD` currently denotes —
         // including a live interpreter's own handle command — to `NEW` (or,
         // for a deleting `rename OLD {}`, off the command table entirely).
@@ -2387,11 +3350,15 @@ impl Analyser {
         // `NEW` mirrors `handle_interp_delete_command`, so a later
         // `interp create` recreating either name never merges with the
         // interpreter that used to be tracked there (issue #945 fault 8).
-        let old_interp_key = self.qualified_interp_key(&args[0]);
+        // Keyed off the *resolved* text (identical to `args[N]` for an
+        // already-static rename) so a resolvable dynamic handle
+        // (`set h sandbox; rename $h moved`) migrates the tracked state
+        // too, not just the ones spelled out literally.
+        let old_interp_key = self.qualified_interp_key(&old_resolved);
         if let Some(state) = self.interpreters.remove(&old_interp_key) {
             *self.interp_epochs.entry(old_interp_key).or_insert(0) += 1;
             if !new.is_empty() {
-                let new_interp_key = self.qualified_interp_key(&args[1]);
+                let new_interp_key = self.qualified_interp_key(&new_resolved);
                 if self.interpreters.remove(&new_interp_key).is_some() {
                     *self
                         .interp_epochs
@@ -2402,19 +3369,13 @@ impl Analyser {
             }
         }
         if new.is_empty() {
-            self.deleted_commands.insert(old, offset);
+            self.deleted_commands.insert(old, deletion_offset);
             return false;
         }
         self.renamed_commands.insert(new.clone(), old.clone());
         self.rename_offsets.insert(new.clone(), offset);
-        self.deleted_commands.insert(old.clone(), offset);
-        // `OLD` (`args[0]`, token `arg_tokens[0]`) names the command being
-        // moved — a reference to it that rename rewrites.
-        if let Some(tok) = arg_tokens.first() {
-            self.result
-                .rename_target_spans
-                .insert(new.clone(), tok.span);
-        }
+        self.deleted_commands.insert(old.clone(), deletion_offset);
+        self.result.rename_offsets.insert(new.clone(), offset);
         self.result.renamed_commands.insert(new, old);
         false
     }
@@ -2781,6 +3742,11 @@ impl Analyser {
         // ``scope.classes`` map is keyed by the bare (unqualified)
         // name so per-scope lookups and shadowing rules work.
         let simple_key = class.name.clone();
+        // The creation site's own body span, for `my`-dispatch resolution
+        // to find (issue #923 idx 52) — see `class_body_spans`'s doc.
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), class.body_span));
         self.result.all_classes.insert(qualified, class.clone());
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
@@ -2863,38 +3829,49 @@ impl Analyser {
         // qualified (``oo::define ::ns::Other``), the same
         // ``simple`` extraction as ``handle_oo_class_command``.
         let simple = crate::naming::key_tail(&qualified).to_string();
+        // The class-name token's own span, and this specific `oo::define`
+        // invocation's own extent — from the class-name token's start to
+        // the last argument token's end, covering whichever of the
+        // inline-form tail or the `{ body }` token is present. The *whole*
+        // invocation, not just the class-name token, so any member this
+        // call adds (inline `method`/`property`/… words, or a `{ … }`
+        // body) stays nested inside it for document-symbol rendering — a
+        // name-token-sized span would leave every subsequently-added
+        // member "escaping" its own parent's range, a self-contradictory,
+        // checkable-from-source-alone structural error.
+        //
+        // Recorded in `class_body_spans` for *every* `oo::define` call,
+        // not just when creating a fresh stub (issue #923 idx 52): a class
+        // extended via a *separate* `oo::define ClassName { ... }` block
+        // has its methods living inside THIS span, textually disjoint from
+        // the class's original `oo::class create` block (or an earlier
+        // `oo::define`), so `my`-dispatch resolution needs every
+        // contributing span on file, not just the first one recorded.
+        let name_span = arg_tokens.first().map_or(
+            super::types::Scope::default()
+                .body_span
+                .unwrap_or_else(|| tcl_lexer::Span::new(0, 0)),
+            |t| t.span,
+        );
+        let this_call_span = arg_tokens.last().map_or(name_span, |last| {
+            tcl_lexer::Span::new(name_span.start(), last.span.end())
+        });
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), this_call_span));
         let mut class_def = self
             .result
             .all_classes
             .remove(&qualified)
-            .unwrap_or_else(|| {
-                let name_span = arg_tokens.first().map_or(
-                    super::types::Scope::default()
-                        .body_span
-                        .unwrap_or_else(|| tcl_lexer::Span::new(0, 0)),
-                    |t| t.span,
-                );
-                // The stub's body span must cover the *whole* `oo::define`
-                // invocation, not just the class-name token, so any member
-                // this call adds (inline `method`/`property`/… words, or a
-                // `{ … }` body) stays nested inside it for document-symbol
-                // rendering — a name-token-sized span left every
-                // subsequently-added member "escaping" its own parent's
-                // range, a self-contradictory, checkable-from-source-alone
-                // structural error.
-                let body_span = arg_tokens.last().map_or(name_span, |last| {
-                    tcl_lexer::Span::new(name_span.start(), last.span.end())
-                });
-                super::types::ClassDef {
-                    name: simple,
-                    qualified_name: qualified.clone(),
-                    name_span,
-                    body_span,
-                    // An `oo::define` on a class not created in this file — a
-                    // cross-file extension stub, not the class's definition.
-                    via_define: true,
-                    ..Default::default()
-                }
+            .unwrap_or_else(|| super::types::ClassDef {
+                name: simple,
+                qualified_name: qualified.clone(),
+                name_span,
+                body_span: this_call_span,
+                // An `oo::define` on a class not created in this file — a
+                // cross-file extension stub, not the class's definition.
+                via_define: true,
+                ..Default::default()
             });
 
         if inline_form {
@@ -2955,6 +3932,7 @@ impl Analyser {
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) {
         if args.is_empty() {
@@ -2970,9 +3948,30 @@ impl Analyser {
         }
         let st = arg_tokens[file_idx];
         let path = &args[file_idx];
-        let is_lit = !matches!(st.kind, TokenType::Var | TokenType::Cmd)
-            && !path.contains('$')
-            && !path.contains('[');
+        let is_single = arg_single.get(file_idx).copied().unwrap_or(false);
+        // A dynamic path — a bare `$var` or a concatenation like
+        // `${dir}lit.tcl` — is first tried against the same last-write-wins
+        // constant-string lattice already proven for `rename`'s OLD/NEW
+        // words (issue #923 idx 3): the real corpus idiom is `set p
+        // "e.tcl"; source $p`, a few lines apart in the same file, which
+        // should resolve exactly like the literal `source e.tcl` it's
+        // equivalent to — instead of going untracked and leaking the
+        // sourced file's definitions into every caller as if unconditionally
+        // global (issue #923 idx 46). A `[...]` command substitution
+        // anywhere in the word (e.g. `[file join $dir lit.tcl]`) still
+        // can't be folded this way — `resolve_dynamic_word` rejects it
+        // outright, same as a variable whose value originates in a
+        // different file — both stay conservatively dynamic, falling
+        // through to `evaluate_auto_path_expr`'s narrower `[info script]`
+        // subset unchanged.
+        let (path, is_lit) = match self.resolve_dynamic_word(path, Some(st), is_single, scope_path)
+        {
+            Some(resolved) => {
+                let is_lit = !crate::naming::is_dynamic_word(&resolved);
+                (resolved, is_lit)
+            }
+            None => (path.clone(), false),
+        };
         // `source` evaluates the file in the caller's current namespace (M9):
         // record the command-resolution namespace at this call site so the
         // workspace index can re-home the sourced document's definitions.
@@ -2980,7 +3979,7 @@ impl Analyser {
         self.result
             .source_targets
             .push(crate::signature_scan::types::SignatureSource {
-                raw_path: path.clone(),
+                raw_path: path,
                 range: st.span,
                 is_literal: is_lit,
                 site_namespace,
@@ -3043,6 +4042,64 @@ impl Analyser {
                     pattern: pat,
                     range: arg_tokens[idx].span,
                     conjectured: false,
+                },
+            );
+            idx += 1;
+        }
+    }
+
+    /// Record `namespace export ?-clear? PATTERN ...` declarations.
+    ///
+    /// Real Tcl's `namespace import NS::*` only ever imports names `NS` has
+    /// actually exported (`Tcl_Export`, `tclNamesp.c`) — an unexported
+    /// sibling command living in `NS` is not reachable through the import at
+    /// all (tclsh9.0/8.6-verified: `invalid command name` calling it bare).
+    /// Recorded in
+    /// `result.namespace_exports` so the wildcard-import bareword resolvers
+    /// in `tcl-lsp-core` (same-document) and the workspace index
+    /// (cross-document) can gate a would-be import target on whether its
+    /// source namespace actually exports it (issue #923 idx 18).
+    ///
+    /// `-clear` resets the namespace's previously recorded patterns (in this
+    /// same forward pass) before any new patterns on the same call are
+    /// added, mirroring `Tcl_Export`'s own `-clear` semantics. A dynamic
+    /// pattern (`$`/`[` substitution) can't be statically resolved to a
+    /// glob text, so it is silently skipped — the wildcard-import resolver
+    /// then correctly abstains for names it might have covered, rather than
+    /// guessing.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceExport`] (stamped on
+    /// `namespace`'s `export` subcommand); `args[0]` is still the subcommand
+    /// word.
+    pub fn handle_namespace_export_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.is_empty() {
+            return;
+        }
+        let mut idx = 1;
+        let exporting_ns = self.namespace_from_scope_path(scope_path);
+        if idx < args.len() && args[idx] == "-clear" {
+            self.result
+                .namespace_exports
+                .retain(|e| e.ns != exporting_ns);
+            idx += 1;
+        }
+        while idx < args.len() && idx < arg_tokens.len() {
+            let pattern = args[idx].clone();
+            if pattern.contains('$') || pattern.contains('[') {
+                idx += 1;
+                continue;
+            }
+            self.result.namespace_exports.push(
+                crate::signature_scan::types::SignatureNamespaceExport {
+                    ns: exporting_ns.clone(),
+                    pattern,
+                    range: arg_tokens[idx].span,
                 },
             );
             idx += 1;
@@ -3238,7 +4295,11 @@ impl Analyser {
                 // resolved as a substitution branch.
             }
             TokenType::Var => {
-                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
                 let var_name = sm.token_text(tok).to_string();
                 if let Some((const_val, def_span)) =
                     self.lookup_const_string_with_span(&var_name, scope_path)
@@ -3375,11 +4436,14 @@ impl Analyser {
         single_token: bool,
         scope_path: &[usize],
     ) -> Option<usize> {
-        use tcl_lexer::SourceMap;
         if !single_token {
             return None;
         }
-        let sm = SourceMap::new(&self.source);
+        let sm = Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         match tok.kind {
             TokenType::Str => {
                 let inner = sm.token_text(tok);
@@ -3558,6 +4622,48 @@ mod tests {
     // handle_proc_command
 
     #[test]
+    fn handle_proc_command_records_every_declaration_site_even_when_shadowed() {
+        // TP — issue #923 idx 31 (main audit wave): a proc declared twice
+        // verbatim at different spans (plain Tcl's own "last redefinition
+        // wins" semantics) must still leave BOTH declarations' own name
+        // spans in `proc_declaration_sites`, even though `all_procs`
+        // (keyed by qualified name) only ever retains the winner's.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            &["foo".to_string(), String::new(), "return ONE".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 9)),
+                str_tok(span(10, 20)),
+            ],
+            &[],
+            &[],
+        );
+        a.handle_proc_command(
+            &["foo".to_string(), String::new(), "return TWO".to_string()],
+            &[
+                esc_tok(span(30, 33)),
+                esc_tok(span(34, 34)),
+                str_tok(span(35, 45)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.result.all_procs["::foo"].body_span, span(35, 45));
+        let sites: Vec<(&str, tcl_lexer::Span)> = a
+            .result
+            .proc_declaration_sites
+            .iter()
+            .map(|(q, s)| (q.as_str(), *s))
+            .collect();
+        assert_eq!(
+            sites,
+            vec![("::foo", span(5, 8)), ("::foo", span(30, 33))],
+            "both declaration sites must be recorded, in source order"
+        );
+    }
+
+    #[test]
     fn handle_proc_records_proc_at_global() {
         let mut a = Analyser::new();
         let handled = a.handle_proc_command(
@@ -3567,6 +4673,7 @@ mod tests {
                 esc_tok(span(9, 14)),
                 str_tok(span(15, 25)),
             ],
+            &[],
             &[],
         );
         assert!(handled);
@@ -3594,6 +4701,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[0],
         );
         assert!(handled);
@@ -3619,6 +4727,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[0],
         );
         let scope = &a.result.global_scope.children[0];
@@ -3653,6 +4762,7 @@ mod tests {
                 str_tok(span(18, 20)),
                 str_tok(span(21, 23)),
             ],
+            &[],
             &[0],
         );
         assert!(handled);
@@ -3673,6 +4783,7 @@ mod tests {
                 str_tok(span(7, 9)),
             ],
             &[],
+            &[],
         );
         assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
         // last_comment is consumed.
@@ -3682,7 +4793,7 @@ mod tests {
     #[test]
     fn handle_proc_too_few_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_proc_command(&["foo".to_string()], &[esc_tok(span(0, 3))], &[]);
+        let handled = a.handle_proc_command(&["foo".to_string()], &[esc_tok(span(0, 3))], &[], &[]);
         assert!(!handled);
         assert!(a.result.all_procs.is_empty());
     }
@@ -3707,6 +4818,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[],
         );
         let w113s: Vec<&crate::analyser::types::Diagnostic> = a
@@ -3735,6 +4847,7 @@ mod tests {
                 str_tok(span(12, 14)),
             ],
             &[],
+            &[],
         );
         assert!(
             !a.result
@@ -3760,6 +4873,7 @@ mod tests {
                 str_tok(span(14, 16)),
             ],
             &[],
+            &[],
         );
         assert!(
             a.result
@@ -3781,6 +4895,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[],
         );
         let w113 = a
@@ -3811,6 +4926,7 @@ mod tests {
                 str_tok(span(13, 15)),
             ],
             &[],
+            &[],
         );
         assert!(
             a.result
@@ -3830,6 +4946,7 @@ mod tests {
                 str_tok(span(10, 12)),
                 str_tok(span(13, 15)),
             ],
+            &[],
             &[],
         );
         assert!(
@@ -3855,6 +4972,7 @@ mod tests {
                 str_tok(span(19, 21)),
                 str_tok(span(22, 24)),
             ],
+            &[],
             &[],
         );
         assert!(
@@ -3882,6 +5000,7 @@ mod tests {
                 str_tok(span(12, 14)),
             ],
             &[],
+            &[],
         );
         assert_eq!(a.result.global_scope.children.len(), 1);
         let proc_scope = &a.result.global_scope.children[0];
@@ -3902,6 +5021,7 @@ mod tests {
                 esc_tok(span(9, 14)),
                 str_tok(span(15, 17)),
             ],
+            &[],
             &[],
         );
         let proc_scope = &a.result.global_scope.children[0];
@@ -3930,6 +5050,7 @@ mod tests {
                 str_tok(span(13, 22)),
             ],
             &[],
+            &[],
         );
         let proc_scope = &a.result.global_scope.children[0];
         assert!(
@@ -3955,6 +5076,7 @@ mod tests {
                 str_tok(span(13, 25)),
             ],
             &[],
+            &[],
         );
         let proc_scope = &a.result.global_scope.children[0];
         assert!(proc_scope.variables.contains_key("a"));
@@ -3977,6 +5099,7 @@ mod tests {
                 str_tok(span(11, 13)),
                 str_tok(span(15, 33)),
             ],
+            &[],
             &[],
         );
         // Outer proc registered.
@@ -4009,6 +5132,7 @@ mod tests {
             &["foo".to_string(), String::new(), "$body".to_string()],
             &[esc_tok(span(5, 8)), str_tok(span(9, 11)), var_tok],
             &[],
+            &[],
         );
         assert!(a.result.all_procs.contains_key("::foo"));
         // No proc scope opened — Str gate failed.
@@ -4029,6 +5153,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[],
         );
         assert_eq!(a.body_depth, 0);
@@ -4051,12 +5176,97 @@ mod tests {
                 str_tok(span(12, 14)),
             ],
             &[],
+            &[],
         );
         assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
         assert!(a.last_comment.is_empty());
     }
 
     // handle_namespace_eval_command
+
+    // handle_namespace_export_command
+
+    #[test]
+    fn handle_namespace_export_records_pattern() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
+            &[],
+        );
+        assert_eq!(a.result.namespace_exports.len(), 1);
+        assert_eq!(a.result.namespace_exports[0].ns, "::");
+        assert_eq!(a.result.namespace_exports[0].pattern, "bar");
+    }
+
+    #[test]
+    fn handle_namespace_export_records_multiple_patterns() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string(), "b*".to_string()],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 10)),
+                esc_tok(span(11, 13)),
+            ],
+            &[],
+        );
+        let patterns: Vec<&str> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| e.pattern.as_str())
+            .collect();
+        assert_eq!(patterns, vec!["bar", "b*"]);
+    }
+
+    #[test]
+    fn handle_namespace_export_clear_resets_previous_patterns_for_the_namespace() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
+            &[],
+        );
+        a.handle_namespace_export_command(
+            &[
+                "export".to_string(),
+                "-clear".to_string(),
+                "baz".to_string(),
+            ],
+            &[
+                esc_tok(span(11, 17)),
+                esc_tok(span(18, 24)),
+                esc_tok(span(25, 28)),
+            ],
+            &[],
+        );
+        let patterns: Vec<&str> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| e.pattern.as_str())
+            .collect();
+        assert_eq!(
+            patterns,
+            vec!["baz"],
+            "-clear must drop the earlier `bar` entry"
+        );
+    }
+
+    #[test]
+    fn handle_namespace_export_skips_dynamic_pattern() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "$dyn".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 11))],
+            &[],
+        );
+        assert!(
+            a.result.namespace_exports.is_empty(),
+            "a dynamic pattern can't be statically recorded"
+        );
+    }
 
     // handle_namespace_path_command
 
@@ -4596,6 +5806,386 @@ mod tests {
         );
     }
 
+    // -- issue #1001: W129 through `[...]` bracket-substitution indirection --
+
+    /// TP (the reported repro): `package ifneeded`'s script argument is
+    /// `ArgRole::Body`-tagged (`Structural` — runs later, via `uplevel #0`,
+    /// never the definer's frame), so a `[list apply {…} $dir]`
+    /// deferred-command idiom sitting there is genuinely invoked later —
+    /// a hidden `source` nested inside the lambda body must draw W129, the
+    /// same way it would if `apply {dir {source …}} $dir` were written
+    /// directly (no `[list …]` wrapper).
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_lambda_body_reports_hidden_source_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 package ifneeded myPackage 1.0 [list apply {dir {\n\
+                     source [file join $dir font.tcl]\n\
+                 }} $dir]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `source` nested inside a list-quoted apply lambda body \
+             (reached only via `package ifneeded`'s deferred script) warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same `[list apply {…} $x]` idiom in an `ArgRole::CommandPrefix`
+    /// position (`trace add variable … command CALLBACK`) — a different
+    /// registry role than `package ifneeded`'s `Body`, exercising the same
+    /// deferred-call resolution through a different gate.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 trace add variable x write [list apply {{a b c} {\n\
+                     exec ls\n\
+                 }} $x]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `exec` nested inside a list-quoted apply lambda body \
+             reached via a CommandPrefix (`trace add … command`) position warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `after idle [list apply {…} $x]` — the `after`/`after idle`
+    /// deferred-callback idiom the issue calls out by name.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_after_idle_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 after idle [list apply {x {\n\
+                     file delete $x\n\
+                 }} val]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `file` nested inside a list-quoted apply lambda body \
+             reached via `after idle` warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `[list source $file]` / `[list exec …]` directly — no `apply` at
+    /// all, `list` command-quoting a hidden command straight.
+    #[test]
+    fn safe_interp_w129_list_quoted_hidden_command_directly_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { after idle [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a bare `[list source …]` in a deferred-call position warns \
+             directly, with no `apply` indirection needed: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard (mirrors #954's `set data [list apply {…} value]`
+    /// non-invocation case, adapted to W129): `[list apply {…} value]`
+    /// sitting in ordinary `set` data — not a `Body` / `LambdaLiteral` /
+    /// `CommandPrefix` argument position — is never invoked, so it must
+    /// never draw W129 even though its lambda body contains a hidden
+    /// command.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_in_plain_data_is_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 set data [list apply {x { source $x }} value]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a `[list apply …]` value that is only ever stored, never \
+             invoked, must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: the exact same list-quoted-apply-with-a-hidden-command
+    /// shape, but with **no** enclosing safe interpreter at all, must not
+    /// warn — and, since this fix's whole mechanism is gated on a
+    /// non-empty `safe_interp_stack`, must not create any new scope either
+    /// (no `apply@…` proc scope, no collateral diagnostics of any other
+    /// kind) — this stays exactly as un-analysed as it was before #1001.
+    #[test]
+    fn list_quoted_apply_lambda_outside_any_safe_interp_is_untouched_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "package ifneeded myPackage 1.0 [list apply {dir {source [file join $dir x]}} $dir]\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.all_procs.is_empty(),
+            "this fix must not widen the general analyser's scope — \
+             the list-quoted lambda body stays un-analysed outside a \
+             safe-interpreter context, exactly as before #1001: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// TP: a direct nested `[…]` bracket substitution (no `list`-quoting at
+    /// all) — `set x [source b.tcl]` — is an *immediate* invocation
+    /// (bracket substitution always evaluates its content right away,
+    /// wherever it appears), so it must warn exactly like a bare top-level
+    /// `source b.tcl` statement would.
+    #[test]
+    fn safe_interp_w129_direct_nested_bracket_substitution_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { set x [source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a directly nested `[source …]` substitution warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same direct-nested shape, reached through a deeper `[…]` /
+    /// braced-body combination (`if {$c} { [exec ls] }` inside another
+    /// substitution) — pins that the fix covers arbitrary nesting depth,
+    /// not just one level.
+    #[test]
+    fn safe_interp_w129_direct_nested_bracket_substitution_deep_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { if {[catch {set y [exec ls]} err]} { puts $err } }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a deeply nested `[exec …]` substitution still warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `{*}[list source $file]` as the *whole* statement — `{*}`
+    /// expansion splices `list`'s result into this statement's own argv, so
+    /// the command's effective head becomes `source`, even though the
+    /// literal head word is the substitution text (never itself a
+    /// registry name).
+    #[test]
+    fn safe_interp_w129_expand_list_quoted_head_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { {*}[list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`{{*}}[list source …]` used as the whole statement warns \
+             on the effective (expanded) head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: `{*}$cmdList` — an opaque variable expansion. Unlike
+    /// `{*}[list source $file]`, the value isn't statically known, so this
+    /// must NOT warn (matches this codebase's "prefer a miss over a false
+    /// positive" stance for dynamic dispatch — the same policy `$cmd $file`
+    /// direct dynamic dispatch already gets).
+    #[test]
+    fn safe_interp_w129_expand_dynamic_var_head_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { set cmdList [list source b.tcl]; {*}$cmdList }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an opaque `{{*}}$var` expansion is not statically resolvable \
+             and must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: a bare dynamic dispatch via a variable (`set cmd source; $cmd
+    /// $file`) is not statically provable and must stay unflagged, matching
+    /// this codebase's existing precedent for dynamic command dispatch.
+    #[test]
+    fn safe_interp_w129_dynamic_variable_dispatch_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { set cmd source; $cmd b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "dynamic dispatch through a variable is not statically \
+             resolvable and must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `eval [list source $file]` — combining `eval` (a `Body`-role
+    /// command) with list-quoting; `eval` evaluates the built string as a
+    /// script, immediately invoking `source`.
+    #[test]
+    fn safe_interp_w129_eval_list_quoted_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { eval [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`eval [list source …]` warns on the resolved head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: `uplevel [list source $file]` — the same combination via
+    /// `uplevel` instead of `eval`.
+    #[test]
+    fn safe_interp_w129_uplevel_list_quoted_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { uplevel [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "`uplevel [list source …]` warns on the resolved head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TN: a *safe* command wrapped the same list-quoted-apply way must not
+    /// warn — this fix widens W129's recall, it must not start flagging
+    /// ordinary, allowed calls just because they are reached via `[list
+    /// apply …]`.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_safe_command_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { after idle [list apply {x { puts $x }} val] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a safe command (`puts`) reached via list-quoted apply must \
+             not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// A locally-redefined hidden-builtin name (issue #945 fault 7 follow-up
+    /// — see `safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945`)
+    /// stays callable through this fix's new indirection paths too: once
+    /// `proc source {} {…}` has run earlier in the same interpreter body,
+    /// `source` is a real, locally-defined command — independent of the
+    /// hidden-command table — so a later `[list apply {…} $x]`-nested call
+    /// to it must not warn.
+    #[test]
+    fn safe_interp_w129_redefined_command_not_flagged_through_indirection_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 proc source {} { return ok }\n\
+                 after idle [list apply {{} { source }}]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a locally-redefined name reached via list-quoted apply is \
+             callable, not hidden: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The standard safe-interpreter delegation pattern — the trusted
+    /// parent creates `interp alias s foo {} source`, bridging its *own*
+    /// (non-hidden) `source` into the child under a new name — must not
+    /// warn when `foo` is called inside the child, including through this
+    /// fix's new indirection paths: `foo` is never itself a
+    /// `SAFE_INTERP_HIDDEN` registry name, so the gate correctly leaves it
+    /// alone (rename/`interp alias` cannot resurrect a *hidden* command's
+    /// callability from within the child — confirmed against the `tcl-vm`
+    /// runtime, which resolves both only through the ordinary, hidden-
+    /// command-free lookup table).
+    #[test]
+    fn safe_interp_w129_alias_bridged_command_not_flagged_through_indirection_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp alias s foo {} source\n\
+             interp eval s { after idle [list apply {{} { foo }}] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an alias bridging a capability in from the trusted parent is \
+             not itself a hidden registry name, so it must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
     /// `namespace inscope ::x { proc foo }` runs the body in `::x`, so `foo`
     /// homes to `::x::foo` — the same namespace frame as `namespace eval`, not
     /// the caller's scope.
@@ -4882,6 +6472,140 @@ mod tests {
         );
     }
 
+    // `namespace ensemble configure` (issue #923 idx 84): the real
+    // `tk/library/systray.tcl` idiom splices new subcommands onto a
+    // *pre-existing* ensemble via `configure`, not `create` — previously
+    // invisible to `handle_namespace_ensemble` entirely.
+
+    #[test]
+    fn namespace_ensemble_configure_extends_a_preexisting_ensembles_map() {
+        // TP — the mechanism in isolation, with a literal `-map` value and a
+        // deliberately non-tk ensemble name (`myens`), proving the fix is
+        // registry-agnostic rather than hardcoded to `tk`.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::extra {args} {}\n\
+                   namespace ensemble configure ::myens -map {extra ::myens::extra}\n\
+                   myens extra\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::myens::extra"),
+            "a configure-spliced -map target should be a command reference: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_dynamic_name_is_not_recorded() {
+        // FP-guard — `namespace ensemble configure $x -map {...}` can't be
+        // resolved statically; the whole call must abstain rather than
+        // recording a `-map` splice under a guessed/wrong key.
+        let mut a = Analyser::new();
+        a.handle_namespace_ensemble(
+            &[
+                "ensemble".to_string(),
+                "configure".to_string(),
+                "$x".to_string(),
+                "-map".to_string(),
+                "sub".to_string(),
+                "::real::target".to_string(),
+            ],
+            &[],
+            &[],
+        );
+        assert!(a.result.ensemble_subcommand_targets.is_empty());
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_with_no_name_argument_is_a_no_op() {
+        // TN — the bare query form `namespace ensemble configure` (no NAME,
+        // no options) must not panic on `args[2]` indexing.
+        let mut a = Analyser::new();
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "configure".to_string()], &[], &[]);
+        assert!(a.result.ensemble_subcommand_targets.is_empty());
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_dict_merge_literal_tail_is_extracted() {
+        // TP — the real, exact idiom (issue #923 idx 84):
+        // `namespace ensemble configure NAME -map [dict merge [namespace
+        // ensemble configure NAME -map] {literal}]`. The self-referential
+        // query argument is left unknown, but the literal tail's own pairs
+        // are statically known regardless of what it evaluates to.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::extra {args} {}\n\
+                   proc ::myens::other {args} {}\n\
+                   namespace ensemble configure ::myens -map \
+                   [dict merge [namespace ensemble configure ::myens -map] \
+                   {extra ::myens::extra other ::myens::other}]\n\
+                   myens extra\n\
+                   myens other\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::myens::extra"),
+            "the dict-merge literal tail's first pair should resolve: {resolved:?}",
+        );
+        assert!(
+            resolved.contains(&"::myens::other"),
+            "the dict-merge literal tail's second pair should resolve too, \
+             proving the extraction isn't overfit to a single pair: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_unrecognised_dynamic_map_shape_abstains_safely() {
+        // Safety regression: a `-map` value that is itself one whole
+        // dynamic `[...]` substitution NOT matching the narrow `dict merge
+        // ARG {literal}` shape must abstain entirely — not naively
+        // word-split the expression's own source text into bogus
+        // subcommand/target pairs. `[linsert {} 0 foo bar]` evaluates to
+        // the *string* "foo bar" at runtime (one call to `linsert`; "foo"/
+        // "bar" are plain data words, never independently invoked) — were
+        // the value's raw text naively whitespace-split instead of
+        // abstained on, "foo" would land at an odd (target) index and
+        // wrongly resolve to the real `::myens::foo` defined below,
+        // recording a spurious command reference to it.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::foo {} {}\n\
+                   namespace ensemble configure ::myens -map [linsert {} 0 foo bar]\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.ensemble_subcommand_targets
+                .get("::myens")
+                .is_none_or(std::collections::HashMap::is_empty),
+            "an unrecognised dynamic -map shape must record no subcommand \
+             targets: {:?}",
+            r.ensemble_subcommand_targets.get("::myens"),
+        );
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            !resolved.contains(&"::myens::foo"),
+            "must not record a spurious command reference from splitting \
+             the dynamic expression's own text: {resolved:?}",
+        );
+    }
+
     #[test]
     fn handle_namespace_ensemble_other_options_value_word_is_not_mistaken_for_command_flag() {
         // Regression: before the registry-driven option walk, the scan
@@ -4987,6 +6711,76 @@ mod tests {
     }
 
     #[test]
+    fn handle_foreach_defines_every_varlist_in_the_multi_list_lock_step_form() {
+        // Issue #923 idx 70 (main audit wave, high severity, pix corpus):
+        // `foreach varList1 list1 varList2 list2 ... body` — the parallel/
+        // lock-step multi-list form (docs/pixdoc.tcl's real shape:
+        // `foreach dirName {...} name {...} {...}`) — is fully static,
+        // unambiguous, standard Tcl (tclsh 8.6/9.0-verified) and is even
+        // arity-validated by the registry's own `foreach` spec
+        // (`Arity::stepped(3, Arity::UNLIMITED, 2)`, stride 2). Previously
+        // only the *first* varList (`args[0]`) was ever bound — every
+        // subsequent varList/list pair's names were silently dropped, so
+        // `name` was never registered as a local at all.
+        let mut a = Analyser::new();
+        let handled = a.handle_foreach_command(
+            &[
+                "dirName".to_string(),
+                "{src src {src core}}".to_string(),
+                "name".to_string(),
+                "{alpha beta gamma}".to_string(),
+                "puts $dirName-$name".to_string(),
+            ],
+            &[
+                esc_tok(span(8, 15)),
+                str_tok(span(16, 37)),
+                esc_tok(span(38, 42)),
+                str_tok(span(43, 62)),
+                str_tok(span(63, 90)),
+            ],
+            &[],
+        );
+        assert!(handled);
+        assert!(a.result.global_scope.variables.contains_key("dirName"));
+        assert!(
+            a.result.global_scope.variables.contains_key("name"),
+            "the second varList's own loop variable must be bound too, not silently dropped"
+        );
+    }
+
+    #[test]
+    fn handle_foreach_multi_list_form_binds_a_third_pair_too() {
+        // FN guard — the fix must generalise past exactly 2 pairs (a
+        // hardcoded "first + second" special case would still miss a
+        // 3-or-more-pair `foreach`, equally legal Tcl).
+        let mut a = Analyser::new();
+        a.handle_foreach_command(
+            &[
+                "a".to_string(),
+                "{1 2}".to_string(),
+                "b".to_string(),
+                "{3 4}".to_string(),
+                "c".to_string(),
+                "{5 6}".to_string(),
+                "puts $a$b$c".to_string(),
+            ],
+            &[
+                esc_tok(span(0, 1)),
+                str_tok(span(2, 7)),
+                esc_tok(span(8, 9)),
+                str_tok(span(10, 15)),
+                esc_tok(span(16, 17)),
+                str_tok(span(18, 23)),
+                str_tok(span(24, 35)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("a"));
+        assert!(a.result.global_scope.variables.contains_key("b"));
+        assert!(a.result.global_scope.variables.contains_key("c"));
+    }
+
+    #[test]
     fn handle_foreach_too_few_args_returns_false() {
         let mut a = Analyser::new();
         let handled = a.handle_foreach_command(
@@ -4995,6 +6789,145 @@ mod tests {
             &[],
         );
         assert!(!handled);
+    }
+
+    // Dynamic proc names + the foreach rename-and-reinstall idiom (issue
+    // #923 idx 86): `tk/library/accessibility.tcl`'s `foreach wtype {...} {
+    // rename ::$wtype ::tk::accessible::orig_$wtype ; proc ::$wtype {args}
+    // {...} }` renames each classic widget command away and reinstalls a
+    // wrapper under the same original name.
+
+    #[test]
+    fn handle_proc_command_dynamic_name_resolves_via_constant_fold() {
+        // TP — the finding's own non-foreach isolation repro: a plain `set`
+        // constant, no loop at all. `proc ::$wtype {...}` previously never
+        // attempted to constant-fold its name at all (unlike `rename`,
+        // fixed for idx 3), registering under the literal garbled text
+        // instead of resolving `wtype`'s known value.
+        let mut a = Analyser::new();
+        let src = "set wtype button\nproc ::$wtype {} {return ok}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.all_procs.contains_key("::button"),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains('$')),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn handle_proc_command_unresolvable_dynamic_name_keeps_raw_text() {
+        // TN — a genuinely dynamic name (no constant to fold against) keeps
+        // today's existing (unchanged) fallback behaviour: this fix only
+        // *improves* the resolvable case, per its own scope boundary.
+        let mut a = Analyser::new();
+        let src = "proc ::$wtype {} {return ok}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.all_procs.keys().any(|k| k.contains("wtype")),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn handle_foreach_rename_reinstall_idiom_resolves_every_literal_element() {
+        // TP — the finding's own corpus repro shape: `tk/library/
+        // accessibility.tcl` renames each classic widget command away and
+        // reinstalls a wrapper proc under the same name, once per element
+        // of a literal `foreach` list. tclsh9.0/8.6 both prove `button`/
+        // `entry` are the *new* wrapper procs afterwards; the old bodies
+        // live only at `::tk::accessible::orig_button`/`orig_entry`.
+        let mut a = Analyser::new();
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        // Both wrapper redefinitions are registered, at the *same* physical
+        // source location (the one templated `proc ::$wtype ...`
+        // statement) — genuinely correct: there is only one place in the
+        // source that defines either of them.
+        let button_def = r.all_procs.get("::button").expect("::button registered");
+        let entry_def = r.all_procs.get("::entry").expect("::entry registered");
+        assert_eq!(button_def.body_span, entry_def.body_span);
+        // No garbled `${wtype}`-named entry left behind.
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains('$')),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        // The old, pre-rename bodies are reachable only via their new
+        // `orig_*` names.
+        assert_eq!(
+            r.renamed_commands.get("::tk::accessible::orig_button"),
+            Some(&"::button".to_string())
+        );
+        assert_eq!(
+            r.renamed_commands.get("::tk::accessible::orig_entry"),
+            Some(&"::entry".to_string())
+        );
+    }
+
+    #[test]
+    fn handle_foreach_rename_reinstall_idiom_is_not_overfit_to_two_elements() {
+        // FP guard — a third element proves the per-iteration simulation
+        // isn't hardcoded to exactly the corpus's own two widget names.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::ns {\n    \
+                   foreach wtype {button entry checkbutton} {\n        \
+                   rename ::$wtype ::ns::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        for name in ["::button", "::entry", "::checkbutton"] {
+            assert!(
+                r.all_procs.contains_key(name),
+                "{name} missing: {:?}",
+                r.all_procs.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn handle_foreach_multi_pair_form_does_not_trigger_the_literal_simulation() {
+        // TN — the idx 70 multi-list lock-step form (`foreach v1 l1 v2 l2
+        // body`) is a different arg shape; the single-pair-only literal
+        // simulation must not misfire on it.
+        let mut a = Analyser::new();
+        let src = "foreach a {1 2} b {3 4} {\n    rename ::$a ::orig_$a\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(r.renamed_commands.is_empty(), "{:?}", r.renamed_commands);
+    }
+
+    #[test]
+    fn handle_foreach_dynamic_list_does_not_trigger_the_literal_simulation() {
+        // TN — a non-literal list (a variable, not a literal element list)
+        // can't be simulated; must abstain exactly as before this fix.
+        let mut a = Analyser::new();
+        let src = "set items {button entry}\nforeach wtype $items {\n    rename ::$wtype ::orig_$wtype\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(r.renamed_commands.is_empty(), "{:?}", r.renamed_commands);
+    }
+
+    #[test]
+    fn handle_foreach_non_idiom_body_is_unaffected() {
+        // TN — an ordinary literal-list foreach with no rename/proc inside
+        // must see no new side effects from the idiom-recognition code.
+        let mut a = Analyser::new();
+        let src = "foreach x {a b c} {\n    puts $x\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(r.renamed_commands.is_empty());
+        assert!(!r.all_procs.keys().any(|k| k.contains('$')));
     }
 
     // handle_for_command
@@ -5075,7 +7008,7 @@ mod tests {
     fn handle_switch_form2_braced_body_walks_each_arm() {
         // Form 2: ``switch $x { a {set y 1} b {set z 2} }``.
         // The single braced body holds all pattern/body pairs;
-        // ``parse_switch_body_elements`` re-segments to surface
+        // ``flatten_clause_list_elements`` re-segments to surface
         // each pair, then each body recurses.
         let mut a = Analyser::new();
         let body_text = " a {set y 1} b {set z 2} ".to_string();
@@ -5312,6 +7245,7 @@ mod tests {
                 str_tok(span(12, 14)),
             ],
             &[],
+            &[],
         );
         let resolved = a.resolve_proc_call("::foo", &[]);
         assert!(resolved.is_some());
@@ -5335,6 +7269,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[0],
         );
         // Resolve from inside ns1 — should find ::ns1::foo.
@@ -5355,6 +7290,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[],
         );
         a.result
@@ -5448,6 +7384,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
+            &[],
             &[0],
         );
         // Resolving from ::a::b::c (scope_path [0, 0, 0]) must NOT reach
@@ -5578,6 +7515,7 @@ mod tests {
                 String::new(),
                 "set".to_string(),
             ],
+            &[],
             42,
         );
         assert!(a.command_aliases.contains_key("::myset"));
@@ -5605,6 +7543,7 @@ mod tests {
                 "puts".to_string(),
                 "stderr".to_string(),
             ],
+            &[],
             0,
         );
         let (target, prepended) = &a.command_aliases["::logerr"];
@@ -5615,9 +7554,40 @@ mod tests {
     #[test]
     fn handle_interp_alias_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        a.handle_interp_alias(&["alias".to_string()], 0);
+        a.handle_interp_alias(&["alias".to_string()], &[], 0);
         assert!(a.command_aliases.is_empty());
         assert!(a.alias_offsets.is_empty());
+    }
+
+    // resolve_dynamic_word
+
+    #[test]
+    fn resolve_dynamic_word_braced_literal_dollar_is_not_mistaken_for_dynamic() {
+        // A brace-quoted word containing a literal `$`/`[` character is
+        // legitimately STATIC — Tcl suppresses substitution inside
+        // `{}` — so this must return it as-is via `resolve_const_word`'s
+        // `Str`/`Esc` branch, even though `is_dynamic_word`'s naive text
+        // scan alone would call it dynamic (issue #923 idx 3).
+        let a = Analyser::new();
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 10),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(
+            a.resolve_dynamic_word("::pkg::$c", Some(tok), true, &[]),
+            Some("::pkg::$c".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_dynamic_word_missing_token_is_none() {
+        // A dynamic word with no token to inspect (the handful of
+        // existing handle_rename unit tests pass `arg_tokens: &[]`)
+        // must fall through to None, not panic.
+        let a = Analyser::new();
+        assert_eq!(a.resolve_dynamic_word("$x", None, false, &[]), None);
     }
 
     // handle_rename
@@ -5625,7 +7595,13 @@ mod tests {
     #[test]
     fn handle_rename_records_static_move() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["target".to_string(), "target_orig".to_string()], &[], 42);
+        let dynamic = a.handle_rename(
+            &["target".to_string(), "target_orig".to_string()],
+            &[],
+            &[],
+            &[],
+            42,
+        );
         assert!(!dynamic, "a fully static rename is not dynamic");
         assert_eq!(
             a.renamed_commands.get("::target_orig").map(String::as_str),
@@ -5652,7 +7628,7 @@ mod tests {
         // itself must be recorded as gone (confirmed against tclsh
         // 9.0.4: also "invalid command name" afterwards).
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["target".to_string(), String::new()], &[], 7);
+        let dynamic = a.handle_rename(&["target".to_string(), String::new()], &[], &[], &[], 7);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert_eq!(a.deleted_commands.get("::target"), Some(&7));
@@ -5661,7 +7637,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_old_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], &[], 0);
+        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], &[], &[], &[], 0);
         assert!(dynamic, "rename $x y cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -5670,7 +7646,7 @@ mod tests {
     #[test]
     fn handle_rename_dynamic_new_name_reports_dynamic() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], &[], 0);
+        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], &[], &[], &[], 0);
         assert!(dynamic, "rename x y[z] cannot be resolved statically");
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
@@ -5679,10 +7655,83 @@ mod tests {
     #[test]
     fn handle_rename_wrong_shape_no_op() {
         let mut a = Analyser::new();
-        let dynamic = a.handle_rename(&["onlyone".to_string()], &[], 0);
+        let dynamic = a.handle_rename(&["onlyone".to_string()], &[], &[], &[], 0);
         assert!(!dynamic);
         assert!(a.renamed_commands.is_empty());
         assert!(a.deleted_commands.is_empty());
+    }
+
+    // handle_source_command
+
+    #[test]
+    fn handle_source_command_resolves_a_same_file_constant_variable() {
+        // The audit's own "reduced to the simplest possible case" control
+        // (issue #923 idx 46): a straight-line `set`, zero branches, zero
+        // external input, immediately followed by `source $var` — the real
+        // corpus's `set p "e.tcl"; source $p` shape, resolved through the
+        // same constant-string lattice already proven for `rename`'s
+        // OLD/NEW words (idx 3), via the now-shared `resolve_dynamic_word`.
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace eval ::z { set p \"e.tcl\"; source $p }\n", "tcl");
+        let target = r
+            .source_targets
+            .iter()
+            .find(|s| s.raw_path == "e.tcl")
+            .unwrap_or_else(|| panic!("resolved literal not found: {:?}", r.source_targets));
+        assert!(target.is_literal, "{target:?}");
+    }
+
+    #[test]
+    fn handle_source_command_resolves_a_concatenated_constant_variable() {
+        // A multi-token word (`${base}.tcl`, a Var fragment concatenated
+        // with a literal) goes through `fold_interpolation_single` rather
+        // than the single-token `resolve_const_word` fast path — covered
+        // separately since it's a different code path inside
+        // `resolve_dynamic_word`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::z { set base \"helper\"; source ${base}.tcl }\n",
+            "tcl",
+        );
+        let target = r
+            .source_targets
+            .iter()
+            .find(|s| s.raw_path == "helper.tcl")
+            .unwrap_or_else(|| panic!("resolved literal not found: {:?}", r.source_targets));
+        assert!(target.is_literal, "{target:?}");
+    }
+
+    #[test]
+    fn handle_source_command_a_dynamic_variable_with_no_known_value_stays_dynamic() {
+        // A proc parameter is never constant-tracked (the same limitation
+        // `resolve_dynamic_word` already documents for `rename`, issue
+        // #923 idx 3) — `source $p` here must stay conservatively dynamic
+        // rather than guess.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {p} { source $p }\n", "tcl");
+        assert_eq!(r.source_targets.len(), 1, "{:?}", r.source_targets);
+        assert!(!r.source_targets[0].is_literal, "{:?}", r.source_targets[0]);
+    }
+
+    #[test]
+    fn handle_source_command_leaves_a_bracket_wrapped_variable_dynamic() {
+        // Deliberately out of scope (issue #923 idx 46): a same-file
+        // constant wrapped inside a `[file join ...]` command
+        // substitution — the real corpus's `source [file join $edir
+        // extra.tcl]` shape — can't be folded by the same-word constant
+        // lattice (`fold_interpolation_single` rejects any word containing
+        // `[` outright, by design — a command substitution can have
+        // arbitrary side effects), and `evaluate_auto_path_expr`'s
+        // separate `[info script]`-anchored folder doesn't evaluate `$var`
+        // at all. Pinned here so a future fix that closes this gap updates
+        // this test deliberately rather than by surprise.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::z { set dir \"lib\"; source [file join $dir extra.tcl] }\n",
+            "tcl",
+        );
+        assert_eq!(r.source_targets.len(), 1, "{:?}", r.source_targets);
+        assert!(!r.source_targets[0].is_literal, "{:?}", r.source_targets[0]);
     }
 
     // handle_oo_objdefine
@@ -5864,6 +7913,38 @@ mod tests {
         assert!(r.all_classes.contains_key("::C"));
         let cls = &r.all_classes["::C"];
         assert!(cls.methods.contains_key("m"));
+    }
+
+    #[test]
+    fn oo_define_extending_an_existing_class_adds_its_own_class_body_span() {
+        // Issue #923 idx 52: `class_body_spans` must record BOTH the
+        // creation site's own span AND the separate `oo::define` block's
+        // own span for the same qualified class — a class extended via a
+        // *separate* `oo::define ClassName { ... }` block has textually
+        // disjoint body spans, not one contiguous range, and `my`-dispatch
+        // resolution (a lexical "which class's body am I inside" query)
+        // needs every contributing span, not just the first one recorded.
+        let mut a = crate::analyser::Analyser::new();
+        let src = "oo::class create C {}\noo::define C { method m {} {} }";
+        let r = a.analyse(src, "tcl");
+        let spans: Vec<tcl_lexer::Span> = r
+            .class_body_spans
+            .iter()
+            .filter(|(name, _)| name == "::C")
+            .map(|(_, span)| *span)
+            .collect();
+        assert_eq!(spans.len(), 2, "{spans:?}");
+        // One of the two recorded spans must cover the `oo::define`
+        // block's own `method m {} {}` text — the token whose containment
+        // `enclosing_class_at` checks for a cursor inside it.
+        let inside_define_block = u32::try_from(src.find("method m").unwrap()).unwrap();
+        assert!(
+            spans
+                .iter()
+                .any(|span| span.start() <= inside_define_block
+                    && inside_define_block < span.end()),
+            "no recorded span covers the oo::define block's own body: {spans:?}"
+        );
     }
 
     #[test]
@@ -6491,6 +8572,366 @@ proc runs {body} {\n\
                 .is_some_and(|s| s.contains(&crate::analyser::ProcArgTrait::Body)),
             "expected NO Body trait without stub directive, got {:?}",
             proc.param_traits.get("body"),
+        );
+    }
+
+    // -- issue #1001 follow-up: safe-interp visibility survives `analyse_per_item` --
+
+    /// A **separate** gap found while investigating issue #1001, now fixed
+    /// alongside it: `analyse_per_item`'s shell/body-pass split (`per_item.rs`)
+    /// defers *every* proc/method body — including one nested inside a
+    /// tracked `interp eval` safe-interpreter body — to an isolated second
+    /// pass (`DeferredBody` / `analyse_proc_body_isolated`). Before this fix
+    /// that pass carried no `safe_interp_stack` snapshot at all, so W129
+    /// never fired for a hidden call inside *any* proc body nested in a safe
+    /// interpreter when analysed incrementally (the live LSP server's
+    /// diagnostics path always uses `analyse_per_item`) — even a
+    /// directly-written call, with no bracket-substitution indirection
+    /// whatsoever. `DeferredBody::safe_interp_ctx` (a flattened snapshot of
+    /// the stack's top entry, captured when the body is deferred and
+    /// restored in `analyse_proc_body_isolated`) closes this.
+    #[test]
+    fn safe_interp_w129_reaches_deferred_proc_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\ninterp eval s { proc f {} { source foo }; f }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred proc body warns under \
+             incremental (per-item) analysis, matching `Analyser::analyse`: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The same fix for a directly-written `apply` lambda body (also
+    /// deferred by the shell pass) rather than a `proc` body.
+    #[test]
+    fn safe_interp_w129_reaches_deferred_apply_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\ninterp eval s { apply {{} { source foo }} }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred apply-lambda body warns under \
+             incremental (per-item) analysis: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The same fix for a `TclOO` method body (also deferred by the shell pass
+    /// via a distinct push site in `oo.rs`).
+    #[test]
+    fn safe_interp_w129_reaches_deferred_method_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 oo::class create C { method m {} { source foo } }\n\
+                 [C new] m\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a hidden call inside a deferred TclOO method body warns under \
+             incremental (per-item) analysis: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: a deferred proc body outside any safe interpreter must not
+    /// warn — the new `safe_interp_ctx` snapshot must stay `None` and inert
+    /// for the overwhelming common case.
+    #[test]
+    fn deferred_proc_body_outside_any_safe_interp_is_untouched_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item("proc f {} { source foo }\nf\n", "tcl8.6");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// A narrower, separate limitation the `safe_interp_ctx` fix above does
+    /// **not** cover, found while adding it: a *nested* local redefinition —
+    /// `proc source {…}` written **inside** a proc body that is itself
+    /// deferred, redefining a name a *later statement in the same body* then
+    /// calls — does not suppress W129 the way an identical redefinition at
+    /// the top level of a tracked `interp eval` body already does (see
+    /// `safe_interp_w129_redefined_command_not_flagged_through_indirection_1001`,
+    /// which is unaffected — it never defers a body at all). Root cause:
+    /// `mark_locally_defined_in_enclosing_interp` also requires
+    /// `self.interp_path_stack` / `self.interpreters` to recognise the
+    /// current interpreter, and `safe_interp_ctx` only snapshots
+    /// `safe_interp_stack` (sufficient for the gate check itself, per that
+    /// field's doc) — not those two, which `analyse_proc_body_isolated`'s
+    /// fresh `Analyser` never seeds. Fixing this fully would mean threading
+    /// the interpreter identity (not just its visibility snapshot) through
+    /// `DeferredBody` too; out of scope here since the primary miss (a
+    /// hidden call inside a deferred body not warning *at all*) is what this
+    /// fix targets, and this narrower shadowing case is `SAFE_INTERP_HIDDEN`-
+    /// specific low-severity — it only means an occasional cosmetic false
+    /// positive on a rare pattern (redefining a hidden builtin's name
+    /// *inside* the very body that also calls it), never a missed real
+    /// violation. Pinned so a future contributor extending
+    /// `DeferredBody` has a red test.
+    #[test]
+    fn safe_interp_w129_nested_redefinition_inside_deferred_body_still_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 proc f {} { proc source {} { return ok }; source }\n\
+                 f\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "known narrower gap: a redefinition nested inside a deferred \
+             body doesn't suppress W129 for a later call in the same body, \
+             under per-item analysis specifically; flip this assertion if a \
+             future fix threads interpreter identity through `DeferredBody`: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Pins issue #1001's own second reported repro case verbatim:
+    /// `{*}[list apply {...} $x]` combines *two* indirection mechanisms at
+    /// once — `{*}`-expansion of this command's own effective head
+    /// (`check_indirect_hiding`'s `{*}[list HEAD ...]` resolution) *and*
+    /// the resolved head being `apply` (triggering the lambda-body
+    /// recursion into `handle_apply_command`), so the hidden `source`
+    /// nested inside the lambda body must still draw W129.
+    #[test]
+    fn safe_interp_w129_expand_list_quoted_apply_lambda_body_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { {*}[list apply {dir {source $dir/evil.tcl}} $env(HOME)] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "hidden `source` nested inside a `{{*}}[list apply ...]`-invoked \
+             lambda body warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Pins issue #1001's third reported repro case verbatim: the
+    /// `package ifneeded` deferred script followed by the actual
+    /// `package require` that triggers it — confirms the fix holds when the
+    /// deferred script is later invoked, not just when it is merely
+    /// declared.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_package_ifneeded_then_require_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 package ifneeded evil 1.0 [list apply {dir {source $dir/evil.tcl}} $env(HOME)]\n\
+                 package require evil\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "the deferred script's hidden `source` warns once `package \
+             require` is present too: {:?}",
+            r.diagnostics
+        );
+    }
+
+    // -- issue #1001 follow-up: namespace ensemble -map redirection --------
+
+    /// TP: `namespace ensemble create -command myens -map {go source}` then
+    /// `myens go ...` — the ensemble redirects `go` to the hidden `source`,
+    /// so the call must warn exactly like a direct `source` call would, even
+    /// though `myens` itself is never a registry name.
+    #[test]
+    fn safe_interp_w129_ensemble_create_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go source}\n\
+                 myens go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect to a hidden command warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the same redirect declared via `namespace ensemble configure NAME
+    /// -map {...}` (previously silently ignored entirely — only `create`
+    /// was handled) rather than at `create` time.
+    #[test]
+    fn safe_interp_w129_ensemble_configure_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens\n\
+                 namespace ensemble configure myens -map {go source}\n\
+                 myens go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect declared via `configure` warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: the ensemble's default naming (no `-command`, so the command is
+    /// the enclosing namespace's own name) also resolves the redirect.
+    #[test]
+    fn safe_interp_w129_ensemble_default_name_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace eval myns { namespace ensemble create -map {go source} }\n\
+                 myns go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble redirect under its default (namespace) name warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: an ensemble `-map` redirect to a *safe* command must not
+    /// warn — this fix widens W129's recall, it must not start flagging
+    /// ordinary ensemble dispatch.
+    #[test]
+    fn safe_interp_w129_ensemble_map_redirect_to_safe_command_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go puts}\n\
+                 myens go hi\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble redirect to a safe command must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// FP guard: the exact same ensemble-redirect shape outside any safe
+    /// interpreter must not warn (and, since the whole mechanism is gated on
+    /// a non-empty `safe_interp_stack`, must not do anything at all).
+    #[test]
+    fn ensemble_map_redirect_outside_any_safe_interp_is_untouched_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace ensemble create -command myens -map {go source}\n\
+             myens go pkg.tcl\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP: a `-map` target that is itself a multi-word command prefix
+    /// (`{source b.tcl}`, real and valid Tcl — tclsh 8.6.14-verified:
+    /// `-map {go {string length}}` dispatches `myens go x` to `string
+    /// length x`) must still resolve to its *head* command for W129,
+    /// not be dropped entirely by a naive whitespace split across the
+    /// pair boundary (codex review, #1001 follow-up).
+    #[test]
+    fn safe_interp_w129_ensemble_map_redirect_multiword_target_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go {source b.tcl}}\n\
+                 myens go\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble -map redirect to a multi-word hidden-command \
+             prefix warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// TP/FN guard: `configure -map` *replaces* the ensemble's whole
+    /// subcommand table in real Tcl (tclsh 8.6.14-verified: a subcommand
+    /// dropped from a later `-map` becomes "unknown or ambiguous
+    /// subcommand", not a leftover redirect) — a subcommand a later
+    /// `-map` omits must stop resolving to its stale, no-longer-mapped
+    /// target instead of still drawing W129 (codex review, #1001
+    /// follow-up: merging into the cached map instead of replacing it
+    /// left the stale entry behind).
+    #[test]
+    fn safe_interp_w129_ensemble_configure_map_replaces_not_merges_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens \
+                     -map {bad source ok puts}\n\
+                 namespace ensemble configure myens -map {ok puts}\n\
+                 myens bad\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a subcommand dropped by a later `-map` must not keep warning \
+             through its stale mapping: {:?}",
+            r.diagnostics
         );
     }
 }

@@ -426,6 +426,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4035,6 +4036,7 @@ dependencies = [
  "sha2 0.10.9",
  "tar",
  "tcl-bigip",
+ "tcl-core-types",
  "temp-env",
  "thiserror 2.0.18",
 ]
@@ -4055,6 +4057,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "tcl-bigip",
+ "tcl-core-types",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -4238,6 +4241,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
@@ -4248,6 +4252,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "tcl-core-types",
  "tcl-dialect",
  "thiserror 2.0.18",
 ]
@@ -4261,6 +4266,7 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
@@ -4356,6 +4362,7 @@ name = "tcl-regex"
 version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
+ "tcl-core-types",
 ]
 
 [[package]]
@@ -4392,6 +4399,7 @@ name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "libm",
  "num-bigint",
  "num-integer",
  "num-traits",
@@ -4413,6 +4421,7 @@ dependencies = [
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-host-native",
  "tcl-platform",
@@ -5678,6 +5687,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]

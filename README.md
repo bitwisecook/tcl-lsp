@@ -292,7 +292,14 @@ Script-body arguments are highlighted as scripts, not opaque strings. The body
 of an `apply {argList body}` lambda literal has its commands, variables, and
 strings tokenised like any other body, and the argument list names — a braced
 `{a b}` list or a bare single name (`apply {dir { … }}`) — are painted as
-parameter declarations.
+parameter declarations. This reaches `apply` reached indirectly through
+`[list apply {argList body} $val]` too — the idiomatic way to build a
+deferred command around a dynamic value, most commonly a pkgIndex.tcl entry:
+`package ifneeded myPackage 1.0 [list apply {dir { source [file join $dir
+init.tcl] }} $dir]` highlights `source`/`file`/`join` inside the lambda body
+correctly, not as one opaque string. `package ifneeded`'s deferred script
+argument is recognised as a script body in its own right too, whether
+literal or list-quoted.
 
 ### Diagnostics
 
@@ -311,7 +318,13 @@ catch { error "oops" }       ;# W302: catch without a result variable
 Child interpreters are modelled too: a command hidden in a safe
 interpreter (`interp create -safe`) is flagged where it can never run
 (W129), and an `interp eval` into an interpreter the file never creates
-is flagged before it fails at run time (W140).
+is flagged before it fails at run time (W140). W129 follows the hidden
+command through `[...]` bracket-substitution indirection too — a direct
+nested call, `{*}` expansion, the `package ifneeded name ver [list apply
+{dir {...}} $dir]` deferred-command idiom, and a `namespace ensemble
+create`/`configure -map` redirect to a hidden target — so a hidden
+`source` reached only that way is flagged the same as a direct call, in
+both a one-shot lint and the live editor session.
 
 ```tcl
 interp create -safe s
@@ -323,6 +336,21 @@ Analysis is file-aware where Tcl semantics demand it: in a `pkgIndex.tcl` the
 `$dir` variable the package loader injects before the index script runs is
 treated as already defined, so reading it is not flagged read-before-set
 (`W210`) — while the same read in an ordinary file still is.
+
+A proc, class, `rename` target, or `interp alias` that was renamed or
+deleted away (`rename NAME {}`, an `interp alias {} NAME {}` deletion) with
+no later re-establishment under the same name draws W123 wherever it's
+still called — calling it fails `invalid command name` at runtime just
+like a name that was never defined. The check is call-site and
+conditional-body aware: a call that runs before the deletion, or a
+deletion recorded inside a proc/method body that might never execute,
+does not draw the warning.
+
+```tcl
+proc helper {} { return 1 }
+rename helper {}
+proc caller {} { helper }      ;# W123: helper was deleted, never re-established
+```
 
 ### Completions
 
@@ -384,9 +412,27 @@ puts [add 3 4]           ;# ← reference to 'add'
 References follow `TclOO` dispatch, too. A method is found through every
 `$obj method` call on a tracked instance, every intra-class `my method`
 dispatch, and `next` / `nextto` super-dispatch — including calls nested in a
-`[…]` substitution or embedded in a quoted / compound word. Expr math
-functions resolve to their backing proc, so a `proc ::tcl::mathfunc::foo` is
-found (and renamed) from every `foo(...)` used inside `expr`.
+`[…]` substitution, embedded in a quoted / compound word, or nested inside
+`if` / `while` / `foreach` / `switch` / `try` / `catch` / `eval` / `dict for`
+(any combination, arbitrarily deep). A `classmethod` dispatches on the
+class's own command rather than an instance, so it is found through every
+bare `ClassName method` call, including from a subclass's own command when
+the subclass inherits (does not override) the classmethod. A `property`
+(`oo::configurable`'s `property name -get {...} -set {...}` form) is found
+through every `my <property>` dispatch inside the class body — properties
+have no `$obj property` dispatch shape or inheritance model, so this is a
+class-local scan. Expr math functions resolve to their backing proc, so a
+`proc ::tcl::mathfunc::foo` is found (and renamed) from every `foo(...)`
+used inside `expr`.
+
+A `constructor` or `destructor` is invoked positionally
+(`ClassName new`/`create`/`destroy`), never dispatched by name, so it has no
+general reference story the way a method does — but an overriding
+subclass's own constructor/destructor chaining up to it via `next` /
+`nextto` is still a name-independent reference, and code lens / find
+references surface it, resolved through the full class hierarchy (skipping
+an intermediate ancestor that declares no constructor/destructor of its
+own).
 
 A class is found through every use of its name, not only `<Class> new`. A
 `superclass`, `mixin`, or `[incr Tcl]` `inherit` argument that names the class
@@ -643,6 +689,26 @@ try {
 
 # With dialect = tcl8.5:
 try { ... }              ;# W002: command disabled in active dialect (try requires 8.6)
+```
+
+The `::tcl::` namespace itself is a Tcl 8.5+ addition — plain `tcl8.4` and F5
+iRules (a real embedded Tcl 8.4.6) have no such namespace at all, so its
+contents are gated to their real introduction release:
+
+```tcl
+# With dialect = tcl8.4 (or f5-irules):
+::tcl::mathop::+ 1 2               ;# W002: disabled in active dialect (::tcl:: is 8.5+)
+tcl::build-info version             ;# W002: disabled in active dialect (available in: tcl9.0, tcl9.1)
+tcl::tm::path add /some/dir         ;# W002: disabled in active dialect (available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1)
+```
+
+Individual `tcl::mathop` operators can be gated even more precisely than the
+namespace itself: `lt`/`le`/`gt`/`ge` (TIP 461) need Tcl 9.0, one release
+newer than the `::tcl::` namespace's own 8.5 baseline:
+
+```tcl
+# With dialect = tcl8.6:
+::tcl::mathop::lt 1 2              ;# W002: disabled in active dialect (available in: tcl9.0, tcl9.1)
 ```
 
 ### TclOO support
@@ -1994,6 +2060,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | E102 | Unmatched `}` -- missing opening `{` | Remove stray `}` |
 | E103 | Missing `}` -- a nested body consumed this closing brace | |
 | E200 | Parse error -- internal representation cannot be determined | |
+| E207 | Nesting depth exceeds the analysis limit -- diagnostics past this point are not collected | |
 
 ### Warnings -- Style & Best Practice
 
@@ -2022,7 +2089,7 @@ In a project with an "entry" file that runs the `package require`s and then
 | W120 | Package-gated command used without `package require` | Insert `package require` |
 | W121 | Subnet mask has non-contiguous bits | Replace with nearest valid mask |
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
-| W123 | Unknown command — not found in registry, user procs, or `unknown` handler | Replace with suggestion |
+| W123 | Unknown command — not found in registry, user procs, built-in `expr` math functions, or `unknown` handler | Replace with suggestion |
 | W124 | Invalid IP address literal | |
 | W125 | Orphaned control-flow keyword used as a standalone command | |
 | W126 | Non-channel value in channel argument position | |

@@ -92,19 +92,12 @@ fn find_class<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ClassD
     analysis.all_classes.get(&prefixed)
 }
 
-/// The innermost class whose `body_span` contains the cursor offset.
+/// The innermost class whose body (including any separate `oo::define`
+/// extension) contains the cursor offset.
 fn innermost_class_containing(analysis: &AnalysisResult, cursor: u32) -> Option<&ClassDef> {
-    let mut best: Option<&ClassDef> = None;
-    for cd in analysis.all_classes.values() {
-        let body = cd.body_span;
-        if body.start() < cursor && cursor < body.end() {
-            let width = body.end() - body.start();
-            if best.is_none_or(|b| width < (b.body_span.end() - b.body_span.start())) {
-                best = Some(cd);
-            }
-        }
-    }
-    best
+    analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(analysis, cursor)?)
 }
 
 #[cfg(test)]

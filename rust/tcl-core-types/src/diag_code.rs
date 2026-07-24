@@ -299,6 +299,7 @@ diagnostic_codes! {
     E204 => "E204", diag_internal(Error, true, "Extra characters after the close brace of a `${name}` variable reference.");
     E205 => "E205", diag_internal(Error, true, "Extra characters after the close quote in a variable name.");
     E206 => "E206", diag_internal(Error, true, "Missing close brace for a `${name}` variable reference.");
+    E207 => "E207", diag_internal(Error, true, "Nesting depth exceeds the analysis limit — diagnostics past this point are not collected (matches Tcl's own `interp recursionlimit` error, but reported as a diagnostic rather than a runtime error).");
     H300 => "H300", diag(Hint, true, "Possible paste error — repeated assignment to same variable with same value.");
     I230 => "I230", diag(Hint, true, "Constant branch condition — the alternate branch is provably unreachable.");
     I231 => "I231", diag(Hint, true, "Constant switch arm condition — the arm is provably unreachable.");
@@ -723,7 +724,7 @@ mod tests {
         // Internal — always-on parse/structure errors, host-config validators,
         // and translation markers; excluded from the user-configurable editor
         // settings.  The internal codes are the E20x/E10x/E004 parse errors,
-        // IRULE3103/5003/6001 flow internals, TK100x, and W31x; E204–E206 are
+        // IRULE3103/5003/6001 flow internals, TK100x, and W31x; E204–E207 are
         // the parse-error siblings of E201–E203.
         for s in [
             "E004",
@@ -737,6 +738,7 @@ mod tests {
             "E204",
             "E205",
             "E206",
+            "E207",
             "IRULE3103",
             "IRULE5003",
             "IRULE6001",

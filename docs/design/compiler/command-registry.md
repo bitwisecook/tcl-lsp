@@ -325,6 +325,18 @@ invocation falls outside bounds.  Each `SubCommand` has its own arity.
 | `OPTION_TERMINATOR` | The `--` terminator |
 | `CHANNEL` | Channel identifier |
 | `INDEX` | List/string index expression |
+| `COMMAND_PREFIX` | A callback command reference (`lsort -command cb`) whose first word is invoked at runtime with further arguments appended; recognises a literal bareword, a braced `{cmd extra}` multi-word prefix, and a `[list cmd extra]`-quoted prefix (gated on the `BUILDS_COMMAND_PREFIX` trait, below) -- distinct from `BODY` since the word is a reference, not code |
+| `LAMBDA_LITERAL` | A `{argList body ?namespace?}` anonymous-lambda literal (`apply`'s argument shape) -- a *list*, not a script directly; element 0 is a parameter list, element 1 is the body to recurse into |
+
+`Traits.BUILDS_COMMAND_PREFIX` (set on `list` only, not `concat`) marks a
+command whose result, when its own first argument is a literal command name,
+is a valid command reference the remaining arguments append to -- the
+`[list cmd extra]` idiom for building a callback or deferred command around a
+dynamic value (`-command [list doSomething $x]`,
+`package ifneeded name ver [list apply {argList body} $dir]`). Consulted
+generically wherever a `COMMAND_PREFIX`/`BODY`/`LAMBDA_LITERAL` argument
+position needs to see through the quoting -- never by comparing a command
+head to the literal string `"list"`.
 
 ### Resolution priority
 
@@ -485,6 +497,102 @@ accessing `specs_by_name`.
 3. `CommandSpec.pure`
 
 Higher levels override lower ones for the matched invocation form.
+
+## Known limitations
+
+### Lookup is by literal spelling, not by command identity
+
+`CommandRegistry::get` / `get_for_dialect`
+(`rust/tcl-registry/src/registry.rs`) resolve a segmented command's head by
+an exact string match against `by_name` — a plain by-name lookup keyed on
+the spelling baked into the static `CommandSpec`. Every piece of
+registry-driven behaviour reached through that lookup (`arg_roles` /
+`arg_role_resolver`, `taint_*`, `side_effect_hints`, `safe_on_uninit`,
+`lowering`, `object_class`, `definition_body`, …) is therefore only found
+when the call site's literal head text matches the spec's registered name.
+
+Real Tcl does not work this way: `rename apply myapply` and `interp alias
+{} myapply {} apply` both make `myapply` fully behaviourally identical to
+`apply` at runtime — same argument handling, same effects, same result —
+because Tcl resolves a command by its interpreter-level binding, not by
+the spelling used to invoke it. `CommandRegistry::get` /
+`arg_indices_for_role` themselves have no equivalent notion of binding;
+they only ever see the token text passed in — literal head text in, literal
+`by_name` match out, nothing else.
+
+### The compiler's own lowering pipeline is not affected — a consumer can shield itself
+
+Whether a *consumer* is blind to a rename/alias therefore depends on
+whether it resolves the call's canonical name itself before handing the
+head to the registry — and the compiler's IR-lowering pipeline already
+does this for statically-visible bindings. `Lowering::lower_command`
+(`rust/tcl-compiler/src/lowering/mod.rs`) detects `interp alias {} name {}
+target ?args?` and static `rename oldName newName` as it walks a
+compilation unit (via `tcl_registry::CommandTableEffect` +
+[`detect_interp_alias`/`detect_rename`](../../../rust/tcl-compiler/src/alias.rs)) and
+records each into a `CommandAliasMap` (`self.aliases`). `lower_default`
+resolves the call's head through that map (`resolve_alias`) *before*
+calling `arg_indices_for_role`, and threads the resolved canonical name
+forward as `Statement`'s `canonical_command`, so codegen-hook selection,
+side-effect classification, GVN purity, and var-escape all key off the
+real target rather than the source spelling. Taint sink classification
+(`rust/tcl-compiler/src/taint.rs`) reads that same resolved name back via
+`canonical_command_or_source()` before dispatching — proven by regression
+tests (`t100_fires_through_interp_alias_indirection`,
+`t100_fires_through_rename_indirection`) showing `interp alias {} myEval
+{} eval; myEval $tainted` and `rename eval myEval; myEval $tainted` both
+still raise `T100` through the alias. So purity, side-effects, codegen
+dispatch, var-escape, and taint sinks reached through this pipeline are
+**not** part of this limitation for a statically-visible rename/alias —
+they resolve through the same registry lookup, but only after the
+canonical name has already been substituted in.
+
+### The limitation is real for the source-text, re-segmentation-based consumers
+
+The blind spot is the consumers that never go through
+`Lowering`'s alias table at all: the ones that recognise a shape (a
+lambda literal, a body, a callback prefix) by re-parsing a segmented
+command's own raw head text directly against the registry, outside the
+IR-lowering pass and with no alias map available to them. This is
+precisely the set of consumers the #954/#999 fix taught
+`ArgRole::LambdaLiteral` awareness — semantic tokens, folding, formatting,
+minification, declaration scanning, the best-effort text-based
+interprocedural call-graph scanner (`tcl-compiler/src/interprocedural.rs`
+— distinct from the IR-based taint/SSA interprocedural analysis, which
+*is* on the alias-aware pipeline above), param-trait inference, and the
+iRules object-reference walker. The concrete, verified case is `apply`'s
+`ArgRole::LambdaLiteral` handling under `rename`/`interp alias`: see the
+"Failure modes" section of
+[the `apply`-lambda-body KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
+for the reproduction and file-path anchors. The same gap applies to any
+other registry-keyed field (arg roles, `defines_command_at`, …) queried the
+same direct way by one of these consumers — `apply` is simply the instance
+that has been reproduced and written up (issue #1002); it is not evidence
+that taint or purity share it, since those two are demonstrably covered by
+the mechanism described above.
+
+This is a different mechanism from issue #973, which is about the
+analyser's `known()` predicate (`scope.rs`) not gating an existence check
+(W123) on deletion — a single analyser-side predicate partially growing
+rename/alias-awareness for one diagnostic. The gap described here is a
+missing integration (the source-text consumers have no access to an alias
+table at all, static or otherwise), not a partial one.
+
+**Plausible future fix direction** (out of scope here — this note only
+records the limitation): give the source-text-based consumers the same
+kind of alias resolution the compiler's lowering pass already has, rather
+than inventing a new mechanism. The `CommandAliasMap` pattern in
+`rust/tcl-compiler/src/alias.rs` is IR-lowering-specific (it's built while
+walking a `CompilationUnit`, and reads `self.aliases` accumulated so far in
+that walk); the source-text consumers operate on individually re-parsed
+segmented commands, often outside any compilation-unit walk, so reusing it
+directly is not a drop-in change — each consumer would need either its own
+document-wide alias scan pre-pass, or a shared one computed once and passed
+down to every consumer that currently calls `CommandRegistry::get` /
+`arg_indices_for_role` directly on raw head text. That is still a real,
+multi-consumer change (it touches every one of the source-text consumers
+listed above, not just `apply`'s), just a narrower one than rewriting
+`CommandRegistry::get` itself.
 
 ## Decision rule
 

@@ -32,6 +32,7 @@ use std::io::{self, Write};
 use std::rc::Rc;
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
+use tcl_core_types::RecursionLimit;
 use tcl_platform::Host;
 use tcl_runtime_api::{
     Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
@@ -49,6 +50,76 @@ use crate::value::Value;
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
+
+/// Native-stack safety net for `cmd_control.rs`'s runtime-command fallback
+/// (`cmd_if`/`cmd_while`/`cmd_for`/`each_loop`, reached via a computed
+/// command name or dynamic body — see that module's own doc comment) —
+/// issue #996.
+///
+/// Deliberately **not** a cap on [`Vm::eval_source`] itself: `eval_source`
+/// is also the mechanism behind ordinary `[…]` command substitution
+/// (`subst.rs`), `switch`/`try`/`dict with`/OO-method/namespace-eval
+/// bodies, event dispatch, `source`, and more — all of it routine, and
+/// empirically safe to at least 1000 levels of pure nested substitution on
+/// a 2 MiB thread (measured via `probe_cmdsubst_*` during investigation).
+/// An early version of this fix capped `eval_source` itself at a low,
+/// uniform threshold and broke ordinary iRule execution (nested command
+/// substitution plus a few layers of event-dispatch/orchestration
+/// scaffolding routinely needs more than a very conservative cap allows,
+/// well short of any real danger). The actual danger is narrower:
+/// `cmd_control.rs`'s fallback specifically — invoking a *registered
+/// command* (full argument-processing machinery) on every recursive
+/// level — has a much heavier per-frame native-stack cost than plain
+/// substitution recursion. Measured directly: driven through a computed
+/// command name (`set c if; $c {1} { … }`, defeating the compiled fast
+/// path), it overflowed the stack (SIGABRT) between depth 50 and 60 on a
+/// 2 MiB thread, while pure `[subst {…}]` nesting on the same thread
+/// survived to at least depth 1000. `tcl-vm` is also consumed from a WASM
+/// host with no stack-size guarantee (`tcl-vm-wasm`), so this must hold on
+/// a small ambient stack, not just a generously-sized one: 24 leaves
+/// better than 2x margin under the measured crash floor while still
+/// comfortably covering this fallback path's real (rare, edge-case —
+/// ordinary Tcl essentially never nests a *computed-command-name* `if`
+/// this deep) usage.
+const CONTROL_FALLBACK_DEPTH_LIMIT: RecursionLimit = RecursionLimit(24);
+
+/// Native-stack safety net for `TclOO` method dispatch (`cmd_oo.rs::run_step`)
+/// — issue #996.
+///
+/// Unlike ordinary proc-to-proc calls, which the trampoline
+/// ([`Tick::Call`](crate::exec)) runs without growing the *native* Rust
+/// stack (each nested call is a new activation pushed onto an explicit
+/// `Vec`, not a recursive Rust call), a `$obj method`/`my method`/`next`
+/// dispatch is a genuine, undelegated native call chain: `run_step` (reached
+/// via `oo_dispatch` → `oo_invoke` for `$obj method`, `cmd_my` →
+/// `oo_invoke` for `my method`, or directly for `next`/`nextto`) →
+/// [`Vm::oo_run_method`] → [`Vm::run_activation`] (a fresh native call, not
+/// a trampoline push) → … back to `run_step` for a nested method call. So a
+/// recursive method (or a long `next` chain) consumes real native stack
+/// per level, unlike a recursive `proc`. `run_step` is guarded rather than
+/// `oo_dispatch` because `my method` and `next`/`nextto` — the two most
+/// common ways a method calls another method recursively — reach it
+/// directly, bypassing `oo_dispatch` entirely.
+/// Measured directly (a `method go {n} { … return [my go [expr {$n-1}]]
+/// }`-style self-recursive method): SIGABRT between depth 45 and 48 on a
+/// 2 MiB thread (`cargo test`'s per-test default, and Tokio's worker-thread
+/// default — the same floor `CONTROL_FALLBACK_DEPTH_LIMIT` is calibrated
+/// against). `tcl-vm` is also consumed from a WASM host with no
+/// stack-size guarantee (`tcl-vm-wasm`), so this must hold on a small
+/// ambient stack, not just a generously-sized one.
+///
+/// This is a real, deliberate compatibility gap versus C Tcl: an ordinary
+/// recursive `proc` is bounded by [`RECURSION_LIMIT`] (1000, matching
+/// `interp recursionlimit`'s default) with no native-stack cost at all,
+/// while a recursive `TclOO` method hits this much lower bound instead. The
+/// architecturally correct fix is routing method dispatch through the same
+/// trampoline ordinary calls use (so it becomes as cheap as a proc call);
+/// that is a substantially larger change to the dispatch/activation engine
+/// than this counter, which is a mitigation, not that fix — an uncatchable
+/// process abort is strictly worse than a catchable error arriving earlier
+/// than tclsh's own limit would. 20 leaves better than 2x margin under the
+/// measured crash floor.
+const OO_DISPATCH_DEPTH_LIMIT: RecursionLimit = RecursionLimit(20);
 
 /// Render a subcommand list as C's ensemble `must be …` clause — note the
 /// ensemble formatter puts a comma before `or` even for two items
@@ -540,6 +611,27 @@ pub struct InterpState {
     /// activation, but `uplevel`/`catch`/`[subst]` re-enter `eval_source`, which
     /// does recurse on the host stack). Tracked on every call-frame push/pop.
     recursion_depth: usize,
+    /// Native-stack safety counter for `cmd_control.rs`'s runtime-command
+    /// fallback specifically — see [`CONTROL_FALLBACK_DEPTH_LIMIT`]'s doc
+    /// comment (issue #996). Deliberately a separate counter from
+    /// `recursion_depth`: this tracks only the current native call chain
+    /// through `cmd_if`/`cmd_while`/`cmd_for`/`each_loop`, a purely
+    /// stack-safety bookkeeping value with no Tcl-visible meaning, unlike
+    /// `recursion_depth` (which models `info level`/`interp
+    /// recursionlimit` and must survive a coroutine suspend/resume via
+    /// `swap_flow`). Not swapped there: whenever a coroutine is not
+    /// literally paused mid-way through this specific fallback chain, it's
+    /// zero regardless, and if it *is*, being slightly imprecise across a
+    /// yield/resume is a far smaller risk than the correctness bugs a
+    /// second copy of `recursion_depth`'s full save/restore plumbing would
+    /// invite for comparatively little benefit.
+    control_fallback_depth: usize,
+    /// Native-stack safety counter for `TclOO` method dispatch (`cmd_oo.rs`'s
+    /// `oo_dispatch`) — see [`OO_DISPATCH_DEPTH_LIMIT`]'s doc comment
+    /// (issue #996). A separate counter from `recursion_depth` for the same
+    /// reason `control_fallback_depth` is: purely stack-safety bookkeeping,
+    /// no Tcl-visible meaning, not swapped on coroutine suspend/resume.
+    oo_dispatch_depth: usize,
     /// The host environment: the capability seam (`tcl-platform`) through which
     /// every command reaches the filesystem, clock, env, stdio, subprocess, and
     /// sockets. The bytecode VM is a native target, so this defaults to a
@@ -813,6 +905,8 @@ impl InterpState {
             chan_counter: 2,
             script_stack: Vec::new(),
             recursion_depth: 0,
+            control_fallback_depth: 0,
+            oo_dispatch_depth: 0,
             host: Rc::new(NativeHost::new()),
             children: HashMap::new(),
             is_safe: false,
@@ -1927,6 +2021,12 @@ impl Vm {
     /// Hidden commands move to `hidden_commands`, invocable via
     /// `interp invokehidden` and restorable with `interp expose`.
     fn make_safe(&mut self) {
+        // Pinned against real tclsh 8.6.14 (`interp create -safe s; s hidden`):
+        // `after` / `vwait` are deliberately NOT on this list — confirmed
+        // present and callable inside a real safe child (`s eval {info
+        // commands after}` returns `after`). An earlier version of this list
+        // incorrectly hid them, which would have broken legitimate
+        // safe-interp code using `after idle`/`after cancel`.
         const UNSAFE: &[&str] = &[
             "exec",
             "exit",
@@ -1940,8 +2040,6 @@ impl Vm {
             "file",
             "fconfigure",
             "encoding",
-            "after",
-            "vwait",
         ];
         // The host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe` unsets
         // os/osVersion/machine/user) plus our backend-introspection keys, so a
@@ -3421,6 +3519,47 @@ impl Vm {
     /// The current call-nesting depth (proc recursion bound).
     pub(crate) fn recursion_depth(&self) -> usize {
         self.recursion_depth
+    }
+
+    /// Enter one level of `cmd_control.rs`'s runtime-command fallback
+    /// recursion — see [`CONTROL_FALLBACK_DEPTH_LIMIT`]'s doc comment
+    /// (issue #996). Checked before incrementing; pair with
+    /// [`Self::exit_control_fallback`] (even on an early-error return) to
+    /// keep the counter balanced.
+    pub(crate) fn enter_control_fallback(&mut self) -> Result<(), Completion<Value>> {
+        if CONTROL_FALLBACK_DEPTH_LIMIT
+            .exceeded(u32::try_from(self.control_fallback_depth + 1).unwrap_or(u32::MAX))
+        {
+            return Err(err("too many nested evaluations (infinite loop?)"));
+        }
+        self.control_fallback_depth += 1;
+        Ok(())
+    }
+
+    /// Leave one level of `cmd_control.rs`'s runtime-command fallback
+    /// recursion — see [`Self::enter_control_fallback`].
+    pub(crate) fn exit_control_fallback(&mut self) {
+        self.control_fallback_depth = self.control_fallback_depth.saturating_sub(1);
+    }
+
+    /// Enter one level of `TclOO` method-dispatch recursion — see
+    /// [`OO_DISPATCH_DEPTH_LIMIT`]'s doc comment (issue #996). Checked
+    /// before incrementing; pair with [`Self::exit_oo_dispatch`] (even on
+    /// an early-error return) to keep the counter balanced.
+    pub(crate) fn enter_oo_dispatch(&mut self) -> Result<(), Completion<Value>> {
+        if OO_DISPATCH_DEPTH_LIMIT
+            .exceeded(u32::try_from(self.oo_dispatch_depth + 1).unwrap_or(u32::MAX))
+        {
+            return Err(err("too many nested evaluations (infinite loop?)"));
+        }
+        self.oo_dispatch_depth += 1;
+        Ok(())
+    }
+
+    /// Leave one level of `TclOO` method-dispatch recursion — see
+    /// [`Self::enter_oo_dispatch`].
+    pub(crate) fn exit_oo_dispatch(&mut self) {
+        self.oo_dispatch_depth = self.oo_dispatch_depth.saturating_sub(1);
     }
 
     /// This interp's recursion bound (`interp recursionlimit`).

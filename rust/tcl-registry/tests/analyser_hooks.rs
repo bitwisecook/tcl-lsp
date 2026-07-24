@@ -90,6 +90,7 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("namespace", "eval", H::NamespaceEval),
         ("namespace", "ensemble", H::NamespaceEnsemble),
         ("namespace", "import", H::NamespaceImport),
+        ("namespace", "export", H::NamespaceExport),
         // `inscope` shares the namespace-eval handler: same `[subcmd, ns,
         // body]` shape, body analysed in the named namespace's scope.
         ("namespace", "inscope", H::NamespaceEval),
@@ -109,6 +110,13 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("dict", "for", H::DictFor),
         ("dict", "update", H::DictUpdate),
         ("dict", "with", H::DictWith),
+        // The standalone `::tcl::dict::*` spellings (issue #923 idx 105) now
+        // carry each subcommand's own analyser hook too (Codex review, PR
+        // #1020), so `::tcl::dict::for {k v} $d {…}` is analysed like `dict
+        // for` — landing as a *command-level* stamp on the qualified spec.
+        ("::tcl::dict::for", "", H::DictFor),
+        ("::tcl::dict::update", "", H::DictUpdate),
+        ("::tcl::dict::with", "", H::DictWith),
         // `cmd_name != "interp" || args[0] != "alias"` in
         // crate::alias's detectors, dispatched by handle_interp_alias.
         ("interp", "alias", H::InterpAlias),
@@ -127,6 +135,12 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("rename", "", H::Rename),
         ("oo::define", "", H::OoDefine),
         ("oo::objdefine", "", H::OoObjdefine),
+        // No former per-handler guard — `tcl::OptProc` (the `opt`
+        // package's automatic-option-parsing proc definer) never had a
+        // hook at all until issue #923 idx 90 added one, so `all_procs`
+        // kept the stub's `{}`-arity `ProcDef` for every real
+        // redefinition.
+        ("tcl::OptProc", "", H::OptProc),
         // handle_package_command matched `args[0]` require / provide.
         ("package", "require", H::PackageRequire),
         ("package", "provide", H::PackageProvide),
@@ -233,6 +247,9 @@ fn command_table_effect_stamps_match_the_former_name_matches() {
         // `"interp" =>` + `args[0] == "alias"` — AliasCreate,
         // tclInterp.c; the effect rides the `alias` subcommand.
         ("interp", "alias", E::CreatesAliases),
+        // No former name match — `tcl::OptProc` genuinely defines a
+        // procedure (issue #923 idx 90), same as `proc` itself.
+        ("tcl::OptProc", "", E::DefinesProcedure),
     ]
     .into_iter()
     .collect();
