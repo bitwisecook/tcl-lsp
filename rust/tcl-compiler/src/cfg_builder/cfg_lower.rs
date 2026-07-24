@@ -28,7 +28,7 @@ use tcl_lexer::Span;
 use crate::cfg::{LoopNode, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::{Statement, SwitchMode};
-use crate::ir_helpers::{condition_command_out_vars, expr_has_command};
+use crate::ir_helpers::expr_has_command;
 
 use super::CfgBuilder;
 
@@ -79,15 +79,18 @@ impl CfgBuilder {
             // statement so the emitter can wrap the ExprCommand with
             // its own startCommand boundary.
             if expr_has_command(&clause.condition) {
-                // A `catch`/`regexp`/`scan` substitution in the condition
-                // writes result variables; record them as defs so a read in
-                // the guarded body is not flagged read-before-set (W210).
+                // A `catch`/`regexp`/`scan` substitution — or a call to a
+                // known upvar / global-writing user proc (issue #923 idx
+                // 122) — in the condition writes result variables; record
+                // them as defs so a read in the guarded body is not
+                // flagged read-before-set (W210).
+                let cond_defs = self.condition_out_vars(&clause.condition);
                 self.block_mut(&dispatch).statements.push(Statement::Call {
                     span: *span,
                     command: "<cond>".into(),
                     canonical_command: None,
                     args: Vec::new(),
-                    defs: condition_command_out_vars(&clause.condition),
+                    defs: cond_defs,
                     reads: Vec::new(),
                     reads_own_defs: false,
                     safe_on_uninit: false,
@@ -277,16 +280,19 @@ impl CfgBuilder {
 
         self.ensure_goto(block_name, &header, Some(*condition_span));
 
-        // A `catch`/`regexp`/`scan` substitution in the loop condition writes
-        // result variables each iteration; record them as defs in the header
-        // so a read in the body is not flagged read-before-set (W210).
+        // A `catch`/`regexp`/`scan` substitution — or a call to a known
+        // upvar / global-writing user proc (issue #923 idx 122) — in the
+        // loop condition writes result variables each iteration; record
+        // them as defs in the header so a read in the body is not flagged
+        // read-before-set (W210).
         if expr_has_command(condition) {
+            let cond_defs = self.condition_out_vars(condition);
             self.block_mut(&header).statements.push(Statement::Call {
                 span: *condition_span,
                 command: "<cond>".into(),
                 canonical_command: None,
                 args: Vec::new(),
-                defs: condition_command_out_vars(condition),
+                defs: cond_defs,
                 reads: Vec::new(),
                 reads_own_defs: false,
                 safe_on_uninit: false,

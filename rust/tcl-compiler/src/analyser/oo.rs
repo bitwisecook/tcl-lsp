@@ -428,6 +428,12 @@ impl Analyser {
                 _ => {}
             }
         }
+        // A bareword-callable-from-this-class fact, gathered before Phase 2
+        // starts (so it's already populated by the time member-lookup
+        // consumers — go-to-definition / hover — read `class_def`, and
+        // regardless of *which* method body called `link`).
+        self.collect_oo_links(&method_bodies, class_def);
+
         // Phase 2: walk each method / accessor body in its own `Method` scope
         // with the formal parameters and the class's instance variables
         // pre-bound; the `initialise` body walks in the enclosing scope.
@@ -453,6 +459,64 @@ impl Analyser {
         }
         for (body, tok) in init_bodies {
             self.analyse_body(&body, tok, scope_path);
+        }
+    }
+
+    /// Scan every collected method/constructor/destructor body's own
+    /// top-level statements for a `link`-headed call (`oo::Helpers::link`,
+    /// a genuine core `TclOO` builtin since 8.6 — `TclOOLinkObjCmd`, on
+    /// every method body's namespace path via `::oo::Helpers`), recording each
+    /// alias into [`ClassDef::linked_members`] (issue #923 idx 113).
+    ///
+    /// `link NAME` installs a per-object-namespace command `NAME` that
+    /// dispatches to `my NAME`; `link {NAME TARGET}` dispatches to `my
+    /// TARGET` instead. Each argument word of one `link` call is an
+    /// independent alias (`link foo bar` installs both `foo` and `bar`),
+    /// and a name/target built from a variable or command substitution is
+    /// skipped (mirrors [`crate::alias::detect_interp_alias`]'s
+    /// literal-only requirement — no lattice lookup here, this runs
+    /// before Phase 2's per-method scope walk even exists).
+    ///
+    /// Deliberately shallow: only a `link` call written directly at a
+    /// body's own top level is recognised, not one nested inside an
+    /// `if`/`catch`/… body argument — the same scope boundary
+    /// `scan_my_method_region`/`scan_obj_method_region` (`references.rs`)
+    /// already accept for this class of "scan a method body for one
+    /// specific call shape" problem.
+    fn collect_oo_links(&self, method_bodies: &[CollectedMethodBody], class_def: &mut ClassDef) {
+        for mb in method_bodies {
+            if mb.body_tok.kind != TokenType::Str {
+                continue;
+            }
+            let base = mb.body_tok.span.start() + u32::from(mb.body_tok.content_offset);
+            let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+                &mb.body_text,
+                base,
+                self.lexer_config(),
+            );
+            for cmd in &cmds {
+                if cmd.is_partial || cmd.texts.first().map(String::as_str) != Some("link") {
+                    continue;
+                }
+                for word in cmd.texts.iter().skip(1) {
+                    if crate::naming::is_dynamic_word(word) {
+                        continue;
+                    }
+                    match crate::tcl_expr_eval::split_tcl_list(word).as_slice() {
+                        [name] if !name.is_empty() => {
+                            let key = name.trim_start_matches("::").to_string();
+                            class_def.linked_members.entry(key.clone()).or_insert(key);
+                        }
+                        [name, target] if !name.is_empty() => {
+                            class_def
+                                .linked_members
+                                .entry(name.trim_start_matches("::").to_string())
+                                .or_insert_with(|| target.clone());
+                        }
+                        _ => {}
+                    }
+                }
+            }
         }
     }
 
@@ -615,6 +679,11 @@ impl Analyser {
                 body, body_tok, &mut class, &qualified, scope_path, &definer,
             );
         }
+        // For `my`-dispatch resolution (issue #923 idx 52) — see
+        // `class_body_spans`'s doc.
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), class.body_span));
         self.result.all_classes.insert(qualified, class.clone());
         let path = scope_path.to_vec();
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
@@ -757,7 +826,13 @@ impl Analyser {
         // snit allows a type-private `proc name args body` — analyse it as an
         // ordinary proc in the enclosing scope, not a method.
         if sub == "proc" {
-            self.handle_proc_command(sub_args, sub_tokens, ctx.scope_path);
+            // No per-argument single-token info is threaded this deep into
+            // the snit member dispatcher; `&[]` is the same safe default
+            // `resolve_dynamic_word` already falls back to elsewhere (a
+            // dynamic type-private proc name still gets a chance to resolve
+            // via `fold_interpolation_single`, just not the single-`$var`
+            // fast path).
+            self.handle_proc_command(sub_args, sub_tokens, &[], ctx.scope_path);
             return;
         }
         let Some(member) = ctx.grammar.member(sub) else {
@@ -862,6 +937,7 @@ impl Analyser {
             name_span,
             body_span,
             kind: kind.to_string(),
+            is_self_method: false,
             visibility: visibility.to_string(),
             doc: String::new(),
             forward_target: None,
@@ -955,6 +1031,11 @@ impl Analyser {
                 body, body_tok, &mut class, &qualified, scope_path, grammar,
             );
         }
+        // For `my`-dispatch resolution (issue #923 idx 52) — see
+        // `class_body_spans`'s doc.
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), class.body_span));
         self.result.all_classes.insert(qualified, class.clone());
         let path = scope_path.to_vec();
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
@@ -1325,7 +1406,16 @@ fn collect_method_body(
     texts: &[String],
     argv: &[Token],
 ) -> Option<CollectedMethodBody> {
-    let keyword = texts.first().map(String::as_str)?;
+    // Unwrap a leading `self`/`private` modifier first (issue #923 idx
+    // 120): its body would otherwise never be walked at all (no internal
+    // diagnostics inside a `self method`/`private method` body — confirmed
+    // empirically, a deliberately-wrong-arity call inside one drew
+    // nothing, while the identical call in a plain `method` body correctly
+    // fired). `unwrap_wrapper_member` is a no-op for an already-bare
+    // `method`/`classmethod`/`constructor`/`destructor` keyword — its
+    // returned slices start right after the *effective* keyword either
+    // way, wrapper word included, so no `+ 1` shift is needed below.
+    let (keyword, texts, argv, _modifier) = unwrap_wrapper_member(grammar, texts, argv)?;
     if !matches!(
         keyword,
         "method" | "classmethod" | "constructor" | "destructor"
@@ -1333,11 +1423,9 @@ fn collect_method_body(
         return None;
     }
     let member = grammar.member(keyword)?;
-    // Arg-role indices are 0-based *after* the keyword → `+ 1` into the full
-    // `texts` / `argv` (index 0 is the keyword itself).
-    let body_idx = member.indices_for(ArgRole::Body).next()? + 1;
-    let params_idx = member.indices_for(ArgRole::ParamList).next().map(|i| i + 1);
-    let name_idx = member.indices_for(ArgRole::Name).next().map(|i| i + 1);
+    let body_idx = member.indices_for(ArgRole::Body).next()?;
+    let params_idx = member.indices_for(ArgRole::ParamList).next();
+    let name_idx = member.indices_for(ArgRole::Name).next();
 
     let body_text = texts.get(body_idx)?.clone();
     let body_tok = *argv.get(body_idx)?;
@@ -1402,6 +1490,54 @@ fn apply_oo_private(
     }
 }
 
+/// `self method NAME ARGS BODY` / `self classmethod NAME ARGS BODY`
+/// (issue #923 idx 120) — `TclOO`'s own spelling for a class-level method,
+/// the stock-library counterpart to `ooutil`'s `classmethod` keyword (both
+/// end up dispatched through the class's own bound command). Either inner
+/// spelling records into `class_methods`, tagged `is_self_method: true` so
+/// the class-command MRO walk in `tcl-lsp-core` knows NOT to treat it as
+/// inherited the way an `ooutil`-style `classmethod` is (real tclsh: a
+/// subclass with no override does not gain a `self method` at all).
+///
+/// Scoped to the prefix form only; `self { method NAME ARGS BODY; … }`'s
+/// block form is a documented, symmetric (`private { … }` shares the same
+/// gap) follow-up, not fixed here.
+fn apply_oo_self(
+    grammar: &DefinitionBodyGrammar,
+    sub_args: &[String],
+    sub_tokens: &[Token],
+    class_def: &mut ClassDef,
+) {
+    if sub_args.is_empty() {
+        return;
+    }
+    let inner_subcmd = sub_args[0].as_str();
+    let inner_args: &[String] = &sub_args[1..];
+    let inner_tokens: &[Token] = if sub_tokens.len() > 1 {
+        &sub_tokens[1..]
+    } else {
+        &[]
+    };
+    let Some(member) = grammar.member(inner_subcmd) else {
+        return;
+    };
+    if !matches!(inner_subcmd, "method" | "classmethod") {
+        return;
+    }
+    if let Some(mut md) = extract_method_def(
+        member,
+        inner_args,
+        inner_tokens,
+        "classmethod",
+        "public",
+        "",
+    ) {
+        md.visibility = default_visibility(grammar, &md.name);
+        md.is_self_method = true;
+        class_def.class_methods.insert(md.name.clone(), md);
+    }
+}
+
 /// The effective default visibility string for a freshly-(re)defined
 /// member under `grammar`'s family rule (`"public"` / `"unexported"`).
 fn default_visibility(grammar: &DefinitionBodyGrammar, name: &str) -> String {
@@ -1453,6 +1589,7 @@ fn apply_oo_forward(
             name_span: span,
             body_span: span,
             kind: "forward".to_string(),
+            is_self_method: false,
             // A forward is dispatched by the same name rule as a method
             // (C computes `isPublic` identically for both).
             visibility: default_visibility(grammar, name),
@@ -1556,7 +1693,15 @@ fn apply_oo_subcommand(
             }
         }
         "variable" => {
-            class_def.variables = sub_args.to_vec();
+            // Additive, not a reset (tclsh9.0-verified: `oo::define Cls
+            // variable a b; oo::define Cls variable c` leaves all of `a`,
+            // `b`, `c` live simultaneously — the same "always present in
+            // every method" declaration `variable` inside a method body
+            // itself would make, just issued once for the whole class
+            // rather than per-call). A second `variable` statement in the
+            // same class body must not silently discard the names the
+            // first one declared (issue #923 idx 32, main audit wave).
+            class_def.variables.extend(sub_args.iter().cloned());
         }
         "filter" => {
             class_def.filters = sub_args.to_vec();
@@ -1577,6 +1722,7 @@ fn apply_oo_subcommand(
         }
         "forward" => apply_oo_forward(grammar, sub_args, sub_tokens, class_def),
         "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def),
+        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def),
         // No `ClassDef` mutation here for the remaining subcommands.
         // ``initialise`` / ``initialize`` are class-level initialisation
         // scripts whose bodies are collected and walked separately in
@@ -1723,6 +1869,10 @@ fn extract_method_def(
         name_span,
         body_span,
         kind: kind.to_string(),
+        // Flipped by the one caller that needs it (`apply_oo_self`) —
+        // every other caller means it literally, so `false` is the
+        // correct default here, not just a placeholder.
+        is_self_method: false,
         visibility: visibility.to_string(),
         doc: String::new(),
         forward_target: None,
@@ -1890,6 +2040,81 @@ mod tests {
     }
 
     #[test]
+    fn self_method_subcommand_records_class_method_tagged_is_self_method() {
+        // TP — issue #923 idx 120 Part 1: `self method NAME ARGS BODY`
+        // (TclOO's own spelling of a class-level method, the stock
+        // counterpart to ooutil's `classmethod` keyword) previously had no
+        // `apply_oo_subcommand` arm at all — `class_methods` never gained
+        // an entry for it. Recorded with `kind: "classmethod"` (both
+        // spellings mean "dispatched via the class's own bound command")
+        // but tagged `is_self_method` so the class-command MRO walk knows
+        // NOT to treat it as inherited the way ooutil's `classmethod` is.
+        let mut cd = class();
+        let texts: Vec<String> = ["self", "method", "make", "n", "return made"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let argv = [
+            tok((0, 4)),
+            tok((5, 11)),
+            tok((12, 16)),
+            tok((17, 18)),
+            str_tok((19, 30)),
+        ];
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
+        assert!(!cd.methods.contains_key("make"));
+        let md = cd
+            .class_methods
+            .get("make")
+            .expect("recorded as a classmethod");
+        assert_eq!(md.kind, "classmethod");
+        assert!(md.is_self_method);
+        assert_eq!(md.visibility, "public");
+    }
+
+    #[test]
+    fn self_classmethod_subcommand_also_records_into_class_methods() {
+        // TP — the `self classmethod` inner spelling (rarer, but valid:
+        // `self` always retargets to the class object regardless of which
+        // inner member follows) must resolve identically to `self method`.
+        let mut cd = class();
+        let texts: Vec<String> = ["self", "classmethod", "build", "args", "return $args"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let argv = [
+            tok((0, 4)),
+            tok((5, 16)),
+            tok((17, 22)),
+            tok((23, 27)),
+            str_tok((28, 43)),
+        ];
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
+        let md = cd
+            .class_methods
+            .get("build")
+            .expect("recorded as a classmethod");
+        assert!(md.is_self_method);
+    }
+
+    #[test]
+    fn self_block_form_is_a_silent_noop_not_a_crash() {
+        // FN guard — the `self { method NAME ARGS BODY }` *block* form is a
+        // documented, symmetric (private shares the same gap) follow-up,
+        // not fixed here. Must decline cleanly, never panic on the whole
+        // braced blob standing in for an inner keyword.
+        let mut cd = class();
+        let texts: Vec<String> = ["self", "{ method make {n} { return made } }"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let argv = [tok((0, 4)), str_tok((5, 42))];
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
+        assert!(cd.class_methods.is_empty());
+        assert!(cd.methods.is_empty());
+    }
+
+    #[test]
     fn unrecognised_subcommand_is_silent_noop() {
         let mut cd = class();
         let texts: Vec<String> = ["whatever", "x"].iter().map(|s| (*s).to_string()).collect();
@@ -1911,6 +2136,34 @@ mod tests {
         let argv = [tok((0, 8)), tok((9, 10)), tok((11, 12))];
         apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.variables, vec!["x", "y"]);
+    }
+
+    #[test]
+    fn a_second_variable_subcommand_accumulates_rather_than_replacing() {
+        // TP — issue #923 idx 32 (main audit wave): the real corpus shape
+        // (georgtree_tclopt's ::tclopt::Mpfit) has TWO separate `variable`
+        // statements in the same class body (`variable funct m ftol ...`
+        // then, separately, `variable Pars`). tclsh9.0-verified: both
+        // statements' names are live, simultaneous instance variables —
+        // `variable` inside a class body is additive, never a reset (the
+        // same "always present in every method" declaration a `variable`
+        // command inside a method body itself would make, just issued
+        // once for the whole class). A second statement must not silently
+        // discard the first's names.
+        let mut cd = class();
+        apply_oo_subcommand(
+            tcloo(),
+            &["variable".to_string(), "funct".to_string(), "m".to_string()],
+            &[tok((0, 8)), tok((9, 14)), tok((15, 16))],
+            &mut cd,
+        );
+        apply_oo_subcommand(
+            tcloo(),
+            &["variable".to_string(), "Pars".to_string()],
+            &[tok((20, 28)), tok((29, 33))],
+            &mut cd,
+        );
+        assert_eq!(cd.variables, vec!["funct", "m", "Pars"]);
     }
 
     #[test]

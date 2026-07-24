@@ -1191,6 +1191,20 @@ file; this call falls through to the 'unknown' handler."
             if span.is_empty() {
                 continue;
             }
+            // A `$var` read inside an opaque body-role script that also
+            // defines `var` earlier in the same script reads that script's
+            // *own* local, not the outer variable — so it is not a read of an
+            // undefined outer name. `interp eval PATH { set x 1; expr {$x + 1}
+            // }` runs its body in a child interpreter whose statements are
+            // never flattened into this function's CFG, leaving the whole
+            // script scanned as one `Statement::Barrier` value: the `$x` read
+            // and the body-local `set x` collapse onto that single statement,
+            // so the version-0 chain shows a read with no visible def and
+            // W210 false-fired (issue #923). This is the only place the
+            // body-local write is visible.
+            if barrier_body_locally_sets(stmt_opt, var, self.registry) {
+                continue;
+            }
             // A read-modify-write command (`lappend` / `append`) that
             // auto-creates its target is not a read-before-set: it both
             // reads and defines the variable, creating it from an empty
@@ -2419,6 +2433,46 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
         .collect();
     matches.sort_unstable();
     matches.into_iter().next()
+}
+
+/// True when `stmt` is a `Statement::Barrier` whose body-role argument (an
+/// opaque script run in a separate context — `interp eval PATH { ... }`)
+/// contains a top-level `set VAR ...` for `var`.
+///
+/// Such a body is never flattened into this function's CFG (its target
+/// interpreter is unknowable to static analysis), so its whole script text is
+/// scanned as one statement's value: a `$var` read and the body's own `set
+/// var` collapse onto the same `Statement::Barrier`, and the version-0
+/// def-use chain then shows a read with no visible definition. Recovering the
+/// body's own top-level assignments here is the only place that write is
+/// visible, so a plain write-then-read *inside* the body doesn't false-fire
+/// W210 (issue #923). Deliberately conservative — it suppresses whenever the
+/// body sets the name, a false-negative direction (a genuine read-before-set
+/// entirely within the opaque body is unreported either way, and the outer
+/// interpreter-handle vs. inner-local name clash drops that outer read too),
+/// never a new false positive.
+fn barrier_body_locally_sets(
+    stmt: Option<&crate::ir::Statement>,
+    var: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> bool {
+    use crate::ir::Statement;
+    let (Some(Statement::Barrier { command, args, .. }), Some(registry)) = (stmt, registry) else {
+        return false;
+    };
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    registry
+        .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
+        .into_iter()
+        .filter_map(|idx| args.get(idx))
+        .flat_map(|body_text| crate::segmenter::segment_commands(body_text))
+        .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
+        .filter_map(|seg| {
+            seg.texts
+                .get(1)
+                .map(|w| crate::naming::normalise_var_name(w).to_owned())
+        })
+        .any(|name| name == var)
 }
 
 /// Variables this statement queries *only for

@@ -137,7 +137,15 @@ pub(crate) fn proc_reference_spans(
     analysis
         .command_invocations
         .iter()
-        .filter(|inv| invocation_references_proc(analysis, inv, qname, proc_def))
+        .filter(|inv| {
+            invocation_references_proc(analysis, inv, qname, proc_def)
+                || invocation_references_via_wildcard_import(
+                    analysis,
+                    inv,
+                    &proc_def.name,
+                    &proc_def.qualified_name,
+                )
+        })
         .map(|inv| inv.range)
         .collect()
 }
@@ -166,6 +174,61 @@ pub(crate) fn proc_reference_spans(
 /// from matching `::a::helper`. Qualified spellings and a
 /// resolved-qualified-name hit always count. Comparisons ignore the leading
 /// `::`.
+/// Whether call site `inv` reaches the definition named `def_name` /
+/// `def_qualified` **only** through an in-scope, same-document wildcard
+/// `namespace import NS::*` (issue #923 idx 18) — a case
+/// [`invocation_references_named`] can never catch, since a glob import
+/// creates no real command at any of the call's candidate names for the
+/// analyser's own resolution to have recorded.
+///
+/// Additive to that shared rule, **not** a replacement for it, and
+/// deliberately **not** wired into [`invocation_references_proc`] /
+/// [`invocation_references_class`] themselves: [`proc_reference_spans`] /
+/// [`class_reference_spans`] (Find All References, the code-lens reference
+/// count) OR this in, but `rename::rename_proc` / `rename::rename_class`
+/// call [`invocation_references_proc`] / [`invocation_references_class`]
+/// directly and so never see it — the call names the *local* imported
+/// command, which keeps its own spelling regardless of a rename of the
+/// source, exactly like the cross-document analogue
+/// (`WorkspaceIndex::linked_invocations_of`, used by cross-document
+/// references only, never by cross-document rename's
+/// `invocations_of`-based edit gathering).
+#[must_use]
+fn invocation_references_via_wildcard_import(
+    analysis: &AnalysisResult,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    def_name: &str,
+    def_qualified: &str,
+) -> bool {
+    if inv.name != def_name {
+        return false;
+    }
+    let target_ns = def_qualified
+        .trim_start_matches("::")
+        .rsplit_once("::")
+        .map_or(String::new(), |(ns, _)| ns.to_owned());
+    let call_ns = crate::definition::innermost_namespace_at(
+        &analysis.global_scope,
+        inv.range.start(),
+        &analysis.namespace_overrides,
+    );
+    let imported = analysis.namespace_imports.iter().any(|imp| {
+        imp.ns.trim_start_matches("::") == call_ns
+            && imp
+                .pattern
+                .rsplit_once("::")
+                .is_some_and(|(source_ns, tail)| {
+                    source_ns.trim_start_matches("::") == target_ns
+                        && tcl_syntax::glob::string_match(tail, def_name)
+                })
+    });
+    imported
+        && analysis.namespace_exports.iter().any(|e| {
+            e.ns.trim_start_matches("::") == target_ns
+                && tcl_syntax::glob::string_match(&e.pattern, def_name)
+        })
+}
+
 #[must_use]
 pub(crate) fn invocation_references_named(
     analysis: &AnalysisResult,
@@ -182,11 +245,27 @@ pub(crate) fn invocation_references_named(
         .resolved_qualified_name
         .as_deref()
         .map(|r| r.trim_start_matches("::"));
-    let call_ns =
-        crate::definition::innermost_namespace_at(&analysis.global_scope, inv.range.start());
+    let call_ns = crate::definition::innermost_namespace_at(
+        &analysis.global_scope,
+        inv.range.start(),
+        &analysis.namespace_overrides,
+    );
+    // A user proc installed directly into `::oo::Helpers` (the documented
+    // "TclOO Tricks" idiom — `proc ::oo::Helpers::classvar {...} {...}`,
+    // real corpus usage: nico-robert/ticklecharts) is bare-callable from
+    // every method body in the program via TclOO's own fixed runtime
+    // namespace path — a search member `call_ns` alone can't represent,
+    // since it's a single accumulated namespace string, not a path (issue
+    // #923 idx 56, main audit wave).
+    let call_reaches_target = call_ns == target_ns
+        || (target_ns == "oo::Helpers"
+            && tcl_compiler::analyser::innermost_scope_reaches_oo_helpers(
+                &analysis.global_scope,
+                inv.range.start(),
+            ));
     let simple_ok = inv.name == def_name
         && resolved_norm.is_none_or(|r| r == target_q || r == def_name)
-        && call_ns == target_ns;
+        && call_reaches_target;
     if simple_ok || inv.name == def_qualified || resolved_norm == Some(target_q) {
         return true;
     }
@@ -290,6 +369,17 @@ pub fn references(
 
     // Class references (checked first, before proc names).
     if let Some(out) = class_references(&ctx, &word) {
+        return out;
+    }
+
+    // `<ensemble> <subcommand>` — a static `namespace ensemble create
+    // -map`/`-subcommands` mapping (issue #923 idx 106). Checked before
+    // `proc_references`: real Tcl never independently looks up `make` as a
+    // command (only the pair `widget make` dispatches), so a coincidental
+    // same-named proc elsewhere in the workspace — which `proc_references`'s
+    // namespace-aware call-site resolution could otherwise match — must
+    // never win.
+    if let Some(out) = ensemble_subcommand_references(&ctx) {
         return out;
     }
 
@@ -408,14 +498,24 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
-    let var_name = find_var_at_position(source, line, character)?;
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    let var_def = crate::definition::lookup_var_in_scope_chain(
-        &analysis.global_scope,
-        byte_offset,
-        &var_name,
-        analysis.ns_var_global_fallback(),
-    )?;
+    let var_def = if let Some(var_name) = find_var_at_position(source, line, character) {
+        crate::definition::lookup_var_in_scope_chain(
+            &analysis.global_scope,
+            byte_offset,
+            &var_name,
+            analysis.ns_var_global_fallback(),
+        )?
+    } else {
+        // Bareword declaration / same-cell write site (a `set x`/
+        // `variable x` target, a proc/method parameter, a `catch`
+        // result-var), not a `$`-prefixed read. See
+        // `var_def_at_declaration_offset`'s own doc for why this needs a
+        // dedicated byte-offset span search rather than the ordinary
+        // scope-chain walk (issue #923 differential-audit finding idx 9,
+        // main audit wave).
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, byte_offset)?
+    };
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, var_def.definition_span));
@@ -446,7 +546,15 @@ pub(crate) fn class_reference_spans(
     analysis
         .command_invocations
         .iter()
-        .filter(|inv| invocation_references_class(analysis, inv, qname, class_def))
+        .filter(|inv| {
+            invocation_references_class(analysis, inv, qname, class_def)
+                || invocation_references_via_wildcard_import(
+                    analysis,
+                    inv,
+                    &class_def.name,
+                    &class_def.qualified_name,
+                )
+        })
         .map(|inv| inv.range)
         .collect()
 }
@@ -510,6 +618,51 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // call site could surface an unrelated same-named proc's reference set).
     let (qname, proc_def) =
         crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, None)?;
+    let mut out = Vec::new();
+    if include_declaration {
+        out.push(span_to_range(source, line_index, proc_def.name_span));
+    }
+    for span in proc_reference_spans(analysis, qname, proc_def) {
+        out.push(span_to_range(source, line_index, span));
+    }
+    dedup_ranges(&mut out);
+    Some(out)
+}
+
+/// Build references for an ensemble-subcommand call site: when the cursor
+/// sits on the subcommand word of a `<ensemble> <subcommand>` call and it
+/// resolves through a static `namespace ensemble create -map`/
+/// `-subcommands` mapping, surface the target proc's declaration plus every
+/// call site — the reference twin of `definition()`'s identical check
+/// (issue #923 idx 106). The actual per-call-site matching needs no new
+/// code: `proc_reference_spans` already matches on `resolved_qualified_name`
+/// (not `inv.name == def_name`), and `record_ensemble_subcommand_invocation`
+/// (analyser side) already carries the target's resolved name on every
+/// subcommand call site — so rename / call-hierarchy / code-lens reference
+/// counts pick this up automatically too, no separate changes needed there.
+fn ensemble_subcommand_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
+    let RefCtx {
+        source,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+        ..
+    } = *ctx;
+    let (head, sub, is_dollar) =
+        crate::definition::instance_method_at_cursor(source, line, character)?;
+    if is_dollar {
+        return None;
+    }
+    let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
+    let namespace = crate::definition::namespace_context_at(
+        &analysis.global_scope,
+        cursor_off,
+        &analysis.namespace_overrides,
+    );
+    let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
+    let (qname, proc_def) = analysis.all_procs.get_key_value(target)?;
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
@@ -1183,6 +1336,28 @@ fn scan_my_method_region(
         for (inner_start, inner_end) in nested_dispatch_regions(source, ctx.dialect, cmd) {
             scan_my_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
+        // `switch`'s brace-delimited arm bodies are Tcl scripts too, but
+        // they're neither a `[...]` command substitution (the recursion
+        // above never reaches them) nor reachable any other way — descend
+        // each arm body as its own command-sequence region (issue #923 idx
+        // 63, main audit wave: the corpus's own "assigned `Add`-dispatcher"
+        // idiom keeps its `my AddBarSeries` calls inside exactly this
+        // shape, `switch ... { barSeries { my AddBarSeries {*}$args } }`).
+        // Matches `Analyser::switch_arm_bodies`'s own bare-name check for
+        // which commands own this shape.
+        if cmd.argv.first().is_some_and(|h| {
+            let h_start = h.span.start() as usize;
+            let h_end = h.span.end() as usize;
+            h_start < source.len() && h_end <= source.len() && &source[h_start..h_end] == "switch"
+        }) {
+            let switch_arg_tokens: Vec<tcl_lexer::Token> =
+                cmd.argv.iter().skip(1).copied().collect();
+            for (_, body_tok) in
+                tcl_compiler::analyser::commands::switch_arm_bodies(cmd.args(), &switch_arg_tokens)
+            {
+                scan_my_method_body(ctx, body_tok.span, sink);
+            }
+        }
     }
 }
 
@@ -1356,58 +1531,62 @@ fn find_class_member_references(
     analysis: &AnalysisResult,
     cursor_offset: u32,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        // Methods, classmethods, and properties are independent tables; a
-        // name shared by more than one (rare, but real — `TclOO` never
-        // merges them) disambiguates by which declaration's own span the
-        // cursor sits on rather than a fixed priority — see
-        // `resolve_member_span`.
-        let (kind, _) = resolve_member_span(class_def, word, cursor_offset)?;
-        if matches!(kind, MemberSel::Method | MemberSel::ClassMethod) {
-            let is_classmethod = kind == MemberSel::ClassMethod;
-            // Methods / classmethods: defer to the shared resolver — the *same*
-            // one the code lens counts with — so the peek and the lens can never
-            // drift.  It covers intra-class `my method` dispatch, external
-            // `$obj method` / bare `objcmd method` sites, and the call sites of
-            // any subclass that inherits (does not override) this definition
-            // (which the class-local scan below would miss).
-            let (decl, mut calls) = method_references_for_class(
-                source,
-                dialect,
-                analysis,
-                &class_def.qualified_name,
-                word,
-                is_classmethod,
-            )?;
-            // `next` / `nextto` super-dispatch is a reference / highlight (both
-            // callers are read-only); rename resolves methods elsewhere and
-            // must not see these keyword tokens.
-            calls.extend(method_next_dispatch_spans(
-                analysis,
-                source,
-                dialect,
-                &class_def.qualified_name,
-                word,
-                is_classmethod,
-            ));
-            return Some((decl, calls));
-        }
-        // Properties: defer to the shared resolver — the *same* one the code
-        // lens counts with — so the peek and the lens can never drift, just
-        // like the method / classmethod branch above.
-        return property_references_for_class(
+    let class_def = analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(
+            analysis,
+            cursor_offset,
+        )?)?;
+    // Methods, classmethods, and properties are independent tables; a
+    // name shared by more than one (rare, but real — `TclOO` never
+    // merges them) disambiguates by which declaration's own span the
+    // cursor sits on rather than a fixed priority — see
+    // `resolve_member_span`.
+    let (kind, member_span) = resolve_member_span(class_def, word, cursor_offset)?;
+    if matches!(kind, MemberSel::Method | MemberSel::ClassMethod) {
+        let is_classmethod = kind == MemberSel::ClassMethod;
+        // Methods / classmethods: defer to the shared resolver — the *same*
+        // one the code lens counts with — so the peek and the lens can never
+        // drift.  It covers intra-class `my method` dispatch, external
+        // `$obj method` / bare `objcmd method` sites, and the call sites of
+        // any subclass that inherits (does not override) this definition
+        // (which the class-local scan below would miss).
+        let (decl, mut calls) = method_references_for_class(
             source,
             dialect,
             analysis,
             &class_def.qualified_name,
             word,
-        );
+            is_classmethod,
+        )?;
+        // `next` / `nextto` super-dispatch is a reference / highlight (both
+        // callers are read-only); rename resolves methods elsewhere and
+        // must not see these keyword tokens.
+        calls.extend(method_next_dispatch_spans(
+            analysis,
+            source,
+            dialect,
+            &class_def.qualified_name,
+            word,
+            is_classmethod,
+        ));
+        return Some((decl, calls));
     }
-    None
+    // Properties: no `$obj prop` dispatch and no inheritance model, so a
+    // class-local `my <prop>` scan is the whole story — the same
+    // intra-class `my <name>` matcher [`scan_my_method_sites`] uses for
+    // methods (recursing into `[...]` substitutions and same-frame
+    // control-flow / `eval` bodies), just with no declaration span to
+    // skip: a property's declaration is `property <name>` in the
+    // definer body, never itself a `my <name>` call site.
+    let call_spans = scan_my_method_sites(
+        source,
+        dialect,
+        &collect_member_bodies(class_def),
+        word,
+        None,
+    );
+    Some((member_span, call_spans))
 }
 
 /// Find every external `$v method` / `[$v method]` call site
@@ -1539,19 +1718,33 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     // call to this proc.  The dispatch shape is registry data
     // (`DefinerFamily`), not something to infer from the shared storage
     // bucket.
+    //
+    // Unlike `ooutil`'s `classmethod` keyword (which propagates to a
+    // subclass's own bound command via its `Delegate`-mixin machinery —
+    // confirmed against tclsh 9.0.4/8.6), a plain stock-`TclOO` `self
+    // method` is visible ONLY on the exact class that declared it, so the
+    // inheriting-subclass half of this loop is skipped for those
+    // (`MethodDef::is_self_method`, issue #923 idx 120).
     if is_classmethod
-        && analysis
+        && let Some(cq_method) = analysis
             .all_classes
             .get(class_q)
-            .is_some_and(|cd| cd.class_methods.contains_key(method) && !is_itcl_class(cd, dialect))
+            .filter(|cd| !is_itcl_class(cd, dialect))
+            .and_then(|cd| cd.class_methods.get(method))
     {
-        for (other_q, other_cd) in &analysis.all_classes {
-            if (other_q.as_str() == class_q
-                || hierarchy.method_target(other_q, method) == Some(class_q))
-                && !is_itcl_class(other_cd, dialect)
-            {
-                cmd_set.insert(other_cd.name.as_str());
-                cmd_set.insert(other_cd.qualified_name.as_str());
+        if let Some(cd) = analysis.all_classes.get(class_q) {
+            cmd_set.insert(cd.name.as_str());
+            cmd_set.insert(cd.qualified_name.as_str());
+        }
+        if !cq_method.is_self_method {
+            for (other_q, other_cd) in &analysis.all_classes {
+                if other_q.as_str() != class_q
+                    && hierarchy.method_target(other_q, method) == Some(class_q)
+                    && !is_itcl_class(other_cd, dialect)
+                {
+                    cmd_set.insert(other_cd.name.as_str());
+                    cmd_set.insert(other_cd.qualified_name.as_str());
+                }
             }
         }
     }
@@ -2174,6 +2367,36 @@ mod tests {
     }
 
     #[test]
+    fn references_reach_the_call_site_from_the_stale_original_in_a_foreach_rename_reinstall_idiom()
+    {
+        // TP — issue #923 idx 86, mirroring the same-file precedent set by
+        // `references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document`
+        // (idx 31): cursor on a superseded declaration resolves by *name*,
+        // landing on whichever declaration currently wins under that name
+        // — not the stale span the cursor happened to start on. Here the
+        // "shadowing" declaration is the `tk/library/accessibility.tcl`
+        // rename-and-reinstall idiom's own per-element wrapper (issue #923
+        // idx 86), reached only by simulating each literal `foreach`
+        // element rather than by a second textual `proc` statement.
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n\
+                   set r1 [button .b1]\n\
+                   set r2 [entry .e1]\n";
+        let analysis = analyse(src);
+        // Cursor on the STALE original `proc button` declaration (line 0).
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&5), "winning wrapper decl missing: {refs:?}");
+        assert!(lines.contains(&8), "call site missing: {refs:?}");
+    }
+
+    #[test]
     fn references_to_proc_include_decl_and_calls() {
         let src = "proc greet {} {}\ngreet\ngreet\n";
         let analysis = analyse(src);
@@ -2182,6 +2405,354 @@ mod tests {
         assert!(refs.len() >= 2, "expected decl + call sites: {refs:?}");
         // First entry is the declaration on line 0.
         assert_eq!(refs[0].start_line, 0);
+    }
+
+    #[test]
+    fn references_include_wildcard_imported_bareword_call_same_document() {
+        // TP (same-document) — issue #923 idx 18: a wildcard `namespace
+        // import ::Foo::*` reaches an exported proc via a bare call with no
+        // real command recorded at any of the call's own candidate names,
+        // so `invocation_references_named`'s ordinary rule can never catch
+        // it; `proc_reference_spans` ORs in
+        // `invocation_references_via_wildcard_import` for exactly this
+        // case.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
+        let analysis = analyse(src);
+        // Cursor on the `bar` declaration (line 1, col 9).
+        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&5),
+            "wildcard-imported bareword call site missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_include_bare_call_to_a_proc_installed_into_oo_helpers() {
+        // Issue #923 idx 56 (main audit wave, high severity): a proc
+        // installed directly into `::oo::Helpers` (the documented "TclOO
+        // Tricks" idiom — nico-robert/ticklecharts installs `classvar` /
+        // `callback` this way) becomes bare-callable from every TclOO
+        // method body in the program via TclOO's own fixed runtime
+        // namespace path. tclsh9.0/8.6 both prove the bare `classvar hits`
+        // call genuinely dispatches to `::oo::Helpers::classvar` —
+        // find-references must reach it, not just the declaration.
+        let src = "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `classvar` declaration (line 0, col 20).
+        let refs = references(src, "tcl", 0, 20, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&9),
+            "the bare classvar call site inside the method body is missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_exclude_a_top_level_bare_call_with_the_same_name_as_an_oo_helpers_proc() {
+        // FP guard (issue #923 idx 56): a bare call outside any TclOO
+        // method body must not be treated as reaching a proc installed in
+        // `::oo::Helpers` — real tclsh raises "invalid command name" there
+        // (`::oo::Helpers` is on a *method body's* runtime namespace path
+        // only, never the global one) — only a call genuinely inside a
+        // method body's own runtime namespace path does.
+        let src = "proc ::oo::Helpers::classvar {name} {}\nclassvar hits\n";
+        let analysis = analyse(src);
+        // Cursor on the `::oo::Helpers::classvar` declaration (line 0, col 20).
+        let refs = references(src, "tcl", 0, 20, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(
+            lines,
+            vec![0],
+            "a top-level bare call outside any method body must not be linked: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_from_in_proc_global_alias_reach_the_callers_canonical_set() {
+        // Issue #923 idx 68 (main audit wave, high severity, pix corpus):
+        // reduces the real `isEqual`/`tolComp` shape from
+        // nico-robert/pix's test/data_b64.test — a proc aliases a top-level
+        // cell via `global`, and the caller overrides it via a plain `set
+        // ::name` before invoking the proc. tclsh proves `tolComp` (via
+        // `global`) and `::tolComp` (the caller's `set`) are the identical
+        // storage cell. Querying from the in-proc `$tolComp` read must reach
+        // the caller's `set ::tolComp` — before this fix, `collect_alias_spans`
+        // only ever found *other aliases* of the same target, never the
+        // target's own canonical (non-aliased) declaration.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the `$tolComp` read inside the proc (line 2, col 14).
+        let refs = references(src, "tcl", 2, 14, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&1),
+            "the `global tolComp` decl itself must still be present: {refs:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the in-proc $tolComp read must still be present: {refs:?}"
+        );
+        assert!(
+            lines.contains(&4),
+            "the caller's canonical `set ::tolComp 0.05` must now be reached: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_from_the_callers_canonical_set_reach_the_in_proc_global_alias() {
+        // The reverse direction of the test above (issue #923 idx 68): before
+        // this fix, querying from the caller's own `set ::tolComp` returned
+        // only its own 2 spans (decl + any top-level reads), missing every
+        // in-proc `global tolComp` occurrence — since a plain `set` has no
+        // `link_target` of its own to search alias records by.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the `set ::tolComp` declaration (line 4, col 8, inside
+        // "tolComp" — `set ::tolComp 0.05` has "tolComp" starting at col 6).
+        let refs = references(src, "tcl", 4, 8, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&4),
+            "the caller's own decl must still be present: {refs:?}"
+        );
+        assert!(
+            lines.contains(&1),
+            "the in-proc `global tolComp` decl must now be reached: {refs:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the in-proc $tolComp read must now be reached: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_unify_global_alias_and_canonical_set_when_the_set_is_unqualified() {
+        // Issue #923 idx 68's second repro: an *unqualified* `set tolComp
+        // 0.05` at global scope reproduces the identical split, ruling out
+        // the `::`-prefix as the sole cause — `handle_set_command` never
+        // calls `set_var_link_target` regardless of how the name is spelled,
+        // so the gap (and the fix) is the same either way.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the unqualified `set tolComp` declaration (line 4, col 6).
+        let refs = references(src, "tcl", 4, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&4), "the caller's own decl: {refs:?}");
+        assert!(
+            lines.contains(&1),
+            "the in-proc `global tolComp` decl must be reached even from an unqualified set: {refs:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the in-proc $tolComp read must be reached even from an unqualified set: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_do_not_conflate_unrelated_same_named_cells_in_different_namespaces() {
+        // FP guard (issue #923 idx 68): the new canonical-cell fold-in must
+        // still be exact-qualified-name matched — two unrelated top-level
+        // `tolComp` cells living in different namespaces, neither aliasing
+        // the other, must never be unioned together just because they share
+        // a bare name.
+        let src = "namespace eval A {\n    variable tolComp 1\n}\nnamespace eval B {\n    variable tolComp 2\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `A::tolComp`'s declaration (line 1, col 13).
+        let refs = references(src, "tcl", 1, 13, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(
+            lines,
+            vec![1],
+            "an unrelated same-named cell in a different namespace must not be pulled in: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_for_a_multi_list_foreach_second_varlist_now_reach_every_use() {
+        // Issue #923 idx 70 (main audit wave, high severity, pix corpus):
+        // before the `handle_foreach_command` fix, the first loop's own
+        // `name` (the second varList of `foreach dirName {...} name {...}
+        // {...}`) was never bound at all, so `references()` from *any* use
+        // inside the first loop's body fell through to whatever *other*
+        // same-named `VarDef` existed anywhere in the flat top-level scope
+        // — here, a second, later, textually unrelated `foreach name
+        // {...}` — returning only that second loop's own 2 spans and
+        // omitting every actual first-loop span, including the query site
+        // itself. `foreach` (like `if`/`set`) introduces no new analyser
+        // scope (correctly modelling Tcl's lack of block scoping), so at
+        // the top level these two loops' `name` genuinely share one global
+        // storage cell — same as any two sequential top-level `set name
+        // ...` statements — so the fully correct fixed reference set spans
+        // *both* loops, not just the first: the bug was under-reporting
+        // (missing the first loop's spans entirely), not over-reporting.
+        let src = "foreach dirName {src src {src core}} name {alpha beta gamma} {\n    puts \"$dirName $name\"\n    if {$name eq \"pixutils\"} { puts skip }\n}\nforeach name {examples color changes} {\n    puts $name.ruff\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the first loop's own `$name` read (line 1, col 21) —
+        // the exact query shape the finding's own repro used.
+        let refs = references(src, "tcl", 1, 21, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(
+            lines.contains(&0),
+            "the first loop's own `name` decl (line 0) must no longer be missing: {refs:?}"
+        );
+        assert!(
+            lines.contains(&1),
+            "the query site itself (line 1): {refs:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the first loop's other in-body use (line 2): {refs:?}"
+        );
+        assert!(
+            lines.contains(&4) && lines.contains(&5),
+            "the second loop shares the same global cell (no block scoping) so its spans stay unified too: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_do_not_include_unexported_sibling_wildcard_call_same_document() {
+        // FP guard — the unexported sibling must not surface as a reference
+        // through the wildcard import either.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nother\n";
+        let analysis = analyse(src);
+        // Cursor on the `other` declaration (line 2, col 9).
+        let refs = references(src, "tcl", 2, 9, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(lines, vec![2], "only the declaration itself: {refs:?}");
+    }
+
+    #[test]
+    fn references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document() {
+        // TN-shaped regression guard — issue #923 idx 31 (main audit wave):
+        // this same-document path was already correct before that fix
+        // (`resolve_proc_target_at`'s own fallback resolves the word text
+        // via ordinary namespace lookup when the direct declaration-span
+        // match misses, landing on the current winner regardless of which
+        // occurrence's span the cursor sits on); pinned here so the
+        // cross-document fix landing alongside it never regresses this
+        // already-working case.
+        let src = "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\nList2array x\n";
+        let analysis = analyse(src);
+        // Cursor on the SHADOWED (first) declaration (line 0, col 6).
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "winning decl missing: {refs:?}");
+        assert!(lines.contains(&2), "call site missing: {refs:?}");
+    }
+
+    #[test]
+    fn references_include_the_renames_own_old_word() {
+        // TP — issue #923 idx 39 (main audit wave): `rename OLD NEW`'s own
+        // `OLD` word is a genuine reference to the proc it names
+        // (tclsh9.0/8.6-verified: `rename` requires `OLD` to exist,
+        // "can't rename ...: command doesn't exist" otherwise) — the real
+        // corpus shape is a tcltest `-setup`/`-body`/`-cleanup` idiom
+        // (georgtree_tclopt test/arbitaryTest.tcl:46/113's `proc gaussfunc`
+        // / `rename gaussfunc ""`). Go-to-definition/hover already resolved
+        // this token (independent cursor-token walk); `references` missed
+        // it entirely, so a rename built on the same list left this
+        // occurrence pointing at a now-nonexistent command — a previously
+        // passing tcltest crashes with "can't delete ...: command doesn't
+        // exist" purely from applying the LSP's own rename edit.
+        let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(lines.contains(&1), "call site missing: {refs:?}");
+        assert!(
+            lines.contains(&2),
+            "rename's own OLD word missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_do_not_include_the_renames_new_word() {
+        // FP guard — `rename OLD NEW`'s `NEW` word is not itself a
+        // reference to `OLD`'s proc; only `OLD` is. A bare later call to
+        // `NEW` reaches the target through the rename *link* (a
+        // cross-document concern — see `workspace_index.rs`'s
+        // `rename_new_name_call_site_references_the_old_command`), not
+        // through this same-document text-reference scan.
+        let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nrename helperFunc renamedFunc\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(lines, vec![0, 1], "{refs:?}");
+    }
+
+    #[test]
+    fn references_include_unbraced_if_body_bareword_call() {
+        // TP — differential-audit finding idx 61 (main audit wave,
+        // nico-robert_ticklecharts): `if {$cond} mymod::foo` (an unbraced
+        // if-then body — a single, statically-known bareword, valid Tcl
+        // and used ~50 times in the real corpus this way) was invisible
+        // to `command_invocations` entirely, since `analyse_body` only
+        // ever recurses a braced (`Str`-kind) body. `references` from the
+        // declaration silently missed it — go-to-definition and hover
+        // still found it (they resolve independently off the cursor
+        // token), producing a dangerous asymmetry: a `rename` built on
+        // this same list would silently miss rewriting the call site.
+        let src = "proc foo {} { return 1 }\nif {1} foo\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&1),
+            "unbraced if-body call site missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_include_unbraced_uplevel_body_bareword_call() {
+        // TP — same root cause, the finding's other confirmed shape:
+        // `uplevel 1 mymod::qux` (unbraced). `handle_uplevel_command`
+        // itself only handles a braced body and otherwise falls through
+        // to the same generic `ArgRole::Body` dispatch this fix covers.
+        let src = "proc qux {} { return 1 }\nproc caller {} { uplevel 1 qux }\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&1),
+            "unbraced uplevel-body call site missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_resolve_a_constant_var_body_through_its_real_value_not_its_literal_text() {
+        // Was an FP guard against treating `$cb` as a static call to a
+        // command literally *named* `$cb` — that concern still holds (this
+        // test's own name reflects it), but real tclsh9.0/8.6-verified
+        // behavior is that `if {1} $cb` (a bare-`$var` `if`-body, evaluated
+        // as a script exactly like `eval`/`uplevel`'s bodies) genuinely
+        // calls `foo` when `$cb` holds that constant value — printing
+        // "CALLED" for a `proc foo {} { puts CALLED }`. Issue #923 idx 94
+        // wires up exactly this dispatch (`dispatch_one_body_argument`'s
+        // `TokenType::Var` branch, generic across every `ArgRole::Body`
+        // argument, not just `eval`/`uplevel`'s), so `foo`'s own reference
+        // set correctly grows to include this call site — the failure mode
+        // this test now guards is a *literal* `$cb`-named command
+        // reference ever appearing, which never happens (there is no such
+        // command in `all_procs` to resolve to).
+        let src = "proc foo {} { return 1 }\nset cb foo\nif {1} $cb\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&2),
+            "`if {{1}} $cb` really does dispatch to `foo` (tclsh9.0/8.6-verified) \
+             and must be found: {refs:?}"
+        );
     }
 
     #[test]
@@ -2198,6 +2769,37 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(references(src, "tcl", 0, 6, &analysis, true).is_empty());
+    }
+
+    #[test]
+    fn ensemble_subcommand_references_include_decl_and_both_call_sites() {
+        // TP — issue #923 idx 106: references on an ensemble subcommand call
+        // site must return the target proc's declaration plus every call
+        // site — proves the automatic pickup via
+        // `proc_reference_spans`/`invocation_references_named`'s
+        // `resolved_qualified_name` matching, not just a single hardcoded
+        // case.
+        let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\nputs [e foo baz]\n";
+        let analysis = analyse(src);
+        // Cursor on "foo" in the first call site (0-based line 7, col 8).
+        let refs = references(src, "tcl", 7, 8, &analysis, true);
+        // decl + the `-map`'s own target-text reference (line 2, pre-existing
+        // — needed so renaming the proc also updates the map entry) + both
+        // nested-`[...]` call sites.
+        assert_eq!(
+            refs.len(),
+            4,
+            "expected decl + map entry + 2 call sites: {refs:?}"
+        );
+        assert_eq!(refs[0].start_line, 5, "declaration: {refs:?}");
+        assert!(
+            refs.iter().any(|r| r.start_line == 2),
+            "expected the -map target-text reference: {refs:?}",
+        );
+        assert!(
+            refs.iter().any(|r| r.start_line == 7) && refs.iter().any(|r| r.start_line == 8),
+            "expected both call sites: {refs:?}",
+        );
     }
 
     #[test]
@@ -2345,6 +2947,42 @@ mod tests {
         // declaration should land in the result list.
         assert!(!refs.is_empty(), "{refs:?}");
         assert!(refs.iter().any(|r| r.start_line == 0));
+    }
+
+    #[test]
+    fn references_from_proc_param_bareword_declaration_include_every_use() {
+        // TP — differential-audit finding idx 9 (main audit wave): a cursor
+        // on a proc parameter's own bareword name (not a `$`-prefixed
+        // read) previously returned zero references, even though the same
+        // query from any `$name` read resolved the full set.
+        let src = "proc greet {name} { return $name }\ngreet hi\n";
+        let analysis = analyse(src);
+        // Cursor on `name` inside the parameter list (col 12-16).
+        let refs = references(src, "tcl", 0, 13, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&0) && refs.len() >= 2,
+            "read missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_from_catch_resultvar_bareword_include_the_original_declaration() {
+        // TP — the finding's other confirmed shape: a `catch script name`
+        // result-var reuses an existing variable; a cursor placed on its
+        // own bareword token must still surface the full reference set,
+        // including the original declaration.
+        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        let refs = references(src, "tcl", 1, 17, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "original decl missing: {refs:?}");
+        assert!(
+            lines.contains(&2),
+            "the later `$name` read missing: {refs:?}"
+        );
     }
 
     // read/write distinction
@@ -2521,6 +3159,39 @@ mod tests {
     // class-member references
 
     #[test]
+    fn idx63_two_block_class_my_dispatch_already_fixed_by_idx52() {
+        // Issue #923 idx 63 (main audit wave, high severity): the finding's
+        // own primary, corpus-verified claim — "go-to-definition AND
+        // find-references both return zero results" for a `my
+        // methodName` call when the class is created via `oo::class
+        // create` with no body and every method (including the call site
+        // itself) is added via a *separate*, later `oo::define ClassName
+        // { ... }` block (the finding's own minimal repro shape, matching
+        // the real corpus's `ticklecharts::chart`). This is the exact
+        // root cause idx 52 already fixed (`class_body_spans` /
+        // `enclosing_class_at`) — verified here independently, pinned as
+        // a permanent regression using idx 63's own repro shape. No
+        // production changes in this commit for this part of the finding.
+        let src = "oo::class create foo::widget {\n    variable _x\n    constructor {} { set _x 0 }\n}\noo::define foo::widget {\n    method bar {} { return \"bar-value\" }\n    method baz {} { return [my bar] }\n}\nputs [[foo::widget new] baz]\n";
+        let analysis = analyse(src);
+        // `definition` at the `my bar` call site (line 6, col 31).
+        let locs = crate::definition::definition(src, 6, 31, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 5,
+            "must resolve to method bar's declaration"
+        );
+        // `references` from `bar`'s declaration (line 5, col 11).
+        let refs = references(src, "tcl", 5, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&5), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&6),
+            "the my bar call site must be reachable from the declaration: {refs:?}"
+        );
+    }
+
+    #[test]
     fn references_for_method_includes_decl_and_call_sites() {
         // Intra-class dispatch uses `my <method>` (the dispatch form tclsh
         // accepts; a bare `greet` head errors with "invalid command name", so it
@@ -2530,6 +3201,30 @@ mod tests {
         // Cursor on the `greet` declaration (line 1, col 11).
         let refs = references(src, "tcl", 1, 11, &analysis, true);
         assert!(refs.len() >= 3, "expected ≥3 refs; got {refs:?}");
+    }
+
+    #[test]
+    fn references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm() {
+        // Issue #923 idx 63 (main audit wave, high severity): a `my
+        // methodName` call written inside a `switch` arm body is a
+        // genuine, statically-known call site (tclsh9.0/8.6-verified) —
+        // the real corpus shape (`ticklecharts::chart`'s `Add` dispatcher:
+        // `switch ... { barSeries { my AddBarSeries {*}$args } ... }`).
+        // `scan_my_method_region`'s `[...]`-substitution recursion never
+        // reaches a switch arm's braced body (it isn't a command
+        // substitution), so this was invisible to find-references even
+        // though go-to-definition (an independent cursor-token walk)
+        // already resolved it.
+        let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `bar` declaration (line 1, col 11).
+        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&4),
+            "the my bar call site inside the switch arm is missing: {refs:?}"
+        );
     }
 
     #[test]
@@ -2553,6 +3248,27 @@ mod tests {
         let texts = h.iter().filter(|(_, k)| *k == HighlightKind::Text).count();
         assert_eq!(writes, 0, "{h:?}");
         assert_eq!(texts, 3, "{h:?}");
+    }
+
+    #[test]
+    fn references_from_decl_reach_my_dispatch_when_class_extended_via_separate_oo_define() {
+        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
+        // created via `oo::class create` with no body; every method
+        // (including the `my Helper` call site) is added via a *separate*,
+        // later `oo::define Gadget { ... }` block — the real corpus shape
+        // (`ticklecharts::chart`). References from the `Helper` declaration
+        // must reach the `my Helper` call site living in that separate
+        // block, not silently return nothing.
+        let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `Helper` declaration (line 4, col 11).
+        let refs = references(src, "tcl", 4, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&4), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&5),
+            "the my Helper call site inside the separate oo::define block is missing: {refs:?}"
+        );
     }
 
     // external $obj method sites
@@ -2619,6 +3335,82 @@ mod tests {
         );
     }
 
+    // class-command dispatch (issue #923 idx 120): `CLASS method` for a
+    // classmethod / `self method`, a receiver set entirely separate from
+    // `$obj method` / `NAME method` instance dispatch above.
+
+    #[test]
+    fn find_obj_method_call_sites_matches_class_command_and_inheriting_subclass() {
+        // TP — both the finding's own repro (`ActiveRecord find`) and its
+        // inherited-via-superclass sibling (`Table find`, ooutil's
+        // `classmethod` propagates to a subclass's own bound command).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        let sites =
+            find_obj_method_call_sites(src, "tcl", &analysis, "::ActiveRecord", "find", true);
+        assert_eq!(sites.len(), 2, "{sites:?}");
+        for s in &sites {
+            assert_eq!(
+                &src[s.start() as usize..s.end() as usize],
+                "find",
+                "{sites:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn find_obj_method_call_sites_excludes_non_inheriting_self_method_subclass() {
+        // TN — the references-level precision guard mirroring
+        // `self_method_not_inherited_by_a_non_overriding_subclass` in
+        // definition.rs: unlike `ooutil`'s `classmethod`, a plain `self
+        // method` is not inherited, so `Gadget make` must not be counted
+        // as a call site of `Widget`'s `make`.
+        let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\noo::class create Gadget {\n    superclass Widget\n}\nWidget make foo\nGadget make foo\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Widget", "make", true);
+        assert_eq!(sites.len(), 1, "{sites:?}");
+        assert_eq!(
+            &src[sites[0].start() as usize..sites[0].end() as usize],
+            "make",
+            "{sites:?}"
+        );
+    }
+
+    #[test]
+    fn references_enumerates_class_command_declaration_and_both_call_sites() {
+        // TP — the full end-to-end peek from the finding's own repro:
+        // declaration, the inherited-subclass call, and the
+        // declaring-class's own call — three references, no duplicates,
+        // none missed (requires Part 3 in addition to Part 2: Part 2 alone
+        // only fixes single-cursor lookups, not this whole-document scan).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        // Cursor on the declaration (line 1, `find` at col 16).
+        let refs = references(src, "tcl", 1, 16, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(refs.len(), 3, "{refs:?}");
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(lines.contains(&6), "Table find call missing: {refs:?}");
+        assert!(
+            lines.contains(&7),
+            "ActiveRecord find call missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_from_cursor_on_class_command_call_site() {
+        // Symmetry with `references_from_cursor_on_bare_obj_command_call_site`:
+        // invoking Find All References with the cursor ON the class-command
+        // call site (not the declaration) must resolve identically.
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        // Cursor on `find` in `ActiveRecord find foo bar` (line 3, col 13).
+        let refs = references(src, "tcl", 3, 13, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(lines.contains(&3), "call site missing: {refs:?}");
+    }
+
     #[test]
     fn references_include_bare_created_instance_command_site() {
         // Full peek: cursor on the `method bark` decl surfaces the bare
@@ -2655,6 +3447,39 @@ mod tests {
         assert!(
             sites.is_empty(),
             "bare var receiver wrongly matched: {sites:?}"
+        );
+    }
+
+    // tcl::OptProc — the `opt` package's automatic-option-parsing proc
+    // definer (issue #923 idx 90): the missing analyser hook previously left
+    // the call site unreachable from the declaration.
+
+    #[test]
+    fn references_from_opt_proc_declaration_reach_the_call_site() {
+        let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
+        let analysis = analyse(src);
+        // Line 0 — cursor on "greet" right after `::tcl::OptProc` (col 15).
+        let refs = references(src, "tcl", 0, 15, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(lines.contains(&1), "call site missing: {refs:?}");
+    }
+
+    #[test]
+    fn references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var() {
+        // Issue #923 idx 94: the finding's own minimal repro — `eval $cmdD`
+        // where `$cmdD` is built via `[list greetD World]` — previously
+        // returned only the declaration; the call site living inside
+        // `eval $cmdD` was invisible.
+        let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
+        let analysis = analyse(src);
+        // Line 0 — cursor on `greetD`'s declaration name (col 6).
+        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&1),
+            "the `greetD` word inside `[list greetD World]` must be reachable too: {refs:?}"
         );
     }
 }

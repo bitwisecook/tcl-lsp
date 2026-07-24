@@ -646,6 +646,7 @@ mod tests {
                     name_span: span(),
                     body_span: span(),
                     kind: "method".to_string(),
+                    is_self_method: false,
                     visibility: "public".to_string(),
                     doc: String::new(),
                     forward_target: None,
@@ -831,6 +832,7 @@ mod tests {
             name_span: span(),
             body_span,
             kind: "constructor".to_string(),
+            is_self_method: false,
             visibility: "public".to_string(),
             doc: String::new(),
             forward_target: None,
@@ -999,6 +1001,7 @@ mod tests {
             visibility: "public".to_string(),
             doc: String::new(),
             forward_target: None,
+            is_self_method: false,
         });
         cd
     }

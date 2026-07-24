@@ -423,9 +423,17 @@ impl Analyser {
         self.result.command_aliases.extend(r.command_aliases);
         self.result.alias_offsets.extend(r.alias_offsets);
         self.result.renamed_commands.extend(r.renamed_commands);
-        self.result
-            .rename_target_spans
-            .extend(r.rename_target_spans);
+        self.result.rename_offsets.extend(r.rename_offsets);
+        // Per-ensemble union, not a flat `.extend()` — the outer key is the
+        // ensemble's own name, and a flat extend would replace one grafted
+        // body's whole inner subcommand map instead of merging into it.
+        for (ensemble, subs) in r.ensemble_subcommand_targets {
+            self.result
+                .ensemble_subcommand_targets
+                .entry(ensemble)
+                .or_default()
+                .extend(subs);
+        }
         // Per-object methods accumulate per receiver name across bodies —
         // the binding-identity consumer scopes them by objdefine site
         // (issue #945 fault 5), so records from different procs coexist.
@@ -447,8 +455,16 @@ impl Analyser {
         self.result.package_provides.extend(r.package_provides);
         self.result.source_targets.extend(r.source_targets);
         self.result.namespace_imports.extend(r.namespace_imports);
+        self.result.namespace_exports.extend(r.namespace_exports);
+        self.result
+            .proc_declaration_sites
+            .extend(r.proc_declaration_sites);
+        self.result.class_body_spans.extend(r.class_body_spans);
         self.result.auto_path_entries.extend(r.auto_path_entries);
         self.result.regex_patterns.extend(r.regex_patterns);
+        self.result
+            .namespace_overrides
+            .extend(r.namespace_overrides);
         self.result.has_dynamic_providers |= r.has_dynamic_providers;
         if self.result.unknown_proc_info.is_none() {
             self.result.unknown_proc_info = r.unknown_proc_info;
@@ -869,10 +885,19 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     for x in &mut r.namespace_imports {
         x.range = shift(x.range, d);
     }
-    for sp in r.rename_target_spans.values_mut() {
-        *sp = shift(*sp, d);
+    for x in &mut r.namespace_exports {
+        x.range = shift(x.range, d);
+    }
+    for (_, span) in &mut r.proc_declaration_sites {
+        *span = shift(*span, d);
+    }
+    for (_, span) in &mut r.class_body_spans {
+        *span = shift(*span, d);
     }
     for off in r.alias_offsets.values_mut() {
+        *off += d;
+    }
+    for off in r.rename_offsets.values_mut() {
         *off += d;
     }
     for records in r.object_methods.values_mut() {
@@ -887,6 +912,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for x in &mut r.regex_patterns {
         x.range = shift(x.range, d);
+    }
+    for (span, _) in &mut r.namespace_overrides {
+        *span = shift(*span, d);
     }
     if !r.suppressed_lines.is_empty() {
         let old = std::mem::take(&mut r.suppressed_lines);
@@ -1004,6 +1032,16 @@ fn body_needs_enclosing_context(body_text: &str) -> bool {
             if w == "namespace" && words.clone().next() == Some("import") {
                 return true;
             }
+            // Symmetric with the `import` guard above: a `namespace export`
+            // *inside a body* leaks into the whole-file walk's global
+            // `namespace_exports` the same way, and its `-clear` variant only
+            // makes sense relative to the shell's already-recorded entries —
+            // book-keeping the isolated per-item walk can't reproduce from
+            // this body alone. Rare (export declarations are normally
+            // top-level), so a fallback here costs only a redundant rebuild.
+            if w == "namespace" && words.clone().next() == Some("export") {
+                return true;
+            }
         }
     }
     false
@@ -1092,6 +1130,31 @@ mod tests {
         // paths (a body-local import falls back — see
         // `namespace_import_inside_body_falls_back`).
         eq("namespace import ::acme::widgets::render_*\nrender_box 10\nfrobnicate 1\n");
+    }
+
+    #[test]
+    fn wildcard_namespace_import_gated_by_export_matches() {
+        // The headline shape (issue #923 idx 18) exercised through the
+        // incremental/whole-file equivalence harness: `namespace export`
+        // gates which commands a wildcard import can resolve
+        // (`result.namespace_exports`), recorded identically by the shell
+        // pass on both paths.
+        eq("namespace eval Foo {\n    proc bar {} { return 1 }\n    \
+             proc other {} { return 2 }\n    namespace export bar\n}\n\
+             namespace import ::Foo::*\nbar\nother\n");
+    }
+
+    #[test]
+    fn namespace_export_inside_body_falls_back() {
+        // A `namespace export` buried in a proc body leaks into the
+        // whole-file walk's global export set (reached by a later
+        // sibling's wildcard import); the per-item decomposition can't
+        // reproduce that cross-body effect from the isolated body alone,
+        // so it falls back to a full rebuild — still byte-identical. See
+        // `body_needs_enclosing_context`.
+        eq("namespace eval Foo {\n    proc bar {} { return 1 }\n    \
+             proc setup {} { namespace export bar }\n}\n\
+             namespace import ::Foo::*\nbar\n");
     }
 
     #[test]

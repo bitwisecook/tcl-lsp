@@ -235,6 +235,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Specifies which commands are exported from a namespace.",
         synopsis: "namespace export ?-clear? ?pattern pattern ...?",
         return_type: Some(TclType::List),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceExport),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -4015,6 +4015,29 @@ impl Backend {
                 .seed_mapped_symbols(uri, class_def.qualified_name.clone())
                 .await;
         }
+        // A proc declared twice, verbatim, in the same document (plain
+        // Tcl's own "last redefinition wins" semantics) — the cursor may
+        // sit on the *shadowed* (non-winning) declaration's own name
+        // token, which `all_procs` above can never match: it is a map
+        // keyed by qualified name, so only the winner's span survives a
+        // duplicate insert. `proc_declaration_sites` is the flat,
+        // never-deduplicated companion recording every declaration site;
+        // finding the cursor there still means "this token declares
+        // qualified name X", so resolve through `all_procs` to whichever
+        // definition currently wins for X — never the shadowed span
+        // itself (issue #923 idx 31, main audit wave: a rename or
+        // find-references issued from the shadowed declaration must reach
+        // the same cross-file callers as one issued from the winning
+        // declaration or a call site, or a rename silently corrupts the
+        // program by leaving callers bound to the dead definition).
+        if let Some((qualified, _)) = analysis
+            .proc_declaration_sites
+            .iter()
+            .find(|(_, span)| covers(*span))
+            && analysis.all_procs.contains_key(qualified)
+        {
+            return self.seed_mapped_symbols(uri, qualified.clone()).await;
+        }
 
         let Some(inv) = analysis
             .command_invocations
@@ -4056,6 +4079,23 @@ impl Backend {
                 // that command's.
                 return vec![index.resolve_command_target(cand)];
             }
+            // The exact-candidate loop above only ever matches a *real*
+            // command (or an exact `namespace import`'s `WorkspaceCommandLink`)
+            // — a wildcard `namespace import NS::*` introduces no fixed
+            // linked name, so it never appears there. Try it once more,
+            // separately: does an in-scope glob import (`namespace import`
+            // binds to the namespace, not the file it was written in, so
+            // this is not restricted to imports recorded in this document)
+            // whose source namespace actually exported the name cover this
+            // call? (issue #923 idx 18; the same gate
+            // `definition::resolve_called_proc` / `resolve_class_target_at`
+            // already apply in-document, extended here to a source
+            // namespace defined in another file.)
+            if let Some(target) =
+                index.resolve_wildcard_import(&inv.name, &inv.resolution_candidates)
+            {
+                return vec![target];
+            }
         }
         // Autoload tier (M8): the command resolves nowhere in the open
         // workspace.  Ask the auto-load / package database, merging the
@@ -4080,6 +4120,14 @@ impl Backend {
     /// definition sites in other documents when
     /// `include_declaration`.  Returns `Location`s resolved
     /// against their defining documents.
+    ///
+    /// Excludes the current document (`uri`) throughout — correct only when
+    /// the single-document provider already covers it, i.e. `uri` holds a
+    /// local declaration of the symbol. When it doesn't (a pure-consumer
+    /// document whose only trace of the symbol is a `source`d-in or
+    /// workspace-sibling declaration), use
+    /// [`Self::workspace_resolved_references`] instead, which is identical
+    /// but excludes nothing.
     async fn cross_document_references(
         &self,
         uri: &Uri,
@@ -4087,6 +4135,58 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         include_declaration: bool,
+    ) -> Vec<Location> {
+        self.gather_reference_targets(
+            uri,
+            source,
+            analysis,
+            pos,
+            include_declaration,
+            uri.as_str(),
+        )
+        .await
+    }
+
+    /// Consumer-document references fallback (mirrors rename's "M8"
+    /// pattern, [`Self::add_workspace_resolved_rename_edits`]): the
+    /// cursor's command has no local declaration in the current document,
+    /// so the single-document reference pass found nothing to anchor on —
+    /// not a genuine zero-references case, since
+    /// [`Self::cross_document_references`]'s exclusion of the current
+    /// document assumes that pass already covers it (issue #923 idx 71:
+    /// nico-robert/pix's `test_context.test` `source`s `data_b64.test` for
+    /// `isEqual`/`getbase64`, then calls them bare — every one of
+    /// `test_context.test`'s *own* call sites, including the one the
+    /// cursor sits on, was silently dropped). Resolves through the
+    /// workspace oracle and gathers every reference the index knows,
+    /// current-document call sites included.
+    async fn workspace_resolved_references(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        self.gather_reference_targets(uri, source, analysis, pos, include_declaration, "")
+            .await
+    }
+
+    /// Shared core of [`Self::cross_document_references`] /
+    /// [`Self::workspace_resolved_references`]: every invocation, name-link,
+    /// and (when `include_declaration`) definition site the workspace index
+    /// has for the symbol at `pos`, excluding `exclude_uri` — the caller's
+    /// own document URI for the ordinary case, or `""` (matching no real
+    /// document) to exclude nothing, mirroring
+    /// [`core_rename::workspace_symbol_rename_edits`]'s identical trick.
+    async fn gather_reference_targets(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+        exclude_uri: &str,
     ) -> Vec<Location> {
         self.refresh_source_rehoming().await;
         let symbols = self
@@ -4109,19 +4209,19 @@ impl Backend {
                 // such a declaration.
                 t.extend(
                     index
-                        .linked_invocations_of(qualified, uri.as_str())
+                        .linked_invocations_of(qualified, exclude_uri)
                         .into_iter()
                         .map(|i| (i.uri.clone(), i.range)),
                 );
-                t.extend(index.link_target_spans(qualified, uri.as_str()));
+                t.extend(index.link_target_spans(qualified, exclude_uri));
                 if include_declaration {
                     // Match the declaration sites by *qualified* name — a same
                     // simple name in an unrelated namespace/file is a different
                     // symbol and must not be surfaced as this one's declaration.
-                    for p in index.proc_definitions_qualified(qualified, uri.as_str()) {
+                    for p in index.proc_definitions_qualified(qualified, exclude_uri) {
                         t.push((p.uri.clone(), p.name_span));
                     }
-                    for c in index.class_definitions_qualified(qualified, uri.as_str()) {
+                    for c in index.class_definitions_qualified(qualified, exclude_uri) {
                         t.push((c.uri.clone(), c.name_span));
                     }
                 }
@@ -4162,16 +4262,24 @@ impl Backend {
         })
         .await
         .unwrap_or_default();
+        // A pure-consumer document (issue #923 idx 71) has no local
+        // declaration to anchor the single-document pass on, so an empty
+        // `ranges` here does not mean "genuinely zero" — see
+        // `workspace_resolved_references`'s own doc.
         let mut locations: Vec<Location> = ranges
-            .into_iter()
+            .iter()
             .map(|r| Location {
                 uri: uri.clone(),
-                range: lift_lsp_range(r),
+                range: lift_lsp_range(*r),
             })
             .collect();
-        let cross = self
-            .cross_document_references(uri, text, analysis, position, false)
-            .await;
+        let cross = if ranges.is_empty() {
+            self.workspace_resolved_references(uri, text, analysis, position, false)
+                .await
+        } else {
+            self.cross_document_references(uri, text, analysis, position, false)
+                .await
+        };
         locations.extend(cross);
         dedup_locations(&mut locations);
         locations
@@ -8452,7 +8560,14 @@ impl LanguageServer for Backend {
             message: format!("references worker panicked: {err}").into(),
             data: None,
         })?;
-        // Current-document hits.
+        // Current-document hits. Empty here does not necessarily mean
+        // genuinely zero: a pure-consumer document (issue #923 idx 71 —
+        // the cursor's proc/class has no local declaration, only a
+        // `source`d-in or workspace-sibling one) leaves the single-document
+        // pass with nothing to anchor on even though this very document's
+        // own call sites (including the one under the cursor) are real
+        // references — see `workspace_resolved_references`'s own doc.
+        let local_found_nothing = ranges.is_empty();
         let mut locations: Vec<Location> = ranges
             .into_iter()
             .map(|r| Location {
@@ -8461,10 +8576,17 @@ impl LanguageServer for Backend {
             })
             .collect();
         // Cross-document call sites (and, when requested,
-        // sibling-document definition sites).
-        let cross = self
-            .cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
-            .await;
+        // sibling-document definition sites). A pure-consumer document
+        // (issue #923 idx 71) resolves through the workspace oracle without
+        // excluding the current document, so its own call sites aren't
+        // silently dropped alongside it.
+        let cross = if local_found_nothing {
+            self.workspace_resolved_references(&uri, &doc.text, &analysis, pos, include_decl)
+                .await
+        } else {
+            self.cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
+                .await
+        };
         locations.extend(cross);
         // Cross-document TclOO method sites: when the cursor names a method
         // (its declaration inside a class body, or an `$obj method` / `my
@@ -12250,6 +12372,16 @@ fn is_tcl_source(path: &Path) -> bool {
                 | "impl"
                 | "exp"
                 | "apl"
+                // The standard `tcltest` test-file extension (tcllib's own
+                // test suite, and every mined corpus, use it throughout —
+                // e.g. `test/argparse.test`). Omitting it meant a proc's
+                // call sites inside an un-opened `.test` file were invisible
+                // to the background workspace scan, so cross-document
+                // find-references / rename-safety silently missed them
+                // (issue #923 differential-audit finding idx 10, main audit
+                // wave) — even though opening the file directly worked fine,
+                // since that path doesn't go through this scan at all.
+                | "test"
         )
     )
 }
@@ -17693,6 +17825,7 @@ mod tests {
     fn is_tcl_source_matches_the_full_tcl_family_extension_set() {
         for ext in [
             "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl",
+            "test",
         ] {
             assert!(
                 is_tcl_source(Path::new(&format!("/a/b.{ext}"))),
@@ -17701,6 +17834,17 @@ mod tests {
         }
         assert!(!is_tcl_source(Path::new("/a/b.txt")));
         assert!(!is_tcl_source(Path::new("/a/b")));
+    }
+
+    #[test]
+    fn is_tcl_source_recognises_tcltest_files() {
+        // TP — differential-audit finding idx 10 (main audit wave): the
+        // standard `tcltest` extension (`test/argparse.test`, and every
+        // `.test` file throughout tcllib's own test suite) was omitted from
+        // the background workspace scan's allowlist, so a proc's call sites
+        // living in an un-opened `.test` file were invisible to
+        // cross-document find-references / rename-safety.
+        assert!(is_tcl_source(Path::new("/ws/test/argparse.test")));
     }
 
     #[test]
@@ -17750,6 +17894,32 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
 
         assert_eq!(names, vec!["mod.tm", "nested.tcl", "top.tcl"]);
+    }
+
+    #[test]
+    fn collect_tcl_files_picks_up_tcltest_files() {
+        // TP — differential-audit finding idx 10 (main audit wave): a
+        // `.test` file (the standard `tcltest` extension — every mined
+        // corpus, and tcllib's own test suite, use it throughout, e.g.
+        // `test/argparse.test`) was invisible to the background workspace
+        // scan, so cross-document find-references / rename-safety
+        // silently missed call sites living in an un-opened `.test` file.
+        let root = unique_scratch_dir("tcltest");
+        std::fs::create_dir_all(root.join("test")).unwrap();
+        std::fs::write(root.join("lib.tcl"), "proc plain {} { return 1 }\n").unwrap();
+        std::fs::write(root.join("test/argparse.test"), "plain\n").unwrap();
+
+        let mut out = Vec::new();
+        collect_tcl_files(&root, 100, &mut out);
+        let mut names: Vec<String> = out
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+
+        std::fs::remove_dir_all(&root).ok();
+
+        assert_eq!(names, vec!["argparse.test", "lib.tcl"]);
     }
 
     #[test]
@@ -17966,6 +18136,94 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cross_document_definition_resolves_wildcard_imported_proc() {
+        // issue #923 idx 18 (TP, cross-document): `lib.tcl` defines and
+        // exports `bar`; `main.tcl` wildcard-imports `::Lib::*` and calls
+        // `bar` bare. `main.tcl`'s own in-document resolver can't see
+        // `::Lib::bar` (a different file's proc), so this exercises the
+        // NEW cross-document fallback in `resolve_workspace_symbols`
+        // (`WorkspaceIndex::resolve_wildcard_import`). Both documents must
+        // be indexed: the `namespace import` itself is recorded in
+        // `main.tcl`'s own analysis.
+        let backend = test_backend();
+        let lib_uri = Uri::from_str("file:///wc_lib.tcl").unwrap();
+        let main_uri = Uri::from_str("file:///wc_main.tcl").unwrap();
+        let lib_src = "namespace eval ::Lib {\n    proc bar {} {}\n    namespace export bar\n}\n";
+        let main_src = "namespace import ::Lib::*\nbar\n";
+        {
+            let mut docs = backend.documents.lock().await;
+            docs.insert(
+                lib_uri.clone(),
+                DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
+            );
+            docs.insert(
+                main_uri.clone(),
+                DocumentState::new(main_src.to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        {
+            let mut index = backend.workspace_index.write().await;
+            let mut a = Analyser::new();
+            let lib_analysis = a.analyse(lib_src, "tcl8.6").clone();
+            index.add_document(lib_uri.as_str(), &lib_analysis);
+            let mut a2 = Analyser::new();
+            let main_analysis = a2.analyse(main_src, "tcl8.6").clone();
+            index.add_document(main_uri.as_str(), &main_analysis);
+        }
+        // Cursor on the bareword `bar` call (line 1, col 0).
+        let locs = backend
+            .compute_definition(&main_uri, Position::new(1, 0))
+            .await
+            .expect("definition ok");
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].uri, lib_uri);
+        // `proc bar` — name token starts at column 9 on line 1 of lib.tcl.
+        assert_eq!(locs[0].range.start.line, 1);
+        assert_eq!(locs[0].range.start.character, 9);
+    }
+
+    #[tokio::test]
+    async fn cross_document_wildcard_import_does_not_resolve_unexported_sibling() {
+        // FP guard (CRITICAL, cross-document, server layer): `lib.tcl`'s
+        // `other` is never exported, so `main.tcl`'s wildcard import must
+        // not resolve a bare `other` call to it — matches real tclsh's own
+        // `invalid command name` error there (tclsh9.0/8.6-verified).
+        let backend = test_backend();
+        let lib_uri = Uri::from_str("file:///wc_lib2.tcl").unwrap();
+        let main_uri = Uri::from_str("file:///wc_main2.tcl").unwrap();
+        let lib_src = "namespace eval ::Lib {\n    proc bar {} {}\n    proc other {} {}\n    namespace export bar\n}\n";
+        let main_src = "namespace import ::Lib::*\nother\n";
+        {
+            let mut docs = backend.documents.lock().await;
+            docs.insert(
+                lib_uri.clone(),
+                DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
+            );
+            docs.insert(
+                main_uri.clone(),
+                DocumentState::new(main_src.to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        {
+            let mut index = backend.workspace_index.write().await;
+            let mut a = Analyser::new();
+            let lib_analysis = a.analyse(lib_src, "tcl8.6").clone();
+            index.add_document(lib_uri.as_str(), &lib_analysis);
+            let mut a2 = Analyser::new();
+            let main_analysis = a2.analyse(main_src, "tcl8.6").clone();
+            index.add_document(main_uri.as_str(), &main_analysis);
+        }
+        let locs = backend
+            .compute_definition(&main_uri, Position::new(1, 0))
+            .await
+            .expect("definition ok");
+        assert!(
+            locs.is_empty(),
+            "an unexported sibling must stay unresolved through the wildcard import: {locs:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn minify_document_command_returns_minified_source() {
         let backend = test_backend();
         let uri = Uri::from_str("file:///m.tcl").unwrap();
@@ -18165,6 +18423,182 @@ mod tests {
         assert!(cross.iter().all(|l| l.uri == consumer));
     }
 
+    /// Issue #923 idx 71 (main audit wave, high severity, pix corpus):
+    /// reduces nico-robert/pix's `test_context.test` (`source [file join
+    /// [file dirname [info script]] data_b64.test]`, then calls `isEqual`
+    /// bare) to its literal-`source` control shape — the finding's own
+    /// control repro (`71_control`) proved the identical bug reproduces
+    /// with a trivial `source b.tcl`, no `[info script]` at all. `a.tcl`
+    /// sources `b.tcl` (which declares `helper`) and calls `helper` twice
+    /// itself; `c.tcl` calls it once more. `a.tcl` has no local declaration
+    /// of `helper` to anchor `cross_document_references`'s exclusion of
+    /// the current document on, so both of `a.tcl`'s own calls — including
+    /// the one under the cursor — were previously dropped entirely.
+    #[tokio::test]
+    async fn workspace_resolved_references_reaches_the_current_documents_own_calls() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        let c = Uri::from_str("file:///c.tcl").unwrap();
+        let b_src = "proc helper {} {}\n";
+        register(&backend, &b, b_src).await;
+        let a_src = "source b.tcl\nhelper\nhelper\n";
+        register(&backend, &a, a_src).await;
+        register(&backend, &c, "helper\n").await;
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(a_src, "tcl8.6").clone()
+        };
+        // Cursor on a.tcl's own first `helper` call (line 1).
+        let refs = backend
+            .workspace_resolved_references(&a, a_src, &analysis, Position::new(1, 3), true)
+            .await;
+        let a_hits = refs.iter().filter(|l| l.uri == a).count();
+        assert_eq!(
+            a_hits, 2,
+            "both of a.tcl's own calls must be reached, not just the sourced-in decl: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b),
+            "b.tcl's declaration must still be reached: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == c),
+            "c.tcl's call must still be reached: {refs:?}"
+        );
+    }
+
+    /// End-to-end analogue of the test above, through the real
+    /// `textDocument/references` handler — proving the handler picks the
+    /// workspace-resolved fallback automatically (no caller-side branching
+    /// needed) whenever the single-document pass finds nothing local to
+    /// anchor on.
+    #[tokio::test]
+    async fn references_handler_reaches_own_calls_in_a_pure_consumer_document() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///a2.tcl").unwrap();
+        let b = Uri::from_str("file:///b2.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        let a_src = "source b2.tcl\nhelper\nhelper\n";
+        register(&backend, &a, a_src).await;
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: a.clone() },
+                position: Position::new(1, 3), // on a.tcl's own first `helper` call
+            },
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let refs = backend
+            .references(params)
+            .await
+            .expect("ok")
+            .expect("some references");
+        let a_hits: Vec<_> = refs.iter().filter(|l| l.uri == a).collect();
+        assert_eq!(
+            a_hits.len(),
+            2,
+            "both of a.tcl's own calls must be reached: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b),
+            "b.tcl's declaration must still be reached: {refs:?}"
+        );
+    }
+
+    /// idx 31 (differential-audit main audit wave, high severity): a proc
+    /// declared twice, verbatim, in the same document (plain Tcl's own
+    /// "last redefinition wins" semantics, tclsh9.0/8.6-verified) — the
+    /// real corpus shape is `georgtree_tclopt`'s `tclopt.tcl` declaring
+    /// `::tclopt::List2array` at two separate line ranges.
+    /// `resolve_workspace_symbols` identified "the symbol at cursor" only
+    /// via `all_procs.values().find(|p| covers(p.name_span))`, and
+    /// `all_procs` (keyed by qualified name) retains only the *winning*
+    /// declaration's span on a duplicate insert — so a cursor on the
+    /// *shadowed* (non-winning) declaration's own name token could never
+    /// match, silently dropping every cross-file caller from
+    /// find-references, and — far worse — from rename: applying that
+    /// incomplete `WorkspaceEdit` leaves a cross-file caller still bound
+    /// to the old name, which a second, dead definition (the very shadowed
+    /// declaration the rename was issued from) is still lying around to
+    /// silently satisfy, changing the program's behaviour with no error
+    /// surfaced anywhere.
+    #[tokio::test]
+    async fn cross_document_references_reach_caller_from_shadowed_duplicate_decl() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib31_refs.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer31_refs.tcl").unwrap();
+        let lib_src =
+            "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n";
+        register(&backend, &lib, lib_src).await;
+        register(&backend, &consumer, "List2array x\n").await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        // Cursor on the SHADOWED (first, non-winning) declaration's own
+        // name token (line 0, col 6 — `proc List2array`).
+        let cross = backend
+            .cross_document_references(&lib, lib_src, &analysis, Position::new(0, 6), false)
+            .await;
+        assert_eq!(
+            cross.len(),
+            1,
+            "cross-file call site in consumer.tcl must not be silently \
+             dropped when querying from the shadowed declaration: {cross:?}"
+        );
+        assert!(cross.iter().all(|l| l.uri == consumer));
+    }
+
+    /// Same root cause as
+    /// `cross_document_references_reach_caller_from_shadowed_duplicate_decl`,
+    /// but for rename — the more severe half of the finding: an
+    /// LSP-presented "complete" rename issued from the shadowed
+    /// declaration must still rewrite the cross-file caller, or accepting
+    /// the edit silently resurrects the dead first definition for that
+    /// caller (proven end-to-end in the finding's own repro: applying the
+    /// pre-fix `WorkspaceEdit` verbatim changed real program output with
+    /// no error).
+    #[tokio::test]
+    async fn cross_document_rename_reaches_caller_from_shadowed_duplicate_decl() {
+        let backend = test_backend();
+        let lib = Uri::from_str("file:///lib31_rename.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer31_rename.tcl").unwrap();
+        let lib_src =
+            "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n";
+        register(&backend, &lib, lib_src).await;
+        register(&backend, &consumer, "List2array x\n").await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        // Cursor on the SHADOWED (first, non-winning) declaration.
+        backend
+            .add_cross_document_rename_edits(
+                &lib,
+                lib_src,
+                &analysis,
+                Position::new(0, 6),
+                "ListToArray",
+                &mut changes,
+            )
+            .await;
+        let consumer_edits = changes.get(&consumer).cloned().unwrap_or_default();
+        assert_eq!(
+            consumer_edits.len(),
+            1,
+            "the cross-file caller must be rewritten, or it stays bound \
+             to the old name while the dead shadowed definition (also \
+             renamed away) silently resurrects for it: {changes:?}"
+        );
+        assert_eq!(consumer_edits[0].new_text, "ListToArray");
+    }
+
     /// Build an on-disk autoload library (`tclIndex` + defining file, like a
     /// `TCLLIBPATH` entry) whose `Rbc_Wire` also calls `Rbc_ActiveLegend`
     /// internally, and point the backend's package database at it.  Returns
@@ -18331,6 +18765,36 @@ mod tests {
         let b = Uri::from_str("file:///proj/b.tcl").unwrap();
         register(&backend, &b, "proc helper {} {}\nhelper\n").await;
         let a_src = "namespace eval ::x { source b.tcl }\n::x::helper\n";
+        register(&backend, &a, a_src).await;
+        let analysis = {
+            let mut an = Analyser::new();
+            an.analyse(a_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&a, a_src, &analysis, Position::new(1, 3), true)
+            .await;
+        assert!(
+            refs.iter().any(|l| l.uri == b && l.range.start.line == 0),
+            "the sourced declaration must be a reference target: {refs:?}"
+        );
+        assert!(
+            refs.iter().any(|l| l.uri == b && l.range.start.line == 1),
+            "the sourced file's own bare call re-homes too: {refs:?}"
+        );
+    }
+
+    /// M9 + issue #923 idx 46: the same re-homing must also fire when the
+    /// `source` target is a same-file constant variable rather than a
+    /// literal path (`set b "b.tcl"; source $b`, the corpus's `set p
+    /// "e.tcl"; source $p` idiom) — previously this whole `source` call
+    /// went untracked, silently abstaining from M9 rehoming entirely.
+    #[tokio::test]
+    async fn sourced_file_defs_rehome_through_a_same_file_constant_variable_idx_46() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\nhelper\n").await;
+        let a_src = "namespace eval ::x { set b \"b.tcl\"; source $b }\n::x::helper\n";
         register(&backend, &a, a_src).await;
         let analysis = {
             let mut an = Analyser::new();

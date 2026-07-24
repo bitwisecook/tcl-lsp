@@ -351,7 +351,7 @@ const MOD_DECLARATION: u32 = 1 << 0;
 /// definition-context members) without a standalone `CommandSpec` — the part
 /// of [`is_language_keyword_sub_keyword`]'s residue specific to this crate
 /// (its clause-keyword half lives in the registry; see that function's docs).
-const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod", "link"];
+const METHOD_BODY_HELPER_SUB_KEYWORDS: &[&str] = &["callback", "mymethod"];
 
 /// `true` for sub-keywords highlighted as `keyword` that are **not**
 /// standalone commands, so they have no `CommandSpec` to carry the

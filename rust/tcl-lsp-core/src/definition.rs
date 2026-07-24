@@ -63,6 +63,15 @@
 //! `Cls create obj` site), the provider jumps to the method
 //! declaration on that class.
 //!
+//! `apply` namespace override (issue #923 idx 116): a bareword call
+//! inside `apply {{params} body ns}`'s body resolves against `ns`, not
+//! wherever the `apply` call is lexically written — `namespace_context_at`
+//! / `innermost_namespace_at` consult `analysis.namespace_overrides`
+//! (populated by `Analyser::handle_apply_command`) ahead of the ordinary
+//! lexical scope-chain walk. Also resolves one hop through a `$var` or
+//! `[list {params} $body ns]` indirection (`set lambda {...}; apply
+//! $lambda`), bounded to that one hop by design.
+//!
 //! Limitations:
 //!
 //! * Flow-sensitive / scope-aware instance-class tracking —
@@ -74,6 +83,18 @@
 //!   dialect that resolves pool / data-group / iRule /
 //!   virtual-server names against a parsed `bigip.conf` — is
 //!   not implemented here.
+//! * `apply` reached only through a registry `command_prefixes` slot
+//!   (`coroutine co ::apply $lambda`) is not modelled — that slot is
+//!   consulted today only for IR-level interprocedural call-graph
+//!   reachability, never re-dispatched through `AnalyserHookId::Apply`.
+//!   Nor is a proc that re-injects its own arguments as a script via a
+//!   captured `uplevel`-namespace + trace/callback (tcllib generator.tcl's
+//!   `finally`, the exact idiom issue #923 idx 116's confirmed finding
+//!   traces through) — there is no static/lexical connection between such
+//!   a call and the token it eventually invokes, so this is a considered,
+//!   permanent limitation rather than an oversight. Deeper `$var`-to-`$var`
+//!   indirection beyond one hop (`set a $lambda; apply $a`) is the same
+//!   kind of deliberate, bounded gap, not a special case of this one.
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
@@ -142,6 +163,17 @@ pub fn definition(
         return Vec::new();
     }
 
+    // 1b. Variable *declaration* / same-cell write site — the cursor sits
+    //     on a plain name token (a `set x`/`variable x` target, a
+    //     proc/method parameter, a `catch` result-var), not a
+    //     `$`-prefixed read. See `var_def_at_declaration_offset`'s own doc
+    //     for why this can't reuse the ordinary scope-chain walk (issue
+    //     #923 differential-audit finding idx 9, main audit wave).
+    let decl_byte_offset = byte_offset_at(&line_index, source, line, character);
+    if let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset) {
+        return vec![span_to_range(source, &line_index, var_def.definition_span)];
+    }
+
     // 2. Bare word — proc, class, class-member, or alias.
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
@@ -155,6 +187,31 @@ pub fn definition(
     if let Some(result) = instance_method_definition(analysis, source, &line_index, line, character)
     {
         return result;
+    }
+    // `<ensemble> <subcommand>` — a static `namespace ensemble create
+    // -map`/`-subcommands` mapping (issue #923 idx 106).  Checked before the
+    // generic "otherwise it is a CALL" resolution below: real Tcl never
+    // independently looks up `make` as a command (only the pair `widget
+    // make` dispatches), so a coincidental same-named proc elsewhere in the
+    // workspace must never win.
+    if let Some((head, sub, false)) = instance_method_at_cursor(source, line, character) {
+        let cursor_offset = byte_offset_at(&line_index, source, line, character);
+        let namespace = namespace_context_at(
+            &analysis.global_scope,
+            cursor_offset,
+            &analysis.namespace_overrides,
+        );
+        if let Some(target) = ensemble_subcommand_target(analysis, &namespace, &head, &sub)
+            && let Some(proc_def) = resolve_called_proc(
+                analysis,
+                source,
+                "::",
+                target,
+                Some(tcl_registry::registry_for_dialect("")),
+            )
+        {
+            return vec![span_to_range(source, &line_index, proc_def.name_span)];
+        }
     }
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
@@ -185,7 +242,11 @@ pub fn definition(
     // to the lenient tail match for procs whose defining namespace isn't
     // statically visible, resolved deterministically (see
     // [`resolve_called_proc`]).
-    let namespace = namespace_context_at(&analysis.global_scope, cursor_offset);
+    let namespace = namespace_context_at(
+        &analysis.global_scope,
+        cursor_offset,
+        &analysis.namespace_overrides,
+    );
     if let Some(proc_def) = resolve_called_proc(
         analysis,
         source,
@@ -273,20 +334,28 @@ fn instance_method_definition(
         let cursor = byte_offset_at(line_index, source, line, character);
         if let Some(class_q) = enclosing_class_at(analysis, cursor) {
             return Some(method_dispatch_definition(
-                analysis, source, line_index, &class_q, &method, false,
+                analysis,
+                source,
+                line_index,
+                class_q,
+                &method,
+                false,
+                MethodBucket::Instance,
             ));
         }
     }
     let class_q = receiver_instance_class(analysis, &inst, is_dollar)?;
-    // External `$obj m`: the C-faithful dispatch entry — the first
-    // exported implementation on the receiver's linearisation (mixins
-    // before the class, subclasses before bases; issue #945 faults 4 +
-    // 6).  A resolved receiver is a definitive answer either way: an
-    // unexported/undefined method yields *nothing* rather than falling
-    // through to a same-named proc.
+    let bucket = receiver_method_bucket(analysis, &inst, is_dollar);
+    // External `$obj m` / `CLASS m`: the C-faithful dispatch entry — the
+    // first exported implementation on the receiver's linearisation
+    // (mixins before the class, subclasses before bases; issue #945
+    // faults 4 + 6).  A resolved receiver is a definitive answer either
+    // way: an unexported/undefined method yields *nothing* rather than
+    // falling through to a same-named proc.
     let class_q = class_q.clone();
-    let dispatch =
-        method_dispatch_definition(analysis, source, line_index, &class_q, &method, true);
+    let dispatch = method_dispatch_definition(
+        analysis, source, line_index, &class_q, &method, true, bucket,
+    );
     if !dispatch.is_empty() {
         return Some(dispatch);
     }
@@ -304,7 +373,15 @@ fn instance_method_definition(
 
 /// Walk every class whose `body_span` contains the cursor
 /// offset and look up `word` in that class's methods,
-/// class-methods, properties, constructors, or destructor.
+/// class-methods, or properties — but ONLY when `word` is
+/// itself genuinely bareword-callable from a method body of
+/// this class: a bareword sibling call only actually dispatches
+/// when `link` (`oo::Helpers::link`) exposed it that way
+/// (`ClassDef::linked_members`, issue #923 idx 113); an
+/// un-linked member of the same name errors "invalid command
+/// name" at runtime, so it must not resolve here either. Also
+/// checks constructors/destructor, unconditionally (a distinct,
+/// unrelated feature — see [`ClassDef::linked_members`]'s doc).
 /// Returns the matched member's `name_span` when found.
 ///
 /// `"constructor"` matches any defined constructor;
@@ -315,41 +392,40 @@ fn lookup_class_member(
     word: &str,
     cursor_offset: u32,
 ) -> Option<tcl_lexer::Span> {
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        if let Some(m) = class_def.methods.get(word) {
+    let class_def = analysis
+        .all_classes
+        .get(enclosing_class_at(analysis, cursor_offset)?)?;
+    if let Some(target) = class_def.linked_members.get(word) {
+        if let Some(m) = class_def.methods.get(target) {
             return Some(m.name_span);
         }
-        if let Some(m) = class_def.class_methods.get(word) {
+        if let Some(m) = class_def.class_methods.get(target) {
             return Some(m.name_span);
         }
-        if let Some(p) = class_def.properties.get(word) {
+        if let Some(p) = class_def.properties.get(target) {
             return Some(p.name_span);
         }
-        if word == "constructor"
-            && let Some(c) = class_def.constructors.first()
-        {
-            if !c.name_span.is_empty() {
-                return Some(c.name_span);
-            }
-            // Analyser doesn't store a name span for the
-            // constructor keyword (it has no name token).
-            // Fall back to the body span's start so the
-            // editor at least lands on the constructor's
-            // body opener.
-            return Some(c.body_span);
+    }
+    if word == "constructor"
+        && let Some(c) = class_def.constructors.first()
+    {
+        if !c.name_span.is_empty() {
+            return Some(c.name_span);
         }
-        if word == "destructor"
-            && let Some(d) = &class_def.destructor
-        {
-            if !d.name_span.is_empty() {
-                return Some(d.name_span);
-            }
-            return Some(d.body_span);
+        // Analyser doesn't store a name span for the
+        // constructor keyword (it has no name token).
+        // Fall back to the body span's start so the
+        // editor at least lands on the constructor's
+        // body opener.
+        return Some(c.body_span);
+    }
+    if word == "destructor"
+        && let Some(d) = &class_def.destructor
+    {
+        if !d.name_span.is_empty() {
+            return Some(d.name_span);
         }
+        return Some(d.body_span);
     }
     None
 }
@@ -438,14 +514,59 @@ fn variable_scope_extent(
 }
 
 /// The qualified name of the class whose body contains `offset`, if any —
-/// the enclosing class for `my`-call dispatch.
-fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Option<String> {
+/// the enclosing class for `my`-call dispatch and every other "which class
+/// am I lexically inside" query in this crate.
+///
+/// Consults [`AnalysisResult::class_body_spans`] rather than
+/// `ClassDef::body_span` alone: a class extended via a *separate*
+/// `oo::define ClassName { ... }` block (real corpus shape:
+/// `ticklecharts::chart`'s `oo::class create` at one line, every method
+/// added via a later, separate `oo::define` block) has textually disjoint
+/// body spans, not one contiguous range — `body_span` alone only ever
+/// covers the *first* one recorded (issue #923 idx 52, main audit wave).
+/// Ties (nested definitions) resolve to the narrowest containing span,
+/// same tie-break the single-span version always used.
+///
+/// The single canonical implementation of this check — every other
+/// module in this crate that used to keep its own copy now calls this
+/// one instead, so the multi-span fix applies everywhere uniformly.
+pub(crate) fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Option<&str> {
     analysis
-        .all_classes
-        .values()
-        .filter(|c| c.body_span.start() < offset && offset < c.body_span.end())
-        .min_by_key(|c| c.body_span.end() - c.body_span.start())
-        .map(|c| c.qualified_name.clone())
+        .class_body_spans
+        .iter()
+        .filter(|(_, span)| span.start() < offset && offset < span.end())
+        .min_by_key(|(_, span)| span.end() - span.start())
+        .map(|(name, _)| name.as_str())
+}
+
+/// Which of a class's two method buckets a dispatch receiver reaches
+/// (issue #923 idx 120), consulted by [`method_dispatch_definition`] and,
+/// via [`receiver_method_bucket`], by every other consumer of
+/// [`receiver_instance_class`] that also needs its own method lookup
+/// restricted to the matching bucket (`completion.rs`'s `method_items`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MethodBucket {
+    /// `$obj method` / `my method` — dispatch on an *instance*:
+    /// `methods` only, never `class_methods` (a class-side method is
+    /// never itself instance-callable — real tclsh raises `unknown
+    /// method` for it; this closes a pre-existing false-positive
+    /// go-to-definition on e.g. `ActiveRecord create rec1; rec1 find`,
+    /// bundled alongside idx 120 since this function's signature was
+    /// already changing here).
+    Instance,
+    /// `CLASS method` — dispatch on the class's own bound command (issue
+    /// #923 idx 120): `class_methods` only (a class-side method is never
+    /// itself instance-callable — `completion.rs`'s `method_items` already
+    /// documents and implements this same exclusion for its instance-side
+    /// suggestions). An ancestor-provided entry is accepted only when it
+    /// is NOT `is_self_method` — a plain `TclOO` `self method` is visible
+    /// only on the exact class that declared it (confirmed against
+    /// tclsh: a subclass with no override does not gain it), unlike
+    /// `ooutil`'s `classmethod` keyword, which does propagate to a
+    /// subclass's own bound command via its `Delegate`-mixin machinery. A
+    /// provider matching the receiver class itself is always accepted
+    /// regardless (it's not "inherited" there, it's the direct owner).
+    Class,
 }
 
 /// Go-to-definition for a method call dispatched on an instance of
@@ -463,6 +584,7 @@ fn method_dispatch_definition(
     class_q: &str,
     method: &str,
     external: bool,
+    bucket: MethodBucket,
 ) -> Vec<LspRange> {
     let hierarchy = tcl_compiler::analyser::class_hierarchy::build_class_hierarchy(
         analysis.all_classes.clone(),
@@ -474,11 +596,19 @@ fn method_dispatch_definition(
         let Some(cd) = analysis.all_classes.get(provider_q) else {
             continue;
         };
-        let Some(md) = cd
-            .methods
-            .get(method)
-            .or_else(|| cd.class_methods.get(method))
-        else {
+        let md = match bucket {
+            // A class-side method is never itself instance-callable (real
+            // tclsh: `unknown method` when an instance calls a
+            // classmethod) — no `class_methods` fallback here, matching
+            // `completion.rs`'s `method_items`, which already excludes it
+            // for the identical reason.
+            MethodBucket::Instance => cd.methods.get(method),
+            MethodBucket::Class => cd
+                .class_methods
+                .get(method)
+                .filter(|md| provider_q == class_q || !md.is_self_method),
+        };
+        let Some(md) = md else {
             continue;
         };
         let visible = if external {
@@ -546,14 +676,12 @@ fn next_dispatch_target(
 /// The `(qualified_class, method_name)` whose method body contains the
 /// cursor offset, or `None` when the cursor is not inside a method body.
 fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, String)> {
-    for cd in analysis.all_classes.values() {
-        if !(cd.body_span.start() <= cursor && cursor <= cd.body_span.end()) {
-            continue;
-        }
-        for (mname, m) in cd.methods.iter().chain(cd.class_methods.iter()) {
-            if m.body_span.start() <= cursor && cursor <= m.body_span.end() {
-                return Some((cd.qualified_name.clone(), mname.clone()));
-            }
+    let cd = analysis
+        .all_classes
+        .get(enclosing_class_at(analysis, cursor)?)?;
+    for (mname, m) in cd.methods.iter().chain(cd.class_methods.iter()) {
+        if m.body_span.start() <= cursor && cursor <= m.body_span.end() {
+            return Some((cd.qualified_name.clone(), mname.clone()));
         }
     }
     None
@@ -697,10 +825,19 @@ pub(crate) fn instance_method_at_cursor(
 /// [`instance_method_at_cursor`]) to its class's qualified name.
 ///
 /// A `$var` receiver (`is_dollar`) is any object-holding variable, looked
-/// up in `instance_classes`.  A bare receiver is a valid dispatch only when
-/// it names an object *command* (`CLASS create NAME`) — a plain variable's
-/// bare name (`set v [CLASS new]` then `v method`) is not a command and must
-/// not resolve — so it is additionally gated on `created_instance_commands`.
+/// up in `instance_classes`.  A bare receiver is a valid *instance*
+/// dispatch only when it names an object *command* (`CLASS create NAME`) —
+/// a plain variable's bare name (`set v [CLASS new]` then `v method`) is
+/// not a command and must not resolve — so it is additionally gated on
+/// `created_instance_commands`.
+///
+/// A bare receiver that instead names a class *directly* (`ActiveRecord
+/// find`, `TclOO`'s and `ooutil`'s class-command dispatch — issue #923 idx
+/// 120) resolves too: `oo::class create NAME` always binds `NAME` as the
+/// class's own command, so any class name written in the source is
+/// unconditionally dispatchable this way. A `$var` can't textually denote
+/// a class — it holds an object handle read from a variable, never the
+/// class's own written name — so this path is bare-word only.
 ///
 /// Shared by the definition / references / rename / hover cursor paths so
 /// they agree on which receivers dispatch (and, via
@@ -710,11 +847,46 @@ pub(crate) fn receiver_instance_class<'a>(
     receiver: &str,
     is_dollar: bool,
 ) -> Option<&'a String> {
-    let class = analysis.instance_classes.get(receiver)?;
-    if is_dollar || analysis.created_instance_commands.contains(receiver) {
-        Some(class)
+    if let Some(class) = analysis.instance_classes.get(receiver)
+        && (is_dollar || analysis.created_instance_commands.contains(receiver))
+    {
+        return Some(class);
+    }
+    if is_dollar {
+        return None;
+    }
+    let qualified = tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(
+        receiver,
+        &analysis.all_classes,
+    )?;
+    analysis
+        .all_classes
+        .get(&qualified)
+        .map(|cd| &cd.qualified_name)
+}
+
+/// Which [`MethodBucket`] `receiver` reaches, given how
+/// [`receiver_instance_class`] resolved it (issue #923 idx 120):
+/// recomputes that function's own first condition (the *instance* path —
+/// an object handle, `$var`, or a bound `CLASS create NAME` command)
+/// rather than inferring it from the outside (e.g. merely checking
+/// `instance_classes.contains_key`), so a same-named instance-command /
+/// class collision can't misclassify it. `false` on that check, with
+/// `receiver_instance_class` having still resolved a `class_q`, can only
+/// mean the bare-word-names-a-class-directly path fired instead.
+pub(crate) fn receiver_method_bucket(
+    analysis: &AnalysisResult,
+    receiver: &str,
+    is_dollar: bool,
+) -> MethodBucket {
+    let is_instance_path = analysis
+        .instance_classes
+        .get(receiver)
+        .is_some_and(|_| is_dollar || analysis.created_instance_commands.contains(receiver));
+    if is_instance_path {
+        MethodBucket::Instance
     } else {
-        None
+        MethodBucket::Class
     }
 }
 
@@ -774,6 +946,27 @@ fn lookup_alias<'a>(
         .command_aliases
         .get(&qualified)
         .or_else(|| analysis.command_aliases.get(name))
+}
+
+/// Resolve `head sub` (as returned by [`instance_method_at_cursor`], with
+/// `is_dollar == false`) to the target command it dispatches to, when
+/// `head` names a known `namespace ensemble create -map`/`-subcommands`
+/// ensemble and `sub` exactly matches one of its literal, statically
+/// -recorded subcommands (issue #923 idx 106) — `namespace` is the call
+/// site's own command-resolution namespace, so a relative `head` (the
+/// overwhelmingly common case: an ensemble dispatches through its own short
+/// name) resolves the same way an ordinary bare command call would.
+pub(crate) fn ensemble_subcommand_target<'a>(
+    analysis: &'a AnalysisResult,
+    namespace: &str,
+    head: &str,
+    sub: &str,
+) -> Option<&'a str> {
+    tcl_syntax::naming::bareword_resolution_candidates(namespace, head)
+        .into_iter()
+        .find_map(|cand| analysis.ensemble_subcommand_targets.get(&cand))
+        .and_then(|subs| subs.get(sub))
+        .map(String::as_str)
 }
 
 /// Compute the byte offset of a 0-based LSP `(line, character)`
@@ -852,7 +1045,12 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     // the scope that wrote it (`chain[0]`, the global scope, always does),
     // exactly as before this lookup existed.
     if name.contains("::") {
-        let here = innermost_namespace_at(scope, byte_offset);
+        // Variable ($var) resolution deliberately does not consult
+        // `namespace_overrides` (issue #923 idx 116 scoped this to
+        // command/bareword resolution only) — `&[]` keeps this call
+        // provably unaffected; `scope` alone (no `analysis`) is available
+        // here regardless.
+        let here = innermost_namespace_at(scope, byte_offset, &[]);
         let qualified = tcl_compiler::naming::qualify(&here, name);
         let (target_ns, base_name) = tcl_compiler::naming::key_holder_and_tail(&qualified);
         if let Some(v) =
@@ -933,9 +1131,34 @@ pub(crate) fn linked_var_reference_spans(
 ) -> Vec<tcl_lexer::Span> {
     let mut out = Vec::new();
     match var_def.link_target.as_deref() {
-        Some(target) => collect_alias_spans(scope, target, var_def.definition_span, &mut out, 0),
+        Some(target) => {
+            collect_alias_spans(scope, target, var_def.definition_span, &mut out, 0);
+            // `target`'s own canonical cell (a plain `set` / declaration with
+            // no `link_target` of its own) is never found by the alias-only
+            // scan above, since that scan only unions records that name
+            // `target` as *their own* link target (issue #923 idx 68): fold
+            // it in directly.
+            if let Some(canonical) =
+                tcl_compiler::analyser::lookup_var_by_qualified_name(scope, target)
+                && canonical.definition_span != var_def.definition_span
+            {
+                out.push(canonical.definition_span);
+                out.extend(canonical.references.iter().copied());
+            }
+        }
         None if !var_def.definition_span.is_empty() => {
             collect_shared_span_refs(scope, var_def.definition_span, &mut out, 0);
+            // The inverse of the fold-in above: `var_def` might itself BE the
+            // canonical cell some `global` / `variable` / `namespace upvar`
+            // alias elsewhere points at (issue #923 idx 68) — its own
+            // `link_target` is `None` precisely because it isn't an alias, so
+            // this can only be discovered by finding its own qualified name
+            // and searching for aliases of it.
+            if let Some(own_qualified) =
+                tcl_compiler::analyser::qualified_name_for_var_decl(scope, var_def.definition_span)
+            {
+                collect_alias_spans(scope, &own_qualified, var_def.definition_span, &mut out, 0);
+            }
         }
         None => out.extend(var_def.references.iter().copied()),
     }
@@ -988,26 +1211,41 @@ fn collect_shared_span_refs(
     }
 }
 
-/// Resolve the *name* of a variable whose declaration occupies
-/// `byte_offset` — i.e. the cursor sits on the name token of a
-/// `set` / `variable` / `global` / param declaration rather than
-/// a `$ref`.  Walks the scope chain innermost-first and returns
-/// the first variable whose `definition_span` covers the offset.
-/// Lets the variable-rename / reference paths work from the
-/// definition site, not just `$var` use sites.
-pub(crate) fn var_name_at_definition_offset(
+/// Resolve the [`VarDef`](tcl_compiler::analyser::VarDef) whose declaration
+/// or a later same-cell bareword occupies `byte_offset` — i.e. the cursor
+/// sits on a plain name token (a `set` / `variable` / `global` / proc- or
+/// method-parameter declaration, or a later bareword write to that same
+/// variable such as a `catch script name` result-var) rather than a `$ref`.
+///
+/// Deliberately does **not** route through [`scope_chain_at`]'s lexical
+/// containment walk: a proc/method parameter's own name token sits in the
+/// parameter list, textually *before* that scope's `body_span` even
+/// starts, so a scope-chain lookup keyed on `byte_offset` never reaches
+/// the scope that owns it (issue #923 differential-audit finding idx 9,
+/// main audit wave — go-to-definition/hover/find-references all returned
+/// nothing for a cursor placed directly on a parameter's or a `catch`
+/// result-var's own declaring token, even though every `$name` read of the
+/// same variable resolved correctly). Instead this walks every scope in
+/// the whole tree unconditionally, checking each `VarDef`'s own
+/// `definition_span` and every span in `references` for byte-offset
+/// containment. This is safe without any scope-visibility filtering: a
+/// byte-offset span match is unambiguous by construction (no two distinct
+/// declaration/write occurrences in a file share a byte range), unlike a
+/// *name*-based lookup which would need scope-aware disambiguation.
+pub(crate) fn var_def_at_declaration_offset(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
-) -> Option<String> {
-    for sc in scope_chain_at(scope, byte_offset).iter().rev() {
-        for v in sc.variables.values() {
-            let span = v.definition_span;
-            if span.start() <= byte_offset && byte_offset < span.end() {
-                return Some(v.name.clone());
-            }
+) -> Option<&tcl_compiler::analyser::VarDef> {
+    let contains = |span: tcl_lexer::Span| span.start() <= byte_offset && byte_offset < span.end();
+    for v in scope.variables.values() {
+        if contains(v.definition_span) || v.references.iter().any(|&r| contains(r)) {
+            return Some(v);
         }
     }
-    None
+    scope
+        .children
+        .iter()
+        .find_map(|child| var_def_at_declaration_offset(child, byte_offset))
 }
 
 /// Collect every variable name visible at `byte_offset` — the union
@@ -1125,10 +1363,28 @@ pub(crate) fn lexical_namespace_chain(
 /// proc's/method's own defining namespace inside its body, even when that
 /// proc was declared with a fully-qualified name with no enclosing
 /// `namespace eval` at all.
+///
+/// `overrides` (issue #923 idx 116) is checked *first*: a runtime-context
+/// namespace pin (`apply {{params} body ns}` runs `body` in `ns`, not its
+/// lexical home) that the ordinary span-containment walk above can never
+/// see, since `handle_apply_command` roots that `Scope` subtree under
+/// fresh, `body_span`-less namespace wrapper nodes. On multiple containing
+/// entries (nested `apply` calls), the smallest span wins — innermost,
+/// mirroring the lexical walk's own innermost-scope preference. Pass `&[]`
+/// to opt out (e.g. variable lookups, which this fix deliberately doesn't
+/// extend — see `lookup_var_in_scope_chain`).
 pub(crate) fn innermost_namespace_at(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
+    overrides: &[(tcl_lexer::Span, String)],
 ) -> String {
+    let pinned = overrides
+        .iter()
+        .filter(|(span, _)| span.start() <= byte_offset && byte_offset < span.end())
+        .min_by_key(|(span, _)| span.end() - span.start());
+    if let Some((_, ns)) = pinned {
+        return ns.trim_start_matches("::").to_string();
+    }
     tcl_compiler::analyser::command_resolution_namespace_at(scope, byte_offset)
         .trim_start_matches("::")
         .to_string()
@@ -1142,8 +1398,9 @@ pub(crate) fn innermost_namespace_at(
 pub(crate) fn namespace_context_at(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
+    overrides: &[(tcl_lexer::Span, String)],
 ) -> String {
-    let ns = innermost_namespace_at(scope, byte_offset);
+    let ns = innermost_namespace_at(scope, byte_offset, overrides);
     if ns.is_empty() {
         "::".to_owned()
     } else {
@@ -1171,7 +1428,11 @@ pub fn command_head_and_namespace_at(
     let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
     let line_index = LineIndex::new(source);
     let offset = byte_offset_at(&line_index, source, line, character);
-    let namespace = namespace_context_at(&analysis.global_scope, offset);
+    let namespace = namespace_context_at(
+        &analysis.global_scope,
+        offset,
+        &analysis.namespace_overrides,
+    );
     Some((word, namespace))
 }
 
@@ -1198,6 +1459,96 @@ fn proc_visible_from_namespace<'a>(
     tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
         .into_iter()
         .find_map(|qname| analysis.all_procs.get(&qname))
+}
+
+/// Resolve a bareword `word` (`namespace` context, honouring `namespace
+/// path` exactly like [`proc_visible_from_namespace`]) through an
+/// in-document wildcard `namespace import NS::*` — a glob (or exact)
+/// pattern recorded in `analysis.namespace_imports`.
+///
+/// For each candidate qualified name Tcl's own lookup would try (the
+/// caller's namespace, then each `namespace path` entry, then global — the
+/// same order [`proc_visible_from_namespace`] walks), this checks whether
+/// that candidate's namespace has an in-scope import whose pattern's tail
+/// glob-matches `word`. A wildcard import only ever imports names its
+/// source namespace has actually `namespace export`ed (`Tcl_Export`,
+/// `tclNamesp.c`) — an unexported sibling command living in the same
+/// namespace is **not** reachable through the import (tclsh9.0/8.6-verified:
+/// `invalid command name` calling it bare) — so this also requires a recorded
+/// `analysis.namespace_exports` entry from that same source namespace whose
+/// pattern covers `word`.
+///
+/// Only resolves a source namespace defined in **this** document
+/// (`analysis.all_procs`); a source namespace defined in another file is
+/// the cross-document oracle's job
+/// (`tcl_lsp_core::workspace_index::WorkspaceIndex::resolve_wildcard_import`).
+fn proc_visible_via_wildcard_import<'a>(
+    analysis: &'a AnalysisResult,
+    namespace: &str,
+    word: &str,
+) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    let path = analysis
+        .namespace_paths
+        .get(namespace)
+        .map_or(&[][..], Vec::as_slice);
+    let source_ns = wildcard_import_source_namespace(analysis, namespace, path, word)?;
+    analysis
+        .all_procs
+        .get(&tcl_syntax::naming::qualify(source_ns, word))
+}
+
+/// Shared candidate walk behind [`proc_visible_via_wildcard_import`] and
+/// [`resolve_class_target_at`]'s wildcard-import fallback: find the first
+/// in-scope `namespace import` whose pattern covers `word`, whose source
+/// namespace has actually exported a matching pattern, and return that
+/// source namespace. `path` is the caller's own `namespace path` entries
+/// (empty for the class resolver, which — like
+/// [`tcl_syntax::naming::bareword_resolution_candidates`] — does not
+/// consult it). The caller joins the result with `word`
+/// ([`tcl_syntax::naming::qualify`]) and looks the qualified name up in
+/// whichever map (`all_procs` / `all_classes`) applies.
+///
+/// Restricted to a genuine bareword `word` (no embedded `::`) — `namespace
+/// import` / `namespace export` patterns only ever name simple command
+/// tails, matching the bug's scope (issue #923 idx 18); a qualified call
+/// (`inner::p`) never goes through an imported alias in real Tcl, so this
+/// abstains rather than risk mismatching a namespace-path segment against
+/// an unrelated import.
+fn wildcard_import_source_namespace<'a, S: AsRef<str>>(
+    analysis: &'a AnalysisResult,
+    namespace: &str,
+    path: &[S],
+    word: &str,
+) -> Option<&'a str> {
+    if word.contains("::") {
+        return None;
+    }
+    for candidate in tcl_syntax::naming::command_resolution_candidates(namespace, path, word) {
+        let Some((prefix, _)) = candidate.rsplit_once("::") else {
+            continue;
+        };
+        let candidate_ns = if prefix.is_empty() { "::" } else { prefix };
+        for imp in analysis
+            .namespace_imports
+            .iter()
+            .filter(|i| i.ns == candidate_ns)
+        {
+            let Some((source_ns, export_tail)) = imp.pattern.rsplit_once("::") else {
+                continue;
+            };
+            if source_ns.is_empty() || !tcl_syntax::glob::string_match(export_tail, word) {
+                continue;
+            }
+            let exported = analysis
+                .namespace_exports
+                .iter()
+                .any(|e| e.ns == source_ns && tcl_syntax::glob::string_match(&e.pattern, word));
+            if exported {
+                return Some(source_ns);
+            }
+        }
+    }
+    None
 }
 
 /// Resolve a call `word` written in `namespace` to the proc it denotes:
@@ -1240,6 +1591,20 @@ pub(crate) fn resolve_called_proc<'a>(
             return Some(proc_def);
         }
     }
+    // A wildcard `namespace import NS::*` creates no real `ProcDef` of its
+    // own — `proc_visible_from_namespace` can never see it — but it makes
+    // an exported command in `NS` callable bare, exactly as if a real proc
+    // existed at the candidate's qualified name. Tried at the same
+    // priority tier (same nested-shadow gate) so an unconditional
+    // top-level import still outranks a same-named builtin, matching how
+    // an equivalent top-level `proc` redefinition already would.
+    if let Some(proc_def) = proc_visible_via_wildcard_import(analysis, namespace, word) {
+        let nested_shadow = has_builtin
+            && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
+        if !nested_shadow {
+            return Some(proc_def);
+        }
+    }
     if has_builtin {
         return None;
     }
@@ -1273,7 +1638,11 @@ pub(crate) fn resolve_proc_target_at<'a>(
     {
         return Some(hit);
     }
-    let ns = namespace_context_at(&analysis.global_scope, cursor_off);
+    let ns = namespace_context_at(
+        &analysis.global_scope,
+        cursor_off,
+        &analysis.namespace_overrides,
+    );
     let proc_def = resolve_called_proc(analysis, source, &ns, word, registry)?;
     analysis.all_procs.get_key_value(&proc_def.qualified_name)
 }
@@ -1297,10 +1666,25 @@ pub(crate) fn resolve_class_target_at<'a>(
     {
         return Some(hit);
     }
-    let ns = namespace_context_at(&analysis.global_scope, cursor_off);
-    tcl_syntax::naming::bareword_resolution_candidates(&ns, word)
+    let ns = namespace_context_at(
+        &analysis.global_scope,
+        cursor_off,
+        &analysis.namespace_overrides,
+    );
+    if let Some(hit) = tcl_syntax::naming::bareword_resolution_candidates(&ns, word)
         .into_iter()
         .find_map(|cand| analysis.all_classes.get_key_value(&cand))
+    {
+        return Some(hit);
+    }
+    // A wildcard `namespace import NS::*` makes an exported class in `NS`
+    // callable bare — see [`proc_visible_via_wildcard_import`] for the full
+    // rationale (issue #923 idx 18); classes never consult `namespace path`,
+    // matching `bareword_resolution_candidates` above.
+    let source_ns = wildcard_import_source_namespace(analysis, &ns, &[] as &[&str], word)?;
+    analysis
+        .all_classes
+        .get_key_value(&tcl_syntax::naming::qualify(source_ns, word))
 }
 
 /// Deterministic replacement for the old first-`HashMap`-hit tail match: of
@@ -1483,6 +1867,39 @@ mod tests {
         assert_eq!(locs[0].start_character, 5);
     }
 
+    // foreach multi-list lock-step form (issue #923 idx 70): `foreach
+    // varList1 list1 varList2 list2 ... body` binds every varList, not
+    // just the first.
+
+    #[test]
+    fn multi_list_foreach_name_resolves_to_its_own_loop_not_an_unrelated_later_one() {
+        // The finding's own demonstrated in-vivo failure mode on the real,
+        // unmodified pix corpus file (docs/pixdoc.tcl) — a *second*
+        // `foreach` reusing the bare name `name` (a wholly unrelated,
+        // later loop) previously "won" by being the only `VarDef` named
+        // `name` anywhere in the flat top-level scope, since the first
+        // loop's own `name` (the second varList of a `foreach dirName
+        // {...} name {...} {...}` multi-list form) was never bound at
+        // all. tclsh9.0/8.6 both prove `name` inside the first loop's body
+        // is that loop's own variable, never reaching the second loop.
+        let src = "foreach dirName {src src {src core}} name {alpha beta gamma} {\n    puts \"$dirName $name\"\n    if {$name eq \"pixutils\"} { puts skip }\n}\nforeach name {examples color changes} {\n    puts $name.ruff\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the first loop's own `$name` read (line 1, col 21).
+        let locs = definition(src, 1, 21, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 0,
+            "must resolve to the first loop's own `name` clause (line 0), not the unrelated second loop (line 4): {locs:?}"
+        );
+        assert_eq!(locs[0].start_character, 37);
+
+        // Same wrong-location bug reproduced from a second usage inside
+        // the same loop body (line 2, `if {$name eq ...}`).
+        let locs2 = definition(src, 2, 10, &analysis);
+        assert_eq!(locs2.len(), 1, "{locs2:?}");
+        assert_eq!(locs2[0].start_line, 0, "{locs2:?}");
+    }
+
     // namespace-aware proc resolution (C Tcl `Tcl_FindCommand` order)
 
     #[test]
@@ -1497,6 +1914,301 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 4, "must resolve to ::b::helper");
         assert_eq!(locs[0].start_character, 9);
+    }
+
+    // apply namespace override (issue #923 idx 116): a bareword called
+    // inside `apply {{params} body ns}`'s body resolves against `ns`, not
+    // wherever the `apply` call is lexically written.
+
+    #[test]
+    fn bareword_inside_apply_body_resolves_against_the_lambdas_own_namespace() {
+        // TP — the finding's own literal repro: `real` and `lexical` both
+        // define `cleanup`; `apply {{} {cleanup done} ::real}` must
+        // resolve the bareword `cleanup` inside its body to `::real`'s
+        // copy, not `::lexical`'s (tclsh9.0/8.6-verified: prints "real
+        // done"). Before this fix: resolved to `::lexical::cleanup`
+        // purely by lexical-nearest-definition coincidence.
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\napply {{} {cleanup done} ::real}\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside the apply body (line 6, col 11).
+        let locs = definition(src, 6, 11, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to real::cleanup (line 1), not lexical::cleanup (line 4): {locs:?}"
+        );
+        assert_eq!(locs[0].start_character, 9);
+    }
+
+    #[test]
+    fn bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace() {
+        // TP — one-hop `$var` indirection to a literal lambda triple:
+        // `set lambda {{} {cleanup done} ::real}` then `apply $lambda`.
+        // tclsh9.0/8.6-verified: prints "real done". Exercises
+        // `resolve_dynamic_apply_lambda`'s `TokenType::Var` branch.
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\nset lambda {{} {cleanup done} ::real}\napply $lambda\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside the `set`'s braced value (line 6, col 16).
+        let locs = definition(src, 6, 16, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to real::cleanup (line 1), not lexical::cleanup (line 4): {locs:?}"
+        );
+    }
+
+    #[test]
+    fn bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace() {
+        // TP — direct list-substitution + namespace-qualified var, `apply`
+        // as a literal command word: `apply [list {} $lexical::body
+        // ::real]`, where `lexical::body` itself holds the literal
+        // `{cleanup done}`. Exercises BOTH new pieces together
+        // (`lookup_const_string_in_namespace` + the list-folding
+        // `TokenType::Cmd` branch).
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n    set body {cleanup done}\n}\napply [list {} $lexical::body ::real]\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside `set body {cleanup done}` (line 5, col 14).
+        let locs = definition(src, 5, 14, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to real::cleanup (line 1), not lexical::cleanup (line 4): {locs:?}"
+        );
+    }
+
+    #[test]
+    fn two_hop_apply_var_indirection_stays_unresolved() {
+        // FN — deliberately out of scope: `set a $lambda; apply $a` is an
+        // extra level of $var-to-$var forwarding beyond the one hop
+        // `resolve_dynamic_apply_lambda` follows from `apply`'s own
+        // argument (`set a $lambda`'s value is itself a `$`-prefixed Var
+        // token, which `handle_set_command` never records as a constant
+        // string at all, so `apply $a` can't resolve even one hop back to
+        // the literal lambda). Two conflicting `cleanup` procs, matching
+        // the other scenarios' shape, so a wrong resolution would be
+        // visible rather than accidentally right via a single-candidate
+        // fallback. Confirm this stays unresolved after the fix — a
+        // documented depth bound, not a regression.
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\nset lambda {{} {cleanup done} ::real}\nset a $lambda\napply $a\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside the `set lambda`'s braced value (line 6, col 16).
+        let locs = definition(src, 6, 16, &analysis);
+        // Since `apply $a` never resolves (not even one hop), this text is
+        // never walked as a script body at all, so `namespace_overrides`
+        // gets no entry for it — whatever answer comes back is from the
+        // SAME pre-existing, coincidental lexical-nearest fallback that
+        // would fire with no `apply`/`namespace_overrides` mechanism in
+        // the picture at all (confirmed: resolves to lexical::cleanup,
+        // line 4 — the nearer declaration, not real::cleanup on line 1).
+        // The one assertion that actually matters: the override must NOT
+        // have kicked in and pointed this at real::cleanup.
+        assert!(
+            locs.iter().all(|l| l.start_line != 1),
+            "two-hop indirection is a deliberate depth bound — must not resolve via the \
+             override to real::cleanup: {locs:?}"
+        );
+    }
+
+    #[test]
+    fn apply_namespace_matching_lexical_nesting_still_resolves() {
+        // TN — the "control" shape: apply's namespace override happens to
+        // equal its lexical home. Must resolve correctly both before and
+        // after the fix (before: coincidentally, via the lexical fallback;
+        // after: genuinely, via the override) — proves the fix doesn't
+        // disturb the already-working common case.
+        let src = "namespace eval app {\n    proc cleanup {tag} { puts $tag }\n    apply {{} {cleanup done} ::app}\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `cleanup` inside the apply body (line 2, col 15).
+        let locs = definition(src, 2, 15, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn apply_namespace_override_does_not_leak_past_its_own_span() {
+        // FP guard — a bareword with the SAME text, immediately outside
+        // the apply body's span, must resolve exactly as it would with no
+        // apply call in the file at all (i.e. to the lexically-nearest
+        // `lexical::cleanup`, not real::cleanup). Catches an off-by-one in
+        // the recorded span or a "last override wins globally" bug.
+        let src = "namespace eval real {\n    proc cleanup {tag} { puts $tag }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts $tag }\n    apply {{} {cleanup done} ::real}\n    cleanup done\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the second `cleanup` (line 6, the bare call OUTSIDE the
+        // apply body, col 4).
+        let locs = definition(src, 6, 4, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 4,
+            "must resolve to lexical::cleanup, the override must not leak past its span: {locs:?}"
+        );
+    }
+
+    #[test]
+    fn two_apply_calls_with_different_namespace_overrides_never_cross_resolve() {
+        // FP guard — two independent, non-overlapping `apply` calls with
+        // different namespace overrides in the same file must each
+        // resolve to their own namespace, never the other's (catches an
+        // implementation that only tracks a single override, or picks the
+        // wrong entry when more than one exists).
+        let src = "namespace eval a {\n    proc cleanup {tag} { puts $tag }\n}\nnamespace eval b {\n    proc cleanup {tag} { puts $tag }\n}\napply {{} {cleanup 1} ::a}\napply {{} {cleanup 2} ::b}\n";
+        let analysis = analyse(src);
+        // First apply body's `cleanup` (line 6, col 11) -> ::a::cleanup (line 1).
+        let locs_a = definition(src, 6, 11, &analysis);
+        assert_eq!(locs_a.len(), 1, "{locs_a:?}");
+        assert_eq!(locs_a[0].start_line, 1);
+        // Second apply body's `cleanup` (line 7, col 11) -> ::b::cleanup (line 4).
+        let locs_b = definition(src, 7, 11, &analysis);
+        assert_eq!(locs_b.len(), 1, "{locs_b:?}");
+        assert_eq!(locs_b[0].start_line, 4);
+    }
+
+    // wildcard namespace import bareword resolution (issue #923 idx 18):
+    // `namespace import NS::*` makes every command `NS` has `namespace
+    // export`ed callable bare wherever the import is in scope — but real
+    // Tcl only imports *exported* names (`Tcl_Export`), so an unexported
+    // sibling in `NS` stays unreachable through the import.
+
+    #[test]
+    fn wildcard_namespace_import_resolves_exported_proc() {
+        // TP — single command in `Foo`, exported, reached only through the
+        // wildcard import (tclsh9.0/8.6-verified: `bar` prints 1).
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
+        let analysis = analyse(src);
+        // Cursor on the bareword `bar` call (line 5, col 0).
+        let locs = definition(src, 5, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to Foo::bar's declaration"
+        );
+        assert_eq!(locs[0].start_character, 9);
+    }
+
+    #[test]
+    fn wildcard_namespace_import_resolves_exported_proc_alongside_unexported_sibling() {
+        // TP — the finding's own headline shape: `Foo` has both an exported
+        // `bar` and an unrelated, unexported `other`. Exhaustive tracing
+        // found the old code blocked *every* route identically regardless
+        // of sibling count — this proves the fix does not regress to some
+        // sibling-count-dependent "ambiguity threshold" that doesn't exist
+        // in real Tcl either.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
+        let analysis = analyse(src);
+        // Cursor on the bareword `bar` call (line 6, col 0).
+        let locs = definition(src, 6, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to Foo::bar's declaration"
+        );
+        assert_eq!(locs[0].start_character, 9);
+    }
+
+    #[test]
+    fn wildcard_namespace_import_unexported_sibling_stays_unresolved() {
+        // FP guard (CRITICAL) — `other` lives in `Foo` but is never
+        // exported, so real Tcl's `namespace import ::Foo::*` never binds
+        // it: a bare `other` call errors "invalid command name" at runtime
+        // (Tcl manual, `namespace` — "namespace import" only imports
+        // exported names). The wildcard-import resolver must not
+        // manufacture a resolution the interpreter itself would reject.
+        //
+        // Exercises `proc_visible_via_wildcard_import` directly rather than
+        // the full `definition()` provider: `resolve_called_proc`'s own
+        // pre-existing, unrelated lenient fallback
+        // (`fallback_proc_by_simple_name`, "any proc with this simple name,
+        // anywhere") would otherwise also resolve a bare `other` call
+        // regardless of import/export state — a longstanding, documented
+        // leniency for procs whose defining namespace isn't statically
+        // visible, not the gate this test is proving.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nother\n";
+        let analysis = analyse(src);
+        let hit = proc_visible_via_wildcard_import(&analysis, "::", "other");
+        assert!(
+            hit.is_none(),
+            "an unexported sibling must stay unresolved through the wildcard import: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn wildcard_namespace_import_resolves_exported_class() {
+        // TP — the class analogue of
+        // `wildcard_namespace_import_resolves_exported_proc`:
+        // `resolve_class_target_at` is the fixed function directly (the
+        // top-level `definition()` provider's own bareword-class match is
+        // namespace-blind already and would not exercise this fix).
+        let src = "namespace eval Foo {\n    oo::class create Widget {}\n    namespace export Widget\n}\nnamespace import ::Foo::*\nWidget new\n";
+        let analysis = analyse(src);
+        let line_index = LineIndex::new(src);
+        let cursor_off = byte_offset_at(&line_index, src, 5, 0);
+        let hit = resolve_class_target_at(&analysis, cursor_off, "Widget");
+        assert!(
+            hit.is_some(),
+            "must resolve Widget through the wildcard import"
+        );
+        let (qname, _) = hit.unwrap();
+        assert_eq!(qname, "::Foo::Widget");
+    }
+
+    #[test]
+    fn wildcard_namespace_import_unexported_sibling_class_stays_unresolved() {
+        // FP guard — the class analogue: `Other` lives in `Foo` but is
+        // never exported, so it must stay unresolved through the wildcard
+        // import exactly like the proc case.
+        let src = "namespace eval Foo {\n    oo::class create Widget {}\n    oo::class create Other {}\n    namespace export Widget\n}\nnamespace import ::Foo::*\nOther new\n";
+        let analysis = analyse(src);
+        let line_index = LineIndex::new(src);
+        let cursor_off = byte_offset_at(&line_index, src, 6, 0);
+        let hit = resolve_class_target_at(&analysis, cursor_off, "Other");
+        assert!(
+            hit.is_none(),
+            "an unexported sibling class must stay unresolved: {hit:?}"
+        );
+    }
+
+    #[test]
+    fn wildcard_namespace_import_wins_over_an_unrelated_decoy_with_the_same_simple_name() {
+        // TP — differential-audit finding idx 29 (main audit wave), its
+        // "cleanest repro": before this fix, a bareword call reached via a
+        // wildcard import never consulted `namespace_imports` at all, so
+        // it fell straight to `fallback_proc_by_simple_name`'s lenient
+        // "any proc with this simple name, prefer lexicographically
+        // smallest qualified name" tie-break — silently resolving (and
+        // hovering) to an entirely unrelated, never-imported decoy
+        // (`::decoyns::helper`, "d" < "r") instead of the real,
+        // oracle-proven target (`::realns::helper`, tclsh9.0/8.6-verified:
+        // prints `REAL`). The wildcard-import resolution added by idx 18
+        // is tried *before* that fallback, so it must win here.
+        let src = "namespace eval realns {\n    namespace export helper\n    proc helper {} { return REAL }\n}\nnamespace eval decoyns {\n    proc helper {} { return DECOY }\n}\nnamespace eval userns {\n    namespace import ::realns::*\n    proc run {} {\n        return [helper]\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the bareword `helper` call inside `userns::run` (line
+        // 10, col 16 — `        return [helper]`).
+        let locs = definition(src, 10, 16, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 2,
+            "must resolve to realns::helper (the exported, imported target), \
+             not the decoy: {locs:?}"
+        );
+    }
+
+    #[test]
+    fn exact_namespace_import_resolves_source_proc_in_document() {
+        // FP guard / bonus TP — a plain (non-glob) `namespace import
+        // ::Foo::bar` must keep working through the same in-document path
+        // (the wildcard resolver's glob match degrades to exact equality
+        // for a literal pattern), matching the already-passing
+        // cross-document `namespace_import_call_site_references_the_source_command`
+        // (`tcl-lsp-core::workspace_index`) — this exercises the same-file
+        // case that resolver never covers.
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::bar\nbar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 5, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 1,
+            "must resolve to Foo::bar's declaration"
+        );
     }
 
     #[test]
@@ -1756,6 +2468,60 @@ mod tests {
     }
 
     #[test]
+    fn jump_to_proc_param_bareword_declaration_resolves_to_itself() {
+        // TP — differential-audit finding idx 9 (main audit wave): a cursor
+        // placed directly on a proc parameter's own bareword name (not a
+        // `$`-prefixed read) previously resolved to nothing at all, even
+        // though every `$name` read of the same parameter resolved fine —
+        // `scope_chain_at` never reaches the proc's own scope for a byte
+        // offset inside the parameter list, which sits textually *before*
+        // that scope's `body_span` even starts.
+        let src = "proc greet {name} { return $name }\n";
+        let analysis = analyse(src);
+        // Cursor on `name` inside the parameter list (col 12-16).
+        let locs = definition(src, 0, 13, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{:?}", locs[0]);
+        assert_eq!(locs[0].start_character, 12, "{:?}", locs[0]);
+        assert_eq!(locs[0].end_character, 16, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn jump_to_catch_resultvar_bareword_resolves_to_the_reused_variable() {
+        // TP — the finding's other confirmed shape: `catch script name`
+        // reuses (writes back into) an *existing* variable — its own
+        // bareword token is recorded in `VarDef.references`, not
+        // `definition_span` (that stays pinned to the variable's original
+        // declaration) — so a cursor placed directly on it must still
+        // resolve, to the *original* declaration site.
+        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        let locs = definition(src, 1, 17, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(
+            locs[0].start_line, 0,
+            "must resolve to the original param declaration: {:?}",
+            locs[0]
+        );
+        assert_eq!(locs[0].start_character, 20, "{:?}", locs[0]);
+        assert_eq!(locs[0].end_character, 24, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn bareword_that_is_not_any_variable_occurrence_does_not_resolve_as_a_variable() {
+        // FP guard — an ordinary bareword that never appears as any
+        // variable's declaration or reference span (an unrelated command's
+        // plain argument) must not be mistaken for a variable declaration
+        // site, even in a file containing unrelated variables.
+        let src = "proc greet {name} { return $name }\nputs literal\n";
+        let analysis = analyse(src);
+        // Cursor on `literal` (line 1, col 5-12) — not a variable anywhere.
+        let locs = definition(src, 1, 7, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
     fn jump_to_absolutely_qualified_var_definition() {
         // TP — the exact shape both mined findings (defer.tcl's
         // `$::defer::idVar`, uri.tcl's namespace-current pattern) reduce to:
@@ -1936,6 +2702,127 @@ mod tests {
         }
     }
 
+    #[test]
+    fn ensemble_map_subcommand_jumps_to_target_proc() {
+        // TP — issue #923 idx 106, the confirmed finding's own minimal repro:
+        // `namespace ensemble create -map {foo ::e::Foo}` inside `::e`, then
+        // `e foo bar` at the call site. Cursor on the call-site "foo" must
+        // resolve to ::e::Foo's declaration.
+        let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\n";
+        let analysis = analyse(src);
+        // Cursor on "foo" in `puts [e foo bar]` (0-based line 7, col 8).
+        let locs = definition(src, 7, 8, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 5);
+    }
+
+    #[test]
+    fn ensemble_map_subcommand_resolves_forward_declared_differently_cased_target() {
+        // TP — the subcommand's spelling ("make") differs from the target's
+        // simple name ("Make") in case, and the target is declared AFTER
+        // the ensemble and the call site. A fix matching on literal name
+        // equality (rather than the resolved qualified name) would fail
+        // this the same way it would fail the real widget.tcl repro.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nputs [widget make hello]\nproc ::widget::Make {args} { return \"make: $args\" }\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 5, 15, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 6);
+    }
+
+    #[test]
+    fn ensemble_subcommands_form_jumps_to_target_proc() {
+        // TP — the `-subcommands` sibling form (not `-map`), the folded-in
+        // secondary fix from the same research plan.
+        let src = "namespace eval ::box {\n    proc show {} { return \"shown\" }\n    namespace ensemble create -subcommands {show}\n}\nbox show\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 5, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn ensemble_dynamic_map_mutation_still_abstains() {
+        // TN — must not regress the audit's own explicitly-correct
+        // abstention: a subcommand added only via a runtime
+        // `namespace ensemble configure -map $var` dict-set mutation (never
+        // a literal `-map {...}` list) is not statically resolvable —
+        // `ensemble_subcommand_targets` never gets an entry for it.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc ::widget::addType {t} {\n    set m [namespace ensemble configure ::widget -map]\n    dict set m dyn ::widget::Dyn\n    namespace ensemble configure ::widget -map $m\n}\nproc ::widget::Dyn {args} { return dyn }\nwidget addType foo\nputs [widget dyn hello]\n";
+        let analysis = analyse(src);
+        // Cursor on "dyn" in `puts [widget dyn hello]` (0-based line 12).
+        let locs = definition(src, 12, 13, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn two_ensembles_with_shared_subcommand_name_do_not_cross_contaminate() {
+        // TN — validates the outer table is keyed per-ensemble, not a
+        // single flat map (the reason `command_aliases` can't be reused
+        // directly for this fix).
+        let src = "namespace eval ::a {\n    namespace ensemble create -map {go ::a::Go}\n}\nnamespace eval ::b {\n    namespace ensemble create -map {go ::b::Go}\n}\nproc ::a::Go {} { return a }\nproc ::b::Go {} { return b }\nputs [a go]\nputs [b go]\n";
+        let analysis = analyse(src);
+        // `puts [a go]` is 0-based line 8; `puts [b go]` is line 9.
+        let locs_a = definition(src, 8, 8, &analysis);
+        assert_eq!(locs_a.len(), 1, "{locs_a:?}");
+        assert_eq!(locs_a[0].start_line, 6);
+        let locs_b = definition(src, 9, 8, &analysis);
+        assert_eq!(locs_b.len(), 1, "{locs_b:?}");
+        assert_eq!(locs_b[0].start_line, 7);
+    }
+
+    #[test]
+    fn ensemble_unmapped_subcommand_abstains_rather_than_guessing() {
+        // FN (accepted, documented) — a typo'd/genuinely-unmapped
+        // subcommand silently abstains rather than crashing or guessing.
+        // Also documents that this fix deliberately does not implement
+        // Tcl's unique-prefix ensemble-subcommand matching (a real tclsh
+        // would dispatch "mak" to "make" here since it's an unambiguous
+        // prefix and `-prefixes` defaults to true) — a reusable, named
+        // follow-up (`CommandSpec::resolve_subcommand_for_dialect`-style
+        // logic), not attempted here.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc ::widget::Make {args} {}\nputs [widget mak hello]\n";
+        let analysis = analyse(src);
+        // Cursor on "mak" in `puts [widget mak hello]` (0-based line 6).
+        let locs = definition(src, 6, 13, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn tk_ensemble_configure_splice_resolves_the_subcommand_to_its_real_target_not_a_decoy() {
+        // TP — the finding's own repro shape (issue #923 idx 84):
+        // `tk`'s built-in ensemble is extended at runtime via `namespace
+        // ensemble configure tk -map [dict merge [namespace ensemble
+        // configure tk -map] {systray ::tk::systray}]`, the real
+        // `tk/library/systray.tcl` idiom. tclsh9.0/8.6 both confirm `tk
+        // systray` really dispatches to `::tk::systray`, never a
+        // same-tail-name decoy proc in an unrelated namespace — previously
+        // this fell through to `fallback_proc_by_simple_name` and wrongly
+        // landed on the decoy (or, with no decoy present, abstained despite
+        // `systray -> ::tk::systray` being a literal, static fact).
+        let src = "namespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n";
+        let analysis = analyse(src);
+        // Cursor on "systray" in the final `tk systray create ...` call
+        // (0-based line 5, "tk " is 3 chars so "systray" starts at col 3).
+        let locs = definition(src, 5, 5, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // Resolves to the REAL `proc ::tk::systray` (line 3), not the
+        // same-tail-name decoy inside `::decoy` (line 1).
+        assert_eq!(locs[0].start_line, 3);
+    }
+
+    #[test]
+    fn ensemble_wholly_dynamic_map_value_abstains() {
+        // FN (accepted, zero regression) — the whole `-map` value itself is
+        // a variable, not a literal list; `ensemble_subcommand_targets`
+        // never gets an entry for `::widget` at all.
+        let src = "namespace eval ::widget {\n    variable dynamicMap {make ::widget::Make}\n    namespace ensemble create -map $dynamicMap\n}\nproc ::widget::Make {args} {}\nputs [widget make hello]\n";
+        let analysis = analyse(src);
+        // Cursor on "make" in `puts [widget make hello]` (0-based line 5).
+        let locs = definition(src, 5, 13, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
     // scope-chain $var descent
 
     #[test]
@@ -2000,30 +2887,80 @@ mod tests {
     // class-member lookup
 
     #[test]
-    fn definition_jumps_to_method_inside_class_body() {
-        // Inside an OO class body, `greet` refers to the
-        // class's own method.  Cursor on `greet` should jump
-        // to the `method greet` declaration.
+    fn definition_bare_sibling_method_call_without_link_abstains() {
+        // FP (issue #923 idx 113) — a bareword sibling method call is NOT
+        // actually reachable from another method's body unless `link`
+        // exposed it that way; real tclsh: "invalid command name". Must
+        // abstain rather than falsely resolve.
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the first `greet` in the `twice` body.
         // Line 2: `    method twice {} { greet ; greet }`
         // Col 22 lands on the `g` of the first `greet`.
         let locs = definition(src, 2, 22, &analysis);
-        assert_eq!(locs.len(), 1, "{locs:?}");
-        // The method declaration is on line 1.
-        assert_eq!(locs[0].start_line, 1);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]
-    fn definition_jumps_to_classmethod() {
+    fn definition_linked_sibling_method_call_resolves() {
+        // TP (issue #923 idx 113) — `link greet` (called from the
+        // constructor) makes `greet` genuinely bareword-callable from
+        // every method body of this class, so the bare call now
+        // correctly resolves to the method's declaration.
+        let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Line 3: `    method twice {} { greet ; greet }` — same text/col
+        // as the un-linked test above, one line further down.
+        let locs = definition(src, 3, 22, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The method declaration is now on line 2.
+        assert_eq!(locs[0].start_line, 2);
+    }
+
+    #[test]
+    fn definition_my_dispatch_resolves_when_class_extended_via_separate_oo_define() {
+        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
+        // created via `oo::class create` with no body, then every method —
+        // including the `my Helper` call site itself — is added via a
+        // *separate*, later `oo::define Gadget { ... }` block. This is
+        // exactly the real corpus shape (`ticklecharts::chart`: `oo::class
+        // create` at one line, all methods added via a later `oo::define`).
+        // tclsh9.0/8.6 both prove `my Helper` genuinely dispatches to
+        // `Helper` here — go-to-definition must resolve it, not abstain.
+        let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n";
+        let analysis = analyse(src);
+        // Line 5: `    method Caller {} { my Helper }` — cursor on the
+        // `Helper` word inside `my Helper` (col 26).
+        let locs = definition(src, 5, 26, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The `Helper` method declaration is on line 4.
+        assert_eq!(locs[0].start_line, 4);
+    }
+
+    #[test]
+    fn definition_bare_sibling_classmethod_call_without_link_abstains() {
+        // FP (issue #923 idx 113) — same shape as the method case above,
+        // for `classmethod`.
         let src = "oo::class create C {\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
         let analysis = analyse(src);
         // Line 2: `    method use {} { factory }`
         // Cursor on `factory` (col 20).
         let locs = definition(src, 2, 20, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn definition_linked_sibling_classmethod_call_resolves() {
+        // TP (issue #923 idx 113) — `link factory` makes the classmethod
+        // call resolve.
+        let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
+        let analysis = analyse(src);
+        // Line 3: `    method use {} { factory }` — same text/col as the
+        // un-linked test above, one line further down.
+        let locs = definition(src, 3, 20, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
-        assert_eq!(locs[0].start_line, 1);
+        // The classmethod declaration is now on line 2.
+        assert_eq!(locs[0].start_line, 2);
     }
 
     #[test]
@@ -2042,6 +2979,20 @@ mod tests {
         // for the empty-span case, but the keyword span is
         // populated now, so the jump lands on line 1.
         assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn definition_bare_sibling_property_call_without_link_abstains() {
+        // FP (issue #923 idx 113) — same rationale as the method/classmethod
+        // cases above, for a Tcl 9.0+ `oo::configurable` `property`
+        // accessor bareword call: `[length]` is not actually reachable
+        // without a `link`; real tclsh: "invalid command name".
+        let src = "oo::configurable create Widget {\n    property length -get {return 42}\n    method use {} { return [length] }\n}\n";
+        let analysis = analyse(src);
+        // Line 2: `    method use {} { return [length] }` — col 27 lands
+        // on the `l` of `length`.
+        let locs = definition(src, 2, 27, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]
@@ -2156,5 +3107,157 @@ mod tests {
         assert!(receiver_instance_class(&analysis, "rex", false).is_some());
         assert!(receiver_instance_class(&analysis, "b", false).is_none());
         assert!(receiver_instance_class(&analysis, "b", true).is_some());
+    }
+
+    // Class-command dispatch (issue #923 idx 120): `CLASS method` for a
+    // classmethod / `self method`, distinct from `$obj method` / `NAME
+    // method` instance dispatch above.
+
+    #[test]
+    fn classmethod_call_on_its_own_class_resolves() {
+        // TP — the finding's own `ActiveRecord find` shape: a classmethod
+        // called directly on the class that declares it (Part 2 alone;
+        // ooutil's `classmethod` keyword was already correctly extracted
+        // into `class_methods` by the existing class-body walker).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 3, 14, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+        assert_eq!(locs[0].start_character, 16);
+    }
+
+    #[test]
+    fn classmethod_call_on_an_inheriting_subclass_resolves() {
+        // TP — the finding's second repro shape: `Table find`, where
+        // `Table` inherits `find` from `ActiveRecord` via the ordinary
+        // superclass MRO walk (ooutil's `classmethod` propagates to a
+        // subclass's own bound command — confirmed against tclsh).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 6, 7, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+        assert_eq!(locs[0].start_character, 16);
+    }
+
+    #[test]
+    fn self_method_call_on_its_own_class_resolves() {
+        // TP — requires BOTH Part 1 (self recognised at all) and Part 2
+        // (the class-command receiver path).
+        let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\nWidget make gadget\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 3, 8, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+        assert_eq!(locs[0].start_character, 16);
+    }
+
+    #[test]
+    fn self_method_not_inherited_by_a_non_overriding_subclass() {
+        // TN — the critical precision test for `is_self_method`: unlike
+        // `ooutil`'s `classmethod`, a plain `self method` is NOT inherited
+        // by a subclass's own bound command (confirmed against tclsh:
+        // `Gadget make` raises `unknown method "make"`). A naive reuse of
+        // the ordinary MRO walk (which DOES include Widget in Gadget's
+        // MRO) would incorrectly resolve this.
+        let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\noo::class create Gadget {\n    superclass Widget\n}\nGadget make foo\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 6, 8, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn instance_calling_a_classmethod_does_not_resolve() {
+        // TN — a real instance can never dispatch a classmethod (real
+        // tclsh: `unknown method "find": must be <cloned>, create, ...`).
+        // This is the companion tightening bundled with Part 2 (the two
+        // pre-existing instance-dispatch call sites now pass
+        // `MethodBucket::Instance`, which excludes `class_methods`
+        // entirely) — `completion.rs`'s `method_items` already documented
+        // and implemented this same exclusion for its own suggestions.
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord create rec1\nrec1 find foo bar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 5, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn bare_var_receiver_without_a_bound_command_does_not_resolve_class_dispatch() {
+        // TN — regression guard mirroring
+        // `receiver_instance_class_gates_bare_on_created_commands`: `d` is
+        // a plain variable (never bound as a command by `create`), so
+        // neither the existing instance-command branch nor the new
+        // class-command branch may fire for it.
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} {}\n}\nset d [ActiveRecord new]\nd find foo bar\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 2, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn foreach_rename_reinstall_call_site_resolves_to_the_wrapper_not_the_stale_original() {
+        // TP — issue #923 idx 86, the finding's own `tk/library/
+        // accessibility.tcl` repro shape: a literal-list `foreach` renames
+        // each classic widget command away and reinstalls a wrapper proc
+        // under the same original name. tclsh9.0/8.6 both prove `button`
+        // is the *new* wrapper proc after the loop runs — the old body is
+        // reachable only via `::tk::accessible::orig_button`. Go-to
+        // -definition on a `button` call made after the loop must resolve
+        // to the wrapper's own declaration (inside the loop), not the
+        // stale, pre-rename `proc button` at the top of the file.
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n\
+                   set r1 [button .b1]\n\
+                   set r2 [entry .e1]\n";
+        let analysis = analyse(src);
+        // Line 8: `set r1 [button .b1]` — cursor on "button".
+        let locs = definition(src, 8, 9, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // Resolves to the wrapper's own `proc ::$wtype ...` declaration
+        // (line 5), not the stale original `proc button` (line 0).
+        assert_eq!(locs[0].start_line, 5);
+    }
+
+    #[test]
+    fn foreach_rename_reinstall_second_element_also_resolves_to_its_own_wrapper() {
+        // TP sibling — proves the fix isn't overfit to the *first* literal
+        // list element: `entry` (the second element) resolves too.
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n\
+                   set r1 [button .b1]\n\
+                   set r2 [entry .e1]\n";
+        let analysis = analyse(src);
+        // Line 9: `set r2 [entry .e1]` — cursor on "entry".
+        let locs = definition(src, 9, 9, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 5);
+    }
+
+    // tcl::OptProc — the `opt` package's automatic-option-parsing proc
+    // definer (issue #923 idx 90): a call site must resolve to the real
+    // `tcl::OptProc` declaration, never a stale stub.
+
+    #[test]
+    fn opt_proc_call_site_resolves_to_its_declaration() {
+        let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
+        let analysis = analyse(src);
+        // Line 1: `greet foo` — cursor on "greet".
+        let locs = definition(src, 1, 0, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0, "{locs:?}");
+        assert_eq!(locs[0].start_character, 15, "{locs:?}");
     }
 }

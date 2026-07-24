@@ -204,36 +204,35 @@ where
 /// [`crate::analyses::MAX_CONSTSET_SIZE`].
 const MAX_FOLD_PRODUCT: usize = 32;
 
-/// Resolve a Tcl word with `$var` interpolations to the set of
-/// possible literal strings, given a per-variable resolved-value
-/// map.
+/// One piece of a word split by [`split_interpolation_segments`]: either
+/// literal text or a `$name`/`${name}` variable reference (bare name, no
+/// leading `$`).
+enum Segment<'a> {
+    Literal(&'a str),
+    Var(&'a str),
+}
+
+/// Split a Tcl word into alternating literal and `$var`/`${var}`
+/// segments, in order, without resolving the variables — the shared
+/// front end for [`fold_interpolation_set`] (multi-value SCCP `ConstSet`
+/// resolution) and [`fold_interpolation_single`] (scalar constant-string
+/// resolution).
 ///
 /// Returns `None` when:
 ///
-/// - the word contains a command substitution ``[…]`` (the
+/// - the word is empty or contains a command substitution ``[…]`` (the
 ///   side-effect surface defeats static folding);
-/// - any variable's resolved set is missing from `var_values`
-///   (treated as overdefined / unknown);
-/// - the Cartesian product would exceed [`MAX_FOLD_PRODUCT`]
-///   (a widening cutoff).
+/// - a ``${…}`` form is left unterminated;
+/// - a ``$`` is not followed by an identifier character;
+/// - a variable reference is array-indexed (``$name(…)``).
 ///
-/// `var_values` is keyed by bare variable name (no leading
-/// ``$``); each value is the flat set of constant strings
-/// the variable may take.  Callers materialise this from the
-/// SCCP `LatticeValue::Const` / `LatticeValue::ConstSet` maps
-/// — same shape as the W307 emitter's `all_constsets` aggregator.
-///
-/// **Recognised variable forms.**  Rather than a full `TclLexer`
-/// walk over every variable form (`$x`, `${x}`, `$x(idx)`), this
-/// uses a regex that matches the two leading-form variants (`$x`,
-/// `${x}`) and rejects array indexing — array-indexed reads
-/// aren't expected in command-head positions, and rejecting them
-/// errs on the safe side (returns `None`, leaving the W123 in place).
-#[must_use]
-pub(crate) fn fold_interpolation_set(
-    word: &str,
-    var_values: &std::collections::HashMap<String, HashSet<String>>,
-) -> Option<HashSet<String>> {
+/// **Recognised variable forms.**  Rather than a full `TclLexer` walk
+/// over every variable form (`$x`, `${x}`, `$x(idx)`), this scans for the
+/// two leading-form variants (`$x`, `${x}`) and rejects array indexing —
+/// array-indexed reads aren't expected in command-head positions, and
+/// rejecting them errs on the safe side (returns `None`, leaving the
+/// caller's fallback — e.g. a W123 diagnostic — in place).
+fn split_interpolation_segments(word: &str) -> Option<Vec<Segment<'_>>> {
     if word.is_empty() {
         return None;
     }
@@ -241,30 +240,21 @@ pub(crate) fn fold_interpolation_set(
         return None;
     }
 
-    // Walk the word, alternating literal segments and
-    // ``$var`` / ``${var}`` substitutions.  Each segment becomes
-    // a `Vec<String>` of possible expansions; the final result is
-    // the Cartesian product across all segments.
     let bytes = word.as_bytes();
-    let mut segments: Vec<Vec<String>> = Vec::new();
+    let mut segments: Vec<Segment<'_>> = Vec::new();
     let mut i = 0;
     let mut literal_start = 0;
     while i < bytes.len() {
         if bytes[i] == b'$' {
             if literal_start < i {
-                segments.push(vec![word[literal_start..i].to_string()]);
+                segments.push(Segment::Literal(&word[literal_start..i]));
             }
             i += 1;
             // ``${var}`` form.
             if i < bytes.len() && bytes[i] == b'{' {
                 i += 1;
                 let close = bytes[i..].iter().position(|&b| b == b'}')?;
-                let name = &word[i..i + close];
-                let resolved = var_values.get(name)?.clone();
-                if resolved.is_empty() {
-                    return None;
-                }
-                segments.push(resolved.into_iter().collect());
+                segments.push(Segment::Var(&word[i..i + close]));
                 i += close + 1;
                 literal_start = i;
                 continue;
@@ -283,35 +273,63 @@ pub(crate) fn fold_interpolation_set(
                 // ``$`` not followed by an identifier — reject.
                 return None;
             }
-            let name = &word[name_start..i];
             // Reject array-indexed reads — this keeps the matcher simple.
             if i < bytes.len() && bytes[i] == b'(' {
                 return None;
             }
-            let resolved = var_values.get(name)?.clone();
-            if resolved.is_empty() {
-                return None;
-            }
-            segments.push(resolved.into_iter().collect());
+            segments.push(Segment::Var(&word[name_start..i]));
             literal_start = i;
             continue;
         }
         i += 1;
     }
     if literal_start < bytes.len() {
-        segments.push(vec![word[literal_start..].to_string()]);
+        segments.push(Segment::Literal(&word[literal_start..]));
     }
 
     if segments.is_empty() {
         return None;
     }
+    Some(segments)
+}
+
+/// Resolve a Tcl word with `$var` interpolations to the set of
+/// possible literal strings, given a per-variable resolved-value
+/// map.
+///
+/// Returns `None` when [`split_interpolation_segments`] does (see its
+/// doc), when any variable's resolved set is missing from `var_values`
+/// (treated as overdefined / unknown), or when the Cartesian product
+/// would exceed [`MAX_FOLD_PRODUCT`] (a widening cutoff).
+///
+/// `var_values` is keyed by bare variable name (no leading
+/// ``$``); each value is the flat set of constant strings
+/// the variable may take.  Callers materialise this from the
+/// SCCP `LatticeValue::Const` / `LatticeValue::ConstSet` maps
+/// — same shape as the W307 emitter's `all_constsets` aggregator.
+#[must_use]
+pub(crate) fn fold_interpolation_set(
+    word: &str,
+    var_values: &std::collections::HashMap<String, HashSet<String>>,
+) -> Option<HashSet<String>> {
+    let segments = split_interpolation_segments(word)?;
 
     // Cartesian product, bounded by `MAX_FOLD_PRODUCT`.
     let mut current: Vec<String> = vec![String::new()];
     for seg in segments {
-        let mut next: Vec<String> = Vec::with_capacity(current.len() * seg.len().max(1));
+        let piece: Vec<String> = match seg {
+            Segment::Literal(text) => vec![text.to_string()],
+            Segment::Var(name) => {
+                let resolved = var_values.get(name)?;
+                if resolved.is_empty() {
+                    return None;
+                }
+                resolved.iter().cloned().collect()
+            }
+        };
+        let mut next: Vec<String> = Vec::with_capacity(current.len() * piece.len().max(1));
         for prefix in &current {
-            for piece in &seg {
+            for piece in &piece {
                 next.push(format!("{prefix}{piece}"));
                 if next.len() > MAX_FOLD_PRODUCT {
                     return None;
@@ -324,6 +342,29 @@ pub(crate) fn fold_interpolation_set(
         return None;
     }
     Some(current.into_iter().collect())
+}
+
+/// Resolve a Tcl word with `$var` interpolations to a single literal
+/// string, given a variable resolver.  The single-value analogue of
+/// [`fold_interpolation_set`], for a caller that already has a scalar
+/// constant-string lattice (e.g. `Analyser::lookup_const_string`) rather
+/// than the SCCP `ConstSet` map — short-circuits to `None` on the first
+/// unresolvable variable, same rejection rules as
+/// [`split_interpolation_segments`] (issue #923 idx 3).
+#[must_use]
+pub(crate) fn fold_interpolation_single(
+    word: &str,
+    mut resolve_var: impl FnMut(&str) -> Option<String>,
+) -> Option<String> {
+    let segments = split_interpolation_segments(word)?;
+    let mut result = String::new();
+    for seg in segments {
+        match seg {
+            Segment::Literal(text) => result.push_str(text),
+            Segment::Var(name) => result.push_str(&resolve_var(name)?),
+        }
+    }
+    Some(result)
 }
 
 #[cfg(test)]
@@ -508,5 +549,71 @@ mod tests {
         let set = fold_interpolation_set("foo", &vars).expect("resolved");
         assert!(set.contains("foo"));
         assert_eq!(set.len(), 1);
+    }
+
+    fn resolver(pairs: &[(&str, &str)]) -> impl FnMut(&str) -> Option<String> {
+        let map: HashMap<String, String> = pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        move |name: &str| map.get(name).cloned()
+    }
+
+    #[test]
+    fn fold_interpolation_single_resolves_simple_dollar_var() {
+        assert_eq!(
+            fold_interpolation_single("foo_$x", resolver(&[("x", "impl")])),
+            Some("foo_impl".to_string())
+        );
+    }
+
+    #[test]
+    fn fold_interpolation_single_resolves_braced_form() {
+        assert_eq!(
+            fold_interpolation_single("foo${x}bar", resolver(&[("x", "a")])),
+            Some("fooabar".to_string())
+        );
+    }
+
+    #[test]
+    fn fold_interpolation_single_resolves_two_vars() {
+        assert_eq!(
+            fold_interpolation_single(
+                "::mypkg::${c}_$key",
+                resolver(&[("c", "greet"), ("key", "tcl")])
+            ),
+            Some("::mypkg::greet_tcl".to_string())
+        );
+    }
+
+    #[test]
+    fn fold_interpolation_single_returns_none_for_unknown_var() {
+        assert_eq!(fold_interpolation_single("foo_$x", resolver(&[])), None);
+    }
+
+    #[test]
+    fn fold_interpolation_single_returns_none_for_command_substitution() {
+        assert_eq!(fold_interpolation_single("foo[bar]", resolver(&[])), None);
+    }
+
+    #[test]
+    fn fold_interpolation_single_returns_none_for_array_indexed_var() {
+        assert_eq!(
+            fold_interpolation_single("foo$arr(idx)", resolver(&[("arr", "a")])),
+            None
+        );
+    }
+
+    #[test]
+    fn fold_interpolation_single_preserves_pure_literal() {
+        assert_eq!(
+            fold_interpolation_single("foo", resolver(&[])),
+            Some("foo".to_string())
+        );
+    }
+
+    #[test]
+    fn fold_interpolation_single_returns_none_for_empty_word() {
+        assert_eq!(fold_interpolation_single("", resolver(&[])), None);
     }
 }

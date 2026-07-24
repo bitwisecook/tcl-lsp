@@ -112,6 +112,7 @@ mod oo_classvariable;
 mod oo_configurable;
 mod oo_copy;
 mod oo_define;
+mod oo_link;
 mod oo_my;
 mod oo_next;
 mod oo_objdefine;
@@ -124,6 +125,7 @@ mod parray;
 mod pid;
 mod pkg__create;
 mod pkg_mkindex;
+mod prefix_;
 mod proc_;
 mod puts_;
 mod pwd;
@@ -192,6 +194,9 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
     specs.extend(mathop_generated::specs());
     // The `tcl::mathfunc` math-function ensemble (both qualified spellings).
     specs.extend(mathfunc_generated::specs());
+    // Standalone specs for `dict` subcommands that are also genuine,
+    // separately-callable `::tcl::dict::<name>` commands (issue #923 idx 105).
+    specs.extend(dict::qualified_specs());
     // Simple named commands not yet implemented. (`vec!` — the spec
     // table is past clippy's stack-array size threshold.)
     specs.extend(vec![
@@ -309,6 +314,8 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         oo_configurable::spec(),
         oo_copy::spec(),
         oo_define::spec(),
+        oo_link::spec(),
+        oo_link::spec_ooutil_86(),
         oo_my::spec(),
         oo_next::spec(),
         oo_objdefine::spec(),
@@ -319,6 +326,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         package_::spec(),
         parray::spec(),
         pid::spec(),
+        prefix_::spec(),
         proc_::spec(),
         puts_::spec(),
         re_quote::spec(),

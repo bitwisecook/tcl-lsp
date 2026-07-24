@@ -75,7 +75,10 @@ pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
 // not depend on the compiler — the `CompileService` injection keeps the wasm
 // core light) can share it. Re-exported here so `tcl_compiler::analyser::…`
 // callers are unchanged.
-pub use scope::{command_resolution_namespace_at, lookup_var_in_namespace};
+pub use scope::{
+    command_resolution_namespace_at, innermost_scope_reaches_oo_helpers,
+    lookup_var_by_qualified_name, lookup_var_in_namespace, qualified_name_for_var_decl,
+};
 pub use snapshot::AnalyserSnapshot;
 pub use state::{Analyser, NonAsciiMode};
 pub use tcl_syntax::mro::{self, MroError, build_mro_map, tcloo_linearise};

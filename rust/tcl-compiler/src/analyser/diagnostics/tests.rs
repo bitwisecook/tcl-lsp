@@ -2096,14 +2096,27 @@ fn after_multi_word_script_concatenation_abstains() {
 }
 
 #[test]
-fn after_default_form_bareword_callback_is_not_yet_checked() {
-    // A *bareword* callback (no braces) is valid Tcl and equally broken at
-    // runtime, but stays unchecked today — the same pre-existing, documented
-    // limitation as every other `ArgRole::Body` consumer (`analyse_body`
-    // recurses only a `Str`-kind token). Pinned as a TN-shaped regression
-    // guard so a future body-recursion change to this convention is a
-    // deliberate decision, not a silent behaviour change.
+fn after_default_form_bareword_callback_is_now_arity_checked() {
+    // TP — differential-audit finding idx 61 (main audit wave): a
+    // *bareword* callback (no braces) is valid Tcl — equally callable, and
+    // equally arity-checkable, as a braced one — but was invisible to
+    // `command_invocations` entirely (a deliberate, but stale, decision
+    // this test used to pin as `after_default_form_bareword_callback_
+    // is_not_yet_checked`; its own comment called out that a future
+    // change here must be deliberate, not silent — this is that
+    // deliberate change): `dispatch_body_arguments` now dispatches a
+    // genuinely-static bareword body (`Esc`-kind, single word, no `$`/`[`)
+    // through the ordinary `process_command` path, so it gets full call
+    // treatment, arity checking included, exactly like a braced one.
     let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter 1000 cb\n";
+    assert_eq!(arity_codes(src, "tcl8.6"), vec!["E002".to_string()]);
+}
+
+#[test]
+fn after_default_form_bareword_callback_correct_arity_is_silent() {
+    // TN sibling — a bareword callback with the RIGHT arity (no extra
+    // args needed) must not falsely fire E002.
+    let src = "proc cb {} { return 1 }\nafter 1000 cb\n";
     assert_eq!(arity_codes(src, "tcl8.6"), Vec::<String>::new());
 }
 
@@ -2337,15 +2350,37 @@ short 1 2
 }
 
 #[test]
-fn same_file_dynamic_rename_or_alias_target_does_not_false_positive() {
-    // A dynamically-named rename target can't be resolved statically —
-    // must never invent a diagnostic.
+fn same_file_dynamic_but_resolvable_rename_target_checks_arity() {
+    // `$newname` is dynamic-*looking* but a known constant (`set newname
+    // target_orig`) — issue #923 idx 3's constant-folding fix now
+    // resolves it, so `target_orig` correctly inherits `target`'s arity
+    // (a rename is a pure name move, never an arity change) and a call
+    // with too few arguments is caught exactly like the fully-literal
+    // `same_file_static_rename_inherits_original_arity` case. Before
+    // that fix this whole rename was untracked (dynamic per a naive
+    // `$`-in-the-text check), so `target_orig 1` was silently missed.
     let src =
         "proc target {a b c} {}\nset newname target_orig\nrename target $newname\ntarget_orig 1\n";
     assert_eq!(
         arity_codes(src, "tcl8.6"),
+        vec!["E002".to_owned()],
+        "newname's value is a known constant, so this rename must resolve and check arity"
+    );
+    let ok = src.replace("target_orig 1\n", "target_orig 1 2 3\n");
+    assert_eq!(arity_codes(&ok, "tcl8.6"), Vec::<String>::new());
+}
+
+#[test]
+fn same_file_genuinely_dynamic_rename_target_does_not_false_positive() {
+    // Unlike the sibling test above, `newname`'s value here is never a
+    // tracked compile-time constant (piped through `gets`) — the rename
+    // stays genuinely unresolvable and must never invent a diagnostic.
+    let src =
+        "proc target {a b c} {}\nset newname [gets stdin]\nrename target $newname\ntarget_orig 1\n";
+    assert_eq!(
+        arity_codes(src, "tcl8.6"),
         Vec::<String>::new(),
-        "a dynamic rename target must not be resolved to target's arity"
+        "a genuinely dynamic rename target must not be resolved to target's arity"
     );
 }
 
@@ -4947,6 +4982,107 @@ fn codes_for(src: &str) -> Vec<String> {
         .collect()
 }
 
+// TclOO/snit method-body CFG/SSA diagnostics (issue #923 idx 77)
+
+#[test]
+fn method_body_read_before_set_now_flags_w210() {
+    // TP — the finding's own real repro shape, reduced: `nico-robert_tomato`'s
+    // Vector3d.tcl `method * {type}` reads `$other`, a variable belonging to
+    // a *sibling* method (`DotProduct {other}`), never bound in `*`'s own
+    // scope — tclsh8.6/9.0.4 both crash with `can't read "other": no such
+    // variable` the moment `*` runs on an object operand. The exact same
+    // unbound-read shape inside a plain `proc` already fired W210; a TclOO
+    // method body previously got zero diagnostics at all, because the whole
+    // CFG/SSA dataflow family (`emit_cfg_ssa_diagnostics_for_function_full`)
+    // was only ever run over `cu.procedures`, never `cu.methods`.
+    let src = "oo::class create Vector3d {\n    variable _x\n    constructor {x} { set _x $x }\n    method DotProduct {other} { return [expr {$_x * $other}] }\n    method Buggy {type} { return [my DotProduct $other] }\n}\n";
+    let codes = codes_for(src);
+    assert_eq!(
+        codes,
+        vec!["W210".to_string()],
+        "the unbound `$other` read inside Buggy must flag exactly once: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_instance_variable_read_does_not_false_positive_w210() {
+    // FP guard — `variable _x` declared at class level auto-binds `_x` in
+    // *every* method's scope with no visible `variable` statement in the
+    // method body itself (real TclOO semantics); a naive fix that just
+    // iterates `cu.methods` without threading `MethodDef::instance_vars`
+    // into the read-before-set suppression set would flood a false W210 on
+    // every ordinary instance-variable read — this is that read, alone,
+    // with no sibling bug present.
+    let src = "oo::class create P {\n    variable _x\n    constructor {x} { set _x $x }\n    method X {} { return $_x }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "a legitimate instance-variable read must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_own_parameter_read_does_not_false_positive_w210() {
+    // FP guard — a method's *own* declared parameter must not flag W210
+    // either. `emit_read_before_set_diagnostics` / `emit_return_phi_undef_w210`
+    // both special-case a real parameter via a separate `ir_module.procedures`
+    // lookup keyed by the function's qualified name, which a method's
+    // qualified name is never in (methods live in `ir_module.methods`, a
+    // different map) — so without also folding `MethodDef::params` into the
+    // suppression set, every method parameter would falsely read-before-set
+    // (caught empirically while building this fix: an earlier version that
+    // only threaded `instance_vars` still flagged `other` in `DotProduct
+    // {other}` itself, and `x` in the constructor).
+    let src =
+        "oo::class create P {\n    method DotProduct {other} { return [expr {1 * $other}] }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W210".to_string()),
+        "a method's own used parameter must not flag W210: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_setter_write_with_no_local_read_does_not_false_positive_dead_store() {
+    // FP guard — a "setter" method that writes an instance variable with no
+    // local read is not a dead store (W220) or unused variable (W211):
+    // another method reads the value later. Mirrors the pre-existing
+    // cross-function-global suppression (`globals_written_by_procs`), just
+    // object-instance-scoped.
+    let src = "oo::class create P {\n    variable _x\n    method SetX {v} { set _x $v }\n    method GetX {} { return $_x }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        !codes.contains(&"W220".to_string()) && !codes.contains(&"W211".to_string()),
+        "a setter's instance-variable write must not flag dead-store/unused: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_ordinary_unused_local_still_flags_w211() {
+    // TN — the fix must not blanket-suppress every diagnostic inside a
+    // method body: a genuinely unused *local* (not a param, not an instance
+    // var) still flags W211, exactly as it would inside a plain proc.
+    let src = "oo::class create P {\n    method Foo {} {\n        set unused 1\n        return ok\n    }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W211".to_string()),
+        "a genuinely unused local inside a method must still flag W211: {codes:?}"
+    );
+}
+
+#[test]
+fn method_body_unbound_read_inside_switch_arm_still_flags_w210() {
+    // TN — a sanity check that the new loop reaches a method's full CFG,
+    // not just a shallow top-level scan: the unbound read is nested inside
+    // a `switch` arm.
+    let src = "oo::class create P {\n    method Foo {n} {\n        switch $n {\n            1 { return $missing }\n        }\n        return 0\n    }\n}\n";
+    let codes = codes_for(src);
+    assert!(
+        codes.contains(&"W210".to_string()),
+        "an unbound read nested inside a switch arm must still flag W210: {codes:?}"
+    );
+}
+
 #[test]
 fn info_exists_control_still_flags_w210() {
     // Baseline: a plain read of an unset local flags W210.
@@ -6620,16 +6756,37 @@ fn analyse_static_rename_does_not_set_has_dynamic_providers() {
 }
 
 #[test]
-fn analyse_dynamic_rename_still_sets_has_dynamic_providers() {
-    // `rename $x y` cannot be resolved statically, so the document
-    // still falls back to the conservative `has_dynamic_providers`
-    // flag, matching `command_binding.rs`'s wildcard-collapse
-    // convention for the identical shape.
+fn analyse_dynamic_but_resolvable_rename_does_not_set_has_dynamic_providers() {
+    // `$x` is dynamic-*looking* but `x` is a known constant (`set x
+    // set`) — issue #923 idx 3's constant-folding fix now resolves this
+    // exactly like the fully-static
+    // `analyse_static_rename_does_not_set_has_dynamic_providers` case,
+    // instead of falling back to the conservative
+    // `has_dynamic_providers` flag.
     let mut a = Analyser::new();
     let r = a.analyse("set x set\nrename $x myset\n", "tcl");
     assert!(
+        !r.has_dynamic_providers,
+        "x's value is a known constant, so this rename must resolve, not widen"
+    );
+    assert_eq!(
+        r.renamed_commands.get("::myset").map(String::as_str),
+        Some("::set")
+    );
+}
+
+#[test]
+fn analyse_genuinely_dynamic_rename_still_sets_has_dynamic_providers() {
+    // Unlike the sibling test above, `x`'s value here is never a
+    // tracked compile-time constant (piped through `gets`) — the
+    // document still falls back to the conservative
+    // `has_dynamic_providers` flag, matching `command_binding.rs`'s
+    // wildcard-collapse convention for the identical shape.
+    let mut a = Analyser::new();
+    let r = a.analyse("set x [gets stdin]\nrename $x myset\n", "tcl");
+    assert!(
         r.has_dynamic_providers,
-        "a dynamic rename must still set has_dynamic_providers"
+        "a genuinely dynamic rename must still set has_dynamic_providers"
     );
     assert!(r.renamed_commands.is_empty());
 }
@@ -9849,9 +10006,20 @@ fn dispatch_table_tp_issue_1010_deleted_proc_draws_no_reference() {
     let src = "proc do_add {a b} {}\nrename do_add {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
+    // `rename do_add {}` itself intentionally draws its own self-reference
+    // to the OLD argument's token (issue #923 idx 39 — go-to-definition on
+    // that exact written word must still resolve, and real Tcl requires
+    // `do_add` to exist at that point). That reference is not what this
+    // test guards against; only a *dispatch-table*-synthesized reference
+    // (via `array set ops {add do_add}` / `$ops($k)`) to the deleted,
+    // never-re-established proc must be absent.
+    let rename_self_ref_offset =
+        u32::try_from(src.find("rename do_add").unwrap() + "rename ".len()).unwrap();
     assert!(
-        !r.command_invocations.iter().any(|i| i.name == "do_add"),
-        "a deleted proc with no re-establishment must draw no reference: {:?}",
+        !r.command_invocations
+            .iter()
+            .any(|i| i.name == "do_add" && i.range.start() != rename_self_ref_offset),
+        "a deleted proc with no re-establishment must draw no reference beyond rename's own self-reference: {:?}",
         r.command_invocations
             .iter()
             .map(|i| (&i.name, i.range.start()))

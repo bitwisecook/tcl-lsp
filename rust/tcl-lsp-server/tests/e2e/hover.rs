@@ -562,3 +562,28 @@ fn defstyle_scoped_command_hover() {
     let c = hover(&mut lsp, &uri, 2, 7);
     assert!(c.contains("number of columns"), "columns hover: {c}");
 }
+
+/// idx 76 (differential-audit main audit wave, high severity, tomato
+/// corpus): the finding's own headline hypothesis — the LSP guessing the
+/// wrong class for the genuinely dynamic, `switch`-dispatched `[$obj
+/// GetType]` call — is REFUTED (the LSP correctly abstains there). Tracing
+/// it uncovered a distinct CONFIRMED gap on the exact same class: a
+/// definite, single-target `my methodName` call had no hover at all,
+/// unlike go-to-definition/find-references (already fixed by idx 52) or a
+/// `link`-exposed bareword sibling call (idx 113) — reproduces in the real
+/// corpus's own two-block `oo::class create` + separate `oo::define`
+/// convention (all 9 of tomato's classes use it).
+#[test]
+fn my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create geo::Plane {\n    constructor {args} {}\n}\noo::define geo::Plane {\n    method GetType {} { return Plane }\n    method WhichAmI {} { return [my GetType] }\n}\n",
+    );
+    // Line 5: `    method WhichAmI {} { return [my GetType] }` — cursor on
+    // `GetType` inside `my GetType` (col 38).
+    let h = hover(&mut lsp, &uri, 5, 38);
+    assert!(h.contains("method"), "hover: {h}");
+    assert!(h.contains("geo::Plane::GetType"), "hover: {h}");
+}

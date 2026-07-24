@@ -147,6 +147,63 @@ pub(super) fn handle_proc(texts: &[String], argv: &[Token], ns_prefix: &str, ctx
     }
 }
 
+/// Handler for `tcl::OptProc NAME OPTLIST BODY` (issue #923 idx 90).
+///
+/// Mirrors [`handle_proc`] exactly except for the recorded parameter
+/// list: the `opt` package's runtime always installs a plain `args`
+/// catch-all (`uplevel 1 [list ::proc $name args ...]`) — `optlist`'s own
+/// descriptor words (`{child -use -display}`) are bound as *local
+/// variables* inside the body by `::tcl::OptKeyParse`, never as the
+/// Tcl-level formal parameters — so recording them as `SignatureProc`'s
+/// `params` (as `handle_proc`'s literal `parse_param_list(&texts[2])`
+/// would) misreports the true, unconstrained call arity to a cross-file
+/// caller.
+pub(super) fn handle_opt_proc(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) {
+    if texts.len() < 4 {
+        return;
+    }
+    let raw_name = &texts[1];
+    let qualified = qualify(ns_prefix, raw_name);
+    let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+    let name_range = argv[1].span;
+    let body_range = argv[3].span;
+    let params = vec![super::types::ParamDef {
+        name: "args".to_string(),
+        has_default: false,
+        default_value: None,
+    }];
+    let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
+    ctx.result.procs.insert(
+        qualified.clone(),
+        SignatureProc {
+            name: simple,
+            qualified_name: qualified.clone(),
+            params,
+            name_range,
+            body_range,
+        },
+    );
+    let body_ns = match qualified.rsplit_once("::") {
+        Some((parent, _)) => parent.trim_start_matches(':').to_string(),
+        None => String::new(),
+    };
+    let body_text = texts[3].clone();
+    ctx.proc_bodies.push(ProcBodyInfo {
+        qname: qualified,
+        params: param_names,
+        body_text: body_text.clone(),
+        ns_prefix: body_ns.clone(),
+    });
+    if argv[3].kind == TokenType::Str {
+        super::walker::scan_factory_candidates(&body_text, argv[3], &body_ns, ctx);
+    }
+}
+
 /// Handler for the `namespace` command — dispatches on the
 /// subcommand (`eval` vs `import`).
 ///

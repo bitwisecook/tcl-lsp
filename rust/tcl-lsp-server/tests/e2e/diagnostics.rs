@@ -756,6 +756,53 @@ fn unshadowed_ensemble_command_still_fires_w001_alongside_a_shadowed_one() {
 }
 
 #[test]
+fn namespace_ensemble_configure_splice_onto_tk_suppresses_w001_end_to_end() {
+    // FP regression, issue #923 idx 84: the real `tk/library/systray.tcl`
+    // idiom splices `systray`/`sysnotify` onto the pre-existing,
+    // registry-builtin `tk` ensemble via `namespace ensemble configure tk
+    // -map [dict merge [namespace ensemble configure tk -map] {systray
+    // ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]` — a
+    // `CONFIGURE`, not `CREATE`. tclsh9.0/8.6 both confirm `tk systray
+    // create`/`tk sysnotify ...` are correct, documented calls.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc ::tk::systray {args} {}\n\
+         proc ::tk::sysnotify::sysnotify {a b} {}\n\
+         namespace ensemble configure tk -map \
+         [dict merge [namespace ensemble configure tk -map] \
+         {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]\n\
+         tk systray create -image book\n\
+         tk sysnotify Alert message\n",
+    );
+    assert!(
+        !has_code(&diags, "W001"),
+        "a statically-spliced ensemble subcommand must not fire W001: {diags:?}"
+    );
+}
+
+#[test]
+fn namespace_ensemble_configure_genuinely_unknown_tk_subcommand_still_fires_w001_end_to_end() {
+    // TP control paired with the FP above: splicing `systray` onto `tk`
+    // must not blind the server to an unrelated, genuinely unknown `tk`
+    // subcommand in the same file.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "namespace ensemble configure tk -map \
+         [dict merge [namespace ensemble configure tk -map] \
+         {systray ::tk::systray}]\n\
+         tk zzznotreal\n",
+    );
+    assert!(
+        has_code(&diags, "W001"),
+        "a genuinely unknown tk subcommand must still fire W001: {diags:?}"
+    );
+}
+
+#[test]
 fn bare_tcloo_object_dispatch_is_e001() {
     // `set o [Dog new]; $o` — TclOO's per-object dispatcher requires a
     // method word before it attempts any method lookup.
@@ -1144,6 +1191,102 @@ fn w210_silent_when_set_on_all_paths() {
     assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
+// Issue #923 idx 122: a helper proc's `upvar` write, reached only through
+// a `while`/`if` loop CONDITION rather than a bare statement, was invisible
+// to W210 — only 4 hardcoded builtins (`catch`/`scan`/`gets`/`regexp`) were
+// recognised there. Real tcllib repro: `modules/cmdline/cmdline.tcl`'s
+// `getopt`/`getKnownOpt` chain, `while {[set err [getopt argv $opts opt
+// arg]]} { ... }`. tclsh9.0/8.6-verified the condition's own command
+// substitution (including the upvar write) completes before the guarded
+// body ever runs.
+
+#[test]
+fn w210_silent_for_upvar_proc_call_in_while_condition_923_idx122() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc getopt {ovar} {\n    upvar 1 $ovar opt\n    set opt value\n    return 1\n}\nwhile {[getopt opt]} {\n    puts $opt\n    break\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_silent_for_upvar_proc_wrapped_inside_a_while_condition_923_idx122() {
+    // The exact tcllib shape: the upvar-writing call sits one bracket
+    // deeper than the condition's own outermost command (`set err
+    // [getopt ...]`, not a bare `[getopt ...]`).
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc getopt {ovar} {\n    upvar 1 $ovar opt\n    set opt value\n    return 1\n}\nwhile {[set err [getopt opt]]} {\n    puts $opt\n    break\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_silent_for_upvar_proc_call_in_if_condition_923_idx122() {
+    // The `if`-conditioned analogue — never "frozen" (only `for`/`while`
+    // have a command-substitution-condition opaque-barrier path), so this
+    // exercises the ordinary `lower_if` → `condition_out_vars` route
+    // rather than the frozen-loop synthetic `<cond>` Call.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc getopt {ovar} {\n    upvar 1 $ovar opt\n    set opt value\n    return 1\n}\nif {[getopt opt]} {\n    puts $opt\n}\n";
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122() {
+    // TN — a condition call to a proc that does *not* upvar-write its
+    // argument must still warn: the fix must not blanket-suppress every
+    // `$var`-in-condition read, only ones a known upvar proc actually
+    // populates.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc doesNothing {ovar} {\n    puts \"called with $ovar\"\n}\nwhile {[doesNothing opt]} {\n    puts $opt\n    break\n}\n";
+    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+// Issue #923 idx 18 (tcllib), revisited after PR #1020 review: a wrapper
+// proc that reaches an `upvar`+`uplevel` "custom control structure" proc
+// through a *plain* call (not `uplevel`) does NOT propagate the effect to
+// its own caller — tclsh9.0/8.6-verified (`can't read "myf": no such
+// variable` when the caller reads the variable outside any `uplevel`'d
+// script argument). An earlier version of this fix treated every such
+// pass-through as transitive based on a misleading test (reading the
+// variable *inside* the same script block that wrote it, which
+// coincidentally lands in the same frame regardless of whether real
+// propagation happened); these tests now pin the correct, tclsh-verified
+// behaviour instead. The real tcllib idiom (`page::util::flow`) reaches its
+// worker via `uplevel 1 [list ...]`, which genuinely does propagate one
+// frame further (also tclsh9.0-verified) — soundly modelling that shape is
+// tracked at https://github.com/bitwisecook/tcl-lsp/issues/1019, not
+// attempted here.
+
+#[test]
+fn w210_still_fires_for_a_plain_call_wrapper_923_idx18() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc wrapper {fvar nvar script} {\n    real_worker $fvar $nvar $script\n}\nwrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
+    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_still_fires_across_a_two_hop_plain_call_wrapper_chain_923_idx18() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc middle_wrapper {fvar nvar script} {\n    real_worker $fvar $nvar $script\n}\nproc outer_wrapper {fvar nvar script} {\n    middle_wrapper $fvar $nvar $script\n}\nouter_wrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
+    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
+#[test]
+fn w210_still_fires_when_wrapper_does_not_pass_its_own_params_through_923_idx18() {
+    // TN — `unrelated_wrapper` calls the known upvar proc `real_worker`
+    // with literal args ("x"/"y"), not its own parameters passed through
+    // unchanged. tclsh9.0/8.6-verified this genuinely errors ("can't read
+    // \"myf\": no such variable"), so it must still warn.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc unrelated_wrapper {a b c} {\n    real_worker x y $c\n}\nunrelated_wrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
+    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
+}
+
 // -- W307: a variable used in command position ---------------------------
 
 #[test]
@@ -1211,6 +1354,65 @@ fn w220_dead_store_inside_dict_for_body_fires() {
     let diags = lsp.open_ready(&uri, src);
     assert!(has_code(&diags, "W220"), "{:?}", codes(&diags));
     assert!(on_line(&diags, "W220").contains(&2));
+}
+
+// Issue #923 idx 125 (tcllib): a value word's embedded `{…}` run that
+// survived, as ordinary literal content, from an originally double-quoted
+// or bareword-concatenated source word must not hide the `$var`
+// substitutions inside it from W220 — real tcllib repro:
+// `modules/htmlparse/htmlparse.tcl`'s `eval "$cmd {$vroot} {} {}
+// \{$html\}"`. tclsh9.0/8.6-verified `{$vroot}` here is an ordinary
+// substitution, exactly like the bare `$cmd` beside it.
+
+#[test]
+fn w220_silent_for_a_var_wrapped_in_braces_inside_a_double_quoted_value_923_idx125() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc demo {} {\n    set a AA\n    set b BB\n    set c CC\n    set s \"prefix {$a} suffix $b $c\"\n    puts $s\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W220"), "{:?}", codes(&diags));
+}
+
+#[test]
+fn w220_still_fires_for_a_genuinely_brace_quoted_value_923_idx125() {
+    // TN — the whole value is brace-quoted (`{$a}` as ONE word, not
+    // embedded inside a larger double-quoted string): Tcl performs zero
+    // substitution on it at all (tclsh9.0/8.6-verified `set s {$a}` stores
+    // the literal two characters `$a`), so `a` is genuinely never read and
+    // must still warn.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc demo {} {\n    set a 1\n    set s {$a}\n    puts $s\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(has_code(&diags, "W220"), "{:?}", codes(&diags));
+}
+
+// Regression guards (found while fixing idx 125): `itcl::class` /
+// `snit::widget` / `snit::type` / `snit::widgetadaptor` bodies were missing
+// the registry's `body_kind: Structural` classification `oo::class`
+// already carries — their body argument was scanned as ordinary value text
+// instead of being excluded as a separate definition scope. This was
+// invisible before idx 125's fix only because the class/method body's own
+// nested braces were, by the same quote-context bug, mis-read as a single
+// non-substituting brace-quoted word, which happened to swallow every
+// `$this` / instance-variable reference along with it.
+
+#[test]
+fn w210_silent_for_this_and_instance_vars_in_an_itcl_method_body_923_idx125() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "itcl::class C {\n    variable handler\n    common registry\n    method run {} {\n        $this configure\n        $handler process\n        return $registry\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W210"), "{:?}", codes(&diags));
+}
+
+#[test]
+fn w210_silent_for_self_and_instance_vars_in_a_snit_widget_method_body_923_idx125() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "snit::widget mywidget {\n    variable helper\n    component inner\n    method draw {} {\n        $self configure -bg white\n        $inner render\n        $helper compute\n        return $win\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(!has_code(&diags, "W210"), "{:?}", codes(&diags));
 }
 
 #[test]
@@ -3390,6 +3592,72 @@ fn issue_968_user_defined_mathfunc_override_still_resolves_end_to_end() {
     assert!(
         !has_code(&diags, "W123"),
         "a user-defined mathfunc override must resolve end-to-end: {:?}",
+        codes(&diags)
+    );
+}
+
+/// idx 77 (differential-audit main audit wave, high severity, tomato
+/// corpus): `Vector3d.tcl`'s `method * {type}` reads `$other`, a variable
+/// belonging to a *sibling* method (`DotProduct {other}`), never bound in
+/// `*`'s own scope — tclsh8.6/9.0.4 both crash with `can't read "other": no
+/// such variable` the instant `*` runs on an object operand. The entire
+/// CFG/SSA dataflow diagnostic family (W210 read-before-set and its
+/// siblings) previously never ran on any `TclOO`/snit method body at all —
+/// a systemic false-negative gap, not a one-off miss — because the
+/// per-function diagnostic loop only ever iterated `cu.procedures`, never
+/// `cu.methods`. The identical unbound-read shape inside a plain `proc`
+/// already fired W210.
+#[test]
+fn method_body_unbound_sibling_parameter_read_flags_w210_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create Vector3d {\n    variable _x\n    constructor {x} { set _x $x }\n    method DotProduct {other} { return [expr {$_x * $other}] }\n    method Buggy {type} { return [my DotProduct $other] }\n}\n",
+    );
+    assert!(
+        has_code(&diags, "W210"),
+        "the unbound `$other` read inside Buggy must flag: {:?}",
+        codes(&diags)
+    );
+}
+
+/// FP guard (issue #923 idx 77): the fix must not flood false W210s on
+/// ordinary instance-variable reads or a method's own parameters —
+/// `TclOO` auto-binds class-level `variable` declarations in every
+/// method's scope with no visible `variable` statement in the body itself.
+#[test]
+fn method_body_instance_variable_and_own_parameter_reads_stay_clean_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "oo::class create P {\n    variable _x\n    constructor {x} { set _x $x }\n    method DotProduct {other} { return [expr {$_x * $other}] }\n}\n",
+    );
+    assert!(
+        !has_code(&diags, "W210"),
+        "legitimate instance-variable / own-parameter reads must not flag: {:?}",
+        codes(&diags)
+    );
+}
+
+/// idx 90 (differential-audit main audit wave, high severity): `tcl::OptProc`
+/// (the `opt` package's automatic-option-parsing proc definer) had no
+/// `AnalyserHookId` at all, so `all_procs` kept the stub's `{}`-arity
+/// `ProcDef` — every real call falsely drew "wrong number of arguments"
+/// (E003). tclsh9.0/8.6-verified: the runtime always installs
+/// `::proc $name args {...}`, so any call arity is legitimate.
+#[test]
+fn opt_proc_real_call_draws_no_false_arity_diagnostic_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "package require opt\n::tcl::OptProc greet {child -use -display} { return $child }\ngreet a b c\n",
+    );
+    assert!(
+        !has_code(&diags, "E003") && !has_code(&diags, "W123"),
+        "a real tcl::OptProc call must never draw a false arity or unknown-command diagnostic: {:?}",
         codes(&diags)
     );
 }

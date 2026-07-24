@@ -751,6 +751,21 @@ impl Analyser {
         ) {
             return;
         }
+        // A statically-declared ensemble's subcommand table can't reflect a
+        // runtime `namespace ensemble configure <cmd> -map [dict replace
+        // [namespace ensemble configure <cmd> -map] NAME impl]` patch (the
+        // real tcllib `dicttool.tcl` idiom for `dict getnull`/`print`/
+        // `is_dict`/…, issue #923 idx 105) — if a proc exists at this
+        // ensemble's conventional implementation location for the written
+        // subcommand name, treat it as known rather than reporting a false
+        // "unknown subcommand". Registry-driven via
+        // `CommandSpec::implementation_namespace`, so it applies to any
+        // future ensemble that declares one, not just `dict`.
+        if self.dynamic_ensemble_subcommand_known(cmd_name, first_arg)
+            || self.statically_mapped_ensemble_subcommand_known(cmd_name, first_arg, scope_path)
+        {
+            return;
+        }
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
         let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
@@ -790,6 +805,81 @@ impl Analyser {
                 fixes,
             },
         ));
+    }
+
+    /// Whether `cmd_name subcommand_name …` is a call into an ensemble
+    /// whose `-map` may have been reconfigured at runtime to add
+    /// `subcommand_name`, pointing at a proc this file defines at the
+    /// ensemble's conventional implementation location — the real tcllib
+    /// `dicttool.tcl` idiom: `proc ::tcl::dict::getnull {d args} {...} ;
+    /// namespace ensemble configure dict -map [dict replace [namespace
+    /// ensemble configure dict -map] getnull ::tcl::dict::getnull]` (issue
+    /// #923 idx 105).
+    ///
+    /// Deliberately does **not** require observing an actual `namespace
+    /// ensemble configure -map` call in the file — only that
+    /// [`tcl_registry::CommandSpec::implementation_namespace`] is set (so
+    /// this stays inert for every other ensemble, `string`/`array`/…, whose
+    /// subcommands are C `switch` arms with no such backing namespace) and
+    /// that a same-named proc exists there. This is a deliberate,
+    /// conservative-suppression trade: a proc defined at
+    /// `<implementation_namespace>::<subcommand_name>` but never actually
+    /// spliced into the ensemble's map (a genuine "unknown subcommand"
+    /// error at run time) is wrongly suppressed here — the same
+    /// risk-tolerance precedent as W123's file-wide "any `package require`
+    /// suppresses every unknown-command diagnostic" abstention, and much
+    /// narrower in scope (this ensemble, this subcommand name, a proc
+    /// already known to exist).
+    fn dynamic_ensemble_subcommand_known(&self, cmd_name: &str, subcommand_name: &str) -> bool {
+        let Some(registry) = self.registry else {
+            return false;
+        };
+        let Some(spec) = registry.get(cmd_name) else {
+            return false;
+        };
+        let Some(ns) = spec.implementation_namespace else {
+            return false;
+        };
+        self.result
+            .all_procs
+            .contains_key(&format!("{ns}::{subcommand_name}"))
+    }
+
+    /// Whether `cmd_name subcommand_name` is a call into an ensemble whose
+    /// `-map`/`-subcommands` *this file itself* literally, statically
+    /// extends via `namespace ensemble create`/`configure`
+    /// ([`super::super::handlers::Analyser::handle_namespace_ensemble`],
+    /// which populates [`AnalysisResult::ensemble_subcommand_targets`]) —
+    /// the real `tk/library/systray.tcl` idiom (issue #923 idx 84):
+    /// `namespace ensemble configure tk -map [dict merge [namespace
+    /// ensemble configure tk -map] {systray ::tk::systray sysnotify
+    /// ::tk::sysnotify::sysnotify}]`, which splices `systray`/`sysnotify`
+    /// onto the pre-existing, registry-builtin `tk` ensemble.
+    ///
+    /// Complements [`Self::dynamic_ensemble_subcommand_known`] (which needs
+    /// [`tcl_registry::CommandSpec::implementation_namespace`] — unset for
+    /// `tk`, since `tk systray`'s own genuinely 2-level nested-ensemble
+    /// shape doesn't fit that field's single-hop `<ns>::<subcommand>`
+    /// convention anyway) with the general, ensemble-agnostic fact this
+    /// file's own analysis already recorded, rather than a `tk`-specific
+    /// escape hatch.
+    ///
+    /// [`AnalysisResult::ensemble_subcommand_targets`]: super::super::types::AnalysisResult::ensemble_subcommand_targets
+    fn statically_mapped_ensemble_subcommand_known(
+        &self,
+        cmd_name: &str,
+        subcommand_name: &str,
+        scope_path: &[usize],
+    ) -> bool {
+        let ns = self.command_resolution_namespace(scope_path);
+        crate::naming::bareword_resolution_candidates(&ns, cmd_name)
+            .into_iter()
+            .any(|cand| {
+                self.result
+                    .ensemble_subcommand_targets
+                    .get(&cand)
+                    .is_some_and(|subs| subs.contains_key(subcommand_name))
+            })
     }
 
     /// `first_arg` is unknown in the active dialect profile but exists as a

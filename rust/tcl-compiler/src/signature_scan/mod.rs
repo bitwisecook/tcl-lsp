@@ -122,6 +122,29 @@ mod tests {
     }
 
     #[test]
+    fn opt_proc_records_real_args_only_arity_not_optlists_own_words() {
+        // Issue #923 idx 90, background-scan half: this module feeds
+        // cross-file arity checking (`arity::arity_of`), independently of
+        // the full analyser's own `AnalyserHookId::OptProc` fix — a
+        // generic `Traits::DEFINES_PROCEDURE` dispatch here would
+        // otherwise reuse `handle_proc`'s literal
+        // `parse_param_list(&texts[2])` and record `optlist`'s own
+        // descriptor words as the arity-relevant params, misreporting a
+        // cross-file caller's true (unconstrained) argument count.
+        let r = run("tcl::OptProc greet {child -use -display} { return $child }");
+        let proc = r.procs.get("::greet").expect("greet recorded");
+        assert_eq!(
+            proc.params
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["args"],
+            "{:?}",
+            proc.params
+        );
+    }
+
+    #[test]
     fn class_only() {
         let r = run("oo::class create MyCls { method foo {} {} }");
         assert!(r.classes.contains_key("::MyCls"));

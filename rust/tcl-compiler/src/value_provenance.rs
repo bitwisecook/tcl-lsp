@@ -137,6 +137,52 @@ fn pure_copy_source(value: &str) -> Option<&str> {
     (!name.is_empty() && plain && !name.contains('(')).then_some(name)
 }
 
+/// Fold a `[list W1 W2 ...]` value to its space-joined string when every
+/// element is a **plain** literal word — no `$`/`[`/`{`/`"`/backslash/
+/// whitespace, so Tcl's own `list` command needs no brace/backslash
+/// quoting to represent it (tclsh9.0/8.6-verified: `[list a b]` is
+/// byte-identical to the string `"a b"` for such elements). Deliberately
+/// narrow — the exact shape issue #923 idx 94's own repro needs, not a
+/// general `list`-command simulator: any element needing quoting protection
+/// (containing whitespace, braces, or another special character) bails, as
+/// does anything other than a single, whole-value `[list ...]` call.
+///
+/// Returns `(joined, first_offset, first_len)`: the joined string, plus the
+/// first element's own byte offset and length — both relative to `value`'s
+/// own start (its opening `[`) — so the caller can anchor a rename-writable
+/// span on just that one argument.
+fn fold_literal_list_call(value: &str) -> Option<(String, u32, u32)> {
+    let inner = value.strip_prefix('[')?.strip_suffix(']')?;
+    let cmds = crate::segmenter::segment_commands_with_offset(inner, 0);
+    let [cmd] = cmds.as_slice() else {
+        return None;
+    };
+    if cmd.name() != "list" {
+        return None;
+    }
+    let args = cmd.args();
+    let arg_tokens = cmd.arg_tokens();
+    let singles = cmd.arg_single_token();
+    if args.is_empty() || args.len() != singles.len() || args.len() != arg_tokens.len() {
+        return None;
+    }
+    let mut words = Vec::with_capacity(args.len());
+    for (word, &single) in args.iter().zip(singles) {
+        if !single
+            || word.is_empty()
+            || word.contains(['{', '}', '"', '\\', '$', '[', ']'])
+            || word.chars().any(char::is_whitespace)
+        {
+            return None;
+        }
+        words.push(word.as_str());
+    }
+    // `inner`'s own offset 0 is one byte past `value`'s opening `[`.
+    let first_offset = arg_tokens[0].span.start() + 1;
+    let first_len = u32::try_from(words[0].len()).ok()?;
+    Some((words.join(" "), first_offset, first_len))
+}
+
 /// The contributing constant definitions for the value of `var_name` at
 /// the statement covering `use_offset` (absolute), walking φ-joins and
 /// single-`$var` copy chains to the literal assignments that feed it.
@@ -242,6 +288,37 @@ fn contributor_from_stmt(
                 let src_sym = fu.ssa.var_symbol(src_name)?;
                 let &src_version = stmt.uses.get(&src_sym)?;
                 return collect(fu, index, src_sym, src_version, visited, out);
+            }
+            // A `[list W1 W2 ...]` value whose every element is a plain
+            // literal folds to the space-joined string — issue #923 idx
+            // 94's own minimal repro (`set cmdD [list greetD World]; eval
+            // $cmdD`). The joined *value* has no single source span (it's
+            // synthesised from several separate argument tokens), but the
+            // first element — the actual command-dispatch anchor, the only
+            // part `settle_one_site`'s `head_expanded` narrowing ever reads
+            // — does: anchor `literal_span` there directly (skipping
+            // `command_component`'s usual "narrow a whole-value span down
+            // to its first word" step, since there is no whole-value span
+            // to narrow) so a rename can still safely rewrite just that
+            // one argument in place. The value token's own span *starts*
+            // exactly at its opening `[` (`tcl-lexer`'s `Cmd`-token span
+            // convention — the same one idx 95 already found excludes the
+            // *closing* delimiter, so `word_content_base`'s length-based
+            // delta below underflows for it and correctly declines; the
+            // *start* offset needs no such adjustment), so this reads it
+            // directly rather than reusing that helper.
+            if !*value_needs_backsubst
+                && let Some((joined, first_offset, first_len)) = fold_literal_list_call(value)
+            {
+                let literal_span = tokens.as_ref().and_then(|t| {
+                    let base = t.argv.get(2)?.start() + first_offset;
+                    Some(fu.abs_span(Span::new(base, base + first_len)))
+                });
+                out.push(ValueContributor {
+                    value: joined,
+                    literal_span,
+                });
+                return Some(());
             }
             // A plain literal word (no substitution, no backslash
             // processing): source-exact when the value word's content is

@@ -561,6 +561,7 @@ impl Analyser {
         range: tcl_lexer::Span,
         resolved_qualified_name: Option<&str>,
         is_mathfunc_call: bool,
+        resolution_candidates: &[String],
     ) -> bool {
         // A built-in renamed away / deleted at an earlier offset no longer
         // resolves here — fall through to the user-defined paths below,
@@ -612,6 +613,34 @@ impl Analyser {
             {
                 return true;
             }
+        }
+        // A bare name resolved relative to the call's *enclosing lexical
+        // namespace* (not the global bare name checked above) may name a
+        // registry command whose only registered spelling is qualified —
+        // e.g. `exists`/`get` called bare from inside `proc
+        // ::tcl::dict::getnull {...}` resolve to the real, separately
+        // -callable `::tcl::dict::exists` / `::tcl::dict::get` (issue #923
+        // idx 105), not the ensemble-subcommand-only `dict exists` spec.
+        // `resolution_candidates` already carries the correctly-qualified,
+        // Tcl-priority-ordered candidate list for this exact call
+        // (`finalise_invocation_resolutions` / `command_resolution_candidates`);
+        // this reuses the same `registry_names` set already built above
+        // rather than a second, namespace-blind lookup. Each candidate is
+        // always fully qualified (`command_resolution_candidates`'s own
+        // contract), so `qualified_name_deleted_before` — not
+        // `registry_name_deleted_before`, which would double-prefix an
+        // already-qualified string — pairs with the registry-membership
+        // check the same way the bare-name check above already pairs
+        // `registry_name_deleted_before` with `known.registry_names`
+        // (issue #923: a candidate that is registry-known but renamed/
+        // deleted away before this call, e.g. `::tcl::mathfunc::sin` after
+        // `rename ::tcl::mathfunc::sin {}`, must not resolve here either —
+        // confirmed against tclsh 9.0.4).
+        if resolution_candidates.iter().any(|cand| {
+            known.registry_names.contains(cand)
+                && !self.qualified_name_deleted_before(cand, range.start())
+        }) {
+            return true;
         }
         // Qualified names defer to per-namespace logic (conservative skip);
         // `$`-interpolated / `[…]`-substituted heads are W307 / W308's
@@ -731,6 +760,7 @@ impl Analyser {
                 inv.range,
                 inv.resolved_qualified_name.as_deref(),
                 inv.is_mathfunc_call,
+                &inv.resolution_candidates,
             ) {
                 continue;
             }
@@ -890,7 +920,15 @@ impl Analyser {
         let mut best: HashMap<&str, &crate::signature_scan::types::SignatureCommandInvocation> =
             HashMap::new();
         for inv in &self.result.command_invocations {
-            let Some(spec) = registry.get(&inv.name) else {
+            // Dialect-aware, not the bare `registry.get` (which ignores
+            // dialect entirely and would pick an arbitrary same-name spec —
+            // e.g. `link`'s 8.6-`ooutil`-gated spec even under a 9.0+
+            // dialect where the unconditional core spec is the one that's
+            // actually visible, issue #923/Codex PR #1020 review). Matches
+            // the primitive `build_w123_known_names` already resolves
+            // `registry_names` through, so a command's package-gating is
+            // read from the one spec this dialect actually sees.
+            let Some(spec) = self.profile.resolve_command(registry, &inv.name) else {
                 continue;
             };
             if spec.required_package.is_none() {
@@ -914,8 +952,9 @@ impl Analyser {
         }
         let mut new_diags: Vec<super::types::Diagnostic> = Vec::new();
         for inv in best.values() {
-            let spec = registry
-                .get(&inv.name)
+            let spec = self
+                .profile
+                .resolve_command(registry, &inv.name)
                 .expect("invocation selected only when registry-known");
             let pkg = spec
                 .required_package

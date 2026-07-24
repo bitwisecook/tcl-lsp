@@ -189,6 +189,14 @@ pub(crate) struct CfgBuilder {
 /// anywhere near this.
 const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
+/// Maximum nested-`[...]` descent depth for
+/// [`CfgBuilder::upvar_defs_from_text_bounded`] /
+/// [`CfgBuilder::global_write_defs_from_text_bounded`] (issue #923 idx
+/// 122) — bounds pathological/adversarial bracket nesting the same way
+/// [`MAX_LOWER_DEPTH`] bounds `lower_script`. No real source nests
+/// anywhere near this.
+const MAX_EMBEDDED_SUBST_DEPTH: u32 = 16;
+
 impl CfgBuilder {
     fn new(inline_loops: bool) -> Self {
         Self::new_with_upvars(inline_loops, HashMap::new(), HashMap::new(), HashMap::new())
@@ -382,9 +390,26 @@ impl CfgBuilder {
     /// accumulate caller-side defs from any embedded calls to
     /// known upvar procs.
     fn upvar_defs_from_text(&self, text: &str) -> Vec<String> {
+        self.upvar_defs_from_text_bounded(text, 0)
+    }
+
+    /// [`Self::upvar_defs_from_text`], recursing into a nested `[...]`
+    /// found within a matched command's own inner text (issue #923 idx
+    /// 122): `set err [getopt argv $opts opt arg]` — the real tcllib
+    /// `cmdline::getoptions` shape, condition-position or not — wraps the
+    /// known upvar proc call in an outer `set`, so only checking
+    /// `words.first()` against `upvar_procs` misses it entirely (`set`
+    /// itself is never a known upvar proc). `words_from_text` strips a
+    /// nested `Cmd` token's own brackets when flattening it into a word
+    /// (mirroring `SourceMap::token_text`'s "extract inner content"
+    /// convention), so the nested substitution can only be recovered by
+    /// re-lexing `inner` itself, not by pattern-matching the word list.
+    /// `depth` bounds the descent the same way [`MAX_LOWER_DEPTH`] bounds
+    /// `lower_script`, against pathological/adversarial nesting.
+    fn upvar_defs_from_text_bounded(&self, text: &str, depth: u32) -> Vec<String> {
         use tcl_lexer::{Lexer, SourceMap, TokenType};
 
-        if self.upvar_procs.is_empty() || !text.contains('[') {
+        if self.upvar_procs.is_empty() || !text.contains('[') || depth >= MAX_EMBEDDED_SUBST_DEPTH {
             return Vec::new();
         }
 
@@ -402,18 +427,26 @@ impl CfgBuilder {
             // Inner text of `[...]`, re-lexed for word extraction.
             let inner = sm.token_text(*tok);
             let words = words_from_text(inner);
-            let Some(cmd) = words.first() else {
-                continue;
-            };
-            let Some(info) = self.upvar_procs.get(cmd.as_str()) else {
-                continue;
-            };
-            let params: &[String] = self
-                .proc_params
-                .get(cmd.as_str())
-                .map_or(&[][..], Vec::as_slice);
-            let raw_args: Vec<String> = words.iter().skip(1).cloned().collect();
-            for d in info.caller_side_defs(&raw_args, params) {
+            if let Some(cmd) = words.first()
+                && let Some(info) = self.upvar_procs.get(cmd.as_str())
+            {
+                let params: &[String] = self
+                    .proc_params
+                    .get(cmd.as_str())
+                    .map_or(&[][..], Vec::as_slice);
+                let raw_args: Vec<String> = words.iter().skip(1).cloned().collect();
+                for d in info.caller_side_defs(&raw_args, params) {
+                    if !defs.contains(&d) {
+                        defs.push(d);
+                    }
+                }
+            }
+            // `inner`'s own raw text still carries any bracket nested
+            // inside it (only the outermost pair this token wraps was
+            // stripped) — recurse on it, one level shallower, so a
+            // wrapping command doesn't hide a known upvar proc buried
+            // inside it.
+            for d in self.upvar_defs_from_text_bounded(inner, depth + 1) {
                 if !defs.contains(&d) {
                     defs.push(d);
                 }
@@ -429,9 +462,20 @@ impl CfgBuilder {
     /// global write reached via `set y [mutate]` is just as real as one
     /// reached via a bare `mutate` statement.
     fn global_write_defs_from_text(&self, text: &str) -> Vec<String> {
+        self.global_write_defs_from_text_bounded(text, 0)
+    }
+
+    /// [`Self::global_write_defs_from_text`], recursing into a nested
+    /// `[...]` the same way [`Self::upvar_defs_from_text_bounded`] does
+    /// (issue #923 idx 122) — see its doc for the wrapping-command shape
+    /// this recovers.
+    fn global_write_defs_from_text_bounded(&self, text: &str, depth: u32) -> Vec<String> {
         use tcl_lexer::{Lexer, SourceMap, TokenType};
 
-        if self.global_write_procs.is_empty() || !text.contains('[') {
+        if self.global_write_procs.is_empty()
+            || !text.contains('[')
+            || depth >= MAX_EMBEDDED_SUBST_DEPTH
+        {
             return Vec::new();
         }
 
@@ -448,19 +492,59 @@ impl CfgBuilder {
             }
             let inner = sm.token_text(*tok);
             let words = words_from_text(inner);
-            let Some(cmd) = words.first() else {
-                continue;
-            };
-            let Some(info) = self.global_write_procs.get(cmd.as_str()) else {
-                continue;
-            };
-            for name in &info.names {
-                if !defs.contains(name) {
-                    defs.push(name.clone());
+            if let Some(cmd) = words.first()
+                && let Some(info) = self.global_write_procs.get(cmd.as_str())
+            {
+                for name in &info.names {
+                    if !defs.contains(name) {
+                        defs.push(name.clone());
+                    }
+                }
+            }
+            // See `upvar_defs_from_text_bounded`'s identical step: `inner`
+            // still carries any bracket nested inside it, so recurse on
+            // the raw text rather than the (bracket-stripped) word list.
+            for d in self.global_write_defs_from_text_bounded(inner, depth + 1) {
+                if !defs.contains(&d) {
+                    defs.push(d);
                 }
             }
         }
         defs
+    }
+
+    /// Condition-position command-substitution out-vars (issue #923 idx
+    /// 122): unions the hardcoded-builtin scan
+    /// ([`crate::ir_helpers::condition_command_out_vars`] — `catch` /
+    /// `scan` / `gets` / `regexp`) with the same known-upvar-proc /
+    /// known-global-writer resolution every *other* embedded-substitution
+    /// site already gets ([`Self::upvar_defs_from_text`] /
+    /// [`Self::global_write_defs_from_text`]).  Without this, a user
+    /// proc's `upvar` write was only recognised as a bare statement or an
+    /// ordinary value (`set x [getKnownOpt ...]`) — invoked from a
+    /// `while`/`if` *condition* instead (`while {[getopt argv $opts opt
+    /// arg]} { ... }`, tcllib's `cmdline::getoptions`), the write was
+    /// invisible, producing a false W210 on the guarded body's read even
+    /// though the condition's own command substitution (including the
+    /// upvar write) completes before the body ever runs
+    /// (tclsh9.0/8.6-verified).
+    fn condition_out_vars(&self, condition: &ExprNode) -> Vec<String> {
+        let mut out = crate::ir_helpers::condition_command_out_vars(condition);
+        let mut cmds = Vec::new();
+        crate::ir_helpers::collect_expr_commands(condition, &mut cmds);
+        for cmd_text in &cmds {
+            for d in self.upvar_defs_from_text(cmd_text) {
+                if !out.contains(&d) {
+                    out.push(d);
+                }
+            }
+            for d in self.global_write_defs_from_text(cmd_text) {
+                if !out.contains(&d) {
+                    out.push(d);
+                }
+            }
+        }
+        out
     }
 
     /// Scan *text* for `[command_substitution]` tokens whose head is a builtin
@@ -718,14 +802,50 @@ impl CfgBuilder {
     /// Push a "frozen" loop (`for` / `while` whose condition is a command
     /// substitution) into `current` as an opaque [`Statement::Barrier`]; the
     /// body is kept un-lowered so it is treated as an opaque effect.
+    ///
+    /// A `Statement::Barrier` has no `defs` field — its own
+    /// [`crate::ssa::uses_of`] textually scans *both* `condition` and the
+    /// un-lowered body text for `$var` reads (attributing them all to the
+    /// barrier's own span), but nothing analogous computes defs for it
+    /// beyond the registry's ordinary `VarWrite` role query, which `for` /
+    /// `while` themselves never declare. So a `catch`/`regexp`/`scan`
+    /// result var, or a known upvar/global-writing user proc's write,
+    /// reached only through the frozen condition (`while {[getopt argv
+    /// $opts opt arg]} { ... }`, tcllib's `cmdline::getoptions` — issue
+    /// #923 idx 122) was invisible to the def-use graph: the read inside
+    /// the (un-lowered, but still textually-scanned) body looked
+    /// read-before-set even though the condition's own command
+    /// substitution completes — including the write — before the body
+    /// (or even a second evaluation of the condition) ever runs. Fixed by
+    /// pushing a synthetic `<cond>` `Statement::Call` carrying those defs
+    /// immediately before the barrier, exactly mirroring the non-frozen
+    /// `lower_if`/`lower_while` path's own `condition_out_vars` use — the
+    /// barrier's textually-scanned read then resolves to this new SSA
+    /// version instead of the undef origin.
     fn push_frozen_loop_barrier(
         &mut self,
         command: &str,
+        condition: &ExprNode,
         raw_args: &[String],
         raw_tokens: Option<&CommandTokens>,
         span: Span,
         current: &str,
     ) {
+        let cond_defs = self.condition_out_vars(condition);
+        if !cond_defs.is_empty() {
+            self.block_mut(current).statements.push(Statement::Call {
+                span,
+                command: "<cond>".into(),
+                canonical_command: None,
+                args: Vec::new(),
+                defs: cond_defs,
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            });
+        }
         self.block_mut(current).statements.push(Statement::Barrier {
             span,
             reason: format!("frozen {command} (cmd-subst condition)"),
@@ -749,7 +869,14 @@ impl CfgBuilder {
             && matches!(condition, ExprNode::Command { .. })
             && !raw_args.is_empty()
         {
-            self.push_frozen_loop_barrier("for", raw_args, raw_tokens.as_ref(), *span, current);
+            self.push_frozen_loop_barrier(
+                "for",
+                condition,
+                raw_args,
+                raw_tokens.as_ref(),
+                *span,
+                current,
+            );
             Some(current.to_owned())
         } else {
             self.lower_for(stmt, current)
@@ -769,7 +896,14 @@ impl CfgBuilder {
             && matches!(condition, ExprNode::Command { .. })
             && !raw_args.is_empty()
         {
-            self.push_frozen_loop_barrier("while", raw_args, raw_tokens.as_ref(), *span, current);
+            self.push_frozen_loop_barrier(
+                "while",
+                condition,
+                raw_args,
+                raw_tokens.as_ref(),
+                *span,
+                current,
+            );
             current.to_owned()
         } else {
             self.lower_while(stmt, current)
@@ -2304,6 +2438,76 @@ mod tests {
         assert!(!upvar_procs.contains_key("p2"));
     }
 
+    // Issue #923 idx 18 (revisited after PR #1020 review): a wrapper proc
+    // that reaches an already-known upvar proc through a *plain* call
+    // (`real_worker $fvar $nvar $script`, not `uplevel`) does NOT itself
+    // become an upvar-write target for its own caller — tclsh9.0/8.6-
+    // verified (`can't read "myf": no such variable"` when the caller reads
+    // the variable in a statement separate from the call, i.e. genuinely
+    // outside any `uplevel`'d script argument). A plain call only shares
+    // *values*, not stack frames: `real_worker`'s own `upvar 1` reaches the
+    // wrapper's frame, not the wrapper's caller's frame — an earlier
+    // version of this fix treated every such pass-through as transitive,
+    // which was disproven by re-testing with the read moved outside the
+    // uplevel'd script (see the reverted commit's own follow-up fix for
+    // the story). The real tcllib idiom this finding was mined from
+    // (`page::util::flow`) reaches its own worker via `uplevel 1 [list
+    // ... ]`, not a plain call — genuinely propagating one frame further,
+    // confirmed separately against tclsh9.0 — but modelling that shape
+    // soundly (accounting for the wrapper's own uplevel level composed
+    // with the callee's own upvar level) is out of scope here; tracked at
+    // https://github.com/bitwisecook/tcl-lsp/issues/1019.
+
+    #[test]
+    fn detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper() {
+        // TN — `wrapper` has no `upvar` of its own, and its call to the
+        // known upvar proc `real_worker` is a plain call (not `uplevel`),
+        // so it must NOT be registered as a transitive upvar proc.
+        let module = lower_module(
+            "proc real_worker {fvar nvar script} {\n\
+             upvar 1 $fvar f\n\
+             upvar 1 $nvar n\n\
+             set f 1\n\
+             set n 2\n\
+             uplevel 1 $script\n\
+             }\n\
+             proc wrapper {fvar nvar script} {\n\
+             real_worker $fvar $nvar $script\n\
+             }",
+        );
+        let upvar_procs = detect_upvar_procs(&module);
+        assert!(
+            !upvar_procs.contains_key("wrapper"),
+            "a plain-call wrapper must not be treated as a transitive upvar proc",
+        );
+    }
+
+    #[test]
+    fn detect_upvar_procs_does_not_propagate_when_args_are_not_passed_through() {
+        // TN — `unrelated_wrapper` calls the known upvar proc `real_worker`,
+        // but with literal args ("x"/"y"), not its own parameters passed
+        // through unchanged — real tclsh9.0/8.6 confirms this genuinely
+        // errors ("can't read \"myf\": no such variable"), so it must NOT
+        // be registered.
+        let module = lower_module(
+            "proc real_worker {fvar nvar script} {\n\
+             upvar 1 $fvar f\n\
+             upvar 1 $nvar n\n\
+             set f 1\n\
+             set n 2\n\
+             uplevel 1 $script\n\
+             }\n\
+             proc unrelated_wrapper {a b c} {\n\
+             real_worker x y $c\n\
+             }",
+        );
+        let upvar_procs = detect_upvar_procs(&module);
+        assert!(
+            !upvar_procs.contains_key("unrelated_wrapper"),
+            "unrelated_wrapper passes literal args, not its own params — must not propagate",
+        );
+    }
+
     #[test]
     fn prepare_cfg_context_registers_params_for_all_procs() {
         let module = lower_module("proc ::ns::p {a b} { upvar 1 $a x }\nproc q {c} {}");
@@ -2629,6 +2833,112 @@ mod tests {
         assert!(
             s < a,
             "synthetic invalidate at {s} should precede assign at {a}",
+        );
+    }
+
+    // Issue #923 idx 122: a known upvar proc's call-by-name write reached
+    // only through a nested `[...]` (a wrapping command around it, or a
+    // loop/branch condition) must still be recovered — real tcllib
+    // `cmdline::getoptions` repro: `while {[set err [getopt argv $opts
+    // opt arg]]} { ... }`.
+
+    #[test]
+    fn embedded_subst_recovers_a_wrapped_upvar_proc_call() {
+        // TP — `set x [set err [setter]]`: `setter` is nested one bracket
+        // deeper than the embedded-substitution scan's own top-level word
+        // check reaches (`set` itself is never a known upvar proc), so
+        // recovering it requires recursing into the inner text rather than
+        // pattern-matching the (bracket-stripped) word list.
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x; set x 1 }\n\
+             set out [set err [setter]]",
+        );
+        let cfg = build_cfg(&module, false);
+        let cmd = find_call_with_def(&cfg.top_level, "caller_x")
+            .expect("expected a synthetic invalidate recovering caller_x through the wrapper");
+        assert_eq!(cmd, "<upvar-invalidate>");
+    }
+
+    #[test]
+    fn condition_out_vars_recovers_catch_scan_gets_regexp_and_upvar_procs() {
+        // TP — `condition_out_vars` unions the hardcoded builtin scan with
+        // the upvar-proc / global-write-proc resolution; a known upvar
+        // proc's write reached through a condition must appear in the
+        // union exactly like a `catch` result var already does.
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x; set x 1 }\n\
+             if {[setter]} { puts $caller_x }",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs =
+            find_call_defs(&cfg.top_level, "<cond>").expect("expected a <cond> Call in the CFG");
+        assert!(
+            defs.contains(&"caller_x".to_string()),
+            "expected caller_x in the <cond> Call's defs, got {defs:?}",
+        );
+    }
+
+    #[test]
+    fn frozen_while_condition_carries_upvar_proc_defs() {
+        // TP — `while {[getopt ...]}`'s condition is purely a command
+        // substitution, so `lower_while_or_frozen` freezes the whole loop
+        // as an opaque `Statement::Barrier` (no `defs` field at all) rather
+        // than calling `lower_while`. Without a separate synthetic `<cond>`
+        // Call carrying the condition's defs, `getopt`'s upvar write to
+        // `opt` would be invisible to the def-use graph even though the
+        // barrier's own `uses_of` textually scans the (un-lowered) body
+        // for `$opt` and attributes the read to the same statement.
+        let module = lower_module(
+            "proc getopt {ovar} { upvar 1 $ovar opt; set opt 1 }\n\
+             while {[getopt opt]} { puts $opt }",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs =
+            find_call_defs(&cfg.top_level, "<cond>").expect("expected a <cond> Call in the CFG");
+        assert!(
+            defs.contains(&"opt".to_string()),
+            "expected opt in the frozen while's <cond> Call defs, got {defs:?}",
+        );
+        // The barrier itself must still be there too — freezing, not
+        // ordinary `lower_while`, is exactly the shape under test.
+        let has_barrier = cfg.top_level.blocks.values().any(|b| {
+            b.statements
+                .iter()
+                .any(|s| matches!(s, Statement::Barrier { command, .. } if command == "while"))
+        });
+        assert!(
+            has_barrier,
+            "expected the loop to still freeze as a Barrier"
+        );
+    }
+
+    #[test]
+    fn frozen_for_condition_carries_upvar_proc_defs() {
+        // TP — the `for` loop's identical frozen-barrier path (issue #923
+        // idx 122 applies equally to `for {...} [cond] {...} {...}`).
+        let module = lower_module(
+            "proc getopt {ovar} { upvar 1 $ovar opt; set opt 1 }\n\
+             for {} {[getopt opt]} {} { puts $opt }",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs =
+            find_call_defs(&cfg.top_level, "<cond>").expect("expected a <cond> Call in the CFG");
+        assert!(
+            defs.contains(&"opt".to_string()),
+            "expected opt in the frozen for's <cond> Call defs, got {defs:?}",
+        );
+    }
+
+    #[test]
+    fn frozen_while_condition_with_no_upvar_proc_omits_synthetic_cond() {
+        // TN — a frozen loop whose condition calls an *ordinary* (non-
+        // upvar, non-`catch`/`scan`/`gets`/`regexp`) command must not gain
+        // a synthetic `<cond>` Call at all — nothing for it to carry.
+        let module = lower_module("proc pureCheck {} { return 1 }\nwhile {[pureCheck]} { }");
+        let cfg = build_cfg(&module, false);
+        assert!(
+            find_call_defs(&cfg.top_level, "<cond>").is_none(),
+            "no synthetic <cond> Call expected when the condition defines nothing",
         );
     }
 

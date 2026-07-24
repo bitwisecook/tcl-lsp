@@ -51,6 +51,29 @@ pub(super) struct ConstDispatchSite {
     pub head_expanded: bool,
 }
 
+/// One `$class`-headed `TclOO` instance-creation site (issue #923 idx
+/// 121), pending settlement against the compiler's flow-sensitive value
+/// model once the CFG/SSA `CompilationUnit` is built — the same
+/// settle-late discipline [`ConstDispatchSite`] uses, since `class_var`'s
+/// value can't be proven constant until SSA reaching-definitions exist.
+/// Recorded by [`super::commands::Analyser::record_instance_creation`]
+/// when the constructor call's class head is a plain `$var` reference
+/// instead of the literal bareword
+/// [`super::commands::Analyser::class_from_constructor_subst`] resolves
+/// directly (`set class ::Derived; set obj [$class create NAME]`,
+/// tcllib's `httpd/httpd.tcl`).
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct PendingInstanceClassSite {
+    /// The class-naming variable's name (no leading `$`).
+    pub class_var: String,
+    /// Span of the `$class` head, for the SSA use-position lookup.
+    pub span: Span,
+    /// The `instance_classes` key to bind once `class_var` resolves to a
+    /// single known user class — the assigned variable (`set obj [...]`)
+    /// or created instance-command name.
+    pub target_name: String,
+}
+
 /// The recorded state of one child interpreter (issue #945 faults 7–8):
 /// safe flag plus the explicit hide / expose deltas layered over the
 /// registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base set.
@@ -189,6 +212,18 @@ pub struct Analyser {
     /// Keyed on the path vector so snapshot/restore doesn't have to
     /// remap pointers.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+    /// Per-scope set of const-string bindings whose *current* value was
+    /// last written inside an ``if`` / ``try`` body (``conditional_depth >
+    /// 0``) — a write that does **not** dominate code after the conditional
+    /// join. [`Self::set_const_string`] adds a name here when the write is
+    /// conditional and removes it on a later straight-line (depth-0) write;
+    /// [`Self::lookup_dominating_const_string`] consults it so identity
+    /// resolution (`source`/`rename` targets via
+    /// [`Self::resolve_dynamic_word`]) abstains rather than pick a
+    /// branch-dependent value (Codex review, PR #1020). Kept as a side set
+    /// so the many other `const_strings` readers (regex vars, expansion
+    /// counts, …) keep their existing last-write-wins behaviour untouched.
+    pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
     /// Variables known to contain regex patterns:
     /// ``(scope_path, var_name)``.
     pub regex_vars: HashSet<(Vec<usize>, String)>,
@@ -339,6 +374,11 @@ pub struct Analyser {
     /// alive).  Anything unprovable is dropped (sound abstention — no
     /// phantom invocation, no W123 delta).
     pub(super) pending_const_dispatches: Vec<ConstDispatchSite>,
+    /// `TclOO` instance-creation sites whose class head is a `$var`
+    /// reference (issue #923 idx 121), pending settlement alongside
+    /// [`Self::pending_const_dispatches`] once the CFG/SSA
+    /// `CompilationUnit` exists.
+    pub(super) pending_instance_class_sites: Vec<PendingInstanceClassSite>,
     /// M9: the namespace key a seeded analysis wraps the whole file in (set
     /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it
     /// creates becomes the top-level walk's base path.
@@ -409,6 +449,19 @@ pub struct Analyser {
     /// side-effect happens — so no source / package / definition edges
     /// may be built from it either; issue #945 fault 7).
     pub(super) safe_interp_stack: Vec<SafeInterpCtx>,
+    /// The scope-chain-aware **interpreter value-flow map** (issue #923
+    /// idx 9): `set VAR [interp create ...]` binds `VAR`, in the scope it
+    /// was written, to the `interpreters` domain key recorded for that
+    /// call — a literal path's qualified key, or a synthetic
+    /// per-call-site key when the call captured no literal path. Mirrors
+    /// `const_strings`'s scope-chain shape (never `instance_classes`'s
+    /// flat, file-wide one — a raw-name collision there only softens a
+    /// diagnostic; here it would corrupt real go-to-definition targets),
+    /// so two unrelated procs binding the same variable name to
+    /// different interpreters never collide. Consulted by
+    /// [`Self::resolve_dynamic_interp_path`] from the call sites that
+    /// used to require the interpreter path to be a source literal.
+    pub(super) interp_var_bindings: HashMap<Vec<usize>, HashMap<String, String>>,
     /// Guard against double W123 emission across
     /// ``analyse_commands`` / ``analyse_irule_event``.
     pub unresolved_commands_emitted: bool,
@@ -763,6 +816,7 @@ impl Analyser {
             last_comment: String::new(),
             file_path: None,
             const_strings: HashMap::new(),
+            nondominating_consts: HashMap::new(),
             regex_vars: HashSet::new(),
             current_event: None,
             tk_possibly_active: false,
@@ -788,6 +842,7 @@ impl Analyser {
             namespace_paths: HashMap::new(),
             var_command_sites: Vec::new(),
             pending_const_dispatches: Vec::new(),
+            pending_instance_class_sites: Vec::new(),
             seed_namespace_key: None,
             seed_scope_path: Vec::new(),
             widget_dispatch_sites: Vec::new(),
@@ -801,6 +856,7 @@ impl Analyser {
             interp_epochs: HashMap::new(),
             interp_path_stack: Vec::new(),
             safe_interp_stack: Vec::new(),
+            interp_var_bindings: HashMap::new(),
             unresolved_commands_emitted: false,
             registry: None,
             recovery_known_commands: HashSet::new(),
@@ -1933,6 +1989,54 @@ mod tests {
     }
 
     #[test]
+    fn apply_with_namespace_element_records_a_namespace_override() {
+        // TP — issue #923 idx 116 Part 1 (the core mechanism): a literal
+        // `apply {{params} body ns}` must record a namespace_overrides
+        // entry spanning the body, so `tcl-lsp-core`'s command-resolution
+        // lookups can pin bareword calls inside the body to `ns` — the
+        // `Scope` subtree `reconstruct_proc_scope` builds for `ns` is
+        // rooted under body_span-less wrapper nodes the ordinary lexical
+        // walk can never reach.
+        let mut a = Analyser::new();
+        let src = "apply {{} { cleanup done } ::real}";
+        let r = a.analyse(src, "tcl");
+        assert_eq!(
+            r.namespace_overrides.len(),
+            1,
+            "{:?}",
+            r.namespace_overrides
+        );
+        let (span, ns) = &r.namespace_overrides[0];
+        assert_eq!(ns, "::real");
+        // The recorded span is the body token's raw span (opening brace
+        // included, per this codebase's lexer-span convention — the
+        // closing brace is excluded, one byte short of the token's end).
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "{ cleanup done "
+        );
+    }
+
+    #[test]
+    fn apply_without_namespace_element_does_not_record_an_override() {
+        // TN — a 2-element lambda (no namespace argument) defaults to
+        // global, which `command_resolution_namespace_at` already reports
+        // with no override present; pushing a `(span, "::")` entry would
+        // be a no-op relative to today's behaviour, but the plan
+        // deliberately still records it (uniform code path) — confirm the
+        // recorded namespace is exactly `"::"`, not skipped or wrong.
+        let mut a = Analyser::new();
+        let r = a.analyse("apply {{} { cleanup done }}", "tcl");
+        assert_eq!(
+            r.namespace_overrides.len(),
+            1,
+            "{:?}",
+            r.namespace_overrides
+        );
+        assert_eq!(r.namespace_overrides[0].1, "::");
+    }
+
+    #[test]
     fn unknown_lexer_warning_maps_to_e200() {
         // An unterminated `$arr(idx` array index makes the lexer emit a
         // "missing )" warning, which has no dedicated recovery code — it
@@ -1993,6 +2097,82 @@ mod tests {
         assert_eq!(
             r.instance_classes.get("d").map(String::as_str),
             Some("::Dog")
+        );
+    }
+
+    #[test]
+    fn analyse_records_instance_class_through_a_var_headed_create() {
+        // TP — issue #923 idx 121: tcllib's `httpd/httpd.tcl` flows the
+        // constructor's class name through a single, unconditional `set`
+        // one line earlier (`set class ::Derived; set obj [$class create
+        // NAME]`) rather than writing the class as a literal bareword.
+        // Verified against real tclsh9.0/8.6: `$obj`'s methods dispatch to
+        // `Dog` either way, so the analyser must bind `obj` -> `::Dog`
+        // exactly like the literal-bareword shape already does.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\nset class Dog\nset obj [$class create rex]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj").map(String::as_str),
+            Some("::Dog"),
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_records_instance_class_through_a_var_headed_new() {
+        // TP — same gap, the `new` constructor spelling.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\nset class Dog\nset obj [$class new]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj").map(String::as_str),
+            Some("::Dog"),
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_abstains_on_a_branch_ambiguous_class_var() {
+        // TN — a class variable whose reaching definitions genuinely
+        // disagree (one arm `Dog`, the other `Cat`) is unprovable at the
+        // constructor call: binding *either* class would be a guess, so
+        // the analyser must abstain (no `instance_classes` entry) rather
+        // than pick one arbitrarily.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog {}\noo::class create Cat {}\nif {$flag} { set class Dog } else { set class Cat }\nset obj [$class create x]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj"),
+            None,
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_abstains_on_a_genuinely_dynamic_class_var() {
+        // TN — a class variable fed by a computed value (no exact
+        // constant) can't be proven at all; must abstain exactly like the
+        // pre-fix behaviour rather than binding a wrong/empty class.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog {}\nset class [someFactory]\nset obj [$class create x]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj"),
+            None,
+            "{:?}",
+            r.instance_classes
         );
     }
 

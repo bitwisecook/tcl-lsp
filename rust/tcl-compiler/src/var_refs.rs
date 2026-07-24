@@ -28,7 +28,7 @@
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 
-use tcl_lexer::{Lexer, SourceMap, TokenType};
+use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::naming::{element_var_name, normalise_var_name};
@@ -164,61 +164,106 @@ impl VarReferenceScanner {
         self.order.clear();
     }
 
-    /// Scan without cache — called on cache miss.
+    /// Scan without cache — called on cache miss. The outermost scan is
+    /// always over *value body* text (see [`scan_tokens`]): whatever
+    /// produced `source` (a `set` value, a proc-arg default, …) already
+    /// stripped its own enclosing quotes/braces, so any `{`/`}` surviving
+    /// in `source` is literal content, never a fresh word boundary.
     fn scan_script_uncached(
         &mut self,
         source: &str,
         registry: &CommandRegistry,
     ) -> BTreeSet<String> {
-        let mut vars_found = BTreeSet::new();
-        let source_map = SourceMap::new(source);
-        let lexer = Lexer::new(source);
-
-        let Ok(tokens) = lexer.tokenise_all() else {
-            return vars_found;
-        };
-
-        for tok in &tokens {
-            match tok.kind {
-                TokenType::Var => {
-                    let text = source_map.token_text(*tok);
-                    let name = if self.options.element_qualified {
-                        // The `${…}` brace form substitutes nothing inside,
-                        // so its key is literal even when it spells `$x` —
-                        // the sigil-stripped token text can't show that, but
-                        // the raw span keeps the `${` prefix.
-                        let braced = source_map.text(tok.span).starts_with("${");
-                        crate::naming::element_var_name_braced(text, braced)
-                    } else {
-                        normalise_var_name(text)
-                    };
-                    if !name.is_empty() {
-                        vars_found.insert(name.to_owned());
-                    }
-                }
-                TokenType::Cmd if self.options.recurse_cmd_substitutions => {
-                    let text = source_map.token_text(*tok);
-                    if !text.is_empty() {
-                        let nested = self.scan_script(text, registry);
-                        vars_found.extend(nested);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        if self.options.include_var_read_roles {
-            let role_vars = scan_var_read_role_names(
-                source,
-                registry,
-                self.options.include_reads_before_write,
-                self.options.element_qualified,
-            );
-            vars_found.extend(role_vars);
-        }
-
-        vars_found
+        scan_tokens(source, registry, self.options, true)
     }
+}
+
+/// The variable name a `TokenType::Var` token contributes, per
+/// `options.element_qualified`, or `None` for a degenerate/empty name.
+fn var_token_name(source_map: &SourceMap, tok: &Token, options: VarScanOptions) -> Option<String> {
+    let text = source_map.token_text(*tok);
+    let name = if options.element_qualified {
+        // The `${…}` brace form substitutes nothing inside, so its key is
+        // literal even when it spells `$x` — the sigil-stripped token text
+        // can't show that, but the raw span keeps the `${` prefix.
+        let braced = source_map.text(tok.span).starts_with("${");
+        crate::naming::element_var_name_braced(text, braced)
+    } else {
+        normalise_var_name(text)
+    };
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// Scan `source` for `Var`/`Cmd` tokens, recursing into every `[…]`
+/// substitution found.
+///
+/// `quoted_body` selects how `source` itself is tokenised:
+///
+/// - `true` — *value body* mode: `source` is already-extracted word/value
+///   text whose own enclosing quotes (if any) were stripped by whatever
+///   produced it, so it's tokenised via [`Lexer::as_quoted_body`] — no
+///   top-level word-splitting/brace-quoting, since a `{`/`}` here is
+///   ordinary literal content, not a fresh word boundary (issue #923 idx
+///   125: `set s "prefix {$vroot} suffix"` — the value word's `{$vroot}`
+///   is an ordinary substitution, exactly like a bare `$x` beside it,
+///   because braces have no grouping meaning *inside* an already-open
+///   quoted string; re-tokenising the extracted text with ordinary
+///   top-level rules instead mis-read it as a fresh, non-substituting
+///   brace-quoted word).
+/// - `false` — *command words* mode: `source` is a nested `[…]`
+///   substitution's own inner content, itself a fresh Tcl command, so
+///   ordinary top-level word-splitting/brace-quoting rules apply (Tcl
+///   really does treat e.g. `[foo {$bar}]`'s `{$bar}` as a literal,
+///   non-substituting argument — tclsh-verified).
+///
+/// Every `[…]` substitution found, in *either* mode, recurses in command-
+/// words mode (`quoted_body: false`): its content is always a fresh
+/// command, regardless of what mode enclosed it.
+fn scan_tokens(
+    source: &str,
+    registry: &CommandRegistry,
+    options: VarScanOptions,
+    quoted_body: bool,
+) -> BTreeSet<String> {
+    let mut vars_found = BTreeSet::new();
+    let source_map = SourceMap::new(source);
+    let mut lexer = Lexer::new(source);
+    if quoted_body {
+        lexer = lexer.as_quoted_body();
+    }
+
+    let Ok(tokens) = lexer.tokenise_all() else {
+        return vars_found;
+    };
+
+    for tok in &tokens {
+        match tok.kind {
+            TokenType::Var => {
+                if let Some(name) = var_token_name(&source_map, tok, options) {
+                    vars_found.insert(name);
+                }
+            }
+            TokenType::Cmd if options.recurse_cmd_substitutions => {
+                let text = source_map.token_text(*tok);
+                if !text.is_empty() {
+                    vars_found.extend(scan_tokens(text, registry, options, false));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if options.include_var_read_roles {
+        let role_vars = scan_var_read_role_names(
+            source,
+            registry,
+            options.include_reads_before_write,
+            options.element_qualified,
+        );
+        vars_found.extend(role_vars);
+    }
+
+    vars_found
 }
 
 /// Extract variable names from `ArgRole::VarRead` positions in commands.
@@ -467,6 +512,69 @@ mod tests {
         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
         let vars = scanner.scan_word("$arr(idx)", &reg);
         assert!(vars.contains("arr"), "should find array base name");
+    }
+
+    // Issue #923 idx 125: a value-body word (a `set` value, a `foreach` list
+    // arg, …) may carry an embedded `{…}` run that survived, as ordinary
+    // literal text, from an originally double-quoted or bareword-
+    // concatenated source word — real tcllib repro
+    // (`modules/htmlparse/htmlparse.tcl`): `eval "$cmd {$vroot} {} {}
+    // \{$html\}"`. Braces have no word-grouping meaning *inside* an
+    // already-open quoted string (only `$`, `[`, `\`, and the closing quote
+    // are special there), so `{$vroot}` is an ordinary substitution, exactly
+    // like the bare `$cmd` beside it — tclsh9.0/8.6-verified.
+
+    #[test]
+    fn scan_word_finds_a_var_inside_braces_within_a_value_body() {
+        // TP — the core idx 125 fix: `{$a}` survived from a double-quoted
+        // source word, so `a` must be found, not swallowed as a
+        // non-substituting brace-quoted word.
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let vars = scanner.scan_word("prefix {$a} suffix $b $c", &reg);
+        assert!(
+            vars.contains("a"),
+            "should find $a inside {{$a}}; got {vars:?}"
+        );
+        assert!(
+            vars.contains("b"),
+            "should still find bare $b; got {vars:?}"
+        );
+        assert!(
+            vars.contains("c"),
+            "should still find bare $c; got {vars:?}"
+        );
+    }
+
+    #[test]
+    fn scan_word_still_recurses_a_nested_command_substitution_inside_a_value_body() {
+        // A genuine `[…]` substitution embedded in a value body still
+        // recurses (tclsh9.0/8.6-verified: `set x 1; set s "pre [bar $x]
+        // post"` reads `x`).
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let vars = scanner.scan_word("pre [bar $x] post", &reg);
+        assert!(
+            vars.contains("x"),
+            "should recurse into the nested [bar $x]; got {vars:?}"
+        );
+    }
+
+    #[test]
+    fn scan_word_keeps_brace_quoting_inside_a_nested_command_substitutions_own_words() {
+        // TN — a nested `[…]` substitution's own content is a fresh Tcl
+        // command: full word-splitting/brace-quoting rules apply there,
+        // same as any top-level command (tclsh9.0/8.6-verified: `proc foo {a
+        // b} {return "a=$a b=$b"}; puts [foo {$bar} world]` prints `a=$bar
+        // b=world` — `{$bar}` is a literal, non-substituting argument, so
+        // `bar` itself is never read).
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let vars = scanner.scan_word("[foo {$bar} baz]", &reg);
+        assert!(
+            !vars.contains("bar"),
+            "a nested command's own {{$bar}} argument must stay literal; got {vars:?}"
+        );
     }
 
     #[test]

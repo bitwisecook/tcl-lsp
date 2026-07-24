@@ -203,17 +203,14 @@ pub fn prepare_rename(
             });
         }
     }
-    // Variable definition site (`set x` / `variable x`) — no `$`, so resolve
-    // by the declaration span covering the cursor.
+    // Variable definition / same-cell write site (`set x` / `variable x` /
+    // a proc-param / a `catch` result-var) — no `$`, so resolve directly
+    // via `var_def_at_declaration_offset`'s byte-offset span search (see
+    // its own doc for why the ordinary scope-chain walk can't reach a
+    // parameter's own declaring token).
     let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(var_name) =
-        crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
-        && let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
-            &analysis.global_scope,
-            def_byte,
-            &var_name,
-            analysis.ns_var_global_fallback(),
-        )
+    if let Some(var_def) =
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)
     {
         return Some(PrepareRename {
             range: span_to_range(source, &line_index, var_def.definition_span),
@@ -244,17 +241,14 @@ pub fn prepare_rename(
     }
     // Method / classmethod / property inside a class body?
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        if let Some((_, span)) = resolve_member_span(class_def, &word, cursor_offset) {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, span),
-                placeholder: word.clone(),
-            });
-        }
+    if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor_offset)
+        .and_then(|q| analysis.all_classes.get(q))
+        && let Some((_, span)) = resolve_member_span(class_def, &word, cursor_offset)
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, span),
+            placeholder: word.clone(),
+        });
     }
     // External `$obj method` call site — editors that gate the
     // rename UI on `prepare_rename` should still see it as
@@ -320,12 +314,15 @@ pub fn rename(
         );
     }
 
-    // Definition-site rename: the cursor sits on a `set x` / `variable x`
-    // declaration name (no `$`), so the `$ref` scan above missed it.  Resolve
-    // the variable by the declaration span that covers the cursor.
+    // Definition / same-cell write site: the cursor sits on a `set x` /
+    // `variable x` declaration, a proc/method parameter, or a `catch`
+    // result-var (no `$`), so the `$ref` scan above missed it. Resolve via
+    // `var_def_at_declaration_offset`'s byte-offset span search (see its
+    // own doc for why the ordinary scope-chain walk can't reach a
+    // parameter's own declaring token).
     let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(var_name) =
-        crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
+    if let Some(var_def) =
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)
     {
         return rename_var(
             source,
@@ -334,7 +331,7 @@ pub fn rename(
             new_name,
             analysis,
             &line_index,
-            &var_name,
+            &var_def.name,
         );
     }
 
@@ -376,8 +373,12 @@ pub fn rename(
         && let Some(edits) = rename_method_in_class(
             source,
             dialect,
-            class_q,
-            &method,
+            (
+                class_q,
+                &method,
+                crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
+                    == crate::definition::MethodBucket::Class,
+            ),
             new_name,
             analysis,
             &line_index,
@@ -408,6 +409,13 @@ pub fn rename(
 /// external `$obj method` call sites.  Returns `None` when neither
 /// `class_q` nor any ancestor provides `method` (nothing to rename).
 ///
+/// `target` is `(class_q, method, is_classmethod)` — bundled to keep the
+/// parameter count under the lint budget; `is_classmethod` reflects which
+/// [`crate::definition::MethodBucket`] the caller's own receiver resolved
+/// to (`$obj method` vs. a bare `ClassName method` classmethod dispatch,
+/// issue #923 idx 120), not something re-derivable from `class_q`/`method`
+/// alone.
+///
 /// A `TclOO` method that is (re)defined by a super- or sub-class is a
 /// single polymorphic name: `$obj method` dispatch can reach any
 /// definition along the chain, so renaming only the class under the
@@ -417,26 +425,31 @@ pub fn rename(
 fn rename_method_in_class(
     source: &str,
     dialect: &str,
-    class_q: &str,
-    method: &str,
+    target: (&str, &str, bool),
     new_name: &str,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
+    let (class_q, method, is_classmethod) = target;
     let family = override_family(analysis, class_q, method);
     if family.is_empty() {
         return None;
     }
     let mut edits = Vec::new();
     for member in &family {
-        // Only ever reached via an external `$obj method` call site (see the
-        // call site below), which is always an instance-method receiver —
-        // never a classmethod, which is called on the class object itself
-        // (confirmed against tclsh 9.0.4, see
-        // `tcl_compiler::analyser::diagnostics::var_command`'s dispatch-scope
-        // note).
+        // Reached via an external call site — either `$obj method` (always
+        // instance-context) or a bare `ClassName method` classmethod
+        // dispatch (issue #923 idx 120) — so `is_classmethod` is fixed by
+        // the caller's own receiver resolution, never re-derived per family
+        // member (a method and a classmethod occupy separate dispatch
+        // tables; the receiver picks exactly one for the whole rename).
         let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
-            source, dialect, analysis, member, method, false,
+            source,
+            dialect,
+            analysis,
+            member,
+            method,
+            is_classmethod,
         ) else {
             continue;
         };
@@ -500,14 +513,9 @@ pub fn method_target_with_access(
         // `my method` — an internal call from inside the enclosing class.
         // Always instance-context: `my` never reaches a classmethod.
         if inst == "my"
-            && let Some(class_q) = analysis
-                .all_classes
-                .values()
-                .filter(|c| c.body_span.start() < cursor && cursor < c.body_span.end())
-                .min_by_key(|c| c.body_span.end() - c.body_span.start())
-                .map(|c| c.qualified_name.clone())
+            && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor)
         {
-            return Some((class_q, method, false, MethodAccess::Internal));
+            return Some((class_q.to_owned(), method, false, MethodAccess::Internal));
         }
         // External `$obj method` — resolve `$obj`'s class.  Always
         // instance-context too: a classmethod is never reached via `$obj`.
@@ -528,11 +536,12 @@ pub fn method_target_with_access(
     }
     // Inside a class body on one of its method / classmethod names — the
     // declaration side, an internal context.
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
+    if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor)
+        .and_then(|q| analysis.all_classes.get(q))
+    {
         let has_method = class_def.methods.contains_key(&word);
         let has_classmethod = class_def.class_methods.contains_key(&word);
-        if body.start() < cursor && cursor < body.end() && (has_method || has_classmethod) {
+        if has_method || has_classmethod {
             // A `method` and a `classmethod` of the same name are distinct
             // members; unambiguous when only one exists, otherwise prefer
             // whichever one's declaration the cursor is actually on (falls
@@ -692,12 +701,22 @@ fn rename_var(
     var_name: &str,
 ) -> Vec<TextEdit> {
     let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    // The ordinary scope-chain lookup resolves a `$ref` cursor (and a
+    // definition-site cursor that happens to sit inside its own scope's
+    // body span); a proc/method parameter's own declaring token sits
+    // *before* its scope's body span even starts, so fall back to the
+    // byte-offset span search there (see `var_def_at_declaration_offset`'s
+    // own doc).
     let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
         &analysis.global_scope,
         byte_offset,
         var_name,
         analysis.ns_var_global_fallback(),
-    ) else {
+    )
+    .or_else(|| {
+        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, byte_offset)
+            .filter(|v| v.name == var_name)
+    }) else {
         return Vec::new();
     };
     // Collision gate: refuse when `new_name` already resolves to a *different*
@@ -750,7 +769,7 @@ fn rename_var(
         // [`build_var_ref_replacement`].
         let replacement = build_var_ref_replacement(source, r, new_name);
         edits.push(TextEdit {
-            range: span_to_range(source, line_index, r),
+            range: span_to_range(source, line_index, var_ref_edit_span(source, r)),
             new_text: replacement,
         });
     }
@@ -959,83 +978,82 @@ fn rename_method(
 ) -> Option<Vec<TextEdit>> {
     use tcl_lexer::Span;
 
-    for class_def in analysis.all_classes.values() {
-        let body = class_def.body_span;
-        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
-            continue;
-        }
-        // Methods, classmethods, and properties are independent tables; a
-        // name shared by more than one (rare, but real — `TclOO` never
-        // merges them) disambiguates by which declaration's own span the
-        // cursor sits on rather than a fixed priority — see
-        // `resolve_member_span`.
-        let (selected_kind, name_span) = resolve_member_span(class_def, word, cursor_offset)?;
-        let is_classmethod = selected_kind == MemberSel::ClassMethod;
-        let mut edits = vec![TextEdit {
-            range: span_to_range(source, line_index, name_span),
-            new_text: new_name.to_owned(),
-        }];
-        // `command_invocations` records top-level invocations only; method
-        // bodies aren't walked there.  `body_spans` (every method /
-        // classmethod / constructor / destructor body) is the re-segmentable
-        // material both branches below scan via the shared `my`-aware
-        // matcher — a `TclOO` member is never a bare-callable command (a
-        // bare `word` errors "invalid command name" at runtime; only `my
-        // word` dispatches), so there is no separate bare-head scan here.
-        let body_spans: Vec<Span> = crate::references::collect_member_bodies(class_def);
-        // Methods / classmethods (not properties — those aren't dispatched
-        // through the MRO) are one polymorphic name across the whole override
-        // family: a method (re)defined by a super- or sub-class renames as a
-        // unit.  For every family member — **including the class under the
-        // cursor** — pull its declaration, intra-class `my method` sites (its
-        // own bodies *and* any purely-inheriting subclass's), and external
-        // `$obj method` sites via the shared resolver.  Routing the cursor
-        // class through it too (rather than an ad-hoc self-only scan) is what
-        // catches an inheriting subclass's `my method` / `$obj method` sites
-        // when renaming from the base declaration.
-        if matches!(selected_kind, MemberSel::Method | MemberSel::ClassMethod) {
-            for member in override_family(analysis, &class_def.qualified_name, word) {
-                let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
-                    source,
-                    dialect,
-                    analysis,
-                    &member,
-                    word,
-                    is_classmethod,
-                ) else {
-                    continue;
-                };
-                // The cursor class's own declaration edit is already queued.
-                if member != class_def.qualified_name {
-                    edits.push(TextEdit {
-                        range: span_to_range(source, line_index, decl_span),
-                        new_text: new_name.to_owned(),
-                    });
-                }
-                for span in call_spans {
-                    edits.push(TextEdit {
-                        range: span_to_range(source, line_index, span),
-                        new_text: new_name.to_owned(),
-                    });
-                }
+    let class_def = analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(
+            analysis,
+            cursor_offset,
+        )?)?;
+    // Methods, classmethods, and properties are independent tables; a
+    // name shared by more than one (rare, but real — `TclOO` never
+    // merges them) disambiguates by which declaration's own span the
+    // cursor sits on rather than a fixed priority — see
+    // `resolve_member_span`.
+    let (selected_kind, name_span) = resolve_member_span(class_def, word, cursor_offset)?;
+    let is_classmethod = selected_kind == MemberSel::ClassMethod;
+    let mut edits = vec![TextEdit {
+        range: span_to_range(source, line_index, name_span),
+        new_text: new_name.to_owned(),
+    }];
+    // `command_invocations` records top-level invocations only; method
+    // bodies aren't walked there.  `body_spans` (every method /
+    // classmethod / constructor / destructor body) is the re-segmentable
+    // material both branches below scan via the shared `my`-aware
+    // matcher — a `TclOO` member is never a bare-callable command (a
+    // bare `word` errors "invalid command name" at runtime; only `my
+    // word` dispatches), so there is no separate bare-head scan here.
+    let body_spans: Vec<Span> = crate::references::collect_member_bodies(class_def);
+    // Methods / classmethods (not properties — those aren't dispatched
+    // through the MRO) are one polymorphic name across the whole override
+    // family: a method (re)defined by a super- or sub-class renames as a
+    // unit.  For every family member — **including the class under the
+    // cursor** — pull its declaration, intra-class `my method` sites (its
+    // own bodies *and* any purely-inheriting subclass's), and external
+    // `$obj method` sites via the shared resolver.  Routing the cursor
+    // class through it too (rather than an ad-hoc self-only scan) is what
+    // catches an inheriting subclass's `my method` / `$obj method` sites
+    // when renaming from the base declaration.
+    if matches!(selected_kind, MemberSel::Method | MemberSel::ClassMethod) {
+        for member in override_family(analysis, &class_def.qualified_name, word) {
+            let Some((decl_span, call_spans)) = crate::references::method_references_for_class(
+                source,
+                dialect,
+                analysis,
+                &member,
+                word,
+                is_classmethod,
+            ) else {
+                continue;
+            };
+            // The cursor class's own declaration edit is already queued.
+            if member != class_def.qualified_name {
+                edits.push(TextEdit {
+                    range: span_to_range(source, line_index, decl_span),
+                    new_text: new_name.to_owned(),
+                });
             }
-        } else {
-            // Properties have no `$obj prop` dispatch and no inheritance model
-            // (see `references::find_class_member_references`), so a
-            // class-local `my <prop>` scan is the whole story.
-            for span in
-                crate::references::scan_my_method_sites(source, dialect, &body_spans, word, None)
-            {
+            for span in call_spans {
                 edits.push(TextEdit {
                     range: span_to_range(source, line_index, span),
                     new_text: new_name.to_owned(),
                 });
             }
         }
-        dedup_edits(&mut edits);
-        return Some(edits);
+    } else {
+        // Properties have no `$obj prop` dispatch and no inheritance model
+        // (see `references::find_class_member_references`), so a
+        // class-local `my <prop>` scan is the whole story.
+        for span in
+            crate::references::scan_my_method_sites(source, dialect, &body_spans, word, None)
+        {
+            edits.push(TextEdit {
+                range: span_to_range(source, line_index, span),
+                new_text: new_name.to_owned(),
+            });
+        }
     }
-    None
+    dedup_edits(&mut edits);
+    Some(edits)
 }
 
 /// Compute the qualified rewrite (`prefix::new`) and the
@@ -1197,6 +1215,41 @@ pub fn workspace_symbol_rename_edits(
     ))
 }
 
+/// Extend a `${name}` reference span to cover its own closing
+/// brace when the lexer's recorded span stops one byte short of it.
+///
+/// `tcl-lexer`'s `Var` token span deliberately excludes the closing
+/// `}` for a non-degenerate braced name — `${a{b}}` names `a{b}`,
+/// whose content can legitimately end in `}` itself, so the span
+/// convention leaves the outer delimiter unconsumed rather than risk
+/// misreading it as content (see `SourceMap::token_text`'s doc). That
+/// makes `span` unsafe to use directly as a rename *edit range*:
+/// `build_var_ref_replacement` already emits a self-closed `${new}`
+/// string, so replacing only the short span leaves the source's own
+/// original `}` sitting right after it, corrupting `${new}` into
+/// `${new}}` (issue #923 idx 95 — this broke `tk.tcl`'s `${dir}view`
+/// idiom badly enough to fail to parse post-rename). Mirrors
+/// `token_text`'s own degenerate-`${}`-empty-name check so this never
+/// mis-fires on a span that already legitimately includes the brace.
+fn var_ref_edit_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
+    let start = span.start() as usize;
+    let end = span.end() as usize;
+    let bytes = source.as_bytes();
+    if start >= bytes.len() || end > bytes.len() {
+        return span;
+    }
+    let Some(after_prefix) = source[start..end].strip_prefix("${") else {
+        return span;
+    };
+    if after_prefix == "}" {
+        return span;
+    }
+    if bytes.get(end) == Some(&b'}') {
+        return tcl_lexer::Span::new(span.start(), span.end() + 1);
+    }
+    span
+}
+
 /// Build a replacement string for a variable reference span.
 ///
 /// The reference span covers the full Var token (`$x`,
@@ -1308,6 +1361,41 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
+    /// Apply every edit's `(range, new_text)` back onto `source` — the
+    /// same thing an editor does — sorted back-to-front so earlier byte
+    /// offsets stay valid as later edits are spliced in. Some tests below
+    /// use this to check the *result*, not just that `new_text` looks
+    /// right in isolation: idx 95's own bug (a rename edit range short by
+    /// one byte) shipped uncaught precisely because every prior brace-ref
+    /// test only asserted `new_text`, never applied it.
+    fn apply_edits(source: &str, edits: &[TextEdit]) -> String {
+        let line_index = LineIndex::new(source);
+        let mut spans: Vec<(usize, usize, &str)> = edits
+            .iter()
+            .map(|e| {
+                let start = crate::definition::byte_offset_at(
+                    &line_index,
+                    source,
+                    e.range.start_line,
+                    e.range.start_character,
+                ) as usize;
+                let end = crate::definition::byte_offset_at(
+                    &line_index,
+                    source,
+                    e.range.end_line,
+                    e.range.end_character,
+                ) as usize;
+                (start, end, e.new_text.as_str())
+            })
+            .collect();
+        spans.sort_by_key(|s| std::cmp::Reverse(s.0));
+        let mut result = source.to_string();
+        for (start, end, new_text) in spans {
+            result.replace_range(start..end, new_text);
+        }
+        result
+    }
+
     #[test]
     fn rename_proc_includes_decl_and_calls() {
         let src = "proc greet {} {}\ngreet\n";
@@ -1321,10 +1409,142 @@ mod tests {
     }
 
     #[test]
+    fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
+        // Issue #923 idx 56 (main audit wave, high severity): the finding's
+        // own demonstrated failure mode — renaming `::oo::Helpers::classvar`
+        // previously produced a `WorkspaceEdit` with only the declaration
+        // rewritten, leaving the bare `classvar hits` call site inside the
+        // method body pointed at the now-nonexistent old name. Applying
+        // that edit would crash the very next invocation with "invalid
+        // command name" at runtime, while the tool reported it as a
+        // complete, safe rename.
+        let src = "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `classvar` declaration (line 0, col 20).
+        let edits = rename(src, "tcl", 0, 20, "renamedClassvar", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&0), "decl missing: {edits:?}");
+        assert!(
+            lines.contains(&9),
+            "the bare classvar call site inside the method body must be rewritten too: {edits:?}"
+        );
+        // The qualified declaration gets the qualified replacement; the
+        // bare call site gets the short replacement — same convention as
+        // any other namespaced-proc rename.
+        let replacements: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(
+            replacements.contains(&"::oo::Helpers::renamedClassvar"),
+            "expected the qualified replacement at decl; got {replacements:?}"
+        );
+        assert!(
+            replacements.contains(&"renamedClassvar"),
+            "expected the short replacement at the bare call site; got {replacements:?}"
+        );
+    }
+
+    #[test]
+    fn rename_from_the_in_proc_global_alias_rewrites_the_callers_canonical_set_too() {
+        // Issue #923 idx 68 (main audit wave, high severity, pix corpus):
+        // the finding's own stated consequence of the `references()` gap —
+        // triggering Rename from the in-proc `global tolComp` alias
+        // previously rewrote only the proc's own 4 spans, leaving the
+        // caller's `set ::tolComp 0.05` pointed at the now-decoupled old
+        // name. Applying that edit would silently fall back to `isEqual`'s
+        // hardcoded 0.01 default instead of the caller-intended tolerance —
+        // a real runtime-behavior break introduced by a "successful" rename.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the `$tolComp` read inside the proc (line 2, col 14).
+        let edits = rename(src, "tcl", 2, 14, "tolerance", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "the `global tolComp` decl: {edits:?}");
+        assert!(lines.contains(&2), "the in-proc $tolComp read: {edits:?}");
+        assert!(
+            lines.contains(&4),
+            "the caller's canonical `set ::tolComp 0.05` must be rewritten too: {edits:?}"
+        );
+        let replacements: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(
+            replacements.contains(&"::tolerance"),
+            "the canonical cell's own `::` qualifier must be preserved; got {replacements:?}"
+        );
+    }
+
+    #[test]
+    fn rename_from_the_callers_canonical_set_rewrites_every_in_proc_global_alias_too() {
+        // The reverse direction of the test above (issue #923 idx 68):
+        // triggering Rename from the caller's own `set ::tolComp` must
+        // rewrite every in-proc `global tolComp` occurrence too, not just
+        // the caller's own 2 spans.
+        let src =
+            "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+        let analysis = analyse(src);
+        // Cursor on the `set ::tolComp` declaration (line 4, col 8).
+        let edits = rename(src, "tcl", 4, 8, "tolerance", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(
+            lines.contains(&4),
+            "the caller's own decl must be rewritten: {edits:?}"
+        );
+        assert!(
+            lines.contains(&1),
+            "the in-proc `global tolComp` decl must be rewritten too: {edits:?}"
+        );
+        assert!(
+            lines.contains(&2),
+            "the in-proc $tolComp read must be rewritten too: {edits:?}"
+        );
+    }
+
+    #[test]
     fn rename_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(rename(src, "tcl", 0, 6, "x", &analysis, None).is_empty());
+    }
+
+    #[test]
+    fn rename_leaves_wildcard_imported_bareword_call_site_untouched_same_document() {
+        // Same-document analogue of
+        // `cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched`:
+        // renaming `proc bar` (reached bare elsewhere only through a
+        // wildcard `namespace import`) must rewrite the declaration but
+        // leave the imported bareword call site alone — it names the
+        // *local* imported command, which keeps its own spelling.
+        // `rename_proc` calls `invocation_references_proc` directly (not
+        // the wildcard-aware `proc_reference_spans`), so it is unaffected
+        // by `references()`'s newly widened same-document reference set
+        // (see `references::tests::references_include_wildcard_imported_bareword_call_same_document`).
+        let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
+        let analysis = analyse(src);
+        // Cursor on the `bar` declaration (line 1, col 9).
+        let edits = rename(src, "tcl", 1, 9, "baz", &analysis, None);
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(edits[0].range.start_line, 1);
+        assert_eq!(edits[0].new_text, "baz");
+    }
+
+    #[test]
+    fn rename_rewrites_the_renames_own_old_word_too() {
+        // TP — issue #923 idx 39 (main audit wave), the critical half: a
+        // rename that skips this occurrence is worse than a no-op — the
+        // real corpus repro shows the resulting edit set leaves a genuine
+        // `rename OLD ""` pointing at a now-nonexistent command, crashing a
+        // previously-passing tcltest at runtime with "can't delete ...:
+        // command doesn't exist" and no diagnostic warning anywhere.
+        let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 0, 6, "newName", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert_eq!(edits.len(), 3, "{edits:?}");
+        assert!(lines.contains(&0), "decl missing: {edits:?}");
+        assert!(lines.contains(&1), "call site missing: {edits:?}");
+        assert!(
+            lines.contains(&2),
+            "the rename statement's own OLD word must be rewritten too: {edits:?}"
+        );
+        assert!(edits.iter().all(|e| e.new_text == "newName"));
     }
 
     #[test]
@@ -1361,6 +1581,33 @@ mod tests {
     }
 
     #[test]
+    fn cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched() {
+        use crate::workspace_index::WorkspaceIndex;
+        // A wildcard `namespace import ::mymod::*` creates no textual link to
+        // rewrite (issue #923 idx 18, unlike the exact-import case tested
+        // above): renaming `::mymod::helper` must rewrite its own
+        // declaration but leave `app.tcl`'s bareword call site untouched —
+        // it names the *local* imported command, which keeps its own
+        // spelling, and a glob pattern has no literal occurrence of
+        // `helper` to rewrite in the first place.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///mymod.tcl", &mymod),
+            ("file:///app.tcl", &app),
+        ]);
+        // `current_uri` is a third, unrelated file so `mymod.tcl`'s own
+        // declaration is not excluded from this cross-document sweep.
+        let edits =
+            cross_document_symbol_edits("::mymod::helper", "helper2", &index, "file:///caller.tcl");
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(edits[0].uri, "file:///mymod.tcl");
+    }
+
+    #[test]
     fn rename_var_includes_decl_span() {
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
@@ -1374,6 +1621,58 @@ mod tests {
         assert!(texts.contains(&"$y"), "{texts:?}");
     }
 
+    #[test]
+    fn rename_from_proc_param_bareword_declaration_rewrites_every_use() {
+        // TP — differential-audit finding idx 9 (main audit wave): renaming
+        // from a cursor placed directly on a proc parameter's own bareword
+        // name (not a `$`-prefixed read) previously produced *zero* edits
+        // — an LSP that silently no-ops a rename request is worse than one
+        // that fails loudly, since the user has no signal anything went
+        // wrong. Both the parameter's own declaration and its `$name` read
+        // must be rewritten.
+        let src = "proc greet {name} { return $name }\n";
+        let analysis = analyse(src);
+        // Cursor on `name` inside the parameter list (col 12-16).
+        let edits = rename(src, "tcl", 0, 13, "label", &analysis, None);
+        assert_eq!(edits.len(), 2, "{edits:?}");
+        // The declaration rewrites bare `name` -> `label`; the `$name` read
+        // preserves its `$` prefix -> `$label` (mirrors
+        // `rename_var_includes_decl_span`'s established convention).
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(texts.contains(&"label"), "{texts:?}");
+        assert!(texts.contains(&"$label"), "{texts:?}");
+        assert!(edits.iter().any(|e| e.range.start_line == 0), "{edits:?}");
+    }
+
+    #[test]
+    fn rename_from_catch_resultvar_bareword_rewrites_the_original_declaration_too() {
+        // TP — the finding's other confirmed shape: a `catch script name`
+        // result-var reuses an existing variable; renaming from a cursor
+        // on its own bareword token must rewrite every occurrence,
+        // including the original declaration elsewhere in the proc.
+        let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the catch result-var `name` (line 1, col 16-20).
+        let edits = rename(src, "tcl", 1, 17, "resolved", &analysis, None);
+        assert!(
+            edits.iter().any(|e| e.range.start_line == 0),
+            "original param declaration must be rewritten too: {edits:?}"
+        );
+        assert!(
+            edits.iter().any(|e| e.range.start_line == 1),
+            "the catch result-var site itself must be rewritten: {edits:?}"
+        );
+        assert!(
+            edits.iter().any(|e| e.range.start_line == 2),
+            "the later $name read must be rewritten: {edits:?}"
+        );
+        // The bareword sites (decl + catch result-var) rewrite to plain
+        // `resolved`; the `$name` read preserves its `$` prefix.
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(texts.contains(&"resolved"), "{texts:?}");
+        assert!(texts.contains(&"$resolved"), "{texts:?}");
+    }
+
     // brace-ref escaping
 
     #[test]
@@ -1385,6 +1684,109 @@ mod tests {
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(texts.contains(&"y"), "{texts:?}");
         assert!(texts.contains(&"${y}"), "{texts:?}");
+    }
+
+    #[test]
+    fn var_ref_edit_span_extends_the_ordinary_braced_form() {
+        let src = "${x}";
+        // The lexer's own span for a non-degenerate name stops one byte
+        // short of the closing `}` (see `var_ref_edit_span`'s doc).
+        assert_eq!(
+            var_ref_edit_span(src, tcl_lexer::Span::new(0, 3)),
+            tcl_lexer::Span::new(0, 4)
+        );
+    }
+
+    #[test]
+    fn var_ref_edit_span_leaves_the_degenerate_empty_name_span_untouched() {
+        // `${}` immediately followed by a literal (unrelated) `}` — the
+        // pathological case that would fool a naive "does the next byte
+        // look like `}`" check. The lexer already extends `${}`'s own
+        // span to include its closing brace, so `var_ref_edit_span` must
+        // recognise the degenerate case and stop, not also swallow the
+        // following literal `}` into the edit range.
+        let src = "${}}";
+        assert_eq!(
+            var_ref_edit_span(src, tcl_lexer::Span::new(0, 3)),
+            tcl_lexer::Span::new(0, 3)
+        );
+    }
+
+    #[test]
+    fn var_ref_edit_span_extends_a_tcl9_nested_brace_name() {
+        // `${a{b}}` names `a{b}` (Tcl 9's brace-nesting rule) — the span
+        // stops before the *outer* `}`, one byte short, same as the
+        // ordinary case.
+        let src = "${a{b}}";
+        assert_eq!(
+            var_ref_edit_span(src, tcl_lexer::Span::new(0, 6)),
+            tcl_lexer::Span::new(0, 7)
+        );
+    }
+
+    #[test]
+    fn var_ref_edit_span_leaves_non_braced_forms_untouched() {
+        let src = "$x";
+        let span = tcl_lexer::Span::new(0, 2);
+        assert_eq!(var_ref_edit_span(src, span), span);
+    }
+
+    #[test]
+    fn var_ref_edit_span_leaves_an_unterminated_reference_untouched() {
+        // No closing brace anywhere in the source to extend to.
+        let src = "${x";
+        let span = tcl_lexer::Span::new(0, 3);
+        assert_eq!(var_ref_edit_span(src, span), span);
+    }
+
+    #[test]
+    fn rename_array_variable_applying_the_braced_index_edit_does_not_duplicate_the_closing_brace() {
+        let src = "set arr(0) 1\nputs ${arr(0)}\n";
+        let analysis = analyse(src);
+        // Cursor on `arr` inside `${arr(0)}` (line 1, col 7).
+        let edits = rename(src, "tcl", 1, 7, "data", &analysis, None);
+        assert_eq!(apply_edits(src, &edits), "set data(0) 1\nputs ${data(0)}\n");
+    }
+
+    #[test]
+    fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace() {
+        // Issue #923 idx 95. The `Var` token's own lexer span for a
+        // non-degenerate `${name}` form stops one byte short of the
+        // closing `}` (`${a{b}}` names `a{b}`, whose content can itself
+        // legitimately end in `}` — see `var_ref_edit_span`'s doc), so
+        // using that raw span as the *edit range* (rather than just for
+        // matching/reference bookkeeping) left the source's own original
+        // `}` sitting right after the replacement once applied, silently
+        // corrupting `${x}` into `${y}}`. `rename_var_preserves_braced_reference_form`
+        // above already pins `new_text`; this applies the edit for real.
+        let src = "set x 1\nputs ${x}\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 1, 7, "y", &analysis, None);
+        assert_eq!(apply_edits(src, &edits), "set y 1\nputs ${y}\n");
+    }
+
+    #[test]
+    fn rename_var_applying_the_dir_view_idiom_edit_produces_valid_tcl() {
+        // The real `tk/library/tk.tcl:594-596` idiom this finding traces
+        // through (`$w ${dir}view scroll ...`, subcommand synthesized by
+        // concatenating `$dir` with literal `view`): renaming `dir`
+        // previously produced `$w ${direction}}view ...` once applied —
+        // tclsh8.6/9.0 both fail to even parse the enclosing proc ("extra
+        // characters after close-brace"), since the stray extra `}` shifts
+        // Tcl's own brace-counting scan for where the proc body ends.
+        let src = "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
+        let edits = rename(src, "tcl", 1, 9, "direction", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("${direction}view"),
+            "expected a single, correctly-closed brace: {applied}"
+        );
+        assert!(
+            !applied.contains("${direction}}view"),
+            "must not duplicate the closing brace: {applied}"
+        );
     }
 
     #[test]
@@ -1769,6 +2171,51 @@ mod tests {
     }
 
     #[test]
+    fn rename_method_rewrites_a_my_dispatch_call_inside_a_switch_arm() {
+        // Issue #923 idx 63 (main audit wave, high severity): the real
+        // corpus's `ticklecharts::chart::Add` dispatcher shape — `switch
+        // ... { barSeries { my AddBarSeries {*}$args } ... }`. `rename`
+        // reaches `my`-dispatch call sites via `references::
+        // method_references_for_class` (`scan_my_method_region`), so this
+        // is the same fix as `references_for_method_reach_a_my_dispatch_
+        // call_inside_a_switch_arm`, verified end-to-end through rename.
+        let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `bar` declaration (line 1, col 11).
+        let edits = rename(src, "tcl", 1, 11, "baz", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {edits:?}");
+        assert!(
+            lines.contains(&4),
+            "the my bar call site inside the switch arm must be rewritten too: {edits:?}"
+        );
+        assert!(edits.iter().all(|e| e.new_text == "baz"));
+    }
+
+    #[test]
+    fn rename_method_rewrites_my_dispatch_when_class_extended_via_separate_oo_define() {
+        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
+        // created via `oo::class create` with no body; every method
+        // (including the `my Helper` call site) is added via a *separate*,
+        // later `oo::define Gadget { ... }` block — the real corpus shape
+        // (`ticklecharts::chart`). Renaming from the `Helper` declaration
+        // must rewrite the `my Helper` call site living in that separate
+        // block too, not silently skip it (which would leave the program
+        // calling a now-nonexistent method after the rename).
+        let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `Helper` declaration (line 4, col 11).
+        let edits = rename(src, "tcl", 4, 11, "Assist", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&4), "decl missing: {edits:?}");
+        assert!(
+            lines.contains(&5),
+            "the my Helper call site inside the separate oo::define block must be rewritten too: {edits:?}"
+        );
+        assert!(edits.iter().all(|e| e.new_text == "Assist"));
+    }
+
+    #[test]
     fn rename_method_does_not_rewrite_next_dispatch() {
         // `next` is a keyword, not the method name.  Find-references counts the
         // super-dispatch as a reference, but a rename must never rewrite it —
@@ -1996,6 +2443,32 @@ mod tests {
         assert!(
             lines.contains(&4),
             "bare `rex bark` site not renamed: {edits:?}"
+        );
+    }
+
+    #[test]
+    fn rename_classmethod_from_call_site_rewrites_decl_and_inheriting_subclass_call() {
+        // TP — issue #923 idx 120: renaming `find` with the cursor on the
+        // `ActiveRecord find foo bar` call site must rewrite the
+        // declaration, that same call, AND the inherited `Table find`
+        // call — three edits, none missed (rename.rs has no separate
+        // scan of its own; it delegates fully to
+        // `references::method_references_for_class`, so this exercises
+        // Part 2 + Part 3 together end-to-end).
+        let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
+        let analysis = analyse(src);
+        // Cursor on `find` in `ActiveRecord find foo bar` (line 7, col 13).
+        let edits = rename(src, "tcl", 7, 13, "lookup", &analysis, None);
+        assert_eq!(edits.len(), 3, "{edits:?}");
+        for e in &edits {
+            assert_eq!(e.new_text, "lookup");
+        }
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "decl not renamed: {edits:?}");
+        assert!(lines.contains(&6), "Table find call not renamed: {edits:?}");
+        assert!(
+            lines.contains(&7),
+            "ActiveRecord find call not renamed: {edits:?}"
         );
     }
 

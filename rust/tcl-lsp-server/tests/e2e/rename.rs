@@ -123,6 +123,31 @@ fn rename_definition_and_calls() {
     assert!(for_uri.iter().all(|e| e["newText"] == "welcome"));
 }
 
+/// idx=9 (differential-audit main wave, high severity): a cursor placed
+/// directly on a proc parameter's own bareword declaration (not a
+/// `$`-prefixed read) previously produced zero rename edits — an LSP
+/// silently no-oping a rename request is worse than an explicit failure,
+/// since the user has no signal anything went wrong. Both the parameter's
+/// declaration and its `$name` read must be rewritten.
+#[test]
+fn rename_from_proc_param_bareword_declaration_rewrites_every_use_e2e() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc greet {name} { puts \"Hello $name\" }\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on `name` inside the parameter list, col 12-16.
+    let result = lsp.rename(&uri, 0, 13, "label");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    assert_eq!(for_uri.len(), 2, "{for_uri:?}");
+    let texts: std::collections::BTreeSet<&str> = for_uri
+        .iter()
+        .map(|e| e["newText"].as_str().unwrap_or(""))
+        .collect();
+    assert!(texts.contains("label"), "{texts:?}");
+    assert!(texts.contains("$label"), "{texts:?}");
+}
+
 #[test]
 fn rename_namespaced_proc_preserves_qualifier() {
     let mut lsp = Lsp::tcl();
@@ -163,6 +188,29 @@ fn rename_from_call_site() {
     assert!(for_uri.len() >= 2);
 }
 
+/// idx=61 (differential-audit main wave, critical severity): before this
+/// fix, an unbraced `if`-body call site (`if {1} foo`) was invisible to
+/// `command_invocations`, so a rename built on that list silently skipped
+/// it — the LSP presented the rename as complete while leaving this call
+/// site referring to the old (now nonexistent) name, breaking the program
+/// at runtime. Both the declaration and the unbraced call site must be
+/// rewritten together.
+#[test]
+fn rename_rewrites_unbraced_if_body_bareword_call_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc foo {} { return 1 }\nif {1} foo\n");
+    let result = lsp.rename(&uri, 0, 6, "bar");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    assert_eq!(
+        for_uri.len(),
+        2,
+        "decl + unbraced if-body call site must both be rewritten: {for_uri:?}"
+    );
+    assert!(for_uri.iter().all(|e| e["newText"] == "bar"));
+}
+
 // -- TestRenameVariable --------------------------------------------------
 
 #[test]
@@ -193,6 +241,74 @@ fn rename_var_preserves_braced_form() {
     let t = texts(&mut lsp, &uri, 0, 4, "newvar");
     assert!(t.contains("newvar"), "{t:?}");
     assert!(t.contains("${newvar}"), "{t:?}");
+}
+
+/// Find the one `{range, newText}` edit whose replacement text is exactly
+/// `expected_text`, applied to `source` — the strongest check available at
+/// this layer, since it proves the fix through real JSON-RPC (de)serialization,
+/// not just the core crate's own in-process `TextEdit`s.
+fn apply_named_edit(edits: &[Value], source: &str, expected_text: &str) -> String {
+    let (rng, new_text) = edits
+        .iter()
+        .find_map(|e| {
+            let text = e.get("newText")?.as_str()?;
+            (text == expected_text).then(|| (e.get("range").cloned().unwrap(), text.to_owned()))
+        })
+        .unwrap_or_else(|| panic!("expected a {expected_text:?} edit among {edits:?}"));
+    apply_edit(source, &rng, &new_text)
+}
+
+#[test]
+fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace() {
+    // Issue #923 idx 95, applied end-to-end against the packaged server
+    // over real JSON-RPC. `rename_var_preserves_braced_form` right above
+    // only asserts `newText` in isolation — this actually applies
+    // `(range, newText)` back onto the source, which is exactly what
+    // shipping this bug uncaught required nobody doing.  The `Var`
+    // token's own lexer span for a non-degenerate `${name}` form stops
+    // one byte short of the closing `}`, so using it verbatim as the
+    // edit range left the source's original `}` behind, corrupting
+    // `${x}` into `${y}}`.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set x 1\nputs ${x}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 1, 7, "y");
+    let edits = rename_edits(&result);
+    let uri_edits = edits.get(&uri).cloned().unwrap_or_default();
+    assert_eq!(
+        apply_named_edit(&uri_edits, src, "${y}"),
+        "set x 1\nputs ${y}\n"
+    );
+}
+
+#[test]
+fn rename_var_applying_the_dir_view_idiom_reference_edit_does_not_corrupt_the_source() {
+    // The real `tk/library/tk.tcl:594-596` idiom this finding traces
+    // through (`$w ${dir}view scroll ...`, a subcommand synthesized by
+    // concatenating `$dir` with literal `view`): applying the LSP's own
+    // rename edit for the `${dir}view` reference previously produced
+    // `$w ${direction}}view ...` — tclsh8.6/9.0 both fail to even parse
+    // the enclosing proc ("extra characters after close-brace") once
+    // that edit is applied, since the stray extra `}` shifts Tcl's own
+    // brace-counting scan for where the proc body ends.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
+    let result = lsp.rename(&uri, 1, 9, "direction");
+    let edits = rename_edits(&result);
+    let uri_edits = edits.get(&uri).cloned().unwrap_or_default();
+    let applied = apply_named_edit(&uri_edits, src, "${direction}");
+    assert!(
+        applied.contains("${direction}view"),
+        "expected a single, correctly-closed brace: {applied}"
+    );
+    assert!(
+        !applied.contains("${direction}}view"),
+        "must not duplicate the closing brace: {applied}"
+    );
 }
 
 #[test]
@@ -442,5 +558,126 @@ fn rename_mathfunc_override_updates_call_site_and_skips_unrelated_proc() {
         new_texts,
         std::collections::BTreeSet::from(["::nsa::tcl::mathfunc::pfRenamed", "pfRenamed"]),
         "decl rewrites the qualified name, the call site rewrites only the tail: {for_uri:?}"
+    );
+}
+
+/// idx 31 (differential-audit main audit wave, high severity): a proc
+/// declared twice, verbatim, in the same document (plain Tcl's own "last
+/// redefinition wins" semantics, tclsh9.0/8.6-verified — the real corpus
+/// shape is `georgtree_tclopt`'s `tclopt.tcl` declaring
+/// `::tclopt::List2array` at two separate line ranges). Before this fix,
+/// `resolve_workspace_symbols` identified "the symbol at cursor" only via
+/// a scan of `all_procs` (keyed by qualified name, so a duplicate insert
+/// retains only the *winning* declaration's span) — a rename issued from
+/// the *shadowed* (non-winning) declaration's own name token silently
+/// dropped every cross-file caller from the edit set. Applying that
+/// incomplete edit is worse than a no-op: the shadowed declaration being
+/// renamed is a real, dead definition still lying around under the old
+/// name, so the un-rewritten caller silently starts running it instead —
+/// proven end-to-end in the finding's own repro (a program's real output
+/// changed with no error surfaced anywhere).
+#[test]
+fn rename_from_shadowed_duplicate_proc_decl_reaches_cross_document_caller() {
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n",
+    );
+    let consumer_uri = unique_uri("tcl");
+    lsp.open_ready(&consumer_uri, "List2array x\n");
+    // Cursor on the SHADOWED (first, non-winning) declaration's own name
+    // token (line 0, col 6 — `proc List2array`).
+    let result = lsp.rename(&lib_uri, 0, 6, "ListToArray");
+    let edits = rename_edits(&result);
+    let consumer_edits = edits.get(&consumer_uri).cloned().unwrap_or_default();
+    assert_eq!(
+        consumer_edits.len(),
+        1,
+        "the cross-file caller must be rewritten, or it stays bound to \
+         the old name while the dead shadowed definition (also renamed \
+         away) silently resurrects for it: {edits:?}"
+    );
+    assert_eq!(consumer_edits[0]["newText"], "ListToArray");
+}
+
+/// idx 39 (differential-audit main audit wave, high severity): `rename OLD
+/// NEW`'s own `OLD` word was omitted from the reference set find-references
+/// and rename both build from — go-to-definition/hover on that exact token
+/// resolved it correctly (an independent cursor-token walk), but rename
+/// silently left it unrewritten. The real corpus shape is a tcltest
+/// `-setup`/`-body`/`-cleanup` idiom (`proc gaussfunc {...} {...}` /
+/// `rename gaussfunc ""`) — applying the LSP's own incomplete rename
+/// `WorkspaceEdit` to that shape crashes a previously-passing test at runtime
+/// ("can't delete ...: command doesn't exist") with no diagnostic warning
+/// anywhere.
+#[test]
+fn rename_rewrites_the_renames_own_old_word_too() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n",
+    );
+    let result = lsp.rename(&uri, 0, 6, "newName");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    assert_eq!(for_uri.len(), 3, "{for_uri:?}");
+    assert!(lines.contains(&0), "decl missing: {for_uri:?}");
+    assert!(lines.contains(&1), "call site missing: {for_uri:?}");
+    assert!(
+        lines.contains(&2),
+        "the rename statement's own OLD word must be rewritten too: {for_uri:?}"
+    );
+    assert!(for_uri.iter().all(|e| e["newText"] == "newName"));
+}
+
+/// idx 56 (differential-audit main audit wave, high severity): a proc
+/// installed directly into `::oo::Helpers` (the documented "`TclOO` Tricks"
+/// idiom — real corpus usage: nico-robert/ticklecharts installs `classvar`/
+/// `callback` this way) is bare-callable from every method body in the
+/// program via `TclOO`'s own fixed runtime namespace path. Renaming it
+/// previously produced a `WorkspaceEdit` that rewrote only the declaration,
+/// leaving every bare call site pointed at the now-nonexistent old name —
+/// applying that edit verbatim crashes the very next invocation with
+/// "invalid command name" at runtime, while the tool reported it as a
+/// complete, safe rename.
+#[test]
+fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n",
+    );
+    // Line 0: `proc ::oo::Helpers::classvar {name} {` — cursor on the
+    // `classvar` word (column 20).
+    let result = lsp.rename(&uri, 0, 20, "renamedClassvar");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    assert!(lines.contains(&0), "decl missing: {for_uri:?}");
+    assert!(
+        lines.contains(&9),
+        "the bare classvar call site inside the method body must be rewritten too: {for_uri:?}"
+    );
+    let replacements: Vec<&str> = for_uri
+        .iter()
+        .filter_map(|e| e["newText"].as_str())
+        .collect();
+    assert!(
+        replacements.contains(&"::oo::Helpers::renamedClassvar"),
+        "expected the qualified replacement at decl; got {replacements:?}"
+    );
+    assert!(
+        replacements.contains(&"renamedClassvar"),
+        "expected the short replacement at the bare call site; got {replacements:?}"
     );
 }

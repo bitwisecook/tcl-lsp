@@ -61,6 +61,37 @@ fn find_indented_proc_call() {
     assert!(start_lines(&lsp.references(&uri, 0, 6, true)).contains(&1));
 }
 
+/// idx=9 (differential-audit main wave, high severity): a cursor placed
+/// directly on a variable's own bareword declaration/write token (a proc
+/// parameter, or a `catch script name` result-var reusing an existing
+/// variable) previously returned zero references, even though the same
+/// query from any `$name` read of the same variable resolved the full set.
+#[test]
+fn find_references_from_proc_param_bareword_declaration() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc greet {name} { return $name }\ngreet hi\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on `name` inside the parameter list, col 12-16.
+    let lines = start_lines(&lsp.references(&uri, 0, 13, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+}
+
+#[test]
+fn find_references_from_catch_resultvar_bareword_include_the_original_declaration() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
+    lsp.open_ready(&uri, src);
+    // Cursor on the catch result-var `name`, line 1 col 16-20.
+    let lines = start_lines(&lsp.references(&uri, 1, 17, true));
+    assert!(lines.contains(&0), "original decl missing: {lines:?}");
+    assert!(
+        lines.contains(&2),
+        "the later $name read missing: {lines:?}"
+    );
+}
+
 #[test]
 fn find_qualified_proc_call_sites() {
     let mut lsp = Lsp::tcl();
@@ -80,6 +111,46 @@ fn find_proc_call_in_nested_braced_body() {
     let src = "proc greet {} { return }\nif {1} {\n    greet\n}\n";
     lsp.open_ready(&uri, src);
     assert!(start_lines(&lsp.references(&uri, 0, 6, true)).contains(&2));
+}
+
+/// idx=61 (differential-audit main wave, critical severity): `if {$cond}
+/// mymod::foo` — an unbraced (bareword) if-body — is a legitimate,
+/// statically-known zero-arg call, exactly like a braced `{ mymod::foo }`
+/// body. `dispatch_body_arguments` previously only ever recursed a *braced*
+/// body into `command_invocations`, so this call site was invisible to
+/// `references` while `definition`/`hover` still resolved it fine (they
+/// walk independently off the cursor token).
+#[test]
+fn find_unbraced_if_body_bareword_call_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc foo {} { return 1 }\nif {1} foo\n");
+    let lines = start_lines(&lsp.references(&uri, 0, 6, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&1),
+        "unbraced if-body call site missing: {lines:?}"
+    );
+}
+
+/// Same root cause, the finding's other confirmed shape: `uplevel 1
+/// mymod::qux` (unbraced). `handle_uplevel_command` only special-cases a
+/// braced body and otherwise falls through to the same generic
+/// `ArgRole::Body` dispatch this fix covers.
+#[test]
+fn find_unbraced_uplevel_body_bareword_call_site() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc qux {} { return 1 }\nproc caller {} { uplevel 1 qux }\n",
+    );
+    let lines = start_lines(&lsp.references(&uri, 0, 6, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&1),
+        "unbraced uplevel-body call site missing: {lines:?}"
+    );
 }
 
 #[test]
@@ -280,6 +351,36 @@ fn references_object_variable_unify_across_methods() {
     );
 }
 
+/// idx 32 (differential-audit main audit wave, high severity): a `TclOO`
+/// class body with TWO separate `variable` statements (the real corpus
+/// shape — `georgtree_tclopt`'s `::tclopt::Mpfit` declares `variable funct
+/// m ftol ...` then, separately, `variable Pars`). The analyser's
+/// per-statement handler assigned `class_def.variables = sub_args.to_vec()`
+/// instead of accumulating, so the second statement silently discarded
+/// every name the first one declared — only the names in the LAST
+/// `variable` statement stayed resolvable, even though tclsh9.0 proves
+/// both statements' names are simultaneously live instance variables.
+#[test]
+fn references_reach_instance_variable_declared_in_a_non_last_variable_statement() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    // line 1: variable funct (the FIRST, previously-discarded statement);
+    // line 2: variable Pars (the LAST, previously-surviving statement);
+    // line 3: `$funct`/`$Pars` both used in `run`.
+    let src = "oo::class create Mpfit {\n    variable funct\n    variable Pars\n    method run {} { return [list $Pars $funct] }\n}\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(3).unwrap().find("$funct").unwrap() as u32 + 1;
+    let lines = start_lines(&lsp.references(&uri, 3, col, true));
+    assert!(
+        lines.contains(&1),
+        "funct's own declaration (line 1) must resolve: {lines:?}"
+    );
+    assert!(
+        lines.contains(&3),
+        "the `$funct` use itself must unify: {lines:?}"
+    );
+}
+
 /// End-to-end (real server): a namespace variable's `variable` aliases across
 /// procs and its namespace-level declaration unify into one reference set.
 #[test]
@@ -334,5 +435,93 @@ fn references_do_not_cross_between_unrelated_proc_and_mathfunc_override() {
     assert!(
         !unrelated_lines.contains(&4),
         "unrelated proc's references must not include the expr call site: {unrelated_lines:?}"
+    );
+}
+
+/// idx 68 (differential-audit main audit wave, high severity, pix corpus):
+/// reduces the real `isEqual`/`tolComp` shape from nico-robert/pix's
+/// `test/data_b64.test` — a proc aliases a top-level cell via `global`, and a
+/// caller overrides it via a plain `set ::name` before invoking the proc.
+/// tclsh proves `tolComp` (via `global`) and `::tolComp` (the caller's
+/// `set`) are the identical storage cell; previously, Find-References from
+/// either side reached only its own half, so Rename (which shares the same
+/// helper) would silently decouple the two, leaving the caller's override
+/// unreachable and `isEqual` falling back to its hardcoded default.
+#[test]
+fn references_unify_a_procs_global_alias_with_the_callers_canonical_set() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src =
+        "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
+    lsp.open_ready(&uri, src);
+    let col = src.lines().nth(2).unwrap().find("$tolComp").unwrap() as u32 + 1;
+    let lines = start_lines(&lsp.references(&uri, 2, col, true));
+    assert!(
+        lines.contains(&1),
+        "the `global tolComp` decl (line 1): {lines:?}"
+    );
+    assert!(
+        lines.contains(&2),
+        "the in-proc $tolComp read (line 2): {lines:?}"
+    );
+    assert!(
+        lines.contains(&4),
+        "the caller's canonical `set ::tolComp` (line 4) must now be reached: {lines:?}"
+    );
+}
+
+/// idx 71 (differential-audit main audit wave, high severity, pix corpus):
+/// reduces nico-robert/pix's `test_context.test` (`source [file join [file
+/// dirname [info script]] data_b64.test]`, then calls `isEqual` bare) to a
+/// literal-`source` control shape — the finding's own control repro proved
+/// the identical bug reproduces with a trivial `source lib.tcl`, no
+/// `[info script]` at all. `main.tcl` sources `lib.tcl` (which declares
+/// `helper`) and calls `helper` itself; `main.tcl` has no local declaration
+/// of `helper` to anchor `cross_document_references`'s exclusion of the
+/// current document on, so the call under the cursor — in the very
+/// document the query was issued from — was previously dropped entirely,
+/// returning only `lib.tcl`'s declaration.
+#[test]
+fn references_reach_the_current_documents_own_call_when_it_has_no_local_declaration() {
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(&lib_uri, "proc helper {} {}\n");
+    let main_uri = unique_uri("tcl");
+    let main_src = "source lib.tcl\nhelper\n";
+    lsp.open_ready(&main_uri, main_src);
+    // Cursor on main.tcl's own `helper` call (line 1).
+    let lines = start_lines(&lsp.references(&main_uri, 1, 0, true));
+    assert!(
+        lines.contains(&1),
+        "main.tcl's own call site must be reached, not just lib.tcl's decl: {lines:?}"
+    );
+    assert!(lines.contains(&0), "lib.tcl's decl (line 0): {lines:?}");
+    assert_eq!(lines.len(), 2, "{lines:?}");
+}
+
+/// idx 63 (differential-audit main audit wave, high severity): a `my
+/// methodName` call written inside a `switch` arm body is a genuine,
+/// statically-known call site (tclsh9.0/8.6-verified) — the real corpus
+/// shape (`ticklecharts::chart`'s `Add` dispatcher: `switch ... {
+/// barSeries { my AddBarSeries {*}$args } ... }`). `scan_my_method_region`'s
+/// `[...]`-substitution recursion never reached a switch arm's braced body
+/// (it isn't a command substitution), so this was invisible to
+/// find-references even though go-to-definition (an independent
+/// cursor-token walk) already resolved it.
+#[test]
+fn references_reach_a_my_dispatch_call_inside_a_switch_arm() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n",
+    );
+    // Line 1: `    method bar {} { return "bar-value" }` — cursor on the
+    // `bar` declaration (column 11).
+    let lines = start_lines(&lsp.references(&uri, 1, 11, true));
+    assert!(lines.contains(&1), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&4),
+        "the my bar call site inside the switch arm is missing: {lines:?}"
     );
 }

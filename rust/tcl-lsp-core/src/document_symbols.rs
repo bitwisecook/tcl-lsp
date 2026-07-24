@@ -1204,4 +1204,43 @@ mod tests {
         }];
         assert_eq!(format_param_list(&params), "({x })");
     }
+
+    #[test]
+    fn foreach_rename_reinstall_idiom_outline_has_no_garbled_dollar_symbol() {
+        // TP — issue #923 idx 86: the finding's own outline complaint
+        // (`tk/library/accessibility.tcl`'s rename-and-reinstall idiom
+        // showing a `Function ${wtype}(args)` outline entry — the raw,
+        // unresolved dynamic-name text — instead of the real per-element
+        // wrapper names). Every symbol name in the outline must be real
+        // Tcl identifier text; none may contain the literal `$` of an
+        // unresolved substitution.
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n";
+        let symbols = document_symbols(src, "tcl8.6");
+        let all = flat(&symbols);
+        assert!(
+            !all.iter().any(|(name, _)| name.contains('$')),
+            "garbled dynamic-name symbol leaked into the outline: {all:?}"
+        );
+        assert!(find(&symbols, "button").is_some(), "{all:?}");
+        assert!(find(&symbols, "entry").is_some(), "{all:?}");
+    }
+
+    #[test]
+    fn opt_proc_outline_shows_the_real_args_only_signature() {
+        // TP — issue #923 idx 90: before the fix, the missing analyser hook
+        // left the stub's `{}`-arity `ProcDef` in place, so the outline
+        // showed an empty (or missing) signature instead of the real
+        // `(args)` one.
+        let src = "::tcl::OptProc greet {child -use -display} { return $child }\n";
+        let symbols = document_symbols(src, "tcl8.6");
+        let greet = find(&symbols, "greet").expect("greet symbol");
+        assert_eq!(greet.detail.as_deref(), Some("(args)"), "{greet:?}");
+    }
 }

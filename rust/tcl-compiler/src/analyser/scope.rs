@@ -189,6 +189,51 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
     ns
 }
 
+/// Whether an unqualified command at `byte_offset` also resolves against
+/// `::oo::Helpers`, the one fixed namespace real Tcl's `TclOO` implementation
+/// always searches for a method body's bare command calls — the runtime
+/// counterpart to [`Scope::oo_global_resolution`]'s static `"::"`-only
+/// approximation, which [`advance_command_resolution_namespace`] can't
+/// otherwise represent (a single accumulated namespace string has no room
+/// for a second, non-lexical search member).
+///
+/// A real-world idiom installs a proc directly into `::oo::Helpers`
+/// (`proc ::oo::Helpers::classvar {...} {...}`, the documented `TclOO`
+/// Tricks pattern nico-robert/ticklecharts uses) to make it bare-callable
+/// from every method body in the program — this is what lets
+/// [`tcl_lsp_core::references::invocation_references_named`]'s namespace
+/// gate recognise such a call site as a genuine reference to that proc,
+/// alongside the ordinary `call_ns == target_ns` case (issue #923 idx 56,
+/// main audit wave).
+///
+/// Same traversal as [`command_resolution_namespace_at`] (so the two can
+/// never disagree about which scope is innermost), tracking whether the
+/// *last* namespace-resolution-affecting scope kind visited on the way
+/// down was an `oo_global_resolution` method — a `namespace eval` (or any
+/// other scope kind) nested inside a method body leaves the method's
+/// object-context resolution behind, exactly like [`ScopeKind::Namespace`]
+/// resets nothing in `advance_command_resolution_namespace` but a
+/// `Proc`/`Method`/`Uplevel` scope does.
+#[must_use]
+pub fn innermost_scope_reaches_oo_helpers(root: &Scope, byte_offset: u32) -> bool {
+    let mut reaches = false;
+    let mut cursor = root;
+    loop {
+        let next = cursor.children.iter().find(|c| {
+            c.body_span
+                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
+        });
+        let Some(child) = next else { break };
+        reaches = match child.kind {
+            ScopeKind::Namespace | ScopeKind::Global => reaches,
+            ScopeKind::Method => child.oo_global_resolution,
+            ScopeKind::Proc | ScopeKind::Uplevel => false,
+        };
+        cursor = child;
+    }
+    reaches
+}
+
 /// The [`VarDef`] a `::`-qualified variable reference names — `base_name`
 /// declared directly in the namespace whose fully qualified, `::`-rooted
 /// resolution path is `target_ns` — the single-table, no-searching lookup
@@ -355,6 +400,114 @@ impl<A> KnownPredicateCtx<'_, A> {
             || (self.builtins.contains(qualified.trim_start_matches(':'))
                 && !self.renamed_away.contains(qualified))
     }
+}
+
+/// The [`VarDef`] a fully qualified `target` (always `::`-rooted; see
+/// [`crate::analyser::handlers::Analyser::handle_global_command`]'s
+/// convention) names, when it was declared by a *literal* `set` whose own
+/// spelling already carried some or all of its namespace qualification
+/// (`set ::tolComp val`, or `set Bar::baz val` written inside `namespace
+/// eval Foo`) — [`define_var`] never re-qualifies a name it's given, it
+/// only strips a `$`/`${…}` wrapper and an array index
+/// ([`normalise_var_name`]), so such a write's stored key is `target`
+/// itself (or a suffix of it), never the bare tail
+/// [`lookup_var_in_namespace`] expects.
+///
+/// Restricted to the same [`ScopeKind::Namespace`] / [`ScopeKind::Global`]
+/// node kinds as [`lookup_var_in_namespace`] (a proc-local `set ::x val`
+/// stores under the *proc's* own table, not reachable here — same
+/// documented trade-off `lookup_var_in_scope_chain` already accepts for the
+/// general case; issue #923 idx 68 only needs the realistic top-level /
+/// namespace-body shape the audit's own repro exercises). Matches by exact
+/// `VarDef::name` equality against `target` rather than a table lookup,
+/// since the stored key can be any literal spelling that *resolves* to
+/// `target`, not necessarily `target`'s own exact text.
+#[must_use]
+fn lookup_var_by_literal_qualified_name<'a>(root: &'a Scope, target: &str) -> Option<&'a VarDef> {
+    if matches!(root.kind, ScopeKind::Namespace | ScopeKind::Global)
+        && let Some(v) = root.variables.values().find(|v| v.name == target)
+    {
+        return Some(v);
+    }
+    root.children
+        .iter()
+        .find_map(|child| lookup_var_by_literal_qualified_name(child, target))
+}
+
+/// The [`VarDef`] a fully qualified `target` names, trying both storage
+/// conventions a direct (non-alias) declaration can use: the bare-tail
+/// table key [`lookup_var_in_namespace`] expects (a `variable`-declared
+/// namespace cell, or an unqualified top-level `set`), then — if that
+/// misses — the literal-verbatim key [`lookup_var_by_literal_qualified_name`]
+/// expects (a `set` whose own spelling already carried its qualification).
+/// The single entry point `tcl_lsp_core::definition::linked_var_reference_spans`
+/// needs (issue #923 idx 68) to fold a `global`/`variable`/`namespace upvar`
+/// alias's target back to its canonical cell regardless of which way the
+/// cell itself was spelled.
+#[must_use]
+pub fn lookup_var_by_qualified_name<'a>(root: &'a Scope, target: &str) -> Option<&'a VarDef> {
+    let (target_ns, base_name) = crate::naming::key_holder_and_tail(target);
+    lookup_var_in_namespace(root, target_ns, base_name)
+        .or_else(|| lookup_var_by_literal_qualified_name(root, target))
+}
+
+/// The fully qualified name (`::ns::name`) a *direct* variable
+/// declaration at `def_span` would carry, if some `global` / `variable`
+/// / `namespace upvar` alias elsewhere pointed at it — the inverse of
+/// [`lookup_var_in_namespace`]: that function resolves a known qualified
+/// name to its declaring [`VarDef`]; this one goes the other way,
+/// resolving an already-known declaration to the qualified name an alias
+/// would need to name it by.
+///
+/// Used to check whether a plain declaration with no `link_target` of
+/// its own (`link_target: None` — it isn't an alias, so it was never
+/// given one) is nonetheless the *canonical cell* an alias in another
+/// scope names via its own `link_target` (issue #923 idx 68, main audit
+/// wave: a top-level `set tolComp` / `set ::tolComp`, aliased inside a
+/// proc via `global tolComp`, needs Find-References/Rename queried from
+/// *either* side to reach both — querying from the alias already finds
+/// the cell via [`lookup_var_by_qualified_name`], but the reverse
+/// direction, querying from the cell itself, had no way to find the alias
+/// back without this).
+///
+/// Same whole-tree walk and namespace-accumulation rule as
+/// [`lookup_var_in_namespace`], restricted to the same
+/// [`ScopeKind::Namespace`] / [`ScopeKind::Global`] node kinds — matches
+/// by `definition_span` (a real declaration's span is unique to it;
+/// callers must not pass an empty span, which several unrelated
+/// declaration-less seeds can share, per [`VarDef::definition_span`]'s
+/// own doc) rather than by name, since the caller doesn't know which
+/// scope holds `def_span` ahead of time.
+#[must_use]
+pub fn qualified_name_for_var_decl(root: &Scope, def_span: tcl_lexer::Span) -> Option<String> {
+    fn walk(ns: &str, node: &Scope, def_span: tcl_lexer::Span) -> Option<String> {
+        if matches!(node.kind, ScopeKind::Namespace | ScopeKind::Global)
+            && let Some(v) = node
+                .variables
+                .values()
+                .find(|v| v.definition_span == def_span)
+        {
+            // A literal write's own spelling can already be absolute
+            // (`set ::tolComp val` stores `name == "::tolComp"` verbatim —
+            // `define_var` never re-qualifies what it's given, see
+            // `lookup_var_by_literal_qualified_name`'s doc) — prefixing
+            // again would double it (`"::::tolComp"`, matching nothing).
+            // Only a *bare* tail (the `variable`/`global` convention, or an
+            // unqualified literal `set`) needs `ns` prepended.
+            return Some(if v.name.starts_with("::") {
+                v.name.clone()
+            } else if ns == "::" {
+                format!("::{}", v.name)
+            } else {
+                format!("{ns}::{}", v.name)
+            });
+        }
+        node.children.iter().find_map(|child| {
+            let child_ns = advance_command_resolution_namespace(ns, child);
+            walk(&child_ns, child, def_span)
+        })
+    }
+    walk("::", root, def_span)
 }
 
 impl Analyser {
@@ -738,6 +891,19 @@ impl Analyser {
             .entry(scope_path.to_vec())
             .or_default()
             .insert(var_name.to_string(), (value, value_span));
+        // Track whether this binding's *current* value dominates uses after
+        // an `if`/`try` join. A conditional write (`conditional_depth > 0`)
+        // does not; a straight-line (depth-0) write does and re-establishes
+        // dominance over any earlier conditional one (Codex review, PR
+        // #1020 — see `nondominating_consts` / `lookup_dominating_const_string`).
+        if self.conditional_depth > 0 {
+            self.nondominating_consts
+                .entry(scope_path.to_vec())
+                .or_default()
+                .insert(var_name.to_string());
+        } else if let Some(set) = self.nondominating_consts.get_mut(scope_path) {
+            set.remove(var_name);
+        }
     }
 
     /// Remove constant-value knowledge for `var_name` (re-assigned
@@ -746,6 +912,38 @@ impl Analyser {
         if let Some(map) = self.const_strings.get_mut(scope_path) {
             map.remove(var_name);
         }
+        if let Some(set) = self.nondominating_consts.get_mut(scope_path) {
+            set.remove(var_name);
+        }
+    }
+
+    /// Like [`Self::lookup_const_string`], but only returns a value that
+    /// **dominates** this use site — i.e. whose nearest-enclosing-scope
+    /// binding was last written straight-line (not inside an `if`/`try`
+    /// body). A binding poisoned in [`Self::nondominating_consts`] at the
+    /// scope where it is found yields `None`: the value is branch-dependent,
+    /// so identity resolution (`source`/`rename` targets) must abstain
+    /// rather than pick the last-written branch (Codex review, PR #1020).
+    /// The nearest binding still wins — a poisoned inner binding shadows an
+    /// outer dominating one, exactly as Tcl variable scoping would.
+    #[must_use]
+    pub fn lookup_dominating_const_string(
+        &self,
+        var_name: &str,
+        scope_path: &[usize],
+    ) -> Option<&str> {
+        for ancestor in ancestor_paths(scope_path) {
+            if let Some(map) = self.const_strings.get(&ancestor)
+                && let Some((value, _)) = map.get(var_name)
+            {
+                let poisoned = self
+                    .nondominating_consts
+                    .get(&ancestor)
+                    .is_some_and(|s| s.contains(var_name));
+                return if poisoned { None } else { Some(value.as_str()) };
+            }
+        }
+        None
     }
 
     /// Look up the constant string value for `var_name`, walking
@@ -775,6 +973,107 @@ impl Analyser {
                 && let Some((value, span)) = map.get(var_name)
             {
                 return Some((value.as_str(), *span));
+            }
+        }
+        None
+    }
+
+    /// The constant-string value recorded for `base_name` in the namespace
+    /// whose fully-qualified, `::`-rooted resolution path is `target_ns`
+    /// (issue #923 idx 116) — the `const_strings` analogue of
+    /// [`lookup_var_in_namespace`], needed because a namespace-qualified
+    /// reference (`$lexical::body`) must resolve against wherever that
+    /// namespace's own `set` lives, not the lexical ancestor chain
+    /// [`Self::lookup_const_string_with_span`] walks. `const_strings` is
+    /// keyed by scope *path* (`Vec<usize>`), not a [`super::types::Scope`]
+    /// reference, so — unlike `lookup_var_in_namespace`'s pure namespace-
+    /// string accumulation — this walk must also track the running
+    /// child-index path as it descends. Deliberately never a
+    /// [`super::types::ScopeKind::Proc`] / [`super::types::ScopeKind::Method`]
+    /// node's own table, even when its command-resolution namespace happens
+    /// to equal `target_ns`: a proc-local `set` is never the namespace's
+    /// own cell, mirroring `lookup_var_in_namespace`'s identical guard.
+    #[must_use]
+    pub fn lookup_const_string_in_namespace(
+        &self,
+        target_ns: &str,
+        base_name: &str,
+    ) -> Option<(&str, Span)> {
+        fn walk<'a>(
+            ns: &str,
+            node: &'a super::types::Scope,
+            path: &mut Vec<usize>,
+            target: &str,
+            name: &str,
+            const_strings: &'a std::collections::HashMap<
+                Vec<usize>,
+                std::collections::HashMap<String, (String, Span)>,
+            >,
+        ) -> Option<(&'a str, Span)> {
+            if ns == target
+                && matches!(
+                    node.kind,
+                    super::types::ScopeKind::Namespace | super::types::ScopeKind::Global
+                )
+                && let Some(map) = const_strings.get(path.as_slice())
+                && let Some((value, span)) = map.get(name)
+            {
+                return Some((value.as_str(), *span));
+            }
+            for (i, child) in node.children.iter().enumerate() {
+                path.push(i);
+                let child_ns = advance_command_resolution_namespace(ns, child);
+                if let Some(hit) = walk(&child_ns, child, path, target, name, const_strings) {
+                    return Some(hit);
+                }
+                path.pop();
+            }
+            None
+        }
+        let mut path: Vec<usize> = Vec::new();
+        walk(
+            "::",
+            &self.result.global_scope,
+            &mut path,
+            target_ns,
+            base_name,
+            &self.const_strings,
+        )
+    }
+
+    /// Record `set VAR [interp create ...]`'s resolved interpreter-domain
+    /// `key` as `var_name`'s value in the scope at `scope_path` (issue
+    /// #923 idx 9) — the interpreter-value-flow analogue of
+    /// [`Self::set_const_string`], scope-chain-aware for the same reason:
+    /// two unrelated procs binding the same variable name to different
+    /// interpreters must never collide.
+    pub fn set_interp_var_binding(&mut self, var_name: &str, key: String, scope_path: &[usize]) {
+        self.interp_var_bindings
+            .entry(scope_path.to_vec())
+            .or_default()
+            .insert(var_name.to_string(), key);
+    }
+
+    /// Remove interpreter-binding knowledge for `var_name` (reassigned to
+    /// something else — the reassigned value stops resolving as an
+    /// interpreter handle, exactly as [`Self::clear_const_string`] does
+    /// for a reassigned constant string).
+    pub fn clear_interp_var_binding(&mut self, var_name: &str, scope_path: &[usize]) {
+        if let Some(map) = self.interp_var_bindings.get_mut(scope_path) {
+            map.remove(var_name);
+        }
+    }
+
+    /// Look up the interpreter-domain key `var_name` was bound to,
+    /// walking the scope chain from `scope_path` outwards — the
+    /// interpreter-value-flow analogue of [`Self::lookup_const_string`].
+    #[must_use]
+    pub fn lookup_interp_var_binding(&self, var_name: &str, scope_path: &[usize]) -> Option<&str> {
+        for ancestor in ancestor_paths(scope_path) {
+            if let Some(map) = self.interp_var_bindings.get(&ancestor)
+                && let Some(key) = map.get(var_name)
+            {
+                return Some(key.as_str());
             }
         }
         None
@@ -1295,7 +1594,7 @@ fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
 /// (e.g. `Analyser::recover_stray_close_bracket`'s virtual `Cmd` token)
 /// has no real opener in the source and sets `content_offset` to `0`.
 /// The span excludes the closing delimiter.
-fn inner_of(source: &str, tok: Token) -> Option<(&str, u32)> {
+pub(super) fn inner_of(source: &str, tok: Token) -> Option<(&str, u32)> {
     let off = u32::from(tok.content_offset);
     let (s, e) = ((tok.span.start() + off) as usize, tok.span.end() as usize);
     if s > e || e > source.len() {
@@ -1576,10 +1875,17 @@ mod tests {
                    namespace eval ::ns { puts x }\n";
         let mut a = Analyser::new();
         let analysis = a.analyse(src, "tcl8.6");
+        // `rename`'s own OLD argument (`puts`, line 0) is now itself a
+        // recorded, correctly-resolved-to-the-still-live-builtin reference
+        // (issue #923 idx 39) — an earlier "puts" entry this test must not
+        // mistake for the *call* site (`puts x`, line 1) it actually means
+        // to check. The call site is always the *last* "puts"-named
+        // invocation in source order.
         let inv = analysis
             .command_invocations
             .iter()
-            .find(|i| i.name == "puts" && i.resolved_qualified_name.as_deref() != Some("::a::p"))
+            .rev()
+            .find(|i| i.name == "puts")
             .expect("namespaced puts invocation recorded");
         assert_eq!(
             inv.resolved_qualified_name.as_deref(),
@@ -2042,6 +2348,23 @@ mod tests {
     }
 
     #[test]
+    fn qualified_name_for_var_decl_finds_var_in_matching_top_level_namespace() {
+        // TP — the reverse of `lookup_var_in_namespace_finds_var_in_matching_top_level_namespace`
+        // (issue #923 idx 68): given the declaration's own span, recover the
+        // qualified name an alias elsewhere would name it by.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "::A");
+        ns_a.variables
+            .insert("v".to_string(), var("v", span(10, 11)));
+        root.children.push(ns_a);
+
+        assert_eq!(
+            qualified_name_for_var_decl(&root, span(10, 11)),
+            Some("::A::v".to_string())
+        );
+    }
+
+    #[test]
     fn local_call_after_deletion_still_falls_back_to_global_issue_973() {
         // FN guard / regression: unlike the case above, `foo::caller` is
         // only ever invoked (at the top level) *after* `rename foo::bar
@@ -2060,6 +2383,23 @@ mod tests {
             bar_call.resolved_qualified_name.as_deref(),
             Some("::bar"),
             "a call genuinely after the deletion must fall back to the global candidate"
+        );
+    }
+
+    #[test]
+    fn qualified_name_for_var_decl_accumulates_through_nested_namespaces() {
+        // TP — mirrors `lookup_var_in_namespace_accumulates_through_nested_namespaces`.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "A");
+        let mut ns_b = Scope::new(ScopeKind::Namespace, "B");
+        ns_b.variables
+            .insert("v".to_string(), var("v", span(20, 21)));
+        ns_a.children.push(ns_b);
+        root.children.push(ns_a);
+
+        assert_eq!(
+            qualified_name_for_var_decl(&root, span(20, 21)),
+            Some("::A::B::v".to_string())
         );
     }
 
@@ -2086,5 +2426,140 @@ mod tests {
             Some("::bar"),
             "foo::caller is never invoked, so the escape hatch must not apply"
         );
+    }
+
+    #[test]
+    fn qualified_name_for_var_decl_skips_proc_locals() {
+        // FP guard — a proc-local variable's declaration span must never
+        // produce a qualified name: `ScopeKind::Proc` is excluded from the
+        // walk exactly like `lookup_var_in_namespace_skips_proc_locals_even_when_namespace_matches`,
+        // since a bare `set v 1` inside a proc has no relation to any
+        // namespace cell unless linked via `variable`/`global` (a separate
+        // `VarDef` with its own `link_target`, not this one).
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "::A");
+        let mut proc_f = Scope::new(ScopeKind::Proc, "f");
+        proc_f
+            .variables
+            .insert("v".to_string(), var("v", span(40, 41)));
+        ns_a.children.push(proc_f);
+        root.children.push(ns_a);
+
+        assert!(
+            qualified_name_for_var_decl(&root, span(40, 41)).is_none(),
+            "a proc-local variable's span must never resolve to a qualified name"
+        );
+    }
+
+    #[test]
+    fn qualified_name_for_var_decl_returns_none_for_unknown_span() {
+        // TN — a span that names no declaration anywhere in the tree.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        root.variables.insert("v".to_string(), var("v", span(0, 1)));
+        assert!(qualified_name_for_var_decl(&root, span(99, 100)).is_none());
+    }
+
+    #[test]
+    fn qualified_name_for_var_decl_finds_global_scope_variable() {
+        // TP — the degenerate root/`::` case: a variable declared directly
+        // in the global scope qualifies as `::name`, not `::::name`.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        root.variables.insert("v".to_string(), var("v", span(0, 1)));
+        assert_eq!(
+            qualified_name_for_var_decl(&root, span(0, 1)),
+            Some("::v".to_string())
+        );
+    }
+
+    #[test]
+    fn qualified_name_for_var_decl_does_not_double_prefix_a_literal_qualified_name() {
+        // TP — issue #923 idx 68: `handle_set_command`/`define_var` never
+        // re-qualify a name they're given (`normalise_var_name` only strips
+        // a `$`/`${…}` wrapper and an array index), so a literal `set
+        // ::tolComp val` stores `VarDef::name == "::tolComp"` verbatim, not
+        // the bare tail `"tolComp"`. Prefixing that with `ns` again would
+        // produce `"::::tolComp"`, matching no alias's `link_target`.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        root.variables
+            .insert("::tolComp".to_string(), var("::tolComp", span(50, 60)));
+        assert_eq!(
+            qualified_name_for_var_decl(&root, span(50, 60)),
+            Some("::tolComp".to_string())
+        );
+    }
+
+    #[test]
+    fn lookup_var_by_qualified_name_finds_a_bare_tail_namespace_variable() {
+        // TP — the ordinary `variable`-declared namespace cell shape,
+        // delegated straight through to `lookup_var_in_namespace`.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "::A");
+        ns_a.variables
+            .insert("v".to_string(), var("v", span(10, 11)));
+        root.children.push(ns_a);
+
+        assert_eq!(
+            lookup_var_by_qualified_name(&root, "::A::v").map(|v| v.definition_span),
+            Some(span(10, 11))
+        );
+    }
+
+    #[test]
+    fn lookup_var_by_qualified_name_finds_a_literal_qualified_top_level_set() {
+        // TP — issue #923 idx 68's exact repro shape: a plain `set
+        // ::tolComp val` at global scope stores its key verbatim
+        // (`"::tolComp"`), which the bare-tail lookup alone (`base_name ==
+        // "tolComp"`) can never match; the literal-name fallback must.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        root.variables
+            .insert("::tolComp".to_string(), var("::tolComp", span(50, 60)));
+
+        assert_eq!(
+            lookup_var_by_qualified_name(&root, "::tolComp").map(|v| v.definition_span),
+            Some(span(50, 60))
+        );
+    }
+
+    #[test]
+    fn lookup_var_by_qualified_name_finds_an_unqualified_top_level_set() {
+        // TP — the other half of idx 68's repro: an *unqualified* `set
+        // tolComp val` at global scope stores the bare key `"tolComp"`,
+        // found by the existing tail-based lookup with no fallback needed.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        root.variables
+            .insert("tolComp".to_string(), var("tolComp", span(50, 60)));
+
+        assert_eq!(
+            lookup_var_by_qualified_name(&root, "::tolComp").map(|v| v.definition_span),
+            Some(span(50, 60))
+        );
+    }
+
+    #[test]
+    fn lookup_var_by_qualified_name_does_not_conflate_unrelated_literal_cells() {
+        // FP guard — two literal-qualified cells in different namespaces
+        // must never cross-match just because both are reachable via the
+        // literal-name fallback.
+        let mut root = Scope::new(ScopeKind::Global, "::");
+        root.variables
+            .insert("::A::x".to_string(), var("::A::x", span(1, 2)));
+        root.variables
+            .insert("::B::x".to_string(), var("::B::x", span(3, 4)));
+
+        assert_eq!(
+            lookup_var_by_qualified_name(&root, "::A::x").map(|v| v.definition_span),
+            Some(span(1, 2))
+        );
+        assert_eq!(
+            lookup_var_by_qualified_name(&root, "::B::x").map(|v| v.definition_span),
+            Some(span(3, 4))
+        );
+    }
+
+    #[test]
+    fn lookup_var_by_qualified_name_returns_none_for_unknown_target() {
+        // TN
+        let root = Scope::new(ScopeKind::Global, "::");
+        assert!(lookup_var_by_qualified_name(&root, "::Nope::v").is_none());
     }
 }

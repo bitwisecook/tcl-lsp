@@ -62,6 +62,12 @@ const REPORT_PATH: &str = "docs/generated/wasm-command-backing.md";
 /// (`oo::class create ::oo::…` in `cmd_oo.rs`) and the per-object `my` command
 /// created by method dispatch (`oo_register_my`). Names are canonical (no
 /// leading `::`). Kept sorted.
+///
+/// The standalone `::tcl::dict::*` spellings (issue #923 idx 105) are **not**
+/// here: `runtime/rust` backs only the `dict` ensemble head, so a direct
+/// `::tcl::dict::get …` call is `invalid command name` there — a genuine gap
+/// classified by [`is_tcl_dict_qualified`] as [`Status::KnownGap`], not hidden
+/// as if `dict`'s handler backed it (Codex review, PR #1020).
 const HANDLER_EXTRA: &[(&str, &str)] = &[
     (
         "my",
@@ -207,16 +213,20 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
     ),
 ];
 
-/// Core commands that *should* be backed but are not yet — real gaps tracked by
-/// `RUST_ISSUE_007`. Allow-listed so the gate stays green while they are
-/// implemented one by one; removing a name here (as it gains a handler) is the
-/// visible progress marker. Names are canonical (no leading `::`). Kept sorted.
+/// Core commands that *should* be backed but are not yet — real gaps, each
+/// with its own reason below (`RUST_ISSUE_007`, the original tracking issue
+/// for this class of gap, is itself resolved/closed — its own closing note
+/// records the allow-list as empty at that point; these are newer,
+/// independent additions, not a reopening of that issue). Allow-listed so
+/// the gate stays green while they are implemented one by one; removing a
+/// name here (as it gains a handler) is the visible progress marker. Names
+/// are canonical (no leading `::`). Kept sorted.
 ///
-/// The Tcl 9.1 entries below (everything but `tcl::zipfs`/`zipfs`) only
-/// became visible to this gate once `core_commands()`'s `TCL90`→`TCL90_PLUS`
-/// fix stopped silently excluding every 9.1-only-gated command (adversarial
-/// review of PR #1008) — they were always genuinely unbacked, just invisible
-/// to the check before that fix.
+/// The Tcl 9.1 entries below (everything but `link`/`tcl::zipfs`/`zipfs`)
+/// only became visible to this gate once `core_commands()`'s
+/// `TCL90`→`TCL90_PLUS` fix stopped silently excluding every 9.1-only-gated
+/// command (adversarial review of PR #1008) — they were always genuinely
+/// unbacked, just invisible to the check before that fix.
 const KNOWN_UNBACKED: &[(&str, &str)] = &[
     (
         "divmod",
@@ -231,6 +241,10 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
         "Tcl 9.1 list-filter command; not yet implemented in runtime/rust",
     ),
     (
+        "link",
+        "TclOO oo::Helpers::link (issue #923 idx 113) — installs a per-object-namespace alias to a method via the object's own command table, not a standalone dispatchable command; no runtime handler",
+    ),
+    (
         "modf",
         "TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust",
     ),
@@ -240,7 +254,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "tcl::zipfs",
-        "Tcl 9 zipfs archive-filesystem ensemble; not yet implemented in runtime/rust",
+        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
     ),
     (
         "timer",
@@ -252,7 +266,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "zipfs",
-        "Tcl 9 zipfs archive-filesystem ensemble; not yet implemented in runtime/rust",
+        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
     ),
 ];
 
@@ -322,6 +336,27 @@ fn is_mathfunc_command(c: &str) -> bool {
 /// report.
 const MATHFUNC_COMMAND_REASON: &str = "`::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop \
      (register_builtin(&full, …) — not a literal the scan can see)";
+
+/// Whether `c` is a standalone `::tcl::dict::*` ensemble-implementation
+/// spelling (issue #923 idx 105). These are real, separately-callable commands
+/// in C Tcl (the `dict` ensemble's default map targets), so the registry
+/// carries them — but `runtime/rust` implements only the `dict` ensemble head
+/// (`register_builtin(b"dict", …)`), not the qualified spellings: a direct
+/// `::tcl::dict::get …` call raises `invalid command name` there. Classified as
+/// a genuine, visible runtime gap ([`Status::KnownGap`]) rather than hidden
+/// under [`HANDLER_EXTRA`] as if `dict`'s handler backed them (Codex review,
+/// PR #1020).
+fn is_tcl_dict_qualified(c: &str) -> bool {
+    c.strip_prefix("::")
+        .unwrap_or(c)
+        .strip_prefix("tcl::dict::")
+        .is_some_and(|sub| !sub.is_empty())
+}
+
+/// The reason attached to every [`is_tcl_dict_qualified`] command in the
+/// report.
+const TCL_DICT_QUALIFIED_REASON: &str = "standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): \
+     runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name`";
 
 /// One core command's backing status.
 enum Status {
@@ -409,6 +444,9 @@ fn classify(name: &str, backed: &BTreeSet<String>) -> Status {
     }
     if is_mathfunc_command(c) {
         return Status::HandlerNative(MATHFUNC_COMMAND_REASON);
+    }
+    if is_tcl_dict_qualified(c) {
+        return Status::KnownGap(TCL_DICT_QUALIFIED_REASON);
     }
     if is_expr_operator(c) {
         return Status::NotRequired(EXPR_OPERATOR_REASON);

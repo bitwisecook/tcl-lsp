@@ -138,32 +138,100 @@ impl Analyser {
             for block in fu.cfg.blocks.values() {
                 for stmt in &block.statements {
                     let Statement::AssignValue {
-                        name, value, span, ..
+                        name,
+                        value,
+                        span,
+                        tokens,
+                        ..
                     } = stmt
                     else {
                         continue;
                     };
-                    let Some((head, args)) =
-                        crate::value_shapes::parse_command_substitution(value.trim())
-                    else {
-                        continue;
-                    };
-                    if !args.first().is_some_and(|s| s == "new" || s == "create") {
-                        continue;
-                    }
-                    // The constructor call must still be live at this
-                    // assignment — a dead class fails the call, so `x`
-                    // is never assigned an object (issue #1010).
-                    let class_qn = self.canonicalise_class_name(&head);
-                    let off = span.start();
-                    if self.class_live_for_call(&class_qn, off)
-                        || self.class_live_for_call(&head, off)
+                    let trimmed = value.trim();
+                    let mut class_qn = None;
+                    if let Some((head, args)) =
+                        crate::value_shapes::parse_command_substitution(trimmed)
+                        && args.first().is_some_and(|s| s == "new" || s == "create")
                     {
+                        // The constructor call must still be live at this
+                        // assignment — a dead class fails the call, so `x`
+                        // is never assigned an object (issue #1010).
+                        let qn = self.canonicalise_class_name(&head);
+                        let off = span.start();
+                        if self.class_live_for_call(&qn, off)
+                            || self.class_live_for_call(&head, off)
+                        {
+                            class_qn = Some(qn);
+                        }
+                    }
+                    // The constructor's class head is a `$var` reference
+                    // rather than a literal bareword (issue #923 idx 121):
+                    // defer to the same flow-sensitive resolution
+                    // `instance_classes` uses, so the type lattice agrees
+                    // with hover/definition on the same dispatch.
+                    if class_qn.is_none() {
+                        class_qn = self.harvest_indirect_constructor_class(
+                            cu,
+                            fu,
+                            trimmed,
+                            tokens.as_ref(),
+                        );
+                    }
+                    if let Some(class_qn) = class_qn {
                         out.entry(name.clone()).or_default().insert(class_qn);
                     }
                 }
             }
         }
+    }
+
+    /// The `$class`-headed indirection counterpart of the literal-bareword
+    /// check above (issue #923 idx 121): resolves the class variable's
+    /// constant contributors via the flow-sensitive value model — the same
+    /// `class_var_head_constructor_subst` shape-parse
+    /// [`Analyser::record_pending_instance_class_site`] uses for
+    /// `instance_classes` — so the SSA type-lattice (W307/W308) agrees with
+    /// hover/definition on the exact same `$var`-headed constructor
+    /// dispatch. Abstains (`None`) on anything unprovable or genuinely
+    /// (branch-)ambiguous, the same soundness bar as that sibling settle
+    /// path.
+    fn harvest_indirect_constructor_class(
+        &self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        fu: &crate::compilation_unit::FunctionUnit,
+        value: &str,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) -> Option<String> {
+        let (class_var, offset) = super::super::commands::class_var_head_constructor_subst(value)?;
+        if cu.ir_module.has_dynamic_variable_trace
+            || cu.ir_module.traced_variables.contains(&class_var)
+        {
+            return None;
+        }
+        let value_start = tokens?.argv.get(2)?.start();
+        let contributors =
+            crate::value_provenance::const_contributors(fu, value_start + offset, &class_var)?;
+        let mut resolved: Option<String> = None;
+        for c in &contributors {
+            let v = c.value.trim();
+            if v.is_empty() || crate::naming::is_dynamic_word(v) {
+                return None;
+            }
+            let qn = self.canonicalise_class_name(v);
+            let known = if self.result.all_classes.contains_key(&qn) {
+                qn
+            } else if self.result.all_classes.contains_key(v) {
+                v.to_string()
+            } else {
+                return None;
+            };
+            match &resolved {
+                None => resolved = Some(known),
+                Some(existing) if *existing != known => return None,
+                Some(_) => {}
+            }
+        }
+        resolved
     }
 
     /// Per-proc `(body_start, body_end, factory_local_vars)` ranges — the

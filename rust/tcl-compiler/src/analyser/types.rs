@@ -27,8 +27,8 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::Span;
 
 use crate::signature_scan::types::{
-    ParamDef, SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceImport,
-    SignaturePackageRequire, SignatureSource,
+    ParamDef, SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceExport,
+    SignatureNamespaceImport, SignaturePackageRequire, SignatureSource,
 };
 
 pub use tcl_core_types::DiagCode;
@@ -446,6 +446,20 @@ pub struct MethodDef {
     /// Method kind: ``"method"`` / ``"classmethod"`` /
     /// ``"forward"`` / ``"constructor"`` / ``"destructor"``.
     pub kind: String,
+    /// `true` only for a `classmethod`-kind entry declared via `TclOO`'s
+    /// `self` wrapper (`self method NAME …`) directly on this class
+    /// (issue #923 idx 120). Unlike `ooutil`'s `classmethod` keyword —
+    /// confirmed against tclsh 9.0.4/8.6 to propagate to a subclass's own
+    /// bound command via its `Delegate`-mixin machinery, which walks
+    /// `info class superclass` — a plain `self method` is visible ONLY on
+    /// the exact class that declared it: `oo::class create Gadget {
+    /// superclass Widget }` does NOT gain `Widget`'s `self method make`
+    /// (real tclsh: `unknown method "make"`). The class-command MRO walk
+    /// in `tcl-lsp-core`'s `method_dispatch_definition` accepts a
+    /// `class_methods` entry from an ancestor provider only when this is
+    /// `false`; a provider matching the receiver class itself is always
+    /// accepted regardless.
+    pub is_self_method: bool,
     /// Visibility: ``"public"`` / ``"private"`` /
     /// ``"unexported"``.
     pub visibility: String,
@@ -588,6 +602,15 @@ pub struct ClassDef {
     pub exports: HashSet<String>,
     /// Methods explicitly unexported via ``unexport``.
     pub unexports: HashSet<String>,
+    /// Names genuinely bareword-callable from any method body of this
+    /// class, because ``link`` (``oo::Helpers::link``) installed a
+    /// per-object-namespace alias — keyed by the alias name, valued by
+    /// the real member name it dispatches to via ``my TARGET`` (alias ==
+    /// target for the plain ``link NAME`` form). In contrast, a bareword
+    /// matching an un-linked sibling method/classmethod/property name is
+    /// **not** reachable that way and errors "invalid command name" at
+    /// runtime (issue #923 idx 113).
+    pub linked_members: HashMap<String, String>,
     /// Doc-comment text harvested from the line(s) above the
     /// ``oo::class create`` / ``oo::define`` statement.
     pub doc: String,
@@ -629,6 +652,7 @@ impl Default for ClassDef {
             filters: Vec::new(),
             exports: HashSet::new(),
             unexports: HashSet::new(),
+            linked_members: HashMap::new(),
             doc: String::new(),
             via_define: false,
         }
@@ -810,8 +834,32 @@ pub struct AnalysisResult {
     pub global_scope: Scope,
     /// Procs keyed by qualified name.
     pub all_procs: HashMap<String, ProcDef>,
+    /// Every `proc` declaration's own name-token span, in source order —
+    /// unlike `all_procs` (a map that, for a qualified name declared more
+    /// than once in the same document, retains only the *last* processed
+    /// declaration — plain Tcl's own "last redefinition wins" semantics),
+    /// this keeps one entry per declaration, including an earlier, shadowed
+    /// one. Exists purely so a query landing on a shadowed declaration's own
+    /// name token can still be recognised as declaring that qualified name
+    /// and re-resolved to whichever `ProcDef` currently wins in `all_procs`
+    /// (issue #923 idx 31, main audit wave) — `all_procs`' own span alone
+    /// can never satisfy that lookup, since it only ever holds the winner's.
+    pub proc_declaration_sites: Vec<(String, Span)>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
+    /// Every class-body span contributing member declarations to a
+    /// qualified class name, in source order: the `oo::class create`
+    /// block's own body span, plus one entry per later same-class
+    /// `oo::define ClassName { ... }` extension (or inline-form call) in
+    /// this file. The multi-span analogue of [`ClassDef::body_span`]
+    /// (which stays pinned to the class's primary/creation site for
+    /// hover / document-symbol / rename-target purposes): a class
+    /// extended via a *separate* `oo::define` block has textually
+    /// disjoint body spans, not one contiguous range, so any consumer
+    /// asking "which class's body lexically contains this offset" for
+    /// `my`-dispatch resolution must check every entry here rather than
+    /// just `ClassDef::body_span` (issue #923 idx 52, main audit wave).
+    pub class_body_spans: Vec<(String, Span)>,
     /// Free variables (vars defined outside any proc scope) keyed
     /// by qualified name.
     pub all_variables: HashMap<String, VarDef>,
@@ -841,27 +889,51 @@ pub struct AnalysisResult {
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Byte offset of the `interp alias` command token that established each
     /// [`Self::command_aliases`] entry, keyed the same way (by qualified
-    /// alias name) — the promoted, cross-document twin of
-    /// [`Self::rename_target_spans`] for aliases: lets a consumer such as
+    /// alias name) — lets a consumer such as
     /// [`Self::offset_is_inside_any_definition_body`] tell an alias declared
     /// inside a proc/class body (conditional — exists only while that
     /// enclosing definition is running) apart from a top-level one
-    /// (unconditional), the same distinction [`Self::rename_target_spans`]
-    /// already lets it draw for a `rename`.
+    /// (unconditional).
     pub alias_offsets: HashMap<String, u32>,
     /// Static `rename OLD NEW` records: `new_qname → old_qname`. `NEW`
     /// resolves to whatever `OLD` denoted (unchanged) — see
     /// [`super::state::Analyser::renamed_commands`] for why a dynamic
-    /// rename is deliberately absent here.
+    /// rename is deliberately absent here. `OLD`'s own token is recorded
+    /// as an ordinary [`SignatureCommandInvocation`] (`command_invocations`)
+    /// instead of a dedicated span map here — it is a first-class reference
+    /// to the command it names, exactly like `info body PROC` — so
+    /// find-references / go-to-definition / rename reach it through the
+    /// same path as any other reference, covering a deleting `rename OLD
+    /// {}` too (issue #923 idx 39, main audit wave).
     pub renamed_commands: HashMap<String, String>,
-    /// Source span of the `OLD` word of each static `rename OLD NEW`, keyed
-    /// by `new_qname` (the same key as [`Self::renamed_commands`]). `OLD`
-    /// names the command being moved, so it is a reference to it that rename
-    /// rewrites; kept beside the name map rather than in it so the existing
-    /// consumers of `renamed_commands` are untouched.
-    pub rename_target_spans: HashMap<String, Span>,
+    /// Byte offset of the `rename` command token that established each
+    /// [`Self::renamed_commands`] entry, keyed the same way (by qualified
+    /// `NEW` name) — the `rename` analogue of [`Self::alias_offsets`], for
+    /// the same "declared inside a proc/class body" nested-link check.
+    pub rename_offsets: HashMap<String, u32>,
+    /// Static `namespace ensemble create -map {sub target …}` /
+    /// `-subcommands {a b …}` records: outer key is the ensemble's own
+    /// resolved, qualified invocable name (`::widget`) — the same identity
+    /// `ensemble_namespaces`/ `Analyser::ensemble_namespaces` already uses;
+    /// inner key is the subcommand exactly as written (`make`); inner value
+    /// is the target's resolved qualified command name (`::widget::Make`).
+    /// A nested table, not a flat `command_aliases`-shaped one, because an
+    /// ensemble subcommand is never independently callable the way an alias
+    /// name is (only the pair `widget make` dispatches), and two different
+    /// ensembles may share a subcommand spelling. Lets `definition`/`hover`/
+    /// `references` in `tcl-lsp-core` resolve `widget make` to `::widget::Make`
+    /// (issue #923 idx 106) the same way they already resolve an alias name
+    /// to its target. Only ever populated from a *literal* `-map`/
+    /// `-subcommands` list — a dynamic value (`-map $var`) leaves the
+    /// ensemble's entry absent entirely, so a lookup against it correctly
+    /// abstains rather than guessing.
+    pub ensemble_subcommand_targets: HashMap<String, HashMap<String, String>>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// Namespace `export` records — see [`SignatureNamespaceExport`] for why
+    /// they exist (gating wildcard-import bareword resolution, issue #923
+    /// idx 18).
+    pub namespace_exports: Vec<SignatureNamespaceExport>,
     /// Recorded `namespace path {…}` declarations, keyed by the declaring
     /// namespace's fully-qualified name (`::` for global).  Each entry is the
     /// path list *as written*; a relative entry roots against the declaring
@@ -870,6 +942,17 @@ pub struct AnalysisResult {
     pub namespace_paths: HashMap<String, Vec<String>>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
     pub auto_path_entries: Vec<AutoPathEntry>,
+    /// Byte spans where command resolution is pinned to a namespace by
+    /// runtime context rather than lexical nesting (issue #923 idx 116):
+    /// `apply {{params} body ns}` runs `body` in `ns`, not the namespace
+    /// the lambda is lexically written inside. Each entry is `(body_span,
+    /// "::"-qualified namespace)`; consulted by `tcl-lsp-core`'s
+    /// `innermost_namespace_at` *before* the ordinary lexical scope-chain
+    /// walk, since the `Scope` subtree `handle_apply_command` builds for
+    /// `ns` is rooted under freshly-constructed, `body_span`-less
+    /// namespace wrapper nodes (`per_item::reconstruct_proc_scope`) that
+    /// the walk's span-containment descent can never reach.
+    pub namespace_overrides: Vec<(Span, String)>,
     /// Inline ``# stub: NAME ARGS BODY`` directive captures.
     pub stub_commands: Vec<StubCommandDef>,
     /// Inline ``# stub-expr: NAME ARGS`` directive captures.
