@@ -1,7 +1,0 @@
-dataflow: taintWarnings=5 taintedVars=1 pure=3 impure=2
-taint warnings:
-  T100 line 24: Tainted variable $userinput flows into eval; possible code injection
-  T102 line 25: Tainted variable $userinput in option position of 'file delete' without '--' terminator; risk of option injection
-  T103 line 26: Tainted variable $userinput in regexp pattern position (regexp); risk of regex injection or ReDoS
-  T102 line 26: Tainted variable $userinput in option position of 'regexp' without '--' terminator; risk of option injection
-  W313 line 25: file delete with a variable path ($userinput) risks path-traversal. Normalise with [file normalize] and verify it stays within the intended directory.

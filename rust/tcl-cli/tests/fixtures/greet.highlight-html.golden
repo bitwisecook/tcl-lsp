@@ -1,8 +1,0 @@
-<pre>
-<span style="color:#6b7280;"># a sample script</span>
-<span style="color:#2b6cb0;font-weight:600;">proc</span> greet <span style="color:#2f855a;">{name</span>} <span style="color:#2f855a;">{
-    set message &quot;hello, $name&quot;
-    puts $message
-</span>}
-<span style="color:#2b6cb0;font-weight:600;">greet</span> world
-</pre>

@@ -1,5 +1,0 @@
-when HTTP_REQUEST {
-    if {[matchclass [HTTP::uri] starts_with $::admin_paths]} {
-        log local0. "admin path hit"
-    }
-}

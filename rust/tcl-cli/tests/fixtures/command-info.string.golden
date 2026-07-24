@@ -1,4 +1,0 @@
-command: string
-dialect: tcl8.6
-summary: Perform one of several string operations, selected by the first argument.
-synopsis: string option arg ?arg ...?

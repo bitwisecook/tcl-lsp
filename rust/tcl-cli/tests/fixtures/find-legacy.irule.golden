@@ -1,5 +1,0 @@
-legacy patterns: 2
-  IRULE2001 line 2:10 'matchclass' is deprecated since BIG-IP v10. Use 'class match <item> <operator> <class>' instead.
-    conversion: Deprecated matchclass -> class match
-  IRULE5001 line 3:9 'log' in HTTP_REQUEST fires on every request. Set a debug flag in CLIENT_ACCEPTED (e.g. set debug 0) and gate with if {$debug} {...}.
-    conversion: Ungated log in hot event -> add debug gating
