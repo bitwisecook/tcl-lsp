@@ -146,6 +146,23 @@ fn summarise_detail(description: &str) -> String {
     }
 }
 
+/// Bundled arguments for [`Analyser::walk_proc_body_in_new_scope`] — kept
+/// under clippy's argument-count limit (mirrors `TaintScan` in `taint.rs`).
+#[derive(Clone, Copy)]
+#[allow(clippy::struct_field_names)]
+struct ProcBodyWalkArgs<'a> {
+    /// Parent scope path, *before* the new proc scope is pushed.
+    path: &'a [usize],
+    raw_name: &'a str,
+    body_span: Span,
+    arg_tokens: &'a [Token],
+    name_tok: Token,
+    params: &'a [crate::signature_scan::types::ParamDef],
+    args: &'a [String],
+    body_tok: Token,
+    ns_prefix: &'a str,
+}
+
 impl Analyser {
     /// Handle the `set` command: `set var ?value?`.
     ///
@@ -836,71 +853,108 @@ impl Analyser {
         // on ``"<scope_name>::<var>"``, so the scope name must be
         // the proc name to key that map consistently.
         if body_tok.kind == TokenType::Str {
-            let proc_scope_idx = {
-                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
-                    .expect("scope_path resolved when registering proc must still resolve");
-                let mut child =
-                    super::types::Scope::new(super::types::ScopeKind::Proc, raw_name.clone());
-                child.body_span = Some(body_span);
-                parent.children.push(child);
-                parent.children.len() - 1
-            };
-            let mut child_path = path.clone();
-            child_path.push(proc_scope_idx);
-
-            // Parameters become locals in the proc scope. Each param's
-            // definition range is anchored to its *name* in the param-list
-            // literal (issue #727) so go-to-definition / references / rename on
-            // a formal parameter resolve to the parameter, not the proc name.
-            // The spans are recovered from the raw param-list word token
-            // (`arg_tokens[1]`); any param whose name can't be located falls
-            // back to the proc name token.
-            let params_tok = arg_tokens[1];
-            let param_spans = param_name_spans_for_token(&self.source, params_tok);
-            for (i, p) in params.iter().enumerate() {
-                self.define_var(
-                    &p.name,
-                    name_tok,
-                    &child_path,
-                    false,
-                    param_spans.get(i).copied(),
-                );
-            }
-            self.emit_w218_args_not_final(&params, &param_spans, params_tok);
-
-            // Save / restore last_comment around the body walk so
-            // a doc-comment inside the proc body doesn't bleed to
-            // whatever follows the proc at the outer scope.
-            let saved_comment = std::mem::take(&mut self.last_comment);
-
-            // Body recursion via the shared helper.  Re-segments
-            // the body (no recovery — top-level only) and
-            // dispatches each command at the new proc scope path.
-            // Per-item shell pass: defer the body (its scope is already
-            // created with params; a second pass fills it in place).
-            let body_text = args[2].clone();
-            if self.defer_proc_bodies {
-                let safe_interp_ctx = self.safe_interp_ctx_snapshot();
-                self.deferred_bodies.push(super::per_item::DeferredBody {
-                    body_text,
-                    body_tok,
-                    scope_path: child_path.clone(),
-                    is_method: false,
-                    oo_global_resolution: false,
-                    namespace: ns_prefix.clone(),
-                    scope_name: raw_name.clone(),
-                    params: params.clone(),
-                    class_variables: Vec::new(),
-                    safe_interp_ctx,
-                });
-            } else {
-                self.analyse_body(&body_text, body_tok, &child_path);
-            }
-
-            self.last_comment = saved_comment;
+            self.walk_proc_body_in_new_scope(ProcBodyWalkArgs {
+                path: &path,
+                raw_name,
+                body_span,
+                arg_tokens,
+                name_tok,
+                params: &params,
+                args,
+                body_tok,
+                ns_prefix: &ns_prefix,
+            });
         }
 
         true
+    }
+
+    /// Walks a `proc`'s body in a freshly created child scope: binds formal
+    /// parameters as locals, then recurses into the body (or, on the
+    /// per-item shell pass, defers it). Split out of
+    /// [`Self::handle_proc_command`] to keep that function's line count
+    /// down; `ctx.path` is the *parent* scope path (before the new proc
+    /// scope is pushed).
+    fn walk_proc_body_in_new_scope(&mut self, ctx: ProcBodyWalkArgs<'_>) {
+        let ProcBodyWalkArgs {
+            path,
+            raw_name,
+            body_span,
+            arg_tokens,
+            name_tok,
+            params,
+            args,
+            body_tok,
+            ns_prefix,
+        } = ctx;
+        let proc_scope_idx = {
+            let parent = super::scope::scope_at_mut(&mut self.result.global_scope, path)
+                .expect("scope_path resolved when registering proc must still resolve");
+            let mut child =
+                super::types::Scope::new(super::types::ScopeKind::Proc, raw_name.to_string());
+            child.body_span = Some(body_span);
+            parent.children.push(child);
+            parent.children.len() - 1
+        };
+        let mut child_path = path.to_vec();
+        child_path.push(proc_scope_idx);
+
+        // Parameters become locals in the proc scope. Each param's
+        // definition range is anchored to its *name* in the param-list
+        // literal (issue #727) so go-to-definition / references / rename on
+        // a formal parameter resolve to the parameter, not the proc name.
+        // The spans are recovered from the raw param-list word token
+        // (`arg_tokens[1]`); any param whose name can't be located falls
+        // back to the proc name token.
+        let params_tok = arg_tokens[1];
+        let param_spans = param_name_spans_for_token(&self.source, params_tok);
+        for (i, p) in params.iter().enumerate() {
+            self.define_var(
+                &p.name,
+                name_tok,
+                &child_path,
+                false,
+                param_spans.get(i).copied(),
+            );
+        }
+        self.emit_w218_args_not_final(params, &param_spans, params_tok);
+
+        // Save / restore `last_comment` around the body walk so a
+        // doc-comment inside the proc body doesn't bleed to whatever
+        // follows the proc at the outer scope. Same treatment for
+        // `current_event`: a `proc` body is a new call frame, so W142's
+        // event-body-only bare-`return` restriction must not leak in from
+        // an enclosing `when` — see `emit_w142_context_gate`'s doc comment.
+        let (saved_comment, saved_event) = (
+            std::mem::take(&mut self.last_comment),
+            self.current_event.take(),
+        );
+
+        // Body recursion via the shared helper.  Re-segments
+        // the body (no recovery — top-level only) and
+        // dispatches each command at the new proc scope path.
+        // Per-item shell pass: defer the body (its scope is already
+        // created with params; a second pass fills it in place).
+        let body_text = args[2].clone();
+        if self.defer_proc_bodies {
+            let safe_interp_ctx = self.safe_interp_ctx_snapshot();
+            self.deferred_bodies.push(super::per_item::DeferredBody {
+                body_text,
+                body_tok,
+                scope_path: child_path.clone(),
+                is_method: false,
+                oo_global_resolution: false,
+                namespace: ns_prefix.to_string(),
+                scope_name: raw_name.to_string(),
+                params: params.to_vec(),
+                class_variables: Vec::new(),
+                safe_interp_ctx,
+            });
+        } else {
+            self.analyse_body(&body_text, body_tok, &child_path);
+        }
+
+        (self.last_comment, self.current_event) = (saved_comment, saved_event);
     }
 
     /// `tcl::OptProc name optlist body` — the `opt` package's automatic-

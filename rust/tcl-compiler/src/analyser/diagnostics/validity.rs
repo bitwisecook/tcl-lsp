@@ -2213,9 +2213,13 @@ impl Analyser {
     /// — a restriction keyed on lexical/dispatch context rather than
     /// argument shape (iRules `return`: bare-only directly inside a `when
     /// EVENT { … }` body, full syntax inside any `proc`). `self.current_event`
-    /// is `None` once inside a `proc` body (procs live outside an event
-    /// structurally, so the flag needs no special-casing here), so passing
-    /// it straight through is enough to distinguish the two contexts.
+    /// is explicitly cleared for the duration of a `proc` body walk
+    /// (`handle_proc_command`) — a proc is a new call frame, entered only
+    /// when later called, never inline — so it reads `None` there even when
+    /// the `proc` statement itself sits lexically inside a `when` body
+    /// (itself a separate, independently-flagged `Irule5006` placement
+    /// error). Passing it straight through is enough to distinguish the two
+    /// contexts.
     pub(in crate::analyser) fn emit_w142_context_gate(
         &mut self,
         gate: tcl_registry::ContextGate,
