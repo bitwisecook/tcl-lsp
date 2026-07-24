@@ -27,13 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_dont_touch",
-        dialects: Some(
-            DialectSet::SYNOPSYS
-                | DialectSet::CADENCE
-                | DialectSet::XILINX
-                | DialectSet::QUARTUS
-                | DialectSet::MENTOR,
-        ),
+        dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Prevent optimization of cells/nets.",

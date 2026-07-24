@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_mmmc",
-        dialects: Some(DialectSet::CADENCE),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet::brief(
             "Read Multi-Mode Multi-Corner (MMMC) configuration.",

@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "create_route_rule",
-        dialects: Some(DialectSet::CADENCE),
+        dialects: Some(DialectSet::TCL86),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet::brief(
             "Create a non-default routing rule.",

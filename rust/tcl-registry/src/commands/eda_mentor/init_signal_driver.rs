@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "init_signal_driver",
-        dialects: Some(DialectSet::MENTOR),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet::brief(
             "Initialize signal driver for cross-hierarchy driving.",

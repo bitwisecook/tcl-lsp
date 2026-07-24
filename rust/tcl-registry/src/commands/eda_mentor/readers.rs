@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "readers",
-        dialects: Some(DialectSet::MENTOR),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet::brief(
             "Find readers of a signal.",

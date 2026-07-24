@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "drivers",
-        dialects: Some(DialectSet::MENTOR),
+        dialects: Some(DialectSet::TCL85),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet::brief(
             "Find drivers of a signal.",

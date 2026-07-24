@@ -280,9 +280,9 @@ static CATALOG: [DialectProfile; 16] = [
         name: "cadence-eda-tcl",
         aliases: &[],
         vendor_bit: Some(DialectSet::CADENCE),
-        availability_mask: DialectSet::TCL86.union(DialectSet::CADENCE),
+        availability_mask: DialectSet::TCL86,
         base_layers: &[DialectSet::CADENCE],
-        grammar_union: DialectSet::ALL_TCL.union(DialectSet::CADENCE),
+        grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
         runtime_base: Some(TclVersion::V8_6),
@@ -481,9 +481,9 @@ static CATALOG: [DialectProfile; 16] = [
         name: "intel-quartus-eda-tcl",
         aliases: &[],
         vendor_bit: Some(DialectSet::QUARTUS),
-        availability_mask: DialectSet::TCL85.union(DialectSet::QUARTUS),
+        availability_mask: DialectSet::TCL85,
         base_layers: &[DialectSet::QUARTUS],
-        grammar_union: DialectSet::ALL_TCL.union(DialectSet::QUARTUS),
+        grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
@@ -542,9 +542,9 @@ static CATALOG: [DialectProfile; 16] = [
         name: "mentor-eda-tcl",
         aliases: &[],
         vendor_bit: Some(DialectSet::MENTOR),
-        availability_mask: DialectSet::TCL85.union(DialectSet::MENTOR),
+        availability_mask: DialectSet::TCL85,
         base_layers: &[DialectSet::MENTOR],
-        grammar_union: DialectSet::ALL_TCL.union(DialectSet::MENTOR),
+        grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
@@ -583,9 +583,9 @@ static CATALOG: [DialectProfile; 16] = [
         name: "synopsys-eda-tcl",
         aliases: &[],
         vendor_bit: Some(DialectSet::SYNOPSYS),
-        availability_mask: DialectSet::TCL86.union(DialectSet::SYNOPSYS),
+        availability_mask: DialectSet::TCL86,
         base_layers: &[DialectSet::SYNOPSYS],
-        grammar_union: DialectSet::ALL_TCL.union(DialectSet::SYNOPSYS),
+        grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
         runtime_base: Some(TclVersion::V8_6),
@@ -767,9 +767,9 @@ static CATALOG: [DialectProfile; 16] = [
         name: "xilinx-eda-tcl",
         aliases: &[],
         vendor_bit: Some(DialectSet::XILINX),
-        availability_mask: DialectSet::TCL85.union(DialectSet::XILINX),
+        availability_mask: DialectSet::TCL85,
         base_layers: &[DialectSet::XILINX],
-        grammar_union: DialectSet::ALL_TCL.union(DialectSet::XILINX),
+        grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
         runtime_base: Some(TclVersion::V8_5),
@@ -1215,23 +1215,40 @@ mod tests {
 
     #[test]
     fn additive_vendor_masks_compose_base_version_and_vendor_bit() {
-        // §7: the composed (version|vendor) masks the W123/W002 fix rests on.
+        // §7: an *additive* vendor profile composes (version | vendor). The EDA
+        // shells moved to the packaged model (a pure base-version mask + a
+        // `required_package` availability gate — see eda-library-packages.md),
+        // so only the F5 iApps host shell and Expect remain additive here.
         let cases: &[(&str, DialectSet, DialectSet)] = &[
             ("f5-iapps", DialectSet::TCL85, DialectSet::IAPPS),
             ("expect", DialectSet::TCL86, DialectSet::EXPECT),
-            ("synopsys-eda-tcl", DialectSet::TCL86, DialectSet::SYNOPSYS),
-            ("cadence-eda-tcl", DialectSet::TCL86, DialectSet::CADENCE),
-            ("xilinx-eda-tcl", DialectSet::TCL85, DialectSet::XILINX),
-            (
-                "intel-quartus-eda-tcl",
-                DialectSet::TCL85,
-                DialectSet::QUARTUS,
-            ),
-            ("mentor-eda-tcl", DialectSet::TCL85, DialectSet::MENTOR),
         ];
         for &(name, base, vendor) in cases {
             let p = DialectProfile::by_name(name);
             assert_eq!(p.availability_mask, base | vendor, "{name}");
+        }
+    }
+
+    #[test]
+    fn eda_shells_are_packaged_vendors_with_pure_version_masks() {
+        // The EDA-as-packages migration: each EDA shell's availability mask is
+        // its pure base Tcl version (no vendor bit) — the vendor command surface
+        // is gated by `required_package` (ambient in the profile), not the mask.
+        // The `vendor_bit` remains for loading/identity + the Tk-exclusion rule
+        // until it is retired in the bit-removal phase.
+        for (name, base) in [
+            ("xilinx-eda-tcl", DialectSet::TCL85),
+            ("synopsys-eda-tcl", DialectSet::TCL86),
+            ("cadence-eda-tcl", DialectSet::TCL86),
+            ("intel-quartus-eda-tcl", DialectSet::TCL85),
+            ("mentor-eda-tcl", DialectSet::TCL85),
+        ] {
+            let p = DialectProfile::by_name(name);
+            assert_eq!(p.availability_mask, base, "{name}: pure base-version mask");
+            assert!(
+                DialectSet::ALL_TCL.contains(p.availability_mask),
+                "{name}: mask carries no vendor bit"
+            );
         }
     }
 
@@ -1302,18 +1319,18 @@ mod tests {
 
     #[test]
     fn vendor_bit_composes_the_availability_mask() {
-        // §2.2: for the additive vendor profiles the mask is exactly
-        // (version bits | vendor_bit); for the bare-bit iRules profile
-        // the mask IS the bare vendor bit; profiles without a vendor bit
-        // carry pure version masks.
+        // §2.2 + the EDA-as-packages migration: a vendor profile's mask is one of
+        // - the bare vendor bit (iRules, §9);
+        // - (version bits | vendor_bit) for an additive vendor shell (iApps,
+        //   Expect, tmsh, bpf) or the bigip identity; or
+        // - pure version bits for a *packaged* vendor (the EDA shells), whose
+        //   `vendor_bit` is a loading/identity marker only — the vendor command
+        //   surface is gated by `required_package`, not the mask.
         for p in all_with_fallback() {
             match p.vendor_bit {
-                Some(bit) => {
-                    assert!(
-                        p.availability_mask.contains(bit),
-                        "{}: mask must contain the vendor bit",
-                        p.name
-                    );
+                Some(bit) if p.availability_mask.contains(bit) => {
+                    // Bare (iRules) or additive vendor: the non-vendor half is
+                    // pure version bits.
                     let version_half = p.availability_mask.difference(bit);
                     assert!(
                         DialectSet::ALL_TCL.contains(version_half),
@@ -1323,6 +1340,20 @@ mod tests {
                     if p.is_irules() {
                         assert_eq!(p.availability_mask, bit, "iRules mask is BARE (§9)");
                     }
+                }
+                Some(_) => {
+                    // Packaged vendor: only the EDA shells carry a vendor_bit
+                    // outside their mask; the mask is pure Tcl versions.
+                    assert!(
+                        p.name.ends_with("-eda-tcl"),
+                        "{}: a vendor_bit outside the mask is only the packaged EDA shells",
+                        p.name
+                    );
+                    assert!(
+                        DialectSet::ALL_TCL.contains(p.availability_mask),
+                        "{}: a packaged vendor's mask is pure Tcl versions",
+                        p.name
+                    );
                 }
                 None => {
                     assert!(
