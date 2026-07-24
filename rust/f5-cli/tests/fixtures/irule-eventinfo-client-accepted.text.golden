@@ -5,4 +5,4 @@ multiplicity: once_per_connection
 description: Fires when a client connection is accepted (TCP: after 3-way handshake; UDP: on the first datagram). On UDP virtual servers, packet data is available via UDP::payload in this event.
 side: client-side
 transport: tcp/udp
-valid commands: 796
+valid commands: 799
