@@ -37,25 +37,22 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// EXAMPLE prose, which carries no behavioural meaning. `pwd` takes no
 /// arguments and has no options/switches in any of the five versions.
 ///
-/// `dialects: None` here is deliberate, not an oversight: F5 iRules is the
-/// one modelled dialect that drops `pwd` — it is one of the 42 K36322151
-/// commands in `IRULES_DISABLED_COMMANDS` (`tcl-dialect/src/profile.rs`),
-/// the TMM event sandbox having no real per-request filesystem/cwd concept,
-/// the same reasoning that drops `cd`/`open`/`glob`/`exec`/`fcopy`/`pid` —
-/// but that exclusion is enforced generically by the iRules profile's
-/// subtractive `disabled_commands` list, not by a `CommandSpec`-level
-/// `dialects` gate — the same treatment those commands get in their own
-/// spec files; the `irules_disable_list_is_load_bearing` contract test
-/// (`tcl-registry/tests/dialect_profile.rs`) requires the bare `IRULES`
-/// mask to still admit this spec so the disable list has something to
-/// subtract. Every other modelled dialect (Expect, Tk, the EDA vendor
-/// consoles, F5 iApps, F5 tmsh, incr Tcl) hosts a real filesystem-backed Tcl
-/// and has an empty `disabled_commands` list, so `pwd` resolves there
-/// normally.
+/// `dialects: Some(DialectSet::ALL_TCL)` here is deliberate, not an
+/// oversight: F5 iRules is the one modelled dialect that drops `pwd` — it
+/// is one of the K36322151 commands the TMM event sandbox excludes,
+/// having no real per-request filesystem/cwd concept, the same reasoning
+/// that drops `cd`/`open`/`glob`/`exec`/`fcopy`/`pid`. That exclusion now
+/// falls straight out of this `dialects` gate: `ALL_TCL` carries no
+/// `IRULES` bit, so it never intersects the bare `IRULES` mask — the same
+/// treatment those commands get in their own spec files, with no disable
+/// list. Every other modelled dialect (Expect, Tk, the EDA vendor
+/// consoles, F5 iApps, F5 tmsh, incr Tcl) hosts a real filesystem-backed
+/// Tcl whose mask carries a version bit `ALL_TCL` intersects, so `pwd`
+/// resolves there normally.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pwd",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::exact(0),
         return_type: Some(TclType::String),

@@ -65,8 +65,10 @@
 // those sibling commands did not exist yet in 8.5/8.6 — cross-
 // reference churn, not a change to lrepeat itself.
 //
-// Not disabled or overridden in any modelled dialect: absent from
-// `IRULES_DISABLED_COMMANDS` in tcl-dialect/src/profile.rs, and no
+// Not disabled or overridden in any modelled dialect: there is no
+// disable list for it to appear in (a sandbox-banned command would
+// instead carry a bare `ALL_TCL` group lacking the `IRULES` bit —
+// `lrepeat` is version-gated, not banned), and no
 // irules/iapps/tk/expect/eda*/itcl spec file names `lrepeat` (grepped
 // every sibling dialect directory under commands/). iRules' own
 // runtime is a genuine embedded Tcl 8.4.6

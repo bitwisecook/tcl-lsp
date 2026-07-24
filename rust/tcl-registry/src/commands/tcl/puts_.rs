@@ -50,14 +50,13 @@
 //! `chan.n` option tables), so no encoding-profile concept existed for
 //! `puts` to be gated by.
 //!
-//! `dialects: None` on the command spec below is deliberate, not an
-//! oversight: `puts` is not one of the K36322151 bans in iRules'
-//! `IRULES_DISABLED_COMMANDS` (`tcl-dialect/src/profile.rs`) — unlike
-//! `gets`/`flush`/`open`/`fconfigure`, which are — and no other modelled
-//! dialect (Expect, the EDA vendor shells, F5 iApps/tmsh, Tk, incr Tcl)
-//! restricts or extends it; an iRules hover example elsewhere in this
-//! registry (`rtsp__uri.rs`) itself uses a bare `puts` call for debug
-//! output.
+//! `dialects: Some(DialectSet::ALL_TCL)` on the command spec below is
+//! deliberate, not an oversight: `puts` is excluded from iRules, just
+//! like `gets`/`flush`/`open`/`fconfigure` (K36322151) — its `ALL_TCL`
+//! group carries no `IRULES` bit, so it never intersects the bare
+//! `IRULES` availability mask and falls out by plain intersection, with
+//! no disable list involved. No other modelled dialect (Expect, the EDA
+//! vendor shells, F5 iApps/tmsh, Tk, incr Tcl) restricts or extends it.
 
 use crate::prelude::*;
 
@@ -90,7 +89,7 @@ fn puts_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "puts",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::TAINT_SINK,
         // Positional count only (1 = string, 2 = channelId string) — the
         // registry's arity checker skips a recognised *leading* option

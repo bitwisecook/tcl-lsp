@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::reset",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Reset an HTTP transaction.",

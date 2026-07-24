@@ -23,12 +23,11 @@ use crate::prelude::*;
 /// `filename` is `filename(n)`: a conventions reference, not an invocable
 /// command — there is no `filename ...` call to arity-check, so `traits`,
 /// `forms`, `options`, and `arg_values` stay empty and `hover` carries the
-/// entire fact set as prose. `xtask::command_backing::NOT_REQUIRED` and
-/// `tcl_dialect::profile::IRULES_DISABLED_COMMANDS` both list `"filename"`
-/// explicitly (the latter's own doc comment: "the specs it names are plain
-/// universal data (`dialects: None`) and only this list bans them" — never
-/// fold that into a `CommandSpec`-level dialect restriction), so `dialects`
-/// stays `None` here exactly as on `cd`/`open`.
+/// entire fact set as prose. `xtask::command_backing::NOT_REQUIRED` lists
+/// `"filename"` explicitly (there is no runtime command to back). Its
+/// `dialects` group is `ALL_TCL`, which does not carry the `IRULES` bit,
+/// so it never intersects the bare `IRULES` availability mask — excluded
+/// from iRules exactly as `cd`/`open` are, with no disable list involved.
 ///
 /// Fetched and compared word-for-word across all five manpages
 /// (tcl8.4/8.5/8.6/9.0/9.1 `TclCmd/filename.html`, 8.6 via the `.htm`
@@ -57,7 +56,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "filename",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         hover: Some(HoverSnippet {
             summary: "File name conventions supported by Tcl commands and C procedures.",
             synopsis: &[],

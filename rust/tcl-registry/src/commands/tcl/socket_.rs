@@ -135,14 +135,15 @@ const FORMS: &[FormSpec] = &[
 /// `availability_mask`, which unions in a real Tcl-version bit for
 /// every additive dialect — f5-iapps, f5-tmsh, expect, and the EDA
 /// vendor shells all resolve it normally) except F5 iRules, which bans
-/// it outright via the K36322151 subtractive `disabled_commands` list
-/// (`IRULES_DISABLED_COMMANDS` includes `"socket"`) — the same
-/// mechanism (and the same `dialects: None` convention) `open` already
-/// uses for its own, identical iRules ban.
+/// it outright: its `dialects` group is `ALL_TCL` (no `IRULES` bit), so
+/// it never intersects the bare `IRULES` availability mask — the
+/// K36322151 ban falls straight out of that omission, with no separate
+/// disable list, the same `ALL_TCL` convention `open` already uses for
+/// its own, identical iRules ban.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "socket",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::OPENS_CHANNEL
             | Traits::TAINT_SOURCE

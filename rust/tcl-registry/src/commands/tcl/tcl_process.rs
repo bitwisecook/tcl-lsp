@@ -66,9 +66,11 @@ fn make_spec(name: &'static str) -> CommandSpec {
         // `commands/<dialect>/` directory — no matches). `bpf` is the
         // one profile whose `availability_mask` does reach Tcl 9.0
         // (`DialectSet::TCL90.union(DialectSet::BPF)` — a genuine
-        // embedded Tcl 9.0 core) with an empty `disabled_commands`, so
-        // this spec resolves there today just like the equally
-        // `dialects: None` `exec`/`open`/`socket` do — even though
+        // embedded Tcl 9.0 core), so this spec's `TCL90_PLUS` gate
+        // intersects it and `tcl::process` resolves there today — just as
+        // the sandbox-banned `exec`/`open`/`socket` (each now `ALL_TCL`,
+        // whose Tcl-9.0 bit that same mask intersects) also resolve there,
+        // even though
         // eBPF's kernel-verified execution model has no process/fork/
         // exec facility of its own. That gap predates this spec and
         // spans more than one command, so it is left alone here rather

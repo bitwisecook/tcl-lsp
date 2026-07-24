@@ -69,25 +69,24 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl_findLibrary",
-        // Universal Tcl data (`dialects: None`) is deliberate, not an
-        // oversight: F5 iRules bans this proc, but the ban is modelled on
-        // the *profile's* subtractive `IRULES_DISABLED_COMMANDS` list
-        // (tcl-dialect/src/profile.rs), which explicitly names
-        // `"tcl_findLibrary"` alongside the rest of the K36322151
-        // filesystem/process bans — never as a `dialects:` restriction
-        // here (folding it into a `TCL84|IRULES`-style union on the spec
-        // would re-admit exactly the command that list exists to ban; see
-        // the comment on `IRULES_DISABLED_COMMANDS`). The
-        // `irules_disable_list_is_load_bearing` contract test
-        // (`tcl-registry/tests/dialect_profile.rs`) enforces this
-        // directly: it requires every disable-list entry's spec to still
-        // `supports_dialect(IRULES)` at the bare-mask level, which a
-        // `dialects: Some(DialectSet::ALL_TCL)` restriction here would
-        // break (`ALL_TCL` has no `IRULES` bit). No other dialect profile
-        // (Expect, the EDA vendor shells, tmsh, iApps, Tk, itcl, BPF)
-        // registers a competing spec or otherwise bans it, so it stays
-        // reachable in every one of them.
-        dialects: None,
+        // `dialects: Some(DialectSet::ALL_TCL)` is deliberate, not an
+        // oversight: F5 iRules bans this proc (it is one of the K36322151
+        // filesystem/process bans), and under the explicit-per-spec model
+        // that ban is carried by this very `dialects` group. `ALL_TCL`
+        // spans every core Tcl version but not the `IRULES` bit, so the
+        // spec never intersects iRules' bare `IRULES` availability mask and
+        // `tcl_findLibrary` is simply unreachable there — no disable list is
+        // involved. Widening this to a `TCL84|IRULES`-style union would
+        // re-admit exactly the command the ban exists to exclude. The
+        // `irules_banned_commands_never_resolve` contract test
+        // (`tcl-registry/tests/dialect_profile.rs`) enforces this directly:
+        // `tcl_findLibrary` is in its banned set and must not carry the
+        // `IRULES` bit nor resolve under f5-irules. Every other dialect
+        // profile (Expect, the EDA vendor shells, tmsh, iApps, BPF) carries
+        // a core-version bit that `ALL_TCL` does intersect, so it stays
+        // reachable in each; and no dialect (Tk and itcl included) registers
+        // a competing spec or otherwise bans it.
+        dialects: Some(DialectSet::ALL_TCL),
         // A Tcl-level library proc (`library/auto.tcl` — confirmed by
         // name in every one of the five fetched release tags, never
         // `library/init.tcl`), not a `Tcl_CreateObjCommand`-registered

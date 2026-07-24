@@ -66,16 +66,17 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "load",
         // Universal core Tcl 8.4-9.1 (present, with an unchanged basic
-        // shape, on every fetched manpage). F5 iRules drops it via the
-        // subtractive K36322151 disable list in
-        // `tcl-dialect/src/profile.rs` (`IRULES_DISABLED_COMMANDS`
-        // includes `"load"` — no dynamic-linking surface in the TMM
-        // data-plane sandbox), the same mechanism `cd`/`open`/`exec` rely
-        // on rather than a `CommandSpec`-level dialect restriction. Every
+        // shape, on every fetched manpage). F5 iRules drops it under the
+        // K36322151 bans (no dynamic-linking surface in the TMM data-plane
+        // sandbox): this explicit `dialects` group is `ALL_TCL`, which omits
+        // the `IRULES` bit, so `load` never intersects the bare `IRULES`
+        // mask — the same way `cd`/`open`/`exec` are excluded. There is no
+        // disable list anymore; the ban is simply the absent bit. Every
         // other modelled dialect that embeds a real Tcl core (Expect,
-        // f5-iapps, f5-tmsh, the EDA vendor shells) has an empty disable
-        // list, so `load` is available there too.
-        dialects: None,
+        // f5-iapps, f5-tmsh, the EDA vendor shells) has a mask carrying a
+        // Tcl-version bit that `ALL_TCL` intersects, so `load` is available
+        // there too.
+        dialects: Some(DialectSet::ALL_TCL),
         // `TAINT_SINK`: fileName is dlopen'd/LoadLibrary'd unconditionally
         // — attacker-influenced input reaching it is arbitrary native code
         // execution in the process, at least as severe as `exec`'s argv

@@ -264,15 +264,16 @@ pub fn spec() -> CommandSpec {
         name: "package",
         // Universal core Tcl 8.4-9.1 (present, with the shape detailed on
         // each subcommand above, on every fetched manpage). F5 iRules
-        // drops it via the subtractive K36322151 disable list in
-        // `tcl-dialect/src/profile.rs` (`IRULES_DISABLED_COMMANDS`
-        // includes `"package"` — the TMM data-plane sandbox has no real
-        // package-loading surface), the same mechanism `cd`/`open`/`exec`/
-        // `load` rely on rather than a `CommandSpec`-level dialect
-        // restriction. Every other modelled dialect that embeds a real
-        // Tcl core (Expect, f5-iapps, f5-tmsh, the EDA vendor shells) has
-        // an empty disable list, so `package` is available there too.
-        dialects: None,
+        // drops it (K36322151 — the TMM data-plane sandbox has no real
+        // package-loading surface): its own `dialects` group below is
+        // `Some(DialectSet::ALL_TCL)`, which carries no `IRULES` bit and
+        // so never intersects the bare `IRULES` availability mask — the
+        // same fully-explicit, per-spec exclusion `cd`/`open`/`exec`/
+        // `load` now rely on, with no disable list. Every other modelled
+        // dialect that embeds a real Tcl core (Expect, f5-iapps, f5-tmsh,
+        // the EDA vendor shells) carries a Tcl-version bit that `ALL_TCL`
+        // intersects, so `package` is available there too.
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

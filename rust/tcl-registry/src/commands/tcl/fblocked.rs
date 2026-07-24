@@ -43,18 +43,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// there is no `chan.n` manpage under the 8.4 tree.
 ///
 /// iRules bans `fblocked` (F5's restricted event runtime has no real
-/// blocking-I/O model to query) — but that exclusion is carried entirely
-/// by `IRULES_DISABLED_COMMANDS` in `tcl-dialect/src/profile.rs`
-/// (subtractive mask applied after `dialects: None`), by explicit design
-/// of that list (see its doc comment: folding such exclusions into
-/// `dialects` would re-admit exactly these commands under an
-/// `IRULES`-inclusive union). `dialects: None` here is therefore correct,
-/// not an oversight. No other modelled dialect (Expect, Tk, the EDA vendor
-/// shells, iApps, incr Tcl) disables or alters `fblocked`.
+/// blocking-I/O model to query) — so its `dialects` group below is
+/// `ALL_TCL`, which does not carry the `IRULES` bit and therefore never
+/// intersects the bare `IRULES` availability mask. That exclusion is
+/// correct and deliberate, not an oversight. No other modelled dialect
+/// (Expect, Tk, the EDA vendor shells, iApps, incr Tcl) disables or
+/// alters `fblocked`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fblocked",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],

@@ -31,23 +31,23 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_load_index",
-        // Universal Tcl data (`dialects: None`) matches every sibling
+        // `dialects: Some(DialectSet::ALL_TCL)` matches every sibling
         // autoloading proc (`auto_execok`, `auto_import`, `auto_load`,
         // `auto_mkindex`, `auto_mkindex_old`, `auto_qualify`, `auto_reset`):
-        // F5 iRules bans all seven via the profile's subtractive
-        // `IRULES_DISABLED_COMMANDS` list (tcl-dialect/src/profile.rs)
-        // rather than a `dialects:` gate here — folding the ban into a
-        // narrower `DialectSet` on the spec would re-admit exactly what
-        // that list exists to subtract (same rationale documented on
-        // `auto_load`'s spec). `auto_load_index` itself is conspicuously
-        // absent from that same disabled-command list even though it is
-        // the proc every other listed one either calls or exists
-        // alongside — that looks like a gap in the list rather than a
-        // deliberate exception, but editing tcl-dialect/src/profile.rs is
-        // out of scope for this file, so this spec keeps the same
-        // universal-availability convention as its siblings pending that
-        // separate fix.
-        dialects: None,
+        // F5 iRules bans all seven, and that ban is now carried by each
+        // spec's own `dialects` group rather than any list. `ALL_TCL`
+        // spans every core Tcl version but not the `IRULES` bit, so none
+        // of these specs intersect iRules' bare `IRULES` availability mask
+        // — narrowing one to a `DialectSet` that *did* carry `IRULES`
+        // would re-admit exactly what the ban excludes (same rationale
+        // documented on `auto_load`'s spec). Under the old subtractive
+        // disable list `auto_load_index` was conspicuously absent even
+        // though it is the proc every other listed one either calls or
+        // exists alongside — a gap that left it erroneously reachable in
+        // iRules; making availability explicit per spec closes that gap,
+        // since this `ALL_TCL` group now excludes iRules directly, just
+        // like its siblings.
+        dialects: Some(DialectSet::ALL_TCL),
         // A Tcl-level library proc (`library/init.tcl`), not a
         // `Tcl_CreateObjCommand`-registered builtin, so it carries no
         // `CmdInfo` row and is absent from the exact C Tcl safe-interpreter

@@ -48,31 +48,29 @@
 //! reconstructed command text when it resolves a C-shell-style history
 //! substitution (`!!`, `!N`, `^old^new^`) before re-evaluating it.
 //!
-//! `dialects: None` (universal) is a deliberate reading of the current
-//! data, not an oversight: `tclLog` is conspicuously absent from F5
-//! iRules' subtractive `IRULES_DISABLED_COMMANDS` list
-//! (`tcl-dialect/src/profile.rs`) even though every *other* `init.tcl`
-//! library proc already audited (`auto_execok`, `auto_import`,
-//! `auto_load`, `auto_mkindex`, `auto_mkindex_old`, `auto_qualify`,
-//! `auto_reset`, `bgerror`, `tcl_findLibrary`) is named there —
-//! `parray.rs` documents the identical kind of gap for its own, unrelated
-//! `library/parray.tcl` proc. No other dialect profile (Expect, the five
-//! EDA vendor shells, tmsh, iApps, Tk, itcl, BPF) lists `tclLog` in its
-//! `disabled_commands` either, and no dialect-specific override anywhere
-//! under `commands/irules`, `commands/expect`, `commands/eda_*`,
-//! `commands/iapps`, `commands/tk`, or `commands/itcl` mentions the name
-//! (checked by grep). Whether real iRules genuinely exposes a working
-//! `tclLog` is not independently confirmed — only that the current
-//! ground-truth ban list does not exclude it — so this follows the same
-//! data-over-assumption call `parray.rs` made, rather than pre-empting
-//! `IRULES_DISABLED_COMMANDS` with a `dialects:` restriction here: per
-//! `tcl_findlibrary.rs`'s identical note, a `Some(DialectSet::ALL_TCL)`
-//! gate has no `IRULES` bit, so it would silently exclude `tclLog` from
-//! iRules regardless of what the disable list says, moving the ban onto
-//! the wrong axis. (`Some(DialectSet::ALL_TCL)` was this file's own
-//! previous, unaudited value — the same stub placeholder
-//! `disabled_in_irules.rs`, `tclpkgsetup.rs`, and `tclpkgunknown.rs`
-//! still carry.)
+//! `dialects: Some(DialectSet::ALL_TCL)` here is a deliberate reading of
+//! the current data, not an oversight. Under the explicit-per-spec model
+//! (there is no subtractive disable list any more), `ALL_TCL` spans every
+//! core Tcl version but not the `IRULES` bit, so `tclLog` never intersects
+//! iRules' bare `IRULES` availability mask and is unreachable there, while
+//! it stays reachable in every version-bearing dialect (Expect, the five
+//! EDA vendor shells, tmsh, iApps, BPF, and plain Tcl), each of which
+//! composes a core-version bit that `ALL_TCL` intersects. `tclLog` is not
+//! one of the K36322151 procs iRules is modelled as excluding — every
+//! *other* `init.tcl` library proc already audited (`auto_execok`,
+//! `auto_import`, `auto_load`, `auto_mkindex`, `auto_mkindex_old`,
+//! `auto_qualify`, `auto_reset`, `bgerror`, `tcl_findLibrary`) is kept out
+//! of iRules by its own non-`IRULES` `dialects` group, and `parray.rs`
+//! documents the identical kind of gap for its own, unrelated
+//! `library/parray.tcl` proc. No dialect-specific override anywhere under
+//! `commands/irules`, `commands/expect`, `commands/eda_*`,
+//! `commands/iapps`, `commands/tk`, or `commands/itcl` registers a
+//! competing `tclLog` (checked by grep). Whether real iRules genuinely
+//! exposes a working `tclLog` is not independently confirmed, so
+//! `Some(DialectSet::ALL_TCL)` — the conservative, not-yet-fully-audited
+//! value the sibling `disabled_in_irules.rs`, `tclpkgsetup.rs`, and
+//! `tclpkgunknown.rs` also carry — stands here, following the same
+//! data-over-assumption call `parray.rs` made.
 
 use crate::prelude::*;
 
@@ -98,7 +96,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tclLog",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         // A redefinable Tcl library proc — see `Traits::OVERRIDABLE_LIBRARY_PROC`.
         // The default body directly wraps `puts stderr $string` (module
         // doc comment above) — the same output-injection hazard `puts`

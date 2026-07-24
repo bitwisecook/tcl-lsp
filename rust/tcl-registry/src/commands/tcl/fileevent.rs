@@ -69,13 +69,11 @@ pub fn spec() -> CommandSpec {
         // FORMS/hover to match `chan_.rs`'s own `chan event channelId event
         // ?script?` synopsis. F5's TMM interpreter strips the whole event-loop /
         // channel-config command surface from the sandboxed interpreter
-        // (the K36322151 bans), which excludes `fileevent` there — but that
-        // is deliberately modelled as a *subtractive* entry in
-        // `IRULES_DISABLED_COMMANDS` (tcl-dialect/src/profile.rs), not as a
-        // narrower `dialects` value here: folding it into e.g.
-        // `TCL84 | IRULES` would re-admit the very command the profile
-        // bans (see that file's own warning against doing so).
-        dialects: None,
+        // (the K36322151 bans), which excludes `fileevent` there — and that
+        // exclusion is expressed directly by this `dialects` group:
+        // `ALL_TCL` omits the `IRULES` bit, so the spec never intersects
+        // the bare `IRULES` availability mask.
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],

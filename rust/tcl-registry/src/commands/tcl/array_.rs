@@ -344,6 +344,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "array",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         // The `unset` subform destroys elements or the whole array
         // (`ArrayUnsetCmd`, tclVar.c) — `FIRE_AND_FORGET_TEARDOWN` and the
         // `destructive` flag live on that subcommand.

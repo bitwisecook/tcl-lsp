@@ -86,17 +86,16 @@ const ORIGIN_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "seek",
-        // Universal Tcl core command (`dialects: None`). Its absence from
-        // F5 iRules — the sandboxed TMM interpreter has no real
-        // filesystem/channel-seek support — is modelled as a subtractive
-        // `IRULES_DISABLED_COMMANDS` entry in `tcl-dialect/src/profile.rs`
-        // (confirmed: `"seek"` is on that list), never as a restriction on
-        // this field — the established pattern for this whole class of
-        // command (`open`, also on the same disabled list, keeps
-        // `dialects: None` for the identical reason). No other dialect
-        // (iApps, tmsh, Tk, Expect, the EDA shells, itcl) disables or
-        // overrides `seek`.
-        dialects: None,
+        // Core Tcl command whose `dialects` group is `ALL_TCL` (no
+        // `IRULES` bit). Its absence from F5 iRules — the sandboxed TMM
+        // interpreter has no real filesystem/channel-seek support — falls
+        // straight out of that omission: an `ALL_TCL` group never
+        // intersects the bare `IRULES` availability mask, so no separate
+        // disable list is needed — the established pattern for this whole
+        // class of command (`open` is likewise `ALL_TCL`, banned from
+        // iRules for the identical reason). No other dialect (iApps, tmsh,
+        // Tk, Expect, the EDA shells, itcl) disables or overrides `seek`.
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel)],

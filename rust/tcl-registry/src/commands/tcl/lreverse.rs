@@ -78,15 +78,18 @@
 // unlike those siblings, this spec does not carry `Traits::BYTE_COMPILED`.
 //
 // Not disabled or overridden in any modelled dialect: no irules/iapps/
-// tmsh/expect/eda*/tk/itcl spec file references `lreverse`, and it is
-// absent from `IRULES_DISABLED_COMMANDS` in tcl-dialect/src/profile.rs.
-// `f5-irules`'s `availability_mask` is the bare `IRULES` bit (the
-// subtractive model — iRules embeds a real Tcl 8.4.6, so a plain
-// version-gated spec need not itself carry the `IRULES` bit to resolve
-// there), so the existing `TCL85_PLUS` gate already and correctly
-// excludes iRules by the same bare-bit intersection rule — matching the
-// real product, whose embedded 8.4.6 predates TIP 272 — with no explicit
-// exclusion needed. `f5-iapps` / `f5-tmsh` / xilinx / quartus / mentor
+// tmsh/expect/eda*/tk/itcl spec file references `lreverse`, and there is
+// no disable list for it to appear in (a sandbox-banned command would
+// instead carry a bare `ALL_TCL` group lacking the `IRULES` bit —
+// `lreverse` is version-gated, not banned). `f5-irules`'s
+// `availability_mask` is the bare `IRULES` bit, and under the
+// fully-explicit model a spec resolves under iRules only if its own
+// `dialects` group carries that bit — iRules embeds a real Tcl 8.4.6, so
+// this plain version-gated spec (whose `TCL85_PLUS` group lacks the
+// `IRULES` bit) simply does not intersect the mask, so the existing
+// `TCL85_PLUS` gate already and correctly excludes iRules by that same
+// bare-bit intersection rule — matching the real product, whose embedded
+// 8.4.6 predates TIP 272 — with no explicit exclusion needed. `f5-iapps` / `f5-tmsh` / xilinx / quartus / mentor
 // (`TCL85 | vendor` masks) and cadence / synopsys / expect (`TCL86 |
 // vendor`) and bpf (`TCL90 | vendor`) all correctly retain `lreverse`,
 // since every one of those masks intersects `TCL85_PLUS` through its

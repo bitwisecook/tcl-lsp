@@ -35,15 +35,14 @@
 //! absent from every 8.4/8.5/8.6 fetch, where no such profile concept
 //! existed and malformed input was never rejected this way.
 //!
-//! `dialects: None` on the command spec below is deliberate, not an
-//! oversight: iRules bans `gets` outright through the profile-level
-//! `IRULES_DISABLED_COMMANDS` list (`tcl-dialect/src/profile.rs` — one
-//! of the K36322151 bans, alongside `open`/`fconfigure`/`flush`/…),
-//! applied subtractively *after* the dialect mask query, not through
-//! this spec's own dialect gate — the same pattern `flush_.rs` /
-//! `cd.rs` / `fconfigure_.rs` document for their own bans. No other
-//! modelled dialect (Expect, the EDA vendor shells, F5 iApps/tmsh, Tk,
-//! incr Tcl) restricts or extends `gets`.
+//! The `ALL_TCL` `dialects` group on the command spec below is
+//! deliberate, not an oversight: iRules bans `gets` outright (one of the
+//! K36322151 bans, alongside `open`/`fconfigure`/`flush`/…), and
+//! `ALL_TCL` does not carry the `IRULES` bit, so the spec never
+//! intersects the bare `IRULES` availability mask — the same pattern
+//! `flush_.rs` / `cd.rs` / `fconfigure_.rs` document for their own bans.
+//! No other modelled dialect (Expect, the EDA vendor shells, F5
+//! iApps/tmsh, Tk, incr Tcl) restricts or extends `gets`.
 
 use crate::prelude::*;
 
@@ -65,7 +64,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "gets",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],

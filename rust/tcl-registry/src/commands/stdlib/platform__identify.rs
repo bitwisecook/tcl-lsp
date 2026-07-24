@@ -30,7 +30,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "platform::identify",
         traits: Traits::PURE,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Return the platform identifier for the current machine.",

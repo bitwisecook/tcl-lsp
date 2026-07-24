@@ -38,7 +38,7 @@ pub fn spec() -> CommandSpec {
         // Intentionally universal (`dialects: None`) rather than Tcl-9.0-gated:
         // kept dialect-agnostic so it stays valid inside iRules events. See
         // `tcl9_commands_gated_to_tcl90` in registry.rs.
-        dialects: None,
+        dialects: Some(DialectSet::TCL90_PLUS),
         traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::FIRST_ARG_VARNAME,
         arity: Arity::new(2, 2),
         assigns_variable_at: Some(0),

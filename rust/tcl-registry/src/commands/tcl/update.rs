@@ -74,22 +74,22 @@ const IDLETASKS_VALUES: &[ArgValue] = &[ArgValue {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "update",
-        // Universal Tcl data (`dialects: None`) is deliberate, not an
-        // oversight: F5's TMM interpreter does ban `update` — it is one of
-        // the K36322151 event-loop entries in `IRULES_DISABLED_COMMANDS`
-        // (`tcl-dialect/src/profile.rs`) — but that ban is modelled on the
-        // profile's *subtractive* disable list, never as a `dialects:`
-        // restriction here: folding it into a `TCL84 | IRULES`-style union
-        // would re-admit exactly the command that list exists to ban, and
-        // would break the `irules_disable_list_is_load_bearing` contract
-        // test (`tcl-registry/tests/dialect_profile.rs`), which requires
-        // every disable-list entry's spec to still `supports_dialect(IRULES)`
-        // at the bare-mask level. No other dialect profile (iApps, tmsh, the
-        // EDA vendor shells, Expect, Tk, itcl) disables it or registers a
-        // competing spec of its own (none of their command directories
-        // define an `update`), so it stays reachable — and, for Tk in
-        // particular, essential — in every one of them.
-        dialects: None,
+        // `ALL_TCL` (no `IRULES` bit) is deliberate, not an oversight:
+        // F5's TMM interpreter does ban `update` — it is one of the
+        // K36322151 event-loop bans — and that ban is now encoded directly
+        // here, as an explicit `dialects` group that omits the `IRULES`
+        // bit. `ALL_TCL` never intersects the bare `IRULES` mask, so
+        // `update` falls out of iRules by plain intersection, with no
+        // subtractive disable list; the
+        // `irules_banned_commands_lack_the_irules_bit` contract test
+        // (`tcl-registry/tests/dialect_profile.rs`) pins that every banned
+        // name's spec lacks the `IRULES` bit. No other dialect profile
+        // (iApps, tmsh, the EDA vendor shells, Expect, Tk, itcl) bans it or
+        // registers a competing spec of its own (none of their command
+        // directories define an `update`), and `ALL_TCL` intersects each of
+        // their version|vendor masks, so it stays reachable — and, for Tk
+        // in particular, essential — in every one of them.
+        dialects: Some(DialectSet::ALL_TCL),
         // BYTE_COMPILED only — this codebase's "recognised core builtin"
         // convention, not literal bytecode emission (see traits.rs). Not
         // SAFE_INTERP_HIDDEN: Tcl's safe-interpreter hidden-command table

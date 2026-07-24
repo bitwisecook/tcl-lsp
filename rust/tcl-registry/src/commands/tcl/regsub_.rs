@@ -194,6 +194,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         // Positional floor/ceiling — `exp`, `string`, `subSpec` required

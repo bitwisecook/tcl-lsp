@@ -53,21 +53,23 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tell",
-        // Universal Tcl core command (`dialects: None`). Its absence from
-        // F5 iRules — the sandboxed TMM interpreter has no real
-        // filesystem/channel-seek support — is modelled as a subtractive
-        // `IRULES_DISABLED_COMMANDS` entry in `tcl-dialect/src/profile.rs`
-        // (confirmed: `"tell"` is on that list), never as a restriction on
-        // this field — the established pattern for this whole class of
-        // command (`open`/`seek`, also on the same disabled list, keep
-        // `dialects: None` for the identical reason, and the
-        // `irules_disable_list_is_load_bearing` contract test in
-        // `tcl-registry/tests/dialect_profile.rs` requires the bare
-        // `IRULES` mask to still admit this spec so the disable list has
-        // something to subtract). No other modelled dialect (iApps, tmsh,
-        // the EDA vendor shells, Tk, Expect, incr Tcl) disables or alters
-        // `tell`.
-        dialects: None,
+        // `dialects: Some(DialectSet::ALL_TCL)`. F5 iRules bans `tell` —
+        // the sandboxed TMM interpreter has no real filesystem/channel-seek
+        // support — and under the explicit-per-spec model that ban is
+        // carried by this very `dialects` group: `ALL_TCL` spans every core
+        // Tcl version but not the `IRULES` bit, so the spec never intersects
+        // iRules' bare `IRULES` availability mask and `tell` is simply
+        // unreachable there — no disable list is involved. This is the
+        // established pattern for this whole class of command (`open`/`seek`,
+        // banned for the identical reason, carry the same
+        // `Some(DialectSet::ALL_TCL)` value); the
+        // `irules_banned_commands_never_resolve` contract test in
+        // `tcl-registry/tests/dialect_profile.rs` pins that `tell` and its
+        // siblings do not resolve under f5-irules. No other modelled dialect
+        // (iApps, tmsh, the EDA vendor shells, Tk, Expect, incr Tcl)
+        // disables or alters `tell` — each carries a core-version bit that
+        // `ALL_TCL` intersects.
+        dialects: Some(DialectSet::ALL_TCL),
         // Reads channel-table state that lives outside the argument list
         // — the access position can change between two calls if
         // something else reads from or seeks the channel meanwhile —

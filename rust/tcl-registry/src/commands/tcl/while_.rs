@@ -51,13 +51,13 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "while",
-        // Present, unrestricted, and never named in `IRULES_DISABLED_COMMANDS`
-        // or any other dialect's `disabled_commands` list (checked against
-        // tcl-dialect/src/profile.rs) — `while` is a pure control-flow
-        // keyword with no filesystem/process/network access, so every
-        // dialect that hosts a real Tcl core (irules, iapps, tmsh, the EDA
-        // shells, expect, tk) carries it unmodified.
-        dialects: None,
+        // Present and unrestricted — `while` carries the `IRULES` bit
+        // explicitly (`ALL_TCL.union(IRULES)`), resolving under the bare
+        // `IRULES` mask; a pure control-flow keyword with no
+        // filesystem/process/network access, so every dialect that hosts a
+        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk)
+        // carries it unmodified.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

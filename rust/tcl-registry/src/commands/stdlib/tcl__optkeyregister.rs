@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::OptKeyRegister",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Register an option description list under a key for later use.",

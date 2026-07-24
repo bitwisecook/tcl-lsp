@@ -126,18 +126,19 @@ fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "switch",
-        // Present, unrestricted, and not on any dialect's
-        // `disabled_commands` list (only `f5-irules` has a non-empty one,
-        // and `switch` isn't on it — checked against
-        // `tcl-dialect/src/profile.rs`) — a pure control-flow primitive
-        // with no filesystem/process/network access, so every dialect
-        // that hosts a real Tcl core (irules, iapps, tmsh, the EDA
-        // shells, expect, tk, itcl) carries it unmodified. Its *legal
+        // Present, unrestricted, and available in every dialect including
+        // iRules: its own `dialects` group explicitly carries the `IRULES`
+        // bit (the `ALL_TCL | IRULES` value below), so it intersects the
+        // bare `IRULES` mask directly rather than being kept out — there is
+        // no disable list. A pure control-flow primitive with no
+        // filesystem/process/network access, so every dialect that hosts a
+        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk,
+        // itcl) carries it unmodified. Its *legal
         // option set* narrows per Tcl version through the individual
         // OptionSpecs' own `dialects` gates below (-nocase/-matchvar/
         // -indexvar from 8.5, -integer from 9.1) — not a whole-command
         // dialect gate.
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

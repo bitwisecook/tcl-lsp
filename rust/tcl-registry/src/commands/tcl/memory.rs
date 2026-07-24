@@ -201,21 +201,18 @@ pub fn spec() -> CommandSpec {
         // not a Tcl version or dialect, and this registry has no axis for
         // "debug build only" — captured in prose instead.
         //
-        // Excluded from f5-irules via the K36322151 subtractive
-        // `IRULES_DISABLED_COMMANDS` list in `tcl-dialect/src/profile.rs`
-        // (already lists `"memory"`), the same mechanism `cd`/`load`/
-        // `open`/`unload` rely on rather than a `CommandSpec`-level
-        // dialect restriction: `tcl-registry/tests/dialect_profile.rs`'s
-        // `irules_disable_list_is_load_bearing` test requires the spec
-        // stay reachable under the bare `IRULES` mask (i.e. keep
-        // `dialects: None`, or at least not exclude `IRULES`) for that
-        // list entry to remain load-bearing rather than dead weight.
-        // No other modelled dialect (f5-iapps/f5-tmsh/Expect/the EDA
-        // vendor shells/Tk) has a subtractive disable mechanism of its
-        // own, and none plausibly ships a `TCL_MEM_DEBUG` build either,
-        // but there is no evidence (and no available mechanism) to model
-        // that here per-dialect, so this stays universal.
-        dialects: None,
+        // Excluded from f5-irules (K36322151, which already covers
+        // `"memory"`): its own `dialects` group below is
+        // `Some(DialectSet::ALL_TCL)`, which carries no `IRULES` bit and
+        // so never intersects the bare `IRULES` availability mask — the
+        // same fully-explicit, per-spec exclusion `cd`/`load`/`open`/
+        // `unload` now rely on. There is no disable list. No other
+        // modelled dialect (f5-iapps/f5-tmsh/Expect/the EDA vendor
+        // shells/Tk) excludes it, and none plausibly ships a
+        // `TCL_MEM_DEBUG` build either, but there is no evidence (and no
+        // available mechanism) to model that here per-dialect, so this
+        // stays available across every real-Tcl surface.
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         return_type: Some(TclType::String),

@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fcopy",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         // C Tcl 9.0 ``Tcl_FcopyObjCmd`` accepts up to four optional
         // option-pair flags after the two channels (``-size N``,
         // ``-command cb``).  Args after command name: 2..6.

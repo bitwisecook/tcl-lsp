@@ -76,7 +76,15 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
         ));
         out.push(CommandSpec {
             name,
-            dialects: spec.dialects,
+            // The `::tcl::mathop` command ensemble was added in Tcl 8.5 (TIP
+            // 174), so every operator *command* has an 8.5+ floor even when
+            // its `OperatorSpec.dialects` is `None` ("no gate beyond mathop's
+            // own 8.5+ requirement" — see that field's doc). Make that floor
+            // explicit here so the command carries a concrete dialect group
+            // like every other registry command (no `dialects: None`); an
+            // operator with its own tighter gate (a 9.0-only op → `TCL90_PLUS`)
+            // keeps it.
+            dialects: spec.dialects.or(Some(DialectSet::TCL85_PLUS)),
             traits: Traits::OPERATOR_COMMAND,
             arity,
             hover: Some(HoverSnippet {
@@ -181,17 +189,23 @@ mod tests {
         }
     }
 
-    /// An ordinary, always-available arithmetic operator is present in all
-    /// three spellings, ungated (`dialects: None`).
+    /// An ordinary arithmetic operator is present in all three spellings,
+    /// carrying the `::tcl::mathop` command ensemble's 8.5+ floor (TIP 174):
+    /// the operator *command* form does not exist before Tcl 8.5, even
+    /// though the operator itself is valid in `expr` in every version.
     #[test]
-    fn ordinary_operator_present_in_all_three_spellings_ungated() {
+    fn ordinary_operator_present_in_all_three_spellings_gated_tcl85_plus() {
         let all = specs();
         for name in ["+", "tcl::mathop::+", "::tcl::mathop::+"] {
             let spec = all
                 .iter()
                 .find(|s| s.name == name)
                 .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathop registry data"));
-            assert_eq!(spec.dialects, None, "{name:?} should be ungated");
+            assert_eq!(
+                spec.dialects,
+                Some(DialectSet::TCL85_PLUS),
+                "{name:?} should carry the ::tcl::mathop 8.5+ command floor"
+            );
         }
     }
 }

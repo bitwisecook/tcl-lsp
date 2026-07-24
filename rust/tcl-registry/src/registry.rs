@@ -515,14 +515,18 @@ impl CommandRegistry {
         };
         if !dialect.intersects(profile.availability_mask) {
             // The query is about some other dialect's availability; this
-            // profile's subtractive rules do not apply to it.
+            // profile's operator-exclusion does not apply to it.
             return true;
         }
-        !(profile.is_command_disabled(spec.name)
-            || (!profile.operators_as_commands
-                && spec
-                    .traits
-                    .contains(crate::traits::Traits::OPERATOR_COMMAND)))
+        // iRules availability is fully explicit in each spec's `dialects`
+        // now (a command carries the `IRULES` bit iff iRules enables it), so
+        // there is no subtractive ban list — the only remaining profile-level
+        // exclusion is the operator-command one (math operators are not
+        // command heads under iRules).
+        profile.operators_as_commands
+            || !spec
+                .traits
+                .contains(crate::traits::Traits::OPERATOR_COMMAND)
     }
 
     /// Return all registered command names.
@@ -1914,7 +1918,13 @@ mod tests {
     fn tcl9_commands_gated_to_tcl90() {
         use crate::dialects::DialectSet;
         let reg = CommandRegistry::build_default();
-        for name in ["foreachLine", "readFile", "writeFile", "lpop"] {
+        // `const` (Tcl 9.0, TIP 677) joins the list: it used to carry
+        // `dialects: None` as a workaround to reach iRules events, which
+        // wrongly made it appear valid in 8.4/8.5/8.6 too. The registry-wide
+        // explicit-dialect sweep corrected it to `TCL90_PLUS` — it does not
+        // exist in iRules' embedded Tcl 8.4.6, so it is (correctly) neither
+        // pre-9.0 nor iRules-visible.
+        for name in ["foreachLine", "readFile", "writeFile", "lpop", "const"] {
             let spec = reg.get(name).expect("registered");
             // A 9.0 addition is available in 9.0 *and* 9.1 (a `.1` release is
             // additive — verified against C Tcl 9.1b0 doc/*.n), so it is gated
@@ -1927,15 +1937,8 @@ mod tests {
             assert!(spec.supports_dialect(DialectSet::TCL90));
             assert!(spec.supports_dialect(DialectSet::TCL91));
             assert!(!spec.supports_dialect(DialectSet::TCL86));
+            assert!(!spec.supports_dialect(DialectSet::IRULES));
         }
-        // Unlike the four above, `const` is `dialects = None`
-        // (universal) rather than Tcl-9.0-gated, so it is valid inside
-        // iRules events and `commands_for_event` accepts it.
-        assert_eq!(
-            reg.get("const").expect("registered").dialects,
-            None,
-            "const should be universal (it is dialect-agnostic)",
-        );
     }
 
     #[test]

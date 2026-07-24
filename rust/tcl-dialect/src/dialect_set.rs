@@ -109,13 +109,14 @@ bitflags! {
         const TK_AND_TCL = Self::ALL_TCL.bits() | Self::TK.bits();
 
         // `NON_IRULES_OPERATORS` (every dialect except iRules/Tk/BPF) was
-        // retired in Milestone 5 of the dialect-profile refactor: specs it
-        // tagged are plain universal data (`dialects: None`) now, and the
-        // exclusions it encoded live on `DialectProfile` instead — the §9
-        // `disabled_commands` list for the K36322151 bans, and
-        // `Traits::OPERATOR_COMMAND` + `operators_as_commands` for the
-        // math-operator heads. The `dialect_profile.rs` contract tests
-        // assert the union never reappears as a spec gate.
+        // retired in Milestone 5 of the dialect-profile refactor. iRules
+        // availability is now fully explicit per spec: every command carries
+        // an explicit `dialects` group (universal `dialects: None` was
+        // eliminated registry-wide), with the `IRULES` bit present iff iRules
+        // enables it — so a K36322151-banned command such as `exec` is just
+        // `ALL_TCL` and never intersects the bare `IRULES` mask. The only
+        // remaining profile-level exclusion is `Traits::OPERATOR_COMMAND` +
+        // `operators_as_commands` for the math-operator heads.
     }
 }
 

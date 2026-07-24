@@ -38,16 +38,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// three siblings — lets the taint analyser recognise a user proc under
 /// this alternate name as the same REGEX_LITERAL-quoting idiom
 /// (`tcl_compiler`'s `re_quote_suppresses_t103` test) wherever it is
-/// called, standard Tcl or otherwise. `dialects: None` is deliberate, not
-/// an oversight: iRules excludes all four spellings, but through the
-/// profile-level subtractive `IRULES_DISABLED_COMMANDS` list
-/// (`tcl_dialect::profile`), not through this field — folding `IRULES`
-/// into a dialect union here would re-admit exactly the commands that
-/// list exists to ban (see that list's own doc comment).
+/// called, standard Tcl or otherwise.
+/// `dialects: Some(DialectSet::ALL_TCL)` is deliberate, not an oversight:
+/// iRules excludes all four spellings, and that exclusion now comes
+/// straight from this field — the `ALL_TCL` group carries no `IRULES`
+/// bit, so it never intersects the bare `IRULES` mask, and there is no
+/// disable list.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "re_quote",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::PURE,
         arity: Arity::exact(1),
         return_type: Some(TclType::String),

@@ -33,10 +33,11 @@
 // underlying placement itself changed pre-8.6, only that the wording
 // became more explicit, so that description is folded into the hover
 // snippet as plain, version-independent prose rather than a dialect
-// gate. Not disabled or overridden in any modelled dialect — absent
-// from `IRULES_DISABLED_COMMANDS` in tcl-dialect/src/profile.rs, and no
-// irules/iapps/tk/expect/eda/itcl override file exists — so the
-// command-level `dialects: None` (universal) is correct as-is.
+// gate. Not disabled or overridden in any modelled dialect — `linsert`
+// carries the `IRULES` bit explicitly (its `dialects` group is
+// `ALL_TCL.union(IRULES)`, so it resolves under the bare `IRULES` mask),
+// and no irules/iapps/tk/expect/eda/itcl override file exists — so the
+// command-level group is correct as-is.
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
 
@@ -56,6 +57,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "linsert",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::PURE

@@ -166,6 +166,7 @@ const REGEXP_HOVER: HoverSnippet = HoverSnippet {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         // The post-switch positional floor is 2 (`exp`, `string`) in the
         // general case, but `-about` relaxes it to 1 (`exp` alone) —

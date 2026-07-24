@@ -53,19 +53,18 @@
 //!   and `namespace` joining the SEE ALSO list from 8.5 (tracking the
 //!   new `namespace unknown` cross-reference).
 //!
-//! `unknown` is one of the K36322151 bans: it is named explicitly in the
-//! *profile's* subtractive `IRULES_DISABLED_COMMANDS` list
-//! (`tcl-dialect/src/profile.rs`), alongside the filesystem/process
+//! `unknown` is one of the K36322151 bans: the iRules TMM sandbox has no
+//! default `unknown` at all — banned alongside the filesystem/process
 //! primitives its own default implementation depends on to do anything
 //! useful (`auto_load`, `auto_execok`, `source`, `exec`, `file`, `glob`,
-//! `open`, `namespace`, `package`, …) — the iRules TMM sandbox has no
-//! default `unknown` at all. `dialects: None` on the spec below is still
-//! correct, not an oversight: the ban is enforced by that subtractive
-//! list rather than a `CommandSpec`-level restriction, the same
-//! mechanism `source`/`auto_load`/`auto_execok` rely on (see their own
-//! specs). No other dialect profile (Expect, the EDA vendor shells,
-//! tmsh, iApps, BPF) lists `unknown` in its `disabled_commands`, so it
-//! stays reachable there.
+//! `open`, `namespace`, `package`, …). That ban is now encoded directly
+//! in the spec below: `unknown` carries an explicit `dialects` group of
+//! `ALL_TCL` with no `IRULES` bit, so it never intersects the bare
+//! `IRULES` availability mask — no subtractive disable list, the same
+//! explicit-per-spec model `source`/`auto_load`/`auto_execok` follow (see
+//! their own specs). The `ALL_TCL` group still intersects every other
+//! dialect profile's mask (Expect, the EDA vendor shells, tmsh, iApps,
+//! BPF each carry a Tcl-version bit), so `unknown` stays reachable there.
 //!
 //! Attempted, for extra rigour beyond the manpage text, to cross-check
 //! the auto-exec/interactive-only wording against the real
@@ -142,15 +141,13 @@ pub fn spec() -> CommandSpec {
         name: "unknown",
         // Universal core Tcl 8.4-9.1 (present, arity- and
         // synopsis-unchanged, in every fetched manpage — see the module
-        // doc comment). `dialects: None` here is still correct despite
-        // the iRules ban documented above: that ban is enforced by the
-        // profile's subtractive `IRULES_DISABLED_COMMANDS` list, not a
-        // `CommandSpec`-level restriction — folding it into a dialect
-        // mask here would be redundant with, not a substitute for, that
-        // list (and would risk re-admitting it if the list ever changed
-        // shape). See `source_.rs`/`auto_load.rs`/`auto_execok.rs` for
-        // the identical reasoning on their own specs.
-        dialects: None,
+        // doc comment). `ALL_TCL` here — with no `IRULES` bit — is what
+        // encodes the iRules ban documented above: the bare `IRULES` mask
+        // never intersects it, so `unknown` falls out of iRules by plain
+        // intersection, with no subtractive disable list involved. See
+        // `source_.rs`/`auto_load.rs`/`auto_execok.rs` for the identical
+        // explicit-per-spec reasoning on their own specs.
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::CREATES_BARRIER
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::OVERRIDABLE_LIBRARY_PROC

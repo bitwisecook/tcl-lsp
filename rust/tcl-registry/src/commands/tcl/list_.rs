@@ -28,6 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "list",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         const_fold: Some(crate::const_fold::fold_list),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

@@ -39,11 +39,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // level/script semantics are byte-for-byte identical across the fetched
 // Tcl 8.4, 8.5, 8.6, 9.0, and 9.1 manpages: no option or flag was ever
 // added, removed, or renamed, so this is the command's only form,
-// unrestricted by dialect or version. (It is also absent from
-// `f5-irules`'s `disabled_commands` list in `tcl-dialect/src/profile.rs`,
-// and no sibling dialect directory — irules/iapps/tmsh/expect/tk/itcl/
-// eda_* — declares any override or extra form for it, so every dialect
-// that hosts a real Tcl core carries it unmodified, exactly like `eval`.)
+// unrestricted by dialect or version. (iRules also enables it — the spec
+// below carries the `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so
+// it resolves under the bare `IRULES` mask — and no sibling dialect
+// directory — irules/iapps/tmsh/expect/tk/itcl/eda_* — declares any
+// override or extra form for it, so every dialect that hosts a real Tcl
+// core carries it unmodified, exactly like `eval`.)
 //
 // The DESCRIPTION prose itself has two textual deltas across versions,
 // neither of which changes the grammar above: (1) the 8.5+ manpages
@@ -156,18 +157,16 @@ fn uplevel_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uplevel",
-        // Present, unrestricted, and not in any dialect's
-        // `disabled_commands` list (only `f5-irules` has a non-empty one,
-        // and `uplevel` isn't on it — checked against
-        // `tcl-dialect/src/profile.rs`) — a pure control-flow primitive
-        // with no filesystem/process/network access of its own, so every
-        // dialect that hosts a real Tcl core (irules, iapps, tmsh, the
-        // EDA shells, expect, tk, itcl) carries it unmodified, exactly
-        // like `eval`. Its own `unsafe_command: true` flags it as a
-        // context-escalation risk inside iRules (IRULE2003) — a usage
-        // warning about a real, available command, not an availability
-        // gate.
-        dialects: None,
+        // Present and unrestricted — `uplevel` carries the `IRULES` bit
+        // explicitly (`ALL_TCL.union(IRULES)`), resolving under the bare
+        // `IRULES` mask — a pure control-flow primitive with no
+        // filesystem/process/network access of its own, so every dialect
+        // that hosts a real Tcl core (irules, iapps, tmsh, the EDA shells,
+        // expect, tk, itcl) carries it unmodified, exactly like `eval`. Its
+        // own `unsafe_command: true` flags it as a context-escalation risk
+        // inside iRules (IRULE2003) — a usage warning about a real,
+        // available command, not an availability gate.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

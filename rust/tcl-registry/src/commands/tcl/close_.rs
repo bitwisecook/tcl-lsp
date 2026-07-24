@@ -69,6 +69,7 @@ const DIRECTION_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "close",
+        dialects: Some(DialectSet::ALL_TCL),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_CloseObjCmd` (tclIOCmd.c) unregisters
         // and frees the channel — a second `close` on the same handle errors
         // ("can not find channel named …"), which is why a bare

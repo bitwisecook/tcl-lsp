@@ -49,8 +49,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 // All three switches exist, unchanged, in every Tcl version that has
 // `unload` at all (8.5-9.1); gated to TCL85_PLUS individually — see the
-// note on `dialects: None` in `spec()` below for why the command-level
-// gate can't say the same today.
+// note on `dialects` in `spec()` below for why the command-level gate
+// can't say the same today.
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-nocomplain",
@@ -90,32 +90,26 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unload",
-        // Ought to be `Some(DialectSet::TCL85_PLUS)` per the FORMS
-        // comment above — unload is genuinely absent from Tcl 8.4. Left
-        // `None` instead because `tcl-dialect/src/profile.rs`'s
-        // `IRULES_DISABLED_COMMANDS` still lists "unload" as one of the
-        // K36322151 bans (iRules' TMM sandbox has no dynamic-linking
-        // surface), and `tcl-registry/tests/dialect_profile.rs`'s
-        // `irules_disable_list_is_load_bearing` asserts every banned
-        // name's spec still resolves under the *bare* IRULES mask on its
-        // own (`dialects: None`, or otherwise IRULES-inclusive) — i.e.
-        // that the ban is genuinely load-bearing, not dead weight
-        // duplicating a version gate that would already exclude it.
-        // `TCL85_PLUS` never intersects the bare IRULES bit, so
-        // narrowing this field would make that ban-list entry
-        // non-load-bearing and fail the assertion.
-        // `dict`/`lassign`/`apply`/`lmap`/`coroutine` already show the
-        // intended end state for a command excluded from iRules purely
-        // by version — no ban-list entry at all, relying solely on their
-        // own version-gated `dialects` — so the correct fix is a
-        // follow-up cross-cutting change dropping "unload" from
-        // `IRULES_DISABLED_COMMANDS` and only then tightening this field
-        // to match, not something a single-command-file audit should do
-        // unilaterally. Until then, FORMS above (which nothing else in
-        // the test suite depends on) carries the true 8.5+ floor, and
-        // the per-option `dialects` below are set precisely rather than
-        // inheriting this field's overly-permissive `None`.
-        dialects: None,
+        // On the version axis this ought to be `Some(DialectSet::TCL85_PLUS)`
+        // per the FORMS comment above — unload is genuinely absent from Tcl
+        // 8.4. It is left at the broader `ALL_TCL` because that group is
+        // also what bans it from iRules: `unload` is one of the K36322151
+        // bans (iRules' TMM sandbox has no dynamic-linking surface), and a
+        // banned command is now excluded simply by carrying an explicit
+        // `dialects` group with no `IRULES` bit. `ALL_TCL` never intersects
+        // the bare IRULES mask, so `unload` falls out of iRules by plain
+        // intersection — no subtractive disable list. That contract is
+        // pinned by `tcl-registry/tests/dialect_profile.rs`'s
+        // `irules_banned_commands_lack_the_irules_bit`, which asserts every
+        // banned name's spec lacks the `IRULES` bit. Narrowing this field
+        // to `TCL85_PLUS` would keep the ban intact (that gate lacks the
+        // IRULES bit too — `dict`/`lassign`/`apply`/`lmap`/`coroutine` are
+        // the version-precise end state, excluded from iRules by their own
+        // version gate alone), so the true 8.5+ floor is instead carried by
+        // FORMS above (which nothing else in the test suite depends on),
+        // and the per-option `dialects` below are set precisely rather than
+        // inheriting this field's overly-permissive lower bound.
+        dialects: Some(DialectSet::ALL_TCL),
         // BYTE_COMPILED: `unload` is a recognised core Tcl builtin — the
         // same literal-command-word convention `load` (its direct
         // sibling, same manpage family) already carries.

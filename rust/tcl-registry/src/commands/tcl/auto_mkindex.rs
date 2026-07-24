@@ -31,20 +31,19 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_mkindex",
-        // Universal Tcl data (`dialects: None`) is deliberate, not an
-        // oversight: F5 iRules bans this proc, but the ban is modelled on
-        // the *profile's* subtractive `IRULES_DISABLED_COMMANDS` list
-        // (tcl-dialect/src/profile.rs), which explicitly names
-        // `"auto_mkindex"` alongside the rest of the K36322151
-        // filesystem/process bans — never as a `dialects:` restriction
-        // here (folding it into a `TCL84|IRULES`-style union on the spec
-        // would re-admit exactly the command that list exists to ban; see
-        // the comment on `IRULES_DISABLED_COMMANDS`). No other dialect
-        // profile (Expect, the EDA vendor shells, tmsh, iApps, BPF) has a
-        // `disabled_commands` list at all — `IRULES_DISABLED_COMMANDS` is
-        // the only one that exists in `tcl-dialect/src/profile.rs` — so
+        // `dialects: Some(DialectSet::ALL_TCL)` is deliberate, not an
+        // oversight: F5 iRules bans this proc (it is one of the K36322151
+        // filesystem/process bans), and that ban is now carried by this
+        // very `dialects` group. `ALL_TCL` spans every core Tcl version
+        // but not the `IRULES` bit, so the spec never intersects iRules'
+        // bare `IRULES` availability mask and the command is simply
+        // unreachable there — no disable list is involved. Widening this
+        // to a `TCL84|IRULES`-style union would re-admit exactly the
+        // command the ban exists to exclude. Every other dialect profile
+        // (Expect, the EDA vendor shells, tmsh, iApps, BPF) carries a
+        // core-version bit that `ALL_TCL` does intersect, so
         // `auto_mkindex` stays reachable in every one of them.
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         // A Tcl-level library proc (`library/auto.tcl`), not a
         // `Tcl_CreateObjCommand`-registered builtin, so it carries no
         // `CmdInfo` row and is absent from the exact C Tcl

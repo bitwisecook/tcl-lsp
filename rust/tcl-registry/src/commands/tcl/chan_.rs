@@ -886,13 +886,14 @@ pub fn spec() -> CommandSpec {
         // `chan` entry in the 8.4 command index (confirmed: the 8.4 URL
         // 404s and the 8.4 command index lists only the pre-ensemble
         // standalone commands it later wraps). Narrower than `ALL_TCL`,
-        // and — per the iRules profile's subtractive design (§9 of the
-        // dialect-profile model: version-gated specs are excluded from
-        // iRules by the pinned-8.4-base axis, not by an
-        // `IRULES_DISABLED_COMMANDS` entry, the same way `dict`/`lmap`
-        // are) — this also correctly removes `chan` from iRules, which
-        // already separately bans the standalone commands it wraps
-        // (`open`, `gets`, `fconfigure`, `flush`, `seek`, `tell`, `eof`).
+        // and — since iRules availability is explicit per spec (§9 of the
+        // dialect-profile model), a version-gated spec is excluded from
+        // iRules purely because its non-`IRULES` `dialects` group never
+        // intersects iRules' bare `IRULES` mask (iRules is pinned to an
+        // 8.4 base), the same way `dict`/`lmap` are — this also correctly
+        // removes `chan` from iRules, which already separately excludes
+        // the standalone commands it wraps (`open`, `gets`, `fconfigure`,
+        // `flush`, `seek`, `tell`, `eof`).
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

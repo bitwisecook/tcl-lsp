@@ -93,7 +93,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 /// has no `timerate` entry at all (`time` is present in both, so this
 /// isn't a fetch fluke). `dialects: Some(DialectSet::TCL86_PLUS)` below
 /// is therefore correct — narrower than the sibling `time`'s genuine
-/// `dialects: None`.
+/// `dialects: Some(DialectSet::ALL_TCL)`.
 ///
 /// In every stock 8.6 build the real command is
 /// `::tcl::unsupported::timerate` (`core-8-6-16`'s `tclBasic.c`); a
@@ -166,8 +166,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 /// **iRules.** No `irules/`, `expect/`, `tk/`, `eda_*/`, `iapps/`, or
 /// `itcl/` pack defines its own override for `timerate` (grepped — no
 /// hits beyond this file, its `tcl/mod.rs` registration, and a comment
-/// cross-reference in `oo_my.rs`). iRules is a *subtractive* profile
-/// whose bare `availability_mask` is just the `IRULES` bit, with no
+/// cross-reference in `oo_my.rs`). iRules' `availability_mask` is just
+/// the bare `IRULES` bit, with no
 /// Tcl-version bits unioned in (`DialectProfile::irules()`,
 /// `tcl-dialect/src/profile.rs`) — so
 /// `Some(TCL86_PLUS).intersects(IRULES)` is already `false`, and the
@@ -175,13 +175,11 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 /// embedded core is pinned to Tcl 8.4.6), exactly the mechanism
 /// `irules_banned_commands_never_resolve`
 /// (`tcl-registry/tests/dialect_profile.rs`) already documents for
-/// `dict`/`lassign`/`apply`/`lmap`/`coroutine`. Text previously attached
-/// to this spec claimed `timerate` was *also* on the K36322151
-/// subtractive `IRULES_DISABLED_COMMANDS` list alongside `time`, and that
-/// this change would break `irules_disable_list_is_load_bearing` for it —
-/// but `tcl-dialect/src/profile.rs` has no `"timerate"` anywhere in that
-/// list (only `"time"` is listed, at its own entry); the claim was false,
-/// there is nothing to remove, and neither test is affected by this pass.
+/// `dict`/`lassign`/`apply`/`lmap`/`coroutine`. Unlike its sibling `time`
+/// — a genuine K36322151 command whose iRules exclusion rides on its own
+/// `ALL_TCL` `dialects` group (see `time.rs`) — `timerate` was never one
+/// of the sandbox bans; it is kept out of iRules purely on the version
+/// axis, and there is no disable list for it ever to have been on.
 ///
 /// For the additive vendor dialects, each profile's own
 /// `availability_mask` settles it the same way: `expect` (`TCL86 |
@@ -198,7 +196,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timerate",
         // Tcl 8.6+ only — see the doc comment above. Narrower than the
-        // sibling `time`'s `dialects: None`.
+        // sibling `time`'s `dialects: Some(DialectSet::ALL_TCL)`.
         dialects: Some(DialectSet::TCL86_PLUS),
         traits: Traits::BYTE_COMPILED | Traits::DYNAMIC_EVAL_BODY,
         // The body's position varies with the leading options, so we

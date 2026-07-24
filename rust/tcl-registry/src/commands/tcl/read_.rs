@@ -53,12 +53,13 @@
 //! back with no exception at all and the error is deferred to the next
 //! read at that position.
 //!
-//! `dialects: None` on the command spec below is deliberate, not an
-//! oversight: unlike `gets`/`flush`/`open`/`fconfigure`, `read` is *not*
-//! one of the K36322151 bans in iRules' `IRULES_DISABLED_COMMANDS`
-//! (`tcl-dialect/src/profile.rs`), and no other modelled dialect
-//! (Expect, the EDA vendor shells, F5 iApps/tmsh, Tk, incr Tcl)
-//! restricts or extends it.
+//! `dialects: Some(DialectSet::ALL_TCL)` on the command spec below is
+//! deliberate, not an oversight: `read` is excluded from iRules, just
+//! like `gets`/`flush`/`open`/`fconfigure` (K36322151) — its `ALL_TCL`
+//! group carries no `IRULES` bit, so it never intersects the bare
+//! `IRULES` availability mask and falls out by plain intersection, with
+//! no disable list. No other modelled dialect (Expect, the EDA vendor
+//! shells, F5 iApps/tmsh, Tk, incr Tcl) restricts or extends it.
 
 use crate::prelude::*;
 
@@ -105,7 +106,7 @@ fn read_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE,
         // Positional count only: 1 (bare channelId, or -nonewline
         // skipped as a leading option leaving just channelId) or 2

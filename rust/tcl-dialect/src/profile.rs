@@ -25,7 +25,7 @@
 //!
 //! This is the compositional model of `docs/design/dialect-profile-model.md`
 //! landing milestone by milestone: identity (Milestone 1), the availability
-//! axis — masks, disable list, load layers, grammar unions (Milestone 2) —
+//! axis — masks, load layers, grammar unions (Milestone 2) —
 //! and the behaviour/runtime axis — base versions, octal policy, expr
 //! grammar, lexer grammar, the per-dialect predicates (Milestone 3). The
 //! versioned-library axis follows.
@@ -69,94 +69,6 @@ const LIBS_TCL86_PLUS: &[LibraryPin] = &[
         version: LibraryVersion::Pinned("4.2"),
         ambient: false,
     },
-];
-
-/// The commands F5's TMM interpreter removes from iRules: the K36322151
-/// bans (file system, process, channel-config, event-loop, and
-/// introspection commands the data-plane sandbox strips) plus the
-/// project-modelled iRules-excluded internals (`tcl_findLibrary`, the
-/// regex-quote helpers, and the legacy `opt` library package — it needs
-/// `package require`/`auto_load`, both banned below, so it can never
-/// actually load in the TMM sandbox even though its specs are universal
-/// data).
-///
-/// This is the **subtractive** half of the iRules profile: the
-/// [`DialectProfile::availability_mask`] is the *bare* `IRULES` bit and every
-/// availability consumer applies this disable list **after** the mask query
-/// (`is_available` = mask ∧ ¬disabled). Never fold these into the mask as a
-/// `TCL84|IRULES` union — the union re-admits exactly these commands (see
-/// §9 of the design doc, the subtractive-iRules trap).
-///
-/// Since the Milestone 5 data retag this list is **load-bearing**: the
-/// specs it names are plain universal data (`dialects: None`) and only this
-/// list bans them. It was derived from — and is contract-tested against —
-/// the retired per-spec `NON_IRULES_OPERATORS` tags that encoded the same
-/// exclusion before the retag (`tcl-registry`'s `dialect_profile.rs` suite
-/// proves every entry still resolves by mask alone and is excluded only
-/// here). (8.5+/8.6 core such as `dict`/`lmap` is deliberately NOT here —
-/// that is version-gating on the pinned 8.4 base, a different axis. The
-/// math-operator heads are not here either: they are excluded by
-/// `Traits::OPERATOR_COMMAND` + [`DialectProfile::operators_as_commands`],
-/// a dialect *shape* fact, not a K36322151 ban. `tcl::build-info` and
-/// `::tcl::unsupported::corotype` used to live here too, but that was
-/// exactly this "version gating in the ban list" mistake the comment warns
-/// against — both are real per-spec `dialects` gates now (`TCL90_PLUS` /
-/// `TCL86_PLUS`), which already excludes the bare `IRULES` mask with no
-/// list entry needed.)
-const IRULES_DISABLED_COMMANDS: &[&str] = &[
-    "auto_execok",
-    "auto_import",
-    "auto_load",
-    "auto_mkindex",
-    "auto_mkindex_old",
-    "auto_qualify",
-    "auto_reset",
-    "bgerror",
-    "cd",
-    "eof",
-    "exec",
-    "exit",
-    "fblocked",
-    "fconfigure",
-    "fcopy",
-    "file",
-    "fileevent",
-    "filename",
-    "flush",
-    "gets",
-    "glob",
-    "http",
-    "interp",
-    "load",
-    "memory",
-    "namespace",
-    "open",
-    "package",
-    "pid",
-    "pkg_mkindex",
-    "pwd",
-    "re_quote",
-    "regex::quote",
-    "regex_quote",
-    "regexp::quote",
-    "rename",
-    "seek",
-    "socket",
-    "source",
-    "tcl::OptKeyDelete",
-    "tcl::OptKeyError",
-    "tcl::OptKeyParse",
-    "tcl::OptKeyRegister",
-    "tcl::OptParse",
-    "tcl::OptProc",
-    "tcl::OptProcArgGiven",
-    "tcl_findLibrary",
-    "tell",
-    "time",
-    "unknown",
-    "unload",
-    "update",
-    "vwait",
 ];
 
 /// The Tcl 8.4 lexing grammar: no `{*}` expansion (TIP 157 is 8.5), the
@@ -232,15 +144,13 @@ pub struct DialectProfile {
     /// `(signature-base Tcl version bits) | (vendor bit)` for the additive
     /// vendor dialects (`TCL85|IAPPS`, `TCL86|EXPECT`, …).
     ///
-    /// For **subtractive** profiles (iRules) this is the *bare* vendor bit
-    /// and [`Self::disabled_commands`] carries the exclusions — never a
-    /// version|vendor union (§9 of the design doc).
+    /// For iRules this is the *bare* vendor bit — never a version|vendor
+    /// union. iRules availability is fully explicit per spec: a command
+    /// carries the `IRULES` bit iff iRules enables it (universal
+    /// `dialects: None` was eliminated registry-wide), so a sandbox-banned
+    /// command such as `exec` is simply `ALL_TCL` and never intersects this
+    /// mask — no subtractive ban list is needed.
     pub availability_mask: DialectSet,
-    /// Subtractive disable list, applied AFTER the mask query by every
-    /// availability consumer. Non-empty only for `f5-irules` (the 42
-    /// K36322151 commands plus modelled internals). Empty for additive
-    /// dialects.
-    pub disabled_commands: &'static [&'static str],
     /// The registry command packs `load_dialect` applies for this profile,
     /// in order. The plain Tcl versions carry their own version bit (a
     /// spec-less "pack" that records the version on the registry's
@@ -351,7 +261,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::BPF),
         availability_mask: DialectSet::TCL90.union(DialectSet::BPF),
-        disabled_commands: &[],
         base_layers: &[DialectSet::BPF],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::BPF),
         version_ceiling: Some(TclVersion::V9_0),
@@ -372,7 +281,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::CADENCE),
         availability_mask: DialectSet::TCL86.union(DialectSet::CADENCE),
-        disabled_commands: &[],
         base_layers: &[DialectSet::CADENCE],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::CADENCE),
         version_ceiling: Some(TclVersion::V8_6),
@@ -414,7 +322,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::EXPECT),
         availability_mask: DialectSet::TCL86.union(DialectSet::EXPECT),
-        disabled_commands: &[],
         base_layers: &[DialectSet::EXPECT],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::EXPECT),
         version_ceiling: Some(TclVersion::V8_6),
@@ -445,7 +352,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::BIGIP),
         availability_mask: DialectSet::BIGIP,
-        disabled_commands: &[],
         base_layers: &[DialectSet::BIGIP],
         grammar_union: DialectSet::BIGIP,
         version_ceiling: None,
@@ -473,7 +379,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::IAPPS),
         availability_mask: DialectSet::TCL85.union(DialectSet::IAPPS),
-        disabled_commands: &[],
         base_layers: &[DialectSet::IAPPS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::IAPPS),
         version_ceiling: Some(TclVersion::V8_5),
@@ -493,12 +398,14 @@ static CATALOG: [DialectProfile; 16] = [
         }],
         help_terms: &["iapps", "iapp", "f5", "big-ip"],
     },
-    // iRules is SUBTRACTIVE (§9): a genuine embedded Tcl 8.4.6 whose F5
-    // command surface carries the IRULES tag, minus the K36322151
-    // disables. The mask stays the BARE bit: everything iRules embeds is
-    // either universal (`dialects: None`) or IRULES-tagged, so a version
-    // bit adds nothing — it would only re-admit 8.x-only specs (removed
-    // test-harness commands and the like) that the TMM build never had.
+    // iRules is a genuine embedded Tcl 8.4.6 whose availability is fully
+    // explicit per spec: the mask stays the BARE `IRULES` bit, and a command
+    // is available iff its own `dialects` group carries that bit. The F5
+    // command surface is `IRULES`-tagged; the iRules-enabled Tcl core is
+    // `ALL_TCL | IRULES`; a K36322151 sandbox-banned command is plain
+    // `ALL_TCL` (no `IRULES` bit) and so never intersects this mask — no
+    // subtractive disable list. A version bit in the mask would add nothing
+    // and would only re-admit 8.x-only specs the TMM build never had.
     // Signature and runtime base are both 8.4 (D3) and math operators are
     // not command heads.
     DialectProfile {
@@ -506,7 +413,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &["irules", "tcl-irule"],
         vendor_bit: Some(DialectSet::IRULES),
         availability_mask: DialectSet::IRULES,
-        disabled_commands: IRULES_DISABLED_COMMANDS,
         base_layers: &[DialectSet::IRULES],
         grammar_union: DialectSet::IRULES,
         version_ceiling: Some(TclVersion::V8_4),
@@ -537,7 +443,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::TMSH),
         availability_mask: DialectSet::TCL85.union(DialectSet::TMSH),
-        disabled_commands: &[],
         base_layers: &[DialectSet::TMSH],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::TMSH),
         version_ceiling: Some(TclVersion::V8_5),
@@ -562,7 +467,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::QUARTUS),
         availability_mask: DialectSet::TCL85.union(DialectSet::QUARTUS),
-        disabled_commands: &[],
         base_layers: &[DialectSet::QUARTUS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::QUARTUS),
         version_ceiling: Some(TclVersion::V8_5),
@@ -594,7 +498,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::MENTOR),
         availability_mask: DialectSet::TCL85.union(DialectSet::MENTOR),
-        disabled_commands: &[],
         base_layers: &[DialectSet::MENTOR],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::MENTOR),
         version_ceiling: Some(TclVersion::V8_5),
@@ -626,7 +529,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::SYNOPSYS),
         availability_mask: DialectSet::TCL86.union(DialectSet::SYNOPSYS),
-        disabled_commands: &[],
         base_layers: &[DialectSet::SYNOPSYS],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::SYNOPSYS),
         version_ceiling: Some(TclVersion::V8_6),
@@ -665,7 +567,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL84,
-        disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -694,7 +595,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL85,
-        disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -719,7 +619,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL86,
-        disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -744,7 +643,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL90,
-        disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -771,7 +669,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL91,
-        disabled_commands: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -796,7 +693,6 @@ static CATALOG: [DialectProfile; 16] = [
         aliases: &[],
         vendor_bit: Some(DialectSet::XILINX),
         availability_mask: DialectSet::TCL85.union(DialectSet::XILINX),
-        disabled_commands: &[],
         base_layers: &[DialectSet::XILINX],
         grammar_union: DialectSet::ALL_TCL.union(DialectSet::XILINX),
         version_ceiling: Some(TclVersion::V8_5),
@@ -834,7 +730,6 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     aliases: &[],
     vendor_bit: None,
     availability_mask: DialectSet::ALL_TCL,
-    disabled_commands: &[],
     base_layers: &[],
     grammar_union: DialectSet::ALL_TCL,
     version_ceiling: None,
@@ -917,18 +812,6 @@ impl DialectProfile {
     #[must_use]
     pub fn is_irules(&self) -> bool {
         std::ptr::eq(self, Self::irules())
-    }
-
-    /// Whether this profile's disable list bans `name` (the subtractive
-    /// filter every availability consumer applies after its mask query —
-    /// §9 of the design doc). Compares the *registry spec name*; callers
-    /// normalise any `::` qualification before asking.
-    #[must_use]
-    pub fn is_command_disabled(&self, name: &str) -> bool {
-        // Binary search is possible (the list is sorted) but a 49-entry
-        // linear scan of `&str`s is already cheaper than the hash lookups
-        // around it, and only iRules has a non-empty list at all.
-        self.disabled_commands.contains(&name)
     }
 
     /// The version-aware *compile-time fold* projection — the drop-in
@@ -1238,39 +1121,21 @@ mod tests {
     }
 
     #[test]
-    fn irules_mask_is_the_bare_vendor_bit_with_disables() {
-        // The subtractive-iRules trap (§9): the mask must stay the bare
-        // IRULES bit — a TCL84|IRULES union would re-admit the disabled
-        // commands — and the disable list must be present and sorted.
+    fn irules_mask_is_the_bare_vendor_bit() {
+        // iRules is a bare-`IRULES`-bit availability surface: a command is
+        // available iff its own `dialects` explicitly carries the `IRULES`
+        // bit. Universal `dialects: None` was eliminated registry-wide (every
+        // core command carries an explicit group), so there is no catch-all
+        // and no subtractive ban list — a sandbox-banned command such as
+        // `exec` simply lacks the `IRULES` bit (it is `ALL_TCL`) and falls
+        // out by plain intersection. The command-level availability checks
+        // (`exec`/`file`/`socket` unavailable, `pool`/`set` available) live
+        // in tcl-registry's `dialect_profile.rs` suite, which has the
+        // registry; here we only pin the mask shape the whole scheme rests
+        // on.
         let p = DialectProfile::irules();
         assert_eq!(p.availability_mask, DialectSet::IRULES);
-        assert_eq!(p.disabled_commands.len(), 53);
-        let mut sorted = p.disabled_commands.to_vec();
-        sorted.sort_unstable();
-        assert_eq!(p.disabled_commands, sorted.as_slice(), "list stays sorted");
-        assert!(p.is_command_disabled("exec"));
-        assert!(p.is_command_disabled("file"));
-        assert!(p.is_command_disabled("socket"));
-        assert!(!p.is_command_disabled("pool"));
-        assert!(!p.is_command_disabled("set"));
-    }
-
-    #[test]
-    fn only_irules_is_subtractive() {
-        for p in DialectProfile::all() {
-            if p.is_irules() {
-                continue;
-            }
-            assert!(
-                p.disabled_commands.is_empty(),
-                "{}: only iRules carries a disable list",
-                p.name
-            );
-        }
-        assert!(
-            DialectProfile::plain_tcl().disabled_commands.is_empty(),
-            "the fallback sink disables nothing"
-        );
+        assert_eq!(p.vendor_bit, Some(DialectSet::IRULES));
     }
 
     #[test]
@@ -1333,7 +1198,7 @@ mod tests {
     #[test]
     fn grammar_union_is_never_narrower_than_the_mask() {
         // §10: the static-grammar union over-approximates (or equals, for
-        // subtractive iRules) the precise mask — never under-approximates.
+        // the bare-bit iRules profile) the precise mask — never under-approximates.
         for p in DialectProfile::all() {
             assert!(
                 p.grammar_union.contains(p.availability_mask),
@@ -1363,7 +1228,7 @@ mod tests {
     #[test]
     fn vendor_bit_composes_the_availability_mask() {
         // §2.2: for the additive vendor profiles the mask is exactly
-        // (version bits | vendor_bit); for the subtractive iRules profile
+        // (version bits | vendor_bit); for the bare-bit iRules profile
         // the mask IS the bare vendor bit; profiles without a vendor bit
         // carry pure version masks.
         for p in all_with_fallback() {

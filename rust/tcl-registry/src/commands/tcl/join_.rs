@@ -27,15 +27,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
-        // Universal Tcl data (`dialects: None`) is deliberate, not an
-        // oversight: `join` is absent from every dialect profile's
-        // subtractive `disabled_commands` list (`IRULES_DISABLED_COMMANDS`
-        // in `tcl-dialect/src/profile.rs` bans filesystem/process/interp
-        // commands — `open`, `exec`, `file`, `glob`, `namespace`, … — but
-        // no list-manipulation command), and none of the irules/, expect/,
-        // tk/, itcl/, iapps/, or eda_*/ command packs declares an override
-        // or an extra form for it, so it resolves identically everywhere.
-        dialects: None,
+        // `Some(DialectSet::ALL_TCL.union(DialectSet::IRULES))` is
+        // deliberate, not an oversight: `join` is a pure list-manipulation
+        // command — none of the filesystem/process/interp surface (`open`,
+        // `exec`, `file`, `glob`, `namespace`, …) that iRules bans — so it
+        // carries the `IRULES` bit explicitly and resolves under the bare
+        // `IRULES` mask, rather than being one of the sandbox-banned
+        // commands whose group is a bare `ALL_TCL` (no `IRULES` bit). None of
+        // the irules/, expect/, tk/, itcl/, iapps/, or eda_*/ command packs
+        // declares an override or an extra form for it, so it resolves
+        // identically everywhere.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_join),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,

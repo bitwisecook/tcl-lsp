@@ -29,7 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::OptProc",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(3),
         // `DEFINES_PROCEDURE` drives the proc-name-declaration semantic
         // token/hover override (`semantic_tokens.rs`'s `ArgOverride::ProcNameDef`)

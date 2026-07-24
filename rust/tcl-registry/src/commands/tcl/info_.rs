@@ -554,6 +554,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "info",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

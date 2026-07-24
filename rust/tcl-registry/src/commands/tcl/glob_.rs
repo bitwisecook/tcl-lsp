@@ -126,20 +126,22 @@ const TYPES_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "glob",
-        // Universal (`None`), deliberately: `glob` is banned in F5 iRules
-        // (the TMM sandbox has no real filesystem), but that exclusion is
-        // modelled subtractively via `IRULES_DISABLED_COMMANDS` in
-        // `tcl-dialect/src/profile.rs` — which names `glob` explicitly and
-        // whose own doc comment states the specs it lists stay plain
-        // universal data. `tests/dialect_profile.rs`'s
-        // `irules_disable_list_is_load_bearing` asserts exactly this: every
-        // banned name must still resolve under the bare `IRULES` mask, so
-        // gating this field instead would silently break that contract.
-        // Every other modelled dialect (Expect, Tk, the EDA vendor
-        // consoles, F5 iApps, F5 tmsh, incr Tcl) hosts a real filesystem-
-        // backed Tcl and has no `glob` restriction of its own (empty
-        // `disabled_commands` in every other `DialectProfile` entry).
-        dialects: None,
+        // `Some(DialectSet::ALL_TCL)`, deliberately: `glob` is banned in F5
+        // iRules (the TMM sandbox has no real filesystem), and that
+        // exclusion is now modelled by this explicit `dialects` group —
+        // `ALL_TCL` does NOT carry the `IRULES` bit, so `glob` simply never
+        // intersects the bare `IRULES` availability mask; there is no
+        // disable list. iRules availability is fully explicit per spec now:
+        // a command resolves under iRules iff its own `dialects` group
+        // carries the `IRULES` bit. `tests/dialect_profile.rs`'s
+        // `irules_banned_commands_lack_the_irules_bit` asserts exactly this:
+        // every banned name must lack the `IRULES` bit, so adding it to this
+        // field would silently break that contract. Every other modelled
+        // dialect (Expect, Tk, the EDA vendor consoles, F5 iApps, F5 tmsh,
+        // incr Tcl) hosts a real filesystem-backed Tcl and carries `glob`
+        // unrestricted (its `ALL_TCL` group intersects the Tcl-version bit
+        // in each of those masks).
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         // 8.4/8.5 require at least one `pattern` word; Tcl 8.6+ (TIP 323)
         // accepts zero. `Arity` has no per-dialect gate of its own, so this

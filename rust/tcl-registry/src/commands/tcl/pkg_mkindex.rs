@@ -30,19 +30,20 @@
 //! library-proc signature table in
 //! `tcl-compiler/src/analyser/diagnostics/fp/sty.rs`) spells it
 //! `pkg_mkIndex`. This audit deliberately leaves the registered name
-//! unchanged rather than "fixing" it in isolation: both
-//! `xtask/src/command_backing.rs`'s WASM-backing-exemption table and
-//! `tcl-dialect/src/profile.rs`'s `IRULES_DISABLED_COMMANDS` subtractive
-//! ban list key off the exact string `"pkg_mkindex"` today — the iRules
-//! ban in particular is load-bearing on this exact casing (see the
-//! `dialects` comment in `spec()` below), so renaming it here alone would
-//! silently un-ban `pkg_mkIndex` from F5 iRules rather than just fixing a
-//! typo. Every other field below documents the real `pkg_mkIndex`
+//! unchanged rather than "fixing" it in isolation:
+//! `xtask/src/command_backing.rs`'s WASM-backing-exemption table keys off
+//! the exact string `"pkg_mkindex"` today, so renaming it here alone
+//! would silently drop that WASM-backing exemption. (The command's iRules
+//! exclusion, by contrast, no longer keys off this string at all — it
+//! rides on this spec's own `dialects` group, see the `dialects` comment
+//! in `spec()` below — so a rename would leave the iRules behaviour
+//! untouched.) Every other field below documents the real `pkg_mkIndex`
 //! command, which is unambiguously the intended referent of this stub; a
-//! proper fix needs a coordinated rename across all three files plus a
-//! check for the resulting duplicate registration under `"pkg_mkIndex"`
-//! alongside `commands/stdlib/pkg_mkindex.rs` — out of scope for a
-//! single-file audit.
+//! proper fix needs a coordinated rename across this file and
+//! `command_backing.rs` plus a check for the resulting duplicate
+//! registration under `"pkg_mkIndex"` alongside
+//! `commands/stdlib/pkg_mkindex.rs` — out of scope for a single-file
+//! audit.
 use crate::prelude::*;
 
 // The 8.4 and 8.5 manpages spell the four switches out in the SYNOPSIS
@@ -104,18 +105,18 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg_mkindex",
-        // Universal Tcl data (`dialects: None`) is deliberate, mirroring
-        // `auto_mkindex`'s precedent: F5 iRules bans this proc via the
-        // *profile's* subtractive `IRULES_DISABLED_COMMANDS` list
-        // (`tcl-dialect/src/profile.rs`, which names `"pkg_mkindex"`
-        // alongside `auto_mkindex`/`auto_mkindex_old` among the K36322151
-        // filesystem bans), never as a `dialects:` restriction here —
-        // folding it into a `TCL84|IRULES`-style union would re-admit
-        // exactly the command that list exists to ban. No other dialect
+        // `Some(DialectSet::ALL_TCL)` is deliberate, mirroring
+        // `auto_mkindex`'s precedent: F5 iRules excludes this proc
+        // (K36322151 — `"pkg_mkindex"` sits among the filesystem bans
+        // alongside `auto_mkindex`/`auto_mkindex_old`), and that exclusion
+        // now falls straight out of this `dialects:` group — `ALL_TCL`
+        // carries no `IRULES` bit, so it never intersects the bare
+        // `IRULES` mask. There is no disable list. No other dialect
         // directory (Expect, the EDA vendor shells, tmsh, iApps, Tk, itcl,
         // BPF) registers a `pkg_mkIndex`/`pkg_mkindex` spec of its own or
-        // otherwise bans it, so it stays reachable in every one of them.
-        dialects: None,
+        // otherwise alters it, and each carries a Tcl-version bit that
+        // `ALL_TCL` intersects, so it stays reachable in every one of them.
+        dialects: Some(DialectSet::ALL_TCL),
         // A Tcl-level library proc (`library/package.tcl`, `proc
         // pkg_mkIndex {args} {...}`), not a `Tcl_CreateObjCommand`-registered
         // builtin — carries no `CmdInfo` row, so `Traits::SAFE_INTERP_HIDDEN`

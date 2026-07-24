@@ -126,6 +126,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
+        dialects: Some(DialectSet::ALL_TCL),
         // The `cancel` subform destroys a scheduled
         // handler (`Tcl_AfterObjCmd`, tclTimer.c) — see the `destructive`
         // flag on the `cancel` subcommand.

@@ -22,7 +22,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl_endOfWord",
         traits: Traits::PURE | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Return the index of the first end-of-word after *start* in *str*.",

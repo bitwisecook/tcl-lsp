@@ -34,19 +34,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exec",
-        // `None` (universal) is deliberate, not an oversight: F5 iRules is
-        // the one modelled dialect that drops `exec` (the K36322151 TMM
-        // sandbox ban — no real process model), but that exclusion lives
-        // on `DialectProfile::irules().disabled_commands`
-        // (`tcl-dialect/src/profile.rs`), subtractively, not on this
-        // field — the `irules_disable_list_is_load_bearing` contract test
-        // (`tcl-registry/tests/dialect_profile.rs`) requires the bare
-        // `IRULES` mask to still admit this spec so the disable list has
-        // something to subtract. Every other modelled dialect that embeds
-        // a real Tcl runtime (Expect, f5-iapps, f5-tmsh, the EDA vendor
-        // shells) keeps a real process model and an empty disable list,
-        // so `exec` is available there too.
-        dialects: None,
+        // `Some(DialectSet::ALL_TCL)` is deliberate, not an oversight: F5
+        // iRules is the one modelled dialect that drops `exec` (the
+        // K36322151 TMM sandbox ban — no real process model), and that
+        // exclusion is expressed directly by this `dialects` group:
+        // `ALL_TCL` does not carry the `IRULES` bit, so this spec never
+        // intersects the bare `IRULES` availability mask. Every other
+        // modelled dialect that embeds a real Tcl runtime (Expect,
+        // f5-iapps, f5-tmsh, the EDA vendor shells) is included in
+        // `ALL_TCL` and keeps a real process model, so `exec` is available
+        // there too.
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::TAINT_SINK
             | Traits::TAINT_SOURCE

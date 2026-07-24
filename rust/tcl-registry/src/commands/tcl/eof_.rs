@@ -30,7 +30,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "eof",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],

@@ -124,7 +124,7 @@ pub fn spec() -> CommandSpec {
             .union(Traits::FIRST_ARG_VARNAME)
             .union(Traits::BYTE_COMPILED)
             .union(Traits::NOT_PROC_FACTORY),
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

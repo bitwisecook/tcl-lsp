@@ -136,7 +136,7 @@ const ACCESS_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::OPENS_CHANNEL
             | Traits::SAFE_INTERP_HIDDEN

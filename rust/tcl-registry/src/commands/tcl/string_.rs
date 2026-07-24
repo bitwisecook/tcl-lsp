@@ -1690,10 +1690,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "string",
-        // Present, unrestricted, and not on any dialect's
-        // `disabled_commands` list (only `f5-irules` has a non-empty one,
-        // and `string` isn't on it — checked against
-        // `tcl-dialect/src/profile.rs`'s `IRULES_DISABLED_COMMANDS`) — a
+        // Present and unrestricted: its `dialects` group carries the
+        // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
+        // under the bare `IRULES` availability mask — a
         // pure value-transform ensemble with no filesystem/process/network
         // access, so every dialect that hosts a real Tcl core (irules,
         // iapps, tmsh, the EDA shells, expect, tk, itcl) carries it
@@ -1702,7 +1701,7 @@ pub fn spec() -> CommandSpec {
         // gates (enforced generically by the profile's `version_ceiling`,
         // the same mechanism that keeps `return`'s `-level` out of
         // iRules) — not a whole-command dialect gate.
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

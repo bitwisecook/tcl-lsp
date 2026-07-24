@@ -91,11 +91,11 @@
 // two sibling files — it models the 8.5+ grammar unconditionally and
 // the 8.4 restriction is documentation-only here.
 //
-// Not disabled or overridden in any modelled dialect: absent from
-// `IRULES_DISABLED_COMMANDS` in tcl-dialect/src/profile.rs (the only
-// disabled-commands table in that file), and no irules/iapps/tmsh/
-// expect/eda*/tk/itcl spec file registers its own `lreplace` — so the
-// command-level `dialects: None` (universal) is correct.
+// Not disabled or overridden in any modelled dialect: `lreplace` carries
+// the `IRULES` bit explicitly (its `dialects` group is
+// `ALL_TCL.union(IRULES)`, resolving under the bare `IRULES` mask), and
+// no irules/iapps/tmsh/expect/eda*/tk/itcl spec file registers its own
+// `lreplace` — so the command-level group is correct.
 //
 // `tcl-vm/src/cmd_list.rs::cmd_lreplace` requires exactly `list first
 // last` plus any number of trailing elements — matching
@@ -133,7 +133,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lreplace",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

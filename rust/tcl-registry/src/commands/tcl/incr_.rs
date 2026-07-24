@@ -58,6 +58,7 @@ const INCR_EXPLICIT: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "incr",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::READS_BEFORE_WRITE

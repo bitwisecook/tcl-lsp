@@ -34,15 +34,16 @@ pub fn spec() -> CommandSpec {
         name: "http",
         // Bundled with every standard Tcl release 8.4 through 9.1 — the
         // command set it provides only grows across versions (see the
-        // hover snippet below), never disappears — so this stays
-        // universal rather than version-gated. F5 iRules removes the
-        // whole package from its TMM sandbox (the K36322151 bans); that
-        // is modelled as a subtractive exclusion keyed on the literal
-        // name "http" in `tcl-dialect/src/profile.rs`'s
-        // `IRULES_DISABLED_COMMANDS`, alongside `open`/`socket`/`file` —
-        // which, like this spec, all keep `dialects: None` and rely on
-        // that list rather than a `dialects` restriction here.
-        dialects: None,
+        // hover snippet below), never disappears — so this carries every
+        // Tcl-version bit (`ALL_TCL`) rather than being version-gated. F5
+        // iRules removes the whole package from its TMM sandbox (the
+        // K36322151 bans); that is now modelled by this explicit `dialects`
+        // group being `ALL_TCL`, alongside `open`/`socket`/`file` — which,
+        // like this spec, all carry a bare `ALL_TCL` that omits the `IRULES`
+        // bit and so never intersects the bare `IRULES` mask, rather than
+        // relying on a disable list. iRules availability is fully explicit
+        // per spec.
+        dialects: Some(DialectSet::ALL_TCL),
         // Never actually invoked as a command (see the module doc
         // comment) — left unconstrained rather than modelling an
         // invocation shape that doesn't exist.

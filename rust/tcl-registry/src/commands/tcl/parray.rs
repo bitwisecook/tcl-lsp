@@ -41,15 +41,16 @@ use crate::prelude::*;
 // stated as current, version-independent truth in the hover text below
 // rather than gated to 9.0+.
 //
-// Not disabled or overridden in any modelled dialect: `parray` is
-// conspicuously absent from `IRULES_DISABLED_COMMANDS` in
-// tcl-dialect/src/profile.rs even though every *other* library.n sibling
+// Excluded from f5-irules, like every *other* library.n sibling
 // documented on the same manpage (auto_execok, auto_import, auto_load,
 // auto_mkindex, auto_mkindex_old, auto_qualify, auto_reset,
-// tcl_findLibrary) is explicitly banned there. No dialect profile's
-// `disabled_commands` lists `parray`, and no irules/iapps/tk/expect/eda/
-// itcl override file mentions it, so the command-level `dialects: None`
-// (universal) is correct as-is. `parray` is also a Tcl-level library
+// tcl_findLibrary): `parray`'s own command-level `dialects` group below
+// is `Some(DialectSet::ALL_TCL)`, which carries no `IRULES` bit and so
+// never intersects the bare `IRULES` availability mask — there is no
+// disable list. It stays reachable in every real-Tcl-hosting dialect
+// (whose mask carries a version bit `ALL_TCL` intersects), and no
+// irules/iapps/tk/expect/eda/itcl override file registers a variant of
+// its own. `parray` is also a Tcl-level library
 // proc — shipped as its own `library/parray.tcl` (confirmed internally:
 // both `runtime/rust/src/embedded_stdlib.rs`'s seed file list and
 // `xtask/src/command_backing.rs`'s `STDLIB` table name it separately
@@ -76,7 +77,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "parray",
         traits: Traits::WHOLE_ARRAY_ARG | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         // Real 8.5+ ceiling (`arrayName ?pattern?`); Tcl 8.4's SYNOPSIS is
         // `parray arrayName` alone (see the FORMS comment above), so a
         // narrow gap remains for arity diagnostics against code

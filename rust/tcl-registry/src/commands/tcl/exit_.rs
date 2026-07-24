@@ -39,10 +39,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// behaviour are unchanged.
 ///
 /// `exit` is one of the K36322151 commands F5's TMM interpreter strips
-/// from iRules (`tcl-dialect/src/profile.rs`'s `IRULES_DISABLED_COMMANDS`)
-/// — subtracted from the bare `IRULES` availability mask rather than
-/// modelled as a `dialects:` gate here, so `dialects: None` below is
-/// correct and deliberate (same pattern as `open`, also on that list).
+/// from iRules, so its `dialects` group below is `ALL_TCL`, which does
+/// not carry the `IRULES` bit and therefore never intersects the bare
+/// `IRULES` availability mask — this exclusion is correct and deliberate
+/// (same pattern as `open`, also banned from the TMM sandbox).
 /// Expect registers its own unrelated `exit` (`-onexit`/`-noexit`,
 /// closing spawned processes rather than the interpreter) as a fully
 /// separate spec under `commands/expect/exit.rs`, loaded only for the
@@ -50,7 +50,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::TERMINATES_BLOCK | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::new(0, 1),
         side_effects: &[SideEffect {

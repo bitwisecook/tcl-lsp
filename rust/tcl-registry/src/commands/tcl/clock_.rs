@@ -403,6 +403,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "clock",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

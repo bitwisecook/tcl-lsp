@@ -191,19 +191,19 @@ fn subst_evaluates_commands(args: &[&str]) -> bool {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "subst",
-        // Present, unrestricted, and on no dialect's `disabled_commands`
-        // list (only `f5-irules` has a non-empty one, and `subst` isn't on
-        // it — checked against `tcl-dialect/src/profile.rs`'s
-        // `IRULES_DISABLED_COMMANDS`): every dialect hosting a real
-        // embedded Tcl core (irules, iapps, tmsh, the EDA shells, expect,
-        // tk, itcl) carries this command unmodified. Its legal *option*
+        // Present and unrestricted: its `dialects` group carries the
+        // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
+        // under the bare `IRULES` availability mask; every dialect hosting
+        // a real embedded Tcl core (irules, iapps, tmsh, the EDA shells,
+        // expect, tk, itcl) carries this command unmodified. Its legal
+        // *option*
         // set still narrows per Tcl version through each OptionSpec's own
         // `dialects` gate above (enforced generically by
         // `ProfileQueries::is_option_available` together with each
         // profile's `version_ceiling`), which is why the 9.1-only positive
         // switches can never resolve under any of those 8.x-pinned
         // embedded cores even though the command itself is universal.
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
         // Exactly one trailing `string` is mandatory; 0 or more recognised

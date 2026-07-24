@@ -47,16 +47,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// covers the other three spellings by name
 /// (`regexp_quote_suppresses_t103`, `regex_colon_quote_suppresses_t103`,
 /// `re_quote_suppresses_t103`) but has no test yet exercising this literal
-/// underscore-without-colon spelling. `dialects: None` is deliberate, not
-/// an oversight: iRules excludes all four spellings, but through the
-/// profile-level subtractive `IRULES_DISABLED_COMMANDS` list
-/// (`tcl_dialect::profile`), not through this field — folding `IRULES`
-/// into a dialect union here would re-admit exactly the commands that
-/// list exists to ban (see that list's own doc comment).
+/// underscore-without-colon spelling. `dialects: ALL_TCL` (no `IRULES`
+/// bit) is deliberate, not an oversight: iRules excludes all four
+/// spellings, and this group's omission of the `IRULES` bit is exactly
+/// what enforces that — an `ALL_TCL` group never intersects the bare
+/// `IRULES` availability mask, so there is no separate disable list.
+/// Folding `IRULES` into a dialect union here would re-admit exactly the
+/// commands iRules means to exclude.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regex_quote",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::PURE,
         arity: Arity::exact(1),
         return_type: Some(TclType::String),

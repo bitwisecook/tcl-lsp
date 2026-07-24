@@ -94,15 +94,16 @@ pub fn spec() -> CommandSpec {
         // A core variable primitive with no filesystem/process/network
         // access, present unmodified in every dialect that hosts a real
         // Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk,
-        // itcl) — absent from every profile's `disabled_commands` list
-        // (only `f5-irules` has a non-empty one, and `set` isn't on it),
-        // and no dialect grants it extra options or an alternate form:
+        // itcl) — its `dialects` group carries the `IRULES` bit explicitly
+        // (`ALL_TCL.union(IRULES)`), so it resolves under the bare `IRULES`
+        // availability mask, and no dialect grants it extra options or an
+        // alternate form:
         // every `"set"` hit under the irules/, expect/, iapps/, tk/,
         // itcl/, and eda_*/ command packs is an unrelated subcommand of
         // a different ensemble (`array set`, `dict set`, a Tk widget's
         // `pathName set`, iRules' `table set`), never a redefinition of
         // this command.
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

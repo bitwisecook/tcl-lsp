@@ -599,6 +599,7 @@ fn fmt_general(v: f64, prec: usize, upper: bool) -> String {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "format",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

@@ -689,20 +689,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
 
 /// Command spec for `file`.
 ///
-/// `dialects` stays `None` (universal) deliberately, even though `file` is
-/// unavailable in F5 iRules: `"file"` is one of the K36322151 bans in the
-/// `IRULES_DISABLED_COMMANDS` table (`tcl-dialect/src/profile.rs`), the
-/// *subtractive* half of the iRules profile applied after the availability
-/// mask. Per that table's own doc comment, the specs it names must stay
-/// plain universal data — folding the exclusion into this spec's own
-/// `dialects` field (e.g. `Some(DialectSet::ALL_TCL)`) would just be
-/// redundant with, not a substitute for, the profile-level ban. No other
+/// `dialects` is `ALL_TCL` because `file` is unavailable in F5 iRules:
+/// `"file"` is one of the K36322151 bans (the F5 TMM sandbox). `ALL_TCL`
+/// does not carry the `IRULES` bit, so this spec never intersects the
+/// bare `IRULES` availability mask — the exclusion is expressed directly
+/// by the `dialects` group, with no disable list involved. No other
 /// dialect here (Tk, Expect, tmsh, iApps, the EDA vendor shells) disables
 /// or restricts `file`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "file",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::HAS_DESTRUCTIVE_OPS
             | Traits::RETURNS_PATH

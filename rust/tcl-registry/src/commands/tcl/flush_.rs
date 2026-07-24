@@ -24,10 +24,10 @@ use crate::prelude::*;
 // flush.n gives only `flush channelId`, and 9.0/9.1's abbreviated flush.n
 // (see below) still gives only `flush channel`. There is no bare/optional
 // form; a missing or extra argument is `wrong # args`, matching the
-// `Arity::exact(1)` below. iRules disables `flush` outright (it is one of
-// the K36322151 bans in `IRULES_DISABLED_COMMANDS`, applied subtractively
-// by the dialect profile rather than as a gate here — see that list's doc
-// comment), so `dialects: None` below is deliberate, not an oversight.
+// `Arity::exact(1)` below. iRules disables `flush` outright (one of the
+// K36322151 bans), so its `dialects` group below is `ALL_TCL`, which omits
+// the `IRULES` bit and never intersects the bare `IRULES` availability
+// mask — deliberate, not an oversight.
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "flush channelId",
@@ -38,7 +38,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "flush",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],

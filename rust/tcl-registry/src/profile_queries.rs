@@ -39,10 +39,11 @@ use crate::traits::Traits;
 /// here because the spec types live above the foundational crate.
 pub trait ProfileQueries {
     /// Whether `spec` is available under this profile: the membership test
-    /// against [`DialectProfile::availability_mask`], the subtractive
-    /// disable filter ([`DialectProfile::is_command_disabled`], §9), and —
-    /// for a profile whose math operators are not command heads
-    /// (`f5-irules`) — the [`Traits::OPERATOR_COMMAND`] exclusion.
+    /// against [`DialectProfile::availability_mask`], and — for a profile
+    /// whose math operators are not command heads (`f5-irules`) — the
+    /// [`Traits::OPERATOR_COMMAND`] exclusion. iRules availability is fully
+    /// explicit in each spec's `dialects` now (the `IRULES` bit is present
+    /// iff iRules enables it), so there is no longer a subtractive ban list.
     ///
     /// This is the same trio [`CommandRegistry::spec_visible`] enforces
     /// inside profile-stamped registries; it lives here too so profile-side
@@ -166,7 +167,6 @@ pub struct VendorSurface {
 impl ProfileQueries for DialectProfile {
     fn is_available(&self, spec: &CommandSpec) -> bool {
         spec.supports_dialect(self.availability_mask)
-            && !self.is_command_disabled(spec.name)
             && (self.operators_as_commands || !spec.traits.contains(Traits::OPERATOR_COMMAND))
     }
 

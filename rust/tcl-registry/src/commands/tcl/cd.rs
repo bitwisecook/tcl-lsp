@@ -31,12 +31,13 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cd",
         // Universal core Tcl 8.4-9.1 (identical `cd ?dirName?` synopsis and
-        // behaviour on every fetched manpage). Disabled specifically under
-        // `f5-irules` via the subtractive `IRULES_DISABLED_COMMANDS` list
-        // in `tcl-dialect/src/profile.rs` (no real per-request filesystem
-        // there), the same mechanism `open` relies on rather than a
-        // `CommandSpec`-level dialect restriction — see `open_.rs`.
-        dialects: None,
+        // behaviour on every fetched manpage). Excluded from `f5-irules`
+        // (no real per-request filesystem there) by this explicit
+        // `Some(DialectSet::ALL_TCL)` group: `ALL_TCL` carries no `IRULES`
+        // bit, so the spec never intersects iRules' bare `IRULES`
+        // availability mask — the same way `open` is excluded, rather than
+        // by any disable list — see `open_.rs`.
+        dialects: Some(DialectSet::ALL_TCL),
         // `Traits::TAINT_SINK`: `dirName` unconditionally becomes the
         // process's current working directory — a per-process resource
         // shared by every interpreter and, in a threaded build, every

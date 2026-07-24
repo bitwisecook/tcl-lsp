@@ -43,16 +43,15 @@ pub fn spec() -> CommandSpec {
         // not a `Tcl_CreateObjCommand` builtin — same footing as
         // `auto_mkindex`/`tclPkgSetup`/`tclPkgUnknown`, none of which carry
         // a C `CmdInfo` row either. Stays `dialects: None` (fully
-        // universal), like `auto_mkindex`, rather than
-        // `Some(DialectSet::ALL_TCL)` (as `tclPkgSetup`/`tclPkgUnknown`
-        // currently have it): the iRules profile's own subtractive
-        // `IRULES_DISABLED_COMMANDS` list (`tcl-dialect/src/profile.rs`)
-        // bans `package` and `pkg_mkindex` outright but does *not* name
-        // `pkg::create`, and no other dialect profile (Expect, Tk, the EDA
-        // vendor shells, tmsh, iApps, itcl) has a `disabled_commands` list
-        // at all — so a `dialects:` restriction here would re-exclude a
-        // command the subtractive layer deliberately leaves reachable, the
-        // same reasoning `auto_mkindex.rs` documents for itself.
+        // universal — `supports_dialect` then holds for every dialect,
+        // iRules included) rather than `Some(DialectSet::ALL_TCL)` (as
+        // `auto_mkindex`/`tclPkgSetup`/`tclPkgUnknown` have it): `package`
+        // and `pkg_mkindex` are dropped from iRules by their own
+        // `Some(DialectSet::ALL_TCL)` groups — no `IRULES` bit, so they
+        // never intersect the bare `IRULES` mask (K36322151 — the TMM
+        // sandbox has no real package-loading surface) — whereas nothing
+        // restricts `pkg::create`, so a `dialects:` group here would
+        // instead drop it too. There is no disable list.
         dialects: None,
         // A redefinable Tcl library proc (see `Traits::OVERRIDABLE_LIBRARY_PROC`,
         // whose own doc comment names the `pkg_*` family directly) that only

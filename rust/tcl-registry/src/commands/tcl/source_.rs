@@ -50,12 +50,12 @@
 //! carry arbitrary trailing data after its Tcl script (a "scripted
 //! document") — a restriction `read`/`gets` do not share.
 //!
-//! `source` is one of the K36322151 bans (`IRULES_DISABLED_COMMANDS` in
-//! `tcl-dialect/src/profile.rs` — no real per-request filesystem in the
-//! iRules TMM data plane), so it is unreachable under `f5-irules` even
-//! though `dialects: None` below is correct: the ban is enforced by that
-//! subtractive list rather than a `CommandSpec`-level restriction, the
-//! same mechanism `open`/`cd` rely on (see their own specs).
+//! `source` is one of the K36322151 bans (no real per-request filesystem
+//! in the iRules TMM data plane), so it is unreachable under `f5-irules`:
+//! its `dialects` group below is `ALL_TCL` (no `IRULES` bit), so it never
+//! intersects the bare `IRULES` availability mask — the ban falls straight
+//! out of that omission, with no separate disable list, the same `ALL_TCL`
+//! convention `open`/`cd` rely on (see their own specs).
 
 use crate::prelude::*;
 
@@ -122,20 +122,18 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "source",
-        // Universal core Tcl 8.4-9.1 (present in every fetched manpage,
-        // only its SYNOPSIS/option set shifts — see the module doc
-        // comment and FORMS above). Disabled under `f5-irules` via the
-        // subtractive `IRULES_DISABLED_COMMANDS` list in
-        // `tcl-dialect/src/profile.rs` — `"source"` is one of the
-        // K36322151 bans there, alongside `open`/`cd`/`exec`/`file`/
+        // Core Tcl 8.4-9.1 (present in every fetched manpage, only its
+        // SYNOPSIS/option set shifts — see the module doc comment and
+        // FORMS above). Unavailable under `f5-irules` because its
+        // `dialects` group is `ALL_TCL` (no `IRULES` bit) — `source` is
+        // one of the K36322151 bans, alongside `open`/`cd`/`exec`/`file`/
         // `glob`/… (no real per-request filesystem in the TMM data
-        // plane) — the same mechanism `open`/`cd` rely on rather than a
-        // `CommandSpec`-level dialect restriction, so `dialects: None`
-        // here is correct, not an oversight: folding the ban into a
-        // `TCL8X`-style mask would re-admit `source` under `f5-irules`
-        // (the exact trap the disabled-commands doc comment warns
-        // against).
-        dialects: None,
+        // plane) — so it never intersects the bare `IRULES` availability
+        // mask, the same `ALL_TCL` convention `open`/`cd` rely on. Adding
+        // the `IRULES` bit here would re-admit `source` under `f5-irules`,
+        // the exact trap this omission avoids; there is no separate
+        // disable list.
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

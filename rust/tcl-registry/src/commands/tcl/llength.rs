@@ -29,11 +29,11 @@
 // (lassign, ledit, lmap, lpop, lremove, lrepeat, lreverse, lseq
 // alongside the 8.x set) purely because those commands did not exist
 // yet in 8.4-8.6 — cross-reference churn, not a change to llength
-// itself. Not disabled or overridden in any modelled dialect: absent
-// from `IRULES_DISABLED_COMMANDS` in tcl-dialect/src/profile.rs, and
+// itself. Not disabled or overridden in any modelled dialect: `llength`
+// carries the `IRULES` bit explicitly (its `dialects` group is
+// `ALL_TCL.union(IRULES)`, resolving under the bare `IRULES` mask), and
 // no irules/iapps/tmsh/expect/eda/itcl spec file named `llength`
-// exists — so the command-level `dialects: None` (universal) is
-// correct as-is.
+// exists — so the command-level group is correct as-is.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -45,7 +45,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "llength",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         const_fold: Some(crate::const_fold::fold_llength),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

@@ -456,22 +456,22 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trace",
-        // Present, unrestricted, and not in any dialect's
-        // `disabled_commands` list (only `f5-irules` has a non-empty one,
-        // via `IRULES_DISABLED_COMMANDS`, and `trace` isn't on it — checked
-        // against `tcl-dialect/src/profile.rs`), so every dialect that
-        // hosts a real Tcl core (irules, iapps, tmsh, the EDA shells,
-        // expect, tk, itcl) carries it unmodified. Its legal *subcommand*
-        // set still narrows per Tcl version through each SubCommand's own
-        // `dialects` gate below. That `TCL8X` gate on `variable`/`vdelete`/
-        // `vinfo` is a bare Tcl-version mask, so per
+        // Present and unrestricted: `trace` carries the `IRULES` bit
+        // explicitly (`ALL_TCL.union(IRULES)`), so it resolves under the
+        // bare `IRULES` mask, and every dialect that hosts a real Tcl core
+        // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) carries
+        // it unmodified. Its legal *subcommand* set still narrows per Tcl
+        // version through each SubCommand's own `dialects` gate below. That
+        // `TCL8X` gate on `variable`/`vdelete`/`vinfo` is a bare
+        // Tcl-version mask, so per
         // `ProfileQueries::is_subcommand_available` it correctly extends to
         // every OTHER dialect whose `availability_mask` composes a real
         // embedded Tcl-version bit with its own vendor bit (f5-iapps and
         // f5-tmsh at `TCL85`, the EDA shells at `TCL85`/`TCL86`, Expect at
         // `TCL86`) — but NOT to f5-irules, whose mask is the bare `IRULES`
-        // bit with no Tcl-version bit unioned in (iRules is instead modelled
-        // subtractively, via `IRULES_DISABLED_COMMANDS`). A pure
+        // bit with no Tcl-version bit unioned in (iRules availability is
+        // fully explicit per spec — a command carries the `IRULES` bit iff
+        // iRules enables it, so the mask needs no Tcl-version bit). A pure
         // Tcl-version gate never intersects that bare mask regardless of
         // iRules' embedded-8.4 runtime — the same intersects-only
         // membership rule `tests/dialect_profile.rs`'s
@@ -479,7 +479,7 @@ pub fn spec() -> CommandSpec {
         // gating applies identically to subcommand gating — so whether real
         // F5 iRules exposes these three legacy forms is left unmodelled
         // here rather than guessed.
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::CREATES_BARRIER | Traits::CREATES_DYNAMIC_BARRIER | Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

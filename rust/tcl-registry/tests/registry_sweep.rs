@@ -584,15 +584,32 @@ fn sweep_dialect_resolution_is_consistent() {
     }
 }
 
-/// Assert `child`'s dialect declaration is reachable under `parent` — see
-/// `DialectSet::is_valid_nested_dialects`. Extracted so every call site
-/// below stays a one-liner.
+/// Assert `child`'s dialect declaration is never *reachable* under a dialect
+/// where its `parent` isn't. This is the reachability nesting rule, not a raw
+/// bitwise subset: under the "universal command = `ALL_TCL`, vendor
+/// availability via mask *intersection*" model, a sub-element may explicitly
+/// list a vendor bit its `ALL_TCL` parent lacks and still be valid — e.g.
+/// `variable`'s `EXPECT`-tagged form is reachable only under expect's
+/// `TCL86 | EXPECT` mask, which the `ALL_TCL` parent also reaches via `TCL86`.
+/// The invariant it guards is the real one: a child must never resolve under
+/// a dialect profile its parent command cannot.
+///
+/// `None` on either side is trivially valid (`None` child = inherit; `None`
+/// parent = universal).
 fn assert_dialects_nest(parent: Option<DialectSet>, child: Option<DialectSet>, context: &str) {
-    assert!(
-        DialectSet::is_valid_nested_dialects(child, parent),
-        "{context}: declares dialects {child:?}, not a subset of its parent's {parent:?} — \
-         it could never be reached under any dialect the parent itself doesn't support"
-    );
+    let (Some(child), Some(parent)) = (child, parent) else {
+        return;
+    };
+    for profile in tcl_dialect::DialectProfile::all() {
+        let mask = profile.availability_mask;
+        assert!(
+            !child.intersects(mask) || parent.intersects(mask),
+            "{context}: child dialects {child:?} resolve under {} (mask \
+             {mask:?}) but the parent's {parent:?} do not — the child would be \
+             reachable where its parent command is not",
+            profile.name
+        );
+    }
 }
 
 /// Dialect-nesting checks for one `CommandForm`/`SubCommandForm` and its

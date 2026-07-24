@@ -96,21 +96,23 @@ pub fn spec() -> CommandSpec {
         name: "tclPkgUnknown",
         // Not a `Tcl_CreateObjCommand` builtin — a Tcl-level library proc
         // (`library/package.tcl` in every one of 8.4 through 9.1, never
-        // `init.tcl`) with no `CmdInfo` row of its own. Corrected here
-        // from `Some(DialectSet::ALL_TCL)` to `None` (fully universal) to
-        // match `auto_mkindex`/`pkg::create`/`auto_load_index`: the F5
-        // iRules profile's own subtractive `IRULES_DISABLED_COMMANDS`
-        // list (`tcl-dialect/src/profile.rs`) bans `package` and
-        // `pkg_mkindex` outright but does not name `tclPkgUnknown`
-        // itself, and iRules is the *only* dialect profile with a
-        // non-empty `disabled_commands` at all (every `disabled_commands:`
-        // line in that file was checked — Expect, Tk, the five EDA vendor
-        // shells, tmsh, iApps, and BIG-IP all carry `&[]`) — so
-        // `Some(ALL_TCL)` would re-exclude a proc none of those profiles
-        // actually ban, the same reasoning `pkg::create`'s own spec
-        // documents (and which flags this file's old value by name as an
-        // inconsistency to fix).
-        dialects: None,
+        // `init.tcl`) with no `CmdInfo` row of its own.
+        // `Some(DialectSet::ALL_TCL)` carries the same value as its sibling
+        // autoloading procs (`auto_mkindex`/`auto_load_index`): under the
+        // explicit-per-spec model `ALL_TCL` spans every core Tcl version but
+        // not the `IRULES` bit, so the spec never intersects iRules' bare
+        // `IRULES` availability mask and is unreachable there — there is no
+        // subtractive disable list. The modelled K36322151 iRules bans in
+        // this family are `package` and `pkg_mkindex` outright;
+        // `tclPkgUnknown` itself is not separately named among them. Every
+        // other dialect composes a real Tcl-version bit that `ALL_TCL` does
+        // intersect (Expect, Tk, the five EDA vendor shells, tmsh, iApps),
+        // so `tclPkgUnknown` stays reachable in each. Whether real iRules
+        // still exposes a working `tclPkgUnknown` given that `package`
+        // itself is banned there is not independently confirmed, so
+        // `Some(ALL_TCL)` — which excludes it from iRules while leaving it
+        // reachable everywhere else — stands as the conservative value here.
+        dialects: Some(DialectSet::ALL_TCL),
         // A redefinable Tcl library proc — see
         // `Traits::OVERRIDABLE_LIBRARY_PROC`. Not `SAFE_INTERP_HIDDEN`:
         // unlike `auto_mkindex` (which refuses to even be defined inside

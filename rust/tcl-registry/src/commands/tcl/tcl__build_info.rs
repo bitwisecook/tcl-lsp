@@ -47,15 +47,15 @@
 // `tcl-dialect/src/profile.rs`), so a `TCL90_PLUS` gate below already
 // excludes every one of them on the version axis alone — the same
 // reasoning `lremove.rs` documents for its own plain `TCL90_PLUS` gate.
-// Both spellings ("::tcl::build-info" and "tcl::build-info") used to also
-// carry a redundant `IRULES_DISABLED_COMMANDS` ban-list entry — version
-// gating in the ban list, the exact mistake that list's own doc comment
-// warns against, since iRules' genuine embedded Tcl 8.4.6 core
-// (`return_.rs`'s/`pwd.rs`'s notes on `f5-irules`'s
-// signature_base/runtime_base/version_ceiling) could never reach a
-// Tcl-9.0-only command regardless of any subtractive ban. Both entries are
-// now removed (`tcl-dialect/src/profile.rs`); a stray, generator-artifact
-// `CommandSpec` literally named "::tcl::build-info" that used to sit inside
+// That version gate is the whole mechanism for both spellings
+// ("::tcl::build-info" and "tcl::build-info"): `TCL90_PLUS` carries no
+// `IRULES` bit, so neither ever intersects iRules' bare `IRULES` mask, and
+// iRules' genuine embedded Tcl 8.4.6 core (`return_.rs`'s/`pwd.rs`'s notes
+// on `f5-irules`'s signature_base/runtime_base/version_ceiling) could never
+// reach a Tcl-9.0-only command regardless. No separate per-dialect
+// exclusion is needed, and there is no disable list. Separately, a stray,
+// generator-artifact `CommandSpec` literally named "::tcl::build-info" that
+// used to sit inside
 // `commands/tcl/mathop_generated.rs`'s hand-expanded `tcl::mathop` operator
 // table (between the `-` and `/` entries) is also gone now that file is
 // derived directly from `tcl_syntax::expr::operators`.
@@ -63,9 +63,10 @@
 use crate::prelude::*;
 
 // `?field?` is Tcl 9.0+ only (see the module doc comment above for the
-// full version evidence) — the form's own `dialects` says so directly,
-// since the command-level `dialects` must stay `None` for the
-// `irules_disable_list_is_load_bearing` contract test noted above.
+// full version evidence) — the form's own `dialects` says so directly, and
+// it matches the command-level `TCL90_PLUS` gate below: `TCL90_PLUS`
+// carries no `IRULES` bit, so `tcl::build-info` is excluded from iRules by
+// its version gate alone, not by any disable list.
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "tcl::build-info ?field?",
@@ -214,10 +215,9 @@ const FIELD_VALUES: &[ArgValue] = &[
 /// Command spec for `tcl::build-info`.
 ///
 /// Tcl 9.0+ only — see the module doc comment above for the full
-/// per-version evidence and for why `dialects` stays `None` here rather
-/// than `Some(DialectSet::TCL90_PLUS)` (the `FORMS` entry above carries
-/// the accurate gate instead, since the `irules_disable_list_is_load_bearing`
-/// contract test only inspects the `CommandSpec`-level field). A genuine
+/// per-version evidence. The `TCL90_PLUS` gate below carries no `IRULES`
+/// bit, so `tcl::build-info` is excluded from iRules by that version gate
+/// alone, not by any disable list. A genuine
 /// `Tcl_CreateObjCommand`-registered core builtin — not a Tcl-coded
 /// library proc like `bgerror`/`tcl_findLibrary` — so it carries
 /// `BYTE_COMPILED` the same way its 9.0-native siblings `lremove`/`lpop`/

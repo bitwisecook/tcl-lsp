@@ -106,15 +106,14 @@ pub fn spec() -> CommandSpec {
         // A core variable primitive with no filesystem/process/network
         // access, present unmodified in every dialect that hosts a real Tcl
         // core (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) —
-        // absent from every profile's `disabled_commands` list (only
-        // `f5-irules` has a non-empty one, `IRULES_DISABLED_COMMANDS` in
-        // `tcl-dialect/src/profile.rs`, and `unset` isn't on it), and no
-        // dialect grants it extra options or an alternate form: every
-        // `"unset"` hit under the irules/, expect/, iapps/, tk/, itcl/, and
-        // eda_*/ command packs is an unrelated subcommand of a different
-        // ensemble (`array unset`, `dict unset`) or a `trace` operation name,
-        // never a redefinition of this command.
-        dialects: None,
+        // iRules enables it, so it carries the `IRULES` bit explicitly
+        // (`ALL_TCL.union(IRULES)`) and resolves under the bare `IRULES`
+        // mask, and no dialect grants it extra options or an alternate
+        // form: every `"unset"` hit under the irules/, expect/, iapps/,
+        // tk/, itcl/, and eda_*/ command packs is an unrelated subcommand
+        // of a different ensemble (`array unset`, `dict unset`) or a
+        // `trace` operation name, never a redefinition of this command.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_UnsetObjCmd` (tclCmdMZ.c) removes the
         // variable and errors ("can't unset …: no such variable") when the
         // target is already gone (absent `-nocomplain`) — the property the

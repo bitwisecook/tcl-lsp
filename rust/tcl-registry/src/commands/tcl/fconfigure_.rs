@@ -27,11 +27,11 @@
 //! section (confirmed identical option surface) rather than from
 //! `fconfigure.n` itself for those two versions.
 //!
-//! `dialects: None` on the command spec below is deliberate, not an
-//! oversight: iRules bans `fconfigure` through the profile-level
-//! `IRULES_DISABLED_COMMANDS` list (`tcl-dialect/src/profile.rs`), applied
-//! subtractively *after* the mask query, not through this spec's own
-//! dialect gate — the same pattern `chan_.rs` documents for `chan`.
+//! The `ALL_TCL` `dialects` group on the command spec below is
+//! deliberate, not an oversight: iRules bans `fconfigure`, and `ALL_TCL`
+//! does not carry the `IRULES` bit, so this spec never intersects the
+//! bare `IRULES` availability mask — the same pattern `chan_.rs`
+//! documents for `chan`.
 
 use crate::prelude::*;
 
@@ -271,7 +271,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Channel)],

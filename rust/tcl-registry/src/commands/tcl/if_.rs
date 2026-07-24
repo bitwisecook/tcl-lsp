@@ -202,13 +202,15 @@ fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",
-        // Present, unrestricted, and never named in `IRULES_DISABLED_COMMANDS`
-        // or any other dialect's `disabled_commands` list (checked against
-        // tcl-dialect/src/profile.rs) — `if` is a pure control-flow keyword
-        // with no filesystem/process/network access, so every dialect that
-        // hosts a real Tcl core (irules, iapps, tmsh, the EDA shells, expect,
-        // tk) carries it unmodified.
-        dialects: None,
+        // Present and unrestricted everywhere. `if` is a pure control-flow
+        // keyword with no filesystem/process/network access, so its
+        // `dialects` group carries the `IRULES` bit explicitly
+        // (`ALL_TCL.union(IRULES)`) and it resolves under the bare `IRULES`
+        // mask, the same as under every other dialect that hosts a real Tcl
+        // core (iapps, tmsh, the EDA shells, expect, tk). iRules availability
+        // is fully explicit per spec now — there is no `disabled_commands`
+        // list for a command to be absent from.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

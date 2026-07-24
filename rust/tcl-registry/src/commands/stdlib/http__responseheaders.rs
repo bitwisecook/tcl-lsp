@@ -22,7 +22,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseHeaders",
         traits: Traits::PURE,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(1, 2),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {

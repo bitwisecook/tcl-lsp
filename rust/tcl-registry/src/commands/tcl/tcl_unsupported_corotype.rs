@@ -82,12 +82,11 @@ fn make_spec(name: &'static str) -> CommandSpec {
         // standard-Tcl-core internal with no sibling registration anywhere
         // under `commands/irules|iapps|expect|tk|itcl|eda_*` — absent from
         // every non-Tcl-version dialect too, all of which fall outside
-        // `TCL86_PLUS`. `tcl-dialect/src/profile.rs`'s
-        // `IRULES_DISABLED_COMMANDS` used to separately list this name too
-        // (predating this gate, back when `dialects` was still `None`) —
-        // that entry was redundant once this `TCL86_PLUS` gate alone
-        // already excludes `DialectSet::IRULES` on the version axis, and
-        // has since been removed.
+        // `TCL86_PLUS`. That same version gate is all that is needed to
+        // exclude this command from iRules: `TCL86_PLUS` carries no
+        // `IRULES` bit, so the spec never intersects iRules' bare `IRULES`
+        // mask and is excluded on the version axis alone — no separate
+        // per-dialect exclusion, and no disable list.
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),

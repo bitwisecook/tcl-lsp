@@ -43,13 +43,14 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "error",
-        // Present, unrestricted, and never in `IRULES_DISABLED_COMMANDS` or any
-        // other dialect's `disabled_commands` list (checked against
-        // tcl-dialect/src/profile.rs) — `error` is a pure exception-raising
-        // primitive with no filesystem/process/network access, so every
-        // dialect that hosts a real Tcl core (irules, iapps, tmsh, the EDA
-        // shells, expect, tk) carries it unmodified.
-        dialects: None,
+        // Present and unrestricted: its `dialects` group explicitly carries
+        // the `IRULES` bit (unlike the TMM-sandbox-banned commands, whose
+        // bare `ALL_TCL` group never intersects the `IRULES` mask) — `error`
+        // is a pure exception-raising primitive with no
+        // filesystem/process/network access, so every dialect that hosts a
+        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk)
+        // carries it unmodified.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         // `LANGUAGE_KEYWORD`, like its sibling `throw`: both raise an exception
         // and both are `TERMINATES_BLOCK`. `error` carried neither the trait nor
         // any keyword colouring, so `catch { error boom }` painted `catch` as a

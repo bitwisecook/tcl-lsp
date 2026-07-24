@@ -189,12 +189,11 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "return",
-        // Present, unrestricted, and not in any dialect's
-        // `disabled_commands` list (only `f5-irules` has a non-empty one,
-        // and `return` isn't on it — checked against
-        // `tcl-dialect/src/profile.rs`) — a pure control-flow primitive
-        // with no filesystem/process/network access, so every dialect
-        // that hosts a real Tcl core (irules, iapps, tmsh, the EDA
+        // Present and unrestricted: its `dialects` group carries the
+        // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
+        // under the bare `IRULES` availability mask — a pure control-flow
+        // primitive with no filesystem/process/network access, so every
+        // dialect that hosts a real Tcl core (irules, iapps, tmsh, the EDA
         // shells, expect, tk, itcl) carries it unmodified. Its *legal
         // option set* still narrows per dialect/version through the
         // individual OptionSpecs' own `dialects` gates below (enforced
@@ -202,7 +201,7 @@ pub fn spec() -> CommandSpec {
         // *argument shape* narrows further inside an iRules event body
         // (see `FORMS` / `return_context_gate`) — neither of which is a
         // whole-command dialect gate.
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

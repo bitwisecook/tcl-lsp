@@ -162,7 +162,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsort",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         // NOT `Traits::PURE` / `Traits::CSE_CANDIDATE`: unlike `lsearch`
         // (which has no comparator option), `-command cmdPrefix` lets a
         // call site name an arbitrary command that runs with the

@@ -94,17 +94,16 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
-        // Present, unrestricted, and absent from every dialect's
-        // `disabled_commands` list (only `f5-irules` has a non-empty one,
-        // and `variable` isn't on it — checked against
-        // `tcl-dialect/src/profile.rs`); no dialect pack under
+        // Present and unrestricted: iRules enables `variable`, so it
+        // carries the `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`) and
+        // resolves under the bare `IRULES` mask; no dialect pack under
         // `tcl-registry/src/commands/` (irules/, iapps/, tk/, expect/, the
         // eda_*/ vendor packs, itcl/, bpf/) defines its own `variable`
         // spec either, so every dialect inherits this one unmodified.
         // Only the minimum argument count narrows per Tcl version —
         // captured on the individual FORMS entries above, not as a
         // whole-command dialect gate.
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

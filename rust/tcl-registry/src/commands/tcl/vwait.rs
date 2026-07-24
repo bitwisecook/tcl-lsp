@@ -50,14 +50,14 @@
 //! prose rather than modelled as a new dialect gate, since the option
 //! itself, not just this detail of it, is already present in 9.0.
 //!
-//! iRules disables `vwait` outright: it is one of the K36322151
-//! event-loop bans in `IRULES_DISABLED_COMMANDS`
-//! (`tcl-dialect/src/profile.rs`), applied after the mask query rather
-//! than as a spec-level restriction, so this spec's own `dialects: None`
-//! stays universal per that list's documented convention (contract-tested
-//! by `irules_disable_list_is_load_bearing`,
+//! iRules bans `vwait` outright: it is one of the K36322151 event-loop
+//! bans, encoded directly in the spec's `dialects` group — `vwait`
+//! carries `ALL_TCL` with no `IRULES` bit (see `spec()` below), so it
+//! never intersects the bare `IRULES` availability mask and falls out of
+//! iRules by plain intersection, with no subtractive disable list
+//! (contract-tested by `irules_banned_commands_lack_the_irules_bit`,
 //! `tcl-registry/tests/dialect_profile.rs`). No other dialect profile
-//! (iApps, tmsh, the EDA vendor shells, Expect, Tk) disables `vwait` or
+//! (iApps, tmsh, the EDA vendor shells, Expect, Tk) bans `vwait` or
 //! registers a competing spec of its own — the `irules/`, `iapps/`,
 //! `expect/`, `tk/`, and `eda_*/` command directories were all grepped
 //! for `vwait` with no hits (`tmsh` has no directory of its own; its
@@ -69,7 +69,7 @@
 //! gate below — none of them reach it, matching their real embedded
 //! cores. `bpf` is the one profile whose mask does reach Tcl 9.0
 //! (`DialectSet::TCL90.union(DialectSet::BPF)`, a genuine embedded Tcl
-//! 9.0 core, empty `disabled_commands`), so it resolves both the command
+//! 9.0 core, and it does not ban `vwait`), so it resolves both the command
 //! and the new options today, the same way `tcl::process`'s identical
 //! `TCL90_PLUS` gate does (`commands/tcl/tcl_process.rs`).
 use crate::prelude::*;
@@ -200,10 +200,11 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vwait",
-        // Present everywhere except iRules, which bans it via the
-        // subtractive `IRULES_DISABLED_COMMANDS` list rather than a
-        // spec-level gate — see the module doc comment.
-        dialects: None,
+        // Present everywhere except iRules: `ALL_TCL` carries no `IRULES`
+        // bit, so this spec never intersects the bare `IRULES` mask and is
+        // banned there by plain intersection, with no disable list — see
+        // the module doc comment.
+        dialects: Some(DialectSet::ALL_TCL),
         // BYTE_COMPILED only in the "recognised core builtin" sense this
         // codebase's convention uses (traits.rs's doc comment) — real
         // `Tcl_VwaitObjCmd` has no `CompileProc`. FRAME_HASH_BUILTIN is

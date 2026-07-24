@@ -60,12 +60,13 @@ pub fn spec() -> CommandSpec {
         // A pure variable-scoping primitive — no filesystem, process, or
         // network access — so every dialect that hosts a real Tcl core
         // carries it unmodified, the same reasoning `global`/`variable`
-        // use for their own unrestricted `dialects`. Not on iRules'
-        // `IRULES_DISABLED_COMMANDS` list (`tcl-dialect/src/profile.rs`),
-        // and no dialect command pack (irules/, iapps/, itcl/, tk/,
-        // expect/, the eda_*/ vendor directories) defines its own
-        // "upvar" spec to add or restrict a form.
-        dialects: None,
+        // use for their own unrestricted `dialects`. iRules enables it, so
+        // it carries the `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`)
+        // and resolves under the bare `IRULES` mask; and no dialect command
+        // pack (irules/, iapps/, itcl/, tk/, expect/, the eda_*/ vendor
+        // directories) defines its own "upvar" spec to add or restrict a
+        // form.
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

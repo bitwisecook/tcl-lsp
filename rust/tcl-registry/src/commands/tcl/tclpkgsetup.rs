@@ -70,32 +70,28 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tclPkgSetup",
-        // Universal Tcl data (`dialects: None`) is deliberate — the
-        // previous `Some(DialectSet::ALL_TCL)` here is exactly the stub
-        // placeholder value `pkg__create.rs` and `tcllog.rs` already flag,
-        // while auditing their own files, as wrong for this proc. F5
-        // iRules' subtractive `IRULES_DISABLED_COMMANDS` list
-        // (`tcl-dialect/src/profile.rs`) bans `package` and `pkg_mkindex`
-        // outright — the K36322151 filesystem/process bans — but does
-        // *not* name `tclPkgSetup` (confirmed by grep), and no
-        // irules/iapps/tk/expect/eda_*/itcl override directory mentions it
-        // either (also confirmed by grep, across all ten
-        // `commands/{irules,iapps,tk,expect,eda_*,itcl}` directories). No
-        // dialect profile other than `f5-irules` carries a
-        // `disabled_commands` list at all, so `Some(ALL_TCL)` — which has
-        // no IRULES/IAPPS/TK/EXPECT/EDA/TMSH bit — would silently exclude
-        // `tclPkgSetup` from Expect, the five EDA vendor shells, tmsh, and
-        // iApps too, every one of which embeds a genuine (if
-        // version-pinned) Tcl core per its own
-        // `signature_base`/`runtime_base` and so presumably ships this
-        // plain library proc just as stock Tcl does. Whether real iRules
-        // still exposes a working `tclPkgSetup` given that `package`
-        // itself is banned there is not independently confirmed — only
-        // that the current ground-truth ban list does not exclude it — so
-        // this leaves that list untouched rather than pre-empting it, the
-        // same data-over-assumption call `auto_mkindex.rs`/`tcllog.rs`
-        // document for themselves.
-        dialects: None,
+        // `dialects: Some(DialectSet::ALL_TCL)` here is deliberate. Under
+        // the explicit-per-spec model `ALL_TCL` spans every core Tcl version
+        // but not the `IRULES` bit, so the spec never intersects iRules'
+        // bare `IRULES` availability mask and is unreachable there — there
+        // is no subtractive disable list. The modelled K36322151 iRules bans
+        // in this family are `package` and `pkg_mkindex` outright;
+        // `tclPkgSetup` is not separately named among them (confirmed by
+        // grep), and no irules/iapps/tk/expect/eda_*/itcl override directory
+        // mentions it either (also confirmed by grep, across all ten
+        // `commands/{irules,iapps,tk,expect,eda_*,itcl}` directories). Every
+        // dialect other than iRules composes a real Tcl-version bit that
+        // `ALL_TCL` does intersect — Expect, the five EDA vendor shells,
+        // tmsh, and iApps each embed a genuine (if version-pinned) Tcl core
+        // per its own `signature_base`/`runtime_base` — so `tclPkgSetup`
+        // stays reachable in every one of them, just as stock Tcl ships it.
+        // Whether real iRules still exposes a working `tclPkgSetup` given
+        // that `package` itself is banned there is not independently
+        // confirmed, so `Some(ALL_TCL)` — which excludes it from iRules
+        // while leaving it reachable everywhere else — stands as the
+        // conservative value here, the same data-over-assumption call
+        // `tcllog.rs` documents for itself.
+        dialects: Some(DialectSet::ALL_TCL),
         // A Tcl-level library proc (`library/package.tcl` — see the module
         // doc comment), not a `Tcl_CreateObjCommand`-registered builtin, so
         // it carries no `CmdInfo` row and is absent from the exact C Tcl

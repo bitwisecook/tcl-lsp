@@ -22,7 +22,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl_startOfNextWord",
         traits: Traits::PURE | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Return the index of the first start-of-word after *start* in *str*.",

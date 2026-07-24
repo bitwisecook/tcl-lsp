@@ -65,25 +65,23 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// command traces (TIP 110) have been present since 8.4, so this is not
 /// version-gated either.
 ///
-/// `dialects: None` here is deliberate, not an oversight: F5 iRules is the
-/// one modelled dialect that drops `rename` — it is one of the 50
-/// K36322151 commands in `IRULES_DISABLED_COMMANDS`
-/// (`tcl-dialect/src/profile.rs`), which bans direct command-table surgery
-/// in the TMM event sandbox alongside its `namespace`/`interp` siblings —
-/// but that exclusion is enforced generically by the iRules profile's
-/// subtractive `disabled_commands` list, not by a `CommandSpec`-level
-/// `dialects` gate, the same treatment `pwd`/`cd`/`open`/`glob`/`exec` get
-/// in their own spec files; the `irules_disable_list_is_load_bearing`
-/// contract test (`tcl-registry/tests/dialect_profile.rs`) requires the
-/// bare `IRULES` mask to still admit this spec so the disable list has
-/// something to subtract. Every other modelled dialect (Expect, Tk, the
-/// EDA vendor consoles, F5 iApps, F5 tmsh, incr Tcl) has an empty
-/// `disabled_commands` list and no dedicated `rename` override of its own,
-/// so the command resolves there identically to plain Tcl.
+/// `dialects: ALL_TCL` (no `IRULES` bit) here is deliberate, not an
+/// oversight: F5 iRules is the one modelled dialect that drops `rename` —
+/// it is one of the K36322151 commands F5 bans from direct command-table
+/// surgery in the TMM event sandbox alongside its `namespace`/`interp`
+/// siblings — and that exclusion is enforced simply by this group's
+/// omission of the `IRULES` bit: an `ALL_TCL` group never intersects the
+/// bare `IRULES` availability mask, so `rename` falls out by plain
+/// intersection with no separate disable list, the same treatment
+/// `pwd`/`cd`/`open`/`glob`/`exec` get in their own spec files. Every
+/// other modelled dialect (Expect, Tk, the EDA vendor consoles, F5 iApps,
+/// F5 tmsh, incr Tcl) hosts a real Tcl core whose availability mask
+/// intersects this `ALL_TCL` group and adds no dedicated `rename` override
+/// of its own, so the command resolves there identically to plain Tcl.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_RenameObjCmd` → `TclRenameCommand`
         // (tclCmdMZ.c / tclBasic.c) deletes `oldName` (an empty `newName`
         // deletes the command outright) and errors when `oldName` doesn't

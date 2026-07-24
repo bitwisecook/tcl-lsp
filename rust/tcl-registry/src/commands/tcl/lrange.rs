@@ -68,10 +68,10 @@
 // alongside the 8.x set) purely because those sibling list commands
 // did not exist before 8.5/8.6/9.0 — cross-reference churn, not a
 // change to lrange itself. Not disabled or overridden in any modelled
-// dialect: absent from `IRULES_DISABLED_COMMANDS` in
-// tcl-dialect/src/profile.rs, and no irules/iapps/tmsh/expect/eda*/tk/
-// itcl spec file names `lrange` — so the command-level `dialects:
-// None` (universal) is correct as-is.
+// dialect: `lrange` carries the `IRULES` bit explicitly (its `dialects`
+// group is `ALL_TCL.union(IRULES)`, resolving under the bare `IRULES`
+// mask), and no irules/iapps/tmsh/expect/eda*/tk/itcl spec file names
+// `lrange` — so the command-level group is correct as-is.
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -83,7 +83,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lrange",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         const_fold: Some(crate::const_fold::fold_lrange),
         // `lrange list first last` has fixed arity 3, so *every* call is a
         // `HEAD NAME BRACED BRACED` shape once first/last happen to be

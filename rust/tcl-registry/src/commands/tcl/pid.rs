@@ -79,16 +79,14 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `commands/tcl/chan_.rs`), so `pid` stays the only spelling
 /// throughout.
 ///
-/// `dialects: None` here is deliberate, not an oversight: F5 iRules is
-/// the one modelled dialect that drops `pid` — its TMM sandbox has no
-/// real process model, the same reasoning that drops `exec`/`open`/
-/// `socket`/the rest of the filesystem-and-process surface — but that
-/// exclusion lives on `DialectProfile::irules().disabled_commands`
-/// (`tcl-dialect/src/profile.rs`), subtractively, not on this field:
-/// the `irules_disable_list_is_load_bearing` contract test
-/// (`tcl-registry/tests/dialect_profile.rs`) requires the bare
-/// `IRULES` mask to still admit this spec so the disable list has
-/// something to subtract. Expect layers a real OS process model on a
+/// `dialects: Some(DialectSet::ALL_TCL)` here is deliberate, not an
+/// oversight: F5 iRules is the one modelled dialect that drops `pid` —
+/// its TMM sandbox has no real process model, the same reasoning that
+/// drops `exec`/`open`/`socket`/the rest of the filesystem-and-process
+/// surface. That `ALL_TCL` group carries no `IRULES` bit, so it never
+/// intersects the bare `IRULES` availability mask and `pid` simply falls
+/// out by plain intersection — there is no disable list. Expect layers a
+/// real OS process model on a
 /// real Tcl core and leaves plain `pid` untouched; it adds its own,
 /// separate `exp_pid` command (`commands/expect/exp_pid.rs`) for the
 /// *spawned child's* pid rather than replacing this one. No other
@@ -97,7 +95,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pid",
-        dialects: None,
+        dialects: Some(DialectSet::ALL_TCL),
         // Reads process/channel-table state that lives outside the
         // argument list rather than being a pure function of its own
         // arguments (see the `SIDE_EFFECTS` doc comment above) —
