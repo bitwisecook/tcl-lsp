@@ -174,6 +174,14 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         arg_values: &[(1, ACCESS_VALUES)],
+        // Only `fileName` (arg 0) is the code-execution sink: a leading `|`
+        // there runs the rest of the word as a command pipeline (see the
+        // hover snippet). The later `access` mode and octal `permissions`
+        // arguments cannot turn a literal fileName into a command, so a
+        // tainted mode/permissions value (`open /tmp/out $mode`) must not
+        // draw T100 — without this, the whole-command sink default flags
+        // every argument.
+        taint_code_sink_args: Some(&[0]),
         ..CommandSpec::DEFAULT
     }
 }

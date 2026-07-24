@@ -81,6 +81,13 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Apply),
+        // Only `func` (arg 0, the `{argList body ?ns?}` lambda) is the
+        // code-execution sink: trailing `arg1 arg2 ...` are ordinary values
+        // bound to the lambda's formal parameters, never re-evaluated as
+        // script text (see the `TAINT_SINK`-not-`EVALUATES_CODE` note above),
+        // so a tainted `arg` must not draw T100. Without this, the
+        // whole-command sink default flags every argument.
+        taint_code_sink_args: Some(&[0]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -2892,30 +2892,55 @@ fn sink_var_position_safe(
     {
         return true;
     }
+    let Some(spec) = registry.get(command) else {
+        return false;
+    };
     match code {
         // T104 SSRF — only the network-address positional slots named by
-        // `taint_network_sink_args`. `Some(&[])` (positions unspecified)
-        // imposes no filter.
+        // `taint_network_sink_args`. `None`/`Some(&[])` (positions
+        // unspecified) imposes no filter.
         DiagCode::T104 => {
-            let Some(spec) = registry.get(command) else {
-                return false;
-            };
-            let Some(positions) = spec.taint_network_sink_args else {
-                return false;
-            };
-            if positions.is_empty() {
-                return false;
-            }
-            let positionals = positional_arg_strings(spec, args);
-            let in_network_slot = positions.iter().any(|&p| {
-                positionals
-                    .get(p as usize)
-                    .is_some_and(|s| arg_var_names(s).contains(name))
-            });
-            !in_network_slot
+            var_only_in_safe_positions(spec, spec.taint_network_sink_args, args, name)
         }
+        // T100 code injection — only the code-execution slot named by
+        // `taint_code_sink_args` (`apply`'s lambda `func`, `open`'s
+        // pipeline-selecting `fileName` — both position 0). A tainted value
+        // in any other positional slot is ordinary data (the lambda's bound
+        // parameters, `open`'s access/permissions) and must not trip the
+        // sink. `None` (`eval`/`uplevel`/`subst`/`exec` — the whole tail is
+        // one script) or `Some(&[])` imposes no filter, so every tainted
+        // argument stays dangerous as before.
+        DiagCode::T100 => var_only_in_safe_positions(spec, spec.taint_code_sink_args, args, name),
         _ => false,
     }
+}
+
+/// `true` when `name` appears in `args` only *outside* the dangerous
+/// positional slots named by `positions` (option flags skipped) — i.e. the
+/// value never reaches a dangerous slot, so the sink must not fire.
+/// `None` or `Some(&[])` means "positions unspecified": no filter, so this
+/// returns `false` (the value is treated as potentially dangerous). Shared
+/// by the T100 (`taint_code_sink_args`) and T104 (`taint_network_sink_args`)
+/// position filters in [`sink_var_position_safe`].
+fn var_only_in_safe_positions(
+    spec: &tcl_registry::CommandSpec,
+    positions: Option<&'static [u8]>,
+    args: &[String],
+    name: &str,
+) -> bool {
+    let Some(positions) = positions else {
+        return false;
+    };
+    if positions.is_empty() {
+        return false;
+    }
+    let positionals = positional_arg_strings(spec, args);
+    let in_dangerous_slot = positions.iter().any(|&p| {
+        positionals
+            .get(p as usize)
+            .is_some_and(|s| arg_var_names(s).contains(name))
+    });
+    !in_dangerous_slot
 }
 
 /// `true` when one of `args` is a `[list <head> …]` command substitution
@@ -5605,6 +5630,60 @@ mod tests {
         assert!(
             warnings.iter().any(|w| w.code == DiagCode::T100),
             "expected T100 for tainted open fileName, got {warnings:?}",
+        );
+    }
+
+    /// FP fix / TN: `open /tmp/out $mode` — a *literal* safe fileName with a
+    /// tainted access-mode argument must not raise T100. Only arg 0 selects a
+    /// `|`-pipeline; a tainted access mode or octal permissions can never
+    /// turn a literal path into a command, so `open`'s `taint_code_sink_args
+    /// = Some(&[0])` gates the sink to the fileName slot alone.
+    #[test]
+    fn t100_silent_for_open_tainted_access_mode() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "set mode [gets stdin]\nopen /tmp/out $mode\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "a tainted open access mode with a literal fileName must not raise T100, got {warnings:?}",
+        );
+    }
+
+    /// TP: `apply $lambda ...` with a tainted lambda (arg 0) raises T100 — the
+    /// lambda body is executed verbatim, so tainted code in the `func` slot
+    /// is a genuine code-injection sink.
+    #[test]
+    fn t100_fires_for_apply_tainted_lambda() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "set lambda [gets stdin]\napply $lambda 1 2\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 for a tainted apply lambda (arg 0), got {warnings:?}",
+        );
+    }
+
+    /// FP fix / TN: `apply {{x} {return $x}} $tainted` — a tainted value
+    /// passed as an ordinary lambda *argument* (bound to a formal parameter,
+    /// never re-evaluated as script) must not raise T100. `apply`'s
+    /// `taint_code_sink_args = Some(&[0])` gates the sink to the `func` slot.
+    #[test]
+    fn t100_silent_for_apply_tainted_argument() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "set x [gets stdin]\napply {{a} {return $a}} $x\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "a tainted apply argument (not the lambda) must not raise T100, got {warnings:?}",
         );
     }
 

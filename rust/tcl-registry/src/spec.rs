@@ -529,6 +529,22 @@ pub struct CommandSpec {
     /// dangerous-arg positions are unspecified.
     pub taint_network_sink_args: Option<&'static [u8]>,
 
+    /// Positional argument indices (0-based after the command name, option
+    /// flags skipped) that are the *actual* code-execution sink for a T100
+    /// command — the only slots where a tainted value reaches `eval`-style
+    /// evaluation. `apply`'s lambda `func` and `open`'s pipeline-selecting
+    /// `fileName` are both `Some(&[0])`: their trailing arguments (the
+    /// lambda's bound parameters, `open`'s access mode / permissions) are
+    /// ordinary data, never re-evaluated as script text. `None` (the
+    /// default) means the whole command is the sink — every tainted
+    /// argument reaches evaluation — which is correct for the
+    /// `eval`/`uplevel`/`subst`/`exec` "whole tail is one script" shape.
+    /// Set this only when a specific slot, not the entire argument tail,
+    /// carries the code-execution hazard. `Some(&[])` imposes no filter
+    /// (behaves like `None`). Consumed by `tcl_compiler::taint`'s
+    /// position-aware T100 sink filter.
+    pub taint_code_sink_args: Option<&'static [u8]>,
+
     /// Subcommands that evaluate code in another interpreter
     /// (`interp eval`, `interp invokehidden`) — cross-interpreter
     /// code-execution sinks (T105). Empty = none.
@@ -863,6 +879,7 @@ impl CommandSpec {
         taint_output_sink_subcommands: &[],
         taint_log_sink: None,
         taint_network_sink_args: None,
+        taint_code_sink_args: None,
         taint_interp_eval_subcommands: &[],
         taint_source: None,
         taint_transform: None,
