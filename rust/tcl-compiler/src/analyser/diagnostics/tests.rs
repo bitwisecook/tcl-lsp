@@ -3385,7 +3385,6 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
         "intel-quartus-eda-tcl",
         "mentor-eda-tcl",
         "synopsys-eda-tcl",
-        "cadence-eda-tcl",
         "expect",
     ] {
         assert!(
@@ -3401,7 +3400,6 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
         "intel-quartus-eda-tcl",
         "mentor-eda-tcl",
         "synopsys-eda-tcl",
-        "cadence-eda-tcl",
         "expect",
     ] {
         assert_eq!(
@@ -3410,6 +3408,19 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
             "{dialect} should still gate TIP 461 'lt'"
         );
     }
+    // Cadence Innovus/Genus run an 8.4-safe core (owner decision), so —
+    // like `f5-irules` — TIP 201 `in`/`ni` (8.5+) is *also* out of
+    // grammar and must be flagged, not just TIP 461's `lt`/`le`/`gt`/`ge`.
+    assert_eq!(
+        w003_hits("expr {2 in {1 2 3}}", "cadence-eda-tcl").len(),
+        1,
+        "cadence-eda-tcl runs an 8.4 core — TIP 201 'in' must gate"
+    );
+    assert_eq!(
+        w003_hits("if {$x lt $y} { puts hi }", "cadence-eda-tcl").len(),
+        1,
+        "cadence-eda-tcl should still gate TIP 461 'lt'"
+    );
 }
 
 #[test]

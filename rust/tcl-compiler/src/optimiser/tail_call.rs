@@ -46,10 +46,10 @@ use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Dialects whose base Tcl version supports `tailcall` (Tcl 8.6+,
-/// TIP 327): every dialect whose `DIALECT_BASE_VERSION` entry is
+/// TIP 327): every dialect whose documented runtime base version is
 /// `tcl8.6` or later.
-/// `f5-irules` (tcl8.4-based), `f5-iapps` / `f5-tmsh` /
-/// `xilinx-eda-tcl` / `intel-quartus-eda-tcl` / `mentor-eda-tcl`
+/// `f5-irules` / `cadence-eda-tcl` (tcl8.4-based), `f5-iapps` /
+/// `f5-tmsh` / `xilinx-eda-tcl` / `intel-quartus-eda-tcl`
 /// (tcl8.5-based) are deliberately excluded.
 ///
 /// O122's `lassign`-based loop conversion needs a separate 8.5+
@@ -59,14 +59,15 @@ const TAILCALL_DIALECTS: &[&str] = &[
     "tcl8.6",
     "tcl9.0",
     "synopsys-eda-tcl",
-    "cadence-eda-tcl",
+    "mentor-eda-tcl",
     "expect",
 ];
 
 /// Dialects whose base Tcl version supports `lassign` (Tcl 8.5+,
 /// TIP 57).  Used by `emit_loop_conversion` to decide whether a
 /// multi-param body can be rewritten using `lassign`.  Tcl 8.4 /
-/// f5-irules fall back to a sequence of single `set` statements.
+/// f5-irules / cadence-eda-tcl fall back to a sequence of single
+/// `set` statements.
 const LASSIGN_DIALECTS: &[&str] = &[
     "tcl8.5",
     "tcl8.6",
@@ -74,7 +75,6 @@ const LASSIGN_DIALECTS: &[&str] = &[
     "f5-iapps",
     "f5-tmsh",
     "synopsys-eda-tcl",
-    "cadence-eda-tcl",
     "xilinx-eda-tcl",
     "intel-quartus-eda-tcl",
     "mentor-eda-tcl",
@@ -805,10 +805,16 @@ mod tests {
         // `tailcall` is TIP 327 (Tcl 8.6+); pre-8.6 dialects must NOT
         // emit O121.  The body is a single-recursive self-call —
         // O121 would normally fire — but on tcl8.4 / tcl8.5 / f5-irules
-        // the suggestion is incorrect (the dialect can't run
-        // `tailcall`).
+        // / cadence-eda-tcl (8.4-based) the suggestion is incorrect
+        // (the dialect can't run `tailcall`).
         let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
-        for dialect in ["tcl8.4", "tcl8.5", "f5-irules", "f5-iapps"] {
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "f5-irules",
+            "f5-iapps",
+            "cadence-eda-tcl",
+        ] {
             let opts = run_pass_with_dialect(src, dialect);
             assert!(
                 opts.iter().all(|o| o.code != DiagCode::O121),
@@ -824,7 +830,7 @@ mod tests {
             "tcl8.6",
             "tcl9.0",
             "synopsys-eda-tcl",
-            "cadence-eda-tcl",
+            "mentor-eda-tcl",
             "expect",
         ] {
             let opts = run_pass_with_dialect(src, dialect);
