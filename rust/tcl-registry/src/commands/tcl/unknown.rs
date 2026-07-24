@@ -37,7 +37,7 @@
 //!   current namespace and then the global namespace.
 //! - Tcl 8.6 added the clause "and Tcl is run interactively" to the
 //!   auto-exec step's gating ("If the auto-load fails and Tcl is run
-//!   interactively then unknown calls auto_execok…"); the Tcl 8.4 and
+//!   interactively then unknown calls `auto_execok`…"); the Tcl 8.4 and
 //!   8.5 manpages document the same step with no such qualifier.
 //! - Tcl 8.6 also added "unknown" itself to the KEYWORDS list (a
 //!   doc-indexing change only, no behavioural content).

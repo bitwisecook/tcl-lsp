@@ -46,7 +46,7 @@
 //! forever") when no option supplies a wait condition and no varName is
 //! given either. Tcl 9.1's vwait.html is identical to 9.0's except
 //! `-timeout` gains one added sentence, "A monotonic clock is used if
-//! available" — folded into that OptionSpec's `detail` below as plain
+//! available" — folded into that `OptionSpec`'s `detail` below as plain
 //! prose rather than modelled as a new dialect gate, since the option
 //! itself, not just this detail of it, is already present in 9.0.
 //!

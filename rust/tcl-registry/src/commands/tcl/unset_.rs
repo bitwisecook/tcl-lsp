@@ -91,7 +91,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let i = match args {
         ["-nocomplain", "--", ..] => 2,
-        ["-nocomplain", ..] | ["--", ..] => 1,
+        ["-nocomplain" | "--", ..] => 1,
         _ => 0,
     };
     (i..args.len())
