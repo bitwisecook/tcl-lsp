@@ -54,14 +54,10 @@ fn is_mathop_spelling(name: &str) -> bool {
 /// enumerating the complement of the excluded dialects.
 #[test]
 fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
-    let retired = DialectSet::ALL_TCL
-        | DialectSet::IAPPS
-        | DialectSet::EXPECT
-        | DialectSet::SYNOPSYS
-        | DialectSet::CADENCE
-        | DialectSet::XILINX
-        | DialectSet::QUARTUS
-        | DialectSet::MENTOR;
+    // Reconstructed from the non-iRules/Tk/BPF dialect bits that still exist;
+    // the 5 EDA vendor bits that were also part of this union were retired by
+    // the EDA-as-packages migration (eda-library-packages.md).
+    let retired = DialectSet::ALL_TCL | DialectSet::IAPPS | DialectSet::EXPECT;
     let check = |gate: Option<DialectSet>, what: &str| {
         assert_ne!(
             gate,

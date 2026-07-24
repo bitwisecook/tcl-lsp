@@ -35,22 +35,12 @@ const FORMS: &[FormSpec] = &[
     FormSpec {
         kind: FormKind::Default,
         synopsis: "variable name",
-        dialects: Some(
-            DialectSet::TCL86_PLUS
-                .union(DialectSet::EXPECT)
-                .union(DialectSet::SYNOPSYS)
-                .union(DialectSet::CADENCE),
-        ),
+        dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
     },
     FormSpec {
         kind: FormKind::Default,
         synopsis: "variable ?name value...?",
-        dialects: Some(
-            DialectSet::TCL86_PLUS
-                .union(DialectSet::EXPECT)
-                .union(DialectSet::SYNOPSYS)
-                .union(DialectSet::CADENCE),
-        ),
+        dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
     },
     // Tcl 8.4 and 8.5 require at least one `name`: `Tcl_VariableObjCmd`
     // opens with `if (objc < 2) Tcl_WrongNumArgs(...)` in both versions,
@@ -68,10 +58,7 @@ const FORMS: &[FormSpec] = &[
                 .union(DialectSet::TCL85)
                 .union(DialectSet::IRULES)
                 .union(DialectSet::IAPPS)
-                .union(DialectSet::TMSH)
-                .union(DialectSet::XILINX)
-                .union(DialectSet::QUARTUS)
-                .union(DialectSet::MENTOR),
+                .union(DialectSet::TMSH),
         ),
     },
 ];

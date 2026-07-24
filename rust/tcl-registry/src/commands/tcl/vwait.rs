@@ -180,12 +180,7 @@ const FORMS: &[FormSpec] = &[
             DialectSet::TCL8X
                 .union(DialectSet::EXPECT)
                 .union(DialectSet::IAPPS)
-                .union(DialectSet::TMSH)
-                .union(DialectSet::QUARTUS)
-                .union(DialectSet::MENTOR)
-                .union(DialectSet::SYNOPSYS)
-                .union(DialectSet::CADENCE)
-                .union(DialectSet::XILINX),
+                .union(DialectSet::TMSH),
         ),
     },
     // Tcl 9.0+ (and `bpf`, whose mask reaches Tcl 9.0 automatically

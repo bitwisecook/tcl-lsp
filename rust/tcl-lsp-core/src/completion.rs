@@ -1750,11 +1750,13 @@ fn builtin_completions(
         // Tk commands (`required_package == "Tk"`) are only offered once Tk
         // is loaded — see the `tk_loaded` computation in `completions` — and
         // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
-        // world where a desktop library cannot be `package require`d, even
-        // if the source says so (dialect-profile-model.md §7.2; Tk hosting
-        // becomes a first-class library pin on the versioned-library axis).
+        // world where a desktop library cannot be `package require`d, even if
+        // the source says so. A profile can host Tk iff it carries a Tk library
+        // pin (dialect-profile-model.md §7.2); the EDA shells are packaged
+        // vendors with no vendor_bit, so this keys off the pin, not the bit
+        // (eda-library-packages.md).
         .filter(|n| {
-            (tk_loaded && profile.vendor_bit.is_none())
+            (tk_loaded && profile.hosts_tk())
                 || registry
                     .get(n)
                     .is_none_or(|spec| spec.required_package != Some("Tk"))

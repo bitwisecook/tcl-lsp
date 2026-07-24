@@ -26,10 +26,10 @@ bitflags! {
     /// `None` on a `CommandSpec` means "available in all dialects".
     /// A specific `DialectSet` restricts availability.
     ///
-    /// Backed by `u64`: 17 bits are used today (5 Tcl versions + iRules, iApps,
-    /// Tk, Expect, 5 EDA vendors, BPF, tmsh, the BIG-IP config surface),
-    /// leaving ample headroom for future dialect bits and the
-    /// versioned-library work without another width migration.
+    /// Backed by `u64`: 12 bits are used today (5 Tcl versions + iRules, iApps,
+    /// Tk, Expect, BPF, tmsh, the BIG-IP config surface); bits 8–12 were freed
+    /// by the EDA-as-packages migration, leaving ample headroom for future
+    /// dialect bits and the versioned-library work without a width migration.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct DialectSet: u64 {
         /// Tcl 8.4
@@ -48,16 +48,11 @@ bitflags! {
         const TK        = 1 << 6;
         /// Expect
         const EXPECT    = 1 << 7;
-        /// Synopsys EDA
-        const SYNOPSYS  = 1 << 8;
-        /// Cadence EDA
-        const CADENCE   = 1 << 9;
-        /// Xilinx/AMD EDA
-        const XILINX    = 1 << 10;
-        /// Intel Quartus EDA
-        const QUARTUS   = 1 << 11;
-        /// Mentor/Siemens EDA
-        const MENTOR    = 1 << 12;
+        // Bits 8–12 (formerly the Synopsys/Cadence/Xilinx/Quartus/Mentor EDA
+        // vendor bits) were retired: EDA shells are modelled as a base Tcl
+        // version plus `required_package`-gated command libraries, not vendor
+        // dialects (design doc `eda-library-packages.md`). The slots are left
+        // free for future dialects.
         /// BPF-Tcl (the eBPF framework dialect)
         const BPF       = 1 << 13;
         /// Tcl 9.1
@@ -234,11 +229,6 @@ impl DialectSet {
             "f5-iapps" => Self::IAPPS,
             "tk" => Self::TK,
             "expect" => Self::EXPECT,
-            "synopsys-eda-tcl" => Self::SYNOPSYS,
-            "cadence-eda-tcl" => Self::CADENCE,
-            "xilinx-eda-tcl" => Self::XILINX,
-            "intel-quartus-eda-tcl" => Self::QUARTUS,
-            "mentor-eda-tcl" => Self::MENTOR,
             "f5-tmsh" => Self::TMSH,
             "f5-bigip" => Self::BIGIP,
             _ => return None,
@@ -261,11 +251,6 @@ impl DialectSet {
             Self::IAPPS => "f5-iapps",
             Self::TK => "tk",
             Self::EXPECT => "expect",
-            Self::SYNOPSYS => "synopsys-eda-tcl",
-            Self::CADENCE => "cadence-eda-tcl",
-            Self::XILINX => "xilinx-eda-tcl",
-            Self::QUARTUS => "intel-quartus-eda-tcl",
-            Self::MENTOR => "mentor-eda-tcl",
             Self::TMSH => "f5-tmsh",
             Self::BIGIP => "f5-bigip",
             _ => return None,
@@ -290,11 +275,6 @@ impl DialectSet {
             DialectSet::IAPPS,
             DialectSet::TK,
             DialectSet::EXPECT,
-            DialectSet::SYNOPSYS,
-            DialectSet::CADENCE,
-            DialectSet::XILINX,
-            DialectSet::QUARTUS,
-            DialectSet::MENTOR,
             DialectSet::BPF,
             DialectSet::TMSH,
             DialectSet::BIGIP,
@@ -481,11 +461,6 @@ mod tests {
             "f5-iapps",
             "tk",
             "expect",
-            "synopsys-eda-tcl",
-            "cadence-eda-tcl",
-            "xilinx-eda-tcl",
-            "intel-quartus-eda-tcl",
-            "mentor-eda-tcl",
         ] {
             let bit = DialectSet::parse(name).unwrap_or_else(|| panic!("{name} must parse"));
             assert_eq!(bit.canonical_name(), Some(name));

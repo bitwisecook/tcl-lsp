@@ -279,9 +279,9 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "cadence-eda-tcl",
         aliases: &[],
-        vendor_bit: Some(DialectSet::CADENCE),
+        vendor_bit: None,
         availability_mask: DialectSet::TCL86,
-        base_layers: &[DialectSet::CADENCE],
+        base_layers: &[DialectSet::TCL86],
         grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
@@ -480,9 +480,9 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "intel-quartus-eda-tcl",
         aliases: &[],
-        vendor_bit: Some(DialectSet::QUARTUS),
+        vendor_bit: None,
         availability_mask: DialectSet::TCL85,
-        base_layers: &[DialectSet::QUARTUS],
+        base_layers: &[DialectSet::TCL85],
         grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
@@ -541,9 +541,9 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "mentor-eda-tcl",
         aliases: &[],
-        vendor_bit: Some(DialectSet::MENTOR),
+        vendor_bit: None,
         availability_mask: DialectSet::TCL85,
-        base_layers: &[DialectSet::MENTOR],
+        base_layers: &[DialectSet::TCL85],
         grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
@@ -582,9 +582,9 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "synopsys-eda-tcl",
         aliases: &[],
-        vendor_bit: Some(DialectSet::SYNOPSYS),
+        vendor_bit: None,
         availability_mask: DialectSet::TCL86,
-        base_layers: &[DialectSet::SYNOPSYS],
+        base_layers: &[DialectSet::TCL86],
         grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
@@ -766,9 +766,9 @@ static CATALOG: [DialectProfile; 16] = [
     DialectProfile {
         name: "xilinx-eda-tcl",
         aliases: &[],
-        vendor_bit: Some(DialectSet::XILINX),
+        vendor_bit: None,
         availability_mask: DialectSet::TCL85,
-        base_layers: &[DialectSet::XILINX],
+        base_layers: &[DialectSet::TCL85],
         grammar_union: DialectSet::ALL_TCL,
         version_ceiling: Some(TclVersion::V8_5),
         signature_base: Some(TclVersion::V8_5),
@@ -918,6 +918,18 @@ impl DialectProfile {
     #[must_use]
     pub fn is_ambient_package(&self, package: &str) -> bool {
         self.library_pin(package).is_some_and(|pin| pin.ambient)
+    }
+
+    /// Whether this profile can host the Tk desktop library
+    /// (`package require Tk`): the plain Tcl versions (which pin Tk) and the
+    /// permissive fallback (an unlabelled `tk` / `wish` shell). A closed-world
+    /// vendor shell — the F5 surfaces, the EDA shells (packaged vendors with no
+    /// Tk pin), bpf — cannot (dialect-profile-model.md §7.2;
+    /// eda-library-packages.md). Consumers key Tk offering/acceptance off this
+    /// rather than `vendor_bit`, since the EDA shells now carry no vendor bit.
+    #[must_use]
+    pub fn hosts_tk(&self) -> bool {
+        self.is_fallback() || self.library_pin("Tk").is_some()
     }
 
     /// The version floor this profile guarantees for `package` before any
@@ -1328,9 +1340,16 @@ mod tests {
         //   surface is gated by `required_package`, not the mask.
         for p in all_with_fallback() {
             match p.vendor_bit {
-                Some(bit) if p.availability_mask.contains(bit) => {
-                    // Bare (iRules) or additive vendor: the non-vendor half is
-                    // pure version bits.
+                Some(bit) => {
+                    // Every remaining vendor-bit profile carries its bit in the
+                    // mask; the EDA shells became packaged vendors with no
+                    // vendor_bit (eda-library-packages.md). The non-vendor half
+                    // is pure version bits; iRules is the bare-bit case.
+                    assert!(
+                        p.availability_mask.contains(bit),
+                        "{}: mask must contain the vendor bit",
+                        p.name
+                    );
                     let version_half = p.availability_mask.difference(bit);
                     assert!(
                         DialectSet::ALL_TCL.contains(version_half),
@@ -1340,20 +1359,6 @@ mod tests {
                     if p.is_irules() {
                         assert_eq!(p.availability_mask, bit, "iRules mask is BARE (§9)");
                     }
-                }
-                Some(_) => {
-                    // Packaged vendor: only the EDA shells carry a vendor_bit
-                    // outside their mask; the mask is pure Tcl versions.
-                    assert!(
-                        p.name.ends_with("-eda-tcl"),
-                        "{}: a vendor_bit outside the mask is only the packaged EDA shells",
-                        p.name
-                    );
-                    assert!(
-                        DialectSet::ALL_TCL.contains(p.availability_mask),
-                        "{}: a packaged vendor's mask is pure Tcl versions",
-                        p.name
-                    );
                 }
                 None => {
                     assert!(

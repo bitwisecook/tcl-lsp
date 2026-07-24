@@ -311,37 +311,41 @@ impl CommandRegistry {
             d if d == DialectSet::TMSH => crate::commands::iapps::tmsh_command_specs(),
             d if d == DialectSet::TK => crate::commands::tk::tk_command_specs(),
             d if d == DialectSet::EXPECT => crate::commands::expect::expect_command_specs(),
-            d if d == DialectSet::SYNOPSYS => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_synopsys::eda_synopsys_command_specs());
-                v
-            }
-            d if d == DialectSet::CADENCE => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_cadence::eda_cadence_command_specs());
-                v
-            }
-            d if d == DialectSet::XILINX => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_xilinx::eda_xilinx_command_specs());
-                v
-            }
-            d if d == DialectSet::QUARTUS => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_quartus::eda_quartus_command_specs());
-                v
-            }
-            d if d == DialectSet::MENTOR => {
-                let mut v = crate::commands::sdc_base::sdc_base_command_specs();
-                v.extend(crate::commands::eda_mentor::eda_mentor_command_specs());
-                v
-            }
+            // The EDA shells load by profile identity via `load_eda_packs`
+            // (below), not a DialectSet bit — they are modelled as base-Tcl-
+            // version dialects plus `required_package`-gated command libraries
+            // (design doc `eda-library-packages.md`).
             _ => Vec::new(),
         };
         for spec in specs {
             self.insert(spec);
         }
         self.loaded_dialects |= dialect;
+    }
+
+    /// Load an EDA shell profile's command packs by profile name — the shared
+    /// `sdc_base` constraint/collection library plus the vendor's tool packs.
+    ///
+    /// EDA shells are modelled as a base Tcl version (loaded via
+    /// [`Self::load_dialect`] with the version bit) plus `required_package`-
+    /// gated libraries, rather than a vendor `DialectSet` bit (design doc
+    /// `eda-library-packages.md`), so their packs load by profile identity.
+    /// A no-op for any non-EDA profile name.
+    pub fn load_eda_packs(&mut self, profile_name: &str) {
+        let vendor = match profile_name {
+            "xilinx-eda-tcl" => crate::commands::eda_xilinx::eda_xilinx_command_specs(),
+            "synopsys-eda-tcl" => crate::commands::eda_synopsys::eda_synopsys_command_specs(),
+            "cadence-eda-tcl" => crate::commands::eda_cadence::eda_cadence_command_specs(),
+            "intel-quartus-eda-tcl" => crate::commands::eda_quartus::eda_quartus_command_specs(),
+            "mentor-eda-tcl" => crate::commands::eda_mentor::eda_mentor_command_specs(),
+            _ => return,
+        };
+        for spec in crate::commands::sdc_base::sdc_base_command_specs() {
+            self.insert(spec);
+        }
+        for spec in vendor {
+            self.insert(spec);
+        }
     }
 
     /// Load iRules dialect commands (convenience wrapper).
@@ -3625,7 +3629,7 @@ mod tests {
     #[test]
     fn load_eda_synopsys() {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::SYNOPSYS);
+        reg.load_eda_packs("synopsys-eda-tcl");
         assert!(reg.len() > 100);
     }
 

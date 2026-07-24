@@ -3030,9 +3030,14 @@ impl Backend {
             "tk" => "tk",
             _ => return None,
         };
-        // Sanity-check the mapped string is something the registry
-        // accepts; guards against typos in the table.
-        debug_assert!(DialectSet::parse(mapped).is_some());
+        // Sanity-check the mapped string is something the registry accepts;
+        // guards against typos in the table. A catalog profile (the EDA shells
+        // included — they are packaged dialects with no DialectSet bit) or a
+        // parseable library shell (`tk`).
+        debug_assert!(
+            tcl_dialect::DialectProfile::find(mapped).is_some()
+                || DialectSet::parse(mapped).is_some()
+        );
         Some(mapped)
     }
 
