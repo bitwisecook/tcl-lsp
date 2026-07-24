@@ -83,9 +83,16 @@ mod sizeof_collection;
 use crate::spec::CommandSpec;
 
 /// Return all `sdc_base` command specifications.
+///
+/// Every spec is stamped with the shared `sdc` [`required_package`]: the
+/// industry-standard SDC constraint + collection library is a single package
+/// ambient in every EDA profile (design doc `eda-library-packages.md`), rather
+/// than being gated by a per-vendor dialect bit.
+///
+/// [`required_package`]: crate::spec::CommandSpec::required_package
 #[must_use]
 pub fn sdc_base_command_specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         all_clocks::spec(),
         all_fanin::spec(),
         all_fanout::spec(),
@@ -147,5 +154,9 @@ pub fn sdc_base_command_specs() -> Vec<CommandSpec> {
         set_wire_load_mode::spec(),
         set_wire_load_model::spec(),
         sizeof_collection::spec(),
-    ]
+    ];
+    for spec in &mut specs {
+        spec.required_package = Some("sdc");
+    }
+    specs
 }

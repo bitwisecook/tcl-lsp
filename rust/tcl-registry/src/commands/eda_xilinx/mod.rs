@@ -90,7 +90,7 @@ use crate::spec::CommandSpec;
 /// Return all `eda_xilinx` command specifications.
 #[must_use]
 pub fn eda_xilinx_command_specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         apply_bd_automation::spec(),
         close_hw_manager::spec(),
         close_project::spec(),
@@ -155,5 +155,9 @@ pub fn eda_xilinx_command_specs() -> Vec<CommandSpec> {
         wait_on_run::spec(),
         write_bitstream::spec(),
         write_checkpoint::spec(),
-    ]
+    ];
+    for spec in &mut specs {
+        spec.required_package = Some("vivado");
+    }
+    specs
 }

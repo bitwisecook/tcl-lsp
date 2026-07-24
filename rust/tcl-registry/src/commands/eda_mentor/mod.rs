@@ -70,10 +70,21 @@ mod when;
 
 use crate::spec::CommandSpec;
 
+/// The per-tool Mentor/Siemens package a command belongs to (design doc
+/// `eda-library-packages.md`): Questa / `ModelSim` simulation is the bulk default;
+/// Questa Formal and Calibre (DRC/LVS batch launch) are their own packages.
+fn mentor_package_for(name: &str) -> &'static str {
+    match name {
+        "formal_analyze" | "formal_compile" | "formal_verify" => "questa-formal",
+        "calibre" | "calibre_drc" | "calibre_lvs" | "calibre_pex" => "calibre",
+        _ => "questa",
+    }
+}
+
 /// Return all `eda_mentor` command specifications.
 #[must_use]
 pub fn eda_mentor_command_specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         add_list::spec(),
         add_log::spec(),
         add_wave::spec(),
@@ -123,5 +134,9 @@ pub fn eda_mentor_command_specs() -> Vec<CommandSpec> {
         vsim::spec(),
         wave::spec(),
         when::spec(),
-    ]
+    ];
+    for spec in &mut specs {
+        spec.required_package = Some(mentor_package_for(spec.name));
+    }
+    specs
 }

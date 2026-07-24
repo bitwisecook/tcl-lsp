@@ -304,6 +304,21 @@ static CATALOG: [DialectProfile; 16] = [
                 version: LibraryVersion::Keyed(VersionKey::ToolVersion),
                 ambient: true,
             },
+            LibraryPin {
+                package: "cadence-common",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "cadence-innovus",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "cadence-xcelium",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
         ],
         help_terms: &[
             "cadence",
@@ -486,7 +501,37 @@ static CATALOG: [DialectProfile; 16] = [
                 ambient: true,
             },
             LibraryPin {
-                package: "quartus",
+                package: "quartus-project",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "quartus-flow",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "quartus-sta",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "quartus-sdc-ext",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "quartus-report",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "quartus-device",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "quartus-misc",
                 version: LibraryVersion::Keyed(VersionKey::ToolVersion),
                 ambient: true,
             },
@@ -521,6 +566,16 @@ static CATALOG: [DialectProfile; 16] = [
                 version: LibraryVersion::Keyed(VersionKey::ToolVersion),
                 ambient: true,
             },
+            LibraryPin {
+                package: "questa-formal",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "calibre",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
         ],
         help_terms: &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
     },
@@ -549,6 +604,26 @@ static CATALOG: [DialectProfile; 16] = [
             },
             LibraryPin {
                 package: "synopsys-dc",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "synopsys-pt",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "synopsys-icc2",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "synopsys-fm",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "synopsys",
                 version: LibraryVersion::Keyed(VersionKey::ToolVersion),
                 ambient: true,
             },
