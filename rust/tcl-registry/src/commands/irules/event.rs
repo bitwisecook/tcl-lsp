@@ -22,7 +22,19 @@ pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "event",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: None,
+        // `Some(IRULES)`, not `None`: this is the F5 iRules `event`
+        // (enable/disable/info of iRule event evaluation on a connection —
+        // note the `ConnectionControl` side effect), not Tcl's. Core Tcl has
+        // no `event` command at all — `event generate`/`add`/`info` are Tk's
+        // (see `tk/event.rs`, `Some(TK)`). A catch-all `None` here made the
+        // iRules command resolve under *every* dialect (plain Tcl, the EDA
+        // vendors, expect, …) since `best_visible` treats `None` as visible
+        // everywhere and Tk's `TK`-gated spec never intersects them — so a
+        // plain-Tcl `event disable` wrongly resolved to this iRules command
+        // (ConnectionControl side effect and all) instead of reading as
+        // unknown. Gating to the bare `IRULES` vendor bit matches every
+        // other `irules/` command and confines it to the iRules dialect.
+        dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Enables or disables evaluation of the specified iRule event or all iRule events on this connection.",
