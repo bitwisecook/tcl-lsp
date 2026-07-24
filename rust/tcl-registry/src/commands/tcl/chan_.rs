@@ -360,8 +360,7 @@ const EVENT_VALUES: &[ArgValue] = &[
 const SEEK_ORIGIN_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "start",
-        detail:
-            "offset bytes from the start of the file or device. Default when origin is omitted.",
+        detail: "offset bytes from the start of the file or device. Default when origin is omitted.",
         ..ArgValue::DEFAULT
     },
     ArgValue {

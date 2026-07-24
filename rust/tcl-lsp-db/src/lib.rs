@@ -4763,10 +4763,14 @@ mod tests {
 
     #[test]
     fn callback_arity_unknown_appended_never_fires() {
-        // FP guard: `coroinject`/`coroprobe` carry `Unknown` appended arity
-        // (depends on the yield point), so the injected command is a reference
-        // only — never arity-checked, whatever its param count.
-        let d = callback_arity_codes("proc h {} { return 0 }\ncoroinject myCoro h\n");
+        // FP guard: `coroprobe` carries `Unknown` appended arity (depends on
+        // the yield point), so the injected command is a reference only —
+        // never arity-checked, whatever its param count. (`coroinject`, once
+        // this test's other exemplar, was moved off `Unknown` to the
+        // verified `Exactly(2)` its own implementation always appends — see
+        // `coroinject.rs` — so a 0-param `h` there now correctly draws E003
+        // instead of demonstrating this FP guard.)
+        let d = callback_arity_codes("proc h {} { return 0 }\ncoroprobe myCoro h\n");
         assert!(
             !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
             "an Unknown-arity callback must never draw an arity error; got {d:?}"

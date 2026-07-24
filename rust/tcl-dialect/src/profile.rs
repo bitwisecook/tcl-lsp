@@ -1244,7 +1244,7 @@ mod tests {
         // commands — and the disable list must be present and sorted.
         let p = DialectProfile::irules();
         assert_eq!(p.availability_mask, DialectSet::IRULES);
-        assert_eq!(p.disabled_commands.len(), 54);
+        assert_eq!(p.disabled_commands.len(), 53);
         let mut sorted = p.disabled_commands.to_vec();
         sorted.sort_unstable();
         assert_eq!(p.disabled_commands, sorted.as_slice(), "list stays sorted");
