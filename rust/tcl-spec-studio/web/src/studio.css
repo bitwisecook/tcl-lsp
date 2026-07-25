@@ -223,19 +223,18 @@ input[type=file] { display: none; }
 .found .hdr .nm { font-family: var(--mono); font-weight: 600; }
 .found .hdr button { margin-left: auto; }
 
-/* ── Load a command by name ────────────────────────────────────────────────
-   The filter narrows the list, but on a phone the list sits below the fold,
-   so typing a name looked like it did nothing. This pairs the box with an
-   explicit Load button (and Enter, and a native autocomplete via <datalist>)
-   so a name you already know goes straight to the editor. */
+/* Load a command by name. The filter narrows the list, but on a phone the
+   list sits below the fold, so typing a name looked like it did nothing. This
+   pairs the box with an explicit Load button (and Enter, and a native
+   autocomplete via <datalist>) so a name you already know goes straight to
+   the editor. */
 .finder { display: flex; gap: .4rem; align-items: stretch; flex: 1 1 16rem; min-width: 0; }
 .finder input[type=search] { flex: 1 1 auto; min-width: 0; }
 .finder button { white-space: nowrap; }
 
-/* ── Phones ───────────────────────────────────────────────────────────────
-   Below 34rem the toolbar stops trying to be a row: every control takes the
-   full width so nothing is clipped, and the tab strip scrolls sideways in its
-   own box rather than wrapping into a tall stack. */
+/* Phones. Below 34rem the toolbar stops trying to be a row: every control
+   takes the full width so nothing is clipped, and the tab strip scrolls
+   sideways in its own box rather than wrapping into a tall stack. */
 @media (max-width: 34rem) {
   .wrap { padding: 1.1rem .7rem 3rem; }
   .brand-mark svg { width: 40px; height: 40px; }

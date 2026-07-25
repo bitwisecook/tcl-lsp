@@ -962,6 +962,14 @@ written, iterated as a list), hover text from the doc comment, and a
 `package require` gate from `package provide`.  Every guess is listed with
 the evidence behind it.
 
+Browse the list to pick a command, or type a name you already know and press
+**Load** (Enter works too, and the box suggests matching names as you type).
+
+It works on a phone as well as a desktop: the toolbar unwraps to full-width
+controls, the tab strip scrolls sideways, and touch targets meet the 44px
+minimum.  On a narrow screen the command list moves below the editor, which is
+why loading by name matters there.
+
 The registry, the compiler's analyser, and both renderers are compiled to
 WebAssembly and embedded in the page, which carries `connect-src 'none'` —
 so nothing you type or import can leave your browser.  Copy the output,
@@ -972,6 +980,8 @@ download it, or open a pre-filled GitHub issue proposing the spec.
 ![Spec studio — the rendered .rs file](docs/screenshots/spec-studio-rendered-rs.png)
 
 ![Spec studio — inferring signatures from an imported package](docs/screenshots/spec-studio-import.png)
+
+![Spec studio — on a phone, with a command loaded by name](docs/screenshots/spec-studio-mobile.png)
 
 ### Tk preview (VS Code panel)
 

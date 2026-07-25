@@ -916,7 +916,7 @@ rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
 # extra languages CI doesn't cover (Rust, full TS).
 check-all: ## Full lint + typecheck (TS, Rust, Python)
-	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust lint-py typecheck-py
+	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust xtask-workflow-sync lint-py typecheck-py
 	@echo "==> check-all: PASSED"
 
 ensure-test-deps: ## Install optional host test deps for the host platform
