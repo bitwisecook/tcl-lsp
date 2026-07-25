@@ -18,385 +18,579 @@
 
 //! Behavioural trait flags for commands.
 //!
-//! Each bit replaces one `bool` field from `CommandSpec`.
-//! Consumers query traits via `spec.traits.contains(Traits::CONTROL_FLOW)`
-//! instead of matching on command name strings.
+//! Each flag replaces one `bool` field from `CommandSpec`. Consumers query
+//! traits via `spec.traits.contains(Traits::CONTROL_FLOW)` instead of matching
+//! on command name strings.
+//!
+//! # Why an enum and not `bitflags`
+//!
+//! Every flag is declared **once**, by name, in [`declare_traits!`] below. Its
+//! bit is the enum discriminant the compiler assigns — no bit number is ever
+//! written down, so two flags cannot be given the same one. That is not a
+//! checked invariant; it is an unrepresentable state.
+//!
+//! This matters because it already went wrong. Under `bitflags` these were
+//! spelled `1 << 61` and `1 << 61`:
+//!
+//! ```text
+//! const TRANSFERS_CONTROL  = 1 << 61;
+//! const SAFE_INTERP_HIDDEN = 1 << 61;
+//! ```
+//!
+//! `bitflags` cannot reject that — two constants sharing a value is a
+//! supported feature there, used for composite masks like `const RW = R | W`.
+//! So the `u64` silently held 65 flags in 64 bits and the two names became one
+//! flag: every `SAFE_INTERP_HIDDEN` command (`file`, `source`, `encoding`,
+//! `open`, …) read as control-transferring and therefore as *frame-sensitive*,
+//! suppressing the inline-proc code action on all of them, while `break`,
+//! `continue`, `yield`, `yieldto` and `tailcall` read as safe-interp-hidden.
+//!
+//! The macro also generates [`Trait::name`] as an exhaustive `match`, so a new
+//! flag fails to compile until it is named — the string table cannot drift
+//! from the flags either.
 
-use bitflags::bitflags;
+use std::fmt;
+use std::ops::{BitOr, BitOrAssign};
 
-bitflags! {
-    /// Declarative behavioural traits for a command.
-    ///
-    /// Packed into a single `u64` — compact storage, fast intersection
-    /// and containment queries on a single spec. Whole-registry
-    /// trait-membership queries
-    /// ([`crate::registry::CommandRegistry::commands_with_trait`])
-    /// scan the spec table in O(N) today; a precomputed trait index
-    /// is a future optimisation.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Traits: u64 {
-        // Control flow
-        /// Command is a control-flow construct (`if`, `for`, `while`, `switch`).
-        const CONTROL_FLOW              = 1 << 0;
-        /// Language keyword for semantic token classification.
-        const LANGUAGE_KEYWORD          = 1 << 1;
-        /// First expression argument is in boolean context (`if`, `while`, `for`).
-        const HAS_BOOLEAN_COND          = 1 << 2;
-        /// Unconditionally terminates the current block (`error`, `return`, `exit`).
-        const TERMINATES_BLOCK          = 1 << 3;
+/// Declare every behavioural trait exactly once.
+///
+/// `Variant => CONST_NAME;` generates the [`Trait`] variant, the [`Traits`]
+/// single-flag constant, and the arm of [`Trait::name`]. Bits come from the
+/// discriminants the compiler assigns, so ordering is free and duplication is
+/// impossible.
+macro_rules! declare_traits {
+    ($( $(#[$meta:meta])* $variant:ident => $konst:ident );* $(;)?) => {
+        /// The identity of a single behavioural trait.
+        ///
+        /// One variant per flag. Its bit is its discriminant — see the module
+        /// docs for why no bit is written by hand.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[repr(u8)]
+        #[allow(missing_docs)] // Documented on the matching `Traits` constant.
+        pub enum Trait {
+            $( $(#[$meta])* $variant ),*
+        }
 
-        // Loop/body structure
-        /// Contains a loop body (`for`, `while`, `foreach`).
-        const HAS_LOOP_BODY             = 1 << 4;
-        /// Forbid inlining body arguments.
-        const NEVER_INLINE_BODY         = 1 << 5;
-        /// CFG header with list-expression args evaluated once (`foreach`, `lmap`).
-        const LOOP_LIST_HEADER          = 1 << 6;
+        impl Trait {
+            /// Every declared trait, in declaration order.
+            pub const ALL: &'static [Trait] = &[ $( Trait::$variant ),* ];
 
-        // Purity and optimisation
-        /// Side-effect-free command.
-        const PURE                      = 1 << 7;
-        /// Candidate for common subexpression elimination.
-        const CSE_CANDIDATE             = 1 << 8;
-        /// Pure evaluation (`expr` — side-effect-free when braced).
-        const PURE_EVALUATION           = 1 << 9;
+            /// The trait's screaming-snake name, as written in a spec literal.
+            ///
+            /// Exhaustive by construction: adding a variant without a name
+            /// here is a compile error.
+            #[must_use]
+            pub const fn name(self) -> &'static str {
+                match self { $( Trait::$variant => stringify!($konst) ),* }
+            }
+        }
 
-        // Variable semantics
-        /// Defines a procedure (`proc`).
-        const DEFINES_PROCEDURE         = 1 << 10;
-        /// Destroys/removes a variable (`unset`).
-        const DESTROYS_VARIABLE         = 1 << 11;
-        /// Reads the target variable before writing (`incr`, `append`, `lappend`).
-        const READS_BEFORE_WRITE        = 1 << 12;
-        /// Creates a scope alias — upvar-like binding (`upvar`, `global`, `variable`).
-        const CREATES_SCOPE_ALIAS       = 1 << 13;
-        /// Creates a runtime control-flow barrier (`eval`, `uplevel`, `upvar`).
-        const CREATES_BARRIER           = 1 << 14;
+        impl Traits {
+            $( $(#[$meta])* pub const $konst: Self = Self::of(&[Trait::$variant]); )*
+        }
+    };
+}
 
-        // Analysis check dispatch
-        /// Evaluates code dynamically (`eval`, `uplevel`).
-        const EVALUATES_CODE            = 1 << 15;
-        /// Performs backslash/variable substitution (`subst`).
-        const PERFORMS_SUBSTITUTION      = 1 << 16;
-        /// Opens a channel (`open`).
-        const OPENS_CHANNEL             = 1 << 17;
-        /// Sources a file (`source`).
-        const SOURCES_FILE              = 1 << 18;
-        /// Has a switch body (`switch`).
-        const HAS_SWITCH_BODY           = 1 << 19;
-        /// String/list confusion risk (`append`).
-        const STRING_LIST_CONFUSION     = 1 << 20;
-        /// Configures a channel (`fconfigure`, `chan configure`).
-        const CONFIGURES_CHANNEL        = 1 << 21;
-        /// Has `interp eval` subcommand.
-        const HAS_INTERP_EVAL           = 1 << 22;
-        /// Has destructive operations (`file delete`, `namespace delete`).
-        const HAS_DESTRUCTIVE_OPS       = 1 << 23;
-        /// iRules event handler (`when`).
-        const IS_EVENT_HANDLER          = 1 << 24;
-        /// Returns unnormalised HTTP path/URI/query.
-        const UNNORMALISED_HTTP_GETTER  = 1 << 25;
+/// A set of behavioural traits.
+///
+/// A `u128` bitset over [`Trait`]. The only way to set a bit is to name a
+/// `Trait`, so the set cannot contain a flag that was never declared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Traits(u128);
 
-        // Output/value traits
-        /// Returns a filesystem path (`pwd`, `file join`).
-        const RETURNS_PATH              = 1 << 26;
-        /// Performs unescaping/decoding (`subst`, `URI::decode`).
-        const IS_UNESCAPE              = 1 << 27;
-        /// Produces a canonical Tcl list (`list`, `concat`).
-        const PRODUCES_CANONICAL_LIST   = 1 << 28;
-
-        /// Quotes its arguments into a well-formed command reference: when
-        /// the first argument is a literal command name, evaluating the
-        /// result invokes that command with the remaining arguments
-        /// appended verbatim (`list cmd $a $b` → `cmd $a $b`, each word
-        /// preserved regardless of its runtime value). Set on `list` only —
-        /// **not** `concat`, whose plain string-join does not give the same
-        /// per-word quoting guarantee for a dynamic value, so it is unsafe
-        /// to reinterpret the same way. The idiomatic way to build a
-        /// deferred callback / command prefix around a dynamic value
-        /// (`package ifneeded name ver [list apply {params} {body} $dir]`,
-        /// `button .b -command [list doSomething $x]`) rather than a
-        /// literal braced prefix. Consulted wherever a
-        /// [`crate::arg_role::ArgRole::CommandPrefix`] /
-        /// [`crate::arg_role::ArgRole::Body`] /
-        /// [`crate::arg_role::ArgRole::LambdaLiteral`] argument position
-        /// needs to recognise this quoting shape generically — no command
-        /// name appears in the consumer.
-        const BUILDS_COMMAND_PREFIX     = 1 << 30;
-
-        // Safety
-        /// Inherently dangerous command.
-        const UNSAFE                    = 1 << 29;
-        /// Password option command.
-        const PASSWORD_OPTION           = 1 << 31;
-
-        // iRules-specific
-        /// Side-switching command (`clientside`/`serverside`).
-        const IS_SIDE_SWITCH            = 1 << 32;
-        /// Must appear at iRules top level (`proc`, `when`, `timing`).
-        const IRULES_TOP_LEVEL_ONLY     = 1 << 33;
-        /// TclOO metaclass (`oo::class`, `oo::abstract`).
-        const IS_OO_METACLASS           = 1 << 34;
-
-        // Codegen/diagram
-        /// Included in diagram extraction.
-        const DIAGRAM_ACTION            = 1 << 35;
-        /// Needs `startCommand` bytecode instruction.
-        const NEEDS_START_CMD           = 1 << 36;
-
-        // Taint
-        /// Command is a taint sink (absorbs tainted data).
-        const TAINT_SINK                = 1 << 37;
-        /// Command returns attacker-controlled data
-        /// (`gets`, `read`, `exec`, `socket`, …).
-        const TAINT_SOURCE              = 1 << 38;
-        /// Command operates on attacker-controlled iRules data
-        /// (any reachable form of `HTTP::*` / `URI::*` / `IP::*` /
-        /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
-        const IRULES_DATA_GETTER        = 1 << 39;
-
-        /// Creates a runtime scope-alias barrier whose VarWrite
-        /// args are vararg lists (`global x y z`, `variable a b c`,
-        /// `upvar 1 a b 1 c d`).  The analyser's `var_scoping` pass
-        /// handles the per-arg list; SSA must not produce partial
-        /// defs from `arg_roles[0]`.
-        const CREATES_DYNAMIC_BARRIER   = 1 << 40;
-
-        /// Command invokes a user-defined Tcl procedure named by
-        /// its first argument.  Set on the iRules `call` command
-        /// (`call PROC_NAME ?ARGS?`).  Used by the LSP completion
-        /// provider to surface user-proc names — and only those,
-        /// not built-in commands — at word-index 1.
-        const INVOKES_USER_PROC         = 1 << 41;
-
-        /// Core Tcl built-in that the bytecode compiler special-cases
-        /// (or that is otherwise load-bearing as a literal command
-        /// word).  Re-invoking such a command through a `$var`
-        /// command alias would defeat byte-compilation or change
-        /// semantics, so the minifier never rewrites these heads to
-        /// `$alias`.  Single source of truth for the minifier's
-        /// former `_BUILTIN_SKIP` list; query via
-        /// [`crate::registry::CommandRegistry::is_byte_compiled`].
-        const BYTE_COMPILED             = 1 << 42;
-
-        /// Command head incidentally matches the
-        /// `HEAD NAME BRACED BRACED` four-token shape but is **not** a
-        /// proc-factory wrapper, so the signature scanner must not
-        /// treat it as one.  Single source of truth for the analyser's
-        /// former `_FACTORY_SKIP_HEADS` list (registered heads only;
-        /// non-command heads like `method` / `itcl::class` are handled
-        /// by a small residual set in the scanner).
-        const NOT_PROC_FACTORY          = 1 << 43;
-
-        /// Command whose codegen always lowers to a dedicated runtime
-        /// helper (or to a structured IR node) and never falls back to
-        /// the interpreter — so a call to it needs no runtime frame in
-        /// the callee.  The var-escape analysis treats only these as
-        /// frame-free.  Single source of truth for the former
-        /// `_FRAMELESS_RUNTIME_COMMANDS` allow-list.  Keep audited:
-        /// stamping a command that secretly eval-falls-back would
-        /// break eval-inside-proc semantics in escape-free procs.
-        const FRAMELESS_RUNTIME         = 1 << 44;
-
-        /// First argument is a variable *name* (read / write / modify),
-        /// not a value — `set` / `incr` / `append` / `lappend` / `unset`.
-        /// The var-escape analysis uses this to detect dynamic-name forms
-        /// (`set $n value`). Single source of truth for the former
-        /// `NAME_FIRST_COMMANDS` allow-list.
-        const FIRST_ARG_VARNAME         = 1 << 45;
-
-        /// A `VarRead`-role argument names the *whole* array, not a single
-        /// element (`array` / `parray`), so a write to any element is
-        /// observed by the read. Single source of truth for the former
-        /// `WHOLE_ARRAY_COMMANDS` allow-list.
-        const WHOLE_ARRAY_ARG           = 1 << 46;
-
-        /// Executes a body through the interpreter, opening a
-        /// name-resolution channel back into the local frame — `eval` /
-        /// `uplevel` / `apply` / `source` / `namespace` / `interp`. The
-        /// var-escape slot resolver treats a frame reached this way as
-        /// hash-backed. Single source of truth for the former
-        /// `DYNAMIC_EVAL_COMMANDS` allow-list. (Distinct from
-        /// `HAS_INTERP_EVAL` / `CREATES_DYNAMIC_BARRIER`, which only some
-        /// of these carry.)
-        const DYNAMIC_EVAL_BODY         = 1 << 47;
-
-        /// (Subcommand) introspects program state by variable *name* —
-        /// `info exists|vars|locals|args|default`. The var-escape slot
-        /// resolver treats the named variable as ineligible for a slot.
-        /// Single source of truth for the former
-        /// `INFO_INTROSPECTING_SUBCMDS` list.
-        const INTROSPECTS_BY_NAME       = 1 << 48;
-
-        /// (Subcommand) targets a variable by *name* —
-        /// `trace add|remove|info|variable|vdelete|vinfo`. Used by the
-        /// var-escape slot resolver. Single source of truth for the former
-        /// `TRACE_NAME_TARGETING` list.
-        const TARGETS_VARIABLE_BY_NAME  = 1 << 49;
-
-        /// Aliases / reads / writes variables through the frame's *hash
-        /// bucket* by name (`upvar` / `global` / `variable` / `lassign` /
-        /// `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait` /
-        /// `tkwait`), so a named variable it touches cannot live in an
-        /// indexed slot. Single source of truth for the former
-        /// `FRAME_HASH_BUILTINS` list.
-        const FRAME_HASH_BUILTIN        = 1 << 50;
-
-        /// A Tcl auto-loading / library proc that user code is expected to
-        /// redefine (`unknown`, `auto_*`, `pkg_*`, `tclLog`,
-        /// `tcl_findLibrary`, the `tcl_*Word*` helpers, …), so redefining
-        /// it must not fire the W113 "overrides a built-in" warning.
-        /// Single source of truth for the former
-        /// `OVERRIDABLE_LIBRARY_PROCS` list.
-        const OVERRIDABLE_LIBRARY_PROC  = 1 << 51;
-
-        /// The WASM backend lowers this command to a structural construct
-        /// that imports / emits no runtime helper of its own (`foreach`,
-        /// `namespace`, `package`, `proc`).  Consulted by the WASM import
-        /// collector.
-        const WASM_EMITS_NOTHING        = 1 << 52;
-
-        /// The registry's simple `min..=max` [`crate::Arity`] is a coarse
-        /// floor/ceiling only — this command's real grammar is a clause
-        /// chain validated by [`crate::spec::CommandSpec::clause_shape_check`]
-        /// (`if`'s `elseif`/`else` chain). The generic arity floor/ceiling
-        /// diagnostic (E002/E003) skips a command carrying this trait so its
-        /// dedicated structural diagnostic owns arity together with clause
-        /// shape — one precise diagnostic per malformed call instead of a
-        /// redundant generic one alongside it.
-        const STRUCTURALLY_CHECKED_ARITY = 1 << 54;
-
-        /// The command concatenates its *entire* argument list into a single
-        /// expression (`expr` — `expr $a + $b` evaluates the one expression
-        /// `$a + $b`). This differs from commands whose expression is a single
-        /// bounded argument (`if` / `while` / `for` conditions,
-        /// `control::assert`'s first arg), which mark only that arg
-        /// [`crate::arg_role::ArgRole::Expr`]. Consulted by the formatter's
-        /// `enforceBracedExpr` pass to decide whether to brace the whole tail
-        /// (`expr {$a + $b}`) or just the marked argument. Kept separate from
-        /// the `Expr` arg-role so widening it does not perturb the analyser
-        /// passes (expr re-lexing, W110) that consume the role.
-        const EXPR_CONCATENATES_ARGS    = 1 << 53;
-
-        /// (Subcommand) installs or removes an active variable trace on a
-        /// named target — `trace add|remove|variable|vdelete` (not
-        /// `info`/`vinfo`, which only *query* trace state). A variable
-        /// carrying an active trace can run arbitrary handler code on
-        /// read/write/unset, and a write handler can rewrite the value
-        /// being stored — so no compiler pass may treat a read of this
-        /// variable as equivalent to its last literal assignment, or elide
-        /// an assignment to it as dead. Single source of truth for the
-        /// module-wide traced-variable fact consumed by the propagation
-        /// optimiser (`O102` load-forwarding) and dead-store elimination.
-        const ESTABLISHES_VARIABLE_TRACE = 1 << 56;
-
-        /// Transfers control relative to the enclosing loop, frame, or
-        /// coroutine instead of falling through to the next statement —
-        /// `break` / `continue` (loop exit / re-entry), `tailcall` (frame
-        /// replacement), `yield` / `yieldto` (coroutine suspension).
-        /// Deliberately distinct from [`Traits::TERMINATES_BLOCK`], which
-        /// marks commands that *unwind* the enclosing block/proc
-        /// (`return` / `error` / `exit` / `throw`) — a `break` leaves only
-        /// the loop and a `yield` resumes in place, so stamping them
-        /// `TERMINATES_BLOCK` would corrupt the dead-end analyses (W241,
-        /// taint guard propagation) that consume that trait.  Together the
-        /// two traits give consumers the full "diverts control flow" set;
-        /// the inline-proc code action and the inliner's splice-safety
-        /// query are the current consumers.
-        const TRANSFERS_CONTROL          = 1 << 61;
-
-        /// Teardown/removal command (or subcommand) for which a bare
-        /// `catch {…}` with no result variable is the documented
-        /// fire-and-forget idiom: the operation errors when its target is
-        /// already gone, and ignoring that failure is intentional —
-        /// `close` / `unset` / `rename foo {}`, `after cancel`,
-        /// `chan close`, `array unset`, `dict unset`, `interp delete`,
-        /// `file delete`, `namespace delete|forget`.  Single source of
-        /// truth for W302's suppression set.  Narrower than
-        /// [`crate::spec::SubCommand::destructive`] (`file rename` /
-        /// `file mkdir` are destructive but their failures are real
-        /// errors, not expected teardown noise).
-        const FIRE_AND_FORGET_TEARDOWN   = 1 << 62;
-
-        /// Command is a math-operator head (`+`, `eq`, `ne`, `in`, `ni`,
-        /// and the `tcl::mathop::*` spellings): a real callable command in
-        /// every dialect whose profile has `operators_as_commands`, but
-        /// *never* a command head where operators live only inside `expr`
-        /// (F5 iRules; `tk` when modelled). Replaces the retired
-        /// `NON_IRULES_OPERATORS` membership tag as the operator-head
-        /// marker (dialect-profile-model.md §9, Milestone 5).
-        const OPERATOR_COMMAND           = 1 << 63;
-
-        /// `TclOO` `next` / `nextto` — invokes the next implementation of the
-        /// *currently executing* method along the receiver's MRO. Its
-        /// callee's arity is resolvable only from the enclosing method's
-        /// call-site context (which class/method body the call textually
-        /// sits in), never from a fixed registry range, so both commands
-        /// keep [`crate::Arity::any`] / [`crate::Arity::at_least`] and the
-        /// analyser queues a context-aware candidate for any command
-        /// carrying this trait instead
-        /// (`Analyser::queue_next_arity_candidate`). Set on `next` and
-        /// `nextto`; `nextto`'s explicit target-class first word is
-        /// distinguished structurally via an [`crate::arg_role::ArgRole::Name`]
-        /// at argument index 0, not by command name.
-        const TCLOO_NEXT_CHAIN           = 1 << 55;
-
-        /// Raises a *catchable* exception — completes `TCL_ERROR`, which
-        /// `catch` / `try` intercept: `error` (`Tcl_ErrorObjCmd`,
-        /// `generic/tclCmdAH.c`) and `throw` (`TclNRThrowObjCmd`,
-        /// `generic/tclBasic.c`, 8.6+). The strict subset of
-        /// [`Self::TERMINATES_BLOCK`] that sources an enclosing `try`'s
-        /// on-error edge: `exit` (`Tcl_ExitObjCmd`) terminates the
-        /// process rather than unwinding through exception ranges, and
-        /// `return` pops the frame with `TCL_RETURN`, so neither is a
-        /// throw point. Consumed by the CFG builder's throw-block
-        /// recording.
-        const CATCHABLE_THROW           = 1 << 57;
-
-        /// Jumps to the innermost enclosing loop's *post-loop* target —
-        /// `break`, which completes `TCL_BREAK` (`Tcl_BreakObjCmd`,
-        /// `generic/tclCmdAH.c`); inside a compiled loop the bytecode
-        /// compiler rewrites it into a jump to the loop's break fixup
-        /// site (`TclCompileBreakCmd`, `generic/tclCompCmds.c`).
-        /// Loop-jump classification for the CFG builder's
-        /// `break`/`continue` edge lowering and the inline emitters'
-        /// straight-line-body gate; paired with
-        /// [`Self::CONTINUES_LOOP`].
-        const BREAKS_LOOP               = 1 << 58;
-
-        /// Jumps to the innermost enclosing loop's *next-iteration*
-        /// target — `continue`, which completes `TCL_CONTINUE`
-        /// (`Tcl_ContinueObjCmd`, `generic/tclCmdAH.c`;
-        /// `TclCompileContinueCmd`, `generic/tclCompCmds.c`). The
-        /// other half of the loop-jump classification — see
-        /// [`Self::BREAKS_LOOP`].
-        const CONTINUES_LOOP            = 1 << 59;
-
-        /// Replaces the current procedure's frame — `tailcall`
-        /// (`TclNRTailcallObjCmd`, `generic/tclBasic.c`, 8.6+), which
-        /// schedules its command to run after the frame pops and always
-        /// completes `TCL_RETURN`, so control never resumes in the
-        /// calling body. Deliberately *not* [`Self::TERMINATES_BLOCK`]:
-        /// the analysis CFG promotes it to a proc-exit terminator, but
-        /// codegen must keep the plain fall-through call shape so the
-        /// emitted bytecode matches C Tcl's.
-        const REPLACES_FRAME            = 1 << 60;
-
-        /// Hidden when an interpreter is made **safe** — the command is
-        /// *not* part of C Tcl's safe-interpreter command set (its
-        /// `CmdInfo` row lacks `CMD_IS_SAFE`, or it is a whole-command
-        /// row of `unsafeEnsembleCommands` — `tclBasic.c`, 9.0.4:
-        /// `cd`, `encoding`, `exec`, `exit`, `fconfigure`, `file`,
-        /// `glob`, `load`, `open`, `pwd`, `socket`, `source`,
-        /// `unload`).  A call inside a safe interpreter's evaluation
-        /// context errors `invalid command name` unless the command was
-        /// re-exposed (`interp expose`) or reached via
-        /// `interp invokehidden`; the analyser's safe-context walk
-        /// consults this flag generically — no command name appears in
-        /// the consumer (issue #945 fault 7).
-        const SAFE_INTERP_HIDDEN        = 1 << 61;
+impl Trait {
+    /// This trait's bit. The discriminant *is* the bit index.
+    const fn bit(self) -> u128 {
+        1u128 << (self as u8)
     }
 }
+
+impl Traits {
+    /// The empty set.
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+
+    /// Build a set from a slice of traits, usable in `const` context.
+    #[must_use]
+    pub const fn of(list: &[Trait]) -> Self {
+        let (mut acc, mut i) = (0u128, 0);
+        while i < list.len() {
+            acc |= list[i].bit();
+            i += 1;
+        }
+        Self(acc)
+    }
+
+    /// Whether no trait is set.
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether every trait in `other` is set here.
+    #[must_use]
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    /// Whether any trait is set in both.
+    #[must_use]
+    pub const fn intersects(self, other: Self) -> bool {
+        self.0 & other.0 != 0
+    }
+
+    /// Set union, usable in `const` context (`BitOr` cannot be).
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    /// Add every trait in `other`.
+    pub const fn insert(&mut self, other: Self) {
+        self.0 |= other.0;
+    }
+
+    /// Remove every trait in `other`.
+    pub const fn remove(&mut self, other: Self) {
+        self.0 &= !other.0;
+    }
+
+    /// How many traits are set.
+    #[must_use]
+    pub const fn len(self) -> u32 {
+        self.0.count_ones()
+    }
+
+    /// The traits set here, in declaration order.
+    ///
+    /// Replaces `bitflags`' `iter_names`, and is the single source for every
+    /// consumer that needs to render a trait set as names.
+    pub fn iter(self) -> impl Iterator<Item = Trait> {
+        Trait::ALL
+            .iter()
+            .copied()
+            .filter(move |t| self.0 & t.bit() != 0)
+    }
+
+    /// The names of the traits set here, in declaration order.
+    pub fn iter_names(self) -> impl Iterator<Item = &'static str> {
+        self.iter().map(Trait::name)
+    }
+}
+
+impl BitOr for Traits {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl BitOrAssign for Traits {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+impl FromIterator<Trait> for Traits {
+    fn from_iter<I: IntoIterator<Item = Trait>>(iter: I) -> Self {
+        let mut out = Self::empty();
+        for t in iter {
+            out.0 |= t.bit();
+        }
+        out
+    }
+}
+
+impl fmt::Display for Traits {
+    /// `A | B | C`, or `(empty)`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_empty() {
+            return f.write_str("(empty)");
+        }
+        let mut first = true;
+        for name in self.iter_names() {
+            if !first {
+                f.write_str(" | ")?;
+            }
+            f.write_str(name)?;
+            first = false;
+        }
+        Ok(())
+    }
+}
+
+declare_traits! {
+    // Control flow
+    /// Command is a control-flow construct (`if`, `for`, `while`, `switch`).
+    ControlFlow => CONTROL_FLOW;
+    /// Language keyword for semantic token classification.
+    LanguageKeyword => LANGUAGE_KEYWORD;
+    /// First expression argument is in boolean context (`if`, `while`, `for`).
+    HasBooleanCond => HAS_BOOLEAN_COND;
+    /// Unconditionally terminates the current block (`error`, `return`, `exit`).
+    TerminatesBlock => TERMINATES_BLOCK;
+
+    // Loop/body structure
+    /// Contains a loop body (`for`, `while`, `foreach`).
+    HasLoopBody => HAS_LOOP_BODY;
+    /// Forbid inlining body arguments.
+    NeverInlineBody => NEVER_INLINE_BODY;
+    /// CFG header with list-expression args evaluated once (`foreach`, `lmap`).
+    LoopListHeader => LOOP_LIST_HEADER;
+
+    // Purity and optimisation
+    /// Side-effect-free command.
+    Pure => PURE;
+    /// Candidate for common subexpression elimination.
+    CseCandidate => CSE_CANDIDATE;
+    /// Pure evaluation (`expr` — side-effect-free when braced).
+    PureEvaluation => PURE_EVALUATION;
+
+    // Variable semantics
+    /// Defines a procedure (`proc`).
+    DefinesProcedure => DEFINES_PROCEDURE;
+    /// Destroys/removes a variable (`unset`).
+    DestroysVariable => DESTROYS_VARIABLE;
+    /// Reads the target variable before writing (`incr`, `append`, `lappend`).
+    ReadsBeforeWrite => READS_BEFORE_WRITE;
+    /// Creates a scope alias — upvar-like binding (`upvar`, `global`, `variable`).
+    CreatesScopeAlias => CREATES_SCOPE_ALIAS;
+    /// Creates a runtime control-flow barrier (`eval`, `uplevel`, `upvar`).
+    CreatesBarrier => CREATES_BARRIER;
+
+    // Analysis check dispatch
+    /// Evaluates code dynamically (`eval`, `uplevel`).
+    EvaluatesCode => EVALUATES_CODE;
+    /// Performs backslash/variable substitution (`subst`).
+    PerformsSubstitution => PERFORMS_SUBSTITUTION;
+    /// Opens a channel (`open`).
+    OpensChannel => OPENS_CHANNEL;
+    /// Sources a file (`source`).
+    SourcesFile => SOURCES_FILE;
+    /// Has a switch body (`switch`).
+    HasSwitchBody => HAS_SWITCH_BODY;
+    /// String/list confusion risk (`append`).
+    StringListConfusion => STRING_LIST_CONFUSION;
+    /// Configures a channel (`fconfigure`, `chan configure`).
+    ConfiguresChannel => CONFIGURES_CHANNEL;
+    /// Has `interp eval` subcommand.
+    HasInterpEval => HAS_INTERP_EVAL;
+    /// Has destructive operations (`file delete`, `namespace delete`).
+    HasDestructiveOps => HAS_DESTRUCTIVE_OPS;
+    /// iRules event handler (`when`).
+    IsEventHandler => IS_EVENT_HANDLER;
+    /// Returns unnormalised HTTP path/URI/query.
+    UnnormalisedHttpGetter => UNNORMALISED_HTTP_GETTER;
+
+    // Output/value traits
+    /// Returns a filesystem path (`pwd`, `file join`).
+    ReturnsPath => RETURNS_PATH;
+    /// Performs unescaping/decoding (`subst`, `URI::decode`).
+    IsUnescape => IS_UNESCAPE;
+    /// Produces a canonical Tcl list (`list`, `concat`).
+    ProducesCanonicalList => PRODUCES_CANONICAL_LIST;
+
+    /// Quotes its arguments into a well-formed command reference: when
+    /// the first argument is a literal command name, evaluating the
+    /// result invokes that command with the remaining arguments
+    /// appended verbatim (`list cmd $a $b` → `cmd $a $b`, each word
+    /// preserved regardless of its runtime value). Set on `list` only —
+    /// **not** `concat`, whose plain string-join does not give the same
+    /// per-word quoting guarantee for a dynamic value, so it is unsafe
+    /// to reinterpret the same way. The idiomatic way to build a
+    /// deferred callback / command prefix around a dynamic value
+    /// (`package ifneeded name ver [list apply {params} {body} $dir]`,
+    /// `button .b -command [list doSomething $x]`) rather than a
+    /// literal braced prefix. Consulted wherever a
+    /// [`crate::arg_role::ArgRole::CommandPrefix`] /
+    /// [`crate::arg_role::ArgRole::Body`] /
+    /// [`crate::arg_role::ArgRole::LambdaLiteral`] argument position
+    /// needs to recognise this quoting shape generically — no command
+    /// name appears in the consumer.
+    BuildsCommandPrefix => BUILDS_COMMAND_PREFIX;
+
+    // Safety
+    /// Inherently dangerous command.
+    Unsafe => UNSAFE;
+    /// Password option command.
+    PasswordOption => PASSWORD_OPTION;
+
+    // iRules-specific
+    /// Side-switching command (`clientside`/`serverside`).
+    IsSideSwitch => IS_SIDE_SWITCH;
+    /// Must appear at iRules top level (`proc`, `when`, `timing`).
+    IrulesTopLevelOnly => IRULES_TOP_LEVEL_ONLY;
+    /// `TclOO` metaclass (`oo::class`, `oo::abstract`).
+    IsOoMetaclass => IS_OO_METACLASS;
+
+    // Codegen/diagram
+    /// Included in diagram extraction.
+    DiagramAction => DIAGRAM_ACTION;
+    /// Needs `startCommand` bytecode instruction.
+    NeedsStartCmd => NEEDS_START_CMD;
+
+    // Taint
+    /// Command is a taint sink (absorbs tainted data).
+    TaintSink => TAINT_SINK;
+    /// Command returns attacker-controlled data
+    /// (`gets`, `read`, `exec`, `socket`, …).
+    TaintSource => TAINT_SOURCE;
+    /// Command operates on attacker-controlled iRules data
+    /// (any reachable form of `HTTP::*` / `URI::*` / `IP::*` /
+    /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
+    IrulesDataGetter => IRULES_DATA_GETTER;
+
+    /// Creates a runtime scope-alias barrier whose `VarWrite`
+    /// args are vararg lists (`global x y z`, `variable a b c`,
+    /// `upvar 1 a b 1 c d`).  The analyser's `var_scoping` pass
+    /// handles the per-arg list; SSA must not produce partial
+    /// defs from `arg_roles[0]`.
+    CreatesDynamicBarrier => CREATES_DYNAMIC_BARRIER;
+
+    /// Command invokes a user-defined Tcl procedure named by
+    /// its first argument.  Set on the iRules `call` command
+    /// (`call PROC_NAME ?ARGS?`).  Used by the LSP completion
+    /// provider to surface user-proc names — and only those,
+    /// not built-in commands — at word-index 1.
+    InvokesUserProc => INVOKES_USER_PROC;
+
+    /// Core Tcl built-in that the bytecode compiler special-cases
+    /// (or that is otherwise load-bearing as a literal command
+    /// word).  Re-invoking such a command through a `$var`
+    /// command alias would defeat byte-compilation or change
+    /// semantics, so the minifier never rewrites these heads to
+    /// `$alias`.  Single source of truth for the minifier's
+    /// former `_BUILTIN_SKIP` list; query via
+    /// [`crate::registry::CommandRegistry::is_byte_compiled`].
+    ByteCompiled => BYTE_COMPILED;
+
+    /// Command head incidentally matches the
+    /// `HEAD NAME BRACED BRACED` four-token shape but is **not** a
+    /// proc-factory wrapper, so the signature scanner must not
+    /// treat it as one.  Single source of truth for the analyser's
+    /// former `_FACTORY_SKIP_HEADS` list (registered heads only;
+    /// non-command heads like `method` / `itcl::class` are handled
+    /// by a small residual set in the scanner).
+    NotProcFactory => NOT_PROC_FACTORY;
+
+    /// Command whose codegen always lowers to a dedicated runtime
+    /// helper (or to a structured IR node) and never falls back to
+    /// the interpreter — so a call to it needs no runtime frame in
+    /// the callee.  The var-escape analysis treats only these as
+    /// frame-free.  Single source of truth for the former
+    /// `_FRAMELESS_RUNTIME_COMMANDS` allow-list.  Keep audited:
+    /// stamping a command that secretly eval-falls-back would
+    /// break eval-inside-proc semantics in escape-free procs.
+    FramelessRuntime => FRAMELESS_RUNTIME;
+
+    /// First argument is a variable *name* (read / write / modify),
+    /// not a value — `set` / `incr` / `append` / `lappend` / `unset`.
+    /// The var-escape analysis uses this to detect dynamic-name forms
+    /// (`set $n value`). Single source of truth for the former
+    /// `NAME_FIRST_COMMANDS` allow-list.
+    FirstArgVarname => FIRST_ARG_VARNAME;
+
+    /// A `VarRead`-role argument names the *whole* array, not a single
+    /// element (`array` / `parray`), so a write to any element is
+    /// observed by the read. Single source of truth for the former
+    /// `WHOLE_ARRAY_COMMANDS` allow-list.
+    WholeArrayArg => WHOLE_ARRAY_ARG;
+
+    /// Executes a body through the interpreter, opening a
+    /// name-resolution channel back into the local frame — `eval` /
+    /// `uplevel` / `apply` / `source` / `namespace` / `interp`. The
+    /// var-escape slot resolver treats a frame reached this way as
+    /// hash-backed. Single source of truth for the former
+    /// `DYNAMIC_EVAL_COMMANDS` allow-list. (Distinct from
+    /// `HAS_INTERP_EVAL` / `CREATES_DYNAMIC_BARRIER`, which only some
+    /// of these carry.)
+    DynamicEvalBody => DYNAMIC_EVAL_BODY;
+
+    /// (Subcommand) introspects program state by variable *name* —
+    /// `info exists|vars|locals|args|default`. The var-escape slot
+    /// resolver treats the named variable as ineligible for a slot.
+    /// Single source of truth for the former
+    /// `INFO_INTROSPECTING_SUBCMDS` list.
+    IntrospectsByName => INTROSPECTS_BY_NAME;
+
+    /// (Subcommand) targets a variable by *name* —
+    /// `trace add|remove|info|variable|vdelete|vinfo`. Used by the
+    /// var-escape slot resolver. Single source of truth for the former
+    /// `TRACE_NAME_TARGETING` list.
+    TargetsVariableByName => TARGETS_VARIABLE_BY_NAME;
+
+    /// Aliases / reads / writes variables through the frame's *hash
+    /// bucket* by name (`upvar` / `global` / `variable` / `lassign` /
+    /// `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait` /
+    /// `tkwait`), so a named variable it touches cannot live in an
+    /// indexed slot. Single source of truth for the former
+    /// `FRAME_HASH_BUILTINS` list.
+    FrameHashBuiltin => FRAME_HASH_BUILTIN;
+
+    /// A Tcl auto-loading / library proc that user code is expected to
+    /// redefine (`unknown`, `auto_*`, `pkg_*`, `tclLog`,
+    /// `tcl_findLibrary`, the `tcl_*Word*` helpers, …), so redefining
+    /// it must not fire the W113 "overrides a built-in" warning.
+    /// Single source of truth for the former
+    /// `OVERRIDABLE_LIBRARY_PROCS` list.
+    OverridableLibraryProc => OVERRIDABLE_LIBRARY_PROC;
+
+    /// The WASM backend lowers this command to a structural construct
+    /// that imports / emits no runtime helper of its own (`foreach`,
+    /// `namespace`, `package`, `proc`).  Consulted by the WASM import
+    /// collector.
+    WasmEmitsNothing => WASM_EMITS_NOTHING;
+
+    /// The registry's simple `min..=max` [`crate::Arity`] is a coarse
+    /// floor/ceiling only — this command's real grammar is a clause
+    /// chain validated by [`crate::spec::CommandSpec::clause_shape_check`]
+    /// (`if`'s `elseif`/`else` chain). The generic arity floor/ceiling
+    /// diagnostic (E002/E003) skips a command carrying this trait so its
+    /// dedicated structural diagnostic owns arity together with clause
+    /// shape — one precise diagnostic per malformed call instead of a
+    /// redundant generic one alongside it.
+    StructurallyCheckedArity => STRUCTURALLY_CHECKED_ARITY;
+
+    /// The command concatenates its *entire* argument list into a single
+    /// expression (`expr` — `expr $a + $b` evaluates the one expression
+    /// `$a + $b`). This differs from commands whose expression is a single
+    /// bounded argument (`if` / `while` / `for` conditions,
+    /// `control::assert`'s first arg), which mark only that arg
+    /// [`crate::arg_role::ArgRole::Expr`]. Consulted by the formatter's
+    /// `enforceBracedExpr` pass to decide whether to brace the whole tail
+    /// (`expr {$a + $b}`) or just the marked argument. Kept separate from
+    /// the `Expr` arg-role so widening it does not perturb the analyser
+    /// passes (expr re-lexing, W110) that consume the role.
+    ExprConcatenatesArgs => EXPR_CONCATENATES_ARGS;
+
+    /// (Subcommand) installs or removes an active variable trace on a
+    /// named target — `trace add|remove|variable|vdelete` (not
+    /// `info`/`vinfo`, which only *query* trace state). A variable
+    /// carrying an active trace can run arbitrary handler code on
+    /// read/write/unset, and a write handler can rewrite the value
+    /// being stored — so no compiler pass may treat a read of this
+    /// variable as equivalent to its last literal assignment, or elide
+    /// an assignment to it as dead. Single source of truth for the
+    /// module-wide traced-variable fact consumed by the propagation
+    /// optimiser (`O102` load-forwarding) and dead-store elimination.
+    EstablishesVariableTrace => ESTABLISHES_VARIABLE_TRACE;
+
+    /// Transfers control relative to the enclosing loop, frame, or
+    /// coroutine instead of falling through to the next statement —
+    /// `break` / `continue` (loop exit / re-entry), `tailcall` (frame
+    /// replacement), `yield` / `yieldto` (coroutine suspension).
+    /// Deliberately distinct from [`Traits::TERMINATES_BLOCK`], which
+    /// marks commands that *unwind* the enclosing block/proc
+    /// (`return` / `error` / `exit` / `throw`) — a `break` leaves only
+    /// the loop and a `yield` resumes in place, so stamping them
+    /// `TERMINATES_BLOCK` would corrupt the dead-end analyses (W241,
+    /// taint guard propagation) that consume that trait.  Together the
+    /// two traits give consumers the full "diverts control flow" set;
+    /// the inline-proc code action and the inliner's splice-safety
+    /// query are the current consumers.
+    TransfersControl => TRANSFERS_CONTROL;
+
+    /// Teardown/removal command (or subcommand) for which a bare
+    /// `catch {…}` with no result variable is the documented
+    /// fire-and-forget idiom: the operation errors when its target is
+    /// already gone, and ignoring that failure is intentional —
+    /// `close` / `unset` / `rename foo {}`, `after cancel`,
+    /// `chan close`, `array unset`, `dict unset`, `interp delete`,
+    /// `file delete`, `namespace delete|forget`.  Single source of
+    /// truth for W302's suppression set.  Narrower than
+    /// [`crate::spec::SubCommand::destructive`] (`file rename` /
+    /// `file mkdir` are destructive but their failures are real
+    /// errors, not expected teardown noise).
+    FireAndForgetTeardown => FIRE_AND_FORGET_TEARDOWN;
+
+    /// Command is a math-operator head (`+`, `eq`, `ne`, `in`, `ni`,
+    /// and the `tcl::mathop::*` spellings): a real callable command in
+    /// every dialect whose profile has `operators_as_commands`, but
+    /// *never* a command head where operators live only inside `expr`
+    /// (F5 iRules; `tk` when modelled). Replaces the retired
+    /// `NON_IRULES_OPERATORS` membership tag as the operator-head
+    /// marker (dialect-profile-model.md §9, Milestone 5).
+    OperatorCommand => OPERATOR_COMMAND;
+
+    /// `TclOO` `next` / `nextto` — invokes the next implementation of the
+    /// *currently executing* method along the receiver's MRO. Its
+    /// callee's arity is resolvable only from the enclosing method's
+    /// call-site context (which class/method body the call textually
+    /// sits in), never from a fixed registry range, so both commands
+    /// keep [`crate::Arity::any`] / [`crate::Arity::at_least`] and the
+    /// analyser queues a context-aware candidate for any command
+    /// carrying this trait instead
+    /// (`Analyser::queue_next_arity_candidate`). Set on `next` and
+    /// `nextto`; `nextto`'s explicit target-class first word is
+    /// distinguished structurally via an [`crate::arg_role::ArgRole::Name`]
+    /// at argument index 0, not by command name.
+    TclooNextChain => TCLOO_NEXT_CHAIN;
+
+    /// Raises a *catchable* exception — completes `TCL_ERROR`, which
+    /// `catch` / `try` intercept: `error` (`Tcl_ErrorObjCmd`,
+    /// `generic/tclCmdAH.c`) and `throw` (`TclNRThrowObjCmd`,
+    /// `generic/tclBasic.c`, 8.6+). The strict subset of
+    /// [`Self::TERMINATES_BLOCK`] that sources an enclosing `try`'s
+    /// on-error edge: `exit` (`Tcl_ExitObjCmd`) terminates the
+    /// process rather than unwinding through exception ranges, and
+    /// `return` pops the frame with `TCL_RETURN`, so neither is a
+    /// throw point. Consumed by the CFG builder's throw-block
+    /// recording.
+    CatchableThrow => CATCHABLE_THROW;
+
+    /// Jumps to the innermost enclosing loop's *post-loop* target —
+    /// `break`, which completes `TCL_BREAK` (`Tcl_BreakObjCmd`,
+    /// `generic/tclCmdAH.c`); inside a compiled loop the bytecode
+    /// compiler rewrites it into a jump to the loop's break fixup
+    /// site (`TclCompileBreakCmd`, `generic/tclCompCmds.c`).
+    /// Loop-jump classification for the CFG builder's
+    /// `break`/`continue` edge lowering and the inline emitters'
+    /// straight-line-body gate; paired with
+    /// [`Self::CONTINUES_LOOP`].
+    BreaksLoop => BREAKS_LOOP;
+
+    /// Jumps to the innermost enclosing loop's *next-iteration*
+    /// target — `continue`, which completes `TCL_CONTINUE`
+    /// (`Tcl_ContinueObjCmd`, `generic/tclCmdAH.c`;
+    /// `TclCompileContinueCmd`, `generic/tclCompCmds.c`). The
+    /// other half of the loop-jump classification — see
+    /// [`Self::BREAKS_LOOP`].
+    ContinuesLoop => CONTINUES_LOOP;
+
+    /// Replaces the current procedure's frame — `tailcall`
+    /// (`TclNRTailcallObjCmd`, `generic/tclBasic.c`, 8.6+), which
+    /// schedules its command to run after the frame pops and always
+    /// completes `TCL_RETURN`, so control never resumes in the
+    /// calling body. Deliberately *not* [`Self::TERMINATES_BLOCK`]:
+    /// the analysis CFG promotes it to a proc-exit terminator, but
+    /// codegen must keep the plain fall-through call shape so the
+    /// emitted bytecode matches C Tcl's.
+    ReplacesFrame => REPLACES_FRAME;
+
+    /// Hidden when an interpreter is made **safe** — the command is
+    /// *not* part of C Tcl's safe-interpreter command set (its
+    /// `CmdInfo` row lacks `CMD_IS_SAFE`, or it is a whole-command
+    /// row of `unsafeEnsembleCommands` — `tclBasic.c`, 9.0.4:
+    /// `cd`, `encoding`, `exec`, `exit`, `fconfigure`, `file`,
+    /// `glob`, `load`, `open`, `pwd`, `socket`, `source`,
+    /// `unload`).  A call inside a safe interpreter's evaluation
+    /// context errors `invalid command name` unless the command was
+    /// re-exposed (`interp expose`) or reached via
+    /// `interp invokehidden`; the analyser's safe-context walk
+    /// consults this flag generically — no command name appears in
+    /// the consumer (issue #945 fault 7).
+    SafeInterpHidden => SAFE_INTERP_HIDDEN;
+}
+
+/// A `Trait`'s bit is `1 << discriminant`, so the set must fit the `u128`.
+/// Unlike a collision — which the enum makes unrepresentable — running out of
+/// width is a real limit worth failing the build over.
+const _: () = assert!(
+    Trait::ALL.len() <= 128,
+    "more traits than a u128 bitset can hold — widen `Traits` to [u64; N] via a custom bit type"
+);
 
 /// Clause/block words that behave as [`Traits::LANGUAGE_KEYWORD`] tokens but
 /// have no standalone `CommandSpec` — they are never independently invocable
