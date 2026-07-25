@@ -572,7 +572,11 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
 # Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
 # ci-fast job.  `xtask-check` is the CI aggregate.
-xtask-check: xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-resolution-drift xtask-command-backing ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-resolution-drift xtask-command-backing ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+
+xtask-workflow-sync: ## Verify .github/workflows/ copies match their canonical deploy sources (drift gate)
+	@echo "==> Checking installed workflows match their canonical sources (cargo xtask)"
+	cd $(ROOT) && cargo xtask workflow-sync --check
 
 xtask-resolution-drift: ## Flag namespace-blind simple-name scans over all_procs/all_classes (name-resolution drift gate)
 	@echo "==> Checking for name-resolution drift (cargo xtask)"

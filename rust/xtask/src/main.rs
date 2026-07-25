@@ -64,6 +64,7 @@ mod tcltest_sweep;
 mod tzdata_bundle;
 mod util;
 mod version;
+mod workflow_sync;
 
 /// Native build/check tasks for the tcl-lsp workspace.
 #[derive(Parser)]
@@ -173,6 +174,14 @@ enum Command {
         check: bool,
     },
 
+    /// Verify the installed `.github/workflows/` copies still match their
+    /// canonical sources under `rust/bigip-report-gen/python/deploy/`.
+    WorkflowSync {
+        /// Verify instead of reinstalling; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Flag namespace-blind `.name ==` scans over `all_procs`/`all_classes`
     /// outside the shared resolution contract (the M1 drift class).
     ResolutionDrift {
@@ -222,6 +231,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenVscodePackage { check } => gen_vscode_package::run(check),
         Command::GenJetbrainsCatalog { check } => gen_jetbrains::run(check),
         Command::GenAiDiagnostics { check } => gen_ai::run(check),
+        Command::WorkflowSync { check } => workflow_sync::run(check),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::TcltestSweep {
             backend,

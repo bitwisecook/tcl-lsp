@@ -16,11 +16,20 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+# The canonical copy of this workflow lives at
+# `rust/bigip-report-gen/python/deploy/github-pages.yml`; the copy under
+# `.github/workflows/` is installed from it, and the two must stay
+# byte-identical — `cargo xtask workflow-sync --check` gates that.  Edit
+# the canonical copy, then reinstall it:
+#
+#     cargo xtask workflow-sync   # or: cp rust/bigip-report-gen/python/deploy/github-pages.yml .github/workflows/
+#     git add .github/workflows/github-pages.yml && git commit && git push
+#
 name: Deploy GitHub Pages (BIG-IP report + compiler explorer + spec studio)
 
-# Builds the two static, self-contained web apps this repo publishes and serves
+# Builds the four static, self-contained web apps this repo publishes and serves
 # them from ONE GitHub Pages deployment (Pages serves a single artifact per
-# repo, so both must ship together or they clobber each other):
+# repo, so they must all ship together or they clobber each other):
 #
 #   /bigip-report-demo/  — the interactive f5report example, rendered from the
 #                          committed sample UCS fixtures (Rust + PyO3 + maturin).

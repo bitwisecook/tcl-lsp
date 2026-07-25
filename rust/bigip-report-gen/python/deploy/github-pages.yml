@@ -16,11 +16,20 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: Deploy GitHub Pages (BIG-IP report + compiler explorer)
+# The canonical copy of this workflow lives at
+# `rust/bigip-report-gen/python/deploy/github-pages.yml`; the copy under
+# `.github/workflows/` is installed from it, and the two must stay
+# byte-identical — `cargo xtask workflow-sync --check` gates that.  Edit
+# the canonical copy, then reinstall it:
+#
+#     cargo xtask workflow-sync   # or: cp rust/bigip-report-gen/python/deploy/github-pages.yml .github/workflows/
+#     git add .github/workflows/github-pages.yml && git commit && git push
+#
+name: Deploy GitHub Pages (BIG-IP report + compiler explorer + spec studio)
 
-# Builds the two static, self-contained web apps this repo publishes and serves
+# Builds the four static, self-contained web apps this repo publishes and serves
 # them from ONE GitHub Pages deployment (Pages serves a single artifact per
-# repo, so both must ship together or they clobber each other):
+# repo, so they must all ship together or they clobber each other):
 #
 #   /bigip-report-demo/  — the interactive f5report example, rendered from the
 #                          committed sample UCS fixtures (Rust + PyO3 + maturin).
@@ -28,6 +37,12 @@ name: Deploy GitHub Pages (BIG-IP report + compiler explorer)
 #                          Rust → WASM and runs entirely client-side (no backend,
 #                          so it works as static hosting). Bundle built by
 #                          `make explorer-build` into rust/tcl-cli/gui/.
+#   /spec-studio/        — the command-registry spec studio: browse and edit any
+#                          CommandSpec, render it back to a registry .rs file or
+#                          a Tcl stub, and infer signatures from an imported
+#                          package. One self-contained file (registry + compiler
+#                          analyser inlined as WASM), built by
+#                          `make spec-studio-wasm`.
 #
 # This supersedes the old `pages.yml` (Python `make explorer-build-cdn`), which
 # no longer exists on the Python-free `rust` line.
@@ -49,6 +64,11 @@ on:
       # Compiler-explorer sources: the WASM shell + the compiler/analysis core
       # it embeds, so highlighting/analysis fixes redeploy the live explorer.
       - "rust/tcl-explorer-wasm/**"
+      # Spec-studio sources: the schema/renderers crate, its WASM facade, and
+      # its TypeScript front-end. The registry and compiler paths below are
+      # shared with the explorer and already listed.
+      - "rust/tcl-spec-studio/**"
+      - "rust/tcl-spec-studio-wasm/**"
       - "rust/tcl-cli/gui/**"
       - "rust/tcl-lexer/**"
       - "rust/tcl-syntax/**"
@@ -70,16 +90,43 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history + tags: `tcl-version` resolves the release version with
+          # `git describe --tags`, and a shallow, tagless checkout makes that fail —
+          # every published artefact then reported the manifest placeholder (0.1.0)
+          # rather than the release it was cut from.
+          fetch-depth: 0
+
+      # Stamp the version from a PRISTINE tree, before anything below regenerates
+      # tracked files (build-wasm.sh rewrites assets/, the front-end build rewrites
+      # dist/). `tcl-version` prefers TCL_LSP_VERSION over `git describe`, so it
+      # cannot later mistake CI's own build output for a developer's edits and mark
+      # a published build `.dirty`.
+      - name: Stamp the release version
+        shell: bash
+        run: echo "TCL_LSP_VERSION=$(git describe --tags --always)" >> "$GITHUB_ENV"
 
       # rust-toolchain.toml pins the channel (stable). Cache both crate trees:
       # the workspace member the report links (bigip-report-gen/python) and the
       # standalone WASM crate (tcl-explorer-wasm has its own lockfile).
+      # The runner image ships a pinned stable (currently 1.96.1) and
+      # `rust-toolchain.toml`'s `channel = "stable"` resolves to *that*, not to
+      # the newest release — so cargo refuses the workspace's `rust-version`.
+      # Install the current stable explicitly.  `cache: false` because the
+      # Swatinem cache is configured separately below.
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          cache: false
+
       - name: Cache cargo + build
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: |
             rust/bigip-report-gen/python
             rust/tcl-explorer-wasm
+            rust/tcl-spec-studio-wasm
 
       # ── Compiler Explorer (Rust → WASM, client-side, no backend) ──────────
       - name: Add wasm target
@@ -120,6 +167,14 @@ jobs:
         # the explorer, and verifies the module's externref table is growable.
         run: bash rust/bigip-report-gen/wasm/build-wasm.sh
 
+      # ── Command-registry spec studio (TypeScript + Rust → WASM) ───────────
+      # `spec-studio-wasm` builds the TypeScript front-end first, then inlines
+      # it — with the wasm, the stylesheet, and the project mark — into a single
+      # self-contained rust/tcl-spec-studio-wasm/dist/index.html. Same
+      # no-wasm-opt + externref-growability handling as the two apps above.
+      - name: Build the command-registry spec studio (TypeScript + Rust → WASM)
+        run: make spec-studio-wasm
+
       # ── BIG-IP report (PyO3 + maturin) ────────────────────────────────────
       - name: Set up Python 3.14
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -158,6 +213,11 @@ jobs:
           cp -r rust/tcl-cli/gui/. site/compiler-explorer/
           rm -f site/compiler-explorer/.gitignore
 
+          # Command-registry spec studio → /spec-studio/ (single self-contained
+          # file built above).
+          mkdir -p site/spec-studio
+          cp rust/tcl-spec-studio-wasm/dist/index.html site/spec-studio/index.html
+
           # Root landing page linking both apps (the shared Pages root).
           cat > site/index.html <<'HTML'
           <!doctype html>
@@ -188,6 +248,12 @@ jobs:
               <li><a href="bigip-report-demo/">F5 BIG-IP estate report</a> —
                   an example report with an in-browser query console, rendered
                   from sample UCS fixtures.</li>
+              <li><a href="spec-studio/">Command registry spec studio</a> —
+                  browse every command tcl-lsp knows, edit any field of its
+                  <code>CommandSpec</code>, and render it back out as a
+                  registry <code>.rs</code> file or a Tcl dialect stub. Import
+                  a package's Tcl and the compiler infers a starting signature
+                  for each <code>proc</code>.</li>
             </ul>
           </body>
           </html>
