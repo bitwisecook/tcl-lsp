@@ -1,0 +1,63 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Rust → WASM facade for the command-registry spec studio.
+#
+# EXCLUDED from the Cargo workspace (see the root Cargo.toml `exclude` list)
+# for the same reasons as `tcl-explorer-wasm` and `bigip-report-wasm`:
+# wasm-bindgen's generated glue needs `unsafe`, which the workspace
+# `unsafe_code = "forbid"` lint bans, and it targets wasm32 with its own
+# lockfile. Built via `make spec-studio-wasm`; see build-wasm.sh.
+[package]
+name = "tcl-spec-studio-wasm"
+# This crate is `exclude`d from the root workspace, so it cannot inherit
+# `publish` from `[workspace.package]` — `publish.workspace = true` makes
+# `cargo metadata` fail with "failed to find a workspace root".
+publish = false
+description = "wasm32 build of the command-registry spec studio — browse, edit, and render CommandSpec entirely in-browser"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+authors = ["tcl-lsp contributors"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tcl-spec-studio = { path = "../tcl-spec-studio" }
+serde_json = { version = "1", features = ["preserve_order"] }
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
+
+[profile.release]
+# Optimise for size — this ships to the browser.
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+# Disable wasm-pack's built-in wasm-opt for this crate: on newer rustc layouts,
+# binaryen mis-rebinds the `__wbindgen_externrefs` export from the growable
+# externref table onto the fixed-size funcref table, which breaks `Table.grow`
+# at runtime ("could not grow the table"). The raw wasm-bindgen output has the
+# correct binding; we ship it unoptimised, as tcl-explorer-wasm does.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+# NOTE: no `[lints] workspace = true` — must not inherit `unsafe_code = "forbid"`.

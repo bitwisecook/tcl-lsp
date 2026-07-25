@@ -1,0 +1,158 @@
+<!doctype html>
+<!-- Command-registry spec studio — a single-page app over the tcl-lsp command
+     registry, compiled to one self-contained HTML file.
+
+     Substitution tokens, filled in by rust/tcl-spec-studio-wasm/build-wasm.sh:
+     __CSP__, __STYLES__, __WASM_PAYLOAD__, __STUDIO_JS__, and the project marks
+     __LOGO_TCL_LSP__ / __LOGO_TCL_LSP_DARK__, each replaced with the contents of
+     the matching `assets/logo-*.svg` so the mark inlines as <svg> — the same
+     pattern the BIG-IP report builder page uses. -->
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<!-- The studio is fully self-contained: the registry, the compiler's analyser,
+     and both renderers are linked into the inlined wasm. `connect-src 'none'`
+     means it can NEVER make a network request, so an unreleased command spec or
+     a proprietary Tcl package you import cannot leave the browser. Opening a
+     GitHub issue is a top-level navigation (`form-action`/link), not a fetch —
+     you see exactly what is sent, and only when you click. -->
+<meta http-equiv="Content-Security-Policy" content="__CSP__">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Tcl Command Registry — Spec Studio</title>
+__STYLES__
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <a class="brand-mark" href="https://github.com/bitwisecook/tcl-lsp" rel="noopener" target="_blank" role="img" aria-label="tcl-lsp on GitHub" title="tcl-lsp on GitHub"><span class="logo-when-light">__LOGO_TCL_LSP__</span><span class="logo-when-dark">__LOGO_TCL_LSP_DARK__</span></a>
+    <h1>Command Registry — Spec Studio</h1>
+  </div>
+  <p class="tagline">Browse the <code>tcl-registry</code> command surface, edit every field of a <code>CommandSpec</code>, and render it back out as a drop-in registry <code>.rs</code> file or a Tcl dialect stub. Import a package's own Tcl and the compiler will infer a starting signature for each <code>proc</code> it finds.</p>
+
+  <div class="privacy" id="privacy">
+    <span class="lock" aria-hidden="true">🔒</span>
+    <div>
+      <b>Everything runs entirely in your browser.</b> The command registry, the Tcl compiler's analyser, and both renderers are compiled to WebAssembly and embedded in this page. Nothing you type or import is uploaded — no server, no API, no network request. Once this page has loaded you can go offline (or save it and open it from disk) and it still works.
+      <div class="small">Opening a GitHub issue is the one action that leaves the page, and it is a link you click: the issue form opens pre-filled in a new tab so you can read it before posting.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <label class="fld" for="dialect" style="margin:0">Dialect</label>
+      <select id="dialect" aria-label="Registry dialect"></select>
+      <input type="search" id="filter" class="grow" placeholder="Filter commands — name or summary" aria-label="Filter commands">
+      <button type="button" class="ghost" id="newCmd">New command</button>
+      <span class="status" id="status">loading the registry…</span>
+    </div>
+
+    <div class="split">
+      <div class="card browser" id="browser">
+        <label class="fld">Registry</label>
+        <div class="count" id="count">—</div>
+        <ul class="cmdlist" id="cmdlist"></ul>
+      </div>
+
+      <div>
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" id="tab-editor" aria-controls="pane-editor" aria-selected="true">Spec editor</button>
+          <button type="button" role="tab" id="tab-rs" aria-controls="pane-rs" aria-selected="false">Rendered .rs</button>
+          <button type="button" role="tab" id="tab-stub" aria-controls="pane-stub" aria-selected="false">Tcl stub</button>
+          <button type="button" role="tab" id="tab-import" aria-controls="pane-import" aria-selected="false">Import a package</button>
+          <button type="button" role="tab" id="tab-share" aria-controls="pane-share" aria-selected="false">Files &amp; issue</button>
+        </div>
+
+        <section class="pane" id="pane-editor" role="tabpanel" aria-labelledby="tab-editor">
+          <div class="note info" id="editorSource">Pick a command on the left, or start a new one.</div>
+          <div id="unrenderable" class="note warn" hidden></div>
+          <div id="form"></div>
+        </section>
+
+        <section class="pane" id="pane-rs" role="tabpanel" aria-labelledby="tab-rs" hidden>
+          <div class="out">
+            <div class="actions">
+              <button type="button" class="primary" id="rsCopy">Copy</button>
+              <button type="button" class="ghost" id="rsDownload">Download ↓</button>
+              <button type="button" class="ghost" id="rsAdd">Add to files</button>
+              <label class="row" style="border:0;padding:0;background:none">
+                <span style="font-size:.78rem;color:var(--muted)">spec pack</span>
+                <input type="text" id="rsPack" value="tcl" size="8" aria-label="Spec pack directory">
+              </label>
+              <span class="path" id="rsPath"></span>
+            </div>
+            <pre id="rsOut"><code>—</code></pre>
+          </div>
+        </section>
+
+        <section class="pane" id="pane-stub" role="tabpanel" aria-labelledby="tab-stub" hidden>
+          <div class="out">
+            <div class="actions">
+              <button type="button" class="primary" id="stubCopy">Copy</button>
+              <button type="button" class="ghost" id="stubDownload">Download ↓</button>
+              <button type="button" class="ghost" id="stubAdd">Add to files</button>
+              <label class="row" style="border:0;padding:0;background:none">
+                <span style="font-size:.78rem;color:var(--muted)">form</span>
+                <select id="stubMode" aria-label="Stub form">
+                  <option value="inline">inline comment block</option>
+                  <option value="file">.tcl.stubs file</option>
+                </select>
+              </label>
+              <span class="path" id="stubPath"></span>
+            </div>
+            <pre id="stubOut"><code>—</code></pre>
+          </div>
+        </section>
+
+        <section class="pane" id="pane-import" role="tabpanel" aria-labelledby="tab-import" hidden>
+          <p class="hint" style="margin-top:0">Drop a package's <code>.tcl</code> files here. Each file is compiled with the real analyser — the same one the language server runs — and every <code>proc</code> it finds becomes a draft spec with its arity, argument roles, and traits inferred from how the body actually uses each parameter. Every guess comes with the evidence behind it.</p>
+          <div class="drop" id="drop" role="button" tabindex="0" aria-controls="picker">
+            <div class="big">Drop <code>.tcl</code> files here, or click to choose</div>
+            <div class="sub">a package's sources, or a single script — nothing is uploaded</div>
+          </div>
+          <input type="file" id="picker" multiple accept=".tcl,.tm,.test,text/plain">
+          <div class="status" id="importStatus" style="margin-top:.6rem"></div>
+          <div id="importOut" style="margin-top:.8rem"></div>
+        </section>
+
+        <section class="pane" id="pane-share" role="tabpanel" aria-labelledby="tab-share" hidden>
+          <div class="tray card" style="margin-top:0">
+            <label class="fld">Files</label>
+            <p class="hint" style="margin-top:0">Everything you have added from the render panes. Download them as a set, or open a GitHub issue with them attached.</p>
+            <ul id="fileList"></ul>
+            <div class="actions" style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.9rem">
+              <button type="button" class="ghost" id="filesDownload">Download all ↓</button>
+              <button type="button" class="ghost" id="filesClear">Clear</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <label class="fld" for="issueTitle">GitHub issue</label>
+            <input type="text" id="issueTitle" placeholder="Add a CommandSpec for …">
+            <label class="fld" for="issueNotes" style="margin-top:.7rem">Notes <span class="hint" style="font-weight:400">(what the command does, where the behaviour is documented)</span></label>
+            <textarea id="issueNotes" rows="4" placeholder="Anything a reviewer needs to know — the man page section, the vendor docs, the version this appeared in…"></textarea>
+            <div class="note info" id="issueSize" style="margin-top:.7rem"></div>
+            <div class="actions" style="display:flex;gap:.45rem;flex-wrap:wrap;align-items:center">
+              <button type="button" class="primary" id="issueOpen">Open a GitHub issue ↗</button>
+              <button type="button" class="ghost" id="issueCopy">Copy the issue body</button>
+              <span class="status" id="issueStatus"></span>
+            </div>
+            <p class="hint">The issue opens on <code>github.com</code> in a new tab, authored by whichever account you are signed in as, with the body pre-filled. GitHub's issue form cannot take file attachments from a link, so the files are embedded in the body — and downloaded to your machine at the same time, ready to drag onto the issue if you would rather attach them. If the body is too large for a URL, use <b>Copy the issue body</b> and paste it into the blank form.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Part of <a href="https://github.com/bitwisecook/tcl-lsp" rel="noopener">tcl-lsp</a> ·
+    Copyright © 2026 James Deucker (bitwisecook) ·
+    <a href="https://www.gnu.org/licenses/agpl-3.0.html" rel="noopener">AGPL-3.0-or-later</a> ·
+    <span id="ver"></span>
+  </footer>
+</div>
+
+__WASM_PAYLOAD__
+__STUDIO_JS__
+</body>
+</html>

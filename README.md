@@ -14,6 +14,7 @@ A language server for Tcl with multi-editor support.
 > compiler/analyser**, and the **BIG-IP registries** — from the CLI, Python, the
 > LSP, MCP, and the browser. Live demos:
 > [compiler explorer](https://bitwisecook.github.io/tcl-lsp/compiler-explorer/) ·
+> [command registry spec studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/) ·
 > [BIG-IP report generator](https://bitwisecook.github.io/tcl-lsp/bigip-report-generator/) ·
 > [example report](https://bitwisecook.github.io/tcl-lsp/bigip-report-demo/).
 
@@ -938,6 +939,39 @@ same offset-free diff via `--opt diff`.
 ![Compiler explorer — SSA](docs/screenshots/12-compiler-ssa.png)
 
 ![Compiler explorer — Optimiser](docs/screenshots/13-compiler-optimiser.png)
+
+### Command registry spec studio (browser)
+
+A single self-contained web page for exploring the command registry: browse
+every command tcl-lsp knows for a chosen dialect, edit any field of its
+`CommandSpec`, and render the result back out as a drop-in registry `.rs`
+module (copyright banner included) or a Tcl dialect stub.  Live at
+[bitwisecook.github.io/tcl-lsp/spec-studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/),
+or build it locally with `make spec-studio-wasm`.
+
+The form is generated from a schema the registry itself reports, so it covers
+every field of `CommandSpec` and `SubCommand` — a field added to the registry
+appears in the studio without a front-end change, and a drift test fails if
+one is ever missed.
+
+**Import a package** takes a package's own `.tcl` files, runs the real
+analyser over them, and infers a starting spec for each `proc` it finds:
+arity from the parameter list, argument roles and traits from how each
+parameter is *used* in the body (evaluated as a script, `upvar`'d and
+written, iterated as a list), hover text from the doc comment, and a
+`package require` gate from `package provide`.  Every guess is listed with
+the evidence behind it.
+
+The registry, the compiler's analyser, and both renderers are compiled to
+WebAssembly and embedded in the page, which carries `connect-src 'none'` —
+so nothing you type or import can leave your browser.  Copy the output,
+download it, or open a pre-filled GitHub issue proposing the spec.
+
+![Spec studio — editing a command spec](docs/screenshots/spec-studio-editor.png)
+
+![Spec studio — the rendered .rs file](docs/screenshots/spec-studio-rendered-rs.png)
+
+![Spec studio — inferring signatures from an imported package](docs/screenshots/spec-studio-import.png)
 
 ### Tk preview (VS Code panel)
 

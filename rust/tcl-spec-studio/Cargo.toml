@@ -1,0 +1,38 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "tcl-spec-studio"
+publish.workspace = true
+description = "Command-registry spec studio — field schema, draft model, .rs / Tcl-stub renderers, and package signature inference behind the web UI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-lexer = { path = "../tcl-lexer" }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[lints]
+workspace = true

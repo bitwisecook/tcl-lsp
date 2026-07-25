@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: Deploy GitHub Pages (BIG-IP report + compiler explorer)
+name: Deploy GitHub Pages (BIG-IP report + compiler explorer + spec studio)
 
 # Builds the two static, self-contained web apps this repo publishes and serves
 # them from ONE GitHub Pages deployment (Pages serves a single artifact per
@@ -28,6 +28,12 @@ name: Deploy GitHub Pages (BIG-IP report + compiler explorer)
 #                          Rust → WASM and runs entirely client-side (no backend,
 #                          so it works as static hosting). Bundle built by
 #                          `make explorer-build` into rust/tcl-cli/gui/.
+#   /spec-studio/        — the command-registry spec studio: browse and edit any
+#                          CommandSpec, render it back to a registry .rs file or
+#                          a Tcl stub, and infer signatures from an imported
+#                          package. One self-contained file (registry + compiler
+#                          analyser inlined as WASM), built by
+#                          `make spec-studio-wasm`.
 #
 # This supersedes the old `pages.yml` (Python `make explorer-build-cdn`), which
 # no longer exists on the Python-free `rust` line.
@@ -49,6 +55,11 @@ on:
       # Compiler-explorer sources: the WASM shell + the compiler/analysis core
       # it embeds, so highlighting/analysis fixes redeploy the live explorer.
       - "rust/tcl-explorer-wasm/**"
+      # Spec-studio sources: the schema/renderers crate, its WASM facade, and
+      # its TypeScript front-end. The registry and compiler paths below are
+      # shared with the explorer and already listed.
+      - "rust/tcl-spec-studio/**"
+      - "rust/tcl-spec-studio-wasm/**"
       - "rust/tcl-cli/gui/**"
       - "rust/tcl-lexer/**"
       - "rust/tcl-syntax/**"
@@ -106,6 +117,7 @@ jobs:
           workspaces: |
             rust/bigip-report-gen/python
             rust/tcl-explorer-wasm
+            rust/tcl-spec-studio-wasm
 
       # ── Compiler Explorer (Rust → WASM, client-side, no backend) ──────────
       - name: Add wasm target
@@ -146,6 +158,14 @@ jobs:
         # the explorer, and verifies the module's externref table is growable.
         run: bash rust/bigip-report-gen/wasm/build-wasm.sh
 
+      # ── Command-registry spec studio (TypeScript + Rust → WASM) ───────────
+      # `spec-studio-wasm` builds the TypeScript front-end first, then inlines
+      # it — with the wasm, the stylesheet, and the project mark — into a single
+      # self-contained rust/tcl-spec-studio-wasm/dist/index.html. Same
+      # no-wasm-opt + externref-growability handling as the two apps above.
+      - name: Build the command-registry spec studio (TypeScript + Rust → WASM)
+        run: make spec-studio-wasm
+
       # ── BIG-IP report (PyO3 + maturin) ────────────────────────────────────
       - name: Set up Python 3.14
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -184,6 +204,11 @@ jobs:
           cp -r rust/tcl-cli/gui/. site/compiler-explorer/
           rm -f site/compiler-explorer/.gitignore
 
+          # Command-registry spec studio → /spec-studio/ (single self-contained
+          # file built above).
+          mkdir -p site/spec-studio
+          cp rust/tcl-spec-studio-wasm/dist/index.html site/spec-studio/index.html
+
           # Root landing page linking both apps (the shared Pages root).
           cat > site/index.html <<'HTML'
           <!doctype html>
@@ -214,6 +239,12 @@ jobs:
               <li><a href="bigip-report-demo/">F5 BIG-IP estate report</a> —
                   an example report with an in-browser query console, rendered
                   from sample UCS fixtures.</li>
+              <li><a href="spec-studio/">Command registry spec studio</a> —
+                  browse every command tcl-lsp knows, edit any field of its
+                  <code>CommandSpec</code>, and render it back out as a
+                  registry <code>.rs</code> file or a Tcl dialect stub. Import
+                  a package's Tcl and the compiler infers a starting signature
+                  for each <code>proc</code>.</li>
             </ul>
           </body>
           </html>
