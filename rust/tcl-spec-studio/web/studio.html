@@ -42,7 +42,11 @@ __STYLES__
     <div class="toolbar">
       <label class="fld" for="dialect" style="margin:0">Dialect</label>
       <select id="dialect" aria-label="Registry dialect"></select>
-      <input type="search" id="filter" class="grow" placeholder="Filter commands — name or summary" aria-label="Filter commands">
+      <span class="finder">
+        <input type="search" id="filter" list="cmdOptions" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Filter or type a command name" aria-label="Filter commands, or type a command name to load">
+        <button type="button" class="primary" id="loadCmd">Load</button>
+      </span>
+      <datalist id="cmdOptions"></datalist>
       <button type="button" class="ghost" id="newCmd">New command</button>
       <span class="status" id="status">loading the registry…</span>
     </div>

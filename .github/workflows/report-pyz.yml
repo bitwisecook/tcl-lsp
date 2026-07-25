@@ -17,6 +17,15 @@
 # on manual dispatch (artefacts only). The local equivalent is
 # `make build-report-pyz`, which runs the same maturin + shiv steps for the host
 # platform.
+# The canonical copy of this workflow lives at
+# `rust/bigip-report-gen/python/deploy/report-pyz.yml`; the copy under
+# `.github/workflows/` is installed from it, and the two must stay
+# byte-identical — `cargo xtask workflow-sync --check` gates that.  Edit
+# the canonical copy, then reinstall it:
+#
+#     cargo xtask workflow-sync   # or: cp rust/bigip-report-gen/python/deploy/report-pyz.yml .github/workflows/
+#     git add .github/workflows/report-pyz.yml && git commit && git push
+#
 name: Build report-generator release artefacts
 
 on:

@@ -102,6 +102,13 @@ footer a { color: var(--accent); }
 /* Browser (left) / workbench (right). */
 .split { display: grid; grid-template-columns: 20rem 1fr; gap: 1.1rem; align-items: start; }
 @media (max-width: 62rem) { .split { grid-template-columns: 1fr; } }
+/* A grid item's automatic minimum size is its min-content width, so one long
+   unwrapped command summary in the browser list would size the whole track to
+   itself — 806px inside a 430px iPhone viewport, scrolling the *page*
+   sideways. `min-width: 0` lets the track take the space actually available
+   and hands overflow back to the elements built to handle it: the list
+   ellipses, the `pre` blocks scroll inside their own box. */
+.split > * { min-width: 0; }
 
 .browser { position: sticky; top: 1rem; max-height: calc(100vh - 3rem); display: flex; flex-direction: column; }
 @media (max-width: 62rem) { .browser { position: static; max-height: 24rem; } }
@@ -117,7 +124,8 @@ footer a { color: var(--accent); }
 .cmdlist button[aria-current="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .cmdlist .nm { font-family: var(--mono); font-size: .86rem; font-weight: 600; overflow-wrap: anywhere; }
 .cmdlist .sm { color: var(--muted); font-size: .78rem; display: block;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cmdlist button { min-width: 0; }
 .cmdlist .badge { color: var(--muted); font-size: .72rem; }
 
 /* Tab strip over the workbench panes. */
@@ -214,3 +222,46 @@ input[type=file] { display: none; }
 .found .hdr { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .found .hdr .nm { font-family: var(--mono); font-weight: 600; }
 .found .hdr button { margin-left: auto; }
+
+/* Load a command by name. The filter narrows the list, but on a phone the
+   list sits below the fold, so typing a name looked like it did nothing. This
+   pairs the box with an explicit Load button (and Enter, and a native
+   autocomplete via <datalist>) so a name you already know goes straight to
+   the editor. */
+.finder { display: flex; gap: .4rem; align-items: stretch; flex: 1 1 16rem; min-width: 0; }
+.finder input[type=search] { flex: 1 1 auto; min-width: 0; }
+.finder button { white-space: nowrap; }
+
+/* Phones. Below 34rem the toolbar stops trying to be a row: every control
+   takes the full width so nothing is clipped, and the tab strip scrolls
+   sideways in its own box rather than wrapping into a tall stack. */
+@media (max-width: 34rem) {
+  .wrap { padding: 1.1rem .7rem 3rem; }
+  .brand-mark svg { width: 40px; height: 40px; }
+  h1 { font-size: 1.15rem; }
+  .toolbar { gap: .45rem; }
+  .toolbar select,
+  .toolbar input[type=search],
+  .toolbar > button,
+  .finder { width: 100%; min-width: 0; flex-basis: 100%; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .tabs button { flex: 0 0 auto; }
+  .browser { max-height: 18rem; }
+  .out pre { font-size: .74rem; max-height: 50vh; }
+  .field .ctl select,
+  .field .ctl input[type=text],
+  .field .ctl input[type=number] { min-width: 0; flex: 1 1 8rem; }
+  .row input[type=text], .row input[type=number], .row select { min-width: 0; flex: 1 1 5rem; }
+}
+
+/* Touch targets. Apple's HIG asks for 44x44pt; the desktop paddings land
+   several controls under that, which is what makes the toolbar fiddly to
+   tap on a phone. Only applied to coarse pointers so the desktop density
+   is untouched. */
+@media (pointer: coarse) {
+  .toolbar button, .toolbar select, .toolbar input[type=search],
+  .finder button, .tabs button, .out .actions button, .actions button {
+    min-height: 44px;
+  }
+  .cmdlist button { min-height: 44px; }
+}

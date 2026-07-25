@@ -30,6 +30,13 @@ automation token lacks. Apply the patch below from a clone that has the
 `workflow` scope (or simply re-run the `cp` step from the now-fixed deploy
 sources) and push:
 
+> **Follow-up.** "Byte-identical" was an invariant nothing enforced, and both
+> pairs drifted again afterwards — in *both* directions, each side holding a
+> fix the other lacked, so either direction of the documented `cp` would have
+> silently reverted real work. They are reconciled, and
+> `cargo xtask workflow-sync --check` (in `make check-all`) now gates them.
+> See `rust/xtask/src/workflow_sync.rs`.
+
 ```diff
 diff --git a/.github/workflows/github-pages.yml b/.github/workflows/github-pages.yml
 index 228a6ca..987a1c8 100644

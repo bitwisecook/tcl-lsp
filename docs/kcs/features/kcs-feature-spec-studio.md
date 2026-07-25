@@ -26,7 +26,11 @@ including offline, and including from a file you saved to disk.
 1. **Pick a dialect** at the top left. The command list underneath is that
    dialect's real registry, so Tcl 8.4 shows what Tcl 8.4 has.
 2. **Choose a command** to load its live specification into the form, or press
-   **New command** to start from scratch.
+   **New command** to start from scratch. If you already know the name, type it
+   into the box and press **Load** (or Enter) — the box also offers the
+   matching names as you type. An ambiguous or unknown name is reported rather
+   than guessed at, since loading the wrong command silently is worse than
+   saying nothing matched.
 3. **Edit any field.** The form is grouped — Identity, Availability, Arity and
    arguments, Types, and so on. A field that differs from the default is
    marked **set**, and each group heading counts how many of its fields are
@@ -37,6 +41,17 @@ including offline, and including from a file you saved to disk.
    artefacts together.
 6. **Files & issue** downloads the collected files and opens a pre-filled
    GitHub issue so you can propose the spec.
+
+### On a phone
+
+The studio is usable on a phone, not merely reachable from one. Below 34rem
+every toolbar control takes the full width, the tab strip scrolls sideways
+instead of stacking, and touch targets meet the 44px minimum. The command list
+sits below the editor rather than beside it — which is why typing a name and
+pressing **Load** matters there: the list is off-screen, so filtering alone
+would look like nothing had happened.
+
+![The spec studio on a phone, with a command loaded by name](../../screenshots/spec-studio-mobile.png)
 
 ### Nothing you type is uploaded
 

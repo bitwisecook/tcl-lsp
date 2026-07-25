@@ -51,6 +51,8 @@ const MAX_ISSUE_URL = 6000;
 
 /** The registry runs to thousands of commands; the filter box is right there. */
 const MAX_LISTED = 400;
+/// How many names to offer the browser's native autocomplete at once.
+const MAX_SUGGESTED = 50;
 
 const TABS = ["editor", "rs", "stub", "import", "share"] as const;
 type Tab = (typeof TABS)[number];
@@ -208,6 +210,22 @@ function renderList(): void {
     list.appendChild(el("li", {}, [button]));
   }
 
+  // Feed the native autocomplete. The list itself matches summaries too, but
+  // an autocomplete that answers "lin" with `::tcl::mathfunc::ceil` (whose
+  // *summary* says "linear") is noise — suggestions are name matches only,
+  // prefix before substring, so `lindex`/`linsert` come first. Capped: a
+  // datalist with thousands of options is slow to open on a phone.
+  const options = byId("cmdOptions");
+  clear(options);
+  if (query) {
+    const byName = state.index.filter((e) => e.name.toLowerCase().includes(query));
+    const prefix = byName.filter((e) => e.name.toLowerCase().startsWith(query));
+    const rest = byName.filter((e) => !e.name.toLowerCase().startsWith(query));
+    for (const entry of [...prefix, ...rest].slice(0, MAX_SUGGESTED)) {
+      options.appendChild(el("option", { value: entry.name }));
+    }
+  }
+
   if (matches.length > MAX_LISTED) {
     list.appendChild(
       el("li", {}, [
@@ -254,6 +272,44 @@ function loadDraft(draft: Draft, origin: string): void {
   buildForm(form, state.schema.command, draft, "command", onDraftChanged);
   renderList();
   onDraftChanged();
+}
+
+/// Load whatever the filter box currently names.
+///
+/// Typing a name only ever narrowed the list, and on a phone the list is below
+/// the fold — so a typed name looked like it did nothing at all. Resolve it
+/// here instead: an exact name wins, then a unique case-insensitive match, then
+/// a sole surviving filter match. Anything else is reported rather than
+/// guessed, because loading the wrong command silently is worse than saying so.
+function loadTypedCommand(): void {
+  const typed = byId<HTMLInputElement>("filter").value.trim();
+  if (!typed) {
+    setStatus("status", "type a command name first", "err");
+    return;
+  }
+  const lower = typed.toLowerCase();
+  const exact = state.index.find((e) => e.name === typed);
+  const caseless = state.index.filter((e) => e.name.toLowerCase() === lower);
+  const partial = state.index.filter((e) => e.name.toLowerCase().includes(lower));
+
+  const target =
+    exact?.name ??
+    (caseless.length === 1 ? caseless[0]?.name : undefined) ??
+    (partial.length === 1 ? partial[0]?.name : undefined);
+
+  if (target) {
+    openCommand(target);
+    return;
+  }
+  if (partial.length === 0) {
+    setStatus("status", `no command matches “${typed}” in ${state.dialect}`, "err");
+    return;
+  }
+  setStatus(
+    "status",
+    `${partial.length} commands match “${typed}” — pick one from the list`,
+    "err",
+  );
 }
 
 function openCommand(name: string): void {
@@ -515,6 +571,23 @@ function bindUi(): void {
   }
 
   byId("filter").addEventListener("input", renderList);
+  byId("loadCmd").addEventListener("click", loadTypedCommand);
+  // Enter (and the on-screen keyboard's "go") loads without reaching for the
+  // button — the whole point on a phone.
+  byId("filter").addEventListener("keydown", (event) => {
+    if ((event as KeyboardEvent).key === "Enter") {
+      event.preventDefault();
+      loadTypedCommand();
+    }
+  });
+  // Picking a datalist suggestion commits it straight away on desktop; iOS
+  // fires `change` when the field loses focus, so this stays a deliberate act.
+  byId("filter").addEventListener("change", () => {
+    const typed = byId<HTMLInputElement>("filter").value.trim();
+    if (typed && state.index.some((e) => e.name === typed)) {
+      openCommand(typed);
+    }
+  });
 
   byId<HTMLSelectElement>("dialect").addEventListener("change", () => {
     state.dialect = byId<HTMLSelectElement>("dialect").value;

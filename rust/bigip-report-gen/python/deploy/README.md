@@ -4,18 +4,31 @@
 interactive report from the committed sample UCS fixtures and publishes it to
 GitHub Pages — a stable URL that always reflects the latest code.
 
-It lives here (not under `.github/workflows/`) because it must be installed by
-someone whose credentials carry the `workflow` scope; automated pushes from this
-tooling are not allowed to create workflow files.
+It lives here (not under `.github/workflows/`) because installing a workflow
+needs credentials carrying the GitHub `workflow` scope, which automated pushes
+have not always had. **This copy is canonical**; `.github/workflows/github-pages.yml`
+is installed from it and the two are kept byte-identical.
 
-## One-time setup
+> **Already installed in this repo.** Both workflows are live under
+> `.github/workflows/`. Edit the canonical copy here, then reinstall with
+> `cargo xtask workflow-sync` — never hand-edit only one side. `make
+> xtask-workflow-sync` (part of `make check-all`) fails the build if they
+> diverge.
+>
+> Do not blind-`cp` a canonical file over an installed one you have not
+> compared first. Fixes have landed directly in `.github/workflows/` before —
+> reinstalling over them silently reverted the release-version stamping and
+> would have dropped a whole app from the Pages deploy. The sync gate exists
+> because that happened twice.
+
+## One-time setup (new repo)
 
 1. **Add the workflow** — copy it into place and commit (from a clone with
    workflow permission):
 
    ```bash
    mkdir -p .github/workflows
-   cp rust/bigip-report-gen/python/deploy/github-pages.yml .github/workflows/
+   cargo xtask workflow-sync   # or: cp rust/bigip-report-gen/python/deploy/github-pages.yml .github/workflows/
    git add .github/workflows/github-pages.yml && git commit -m "Add BIG-IP report Pages workflow" && git push
    ```
 
@@ -31,11 +44,13 @@ The report is then served at `https://<owner>.github.io/<repo>/`.
 
 ## Notes
 
-- **One Pages site per repo.** This workflow and the existing (manual-only)
-  Compiler-Explorer `pages.yml` both target the single GitHub Pages site (shared
-  `pages` concurrency group / `github-pages` environment); the most recent run
-  is what's live. Keep one as the active publisher, or merge them if you want
-  both (e.g. the report under a `/report/` subpath).
+- **One Pages site per repo.** Pages serves a single artifact, so this one
+  workflow builds and publishes every app together, each under its own subpath:
+  `/bigip-report-demo/`, `/bigip-report-generator/`, `/compiler-explorer/` and
+  `/spec-studio/`, with a root landing page linking all four. Adding another app
+  means extending this workflow — a second Pages workflow would clobber it
+  (they share the `pages` concurrency group / `github-pages` environment, so the
+  most recent run wins). The old manual-only `pages.yml` it superseded is gone.
 - **Environment branch policy.** The `github-pages` environment may restrict
   deployments to the default branch. Once this branch is merged to `main`, the
   push trigger deploys automatically; to deploy from a feature branch first,
@@ -71,11 +86,12 @@ is correct even though the `.pyz` runs outside any git checkout.
 
 ## Setup
 
-Install the workflow the same way as the Pages one (it needs the `workflow`
-scope):
+Install the workflow the same way as the Pages one — and under the same rule:
+this copy is canonical, `.github/workflows/report-pyz.yml` is installed from it,
+and `cargo xtask workflow-sync --check` gates the two staying identical.
 
 ```bash
-cp rust/bigip-report-gen/python/deploy/report-pyz.yml .github/workflows/
+cargo xtask workflow-sync   # or: cp rust/bigip-report-gen/python/deploy/report-pyz.yml .github/workflows/
 git add .github/workflows/report-pyz.yml && git commit -m "Add f5report .pyz workflow" && git push
 ```
 
