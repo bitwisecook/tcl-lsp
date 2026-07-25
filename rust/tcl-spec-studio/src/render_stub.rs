@@ -156,16 +156,17 @@ pub fn stub_line(draft: &Draft) -> String {
         .unwrap_or(0);
     let max = arity.and_then(|a| a.get("max")).and_then(Value::as_u64);
 
-    // Cover every declared role position as well as the required count, so a
-    // role declared past the arity floor still reaches the stub.
+    // How many parameter slots the stub spells out. A bounded command declares
+    // through its maximum, so its optional positions survive into the stub —
+    // stopping at `min` would advertise a narrower signature than the spec.
+    // An unbounded one declares through its minimum and then takes `?args?`.
+    // Either way a role declared past that point still pulls its slot in, so
+    // no declared role is lost.
     let highest_role = roles.iter().map(|(i, _)| *i + 1).max().unwrap_or(0);
-    let required = min.max(highest_role.min(min.max(highest_role)));
-    let declared = max.map_or(required.max(highest_role), |m| {
-        m.max(required).min(required.max(highest_role).max(min))
-    });
+    let declared = max.unwrap_or(min).max(min).max(highest_role);
 
     let mut params: Vec<String> = Vec::new();
-    for index in 0..declared.max(required) {
+    for index in 0..declared {
         let role = roles
             .iter()
             .find(|(i, _)| *i == index)
@@ -337,6 +338,29 @@ mod tests {
             json!({ "min": 1, "max": null, "step": 0, "also_exact": null }),
         );
         assert_eq!(stub_line(&d), "stub get_cells {pattern:pattern ?args?}");
+    }
+
+    #[test]
+    fn a_bounded_range_declares_its_optional_positions() {
+        // min 1, max 3 with no roles must still spell out the two optional
+        // slots — otherwise the stub is narrower than the spec it came from.
+        let mut d = drafted("ranged");
+        d.insert(
+            "arity".into(),
+            json!({ "min": 1, "max": 3, "step": 0, "also_exact": null }),
+        );
+        assert_eq!(stub_line(&d), "stub ranged {arg1 ?arg2? ?arg3?}");
+    }
+
+    #[test]
+    fn a_role_declared_past_the_maximum_still_reaches_the_stub() {
+        let mut d = drafted("odd");
+        d.insert(
+            "arity".into(),
+            json!({ "min": 1, "max": 1, "step": 0, "also_exact": null }),
+        );
+        d.insert("arg_roles".into(), json!([{ "index": 2, "role": "Body" }]));
+        assert_eq!(stub_line(&d), "stub odd {arg1 ?arg2? ?body:body?}");
     }
 
     #[test]

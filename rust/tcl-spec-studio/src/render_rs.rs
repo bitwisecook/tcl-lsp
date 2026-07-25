@@ -706,15 +706,31 @@ fn const_table(
 }
 
 /// The module doc line, from the draft's hover summary when it has one.
+///
+/// The summary is free text a user typed into a textarea, so it may contain
+/// newlines. Every line has to carry its own `//!`: interpolating a multi-line
+/// summary verbatim leaves the continuation lines as bare Rust and the
+/// advertised drop-in file does not compile.
 fn module_doc(name: &str, summary: &str) -> String {
-    if summary.is_empty() {
+    if summary.trim().is_empty() {
         return format!("//! `{name}`.\n");
     }
     let first = summary
         .split_once(". ")
         .map_or(summary, |(head, _)| head)
+        .trim()
         .trim_end_matches('.');
-    format!("//! `{name}` — {}.\n", lower_first(first))
+    let mut lines = first.lines().map(str::trim).filter(|l| !l.is_empty());
+    let Some(head) = lines.next() else {
+        return format!("//! `{name}`.\n");
+    };
+    let mut out = format!("//! `{name}` — {}", lower_first(head));
+    for line in lines {
+        out.push_str("\n//! ");
+        out.push_str(line);
+    }
+    out.push_str(".\n");
+    out
 }
 
 /// Render `draft` as a complete `tcl-registry` command-spec source file.
@@ -938,6 +954,36 @@ mod tests {
         let out = render(&draft::from_command_spec(&spec));
         assert!(
             out.contains("arity: Arity::stepped(3, Arity::UNLIMITED, 2).with_also_exact(2),"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn a_multiline_summary_stays_inside_the_doc_comment() {
+        // The Summary field is a textarea, so a newline with no ". " is
+        // reachable; a bare continuation line would not compile.
+        let mut d = draft::default_command_draft();
+        d.insert("name".into(), json!("mycmd"));
+        d.insert(
+            "hover".into(),
+            json!({
+                "summary": "does a thing\nand keeps going",
+                "synopsis": [],
+                "snippet": "",
+                "source": "",
+                "examples": "",
+                "return_value": "",
+            }),
+        );
+        let out = render(&d);
+        for line in out.lines().take_while(|l| !l.starts_with("use ")) {
+            assert!(
+                line.is_empty() || line.starts_with("//"),
+                "every header line must be a comment, got: {line:?}\n{out}"
+            );
+        }
+        assert!(
+            out.contains("//! `mycmd` — does a thing\n//! and keeps going.\n"),
             "{out}"
         );
     }

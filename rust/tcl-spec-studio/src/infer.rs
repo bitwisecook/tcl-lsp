@@ -47,6 +47,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::{Value, json};
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::analyser::types::ProcArgTrait;
+use tcl_compiler::signature_scan::arity::arity_of;
+use tcl_compiler::signature_scan::types::ParamDef;
 
 use crate::draft::{self, Draft};
 
@@ -170,12 +172,24 @@ fn evidence(param: &str, t: ProcArgTrait) -> String {
     format!("`{param}` {what}")
 }
 
+/// Whether `params` ends in the variadic `args` collector.
+///
+/// Only a *trailing* `args` is variadic — `proc f {args value} {}` has an
+/// ordinary required parameter that happens to be spelled `args`. See
+/// [`tcl_compiler::signature_scan::arity::arity_of`], which applies the same
+/// rule to the arity.
+fn is_variadic(params: &[ParamDef]) -> bool {
+    params.last().is_some_and(|p| p.name == "args")
+}
+
 /// Build the synopsis line a proc's parameter list implies.
-fn synopsis(name: &str, params: &[tcl_compiler::signature_scan::types::ParamDef]) -> String {
+fn synopsis(name: &str, params: &[ParamDef]) -> String {
+    let variadic = is_variadic(params);
+    let last = params.len().saturating_sub(1);
     let mut out = name.to_owned();
-    for param in params {
+    for (index, param) in params.iter().enumerate() {
         out.push(' ');
-        if param.name == "args" {
+        if variadic && index == last {
             out.push_str("?arg ...?");
         } else if param.has_default {
             out.push('?');
@@ -211,31 +225,36 @@ fn draft_for_proc(
         proc_def.qualified_name
     ));
 
-    // Arity: parameters without a default are required; `args` is variadic.
+    // Arity comes from the compiler's canonical rule, not a local re-derivation.
+    // Tcl binds arguments strictly positionally, so a required parameter *after*
+    // a defaulted one raises the minimum to its own position rather than leaving
+    // the earlier default optional: `proc p {{a A} b} {}` takes exactly two.
+    // `arity_of` encodes that (and the trailing-`args` rule), verified there
+    // against real tclsh.
     let params = &proc_def.params;
-    let variadic = params.last().is_some_and(|p| p.name == "args");
-    let positional = if variadic {
-        &params[..params.len() - 1]
-    } else {
-        &params[..]
-    };
-    let required = positional.iter().filter(|p| !p.has_default).count();
-    let max = if variadic {
-        Value::Null
-    } else {
-        json!(positional.len())
-    };
+    let arity = arity_of(params);
+    let unbounded = arity.is_unlimited();
     d.insert(
         "arity".into(),
-        json!({ "min": required, "max": max, "step": 0, "also_exact": null }),
+        json!({
+            "min": arity.min,
+            "max": if unbounded { Value::Null } else { json!(arity.max) },
+            "step": 0,
+            "also_exact": null,
+        }),
     );
-    notes.push(if variadic {
-        format!("arity {required}.. — {required} required parameter(s) then a variadic `args`")
+    notes.push(if unbounded {
+        format!(
+            "arity {}.. — {} argument(s) required, then a variadic `args`",
+            arity.min, arity.min
+        )
     } else {
         format!(
-            "arity {required}..{} — {required} required, {} optional",
-            positional.len(),
-            positional.len() - required
+            "arity {}..{} — {} required, {} optional",
+            arity.min,
+            arity.max,
+            arity.min,
+            arity.max - arity.min
         )
     });
 
@@ -432,6 +451,31 @@ mod tests {
         let greet = find(&import, "greet");
         assert_eq!(greet.draft["arity"]["min"], json!(1));
         assert_eq!(greet.draft["arity"]["max"], json!(2));
+    }
+
+    #[test]
+    fn a_required_parameter_after_a_defaulted_one_raises_the_minimum() {
+        // Tcl binds positionally: `p 1` cannot fill `b` while skipping `a`'s
+        // default, so both arguments are required. Counting non-default
+        // parameters would wrongly say one.
+        let import = import_package(&file("proc p {{a A} b} { return $b }"), "tcl9.0");
+        let p = find(&import, "p");
+        assert_eq!(p.draft["arity"]["min"], json!(2));
+        assert_eq!(p.draft["arity"]["max"], json!(2));
+    }
+
+    #[test]
+    fn args_is_only_variadic_when_it_is_last() {
+        // `args` before another parameter is an ordinary required parameter.
+        let import = import_package(&file("proc f {args value} { return $value }"), "tcl9.0");
+        let f = find(&import, "f");
+        assert_eq!(f.draft["arity"]["min"], json!(2));
+        assert_eq!(f.draft["arity"]["max"], json!(2));
+        assert_eq!(
+            f.draft["forms"][0]["synopsis"],
+            json!("f args value"),
+            "a non-trailing `args` must not render as variadic"
+        );
     }
 
     #[test]
