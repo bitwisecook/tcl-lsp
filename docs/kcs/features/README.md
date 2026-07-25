@@ -111,6 +111,7 @@ combine them when more than one form helps:
 - [kcs-feature-debugger.md](kcs-feature-debugger.md)
 - [kcs-feature-compilation-tools.md](kcs-feature-compilation-tools.md)
 - [kcs-feature-command-info.md](kcs-feature-command-info.md)
+- [kcs-feature-spec-studio.md](kcs-feature-spec-studio.md)
 - [kcs-feature-tcllib-package-coverage.md](kcs-feature-tcllib-package-coverage.md)
 - [kcs-feature-event-registry.md](kcs-feature-event-registry.md)
 - [kcs-feature-semantic-graphs.md](kcs-feature-semantic-graphs.md)

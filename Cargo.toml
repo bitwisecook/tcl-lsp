@@ -78,6 +78,7 @@ members = [
     "rust/tcl-lsp-db",
     "rust/tcl-lsp-server",
     "rust/tcl-explorer",
+    "rust/tcl-spec-studio",
     "rust/tcl-cli-support",
     "rust/tcl-cli",
     "rust/tcl-pkg",
@@ -110,6 +111,11 @@ exclude = [
     # wasm-bindgen's generated glue needs `unsafe`, which the workspace
     # `unsafe_code = "forbid"` lint bans. Built via `make explorer-wasm`.
     "rust/tcl-explorer-wasm",
+    # The command-registry spec studio's WASM facade is a cdylib for
+    # wasm32-unknown-unknown; wasm-bindgen's generated glue needs `unsafe`,
+    # which the workspace `unsafe_code = "forbid"` lint bans. Built via
+    # `make spec-studio-wasm`; see the Makefile.
+    "rust/tcl-spec-studio-wasm",
     # The Rust runtime port (runtime/rust/) is a standalone crate: it requires
     # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
     # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it

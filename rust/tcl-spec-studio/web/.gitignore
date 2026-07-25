@@ -1,0 +1,2 @@
+# Build output — the bundle build-wasm.sh inlines into the single-file page.
+/dist

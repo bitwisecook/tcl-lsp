@@ -412,6 +412,9 @@ are its rules, and what are the failure modes". One contract per file.
   docstring extraction, parsing, and formatting.
 - [dialect-stubs.md](contracts/dialect-stubs.md) — dialect command stubs
   and inline stub blocks.
+- [command-spec-studio.md](contracts/command-spec-studio.md) — the spec
+  studio's schema / draft / renderer layering, the invariants that keep it
+  in step with `CommandSpec`, and the rules its rendered `.rs` must satisfy.
 - [proc-arg-traits.md](contracts/proc-arg-traits.md) — proc argument
   trait inference.
 - [variable-case-mismatch-suggestions.md](contracts/variable-case-mismatch-suggestions.md)

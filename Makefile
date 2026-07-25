@@ -29,6 +29,9 @@ OUT_DIR         := $(EXT_DIR)/out
 # Shared TypeScript front-end for the BIG-IP report generators (built to
 # rust/bigip-report-gen/frontend/dist and synced into the Python f5report package).
 REPORT_SHARED_DIR := $(ROOT)rust/bigip-report-gen/frontend
+# TypeScript front-end for the command-registry spec studio (bundled into the
+# single-file studio page by rust/tcl-spec-studio-wasm/build-wasm.sh).
+SPEC_STUDIO_WEB := $(ROOT)rust/tcl-spec-studio/web
 # The compiler-explorer GUI shell lives in the `tcl` crate; `make explorer-wasm`
 # builds the Rust → WASM core + Mermaid into it, and `build.rs` embeds the whole
 # bundle into the `tcl` binary (served by `tcl explore --serve`).
@@ -48,6 +51,7 @@ VSCODE   ?= code
 STAMP_DIR  := $(BUILD_DIR)/stamps
 NPM_STAMP  := $(STAMP_DIR)/npm-install
 REPORT_NPM_STAMP := $(STAMP_DIR)/report-npm-install
+SPEC_STUDIO_NPM_STAMP := $(STAMP_DIR)/spec-studio-npm-install
 STAGE_DIR  := $(BUILD_DIR)/vsix-stage
 
 # Version — derived from git describe (fallback: dev when unavailable)
@@ -178,7 +182,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects tcltest-sweep tcltest-sweep-check
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
-.PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets
+.PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
 # Coverage
 .PHONY: coverage coverage-ext
 # Compile + codegen + generated assets
@@ -479,6 +483,14 @@ typecheck-report-ts: $(REPORT_NPM_STAMP) ## Type-check the shared report front-e
 	@echo "==> Type-checking shared report front-end with tsc"
 	cd $(REPORT_SHARED_DIR) && $(NPM) run typecheck
 
+lint-spec-studio-ts: $(SPEC_STUDIO_NPM_STAMP) ## Lint/format-check the spec studio front-end
+	@echo "==> Linting spec studio front-end (ESLint + Prettier check)"
+	cd $(SPEC_STUDIO_WEB) && $(NPM) run lint
+
+typecheck-spec-studio-ts: $(SPEC_STUDIO_NPM_STAMP) ## Type-check the spec studio front-end with tsc
+	@echo "==> Type-checking spec studio front-end with tsc"
+	cd $(SPEC_STUDIO_WEB) && $(NPM) run typecheck
+
 # Drift gate: rebuild the shared front-end and fail if the committed dist/ or the
 # assets synced into the Python f5report package are stale (mirrors the vendored
 # generated-artifact checks). Regenerate with `make build-report-assets`.
@@ -619,7 +631,7 @@ tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in syn
 	cd $(ROOT) && cargo xtask tcltest-sweep --backend vm --check
 
 # Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets
+_prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets typecheck-spec-studio-ts lint-spec-studio-ts
 _prep-pr-tests: test-rust
 _prep-pr-smoke: smoke-vsix
 
@@ -870,6 +882,12 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 		echo "==> Checking tcl-vm-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(ROOT)rust/tcl-vm-wasm && cargo fmt --all --check && \
 			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(ROOT)rust/tcl-spec-studio-wasm/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
+		echo "==> Checking tcl-spec-studio-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
+		cd $(ROOT)rust/tcl-spec-studio-wasm && cargo fmt --all --check && \
+			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
 
 # Supply-chain audit for the Rust workspace: RustSec advisories, license
@@ -1039,6 +1057,12 @@ $(NPM_STAMP): $(EXT_DIR)/package.json
 $(REPORT_NPM_STAMP): $(REPORT_SHARED_DIR)/package.json
 	@echo "==> Installing shared report front-end npm dependencies"
 	cd $(REPORT_SHARED_DIR) && $(NPM) install
+	@mkdir -p $(STAMP_DIR)
+	@touch $@
+
+$(SPEC_STUDIO_NPM_STAMP): $(SPEC_STUDIO_WEB)/package.json
+	@echo "==> Installing spec studio front-end npm dependencies"
+	cd $(SPEC_STUDIO_WEB) && $(NPM) install
 	@mkdir -p $(STAMP_DIR)
 	@touch $@
 
@@ -1238,6 +1262,16 @@ report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) int
 	@command -v wasm-bindgen >/dev/null 2>&1 || { \
 		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.126'"; exit 1; }
 	bash $(ROOT)rust/bigip-report-gen/wasm/build-wasm.sh
+
+.PHONY: spec-studio-assets spec-studio-wasm
+spec-studio-assets: ## Build the spec studio's TypeScript front-end (src/ -> web/dist/studio.js)
+	@echo "==> Building the spec studio front-end (TypeScript)"
+	cd $(SPEC_STUDIO_WEB) && $(NPM) ci && $(NPM) run build
+
+spec-studio-wasm: spec-studio-assets ## Build the command-registry spec studio (Rust → WASM) into rust/tcl-spec-studio-wasm/dist/index.html
+	@command -v wasm-bindgen >/dev/null 2>&1 || { \
+		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli'"; exit 1; }
+	bash $(ROOT)rust/tcl-spec-studio-wasm/build-wasm.sh
 
 compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
 	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"

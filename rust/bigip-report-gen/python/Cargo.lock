@@ -1167,6 +1167,7 @@ dependencies = [
  "sha2",
  "tar",
  "tcl-bigip",
+ "tcl-core-types",
  "thiserror",
 ]
 
@@ -1186,6 +1187,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tcl-bigip",
+ "tcl-core-types",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -1267,6 +1269,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
@@ -1277,6 +1280,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "tcl-core-types",
  "tcl-dialect",
  "thiserror",
 ]
@@ -1311,6 +1315,7 @@ name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "libm",
  "num-bigint",
  "num-integer",
  "num-traits",
