@@ -5131,20 +5131,20 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.64.0",
     "@typescript-eslint/parser": "^8.64.0",
-    "@types/vscode": "~1.95.0",
+    "@types/vscode": "~1.125.0",
     "@types/node": "^26.1.1",
     "@types/mocha": "^10.0.0",
     "@types/glob": "^9.0.0",
-    "@vscode/test-electron": "^3.0.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.9.2",
     "c8": "^12.0.0",
-    "eslint": "^10.7.0",
+    "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "esbuild": "^0.28.1",
     "glob": "^13.0.6",
     "mocha": "^11.7.6",
-    "prettier": "^3.9.5",
-    "typescript": "^6.0.3"
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "vscode-languageclient": "10.1.0"
