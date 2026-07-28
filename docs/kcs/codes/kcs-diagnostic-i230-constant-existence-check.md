@@ -55,9 +55,12 @@ against treating it as constant. A false `I230` here (issue #969: `if {$count
 & 1}` reported "always false" inside a recursive proc) means the analyser
 failed to see one of the varying call sites — most often because it was
 inside a `namespace eval` block and reached via a bare recursive self-call,
-or because it was embedded inside a `catch { … }` / `uplevel { … }` body.
-Report a reproducer if you see this: the fix is always to make the call-site
-scan see the call, never to special-case the parameter.
+because it was embedded inside a `catch { … }` / `uplevel { … }` body, or
+because it was dispatched through a variable (`set cmd helper; $cmd dev` —
+issue #976). Report a reproducer if you see this: the fix is always to make
+the call-site scan see the call, never to special-case the parameter. For
+the full rule, see
+[when a parameter is treated as a constant](../kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md).
 
 ## Fix
 

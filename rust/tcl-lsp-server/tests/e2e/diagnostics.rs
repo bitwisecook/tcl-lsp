@@ -1910,6 +1910,86 @@ fn two_callers_with_uniform_literal_still_fires_i230() {
     );
 }
 
+// -- TestI230DynamicDispatchCallSiteE2E ---------------------------------
+// Issue #976: the interprocedural seed above enumerated only *literal*
+// command words, so a call dispatched through a variable (`set cmd helper;
+// $cmd dev`) was skipped entirely — it counted neither for nor against any
+// proc's parameters, even when it demonstrably reached one the scan had
+// already seeded from its literal call sites. The scan now resolves a
+// dispatch by value (`call_site_scan.rs`): an enumerable one becomes an
+// ordinary call site for each name it can hold, and an unenumerable one
+// withdraws every seed in the module.
+
+#[test]
+fn dynamic_dispatch_with_a_differing_literal_does_not_fire_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }\n}\nhelper prod\nhelper prod\nset cmd helper\n$cmd dev\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "`$cmd dev` also reaches helper, with a differing literal: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TP control: the same dispatch passing the *same* literal every other
+/// caller does must still fold — the fix resolves the dispatch rather than
+/// blanket-disqualifying the module.
+#[test]
+fn dynamic_dispatch_agreeing_on_the_literal_still_fires_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }\n}\nhelper prod\nhelper prod\nset cmd helper\n$cmd prod\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "I230"),
+        "every caller — dispatched or not — passes \"prod\": {:?}",
+        codes(&diags)
+    );
+}
+
+/// TP control: a dispatch that provably names a *different* proc must leave
+/// an unrelated proc's fold alone.
+#[test]
+fn dynamic_dispatch_to_a_different_proc_still_fires_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }\n}\nproc other {a} { return $a }\nhelper prod\nhelper prod\nset cmd other\n$cmd dev\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        has_code(&diags, "I230"),
+        "the dispatch provably names `other`, never `helper`: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn unenumerable_dynamic_dispatch_does_not_fire_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }\n}\nhelper prod\nhelper prod\nset cmd [gets stdin]\n$cmd dev\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "a dispatch whose target cannot be enumerated may reach helper: {:?}",
+        codes(&diags)
+    );
+}
+
+#[test]
+fn command_prefix_callback_target_does_not_fire_i230() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc cmp {a b} {\n    if {$a eq \"x\"} { return -1 } else { return 1 }\n}\ncmp x x\ncmp x x\nlsort -command cmp {p q}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(
+        !has_code(&diags, "I230"),
+        "`lsort -command cmp` invokes cmp with runtime-supplied arguments: {:?}",
+        codes(&diags)
+    );
+}
+
 // -- TestDiagnosticsTrackEdits -------------------------------------------
 
 #[test]

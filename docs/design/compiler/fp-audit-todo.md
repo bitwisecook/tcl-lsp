@@ -352,19 +352,16 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   seed" wildcard was tried and **reverted** — it broke a genuine,
   already-covered TP (`fp_var_as_cmd_param_flow_non_command_fires`, a
   dispatch-table proc whose own body legitimately uses `$cmd`) for a
-  residual soundness gap (a dynamic dispatch site's target can't be
-  statically enumerated at all) that pre-dates this fix and is orthogonal to
-  what #969 actually reported — documented as a known limitation rather than
-  papered over with disproportionate collateral damage.
-  **Known, deliberately out-of-scope residual gaps** (none reproduce the
-  reported shape; listed so they aren't mistaken for silently-missed):
+  residual soundness gap that is orthogonal to what #969 actually
+  reported. That gap — and the `CommandPrefix` one below — are closed
+  precisely (not by a wildcard) in **FP-IPCP-02**.
+  **Residual gaps left open by this entry** (none reproduce the reported
+  shape; listed so they aren't mistaken for silently-missed):
   cross-file soundness for a plain (non-`package provide`) file `source`d
-  by another that calls its procs differently; `CommandPrefix`-role
-  indirection (`trace add variable … command cb`, `-command` callback
-  options) — neither this scan nor the pre-existing
-  `interprocedural::scan_source_for_calls` call-graph walk follows a
-  `CommandPrefix` argument, so this is a shared, pre-existing limitation,
-  not a regression; and `namespace ensemble configure -map` redirection.
+  by another that calls its procs differently; dynamic dispatch (`$cmd
+  args`) and `CommandPrefix`-role indirection (`trace add variable …
+  command cb`, `-command` callback options) — **both since closed by
+  FP-IPCP-02**; and `namespace ensemble configure -map` redirection.
   Traced end-to-end: the same `SccpResult` feeds I230, the optimiser's O101
   fold and O107 dead-code suggestions (all suggestion-only text rewrites,
   never applied to the compiled CFG/IR — confirmed codegen/`tcl-vm`/WASM
@@ -431,6 +428,80 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   `call_site_param_constants` module (19 passing + 1 pinned `#[ignore]`),
   plus the `namespace_eval_body_unit_does_not_change_bytecode` regression
   in `regex_source.rs` updated for the corrected qname format.
+
+- [x] **FP-IPCP-02** I230 on a parameter reached through dynamic dispatch —
+  CLOSED (issue #976). FP-IPCP-01 closed every way a *literal* call site
+  could go unresolved, but a call dispatched through a variable (`set cmd
+  helper; $cmd dev`) was skipped outright: it counted neither for nor
+  against any callee, so a proc whose only *visible* callers agreed on a
+  literal was still seeded with it even when the dispatch demonstrably
+  reached that same proc with a different one. The scan's completeness
+  claim was therefore unproven for every module containing an indirection.
+  Fixed by extracting the whole scan into `tcl-compiler/src/call_site_scan.rs`
+  and resolving indirection **by value** rather than skipping it:
+  1. **Dispatch value sets.** The literal strings a dispatch word can hold
+     are enumerated from the enclosing scope's own literal assignments
+     (`AssignConst`, plus the plain-bareword `AssignValue` shape lowering
+     leaves alone) unioned, when the word names one of the body's
+     parameters, with the literals its callers pass at that position. A
+     word that resolves to a known set of names is recorded as an ordinary
+     call site for **each** of them, so a dispatch that agrees with every
+     other caller keeps folding — the per-target precision the reverted
+     PR #970 wildcard lacked. Which words *write* a variable is registry
+     data (`ArgRole::VarWrite`, plus `Traits::CREATES_SCOPE_ALIAS` for the
+     vararg `global`/`variable`/`upvar` forms the role query does not
+     expand); no command name appears in the scan.
+  2. **A monotone fixpoint, not the SCCP result.** A parameter's value set
+     comes from the call-site evidence the scan itself produces, so the
+     rounds start from "no callers seen" and re-derive the whole evidence
+     set until it stops growing (`MAX_CALL_SITE_SCAN_ROUNDS`). Each round
+     is monotone in its input (values only union, unknown flags only set),
+     so the chain increases to a fixpoint at which the value sets and the
+     evidence agree — the circularity the issue warned about is resolved
+     without ever consulting the SCCP lattice this seed feeds. Rounds run
+     only when a value set was actually consulted, so an indirection-free
+     module still costs exactly one walk.
+  3. **Unreadable channels withdraw every seed.** When a dispatch word's
+     value set cannot be enumerated (`set cmd [gets stdin]`, a
+     namespace-qualified `$::cmd`, a parameter of an untracked `TclOO`
+     method / `apply` lambda body), or a script reaches a command as a
+     *value* rather than as text (`eval $script`, `catch $body`, `apply
+     $fn`), the evidence is flagged `opaque_callee` and
+     `params_constants_from_call_sites` returns `None` for the whole
+     module. A body written literally — including the overwhelmingly
+     common one that merely *mentions* a variable, `catch {puts $x}` — is
+     still walked in place; the discriminator is
+     `value_shapes::is_pure_var_ref` / `parse_command_substitution` ("the
+     whole word is one substitution"), not "the word contains a `$`".
+  4. **`CommandPrefix` callbacks and user-proc invokers** (the residual
+     gaps FP-IPCP-01 documented) close for free on the same machinery:
+     a `-command cb` callback's target is invoked with arguments the
+     *runtime* appends, so every parameter of the named proc is poisoned
+     (and only that proc's — the poison is per-target); a `[list cb $x]`
+     prefix is destructured through `Traits::BUILDS_COMMAND_PREFIX`; and a
+     `Traits::INVOKES_USER_PROC` head (the iRules `call PROC …` form)
+     records the tail as the callee's real arguments.
+  Also centralised while here: `value_shapes::whole_word_scalar_var_name`,
+  the one place that answers "is this whole word just a variable, and which
+  one" for value-set analyses, replacing what would have been a fifth
+  hand-rolled `$name`/`${name}` parser. Tests: `call_site_scan.rs`'s own
+  unit suite (11 cases over the evidence map, the value-set facts, and the
+  prefix-head/whole-substitution shape helpers), 14 further TP/FP/TN/FN
+  cases in `compilation_unit.rs`'s `call_site_param_constants` module
+  (differing literal, agreeing literal, branch-joined value set, unrelated
+  target, unenumerable word, parameter dispatch tables in both directions,
+  namespace variables, `namespace import` aliases, untracked method
+  parameters, literal vs dynamic `apply`, callback prefixes built and
+  bare), 5 native e2e cases
+  (`diagnostics::dynamic_dispatch_with_a_differing_literal_does_not_fire_i230`
+  and siblings), and a VS Code integration suite (`issue976.test.ts`).
+  **Residual gaps, unchanged by this entry:** the cross-file `source` one
+  above; `namespace ensemble configure -map` redirection; a computed head
+  that resolves to a variable-*writing builtin* (`set cmd set; $cmd x 5`),
+  which would need a builtin's own name to be among the literals a local
+  holds; and `uplevel`'s cross-frame writes, handled conservatively by
+  making every value set unenumerable in a module that shifts frames rather
+  than modelled per-variable.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 

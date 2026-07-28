@@ -91,6 +91,7 @@ pub mod analyser;
 pub mod analyses;
 pub mod auto_path_eval;
 pub mod bounded_set;
+pub mod call_site_scan;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod cfg_layout;

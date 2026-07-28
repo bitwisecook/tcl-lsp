@@ -102,6 +102,10 @@ User-facing compiler troubleshooting and how-tos live in
   on WASM locals vs spill to the runtime frame.
 - [interprocedural-analysis.md](interprocedural-analysis.md) —
   ProcSummary construction.
+- [interprocedural-call-site-seeding.md](interprocedural-call-site-seeding.md)
+  — how a procedure parameter is bound to a caller-uniform literal, which
+  indirect calls (`$cmd args`, callback prefixes, `eval $script`) count as
+  call sites, and what withdraws the seed module-wide.
 - [optimisation-passes.md](optimisation-passes.md) — pass table and
   priorities.
 

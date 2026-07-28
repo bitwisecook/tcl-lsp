@@ -32,6 +32,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_registry::CommandRegistry;
 
+use crate::call_site_scan::{
+    CallSiteEvidence, CallSiteScanInputs, ExtraCaller, collect_call_site_constants,
+};
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::build_cfg;
 use crate::def_use::{DefUseResult, build_def_use_chains};
@@ -745,14 +748,14 @@ impl CompilationUnit {
         // Collect call-site literal arg values per user proc so each
         // callee's SCCP can fold a param every caller passes the same literal
         // for (interprocedural constant propagation).
-        let call_site_constants = collect_call_site_constants(
-            &cfg_module,
-            &extra_call_site_scan_contexts,
-            &ir_module.procedures,
-            &ir_module.namespace_imports,
+        let call_site_constants = collect_call_site_constants(&CallSiteScanInputs {
+            cfg_module: &cfg_module,
+            extra_callers: &extra_call_site_scan_contexts,
+            procedures: &ir_module.procedures,
+            namespace_imports: &ir_module.namespace_imports,
             registry,
             dialect,
-        );
+        });
         // Whole-module `rename` / `interp alias` / dynamic-redefinition trust
         // fact — reused (not duplicated) from the optimiser's identical O103
         // proc-call-fold trust gate, so the interprocedural param-constant
@@ -1374,15 +1377,6 @@ impl CompilationUnit {
     }
 }
 
-/// Per-arg-position call-site literal evidence for one callee.
-#[derive(Default)]
-struct ArgConsts {
-    /// At least one call passed a non-literal (`$`/`[`) value here.
-    unknown: bool,
-    /// Distinct literal values seen at this position.
-    values: std::collections::HashSet<String>,
-}
-
 /// Fully-qualified names of every class defined in `source`.
 ///
 /// Sourced from [`crate::signature_scan`] (which records `oo::class create` and
@@ -1411,172 +1405,6 @@ fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<St
         .collect()
 }
 
-/// Recursion cap for [`record_call_site_evidence`]'s descent into nested
-/// `ArgRole::Body` arguments (`catch { catch { catch { … } } }` and similar) —
-/// defensive against a pathological or generated nesting depth; real code
-/// never approaches it.
-const MAX_CALL_SITE_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(16);
-
-/// Invariant context [`record_call_site_evidence`] threads unchanged through
-/// its recursion into nested `ArgRole::Body` arguments — grouped into one
-/// struct (rather than passed as five separate parameters) purely to keep
-/// the recursive function's own argument count down to the two things that
-/// actually change per call (`caller_qname` stays fixed across one top-level
-/// statement's recursion, `command`/`args`/`depth` do not).
-struct CallSiteScanCtx<'a> {
-    procedures: &'a HashMap<String, crate::ir::Procedure>,
-    known: &'a HashSet<String>,
-    registry: &'a CommandRegistry,
-    dialect: &'a str,
-    /// `namespace import` directives (`(importing_namespace, absolute_pattern)`
-    /// pairs), from [`crate::ir::Module::namespace_imports`] — see
-    /// [`resolve_via_namespace_import`].
-    namespace_imports: &'a [(String, String)],
-}
-
-/// Resolve `command` to a qualified proc name via a `namespace import`
-/// directive active in `caller_qname`'s own namespace, when
-/// [`crate::interprocedural::resolve_internal_call`] found no direct match.
-///
-/// `namespace import ::lib::helper` binds the bare name `helper` in the
-/// importing namespace to `::lib::helper` — a real command-resolution path
-/// distinct from (and checked *after*) plain namespace-relative lookup, so a
-/// call site reached only this way was invisible to the collector before
-/// this: `::lib::helper`'s only *visible* caller was some unrelated external
-/// call, while every importing-namespace caller's (potentially differing)
-/// argument silently vanished from the evidence, exactly like the
-/// namespace-blind recursion and `ArgRole::Body` gaps above.
-///
-/// `::foo::*` (wildcard) imports resolve `command` under `::foo`; an exact
-/// pattern (`::foo::bar`) binds only its own leaf name — `namespace_imports`
-/// already only ever records absolute patterns (relative ones need runtime
-/// namespace-path walking this compile-time pass does not model, per
-/// [`crate::ir::Module::namespace_imports`]'s own doc).
-fn resolve_via_namespace_import<S: std::hash::BuildHasher>(
-    command: &str,
-    caller_qname: &str,
-    namespace_imports: &[(String, String)],
-    known: &HashSet<String, S>,
-) -> Option<String> {
-    if namespace_imports.is_empty() {
-        return None;
-    }
-    let ns_parts = crate::interprocedural::namespace_parts_from_proc(caller_qname);
-    let caller_ns = if ns_parts.is_empty() {
-        "::".to_owned()
-    } else {
-        format!("::{}", ns_parts.join("::"))
-    };
-    for (import_ns, pattern) in namespace_imports {
-        if *import_ns != caller_ns {
-            continue;
-        }
-        if let Some(ns_prefix) = pattern.strip_suffix("::*") {
-            let candidate = format!("{ns_prefix}::{command}");
-            if known.contains(&candidate) {
-                return Some(candidate);
-            }
-        } else if pattern.rsplit("::").next().unwrap_or(pattern.as_str()) == command
-            && known.contains(pattern)
-        {
-            return Some(pattern.clone());
-        }
-    }
-    None
-}
-
-/// Record one call site's literal-argument evidence into `out`, then recurse
-/// into any `ArgRole::Body` argument of `command` (regardless of whether
-/// `command` itself is a user proc) — a nested script embedded in a nested
-/// script embedded in a nested script, and so on, up to
-/// [`MAX_CALL_SITE_BODY_DEPTH`].
-///
-/// This is the fix for the residual gap issue #969's own root cause left
-/// open: `catch { isEven 4 }`, a non-exact `switch` arm, a literal `uplevel
-/// {…}` / `apply {{…} {…}}` body, and friends all carry their nested script
-/// as one opaque *argument string* to a builtin (`catch`, `switch`,
-/// `uplevel`, `apply`) that is never itself a user proc — so a flat,
-/// one-level `Statement::Call`/`Statement::Barrier` walk resolves `catch`
-/// (finds no matching proc, moves on) and never notices `isEven 4` sitting
-/// inside its body argument at all. That's a *second* proc call this scan
-/// cannot see, exactly like the namespace-resolution gap: an invisible call
-/// site with a differing argument silently vanishes from
-/// [`params_constants_from_call_sites`]'s "every caller agrees" evidence.
-///
-/// The registry already knows which argument position of which command is a
-/// script body (`ArgRole::Body`, driving the identical recursive call-graph
-/// walk in [`crate::interprocedural::scan_source_for_calls`] and the
-/// `BODY`-role scans in `ir_helpers.rs` / `place_bridge.rs` / `ssa.rs`) — so
-/// this reuses that one fact via [`tcl_registry::CommandRegistry::arg_indices_for_role`]
-/// and the shared [`crate::segmenter`] rather than hand-rolling a second
-/// "which commands embed scripts" list here.
-fn record_call_site_evidence(
-    out: &mut HashMap<String, HashMap<usize, ArgConsts>>,
-    ctx: &CallSiteScanCtx<'_>,
-    caller_qname: &str,
-    command: &str,
-    args: &[String],
-    depth: u32,
-) {
-    // A dynamically-dispatched command word (`$cmd args`) can't be resolved
-    // to any specific callee, so it never counts as a call site — but nor
-    // does it disqualify anyone else's: this scan has never claimed to
-    // enumerate every indirect dispatch, only every statically-resolvable
-    // one (including, now, one level of script-body nesting at a time).
-    if !command.contains(['$', '['])
-        && let Some(target) = crate::interprocedural::resolve_internal_call(
-            command,
-            caller_qname,
-            ctx.known,
-        )
-        .or_else(|| {
-            resolve_via_namespace_import(command, caller_qname, ctx.namespace_imports, ctx.known)
-        })
-    {
-        // A call that omits a (defaulted) parameter uses its default, an
-        // unknown value at that slot — poison every param position this
-        // call doesn't provide so a single literal at another call site
-        // can't bind it (omitted args are treated as unknown).
-        let nparams = ctx.procedures.get(&target).map_or(0, |p| p.params.len());
-        let by_idx = out.entry(target).or_default();
-        for (i, arg) in args.iter().enumerate() {
-            let slot = by_idx.entry(i).or_default();
-            if arg.contains(['$', '[']) {
-                slot.unknown = true;
-            } else {
-                slot.values.insert(arg.clone());
-            }
-        }
-        for i in args.len()..nparams {
-            by_idx.entry(i).or_default().unknown = true;
-        }
-    }
-    if MAX_CALL_SITE_BODY_DEPTH.exceeded(depth + 1) {
-        return;
-    }
-    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for idx in ctx
-        .registry
-        .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
-    {
-        let Some(body_text) = args.get(idx) else {
-            continue;
-        };
-        let nested = crate::segmenter::segment_commands_with_offset_and_config(
-            body_text,
-            0,
-            tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
-        );
-        for cmd in &nested {
-            let name = cmd.name();
-            if name.is_empty() {
-                continue;
-            }
-            record_call_site_evidence(out, ctx, caller_qname, name, cmd.args(), depth + 1);
-        }
-    }
-}
-
 /// Build bare CFGs (no further per-function analysis) for every `TclOO` method
 /// and synthetic body unit (`apply` lambda, `namespace eval` body), so
 /// [`collect_call_site_constants`] can walk them as *callers* too.
@@ -1599,7 +1427,7 @@ fn record_call_site_evidence(
 fn build_extra_call_site_scan_contexts(
     ir_module: &IrModule,
     cfg_context: Option<&CfgContext>,
-) -> Vec<(String, CfgFunction)> {
+) -> Vec<ExtraCaller> {
     if ir_module.methods.is_empty() && ir_module.body_units.is_empty() {
         return Vec::new();
     }
@@ -1619,7 +1447,7 @@ fn build_extra_call_site_scan_contexts(
     ir_module
         .methods
         .iter()
-        .map(|(mqname, method)| {
+        .map(|(mqname, method)| ExtraCaller {
             // tclsh8.6-confirmed (live): a bare command inside a `TclOO`
             // method body resolves against the GLOBAL namespace, never the
             // class's own declaring namespace — `method go {} { helper }`
@@ -1629,15 +1457,25 @@ fn build_extra_call_site_scan_contexts(
             // wrong here, so the caller-context string this scan resolves
             // against is forced to global — reusing `"::top"`, the same
             // pseudo-qname the top-level script already uses to mean
-            // exactly that. The CFG's own identity still uses the real
-            // `mqname` (unrelated to this scan's namespace concern).
-            ("::top".to_owned(), build(mqname, &method.body))
+            // exactly that.
+            resolve_as: "::top".to_owned(),
+            // The method's *variables*, unlike its command words, do live
+            // in its own frame, so the value-set side of the scan keys on
+            // the real `mqname`.
+            scope: mqname.clone(),
+            params: method.params.clone(),
+            cfg: build(mqname, &method.body),
         })
         .chain(
             ir_module
                 .body_units
                 .iter()
-                .map(|(qname, unit)| (qname.clone(), build(qname, &unit.body))),
+                .map(|(qname, unit)| ExtraCaller {
+                    resolve_as: qname.clone(),
+                    scope: qname.clone(),
+                    params: unit.params.clone(),
+                    cfg: build(qname, &unit.body),
+                }),
         )
         .collect()
 }
@@ -1714,74 +1552,6 @@ fn has_package_provide_statement(ir_module: &IrModule) -> bool {
         || ir_module.body_units.values().any(|b| walk_script(&b.body))
 }
 
-/// Collect literal arg values per user-proc call site across the whole
-/// module's CFGs (top-level + every proc/method/body-unit, statements
-/// already flattened), including calls nested inside `ArgRole::Body`
-/// arguments (`catch { … }`, a literal `uplevel { … }`, `apply {{…} {…}}`, a
-/// non-exact `switch` arm, …) via [`record_call_site_evidence`].
-///
-/// Each call site is resolved to its callee via
-/// [`crate::interprocedural::resolve_internal_call`] — Tcl's real,
-/// existence-checked, namespace-relative resolution order, evaluated in the
-/// *calling* function's own namespace, not the global one. This is the same
-/// resolver the analyser and optimiser use for identical same-file call
-/// resolution; a bespoke or partial resolver here could disagree with them
-/// on which callee a bare name reaches.
-///
-/// The namespace context matters because a call site this scan fails to
-/// resolve doesn't just go uncounted — it *vanishes* from
-/// [`params_constants_from_call_sites`]'s "every caller passes the same
-/// literal" evidence, which can flip an absence of contradicting evidence
-/// into a false positive. Issue #969: a proc declared inside a `namespace
-/// eval` block recursed into itself by its bare (unqualified) name; the old
-/// resolver only ever tried global-qualified spellings of the command word,
-/// so it could never match the proc's namespaced qualified name, and the
-/// recursive self-call — whose argument necessarily varies call to call —
-/// was silently dropped. Only the one external, fully-qualified caller's
-/// literal remained, so the loop/recursion-varying parameter was seeded as
-/// that one constant and folded a genuinely alternating condition (`$count &
-/// 1`) to a fixed boolean.
-fn collect_call_site_constants(
-    cfg_module: &CfgModule,
-    extra_callers: &[(String, CfgFunction)],
-    procedures: &HashMap<String, crate::ir::Procedure>,
-    namespace_imports: &[(String, String)],
-    registry: &CommandRegistry,
-    dialect: &str,
-) -> HashMap<String, HashMap<usize, ArgConsts>> {
-    use crate::ir::Statement;
-    let mut out: HashMap<String, HashMap<usize, ArgConsts>> = HashMap::new();
-    let known: HashSet<String> = procedures.keys().cloned().collect();
-    let ctx = CallSiteScanCtx {
-        procedures,
-        known: &known,
-        registry,
-        dialect,
-        namespace_imports,
-    };
-    // The top level has no qualified name of its own; `"::top"` (the same
-    // pseudo-qname `FunctionUnit::build_full` uses for it) resolves to the
-    // global namespace via `resolve_internal_call`'s "drop the last
-    // segment" rule, matching a bare top-level call's real resolution
-    // scope.
-    let funcs = std::iter::once(("::top", &cfg_module.top_level))
-        .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
-        .chain(extra_callers.iter().map(|(q, f)| (q.as_str(), f)));
-    for (caller_qname, func) in funcs {
-        for block in func.blocks.values() {
-            for stmt in &block.statements {
-                let (Statement::Call { command, args, .. }
-                | Statement::Barrier { command, args, .. }) = stmt
-                else {
-                    continue;
-                };
-                record_call_site_evidence(&mut out, &ctx, caller_qname, command, args, 0);
-            }
-        }
-    }
-    out
-}
-
 /// Build the SCCP `param_constants` seed for `qname` from collected call-site
 /// literals: bind `(param, 0)` only when every caller passes the same single
 /// literal at that position.
@@ -1803,14 +1573,19 @@ fn collect_call_site_constants(
 ///   ever sees the current file's call sites (this compilation unit is
 ///   single-file, so it cannot rule out cross-file callers by itself).
 ///
-/// A call site dispatched through a non-literal command word (`$cmd args`)
-/// is deliberately NOT treated as a module-wide wildcard here: it can't be
-/// resolved to any specific callee, so `collect_call_site_constants` already
-/// never counts it as evidence for (or against) any particular proc's
-/// params, the same way it has always treated any other unresolvable call.
+/// - `call_site_constants.enumerates_every_caller()` — every indirection in
+///   the module (a dispatch through a variable command word, a script held
+///   in a variable, a callback prefix) was resolved to a concrete set of
+///   callees. When one was not, some call in the module may reach *any*
+///   procedure with *any* arguments, so no callee's evidence is complete
+///   (issue #976: `set cmd helper; $cmd dev` reaching a `helper` already
+///   seeded `prod` from its two literal call sites). Indirections whose
+///   callees the scan *did* enumerate need no gate here — they were
+///   recorded as ordinary call sites, so their arguments already count as
+///   evidence for and against the callees they reach.
 fn params_constants_from_call_sites(
     params: &[String],
-    call_site_constants: &HashMap<String, HashMap<usize, ArgConsts>>,
+    call_site_constants: &CallSiteEvidence,
     qname: &str,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
     has_package_provide: bool,
@@ -1819,10 +1594,13 @@ fn params_constants_from_call_sites(
     if has_package_provide {
         return None;
     }
+    if !call_site_constants.enumerates_every_caller() {
+        return None;
+    }
     if !command_mutations.trusts_proc_binding(qname) {
         return None;
     }
-    let by_idx = call_site_constants.get(qname)?;
+    let by_idx = call_site_constants.callee(qname)?;
     let mut consts: HashMap<(String, crate::ssa::Version), LatticeValue> = HashMap::new();
     for (i, pname) in params.iter().enumerate() {
         if pname == "args" {
@@ -2665,16 +2443,12 @@ mod tests {
             );
         }
 
-        /// TN control and documented scope boundary: a dynamic (non-literal)
-        /// call-site head elsewhere in the module is simply unresolvable —
-        /// it contributes no evidence for or against any proc's params,
-        /// exactly like any other call this scan can't attribute to a
-        /// specific callee. `helper`'s own two uniform-literal callers still
-        /// fold. Closing the residual "the dynamic call might secretly
-        /// target `helper` too" gap would need a value-set fact for `$cmd`
-        /// this pass runs too early in the pipeline to have (it produces
-        /// the very SCCP seed such a fact would depend on) — a pre-existing
-        /// limitation of this call-site scan, not a regression.
+        /// TN control: a dynamic call-site head whose enumerated target
+        /// passes the *same* literal every other caller does must still
+        /// fold — issue #976's fix resolves a dispatch by value and records
+        /// it as an ordinary call site, so agreeing evidence stays agreeing
+        /// evidence rather than being blanket-disqualified (the collateral
+        /// damage that got the first attempt at this reverted in PR #970).
         #[test]
         fn dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed() {
             let reg = registry();
@@ -2692,6 +2466,426 @@ mod tests {
             assert!(
                 folds_condition_mentioning(helper, "mode"),
                 "an unrelated dynamic call site must not disqualify helper's own uniform-literal seed: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression, issue #976 — the reported shape: a call
+        /// dispatched through a variable (`set cmd helper; $cmd dev`)
+        /// reaches a proc the scan had already seeded from its two literal
+        /// `prod` call sites. Before the fix the dispatch was skipped
+        /// entirely, so `mode` folded to `"prod"` even though a third,
+        /// invisible caller passes `"dev"`.
+        #[test]
+        fn dynamic_dispatch_with_a_differing_literal_disqualifies_the_seed() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+                set cmd helper
+                $cmd dev
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "the `$cmd dev` dispatch also reaches helper, with a differing literal: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression: the dispatch variable is joined from two branches,
+        /// so its value set has two members — the *other* member naming a
+        /// different proc must not stop the `helper` member from counting.
+        #[test]
+        fn branch_joined_dispatch_value_set_still_reaches_every_member() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                proc other {mode} { return $mode }
+                helper prod
+                proc go {flag} {
+                    if {$flag} { set cmd helper } else { set cmd other }
+                    $cmd dev
+                }
+                go 1
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "the phi-joined dispatch can reach helper with \"dev\": {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// TN control: a dispatch whose enumerated value set names only
+        /// *other* procs must leave an unrelated proc's seed alone — the
+        /// per-target precision that distinguishes this fix from the
+        /// reverted module-wide wildcard.
+        #[test]
+        fn dispatch_to_a_different_proc_leaves_an_unrelated_seed_alone() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                proc other {a} { return $a }
+                helper prod
+                helper prod
+                set cmd other
+                $cmd dev
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                folds_condition_mentioning(helper, "mode"),
+                "the dispatch provably names `other`, never `helper`: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FP guard: a dispatch word whose value set cannot be enumerated
+        /// (`set cmd [gets stdin]`) may name *any* proc with *any*
+        /// arguments, so no seed in the module can be claimed complete.
+        #[test]
+        fn unenumerable_dispatch_disqualifies_every_seed() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+                set cmd [gets stdin]
+                $cmd dev
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "an unenumerable dispatch could reach helper with anything: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression: a *dispatch-table* proc — the shape whose
+        /// collateral damage got the first attempt at this reverted (PR
+        /// #970) — dispatches on its own parameter. The parameter's value
+        /// set comes from the call-site evidence itself, so the dispatch
+        /// resolves precisely instead of poisoning the module.
+        #[test]
+        fn dispatch_on_a_parameter_resolves_through_its_own_call_sites() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                proc run {cmd arg} { $cmd $arg }
+                helper prod
+                run helper dev
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "run's `$cmd $arg` resolves to helper via run's own caller: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// TN control for the fixpoint: a parameter-dispatch table whose
+        /// callers all name a *different* proc must not disqualify
+        /// `helper`'s own seed — the parameter value set must be used, not
+        /// merely its existence.
+        #[test]
+        fn parameter_dispatch_to_another_proc_leaves_an_unrelated_seed_alone() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                proc other {a} { return $a }
+                proc run {cmd arg} { $cmd $arg }
+                helper prod
+                helper prod
+                run other dev
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                folds_condition_mentioning(helper, "mode"),
+                "the parameter dispatch provably names `other`: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FP guard: `eval $script` carries no script *text* — only a
+        /// reference to one. The evaluated script may call any proc with any
+        /// argument (and assign any variable), so no seed in the module can
+        /// be claimed complete. Before the fix nothing looked at it at all.
+        #[test]
+        fn eval_of_a_substituted_script_disqualifies_every_seed() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+                set script {helper dev}
+                eval $script
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "the evaluated script is unreadable and may call helper: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// TN control: an ordinary braced body that merely *mentions* a
+        /// variable is literal script text, not an indirection — treating
+        /// every `$`-containing body word as dynamic would disqualify
+        /// essentially every real script.
+        #[test]
+        fn a_braced_body_mentioning_a_variable_is_not_an_indirection() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                proc noisy {v} { catch { puts $v } }
+                helper prod
+                helper prod
+                noisy hi
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                folds_condition_mentioning(helper, "mode"),
+                "a braced catch body carries literal script text: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression: a command-prefix callback (`lsort -command`) is a
+        /// first-class call site whose arguments the *runtime* supplies, so
+        /// the named proc's parameters can hold anything. The position is
+        /// registry data (`ArgRole::CommandPrefix`), never a command name
+        /// here.
+        #[test]
+        fn command_prefix_callback_poisons_its_target_only() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                proc keep {mode} {
+                    if {$mode eq \"prod\"} { set y 1 } else { set y 2 }
+                }
+                helper prod
+                helper prod
+                keep prod
+                keep prod
+                lsort -command helper {b a}
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let keep = cu.procedures.get("::keep").expect("keep analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "the callback invokes helper with runtime-supplied arguments: {:?}",
+                helper.sccp.constant_branches,
+            );
+            assert!(
+                folds_condition_mentioning(keep, "mode"),
+                "an unrelated proc must keep its seed — the poison is per-target: {:?}",
+                keep.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression: a callback built with a registry-declared prefix
+        /// builder (`[list helper …]`, `Traits::BUILDS_COMMAND_PREFIX`) names
+        /// its callee in the built list's first element, not in the word
+        /// itself.
+        #[test]
+        fn built_command_prefix_callback_resolves_its_head() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+                lsort -command [list helper] {b a}
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "the `[list helper]` prefix names helper as the callback: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FP guard: `apply $fn` has no lambda body to walk at all, so the
+        /// code it runs — and every proc that code may call — is
+        /// unenumerable.
+        #[test]
+        fn dynamic_apply_lambda_disqualifies_every_seed() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+                apply $fn 1
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "the applied lambda's body is unknown and may call helper: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// TN control: a *literal* lambda whose body mentions a variable is
+        /// lowered to its own body unit, which the whole-module scan already
+        /// walks as a caller — it must not be mistaken for a dynamic one.
+        #[test]
+        fn literal_apply_lambda_is_not_treated_as_dynamic() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+                apply {{v} {puts $v}} hi
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                folds_condition_mentioning(helper, "mode"),
+                "a literal lambda is walked, not treated as unenumerable: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression: a dispatch on a variable the scope also writes
+        /// non-literally (`set cmd [pick]`) is unenumerable even though a
+        /// literal write to the same name exists elsewhere in the scope.
+        #[test]
+        fn a_single_non_literal_write_makes_the_dispatch_unenumerable() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                proc pick {} { return helper }
+                helper prod
+                helper prod
+                set cmd helper
+                set cmd [pick]
+                $cmd dev
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "one non-literal write poisons the whole value set: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression: a dispatch through a namespace-qualified variable
+        /// (`$::cmd`) names a variable any body — or any other file — may
+        /// write, which this local-frame scan cannot enumerate.
+        #[test]
+        fn dispatch_through_a_namespace_variable_is_unenumerable() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                helper prod
+                helper prod
+                set ::cmd helper
+                $::cmd dev
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "a namespace variable is not local-frame enumerable: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FN regression: a dispatch resolved through a `namespace import`
+        /// alias must reach the imported proc's real qualified name, exactly
+        /// as a literal call site does.
+        #[test]
+        fn dispatch_resolves_through_a_namespace_import_alias() {
+            let reg = registry();
+            let src = "
+                namespace eval ::lib {
+                    namespace export helper
+                    proc helper {mode} {
+                        if {$mode eq \"prod\"} { set r 1 } else { set r 2 }
+                    }
+                }
+                namespace eval ::app {
+                    namespace import ::lib::helper
+                    proc go {} {
+                        set cmd helper
+                        $cmd dev
+                    }
+                }
+                ::lib::helper prod
+                ::app::go
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::lib::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "the imported bare name dispatches to ::lib::helper: {:?}",
+                helper.sccp.constant_branches,
+            );
+        }
+
+        /// FP guard: a `TclOO` method dispatches on its own parameter, but
+        /// this scan never attributes a *method* invocation to a call site,
+        /// so the parameter can hold a command name it never saw. Treating
+        /// an untracked body's parameter like a procedure's — "no recorded
+        /// caller, therefore no values" — would wrongly clear the dispatch.
+        #[test]
+        fn dispatch_on_an_untracked_method_parameter_is_unenumerable() {
+            let reg = registry();
+            let src = "
+                proc helper {mode} {
+                    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }
+                }
+                oo::class create Widget {
+                    method run {cmd} { $cmd dev }
+                }
+                helper prod
+                helper prod
+            ";
+            let cu = CompilationUnit::build_for(src, &reg, false);
+            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            assert!(
+                !folds_condition_mentioning(helper, "mode"),
+                "a method parameter's value set is not tracked, so `$cmd dev` may reach helper: {:?}",
                 helper.sccp.constant_branches,
             );
         }
