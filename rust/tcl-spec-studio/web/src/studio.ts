@@ -25,7 +25,7 @@
 // importer.
 
 import { byId, clear, clone, copyText, deepEqual, download, el, setStatus } from "./dom.js";
-import { makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
+import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
 import type {
   CommandIndex,
   DialectEntry,
@@ -257,11 +257,12 @@ function loadDraft(draft: Draft, origin: string): void {
     );
     warn.appendChild(
       document.createTextNode(
-        " Rust can tell the field is set but not recover the expression that set it — a function pointer or a reference to a static descriptor. Each is listed below and in the rendered file as a TODO; fill it in under Advanced to emit it.",
+        " Rust can tell the field is set but not recover the expression that set it — a function pointer or a reference to a static descriptor. Each is listed below and in the rendered file as a TODO; fill it in where it appears in the form (most sit under Advanced) to emit it.",
       ),
     );
     const ul = el("ul", {});
-    for (const key of lost) ul.appendChild(el("li", {}, [el("code", { text: String(key) })]));
+    for (const key of lost)
+      ul.appendChild(el("li", {}, [el("code", { text: lostLabel(draft, key) })]));
     warn.appendChild(ul);
   } else {
     warn.hidden = true;
@@ -272,6 +273,25 @@ function loadDraft(draft: Draft, origin: string): void {
   buildForm(form, state.schema.command, draft, "command", onDraftChanged);
   renderList();
   onDraftChanged();
+}
+
+/// Display text for one `__unrenderable` entry.
+///
+/// Most entries are a spec field name and read fine as-is. Option-arity hooks
+/// are not a top-level field — they sit in an option row — so name the options
+/// that still need one, which is where the author has to go.
+function lostLabel(draft: Record<string, Json>, key: unknown): string {
+  const name = String(key);
+  if (name !== "options.arity_hook") return name;
+  const opts = Array.isArray(draft.options) ? draft.options : [];
+  const pending = opts
+    .filter((o) => {
+      const arity = asRecord(asRecord(asRecord(o).value).arity);
+      return asString(arity.kind) === "Hook" && !asString(arity.hook).trim();
+    })
+    .map((o) => asString(asRecord(o).name))
+    .filter(Boolean);
+  return pending.length ? `options → ${pending.join(", ")} (arity hook)` : name;
 }
 
 /// Load whatever the filter box currently names.

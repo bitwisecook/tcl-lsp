@@ -55,6 +55,13 @@ use crate::catalogue;
 /// round-tripped.
 pub const UNRENDERABLE_KEY: &str = "__unrenderable";
 
+/// Draft key naming the option-arity hooks that need supplying.
+///
+/// Distinct from a plain field key because the thing to fill in is nested in
+/// an option row, not a top-level field: the renderer resolves it against the
+/// `options` array so the note clears once every hook holds an expression.
+pub const OPTION_HOOK_KEY: &str = "options.arity_hook";
+
 /// Draft key holding the dialect the draft was seeded from, when it came from
 /// the live registry.
 pub const SOURCE_DIALECT_KEY: &str = "__sourceDialect";
@@ -200,9 +207,11 @@ fn option_arity(value: OptionArity) -> (Value, bool) {
     match value {
         OptionArity::One => (json!({ "kind": "One" }), true),
         OptionArity::Fixed(n) => (json!({ "kind": "Fixed", "n": n }), true),
-        // The hook is a function pointer; the shape is recorded but the
-        // expression that produced it is not recoverable.
-        OptionArity::Hook(_) => (json!({ "kind": "Hook" }), false),
+        // The hook is a function pointer: the *shape* round-trips, but the
+        // expression that produced it does not. `hook` is the slot the author
+        // fills in under the option's editor; it seeds empty, and the option
+        // is complete once it holds an expression.
+        OptionArity::Hook(_) => (json!({ "kind": "Hook", "hook": Value::Null }), false),
     }
 }
 
@@ -483,7 +492,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     for opt in sub.options {
         let (json_value, complete) = option_spec(opt);
         if !complete {
-            lost.note("options");
+            lost.note(OPTION_HOOK_KEY);
         }
         options.push(json_value);
     }
@@ -726,7 +735,7 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     for opt in spec.options {
         let (json_value, complete) = option_spec(opt);
         if !complete {
-            lost.note("options");
+            lost.note(OPTION_HOOK_KEY);
         }
         options.push(json_value);
     }

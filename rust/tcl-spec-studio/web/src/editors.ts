@@ -72,7 +72,7 @@ export interface EditorContext {
 /* Value coercions. A draft arrives from `JSON.parse`, so every read has to
    narrow before use rather than trusting the declared shape. */
 
-function asRecord(value: Json): Record<string, Json> {
+export function asRecord(value: Json): Record<string, Json> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, Json>)
     : {};
@@ -82,7 +82,7 @@ function asArray(value: Json): Json[] {
   return Array.isArray(value) ? value : [];
 }
 
-function asString(value: Json | undefined): string {
+export function asString(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
 }
 
@@ -377,16 +377,20 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       const words = el("select", {}, [
         el("option", { value: "One", text: "one" }),
         el("option", { value: "Fixed", text: "fixed count" }),
+        el("option", { value: "Hook", text: "computed (hook)" }),
       ]);
-      words.value = asString(arity.kind) === "Fixed" ? "Fixed" : "One";
-      words.addEventListener("change", () =>
-        patchValue({
-          arity:
-            words.value === "Fixed"
-              ? { kind: "Fixed", n: asNumber(arity.n) ?? 2 }
-              : { kind: "One" },
-        }),
-      );
+      const arityKind = asString(arity.kind);
+      words.value = arityKind === "Fixed" || arityKind === "Hook" ? arityKind : "One";
+      words.addEventListener("change", () => {
+        if (words.value === "Fixed") {
+          patchValue({ arity: { kind: "Fixed", n: asNumber(arity.n) ?? 2 } });
+        } else if (words.value === "Hook") {
+          // Preserve any expression already typed when toggling back and forth.
+          patchValue({ arity: { kind: "Hook", hook: arity.hook ?? null } });
+        } else {
+          patchValue({ arity: { kind: "One" } });
+        }
+      });
 
       rows.push(
         el("div", { class: "ctl" }, [
@@ -397,11 +401,26 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
             ),
           ),
           labelled("words", words),
-          asString(arity.kind) === "Fixed"
+          arityKind === "Fixed"
             ? labelled(
                 "n",
                 numberInput(asNumber(arity.n), (n) =>
                   patchValue({ arity: { kind: "Fixed", n: n ?? 1 } }),
+                ),
+              )
+            : null,
+          // A function pointer the studio cannot recover by seeding — the
+          // author types the expression and it renders like any other arity.
+          arityKind === "Hook"
+            ? labelled(
+                "hook fn",
+                textInput(
+                  asString(arity.hook),
+                  (t) =>
+                    patchValue({
+                      arity: { kind: "Hook", hook: t.trim() === "" ? null : t.trim() },
+                    }),
+                  { size: 16, placeholder: "errorstack_value" },
                 ),
               )
             : null,
