@@ -70,13 +70,24 @@ fn main() {
     let src = std::fs::read_to_string(&path).expect("read source file");
     let dialect = "tcl8.6";
 
-    // Type inside a procedure body, so the body-keyed interned structs
+    // Type inside a procedure *body*, so the body-keyed interned structs
     // (`ProcBodyKey` / `ItemBodyKey` / `FnLatticeKey` / `OptDepsKey`) see a new
     // key on every keystroke — exactly what editing does.
-    let edit_pos = src
-        .find("\nproc ")
-        .and_then(|p| src[p..].find('{').map(|b| p + b + 1))
-        .unwrap_or(src.len() / 2);
+    //
+    // Ask the analyser for `body_span` rather than scanning for a brace: in
+    // `proc name {args} {body}` the first `{` after `proc` opens the *parameter
+    // list*, so a naive scan types into the parameters instead. That still
+    // parses, so nothing fails loudly — it just measures the wrong thing, and a
+    // parameter edit additionally re-keys every procedure's lattice through the
+    // module-wide `proc_params` context rather than isolating one body.
+    let edit_pos = Analyser::new()
+        .analyse(&src, dialect)
+        .all_procs
+        .values()
+        .map(|p| p.body_span)
+        .filter(|s| s.end() > s.start())
+        .max_by_key(|s| s.end() - s.start())
+        .map_or(src.len() / 2, |s| s.start() as usize);
 
     let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);

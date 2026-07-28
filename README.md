@@ -2558,6 +2558,37 @@ The explorer renders:
 - optimiser rewrites
 - source callouts with caret markers and `+-->` arrows for salient spans
 
+### Per-keystroke cost and memory profiling
+
+Two examples measure what an editing session actually costs, rather than what a
+cold run costs. Both read a corpus from `tmp/` (see the `fetch-tcl-source`
+skill, or any directory of `.tcl` files).
+
+```sh
+# Which incremental-analysis guard forces a whole-file re-walk, and what it costs.
+# Weighted by document, by source line, and by measured milliseconds.
+cargo run --release -p tcl-compiler --example per_item_fallbacks
+
+# ROOT=<dir>    sweep a different corpus
+# COMPARE=1     also time the whole-file walk, per document, and show the ratio
+# TK_AUDIT=1    audit the Tk guard: how many documents trip it vs really need it
+
+# Resident memory across a simulated typing session — a fresh, constant-length
+# buffer on every keystroke, with per-subsystem attribution.
+cargo run --release -p tcl-lsp-db --example edit_memory -- 400 both
+```
+
+`edit_memory`'s mode argument bisects growth onto a subsystem: `both`
+(production), `fa` / `cc` (one diagnostic query each), `set` (input writes only,
+no analysis) and `nosalsa` (the analyser with no query database at all). That
+last pair is how [issue #1035](https://github.com/bitwisecook/tcl-lsp/issues/1035)
+was localised — `set` stayed flat while `nosalsa` leaked just as steadily,
+placing the bug in the compiler rather than in the incremental layer. See
+[`docs/kcs/kcs-issue-memory-grows-while-editing.md`](docs/kcs/kcs-issue-memory-grows-while-editing.md)
+for the user-facing symptoms and
+[`docs/design/rust/incremental-analysis.md`](docs/design/rust/incremental-analysis.md)
+for the fallback taxonomy.
+
 ### Developing the extension client
 
 ```sh
