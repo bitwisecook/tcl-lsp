@@ -91,11 +91,17 @@ pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWrite
     // bit, never `is_traced()` — so a dialect-specific registry is
     // unnecessary here; the default registry resolves `global`/`variable`/
     // `upvar` identically across every dialect.
-    let registry = tcl_registry::CommandRegistry::build_default();
+    //
+    // Needing no *dialect* is not a reason to build one: this runs once per CFG
+    // build, i.e. several times per keystroke, so take the cached default rather
+    // than reconstructing a few hundred `CommandSpec`s each time (issue #1035,
+    // where `build_default()` here also leaked the generated mathop/mathfunc
+    // ensembles on every call).
+    let registry = tcl_registry::cache::default_registry();
     let mut own: HashMap<String, GlobalWriteInfo> = HashMap::new();
     let mut direct_calls: HashMap<String, BTreeSet<String>> = HashMap::new();
     for (qname, proc) in &module.procedures {
-        let info = own_body_global_writes(&proc.body, &registry);
+        let info = own_body_global_writes(&proc.body, registry);
         let calls = direct_call_targets(&proc.body);
         for key in registered_keys(qname) {
             own.insert(key.clone(), info.clone());

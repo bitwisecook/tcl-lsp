@@ -1045,13 +1045,9 @@ fn evaluate_proc_with_constants(
     octal: Option<bool>,
 ) -> Option<ConstValue> {
     let seed = seed_params_from_args(params, args)?;
-    let default_registry;
-    let registry: &CommandRegistry = if let Some(r) = ctx.registry {
-        r
-    } else {
-        default_registry = CommandRegistry::build_default();
-        &default_registry
-    };
+    let registry: &CommandRegistry = ctx
+        .registry
+        .unwrap_or_else(|| tcl_registry::cache::default_registry());
     let empty_traced = std::collections::BTreeSet::new();
     let (traced_variables, has_dynamic_variable_trace) = match ctx.ir_module {
         Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
