@@ -64,10 +64,17 @@ struct Row {
     reason: Option<PerItemFallback>,
     lines: usize,
     ms: f64,
+    path: PathBuf,
 }
 
+#[allow(clippy::too_many_lines)] // a linear reporting script; splitting it hurts readability
 fn main() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
+    // `ROOT` points the sweep at a different corpus (e.g. a directory of
+    // size-truncated copies, to check how cost scales with document length).
+    let root = std::env::var("ROOT").map_or_else(
+        |_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp"),
+        PathBuf::from,
+    );
     let dialect = "tcl8.6";
     let cap: usize = std::env::var("CAP")
         .ok()
@@ -84,6 +91,26 @@ fn main() {
         if src.trim().is_empty() {
             continue;
         }
+        // `COMPARE=1` also times the whole-file walk, so a document where the
+        // incremental path is *slower* than the thing it replaces stands out.
+        if std::env::var("COMPARE").is_ok() {
+            let t0 = Instant::now();
+            let _ = Analyser::new().analyse(&src, dialect);
+            let full = t0.elapsed().as_secs_f64() * 1000.0;
+            let t1 = Instant::now();
+            let mut probe = Analyser::new();
+            let _ = probe.analyse_per_item(&src, dialect);
+            let incr = t1.elapsed().as_secs_f64() * 1000.0;
+            println!(
+                "  {:>6} lines  analyse {full:>9.0} ms  per_item {incr:>9.0} ms  x{:>6.1}  {:<20} {}",
+                src.lines().count(),
+                if full > 0.0 { incr / full } else { 0.0 },
+                probe
+                    .per_item_fallback
+                    .map_or("FAST PATH", PerItemFallback::as_str),
+                path.file_name().unwrap_or_default().to_string_lossy(),
+            );
+        }
         let mut a = Analyser::new();
         let start = Instant::now();
         let _ = a.analyse_per_item(&src, dialect);
@@ -91,6 +118,7 @@ fn main() {
             reason: a.per_item_fallback,
             lines: src.lines().count(),
             ms: start.elapsed().as_secs_f64() * 1000.0,
+            path: path.clone(),
         });
     }
 
@@ -176,4 +204,87 @@ fn main() {
         mean(&fast),
         mean(&slow),
     );
+
+    // The tail is what a user actually feels: one pathological document costs
+    // more per keystroke than a thousand ordinary ones.
+    let mut slowest: Vec<&Row> = rows.iter().collect();
+    slowest.sort_by(|a, b| b.ms.partial_cmp(&a.ms).unwrap_or(std::cmp::Ordering::Equal));
+    println!("\n  slowest documents (per-keystroke cost):");
+    for r in slowest.iter().take(8) {
+        println!(
+            "    {:>9.0} ms  {:>6} lines  {:<22} {}",
+            r.ms,
+            r.lines,
+            r.reason.map_or("FAST PATH", PerItemFallback::as_str),
+            r.path.file_name().unwrap_or_default().to_string_lossy(),
+        );
+    }
+
+    if std::env::var("TK_AUDIT").is_ok() {
+        tk_audit(&files, dialect);
+    }
+}
+
+/// Audit the `tk-active` gate — the single most expensive fallback reason.
+///
+/// `tk_possibly_active` is three *independent* substring searches (`package`,
+/// `require`, `Tk`, anywhere, in any order, comments included), and it does
+/// double duty: it gates the per-item fallback *and* whether Tk diagnostics
+/// accumulate at all.  Narrowing it is only safe if the files it currently
+/// catches spuriously emit no Tk diagnostics — otherwise tightening the gate
+/// silences real warnings.  This measures exactly that.
+fn tk_audit(files: &[PathBuf], dialect: &str) {
+    let (mut tripped, mut real_require, mut spurious_with_tk_diags) = (0usize, 0usize, 0usize);
+    let mut genuine_tk_diags = 0usize;
+    let mut spurious_examples: Vec<String> = Vec::new();
+    for path in files {
+        let Ok(src) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        // Mirrors `tk_checks::tk_possibly_active` (which is crate-private).
+        let heuristic = src.contains("package") && src.contains("require") && src.contains("Tk");
+        if !heuristic {
+            continue;
+        }
+        tripped += 1;
+        // What the gate is trying to detect: an actual `package require Tk`.
+        let genuine = src.split("package").skip(1).any(|rest| {
+            let rest = rest.trim_start();
+            rest.strip_prefix("require").is_some_and(|r| {
+                let r = r.trim_start();
+                let r = r.strip_prefix("-exact").map_or(r, |x| x.trim_start());
+                r.starts_with("Tk")
+            })
+        });
+        let tk_diags = Analyser::new()
+            .analyse(&src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.as_str().starts_with("TK"))
+            .count();
+        if genuine {
+            real_require += 1;
+            genuine_tk_diags += tk_diags;
+            continue;
+        }
+        if tk_diags > 0 {
+            spurious_with_tk_diags += 1;
+            if spurious_examples.len() < 5 {
+                spurious_examples.push(format!("{} ({tk_diags} TK diags)", path.display()));
+            }
+        }
+    }
+    println!("\n== tk-active gate audit ==");
+    println!("  files tripping the 3-substring heuristic:      {tripped}");
+    println!(
+        "  ... with a genuine `package require Tk`:       {real_require} \
+         (emitting {genuine_tk_diags} TK diagnostics in total)"
+    );
+    println!(
+        "  ... spurious (no require) BUT emitting TK diags: {spurious_with_tk_diags}  \
+         <- tightening the gate would change these"
+    );
+    for e in &spurious_examples {
+        println!("      {e}");
+    }
 }
