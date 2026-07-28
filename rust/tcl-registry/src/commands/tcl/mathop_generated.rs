@@ -41,19 +41,33 @@
 //! fold. `&&`/`||` are absent for a different, structural reason: `BinOp::And`/
 //! `BinOp::Or`'s `spec().mathop_shape` is `None` (TIP 174 excludes them —
 //! a command can't short-circuit its own already-evaluated arguments).
+use std::sync::OnceLock;
+
 use crate::prelude::*;
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorSpec};
 
 /// All `tcl::mathop` operator-command specs (every spelling).
+///
+/// Built **once per process** and cloned per call.  The spec fields are
+/// `&'static` (see [`leak`]), so the clone is a shallow copy of pointers, and
+/// memoising here is what makes those leaks a one-off: `build_default()` is not
+/// a once-per-process call — the CFG builder and the optimiser's fold paths
+/// rebuild a registry per invocation — so building the specs afresh each time
+/// leaked the whole ensemble on every rebuild (issue #1035).
 pub fn specs() -> Vec<CommandSpec> {
-    let mut out = Vec::new();
-    for &op in ALL_BIN_OPS {
-        push_spellings(&mut out, op.spec());
-    }
-    for &op in ALL_UNARY_OPS {
-        push_spellings(&mut out, op.spec());
-    }
-    out
+    static SPECS: OnceLock<Vec<CommandSpec>> = OnceLock::new();
+    SPECS
+        .get_or_init(|| {
+            let mut out = Vec::new();
+            for &op in ALL_BIN_OPS {
+                push_spellings(&mut out, op.spec());
+            }
+            for &op in ALL_UNARY_OPS {
+                push_spellings(&mut out, op.spec());
+            }
+            out
+        })
+        .clone()
 }
 
 /// The three spellings a mathop operator command is invocable under.
@@ -130,10 +144,13 @@ fn to_registry_arity(a: CommandArity) -> Arity {
     Arity::new(min, max)
 }
 
-/// Leak an owned `String` to a `'static` `&str` — safe and cheap here: every
-/// mathop `CommandSpec` is built exactly once, at registry-construction
-/// time, from a small fixed set (3 spellings x ~30 gated operators), not
-/// per-lookup.
+/// Leak an owned `String` to a `'static` `&str`.
+///
+/// Bounded **only** because [`specs`] memoises its result: this runs once per
+/// process, over a small fixed set (3 spellings x ~30 gated operators).  It is
+/// *not* bounded by registry construction being a one-off — it isn't (issue
+/// #1035: a per-CFG-build `CommandRegistry::build_default()` leaked the whole
+/// ensemble on every keystroke).  Any new caller must go through [`specs`].
 fn leak(s: String) -> &'static str {
     &*s.leak()
 }
@@ -147,6 +164,32 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 mod tests {
     use super::specs;
     use crate::prelude::DialectSet;
+
+    /// Issue #1035: `specs()` `Box::leak`s its `&'static` name / synopsis /
+    /// snippet strings, so it must build them **once per process** — every
+    /// later call has to hand back the same allocations.  `CommandRegistry`
+    /// construction is not a one-off (the CFG builder and the optimiser's fold
+    /// paths each rebuilt one per invocation), so an un-memoised `specs()`
+    /// leaked the whole ensemble on every keystroke: ~500 KiB per edit,
+    /// unbounded, and invisible to the query database that appeared to own it.
+    ///
+    /// Pointer identity is the assertion that actually catches a regression —
+    /// equal-but-freshly-leaked strings would pass a `==` comparison while
+    /// leaking exactly as before.
+    #[test]
+    fn specs_are_built_once_and_never_releaked() {
+        let first = specs();
+        let second = specs();
+        assert!(!first.is_empty(), "the mathop ensemble must not be empty");
+        assert_eq!(first.len(), second.len());
+        for (a, b) in first.iter().zip(second.iter()) {
+            assert!(
+                std::ptr::eq(a.name, b.name),
+                "`{}` was re-leaked: specs() must memoise, not rebuild",
+                a.name
+            );
+        }
+    }
 
     /// Adversarial-review finding: `specs()`'s translation from
     /// `OperatorSpec` to `CommandSpec` (`push_spellings`/`to_registry_arity`)

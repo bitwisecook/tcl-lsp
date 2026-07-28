@@ -77,13 +77,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // `None`, so fall back to a default-dialect registry rather than
     // panic — `trace`'s `ESTABLISHES_VARIABLE_TRACE` grammar is core Tcl,
     // present in every dialect's registry.
-    let default_registry;
-    let registry: &CommandRegistry = if let Some(r) = ctx.registry {
-        r
-    } else {
-        default_registry = CommandRegistry::build_default();
-        &default_registry
-    };
+    let registry: &CommandRegistry = ctx
+        .registry
+        .unwrap_or_else(|| tcl_registry::cache::default_registry());
     let top_protected = protected_vars(&cu.top_level, &cross, registry);
     fold_script(ctx, &cu.ir_module.top_level, &top_protected, 0);
     for (qname, proc) in &cu.ir_module.procedures {

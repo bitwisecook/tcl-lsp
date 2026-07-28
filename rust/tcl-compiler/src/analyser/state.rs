@@ -692,7 +692,17 @@ pub struct Analyser {
     /// when the run completed on the incremental per-item path and `false` when
     /// it fell back to a full rebuild.  Read by perf/coverage probes; ignored by
     /// production callers (which only consume the returned `AnalysisResult`).
+    ///
+    /// Equivalent to `per_item_fallback.is_none()` — read that instead when you
+    /// need to know *which* gate fired.
     pub took_fast_path: bool,
+    /// **Probe telemetry.**  `None` when the run stayed on the incremental
+    /// per-item path; otherwise the gate that forced the full rebuild.
+    ///
+    /// `took_fast_path` answers "did we pay for a whole-file walk?", which is
+    /// the latency question; this answers "why?", which is the only actionable
+    /// one.  The two are always set together.
+    pub per_item_fallback: Option<super::per_item::PerItemFallback>,
     /// iRules file-profile cache for IRULE1001's informational profile hint:
     /// the sorted, fully-expanded profile stack derived from any
     /// `# profiles:` directive plus the profiles implied by the file's
@@ -883,6 +893,7 @@ impl Analyser {
             probe_skip_enclosing_fallback: false,
             probe_skip_duplicate_fallback: false,
             took_fast_path: false,
+            per_item_fallback: None,
             irules_file_profiles: None,
         }
     }

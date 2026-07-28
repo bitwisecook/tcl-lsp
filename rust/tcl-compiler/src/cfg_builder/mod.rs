@@ -1260,7 +1260,16 @@ impl CfgBuilder {
 #[must_use]
 pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
     let mut result: HashMap<String, UpvarInfo> = HashMap::new();
-    for (qname, proc) in &module.procedures {
+    // Deterministic (qualified-name) iteration order, for the same reason
+    // [`prepare_cfg_context`] does it for `proc_params`: the *short* key below is
+    // written by every procedure sharing that short name, so last-write-wins must
+    // not be decided by the `HashMap`'s random per-process seed — this map is part
+    // of the `CfgContext` folded into every procedure's `function_lattice` memo
+    // key, and a nondeterministic winner makes the per-procedure cache hit or miss
+    // by luck of the process start (issue #1035 follow-up).
+    let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
+    for (qname, proc) in entries {
         let info = collect_upvar_targets(&proc.body, &proc.params);
         if info.is_empty() {
             continue;

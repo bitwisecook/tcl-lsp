@@ -34,6 +34,25 @@ use tcl_dialect::DialectProfile;
 
 use crate::registry::CommandRegistry;
 
+/// The process-wide **plain default** registry — exactly what
+/// [`CommandRegistry::build_default`] produces, built once.
+///
+/// For callers that genuinely need no dialect layering and reached for
+/// `build_default()` to say so.  `build_default()` is a *constructor*, not an
+/// accessor: it rebuilds several hundred `CommandSpec`s (and, before issue
+/// #1035, leaked the generated `tcl::mathop` / `tcl::mathfunc` ensembles) on
+/// every call.  Hot paths that run per CFG build — so, per keystroke — were
+/// calling it directly; they want this.
+///
+/// Deliberately *not* routed through [`registry_for_profile`]: that would
+/// attach the `PLAIN_TCL` profile and its (currently empty) base layers, which
+/// is a behavioural claim this accessor does not need to make.  Same
+/// constructor, same bytes, once.
+pub fn default_registry() -> &'static CommandRegistry {
+    static DEFAULT: OnceLock<CommandRegistry> = OnceLock::new();
+    DEFAULT.get_or_init(CommandRegistry::build_default)
+}
+
 /// Return the cached registry for `profile`, building it on first use.
 ///
 /// The registry is the default build plus the profile's

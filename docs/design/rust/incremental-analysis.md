@@ -173,6 +173,68 @@ current whole-file walk. Guards, in order:
 When incremental can't prove equivalence (error recovery, stub overlays — the
 existing `analyse_incremental` guard), fall back to a full walk.
 
+### Fallback telemetry: which guard fired
+
+A fallback is correct but not free — it re-walks the whole document on **every
+keystroke**, so the per-body memoisation above it is dead weight for that file.
+`Analyser::took_fast_path` answers "did we pay for a whole-file walk?", which is
+the latency question; `Analyser::per_item_fallback` answers "why?", which is the
+only actionable one. It is `None` on the fast path, otherwise one of
+[`PerItemFallback`](../../../rust/tcl-compiler/src/analyser/per_item.rs)'s
+variants, ordered by where the guard sits in the pass:
+
+| Variant | Guard |
+| --- | --- |
+| `IncompleteScript` | unbalanced braces/quotes — the transient mid-typing state |
+| `StubDirective` | an inline `tcl-lsp: stub` overlay |
+| `TkActive` | Tk checks accumulate whole-file widget/geometry state |
+| `GhostRecovery` | ghost-token error recovery engaged |
+| `PartialCommand` | an unterminated command survived segmentation |
+| `ErrorDiagnostic` | an `E…` code — `analyse` ran recovery machinery |
+| `DuplicateMethod` | one method qualified name defined twice |
+| `EnclosingContext` | a body links a qualified sub-namespace variable, or `namespace import`/`export`s from inside a body |
+| `DuplicateProcInBody` | a body defines an already-defined proc |
+| `ClassFactsCollide` | a body extends a class whose facts already exist |
+| `MethodInstanceReplay` | a method body's object-instance tracking cannot be replayed |
+
+`rust/tcl-compiler/examples/per_item_fallbacks.rs` sweeps a corpus (`tmp/`, or
+`ROOT=<dir>`) and reports the distribution weighted three ways — by document, by
+source line, and by measured milliseconds. They rank the guards differently: a
+guard that fires on a few very large documents is rare by count and dominant by
+time, and time is what the user feels. `COMPARE=1` additionally times both paths
+per document, and `TK_AUDIT=1` audits the `TkActive` guard specifically.
+
+Measured over tcllib + Tk (1026 documents, 512k lines): **20.5% of documents
+fall back, accounting for 46.8% of source lines and 52.3% of analysis time**;
+mean 19.1 ms per document on the fast path against 81.4 ms on the fallback. The
+three dominant guards by time are `TkActive` (25.4%), `ErrorDiagnostic` (13.4%)
+and `EnclosingContext` (11.1%). Note that `IncompleteScript` never fires on
+documents at rest but fires constantly *while typing*, so the live rate is worse
+than this at-rest figure.
+
+Two findings from that sweep are open, and both argue against widening the fast
+path before the cost model is understood:
+
+- **`TkActive` is ~78% false positives.** The guard is three *independent*
+  substring tests (`package`, `require`, `Tk`, anywhere, comments included). 64
+  documents trip it, 14 genuinely `package require Tk`, and the other 50 emit no
+  Tk diagnostic at all — so tightening it to an adjacent `package require Tk` is
+  behaviour-preserving on this corpus.
+- **…but tightening it exposes a scaling cliff.** On `fumagic/filetypes.tcl`
+  (85k generated lines, one 71k-line body) the incremental path costs 139,010 ms
+  against 5,312 ms for the plain whole-file walk — 26x slower, per keystroke.
+  The decomposition is not the cause: the same body extracted and analysed as a
+  standalone script takes 36,634 ms against 5,312 ms for the whole document
+  containing it, so isolated analysis of a large body is ~7x more expensive than
+  the identical content analysed in place.
+
+More broadly, the decomposition alone is close to break-even — over 210 sampled
+fast-path documents `analyse_per_item` is *slower* than `analyse` on 23% of
+them, mean ratio 1.08. Its value is the memoisation layered on top (a warm
+one-character body edit rebuilds 1 procedure of 40), so the cold-path overhead
+is the price of that option, and a document where the memo cannot pay off should
+not take the path at all.
+
 ## Staging (each slice behaviour-preserving, differential-guarded)
 
 1. **`item_tree` + `item_sig` + `file_decls`** as salsa queries — additive,

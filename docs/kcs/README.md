@@ -35,6 +35,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   you want to know whether the Tcl Language Server started at all.
 - [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md)
   — stale incremental cache produces wrong diagnostics.
+- [kcs-issue-memory-grows-while-editing.md](kcs-issue-memory-grows-while-editing.md)
+  — the language server's memory use climbs with every keystroke and never
+  comes back down.
 - [kcs-issue-problems-not-retained-after-closing-files.md](kcs-issue-problems-not-retained-after-closing-files.md)
   — a file's problems and File Explorer badge vanish after its editor
   tab is closed.
