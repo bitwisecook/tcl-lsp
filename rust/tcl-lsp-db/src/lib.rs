@@ -2357,13 +2357,18 @@ pub fn compiler_check_diagnostics_uncached(
     registry: &CommandRegistry,
     dialect: &str,
     generic_patterns: Option<&[String]>,
+    external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
     let dialect_opt = (!dialect.is_empty()).then_some(dialect);
-    let cu = CompilationUnit::build_for_with_config(
+    let cu = CompilationUnit::build_with_options(
         text,
-        registry,
-        false,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::for_dialect(dialect),
+            dialect,
+            external_call_sites,
+        },
     )
     .with_interprocedural(registry, dialect_opt);
     compiler_diagnostics_from_unit(&cu, registry, dialect_opt, generic_patterns)
@@ -2595,7 +2600,7 @@ mod tests {
         let registry = db.registry(dialect);
         let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
         let got = compiler_check_diagnostics(&db, file, cfg(&db));
-        let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
+        let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
         assert!(
             got.optimisations.iter().any(|o| o.code == DiagCode::O122),
             "expected O122 to fire on the tail-recursive proc"
@@ -3352,7 +3357,7 @@ mod tests {
                 ),
             );
             let registry = db.registry(dialect);
-            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
+            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "checks differ for ({dialect}):\n{src}"
@@ -3416,7 +3421,7 @@ mod tests {
                     None,
                 ),
             );
-            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None);
+            let want = compiler_check_diagnostics_uncached(src, &registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "cascade checks diverge after edit to:\n{src}"
@@ -3509,7 +3514,7 @@ mod tests {
             file.set_text(&mut db).to(src.clone());
 
             let got = compiler_check_diagnostics(&db, file, cfg(&db));
-            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None);
+            let want = compiler_check_diagnostics_uncached(&src, &registry, dialect, None, None);
             assert_eq!(
                 got.checks, want.checks,
                 "iter {iter}: checks diverge from fresh build for state {state:?}:\n{src}"

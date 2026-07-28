@@ -346,6 +346,28 @@ fn record_call_site_evidence(
         let Some(body_text) = args.get(idx) else {
             continue;
         };
+        // A body whose resolution namespace differs from the caller's must not
+        // be walked with the caller's namespace: `namespace eval ::a { helper }`
+        // calls `::a::helper`, never the caller's own `helper`
+        // (tclsh8.6-confirmed; see `lowering`'s `register_body_unit` call for
+        // the same reasoning). Such a command carries an absolute `ArgRole::Name`
+        // naming that namespace, and lowering has already registered its body as
+        // a body unit whose qname encodes it — which
+        // `build_extra_call_site_scan_contexts` scans with the *correct*
+        // namespace. Recursing here as well would scan it a second time under
+        // the wrong one, inventing a call to a same-named proc in the caller's
+        // namespace. Cross-file that is a false edge into another file's
+        // procedure; in-unit it was merely invisible, because a bare global
+        // `::helper` is rarely in a single file's own `known` set (issue #977).
+        if ctx
+            .registry
+            .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Name)
+            .into_iter()
+            .filter_map(|i| args.get(i))
+            .any(|name| name.starts_with("::"))
+        {
+            continue;
+        }
         let nested = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             0,
@@ -1097,6 +1119,62 @@ mod tests {
             );
             assert_eq!(scan_unit_linkage(&module, &reg, ""), want, "{src:?}");
         }
+    }
+
+    /// A `namespace eval ::a { helper }` body calls `::a::helper`, never a
+    /// same-named proc in the *caller's* namespace (tclsh8.6-confirmed).
+    ///
+    /// The body is scanned once, as the properly-namespaced body unit lowering
+    /// registers for it. Walking it a second time through the enclosing
+    /// statement's `ArgRole::Body` — with the caller's namespace — invents a
+    /// call to whatever `::helper` happens to exist. Within one file that was
+    /// invisible (a bare global `::helper` is rarely in a single file's own
+    /// `known` set); across a project it is a false edge into *another file's*
+    /// procedure, which is how it surfaced (issue #977).
+    #[test]
+    fn a_namespace_eval_body_resolves_against_its_own_namespace() {
+        let reg = registry();
+        let src = "namespace eval ::a {\n    proc helper {} { return 1 }\n    proc run {} { helper }\n}\n";
+        // `::helper` is in scope project-wide, as a global proc in some other
+        // file would be — the call inside `::a` must not reach it.
+        let evidence = scan_source_call_sites(
+            src,
+            &reg,
+            "tcl8.6",
+            &known(&["::a::helper", "::a::run", "::helper"]),
+        );
+        assert_eq!(
+            evidence.callees().collect::<Vec<_>>(),
+            vec!["::a::helper"],
+            "the call binds to ::a::helper only"
+        );
+        // The in-unit scan is the reference: cross-file must not see more.
+        let cu = crate::compilation_unit::CompilationUnit::build_for(src, &reg, false);
+        assert_eq!(
+            cu.caller_scope.call_sites.callees().collect::<Vec<_>>(),
+            vec!["::a::helper"],
+        );
+    }
+
+    /// `catch { … }` does *not* shift namespace, so its body must still be
+    /// walked with the caller's — the guard above keys on an absolute
+    /// `ArgRole::Name`, which `catch` has none of.
+    #[test]
+    fn a_catch_body_is_still_walked_with_the_callers_namespace() {
+        let reg = registry();
+        let evidence = scan_source_call_sites(
+            "proc helper {mode} { return $mode }\ncatch { helper prod }\n",
+            &reg,
+            "tcl8.6",
+            &known(&["::helper"]),
+        );
+        assert_eq!(
+            evidence
+                .get("::helper")
+                .and_then(|e| e.uniform_literal_at(0)),
+            Some("prod"),
+            "the call inside catch is still evidence"
+        );
     }
 
     /// `slice_for` is driven by the *callee* names a file declares, so its
