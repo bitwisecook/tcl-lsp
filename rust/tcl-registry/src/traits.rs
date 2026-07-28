@@ -24,7 +24,7 @@
 //!
 //! # Why an enum and not `bitflags`
 //!
-//! Every flag is declared **once**, by name, in [`declare_traits!`] below. Its
+//! Every flag is declared **once**, by name, in `declare_traits!` below. Its
 //! bit is the enum discriminant the compiler assigns — no bit number is ever
 //! written down, so two flags cannot be given the same one. That is not a
 //! checked invariant; it is an unrepresentable state.
@@ -58,6 +58,10 @@ use std::ops::{BitOr, BitOrAssign};
 /// single-flag constant, and the arm of [`Trait::name`]. Bits come from the
 /// discriminants the compiler assigns, so ordering is free and duplication is
 /// impossible.
+///
+/// Each doc comment is copied onto *both* generated items, so `Self` in an
+/// intra-doc link would resolve to `Trait` on the variant and `Traits` on the
+/// constant. Spell such links against `Traits` explicitly, never `Self`.
 macro_rules! declare_traits {
     ($( $(#[$meta:meta])* $variant:ident => $konst:ident );* $(;)?) => {
         /// The identity of a single behavioural trait.
@@ -532,7 +536,7 @@ declare_traits! {
     /// `catch` / `try` intercept: `error` (`Tcl_ErrorObjCmd`,
     /// `generic/tclCmdAH.c`) and `throw` (`TclNRThrowObjCmd`,
     /// `generic/tclBasic.c`, 8.6+). The strict subset of
-    /// [`Self::TERMINATES_BLOCK`] that sources an enclosing `try`'s
+    /// [`Traits::TERMINATES_BLOCK`] that sources an enclosing `try`'s
     /// on-error edge: `exit` (`Tcl_ExitObjCmd`) terminates the
     /// process rather than unwinding through exception ranges, and
     /// `return` pops the frame with `TCL_RETURN`, so neither is a
@@ -548,7 +552,7 @@ declare_traits! {
     /// Loop-jump classification for the CFG builder's
     /// `break`/`continue` edge lowering and the inline emitters'
     /// straight-line-body gate; paired with
-    /// [`Self::CONTINUES_LOOP`].
+    /// [`Traits::CONTINUES_LOOP`].
     BreaksLoop => BREAKS_LOOP;
 
     /// Jumps to the innermost enclosing loop's *next-iteration*
@@ -556,14 +560,14 @@ declare_traits! {
     /// (`Tcl_ContinueObjCmd`, `generic/tclCmdAH.c`;
     /// `TclCompileContinueCmd`, `generic/tclCompCmds.c`). The
     /// other half of the loop-jump classification — see
-    /// [`Self::BREAKS_LOOP`].
+    /// [`Traits::BREAKS_LOOP`].
     ContinuesLoop => CONTINUES_LOOP;
 
     /// Replaces the current procedure's frame — `tailcall`
     /// (`TclNRTailcallObjCmd`, `generic/tclBasic.c`, 8.6+), which
     /// schedules its command to run after the frame pops and always
     /// completes `TCL_RETURN`, so control never resumes in the
-    /// calling body. Deliberately *not* [`Self::TERMINATES_BLOCK`]:
+    /// calling body. Deliberately *not* [`Traits::TERMINATES_BLOCK`]:
     /// the analysis CFG promotes it to a proc-exit terminator, but
     /// codegen must keep the plain fall-through call shape so the
     /// emitted bytecode matches C Tcl's.
