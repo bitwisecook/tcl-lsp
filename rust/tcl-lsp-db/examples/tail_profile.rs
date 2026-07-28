@@ -63,18 +63,33 @@ fn main() {
     let t_analyse = time("analyse (full whole-file walk)", 3, || {
         Analyser::new().analyse(&src, dialect)
     });
-    let t_per_item = time("analyse_per_item (no memo)", 3, || {
+    time("analyse_per_item (no memo)", 3, || {
         Analyser::new().analyse_per_item(&src, dialect)
     });
     let t_structure = time("structure_only().analyse (no diagnostics)", 3, || {
         Analyser::new().structure_only().analyse(&src, dialect)
     });
+    // Ask the analyser, don't infer it from the clock.  This used to compare
+    // `t_per_item` against `t_analyse` with a 15% band and call them equal,
+    // which made the verdict a function of whatever else happened to be slow:
+    // removing the per-CFG-build `CommandRegistry::build_default()` (issue
+    // #1035) moved the two timings apart and flipped `09_long_code.tcl` from
+    // "fallback" to "fast path" — while the analyser's behaviour was unchanged,
+    // and *falling back* is the true answer for that file either way.  Two
+    // paths costing about the same never implied they were the same path.
+    //
+    // `took_fast_path` is set by `analyse_per_item_with` itself: `true` only
+    // when the run completed on the incremental path, `false` on every fallback
+    // (incomplete script, stub overlay, Tk, ghost recovery, a partial command,
+    // an E-code).  Costs stay measured; the structural claim gets asked.
+    let mut probe = Analyser::new();
+    let _ = probe.analyse_per_item(&src, dialect);
     println!(
         "  -> fallback to full walk? {}  (diagnostic-emit cost ~= {:.0} ms)",
-        if (t_per_item - t_analyse).abs() < t_analyse * 0.15 {
-            "YES (per_item ~= analyse)"
-        } else {
+        if probe.took_fast_path {
             "NO (fast path)"
+        } else {
+            "YES (analyse_per_item fell back)"
         },
         t_analyse - t_structure,
     );
