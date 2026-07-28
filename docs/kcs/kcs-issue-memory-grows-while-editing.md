@@ -59,8 +59,8 @@ steady climb rather than a spike on a particular file.
 
 ## Related
 
-- [KCS index](../README.md)
-- [Glossary](../../GLOSSARY.md)
+- [KCS index](README.md)
+- [Glossary](../GLOSSARY.md)
 - [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md) —
   a different cache problem, where results rather than memory go wrong.
 - [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) —
