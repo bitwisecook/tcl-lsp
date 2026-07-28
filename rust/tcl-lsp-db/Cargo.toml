@@ -39,3 +39,7 @@ tcl-lsp-core = { path = "../tcl-lsp-core" }
 
 [dev-dependencies]
 rayon = "1"
+# `salsa_unstable` exposes `<dyn salsa::Database>::memory_usage()` — per-ingredient
+# slot counts and memo sizes. Used by the `edit_memory` example to attribute
+# per-edit growth to a specific interned key / tracked query (issue #1035).
+salsa = { version = "0.27", features = ["salsa_unstable"] }
