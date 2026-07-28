@@ -33,7 +33,7 @@
 
 use tcl_dialect::DialectSet;
 use tcl_registry::taint::TaintColour;
-use tcl_registry::traits::Traits;
+use tcl_registry::traits::{Trait, Traits};
 
 /// One selectable value in a picker — the Rust spelling plus a one-line
 /// description.
@@ -513,110 +513,30 @@ pub fn dialect_bit(name: &str) -> Option<DialectSet> {
 }
 
 /// The [`Traits`] bit for a catalogue key from [`TRAITS`].
+///
+/// Resolved against the registry's own flag list, so there is no second table
+/// here to drift out of step with it.
 #[must_use]
 pub fn trait_bit(key: &str) -> Option<Traits> {
-    TRAIT_BITS.iter().find(|(n, _)| *n == key).map(|(_, b)| *b)
+    Trait::ALL
+        .iter()
+        .find(|t| t.name() == key)
+        .map(|t| Traits::of(&[*t]))
 }
 
-/// The catalogue key for each [`Traits`] bit the spec carries, in
-/// [`TRAITS`] order.
+/// The catalogue key for each [`Traits`] flag the spec carries, in
+/// declaration order.
 ///
-/// Deduplicated by bit *value*, not by name. `Traits` is a `u64` with all 64
-/// bits allocated, and `SAFE_INTERP_HIDDEN` currently shares bit 61 with
-/// `TRANSFERS_CONTROL` (see `traits_catalogue_pins_the_known_bit_collision`).
-/// Two names for one bit are indistinguishable at run time, so reporting both
-/// would render a spec that claims a trait its author never set. The first
-/// catalogue entry for a bit wins, which keeps the rendered `.rs`
-/// bit-identical to the spec it came from.
+/// Each flag is a distinct enum variant, so a name maps to exactly one bit and
+/// a bit to exactly one name. This previously had to deduplicate by bit value:
+/// `Traits` was a `u64` holding 65 flags, and `SAFE_INTERP_HIDDEN` shared bit
+/// 61 with `TRANSFERS_CONTROL`, so reporting both would have rendered a spec
+/// claiming a trait its author never set. The registry now derives each bit
+/// from an enum discriminant, which makes that collision unrepresentable.
 #[must_use]
 pub fn trait_keys(traits: Traits) -> Vec<&'static str> {
-    let mut seen = Traits::empty();
-    let mut out = Vec::new();
-    for (name, bit) in TRAIT_BITS {
-        if traits.contains(*bit) && !seen.contains(*bit) {
-            seen |= *bit;
-            out.push(*name);
-        }
-    }
-    out
+    traits.iter_names().collect()
 }
-
-/// Key ↔ bit table backing [`trait_bit`] / [`trait_keys`]. Kept in
-/// [`TRAITS`] order; the `traits_catalogue_matches_bits` test asserts the two
-/// stay in step.
-const TRAIT_BITS: &[(&str, Traits)] = &[
-    ("CONTROL_FLOW", Traits::CONTROL_FLOW),
-    ("LANGUAGE_KEYWORD", Traits::LANGUAGE_KEYWORD),
-    ("HAS_BOOLEAN_COND", Traits::HAS_BOOLEAN_COND),
-    ("TERMINATES_BLOCK", Traits::TERMINATES_BLOCK),
-    ("HAS_LOOP_BODY", Traits::HAS_LOOP_BODY),
-    ("NEVER_INLINE_BODY", Traits::NEVER_INLINE_BODY),
-    ("LOOP_LIST_HEADER", Traits::LOOP_LIST_HEADER),
-    ("PURE", Traits::PURE),
-    ("CSE_CANDIDATE", Traits::CSE_CANDIDATE),
-    ("PURE_EVALUATION", Traits::PURE_EVALUATION),
-    ("DEFINES_PROCEDURE", Traits::DEFINES_PROCEDURE),
-    ("DESTROYS_VARIABLE", Traits::DESTROYS_VARIABLE),
-    ("READS_BEFORE_WRITE", Traits::READS_BEFORE_WRITE),
-    ("CREATES_SCOPE_ALIAS", Traits::CREATES_SCOPE_ALIAS),
-    ("CREATES_BARRIER", Traits::CREATES_BARRIER),
-    ("EVALUATES_CODE", Traits::EVALUATES_CODE),
-    ("PERFORMS_SUBSTITUTION", Traits::PERFORMS_SUBSTITUTION),
-    ("OPENS_CHANNEL", Traits::OPENS_CHANNEL),
-    ("SOURCES_FILE", Traits::SOURCES_FILE),
-    ("HAS_SWITCH_BODY", Traits::HAS_SWITCH_BODY),
-    ("STRING_LIST_CONFUSION", Traits::STRING_LIST_CONFUSION),
-    ("CONFIGURES_CHANNEL", Traits::CONFIGURES_CHANNEL),
-    ("HAS_INTERP_EVAL", Traits::HAS_INTERP_EVAL),
-    ("HAS_DESTRUCTIVE_OPS", Traits::HAS_DESTRUCTIVE_OPS),
-    ("IS_EVENT_HANDLER", Traits::IS_EVENT_HANDLER),
-    ("UNNORMALISED_HTTP_GETTER", Traits::UNNORMALISED_HTTP_GETTER),
-    ("RETURNS_PATH", Traits::RETURNS_PATH),
-    ("IS_UNESCAPE", Traits::IS_UNESCAPE),
-    ("PRODUCES_CANONICAL_LIST", Traits::PRODUCES_CANONICAL_LIST),
-    ("BUILDS_COMMAND_PREFIX", Traits::BUILDS_COMMAND_PREFIX),
-    ("UNSAFE", Traits::UNSAFE),
-    ("PASSWORD_OPTION", Traits::PASSWORD_OPTION),
-    ("IS_SIDE_SWITCH", Traits::IS_SIDE_SWITCH),
-    ("IRULES_TOP_LEVEL_ONLY", Traits::IRULES_TOP_LEVEL_ONLY),
-    ("IS_OO_METACLASS", Traits::IS_OO_METACLASS),
-    ("DIAGRAM_ACTION", Traits::DIAGRAM_ACTION),
-    ("NEEDS_START_CMD", Traits::NEEDS_START_CMD),
-    ("TAINT_SINK", Traits::TAINT_SINK),
-    ("TAINT_SOURCE", Traits::TAINT_SOURCE),
-    ("IRULES_DATA_GETTER", Traits::IRULES_DATA_GETTER),
-    ("CREATES_DYNAMIC_BARRIER", Traits::CREATES_DYNAMIC_BARRIER),
-    ("INVOKES_USER_PROC", Traits::INVOKES_USER_PROC),
-    ("BYTE_COMPILED", Traits::BYTE_COMPILED),
-    ("NOT_PROC_FACTORY", Traits::NOT_PROC_FACTORY),
-    ("FRAMELESS_RUNTIME", Traits::FRAMELESS_RUNTIME),
-    ("FIRST_ARG_VARNAME", Traits::FIRST_ARG_VARNAME),
-    ("WHOLE_ARRAY_ARG", Traits::WHOLE_ARRAY_ARG),
-    ("DYNAMIC_EVAL_BODY", Traits::DYNAMIC_EVAL_BODY),
-    ("INTROSPECTS_BY_NAME", Traits::INTROSPECTS_BY_NAME),
-    ("TARGETS_VARIABLE_BY_NAME", Traits::TARGETS_VARIABLE_BY_NAME),
-    ("FRAME_HASH_BUILTIN", Traits::FRAME_HASH_BUILTIN),
-    ("OVERRIDABLE_LIBRARY_PROC", Traits::OVERRIDABLE_LIBRARY_PROC),
-    ("WASM_EMITS_NOTHING", Traits::WASM_EMITS_NOTHING),
-    (
-        "STRUCTURALLY_CHECKED_ARITY",
-        Traits::STRUCTURALLY_CHECKED_ARITY,
-    ),
-    ("EXPR_CONCATENATES_ARGS", Traits::EXPR_CONCATENATES_ARGS),
-    (
-        "ESTABLISHES_VARIABLE_TRACE",
-        Traits::ESTABLISHES_VARIABLE_TRACE,
-    ),
-    ("TRANSFERS_CONTROL", Traits::TRANSFERS_CONTROL),
-    ("FIRE_AND_FORGET_TEARDOWN", Traits::FIRE_AND_FORGET_TEARDOWN),
-    ("OPERATOR_COMMAND", Traits::OPERATOR_COMMAND),
-    ("TCLOO_NEXT_CHAIN", Traits::TCLOO_NEXT_CHAIN),
-    ("CATCHABLE_THROW", Traits::CATCHABLE_THROW),
-    ("BREAKS_LOOP", Traits::BREAKS_LOOP),
-    ("CONTINUES_LOOP", Traits::CONTINUES_LOOP),
-    ("REPLACES_FRAME", Traits::REPLACES_FRAME),
-    ("SAFE_INTERP_HIDDEN", Traits::SAFE_INTERP_HIDDEN),
-];
 
 /// The [`TaintColour`] bit for a catalogue key from [`TAINT_COLOURS`].
 #[must_use]
@@ -1062,36 +982,38 @@ mod tests {
     }
 
     #[test]
-    fn traits_catalogue_matches_bits() {
+    fn traits_catalogue_matches_the_registry_flags() {
+        // The catalogue's keys must be exactly the registry's declared flags,
+        // in the same order — a new trait shows up in the studio without a
+        // hand-maintained table to update.
         let cat: Vec<&str> = TRAITS.iter().map(|v| v.key).collect();
-        let bits: Vec<&str> = TRAIT_BITS.iter().map(|(n, _)| *n).collect();
-        assert_eq!(cat, bits, "TRAITS and TRAIT_BITS must stay in step");
-        for (name, bit) in TRAIT_BITS {
-            assert_eq!(trait_bit(name), Some(*bit));
-            let keys = trait_keys(*bit);
-            assert_eq!(keys.len(), 1, "one bit must report one key, got {keys:?}");
+        let declared: Vec<&str> = Trait::ALL.iter().map(|t| t.name()).collect();
+        assert_eq!(cat, declared, "TRAITS must match the registry's flags");
+        for t in Trait::ALL {
+            let bit = Traits::of(&[*t]);
+            assert_eq!(trait_bit(t.name()), Some(bit));
+            assert_eq!(trait_keys(bit), vec![t.name()], "one flag, one name");
         }
     }
 
-    /// `Traits` is a `u64` with every bit allocated, and `SAFE_INTERP_HIDDEN`
-    /// was added on top of `TRANSFERS_CONTROL`'s bit 61 — so the two are the
-    /// same flag at run time (issue #1031). This test pins that reality
-    /// rather than hiding
-    /// it: `trait_keys` reports the first name so a rendered spec stays
-    /// bit-identical to its source, and when the registry widens `Traits` and
-    /// gives `SAFE_INTERP_HIDDEN` its own bit, this test fails and the
-    /// catalogue can stop deduplicating.
+    /// Every flag owns a distinct bit.
+    ///
+    /// `SAFE_INTERP_HIDDEN` and `TRANSFERS_CONTROL` were both `1 << 61` under
+    /// `bitflags`, which cannot reject a duplicate value — aliasing is a
+    /// supported feature there. The registry now assigns bits from enum
+    /// discriminants, so this is a property of the type rather than something
+    /// a test can meaningfully defend; the assertion below documents the fixed
+    /// bug for anyone who finds issue #1031.
     #[test]
-    fn traits_catalogue_pins_the_known_bit_collision() {
-        assert_eq!(
-            Traits::TRANSFERS_CONTROL,
-            Traits::SAFE_INTERP_HIDDEN,
-            "bit 61 is shared; if this now differs the registry has been widened"
-        );
-        assert_eq!(
-            trait_keys(Traits::SAFE_INTERP_HIDDEN),
-            vec!["TRANSFERS_CONTROL"]
-        );
+    fn every_trait_has_its_own_bit() {
+        assert_ne!(Traits::TRANSFERS_CONTROL, Traits::SAFE_INTERP_HIDDEN);
+        let mut seen = Traits::empty();
+        for t in Trait::ALL {
+            let bit = Traits::of(&[*t]);
+            assert!(!seen.intersects(bit), "{} reuses a bit", t.name());
+            seen |= bit;
+        }
+        assert_eq!(seen.len() as usize, Trait::ALL.len());
     }
 
     #[test]

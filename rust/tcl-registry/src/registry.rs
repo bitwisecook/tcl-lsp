@@ -1630,6 +1630,69 @@ impl std::fmt::Debug for CommandRegistry {
 
 #[cfg(test)]
 mod tests {
+    /// `SAFE_INTERP_HIDDEN` and `TRANSFERS_CONTROL` were the same bit.
+    ///
+    /// Both were spelled `1 << 61`, so the 65th trait silently aliased the
+    /// 61st. Because `FRAME_SENSITIVE_TRAITS` unions in `TRANSFERS_CONTROL`,
+    /// every safe-interp-hidden command — `file`, `source`, `encoding`,
+    /// `open`, … — read as frame-sensitive and had the inline-proc code
+    /// action suppressed, while `break`/`continue`/`yield`/`yieldto`/
+    /// `tailcall` read as safe-interp-hidden.
+    ///
+    /// The two are now separate enum variants, so the aliasing is
+    /// unrepresentable rather than merely fixed. This pins the *behaviour*
+    /// that was wrong, which a type-level guarantee alone does not cover.
+    #[test]
+    fn safe_interp_hidden_is_not_control_transfer() {
+        let reg = CommandRegistry::build_default();
+        assert_ne!(Traits::TRANSFERS_CONTROL, Traits::SAFE_INTERP_HIDDEN);
+
+        for name in ["break", "continue", "yield", "yieldto", "tailcall"] {
+            let spec = reg.get(name).expect("control-transfer command");
+            assert!(
+                spec.traits.contains(Traits::TRANSFERS_CONTROL),
+                "{name} must transfer control"
+            );
+            assert!(
+                !spec.traits.contains(Traits::SAFE_INTERP_HIDDEN),
+                "{name} is not hidden in a safe interpreter"
+            );
+            assert!(reg.is_frame_sensitive(name), "{name} is frame-sensitive");
+        }
+
+        // Safe-hidden commands carrying no *other* frame-sensitive trait.
+        // These are the ones the alias was wrongly marking: each had the
+        // inline-proc code action suppressed on it.
+        for name in [
+            "file", "encoding", "open", "socket", "exec", "cd", "pwd", "glob", "load", "unload",
+        ] {
+            let spec = reg.get(name).expect("safe-hidden command");
+            assert!(
+                spec.traits.contains(Traits::SAFE_INTERP_HIDDEN),
+                "{name} is hidden in a safe interpreter"
+            );
+            assert!(
+                !spec.traits.contains(Traits::TRANSFERS_CONTROL),
+                "{name} does not transfer control"
+            );
+            assert!(
+                !reg.is_frame_sensitive(name),
+                "{name} must not be frame-sensitive — the alias suppressed the \
+                 inline-proc code action on it"
+            );
+        }
+
+        // The correction must not swing too far: `source` and `exit` are
+        // frame-sensitive on their own merits (a barrier and a block
+        // terminator respectively), and stay so.
+        for name in ["source", "exit"] {
+            assert!(
+                reg.is_frame_sensitive(name),
+                "{name} is frame-sensitive independently of the trait alias"
+            );
+        }
+    }
+
     use super::*;
 
     #[test]
