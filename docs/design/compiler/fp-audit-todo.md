@@ -410,16 +410,20 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   **Newly confirmed (not merely theoretical) by the same review, deliberately
   left open:** `uplevel #0 { … }` also resolves against global
   (tclsh8.6-confirmed), and reproduces the identical misattribution +
-  phantom-fold pair as the `TclOO`/namespace-eval cases — but
-  `Statement::UpFrame`'s body is inlined into the enclosing function's own
-  CFG blocks *before* `collect_call_site_constants` ever runs, and
-  `frame_shift` (the field that distinguishes `#0` from a relative level)
-  doesn't survive that flattening to where this scan could consult it.
-  Properly fixing this needs `frame_shift == 0` preserved through CFG
-  construction, or a pre-CFG scan of `Statement::UpFrame` mirroring
-  `build_extra_call_site_scan_contexts`'s method/body-unit approach — larger
-  than the one-line namespace-context overrides above, so left as a pinned,
-  `#[ignore]`d regression
+  phantom-fold pair as the `TclOO`/namespace-eval cases — but the scan never
+  reaches that body as an `UpFrame` statement at all. `Statement::UpFrame`
+  keeps its body as a nested `Script` that CFG construction does *not*
+  flatten into blocks (re-confirmed during the #976 work, correcting this
+  entry's original "is inlined into CFG blocks" reading), so the walk over
+  `block.statements` skips it and the call is seen only through the
+  enclosing `proc` statement's own `ArgRole::Body` argument, re-segmented in
+  the frame that `proc` statement sits in — the declaring namespace, not
+  global. Fixing it properly needs the registry to say *which* argument of a
+  frame-shifting command is its level (`uplevel`'s level detection is a
+  private spec helper today, and the body-text recursion sees only raw
+  words), so the scan can switch its resolution context to global for an
+  absolute `#0` — a registry extension, not the one-line namespace-context
+  overrides above, so left as a pinned, `#[ignore]`d regression
   (`uplevel_zero_body_resolves_against_global_not_enclosing_namespace`) for
   follow-up rather than a rushed fix. `uplevel N` for any relative
   (non-`#0`) level remains a separate, permanent approximation: the target
@@ -499,9 +503,15 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   above; `namespace ensemble configure -map` redirection; a computed head
   that resolves to a variable-*writing builtin* (`set cmd set; $cmd x 5`),
   which would need a builtin's own name to be among the literals a local
-  holds; and `uplevel`'s cross-frame writes, handled conservatively by
-  making every value set unenumerable in a module that shifts frames rather
-  than modelled per-variable.
+  holds; `uplevel`'s cross-frame writes, handled conservatively by making
+  every value set unenumerable in a module that shifts frames rather than
+  modelled per-variable; and the global `unknown` handler (a module that
+  both defines `proc unknown {cmd args}` and seeds another procedure would
+  need every unresolved command word counted as a call to it — the registry
+  fact that would mark the handler needs the `Traits` bitfield widened past
+  its current full 64 bits, so it is recorded rather than rushed).
+  `namespace unknown` / `package unknown` handlers are already covered:
+  the registry declares their handler argument `ArgRole::CommandPrefix`.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 

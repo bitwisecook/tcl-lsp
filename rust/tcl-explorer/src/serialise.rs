@@ -23,6 +23,8 @@
 //! `serialise_result` assembles the top-level object from the per-view
 //! `serialise_*` helpers.
 
+use std::collections::BTreeMap;
+
 use serde_json::{Map, Value, json};
 
 use tcl_compiler::cfg::{Function, Terminator};
@@ -1111,7 +1113,10 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
 /// Serialise the `interprocedural` view: per-procedure summaries followed
 /// by `TclOO` method summaries.
 #[must_use]
-pub fn serialise_interproc(interproc: &InterproceduralAnalysis) -> Value {
+pub fn serialise_interproc(
+    interproc: &InterproceduralAnalysis,
+    param_constants: &BTreeMap<String, Vec<(String, u32, String)>>,
+) -> Value {
     let mut out: Vec<Value> = Vec::new();
 
     let mut qnames: Vec<&String> = interproc.procedures.keys().collect();
@@ -1128,6 +1133,20 @@ pub fn serialise_interproc(interproc: &InterproceduralAnalysis) -> Value {
             "hasBarrier": s.has_barrier,
             "hasUnknownCalls": s.has_unknown_calls,
             "writesGlobal": s.writes_global,
+            // The caller-uniform-literal SCCP seed this procedure was
+            // analysed under — the fact that explains a folded condition on
+            // a parameter (and, by its absence, an indirect call site the
+            // scan could not enumerate).  See
+            // `docs/design/compiler/interprocedural-call-site-seeding.md`.
+            "paramConstants": param_constants
+                .get(qname)
+                .map(|seeds| {
+                    seeds
+                        .iter()
+                        .map(|(param, _version, literal)| format!("{param} = {literal}"))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default(),
         }));
     }
 
@@ -1756,7 +1775,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         serialise_cfg_post_ssa(result, &li, &result.source),
     );
     if let Some(interproc) = &result.unit.interproc {
-        out.insert("interprocedural".to_owned(), serialise_interproc(interproc));
+        out.insert(
+            "interprocedural".to_owned(),
+            serialise_interproc(interproc, &result.unit.interproc_param_constants),
+        );
     }
     out.insert("types".to_owned(), serialise_types(result));
     // Honour the document's dialect so the CST and segment views tokenise
@@ -1900,6 +1922,39 @@ mod tests {
                 .iter()
                 .any(|v| v["id"] == "greentree"),
             "greentree tab must be dropped"
+        );
+    }
+
+    /// The interprocedural view surfaces the caller-uniform-literal SCCP
+    /// seed, and stops surfacing it when a dynamic dispatch reaches the
+    /// same procedure with a different literal (issue #976) — the one fact
+    /// that explains why a condition on a parameter did or did not fold.
+    #[test]
+    fn interproc_view_shows_the_param_constant_seed_and_its_withdrawal() {
+        const HELPER: &str = "proc helper {mode} {\n\
+             if {$mode eq \"prod\"} { set x 1 } else { set x 2 }\n\
+             }\nhelper prod\nhelper prod\n";
+        let seeded = serialise_result(&run_pipeline(HELPER, "tcl8.6"))["interprocedural"].clone();
+        let entry = seeded
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "::helper")
+            .expect("::helper summarised");
+        assert_eq!(entry["paramConstants"], json!(["mode = prod"]));
+
+        let src = format!("{HELPER}set cmd helper\n$cmd dev\n");
+        let withdrawn = serialise_result(&run_pipeline(&src, "tcl8.6"))["interprocedural"].clone();
+        let entry = withdrawn
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "::helper")
+            .expect("::helper summarised");
+        assert_eq!(
+            entry["paramConstants"],
+            json!([]),
+            "the `$cmd dev` dispatch also reaches helper, with a differing literal",
         );
     }
 

@@ -33,7 +33,7 @@
 //! rather than modelled as a salsa input — reading an immutable value inside a
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
@@ -1831,6 +1831,9 @@ pub fn function_optimisations<'db>(
         body_units: HashMap::new(),
         interproc: Some(ia),
         connection_scope: None,
+        // Explorer-only provenance; this synthetic per-proc unit is an
+        // optimiser input, never an explorer one.
+        interproc_param_constants: BTreeMap::new(),
     };
     Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
         &cu,
@@ -2004,6 +2007,7 @@ fn solve_optimisations<'db>(
         body_units: HashMap::new(),
         interproc: cu.interproc.clone(),
         connection_scope: None,
+        interproc_param_constants: cu.interproc_param_constants.clone(),
     };
     for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
         if let Some(g) = opt.group {

@@ -295,6 +295,10 @@ function renderInterproc() {
     html += '</div>';
     html += '<div class="proc-detail">return: <span class="val">' + esc(p.returnShape) + '</span></div>';
     html += '<div class="proc-detail">calls: <span class="val">' + (p.calls.length ? esc(p.calls.join(', ')) : '\u2014') + '</span></div>';
+    // The caller-uniform-literal SCCP seed this proc was analysed under —
+    // the fact that explains a folded condition on a parameter, and (by its
+    // absence) an indirect call site the scan could not enumerate.
+    if (p.paramConstants && p.paramConstants.length) html += '<div class="proc-detail">param-constants: <span class="val">' + esc(p.paramConstants.join(', ')) + '</span></div>';
     var flags = [];
     if (p.hasBarrier) flags.push('barrier');
     if (p.hasUnknownCalls) flags.push('unknown_calls');

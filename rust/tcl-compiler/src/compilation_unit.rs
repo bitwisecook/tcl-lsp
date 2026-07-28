@@ -28,7 +28,7 @@
 //! accessor methods that return `Option<&T>` — `None` when the analysis
 //! hasn't been run on this unit yet.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use tcl_registry::CommandRegistry;
 
@@ -601,6 +601,18 @@ pub struct CompilationUnit {
     /// in [`Self::procedures`]; ``None`` for non-iRules sources or any
     /// source with no ``when`` blocks.
     pub connection_scope: Option<crate::connection_scope::ConnectionScope>,
+    /// The interprocedural caller-uniform-literal SCCP seed each procedure
+    /// was analysed under, keyed by qualified name and encoded as the same
+    /// sorted `(param, version, literal)` triples the memo key interns (see
+    /// [`encode_param_constants`]).  Only procedures that actually received
+    /// a seed appear.
+    ///
+    /// The pipeline itself needs no such record — the seed is consumed
+    /// where it is produced — but it is the one fact that explains *why* a
+    /// condition on a parameter folded, so the compiler explorer's
+    /// interprocedural view surfaces it.  Sorted (a `BTreeMap` of already-
+    /// sorted vecs) so the rendered view is deterministic.
+    pub interproc_param_constants: BTreeMap<String, Vec<(String, u32, String)>>,
 }
 
 impl CompilationUnit {
@@ -809,6 +821,8 @@ impl CompilationUnit {
             },
         );
         let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
+        let mut interproc_param_constants: BTreeMap<String, Vec<(String, u32, String)>> =
+            BTreeMap::new();
         for (qname, cfg) in &cfg_module.procedures {
             let params = ir_module
                 .procedures
@@ -848,6 +862,13 @@ impl CompilationUnit {
             // can't intern (defensive; the current producer only emits string
             // consts) → build fresh.
             let encoded_pc = encode_param_constants(param_constants.as_ref());
+            // Keep the seed for the explorer's interprocedural view: it is
+            // the one fact that explains why a condition on a parameter
+            // folded.  The `Some(non-empty)` guard keeps the map to
+            // procedures that were actually seeded.
+            if let Some(encoded) = encoded_pc.as_ref().filter(|e| !e.is_empty()) {
+                interproc_param_constants.insert(qname.clone(), encoded.clone());
+            }
             // Route through the memo only when (a) a cache is present, (b) the
             // procedure has a real body, (c) the module context is available,
             // and (d) the seeds encode into the hashable key form.
@@ -939,6 +960,7 @@ impl CompilationUnit {
             body_units,
             interproc: None,
             connection_scope,
+            interproc_param_constants,
         }
     }
 
@@ -2176,27 +2198,29 @@ mod tests {
 
         /// KNOWN RESIDUAL GAP (Codex review, PR #970) — confirmed, not yet
         /// fixed: `uplevel #0 { … }`'s body resolves bare commands against
-        /// the GLOBAL namespace (tclsh8.6-confirmed live,
-        /// `/tmp/uplevel0_probe.tcl`: `uplevel #0 { helper }` inside
-        /// `::foo::runIt` calls `::helper`, never `::foo::helper`), but
-        /// `Statement::UpFrame`'s body is inlined into the enclosing
-        /// function's own CFG blocks *before* `collect_call_site_constants`
-        /// ever sees it — `frame_shift` (the field that would tell us "this
-        /// call originated inside an absolute-frame `uplevel #0`, force
-        /// global") is consumed by CFG construction and isn't visible at the
-        /// point this scan walks `block.statements`. Confirmed live: this
-        /// call is misattributed to `::foo::helper` (which real Tcl never
-        /// actually invokes this way — a phantom fold) while the real target
-        /// `::helper` is *also* wrong, not merely under-evidenced. Properly
-        /// fixing this needs `frame_shift == 0` preserved through CFG
-        /// construction (or a pre-CFG scan of `Statement::UpFrame`, mirroring
-        /// `build_extra_call_site_scan_contexts`'s method/body-unit
-        /// approach) — larger than a one-line namespace-context override, so
-        /// deliberately left for follow-up rather than a rushed fix.
-        /// `uplevel N` for any relative (non-`#0`) level is separately
-        /// undecidable by a single-file static analysis (the target frame's
-        /// namespace depends on the live call stack) and stays a documented,
-        /// permanent approximation.
+        /// the GLOBAL namespace (tclsh8.6-confirmed live: `uplevel #0 {
+        /// helper }` inside `::foo::runIt` calls `::helper`, never
+        /// `::foo::helper`), but the scan never reaches that body as an
+        /// `UpFrame` statement at all. `Statement::UpFrame` keeps its body
+        /// as a nested `Script` that CFG construction does *not* flatten
+        /// into blocks, so the walk over `block.statements` skips it; the
+        /// call is seen only through the enclosing `proc` statement's own
+        /// `ArgRole::Body` argument, re-segmented in whatever frame that
+        /// `proc` statement sits in — the declaring namespace, not global.
+        /// Confirmed live: the call is misattributed to `::foo::helper`
+        /// (which real Tcl never actually invokes this way — a phantom
+        /// fold) while the real target `::helper` is *also* wrong, not
+        /// merely under-evidenced. Fixing it properly needs the registry to
+        /// say *which* argument of a frame-shifting command is its level
+        /// (today `uplevel`'s level detection is a private spec helper, and
+        /// the body-text recursion sees only raw words), so the scan can
+        /// switch its resolution context to global for an absolute `#0` —
+        /// a registry extension, not a one-line namespace override, so
+        /// deliberately left for follow-up. `uplevel N` for any relative
+        /// (non-`#0`) level is separately undecidable by a single-file
+        /// static analysis (the target frame's namespace depends on the
+        /// live call stack) and stays a documented, permanent
+        /// approximation.
         #[test]
         #[ignore = "confirmed residual gap, PR #970 review: uplevel #0 body namespace context; see doc comment"]
         fn uplevel_zero_body_resolves_against_global_not_enclosing_namespace() {

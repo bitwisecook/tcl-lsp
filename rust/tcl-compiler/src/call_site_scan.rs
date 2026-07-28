@@ -918,6 +918,21 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    /// Build the evidence for `src` under a named dialect's registry.
+    fn evidence_for_dialect(src: &str, dialect: &str) -> CallSiteEvidence {
+        let reg = tcl_registry::registry_for_dialect(dialect);
+        let ir = lower_to_ir(src, reg);
+        let cfg_module = build_cfg(&ir, false);
+        collect_call_site_constants(&CallSiteScanInputs {
+            cfg_module: &cfg_module,
+            extra_callers: &[],
+            procedures: &ir.procedures,
+            namespace_imports: &ir.namespace_imports,
+            registry: reg,
+            dialect,
+        })
+    }
+
     /// Build the evidence for `src` exactly as `CompilationUnit` does,
     /// minus the method / body-unit callers (which need a CFG context the
     /// unit tests here don't exercise).
@@ -959,6 +974,20 @@ mod tests {
     #[test]
     fn a_dispatch_through_a_literal_variable_is_recorded_as_a_call_site() {
         let ev = evidence("proc helper {mode} { return $mode }\nset cmd helper\n$cmd dev\n");
+        assert_eq!(slot(&ev, "::helper", 0), (vec!["dev".into()], false));
+        assert!(ev.enumerates_every_caller());
+    }
+
+    /// A registry-declared user-proc invoker (`Traits::INVOKES_USER_PROC`,
+    /// the iRules `call PROC ?args?` form) names its callee in the first
+    /// argument and passes the rest — a call site a walk that only ever
+    /// looked at the command word would miss entirely.
+    #[test]
+    fn a_registry_declared_user_proc_invoker_is_a_call_site() {
+        let ev = evidence_for_dialect(
+            "proc helper {mode} { return $mode }\nwhen RULE_INIT { call helper dev }\n",
+            "irules",
+        );
         assert_eq!(slot(&ev, "::helper", 0), (vec!["dev".into()], false));
         assert!(ev.enumerates_every_caller());
     }

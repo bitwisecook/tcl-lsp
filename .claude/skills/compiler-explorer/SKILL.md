@@ -68,6 +68,14 @@ The full catalogue (`VIEW_META` in `rust/tcl-explorer/src/views.rs`):
 `optimiserPasses`, `gvn`, `shimmer`, `taint`, `irules`, `eventOrder`, `callouts`,
 `asm`, `asmOpt`, `wasm`, `wasmOpt`.
 
+`interproc` additionally reports each procedure's **param constants** — the
+caller-uniform-literal SCCP seed it was analysed under. That line is the first
+thing to check when a condition on a parameter folded and you think it should
+not have: its presence names the literal every visible caller passed, and its
+*absence* means an indirect call site (a `$cmd` dispatch, a callback prefix, an
+`eval $script`) withdrew the seed. See
+`docs/design/compiler/interprocedural-call-site-seeding.md`.
+
 Four of those have **no text renderer** and are reachable only via `--json`:
 `cst` (rendered locally instead), `segments`, `asmOpt`, `wasmOpt`. Asking for one
 prints `compiler explorer: no matching views`.

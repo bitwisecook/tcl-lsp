@@ -85,6 +85,34 @@ pub fn is_pure_var_ref(text: &str) -> bool {
     scan_pure_var_ref(text, 0) == Some(text.len())
 }
 
+/// Grammar of a static variable-name word (identifier-only, plus the
+/// namespace separator): `[A-Za-z_][A-Za-z0-9_:]*`.
+///
+/// The one definition of that grammar. It is the *conservative* spelling a
+/// consumer needs when it is about to write a name back into source (the
+/// optimiser's propagation and pattern-recognition passes) or to index a
+/// name-keyed table, and is deliberately stricter than the `Tcl_ParseVar`
+/// grammar [`scan_pure_var_ref`] models — Tcl itself accepts `$1abc`,
+/// which this rejects.
+///
+/// ```
+/// use tcl_compiler::value_shapes::is_static_var_word;
+/// assert!(is_static_var_word("ns::var"));
+/// assert!(!is_static_var_word("1abc"));
+/// assert!(!is_static_var_word("has space"));
+/// ```
+#[must_use]
+pub fn is_static_var_word(text: &str) -> bool {
+    let mut iter = text.bytes();
+    let Some(first) = iter.next() else {
+        return false;
+    };
+    if !(first.is_ascii_alphabetic() || first == b'_') {
+        return false;
+    }
+    iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
+}
+
 /// The **scalar** variable name a word denotes when the whole word is one
 /// plain reference — `$name` or `${name}` — and nothing else.
 ///

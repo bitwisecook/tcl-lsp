@@ -102,14 +102,44 @@ every value set becomes unenumerable).
 - **Cross-file callers** of a plain (non-`package provide`) file that
   another file `source`s and calls differently.
 - **`namespace ensemble configure -map`** redirection.
+- **The `unknown` handler.** A call to a command that exists nowhere is
+  routed by Tcl to `unknown`, with the failed word and its arguments. A
+  module that both defines `proc unknown {cmd args}` *and* seeds another
+  procedure would need those routed calls counted against `cmd`. Closing it
+  needs a registry fact marking the unresolved-command handler (the `Traits`
+  bitfield is currently full at 64 bits, so that is a widening, not a new
+  flag). `namespace unknown` and `package unknown` handlers are already
+  covered — the registry declares their handler argument
+  `ArgRole::CommandPrefix`.
 - **A computed head resolving to a variable-writing builtin** (`set cmd
   set; $cmd x 5`) — this would need a builtin's own name to be among the
   literals a local holds.
 - **`uplevel #0` namespace attribution** — a bare command in an absolute
-  `uplevel #0` body resolves against the global namespace, but the body
-  reaches this scan through the enclosing `proc`'s own body text, which
-  carries the enclosing namespace. Pinned by
+  `uplevel #0` body resolves against the global namespace, but
+  `Statement::UpFrame` keeps its body as a nested `Script` the CFG does not
+  flatten, so the call reaches this scan only through the enclosing `proc`
+  statement's own body text, in the declaring namespace. Closing it needs
+  the registry to say which argument of a frame-shifting command is its
+  level. Pinned by
   `uplevel_zero_body_resolves_against_global_not_enclosing_namespace`.
+
+## Seeing it
+
+The compiler explorer's **interprocedural** view reports each procedure's
+`param constants` — the seed it was analysed under:
+
+```
+$ tcl explore --show interproc --text example.tcl
+=== interproc ===
+└── ::helper arity=1..1
+    · calls: —
+    · param constants: mode = prod
+```
+
+The line disappears when an indirection withdraws the seed, which makes the
+difference between "every caller agrees" and "a call site could not be
+enumerated" directly observable — the first thing to check when a condition
+on a parameter folded and it should not have.
 
 ## Test anchors
 
@@ -120,6 +150,7 @@ every value set becomes unenumerable).
   callbacks, and `package provide`.
 - `tcl-lsp-server/tests/e2e/diagnostics.rs` — the same behaviour over LSP.
 - `editors/vscode/src/test/issue969.test.ts`, `issue976.test.ts`.
+- `tcl-explorer/src/serialise.rs::interproc_view_shows_the_param_constant_seed_and_its_withdrawal`.
 
 ## Related
 
