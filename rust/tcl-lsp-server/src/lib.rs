@@ -1254,17 +1254,22 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                 }
                 return;
             };
-            // Refresh the project's cross-file call-site evidence *here* —
-            // debounced and off the message loop — rather than on the edit
-            // handler (issue #977). Any peer whose evidence moved has stale
-            // published diagnostics, so reschedule it below.
-            let stale_peers = sync_cross_file_evidence(
-                &inputs.db,
-                &inputs.db_files,
-                &inputs.db_project,
-                &inputs.workspace_index,
-            )
-            .await;
+            // A document that has never had cross-file evidence set gets it
+            // *before* its first analysis, so its first published diagnostics
+            // are already correct — publishing an "always true" fold and
+            // retracting it a moment later is precisely the flicker issue #977
+            // is about. Subsequent passes skip this and refresh after
+            // publishing instead, keeping the project-wide scan off the
+            // critical path for every later edit (and out from in front of the
+            // semantic-token enrichment tier on a large document).
+            // Handles for the post-publish evidence refresh below
+            // (`run_diagnostics_core` consumes `inputs`).
+            let evidence_handles = (
+                Arc::clone(&inputs.db),
+                Arc::clone(&inputs.db_files),
+                Arc::clone(&inputs.db_project),
+                Arc::clone(&inputs.workspace_index),
+            );
             // Capture + analyse the document's current state.  If it is gone
             // (closed) there is nothing to publish — retire.
             let Some(job) = inputs.capture_job(&uri).await else {
@@ -1282,13 +1287,46 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                     slot.dirty = true;
                 }
             }
-            // Republish every peer this run's evidence refresh invalidated.
-            // Only documents that already have resolved inputs are eligible:
-            // a file nobody has analysed has no published diagnostics to go
-            // stale, and its inputs cannot be resolved from here anyway. This
-            // converges — the peer's own run re-syncs, finds nothing changed
+            // Refresh the project's cross-file call-site evidence *after*
+            // publishing (issue #977). Off the edit handler, as it must be —
+            // but also behind this document's own result rather than in front
+            // of it: the cold path lowers every project file, and on a large
+            // document that delayed both the diagnostics and the semantic-token
+            // enrichment tier gated behind them.
+            //
+            // The cost of publishing first is that a file's *first* run uses
+            // whatever evidence it already had. When the refresh then changes
+            // this file's own evidence we re-mark it dirty, so the loop
+            // immediately re-analyses under the corrected view — the same
+            // publish-then-enrich shape the semantic-token tiers use. Salsa
+            // memoisation makes the second pass cheap apart from what the
+            // evidence genuinely invalidated.
+            let (db, db_files, db_project, workspace_index) = evidence_handles;
+            let changed =
+                sync_cross_file_evidence(&db, &db_files, &db_project, &workspace_index).await;
+            // Re-analyse *this* document only when the refresh gave it evidence
+            // that can actually change its result: a non-empty table means some
+            // other file calls into it, which is what retracts a fold. Going
+            // from "no view" to an *empty* view leaves the merged evidence
+            // identical, so re-running would publish a byte-identical second
+            // result — and one publish per version is a contract
+            // (`diagnostics_delivery_smoke`, and the duplicate-diagnostics KCS
+            // note). Residual: an empty view also lifts a `LOADS_EXTERNAL_UNIT`
+            // decline, which can *add* a fold; not republishing leaves that as
+            // a missing hint until the next edit, the safe direction.
+            if changed.contains(&uri)
+                && has_external_callers(&db, &db_files, &uri).await
+                && let Some(slot) = slots.lock().await.get_mut(&uri)
+            {
+                slot.dirty = true;
+            }
+            // Republish every peer the refresh invalidated. Only documents
+            // that already have resolved inputs are eligible: a file nobody
+            // has analysed has no published diagnostics to go stale, and its
+            // inputs cannot be resolved from here anyway. This converges — the
+            // peer's own run re-syncs, finds nothing changed
             // (compare-then-set), and reschedules nobody.
-            reschedule_peers(&slots, &uri, stale_peers).await;
+            reschedule_peers(&slots, &uri, changed).await;
         }
     });
 }
@@ -1323,6 +1361,26 @@ async fn reschedule_peers(
     for peer in to_spawn {
         spawn_diagnostics_worker(Arc::clone(slots), peer);
     }
+}
+
+/// Whether `uri`'s cross-file evidence actually names a caller.
+///
+/// Distinguishes "the project has something to say about this file's
+/// procedures" from "the project was enumerated and had nothing to add" — the
+/// latter cannot change what the file folds, so it must not trigger a second,
+/// identical publish. Lock order is `db` → `db_files`.
+async fn has_external_callers(
+    db: &Mutex<tcl_lsp_db::TclDatabase>,
+    db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    uri: &Uri,
+) -> bool {
+    let db = db.lock().await;
+    let files = db_files.lock().await;
+    files.get(uri).is_some_and(|f| {
+        f.external_call_sites(&*db)
+            .as_ref()
+            .is_some_and(|e| !e.is_empty())
+    })
 }
 
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::external_call_sites`]

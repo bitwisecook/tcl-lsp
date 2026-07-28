@@ -1931,7 +1931,15 @@ fn caller_in_a_sourcing_file_with_a_differing_literal_clears_i230() {
     // Open the caller first so it is already in the project when the library
     // is analysed — the same ordering a workspace scan produces.
     lsp.open_ready(&main_uri, "source lib.tcl\nhelper dev\n");
-    let diags = lsp.open_ready(&lib_uri, CROSS_FILE_LIB);
+    lsp.open_document(&lib_uri, CROSS_FILE_LIB);
+    // The cross-file retraction lands on a *later* publish than the library's
+    // own first result: the project's call-site evidence is refreshed after
+    // publishing, not in front of it (putting it in front delayed the
+    // semantic-token enrichment tier on a large document). Wait for the
+    // converged state rather than the first publish.
+    let diags = lsp.await_diagnostics_settled(&lib_uri, Duration::from_secs(20), |d| {
+        !d.is_empty() && !has_code(d, "I230")
+    });
     assert!(
         !has_code(&diags, "I230"),
         "helper is called with \"dev\" from the sourcing file; must not fold: {:?}",
@@ -1982,7 +1990,10 @@ fn callback_from_a_sourced_file_clears_i230_in_the_sourcing_file() {
     let main_uri = unique_uri("tcl");
     lsp.open_ready(&lib_uri, "local dev\n");
     let src = "source lib.tcl\nproc local {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nlocal prod\nlocal prod\n";
-    let diags = lsp.open_ready(&main_uri, src);
+    lsp.open_document(&main_uri, src);
+    let diags = lsp.await_diagnostics_settled(&main_uri, Duration::from_secs(20), |d| {
+        !d.is_empty() && !has_code(d, "I230")
+    });
     assert!(
         !has_code(&diags, "I230"),
         "the sourced script calls ::local with \"dev\": {:?}",
