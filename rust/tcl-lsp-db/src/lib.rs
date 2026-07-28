@@ -348,12 +348,31 @@ pub fn file_call_site_evidence(
     let registry = db.registry(&dialect);
     let known: std::collections::HashSet<String> =
         project_proc_names(db, project).iter().cloned().collect();
-    Arc::new(tcl_compiler::unit_scope::scan_source_call_sites(
+    let scanned = tcl_compiler::unit_scope::scan_source_call_sites(
         file.text(db),
         &registry,
         &dialect,
         &known,
-    ))
+    );
+    // Drop the callees *this* file declares. A call to a name the file also
+    // defines binds to its own definition, so it is in-unit evidence (already
+    // collected during the build) — not evidence about a same-named proc in
+    // some other file.
+    //
+    // Without this, any two unrelated workspace files that happen to reuse a
+    // common helper name (`helper`, `init`, `run` — pervasive in Tcl) pool
+    // their call sites: differing arities make `binds_position` fail and
+    // differing literals contradict each other, so *both* files lose folds
+    // they are individually entitled to, and editing one changes diagnostics
+    // in the other. Excluding self-declared callees keeps the merge to what
+    // the query name promises — the call sites a file contributes to *other*
+    // files' procedures.
+    let declared = file_decls(db, file);
+    let external: Vec<&str> = scanned
+        .callees()
+        .filter(|qname| !declared.procs.contains(*qname))
+        .collect();
+    Arc::new(scanned.slice_for(external.into_iter()))
 }
 
 /// The project-wide merge of every file's [`file_call_site_evidence`].
@@ -2800,11 +2819,16 @@ mod tests {
             );
         }
 
-        /// The per-file slice is keyed on the file's own declarations, so a
-        /// file that declares nothing the project calls gets an empty slice —
-        /// which is still the meaningful "the project was enumerated" claim.
+        /// The per-file slice is keyed on the file's own declarations *and*
+        /// carries only calls from **other** files.
+        ///
+        /// `main` both declares and calls `::other`, so that call is in-unit
+        /// evidence for `main` and never reaches its external slice — leaving
+        /// it empty, which is still the meaningful "the project was
+        /// enumerated, nobody else calls in" claim. `lib`'s slice does carry
+        /// `::helper`, because `main` calls it without declaring it.
         #[test]
-        fn slice_is_narrowed_to_the_files_own_declarations() {
+        fn slice_carries_only_other_files_calls_to_this_files_procs() {
             let db = TclDatabase::default();
             let lib = SourceFile::new(&db, LIB.to_owned(), "tcl8.6".to_owned(), None);
             let main = SourceFile::new(
@@ -2817,7 +2841,58 @@ mod tests {
             let lib_slice = file_external_call_sites(&db, lib, project);
             assert_eq!(lib_slice.callees().collect::<Vec<_>>(), vec!["::helper"]);
             let main_slice = file_external_call_sites(&db, main, project);
-            assert_eq!(main_slice.callees().collect::<Vec<_>>(), vec!["::other"]);
+            assert!(
+                main_slice.is_empty(),
+                "main's call to its own `other` is in-unit evidence: {main_slice:?}"
+            );
+        }
+
+        /// A workspace pools every file into one project, so two *unrelated*
+        /// files reusing a common helper name (`helper`, `init`, `run` — endemic
+        /// in Tcl) must not pool their call sites.  Here the second file declares
+        /// its own zero-arity `::helper`; without the self-declared-callee
+        /// exclusion its call contributes `arg_counts {0}`, `binds_position(0)`
+        /// fails, and the first file loses a fold it is entitled to — and would
+        /// regain only when the unrelated file changed.
+        ///
+        /// Caught by the VS Code suite, where ~200 fixtures share one workspace
+        /// folder: this exact collision broke issue #969's TP control.
+        #[test]
+        fn an_unrelated_file_reusing_a_proc_name_does_not_poison_the_seed() {
+            use salsa::Setter as _;
+            let mut db = TclDatabase::default();
+            let ctl = SourceFile::new(
+                &db,
+                "proc helper {mode} {\n if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\n\
+             proc c1 {} { helper prod }\nproc c2 {} { helper prod }\n"
+                    .to_owned(),
+                "tcl8.6".to_owned(),
+                None,
+            );
+            let unrelated = SourceFile::new(
+                &db,
+                "proc helper {} {}\nproc caller {} { helper }\n".to_owned(),
+                "tcl8.6".to_owned(),
+                None,
+            );
+            let project = Project::new(&db, vec![ctl, unrelated]);
+            let evidence = file_external_call_sites(&db, ctl, project);
+            assert!(
+                evidence.get("::helper").is_none(),
+                "the unrelated file's own `helper` is in-unit evidence there, not \
+             evidence about this file's proc: {evidence:?}"
+            );
+            ctl.set_external_call_sites(&mut db).to(Some(evidence));
+            let cu = document_compilation_unit(&db, ctl);
+            assert!(
+                !cu.procedures
+                    .get("::helper")
+                    .expect("helper analysed")
+                    .sccp
+                    .constant_branches
+                    .is_empty(),
+                "every caller that can actually reach this proc passes \"prod\""
+            );
         }
 
         /// A body edit that moves no call-site literal must leave

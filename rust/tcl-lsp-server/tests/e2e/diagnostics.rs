@@ -1990,6 +1990,28 @@ fn callback_from_a_sourced_file_clears_i230_in_the_sourcing_file() {
     );
 }
 
+/// A workspace pools every file into one project, so an unrelated file that
+/// happens to reuse a common proc name must not drag its call sites into
+/// this one's evidence.  Regression for the VS Code suite, where ~200
+/// fixtures share a workspace folder and a second global `helper` (zero
+/// arity) silently killed issue #969's TP control.
+#[test]
+fn an_unrelated_file_reusing_a_proc_name_does_not_clear_i230() {
+    let mut lsp = Lsp::tcl();
+    let unrelated_uri = unique_uri("tcl");
+    let ctl_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &unrelated_uri,
+        "proc helper {} {}\nproc caller {} { helper }\n",
+    );
+    let diags = lsp.open_ready(&ctl_uri, CROSS_FILE_LIB);
+    assert!(
+        has_code(&diags, "I230"),
+        "the unrelated file's own `helper` binds to its own definition: {:?}",
+        codes(&diags)
+    );
+}
+
 // -- TestDiagnosticsTrackEdits -------------------------------------------
 
 #[test]
