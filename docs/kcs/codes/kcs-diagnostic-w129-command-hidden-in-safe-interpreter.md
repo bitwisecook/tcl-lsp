@@ -90,3 +90,11 @@ false one. See the
 [contributor-level note on the bracket-indirection fix](../kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md)
 for the full list of indirection shapes this check follows (and the ones it
 deliberately does not).
+
+The hidden set is exactly the list above. Tcl's control-transfer commands
+— `break`, `continue`, `yield`, `yieldto`, and `tailcall` — are **not**
+hidden by `interp create -safe` and must never draw this warning. Builds
+before the trait-flag fix did flag them, because the registry flag for
+"hidden in a safe interpreter" collided with the flag for "transfers
+control"; see
+[the note on that false positive](../kcs-issue-w129-false-positive-on-control-transfer-commands.md).

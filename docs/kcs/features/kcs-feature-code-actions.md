@@ -37,6 +37,15 @@ batch-applied. The extract-to-proc refactoring attaches a post-edit command
 new proc name — VS Code handles this automatically; other editors silently
 ignore the command and the user can rename manually.
 
+Inline proc declines a proc whose body is branchy, and any call whose head
+is **frame-sensitive** — a command that terminates a block, transfers
+control, creates a scope alias, or creates a barrier (`return`, `break`,
+`continue`, `tailcall`, `yield`, `uplevel`, `upvar`, `global`, `variable`,
+`source`, `exit`, …). Lifting one of those out of its proc frame changes
+what it returns from, breaks out of, or binds against. The set is registry
+trait data, not a hand-maintained list, so a newly declared command is
+gated automatically.
+
 ## File-path anchors
 
 - `server/features/code_actions.py`
@@ -44,6 +53,12 @@ ignore the command and the user can rename manually.
 ## Failure modes
 
 - Code action produces invalid code.
+- Inline proc is offered on, or withheld from, the wrong command because a
+  registry trait is mis-declared. A flag collision once made every
+  safe-interpreter-hidden command read as frame-sensitive, silently
+  withholding the action from `file`, `exec`, `open`, and seven others —
+  see
+  [the note on that false positive](../kcs-issue-w129-false-positive-on-control-transfer-commands.md).
 - Safe-fix classification incorrect (destructive fix marked as safe).
 
 ## Test anchors

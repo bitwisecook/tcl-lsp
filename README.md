@@ -325,7 +325,11 @@ nested call, `{*}` expansion, the `package ifneeded name ver [list apply
 {dir {...}} $dir]` deferred-command idiom, and a `namespace ensemble
 create`/`configure -map` redirect to a hidden target — so a hidden
 `source` reached only that way is flagged the same as a direct call, in
-both a one-shot lint and the live editor session.
+both a one-shot lint and the live editor session. The hidden set is the
+one Tcl itself hides — `source`, `load`, `file`, `exec`, `open`, `socket`,
+`cd`, `pwd`, `glob`, `exit`, `fconfigure`, `encoding`, and `unload`;
+control-transfer commands such as `break` and `yield` stay visible and are
+never flagged.
 
 ```tcl
 interp create -safe s
@@ -650,6 +654,15 @@ set x [expr {$x+1}]  ;# O114 → quick-fix: use incr idiom → incr x
 moves into a new `proc` with detected variable parameters; the original
 lines are replaced with a call. The editor places the cursor on the new
 proc name so you can rename it immediately.
+
+**Inline proc** — put the cursor on a call to a single-command proc,
+trigger code actions (`Ctrl+.`), and choose *Inline proc* to replace the
+call with the proc's body. Branchy bodies are declined, as is any call
+whose head is *frame-sensitive* — a command that terminates a block,
+transfers control, creates a scope alias, or creates a barrier (`return`,
+`break`, `continue`, `tailcall`, `yield`, `uplevel`, `upvar`, `global`,
+`variable`, `source`, `exit`, …) — because lifting one of those out of its
+proc frame changes what it returns from, breaks out of, or binds against.
 
 ### Snippets
 

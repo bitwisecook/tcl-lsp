@@ -59,6 +59,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   hidden command is reached only through a `[...]` bracket substitution —
   most importantly the `package ifneeded ... [list apply {...} $dir]`
   deferred-command idiom.
+- [kcs-issue-w129-false-positive-on-control-transfer-commands.md](kcs-issue-w129-false-positive-on-control-transfer-commands.md)
+  — W129 wrongly fires on `break`, `continue`, `yield`, `yieldto`, and
+  `tailcall` in a safe-interpreter body, and the *Inline proc* code action
+  is missing on `file`, `exec`, `open`, and seven other commands — two
+  symptoms of one trait-flag bit collision.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
