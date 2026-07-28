@@ -100,6 +100,25 @@ gate (`compiler/optimiser/_elimination.py::_method_pure`); SF-2 / FP-OPT-12.
 3. Walk up the namespace hierarchy to `::callee_name` (global).
 4. Return the first match, or `None` if the callee is external.
 
+Not every callee is named by a command *word*. Two registry-declared
+indirections also produce edges, so a procedure reachable only through them
+is not mistaken for dead code:
+
+- an **`ArgRole::CommandPrefix` callback** (`lsort -command cb`, `trace add
+  variable v write cb`) — the callee is the prefix's head, read by
+  `command_prefix_head`, which also destructures a prefix *built* by a
+  `Traits::BUILDS_COMMAND_PREFIX` command (`[list cb $x]`) rather than
+  misreading its head as `[list`;
+- a **`Traits::INVOKES_USER_PROC` head** (the iRules `call PROC ?args?`
+  form) — the callee is the first argument, not the invoker.
+
+`command_prefix_head` is shared with
+[`call_site_scan`](interprocedural-call-site-seeding.md), the other consumer
+that has to answer "which command does this callback prefix name". Fixing the
+two independently is exactly what let the `[list cb]` shape work in one and
+not the other (issue #978); one primitive means a new prefix-building shape
+lands in both at once.
+
 ## Decision rule
 
 - If a procedure call is not being folded by O103, check `can_fold_static_calls`

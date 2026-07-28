@@ -408,6 +408,44 @@ pub fn resolve_call_target<S: std::hash::BuildHasher>(
     resolve_internal_call(command, caller_qname, known)
 }
 
+/// The command a [`ArgRole::CommandPrefix`](tcl_registry::ArgRole::CommandPrefix)
+/// argument names, or `None` when this scan cannot tell.
+///
+/// A callback prefix is normally a literal list whose first element is the
+/// command (`lsort -command {compare -nocase}`, `trace add variable v write
+/// cb`). When it was *built* by a registry-declared prefix builder
+/// (`-command [list cb $x]`, [`tcl_registry::Traits::BUILDS_COMMAND_PREFIX`])
+/// the command is that builder's own first argument instead — a shape a plain
+/// "first whitespace-separated word" read gets wrong, yielding `[list`.
+/// Any other command substitution computed the prefix, and its head is
+/// genuinely unknown.
+///
+/// The one place that answers this question, shared by the two consumers that
+/// need it (issue #978): this module's own call-graph builder
+/// ([`scan_call_facts`], which records the callback as a reachability edge)
+/// and [`crate::call_site_scan`] (which records it as a call site whose
+/// arguments the runtime supplies). Fixing them independently is what let the
+/// `[list cb]` shape be handled in one and not the other; one primitive means
+/// a new prefix-building shape lands in both at once. Neither consumer names
+/// a command — the builder is recognised by its registry trait.
+#[must_use]
+pub fn command_prefix_head(
+    registry: &tcl_registry::CommandRegistry,
+    prefix: &str,
+) -> Option<String> {
+    if let Some((builder, built)) = crate::value_shapes::parse_command_substitution(prefix) {
+        let bare = builder.strip_prefix("::").unwrap_or(builder.as_str());
+        if registry.get(bare).is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+        }) {
+            return built.first().cloned();
+        }
+        return None;
+    }
+    prefix.split_whitespace().next().map(ToOwned::to_owned)
+}
+
 /// Return the namespace segments of a qualified proc name —
 /// everything except the trailing simple name. The split is the one canonical
 /// [`crate::naming::qualifier_segments_owned`] (colon runs are a single
@@ -1109,16 +1147,25 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         params,
         ..
     } = ctx;
-    // Resolve internal-proc call targets first. Special case
-    // for iRules' ``call <proc>`` indirection: when the
-    // command is literally ``call`` and the first arg is
-    // a plain identifier, treat it as a direct invocation
-    // of that proc.
-    let internal_target = if command == "call" && !args.is_empty() && is_plain_proc_name(&args[0]) {
-        resolve_internal_call(&args[0], caller, known)
-    } else {
-        resolve_internal_call(command, caller, known)
-    };
+    // Resolve internal-proc call targets first.  A command the registry marks
+    // `INVOKES_USER_PROC` (the iRules `call PROC ?args?` form) invokes the
+    // procedure its *first argument* names, so the edge goes there, not to the
+    // invoker.  Registry-driven rather than a `command == "call"` name match:
+    // the old spelling both misfired on a user proc of that name under a
+    // dialect where `call` is not the invoker, and would have missed any other
+    // dialect's equivalent.
+    let invokes_named_proc = registry
+        .get(command.strip_prefix("::").unwrap_or(command))
+        .is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::INVOKES_USER_PROC)
+        });
+    let internal_target =
+        if invokes_named_proc && let Some(name) = args.first().filter(|n| is_plain_proc_name(n)) {
+            resolve_internal_call(name, caller, known)
+        } else {
+            resolve_internal_call(command, caller, known)
+        };
 
     // Command-prefix callbacks (`lsort -command myCompare`, `trace add … cb`,
     // `interp alias {} a {} target`) are call edges too: the referenced proc is
@@ -1129,9 +1176,9 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     // extractor's bareword guard.
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
     for (idx, _appended) in registry.command_prefixes(command, &arg_strs) {
-        if let Some(word) = args.get(idx).and_then(|a| a.split_whitespace().next())
-            && is_plain_proc_name(word)
-            && let Some(target) = resolve_internal_call(word, caller, known)
+        if let Some(word) = args.get(idx).and_then(|a| command_prefix_head(registry, a))
+            && is_plain_proc_name(&word)
+            && let Some(target) = resolve_internal_call(&word, caller, known)
         {
             facts.direct_calls.insert(target);
         }
@@ -1155,9 +1202,11 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
                 {
                     // `idx` is relative to the words after the method name, so
                     // the callback word is `args[idx + 1]`.
-                    if let Some(word) = args.get(idx + 1).and_then(|a| a.split_whitespace().next())
-                        && is_plain_proc_name(word)
-                        && let Some(target) = resolve_internal_call(word, caller, known)
+                    if let Some(word) = args
+                        .get(idx + 1)
+                        .and_then(|a| command_prefix_head(registry, a))
+                        && is_plain_proc_name(&word)
+                        && let Some(target) = resolve_internal_call(&word, caller, known)
                     {
                         facts.direct_calls.insert(target);
                     }
@@ -2240,6 +2289,106 @@ mod tests {
 
     fn known_set(names: &[&str]) -> HashSet<String> {
         names.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    /// The call-graph edges recorded for `caller` in `src`, sorted.
+    fn calls_of(src: &str, caller: &str, dialect: &str) -> Vec<String> {
+        let registry = tcl_registry::registry_for_dialect(dialect);
+        let ir = crate::lowering::lower_to_ir(src, registry);
+        let ia =
+            build_interprocedural_analysis(&ir, registry, Some(dialect), ObjectTypeMap::none());
+        let mut calls: Vec<String> = ia
+            .procedures
+            .get(caller)
+            .map(|s| s.calls.clone())
+            .unwrap_or_default();
+        calls.sort();
+        calls
+    }
+
+    /// Issue #978: a procedure invoked only through a `CommandPrefix`-role
+    /// callback is a real caller. The bare-word prefix already produced an
+    /// edge; a prefix *built* by a registry-declared builder (`[list cb]`,
+    /// `Traits::BUILDS_COMMAND_PREFIX`) did not — the head read as `[list`
+    /// and failed the bareword guard, so a callback-only proc looked dead.
+    /// Both shapes now route through the one shared
+    /// [`command_prefix_head`] primitive.
+    #[test]
+    fn command_prefix_callbacks_are_call_graph_edges_in_every_shape() {
+        for prefix in ["cb", "{cb -nocase}", "[list cb]", "[list cb extra]"] {
+            let src = format!(
+                "proc cb {{a b}} {{ return 0 }}\nproc go {{}} {{ lsort -command {prefix} {{x y}} }}\n"
+            );
+            assert_eq!(
+                calls_of(&src, "::go", "tcl8.6"),
+                vec!["::cb".to_owned()],
+                "`-command {prefix}` must record a call edge to cb",
+            );
+        }
+    }
+
+    /// Issue #978, the reported shape: `trace add variable … command cb`.
+    #[test]
+    fn a_trace_callback_is_a_call_graph_edge() {
+        let src = "proc cb {args} { return 0 }\n\
+                   proc go {} { trace add variable v write [list cb] }\n";
+        assert_eq!(calls_of(src, "::go", "tcl8.6"), vec!["::cb".to_owned()]);
+    }
+
+    /// TN control: a prefix computed by some *other* substitution names no
+    /// command this scan can see, so it must record no callback edge rather
+    /// than guess one from the substitution's own head (`[pick` is not
+    /// `cb`).  What the scan does with the substitution *itself* is a
+    /// separate concern this test deliberately does not pin.
+    #[test]
+    fn a_computed_command_prefix_records_no_callback_edge() {
+        let src = "proc cb {a b} { return 0 }\n\
+                   proc pick {} { return cb }\n\
+                   proc go {} { lsort -command [pick] {x y} }\n";
+        assert!(
+            !calls_of(src, "::go", "tcl8.6").contains(&"::cb".to_owned()),
+            "the computed prefix's result is unknown, so cb is not a proven callee",
+        );
+    }
+
+    /// The user-proc invoker is registry data (`Traits::INVOKES_USER_PROC`),
+    /// not the command name `call`: under iRules the edge goes to the named
+    /// procedure, and under a dialect with no such command a user procedure
+    /// that happens to be *called* `call` is an ordinary callee.
+    #[test]
+    fn user_proc_invoker_is_registry_driven_not_name_matched() {
+        assert_eq!(
+            calls_of(
+                "proc helper {mode} { return $mode }\nwhen RULE_INIT { call helper dev }\n",
+                "::when::RULE_INIT",
+                "irules",
+            ),
+            vec!["::helper".to_owned()],
+        );
+        assert_eq!(
+            calls_of(
+                "proc call {mode} { return $mode }\nproc go {} { call helper }\n",
+                "::go",
+                "tcl8.6",
+            ),
+            vec!["::call".to_owned()],
+            "plain Tcl has no user-proc invoker, so `call` is just a procedure",
+        );
+    }
+
+    #[test]
+    fn command_prefix_head_reads_each_shape() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        assert_eq!(command_prefix_head(&registry, "cb").as_deref(), Some("cb"));
+        assert_eq!(
+            command_prefix_head(&registry, "cb -nocase").as_deref(),
+            Some("cb"),
+        );
+        assert_eq!(
+            command_prefix_head(&registry, "[list cb $x]").as_deref(),
+            Some("cb"),
+        );
+        assert_eq!(command_prefix_head(&registry, "[pick]"), None);
     }
 
     /// Regression coverage for issue #996: the interprocedural call-graph

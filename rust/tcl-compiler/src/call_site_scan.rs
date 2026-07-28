@@ -60,12 +60,21 @@
 //! script, which is a callback prefix, which command invokes a user proc
 //! named by its first word, and which words are variable writes are all
 //! registry facts ([`ArgRole`], [`Traits`]).
+//!
+//! The two questions this scan shares with the general call-graph builder —
+//! "which procedure does this bare name reach"
+//! ([`crate::interprocedural::resolve_internal_call`]) and "which command
+//! does this callback prefix name"
+//! ([`crate::interprocedural::command_prefix_head`]) — are answered by that
+//! module, not re-derived here, so the two consumers cannot drift on a shape
+//! one of them learns to handle (issue #978).
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
+use crate::interprocedural::command_prefix_head;
 use crate::ir::Statement;
 use crate::naming::is_dynamic_word;
 use crate::value_shapes::{
@@ -587,29 +596,6 @@ fn word_is_whole_substitution(word: &str) -> bool {
     is_pure_var_ref(word) || parse_command_substitution(word).is_some()
 }
 
-/// The head (first word) of a command-prefix argument.
-///
-/// A prefix is normally a literal list whose first element is the command
-/// (`lsort -command {compare -nocase}`).  When it was *built* by a
-/// registry-declared prefix builder (`-command [list cb $x]`,
-/// [`Traits::BUILDS_COMMAND_PREFIX`]) the head is that builder's own first
-/// argument instead — recognising the shape generically, with no command
-/// name in this consumer.
-fn command_prefix_head(registry: &CommandRegistry, prefix: &str) -> Option<String> {
-    if let Some((builder, built)) = parse_command_substitution(prefix) {
-        let bare = builder.strip_prefix("::").unwrap_or(builder.as_str());
-        if registry
-            .get(bare)
-            .is_some_and(|spec| spec.traits.contains(Traits::BUILDS_COMMAND_PREFIX))
-        {
-            return built.first().cloned();
-        }
-        // Some other command substitution computed the prefix.
-        return None;
-    }
-    prefix.split_whitespace().next().map(ToOwned::to_owned)
-}
-
 /// Record one call site's literal-argument evidence into `out`, then
 /// recurse into any [`ArgRole::Body`] argument of `command` (regardless of
 /// whether `command` itself is a user proc) — a nested script embedded in a
@@ -1007,6 +993,26 @@ mod tests {
             ev.enumerates_every_caller(),
             "the callback's target is known by name — only its arguments are not",
         );
+    }
+
+    /// Issue #978's reported shape: `trace add variable v write cb`. The
+    /// callback's position is registry data (`ArgRole::CommandPrefix` on the
+    /// `trace add variable` subcommand), and the runtime appends the trace's
+    /// own three arguments, so every parameter of the named proc is poisoned.
+    #[test]
+    fn a_trace_callback_registration_is_a_call_site() {
+        for prefix in ["cb", "[list cb]"] {
+            let src = format!(
+                "proc cb {{name1 name2 op}} {{ return }}\nproc go {{}} {{ trace add variable v write {prefix} }}\n"
+            );
+            let ev = evidence(&src);
+            assert_eq!(
+                slot(&ev, "::cb", 0),
+                (Vec::new(), true),
+                "`trace … write {prefix}` invokes cb with runtime-supplied arguments",
+            );
+            assert!(ev.enumerates_every_caller());
+        }
     }
 
     #[test]

@@ -477,12 +477,12 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
      still walked in place; the discriminator is
      `value_shapes::is_pure_var_ref` / `parse_command_substitution` ("the
      whole word is one substitution"), not "the word contains a `$`".
-  4. **`CommandPrefix` callbacks and user-proc invokers** (the residual
-     gaps FP-IPCP-01 documented) close for free on the same machinery:
-     a `-command cb` callback's target is invoked with arguments the
-     *runtime* appends, so every parameter of the named proc is poisoned
-     (and only that proc's — the poison is per-target); a `[list cb $x]`
-     prefix is destructured through `Traits::BUILDS_COMMAND_PREFIX`; and a
+  4. **`CommandPrefix` callbacks and user-proc invokers** (issue #978, the
+     residual gap FP-IPCP-01 documented) close on the same machinery: a
+     `-command cb` callback's target is invoked with arguments the *runtime*
+     appends, so every parameter of the named proc is poisoned (and only
+     that proc's — the poison is per-target); a `[list cb $x]` prefix is
+     destructured through `Traits::BUILDS_COMMAND_PREFIX`; and a
      `Traits::INVOKES_USER_PROC` head (the iRules `call PROC …` form)
      records the tail as the callee's real arguments.
   Also centralised while here: `value_shapes::whole_word_scalar_var_name`,
@@ -512,6 +512,48 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   its current full 64 bits, so it is recorded rather than rushed).
   `namespace unknown` / `package unknown` handlers are already covered:
   the registry declares their handler argument `ArgRole::CommandPrefix`.
+
+- [x] **FP-IPCP-03** A procedure invoked only through a `CommandPrefix`
+  callback is invisible to interprocedural analysis — CLOSED (issue #978).
+  Filed as a sibling of #976 on the reading that
+  `interprocedural::scan_source_for_calls` "also only recurses into
+  `ArgRole::Body`, never `ArgRole::CommandPrefix`". Measured rather than
+  assumed, that turned out to be only partly true, and the two halves needed
+  different work:
+  1. **The call-site *seed* half had the whole gap** and is closed by
+     FP-IPCP-02's machinery — see its point 4.
+  2. **The call-*graph* half already recorded a bare `-command cb` edge**
+     (`scan_call_facts` has consulted `CommandRegistry::command_prefixes`
+     since PR #915), so a callback-only proc was already not dead code. What
+     it missed was the *built* prefix: `-command [list cb $x]` read its head
+     as `[list`, failed the bareword guard, and recorded nothing. Confirmed
+     with a probe before fixing (`bare → ["::cb"]`, `built → []`).
+  The fix answers the issue's own "share one primitive or fix each
+  independently" question in favour of sharing: `interprocedural::
+  command_prefix_head` is now the one place that reads a callback prefix's
+  head — bareword, braced list, or built by a
+  `Traits::BUILDS_COMMAND_PREFIX` command — consumed by both the call-graph
+  builder and `call_site_scan`. Fixing them independently is precisely what
+  let one shape work in one consumer and not the other; one primitive means
+  the next prefix-building shape lands in both at once.
+  Also removed while here: `scan_call_facts`'s `command == "call"` literal,
+  the last command name hardcoded into that scan. It is now
+  `Traits::INVOKES_USER_PROC`, which both fixes a misfire (a user proc
+  *named* `call` under a dialect with no such invoker was read as an
+  indirection) and generalises to any dialect's equivalent.
+  Tests: `interprocedural.rs` gains five cases (every prefix shape, the
+  reported `trace add variable … write` shape, a computed-prefix TN control,
+  the registry-driven invoker in both directions, and the primitive's own
+  shape table); `call_site_scan.rs` gains the `trace` registration in both
+  bareword and built spellings.
+  **Adjacent hole found while measuring, NOT fixed here** (different
+  mechanism, deserves its own investigation): a `[cmd …]` substitution in a
+  *plain statement's* argument records no call-graph edge at all —
+  `puts [pick]` and `lsort -command [pick] …` both yield none, while the
+  same substitution in an assignment value (`set x [pick]`) or a `return`
+  value does. `scan_value_substitutions` is reached only from
+  value/return/expr scanning; the `Statement::Call` arm does not propagate
+  into its arguments.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 

@@ -22,6 +22,7 @@ failure, reached through a different kind of caller.
 | Interning the seed into the memo key | `compilation_unit.rs::encode_param_constants` |
 | Which argument is a script / callback / variable name | `tcl-registry` (`ArgRole`, `Traits`) |
 | Namespace-relative command resolution | `interprocedural::resolve_internal_call` |
+| Which command a callback prefix names | `interprocedural::command_prefix_head` |
 | `rename` / `interp alias` trust | `command_binding::ModuleCommandMutations` |
 
 No command name appears in the scan. Script bodies come from
@@ -30,6 +31,12 @@ No command name appears in the scan. Script bodies come from
 `[list cb $x]` shape), user-proc invokers from `Traits::INVOKES_USER_PROC`,
 and variable writes from `ArgRole::VarWrite` plus
 `Traits::CREATES_SCOPE_ALIAS`.
+
+The two questions this scan shares with the general call-graph builder —
+"which procedure does this bare name reach" and "which command does this
+callback prefix name" — are answered by `interprocedural`, not re-derived
+here, so the two consumers cannot drift on a shape one of them learns to
+handle (issue #978).
 
 ## The three kinds of caller
 
