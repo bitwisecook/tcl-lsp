@@ -54,6 +54,66 @@ use tcl_lexer::Token;
 use super::state::Analyser;
 use super::types::AnalysisResult;
 
+/// Why [`Analyser::analyse_per_item_with`] abandoned the incremental path and
+/// paid for a full whole-file walk.
+///
+/// Every fallback costs a complete re-analysis of the document on **every
+/// keystroke** — the per-body memoisation above it is dead weight for a file
+/// that trips one of these. Knowing the rate is a perf question; knowing the
+/// *distribution* is what says which gate is worth engineering away, so the
+/// variants are ordered by where they fire in the pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PerItemFallback {
+    /// Source is not a complete script (unbalanced braces / quotes) — mid-edit
+    /// state, so this one is expected to fire transiently while typing.
+    IncompleteScript,
+    /// An inline `tcl-lsp: stub` directive; stub overlays are modelled only on
+    /// the full path.
+    StubDirective,
+    /// Tk checks are live, and their whole-file state (created widgets,
+    /// per-parent geometry) is not visible to an isolated body.
+    TkActive,
+    /// Ghost-token error recovery engaged.
+    GhostRecovery,
+    /// A partial (unterminated) command survived segmentation.
+    PartialCommand,
+    /// An `E…` diagnostic was emitted — `analyse` would have run recovery
+    /// machinery the per-item walk only partially reproduces.
+    ErrorDiagnostic,
+    /// The same method qualified name is defined more than once.
+    DuplicateMethod,
+    /// A body declares a link to a qualified sub-namespace variable, or
+    /// `namespace import`/`export`s from inside a body
+    /// ([`body_needs_enclosing_context`]).
+    EnclosingContext,
+    /// A body defines a proc whose name is already defined elsewhere.
+    DuplicateProcInBody,
+    /// A body defines/extends a class whose facts collide with existing ones.
+    ClassFactsCollide,
+    /// A method body's object-instance tracking could not be replayed.
+    MethodInstanceReplay,
+}
+
+impl PerItemFallback {
+    /// Stable short name for histograms / logs.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::IncompleteScript => "incomplete-script",
+            Self::StubDirective => "stub-directive",
+            Self::TkActive => "tk-active",
+            Self::GhostRecovery => "ghost-recovery",
+            Self::PartialCommand => "partial-command",
+            Self::ErrorDiagnostic => "error-diagnostic",
+            Self::DuplicateMethod => "duplicate-method",
+            Self::EnclosingContext => "enclosing-context",
+            Self::DuplicateProcInBody => "duplicate-proc-in-body",
+            Self::ClassFactsCollide => "class-facts-collide",
+            Self::MethodInstanceReplay => "method-instance-replay",
+        }
+    }
+}
+
 /// A proc / method body deferred by the shell pass for a second analysis pass.
 /// Its scope already exists at `scope_path` (params + instance vars defined);
 /// the body pass fills it via an **isolated** analysis (memoisable) and grafts
@@ -148,6 +208,7 @@ impl Analyser {
         body_fn: &mut dyn FnMut(&DeferredBody) -> BodyFragment,
     ) -> AnalysisResult {
         self.took_fast_path = false;
+        self.per_item_fallback = None;
         // Recovery / stub overlays are only modelled on the full `analyse`
         // path; fall back so the per-item result can never diverge.  Tk's
         // TK100x checks accumulate whole-file state (created widgets, per-parent
@@ -155,10 +216,23 @@ impl Analyser {
         // also falls back to full analysis rather than diverge (a parent
         // created outside a proc would otherwise look missing inside it, and a
         // `pack`/`grid` conflict spanning a proc body would never flush).
-        if !tcl_lexer::script_is_complete(source)
-            || source.contains("tcl-lsp: stub")
-            || super::tk_checks::tk_possibly_active(source, dialect)
-        {
+        //
+        // Evaluated one gate at a time (rather than as one `||` chain) so the
+        // telemetry can name which fired — these are checked in cheapest-first
+        // order, so the split costs nothing.
+        let entry_gate = if tcl_lexer::script_is_complete(source) {
+            if source.contains("tcl-lsp: stub") {
+                Some(PerItemFallback::StubDirective)
+            } else if super::tk_checks::tk_possibly_active(source, dialect) {
+                Some(PerItemFallback::TkActive)
+            } else {
+                None
+            }
+        } else {
+            Some(PerItemFallback::IncompleteScript)
+        };
+        if let Some(reason) = entry_gate {
+            self.per_item_fallback = Some(reason);
             return self.analyse(source, dialect);
         }
 
@@ -170,6 +244,11 @@ impl Analyser {
         // partial-command handling is not reproduced on the per-item path).
         let ghost = self.apply_ghost_recovery(source, &mut commands);
         if ghost || commands.iter().any(|c| c.is_partial) {
+            self.per_item_fallback = Some(if ghost {
+                PerItemFallback::GhostRecovery
+            } else {
+                PerItemFallback::PartialCommand
+            });
             return self.fresh_full_analyse(source, dialect);
         }
 
@@ -204,6 +283,7 @@ impl Analyser {
         // from-scratch `analyse`.  Well-formed edits (the common case) carry no
         // E-codes and stay on the fast path.
         if self.result.diagnostics.iter().any(|d| d.code.is_error()) {
+            self.per_item_fallback = Some(PerItemFallback::ErrorDiagnostic);
             return self.fresh_full_analyse(source, dialect);
         }
 
@@ -316,6 +396,11 @@ impl Analyser {
                 .iter()
                 .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text));
         if duplicate_method || enclosing_fallback {
+            self.per_item_fallback = Some(if duplicate_method {
+                PerItemFallback::DuplicateMethod
+            } else {
+                PerItemFallback::EnclosingContext
+            });
             return Err(Box::new(self.fresh_full_analyse(source, dialect)));
         }
         // **Proc duplicates take the fast path.**  A whole-file walk's
@@ -349,6 +434,7 @@ impl Analyser {
                 .keys()
                 .any(|name| !defined_procs.insert(name.clone()))
             {
+                self.per_item_fallback = Some(PerItemFallback::DuplicateProcInBody);
                 return Err(Box::new(self.fresh_full_analyse(source, dialect)));
             }
             // A body that defines/extends a class whose `all_classes` entry
@@ -357,6 +443,7 @@ impl Analyser {
             // *accumulates* there (`oo::define` adds methods to the existing
             // class).  A fresh (non-colliding) class definition stays fast.
             if class_facts_collide(&self.result, &frag.result) {
+                self.per_item_fallback = Some(PerItemFallback::ClassFactsCollide);
                 return Err(Box::new(self.fresh_full_analyse(source, dialect)));
             }
             // Object-instance tracking (W308) resolves the class at the walk
@@ -374,6 +461,7 @@ impl Analyser {
             if let Some(before) = inst_snapshot
                 && self.result.instance_classes != before
             {
+                self.per_item_fallback = Some(PerItemFallback::MethodInstanceReplay);
                 return Err(Box::new(self.fresh_full_analyse(source, dialect)));
             }
         }

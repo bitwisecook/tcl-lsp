@@ -215,13 +215,9 @@ fn main() {
     rerun_breadth(&src, dialect, edit_pos, cu.functions().count());
 }
 
-/// Count salsa `WillExecute` events per query across one single-procedure body
-/// edit.  Proves the per-proc memo rebuilds ONE procedure (`function_lattice` /
-/// `item_body_analysis` / `taint_cascade`) while `compiler_check_diagnostics`
-/// re-executes wholesale — so `run_all_checks`, which runs inside it and is not
-/// itself a salsa query, re-checks every function every edit.
-fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usize) {
-    println!("\n== salsa re-execution breadth (one body edit, warm db) ==");
+/// Count salsa `WillExecute` events per query for one edit, against a db already
+/// warm on `src`.  Returns `(cold, warm)` event logs.
+fn breadth_for_edit(src: &str, dialect: &str, edited: &str) -> (Vec<String>, Vec<String>) {
     let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&log);
     let mut db = TclDatabase::with_event_logger(move |k| sink.lock().unwrap().push(k));
@@ -237,6 +233,26 @@ fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usi
     let _ = file_analysis_incremental(&db, file, cfg);
     let _ = compiler_check_diagnostics(&db, file, cfg);
     let cold: Vec<String> = std::mem::take(&mut *log.lock().unwrap());
+    file.set_text(&mut db).to(edited.to_owned());
+    let _ = file_analysis_incremental(&db, file, cfg);
+    let _ = compiler_check_diagnostics(&db, file, cfg);
+    let warm: Vec<String> = std::mem::take(&mut *log.lock().unwrap());
+    (cold, warm)
+}
+
+/// Count salsa `WillExecute` events per query across several *kinds* of
+/// single-character edit, on a warm db.
+///
+/// The interesting comparison is between an edit that changes a body's content
+/// and one that changes only where every body *sits*.  The per-proc memo keys
+/// (`ProcBodyKey` / `FnLatticeKey` / `ItemBodyKey`) are offset-normalised — they
+/// hold the body's text and context but not its position — so a pure shift
+/// should re-intern to the same keys and hit every memo, while a content edit
+/// should rebuild exactly one procedure.  Anything that re-executes on the shift
+/// row is work the offset-invariance was supposed to have removed, i.e. rework
+/// caused by a position that failed to be inherited rather than stored.
+fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usize) {
+    println!("\n== salsa re-execution breadth (one edit, warm db) ==");
     // A single-character body edit that changes a *token* (a letter inserted after
     // the first alphanumeric character of the largest proc body) — not whitespace,
     // which the offset-invariant key normalises away.  Exactly one procedure's body
@@ -255,25 +271,45 @@ fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usi
                 .map(|off| lo + off + 1)
         })
         .unwrap_or(fallback_pos);
-    let mut edited_tok = src.to_owned();
-    edited_tok.insert(body_pos, 'Z');
-    file.set_text(&mut db).to(edited_tok);
-    let _ = file_analysis_incremental(&db, file, cfg);
-    let _ = compiler_check_diagnostics(&db, file, cfg);
-    let warm: Vec<String> = std::mem::take(&mut *log.lock().unwrap());
+
+    let mut body_edit = src.to_owned();
+    body_edit.insert(body_pos, 'Z');
+    // Pure shift: a fresh comment line at the very top. Not one byte of any
+    // procedure's text changes — every body just moves down by 8 bytes.
+    let shift_edit = format!("# shift\n{src}");
+
+    let scenarios = [
+        ("body token edit", body_edit),
+        ("prepend line (pure shift)", shift_edit),
+    ];
+    let mut cold_once: Option<Vec<String>> = None;
+    let mut warms: Vec<(&str, Vec<String>)> = Vec::new();
+    for (label, edited) in &scenarios {
+        let (cold, warm) = breadth_for_edit(src, dialect, edited);
+        cold_once.get_or_insert(cold);
+        warms.push((label, warm));
+    }
+    let cold = cold_once.unwrap_or_default();
+
+    println!(
+        "  {:<34} {:>6}  {:>16}  {:>16}",
+        "query", "cold", scenarios[0].0, scenarios[1].0
+    );
     let row = |q: &str| {
         let c = cold.iter().filter(|s| s.contains(q)).count();
-        let w = warm.iter().filter(|s| s.contains(q)).count();
-        println!("  {q:<34} cold {c:>5}   1-edit {w:>5}");
+        let a = warms[0].1.iter().filter(|s| s.contains(q)).count();
+        let b = warms[1].1.iter().filter(|s| s.contains(q)).count();
+        println!("  {q:<34} {c:>6}  {a:>16}  {b:>16}");
     };
-    println!("  per-proc memoised (rebuild only the edited procedure):");
+    println!("  per-proc memoised (should rebuild only the edited procedure):");
     row("item_body_analysis");
     row("function_lattice");
     row("taint_cascade");
     println!("  whole-file (re-run in full regardless of which procedure changed):");
     row("compilation_unit");
     row("compiler_check_diagnostics");
-    let cc = warm
+    let cc = warms[0]
+        .1
         .iter()
         .filter(|s| s.contains("compiler_check_diagnostics"))
         .count();

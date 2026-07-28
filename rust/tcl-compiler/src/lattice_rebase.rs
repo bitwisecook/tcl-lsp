@@ -357,4 +357,43 @@ mod tests {
             assert_eq!(a.end(), b.end() + 100);
         }
     }
+
+    /// The load-bearing invariant behind the per-procedure lattice memo: a
+    /// procedure's body, normalised to offset 0, must be **byte-identical**
+    /// whether the procedure sits at offset X or at X+delta.
+    ///
+    /// `compilation_unit::build_for_memoized` normalises with exactly this call
+    /// before interning `FnLatticeKey`, so if this does not hold then inserting
+    /// a line anywhere above a procedure re-keys it and rebuilds its lattice,
+    /// its checks, and its taint cascade — the whole point of the memo is that
+    /// a *shift* is free and only a *content* change costs.
+    #[test]
+    fn offset_zero_body_is_identical_under_a_pure_shift() {
+        let reg = CommandRegistry::build_default();
+        let src = "proc a {x} {\n    set y $x\n    if {$y > 1} { puts hi } else { puts lo }\n    \
+                   foreach i {1 2 3} { incr y $i }\n    return $y\n}\n\
+                   proc b {} {\n    set z [expr {1 + 2}]\n    return $z\n}\n";
+        let shifted = format!("# a comment line that shifts everything below it\n{src}");
+        let base = CompilationUnit::build_for(src, &reg, false);
+        let moved = CompilationUnit::build_for(&shifted, &reg, false);
+
+        let at_zero = |cu: &CompilationUnit, qname: &str| {
+            let p = cu
+                .ir_module
+                .procedures
+                .get(qname)
+                .unwrap_or_else(|| panic!("{qname} lowered"));
+            let mut body = p.body.clone();
+            rebase_script(&mut body, -i64::from(p.span.start()));
+            body
+        };
+        for qname in ["::a", "::b"] {
+            assert_eq!(
+                at_zero(&base, qname),
+                at_zero(&moved, qname),
+                "offset-0 body for {qname} changed under a pure shift — every \
+                 procedure below an edit will miss its lattice memo",
+            );
+        }
+    }
 }

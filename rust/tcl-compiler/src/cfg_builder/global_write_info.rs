@@ -100,7 +100,19 @@ pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWrite
     let registry = tcl_registry::cache::default_registry();
     let mut own: HashMap<String, GlobalWriteInfo> = HashMap::new();
     let mut direct_calls: HashMap<String, BTreeSet<String>> = HashMap::new();
-    for (qname, proc) in &module.procedures {
+    // Iterate procedures in a deterministic (qualified-name) order, for the same
+    // reason [`super::prepare_cfg_context`] does it for `proc_params`: every proc
+    // registers its *short* name as well as its qualified one, so procedures
+    // sharing a short name (`::a::run` and `::b::run`) both write the `run` key
+    // and the last writer wins.  Off a `HashMap`, "last" is the random per-process
+    // hash seed — and this map is part of the `CfgContext` folded into *every*
+    // procedure's `function_lattice` memo key, so a nondeterministic winner makes
+    // the whole file's per-procedure cache hit or miss by luck of the process
+    // start (issue #1035 follow-up: measured flipping a one-keystroke edit between
+    // rebuilding 1 procedure and rebuilding all 40, run to run, on the same file).
+    let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
+    for (qname, proc) in entries {
         let info = own_body_global_writes(&proc.body, registry);
         let calls = direct_call_targets(&proc.body);
         for key in registered_keys(qname) {
@@ -112,17 +124,26 @@ pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWrite
     // Transitive closure: monotonic union over direct-callee summaries.
     // Bounded by the number of registered names, so an adversarial call
     // graph still terminates.
+    //
+    // Walk the callers in sorted order too: the union itself is order-independent,
+    // but the `guard` bound can cut the fixpoint short on an adversarial graph, and
+    // a truncated result must at least be the *same* truncated result every run.
+    let mut callers: Vec<String> = direct_calls.keys().cloned().collect();
+    callers.sort();
     let mut changed = true;
     let mut guard = 0usize;
     while changed && guard <= own.len() {
         changed = false;
         guard += 1;
         let snapshot = own.clone();
-        for (caller, callees) in &direct_calls {
+        for caller in &callers {
+            let Some(callee_names) = direct_calls.get(caller) else {
+                continue;
+            };
             let Some(target_summary) = own.get_mut(caller) else {
                 continue;
             };
-            for callee in callees {
+            for callee in callee_names {
                 let Some(source_summary) = snapshot.get(callee) else {
                     continue;
                 };
@@ -342,6 +363,37 @@ mod tests {
     fn empty_module_has_no_writes() {
         let m = module("");
         assert!(detect_global_write_procs(&m).is_empty());
+    }
+
+    /// Procedures sharing a *short* name both write the short key, so the
+    /// tie-break must be a property of the source, not of `HashMap` iteration
+    /// order — this map is folded into the `CfgContext` that keys **every**
+    /// procedure's `function_lattice` memo, so a seed-dependent winner makes the
+    /// whole file's per-procedure cache hit or miss by luck of the process start.
+    ///
+    /// Measured before the fix, on a 540-line file with six `run` procedures: the
+    /// same one-character edit rebuilt 1 procedure on some runs and all 40 on
+    /// others, and the cold build swung between 39 and 78 lattices.
+    ///
+    /// Asserting *which* definition wins (last in qualified-name order) is what
+    /// makes this a real guard — a same-process "run it twice" check would pass
+    /// even with the bug, since the order only varies between processes.
+    #[test]
+    fn short_name_collision_resolves_in_qualified_name_order() {
+        let m = module(
+            "proc ::b::run {} { global bbb; set bbb 1 }\n\
+             proc ::a::run {} { global aaa; set aaa 1 }\n",
+        );
+        let info = detect_global_write_procs(&m);
+        // Sorted qualified order is ::a::run then ::b::run, so ::b::run writes last.
+        assert_eq!(
+            info.get("run").expect("short key registered").names,
+            info.get("::b::run").expect("::b::run registered").names,
+            "the short `run` key must resolve to the last definition in \
+             qualified-name order, independent of hash-map iteration order",
+        );
+        assert!(info["run"].names.contains("bbb"));
+        assert!(!info["run"].names.contains("aaa"));
     }
 
     #[test]
