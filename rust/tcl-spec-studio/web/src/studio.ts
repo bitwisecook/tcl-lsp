@@ -153,10 +153,13 @@ function buildField(
       return;
     }
     ctl.appendChild(
-      editor(field.kind, draft[field.key] ?? null, (next: Json) => {
+      editor(field.kind, draft[field.key] ?? null, (next: Json, structural = true) => {
         draft[field.key] = next;
         markSet();
-        if (STRUCTURAL_KINDS.has(field.kind.tag)) rebuild();
+        // A composite editor reports a plain text edit inside a row as
+        // non-structural; rebuilding there would tear down the input the user
+        // is typing into.
+        if (structural && STRUCTURAL_KINDS.has(field.kind.tag)) rebuild();
         onChange();
       }),
     );
@@ -245,34 +248,66 @@ function loadDraft(draft: Draft, origin: string): void {
   state.draft = draft;
   byId("editorSource").textContent = origin;
 
-  const lost = Array.isArray(draft.__unrenderable) ? draft.__unrenderable : [];
-  const warn = byId("unrenderable");
-  if (lost.length) {
-    warn.hidden = false;
-    clear(warn);
-    warn.appendChild(
-      el("b", {
-        text: `This command sets ${lost.length} field${lost.length === 1 ? "" : "s"} the studio cannot read back.`,
-      }),
-    );
-    warn.appendChild(
-      document.createTextNode(
-        " Rust can tell the field is set but not recover the expression that set it — a function pointer or a reference to a static descriptor. Each is listed below and in the rendered file as a TODO; fill it in where it appears in the form (most sit under Advanced) to emit it.",
-      ),
-    );
-    const ul = el("ul", {});
-    for (const key of lost)
-      ul.appendChild(el("li", {}, [el("code", { text: lostLabel(draft, key) })]));
-    warn.appendChild(ul);
-  } else {
-    warn.hidden = true;
-  }
+  renderUnrenderableWarning(draft);
 
   const form = byId("form");
   clear(form);
   buildForm(form, state.schema.command, draft, "command", onDraftChanged);
   renderList();
   onDraftChanged();
+}
+
+/// Render the "cannot read back" panel for `draft`.
+///
+/// Recomputed on every draft change, not just on load: the option-arity hook
+/// entry names the options still missing a hook, so supplying one has to clear
+/// it. Field entries are static, but running them through the same path keeps
+/// one code path rather than two.
+function renderUnrenderableWarning(draft: Record<string, Json>): void {
+  const lost = Array.isArray(draft.__unrenderable) ? draft.__unrenderable : [];
+  const pending = lost.filter((key) => !isLostResolved(draft, key));
+  const warn = byId("unrenderable");
+  if (!pending.length) {
+    warn.hidden = true;
+    return;
+  }
+  warn.hidden = false;
+  clear(warn);
+  warn.appendChild(
+    el("b", {
+      text: `This command sets ${pending.length} field${pending.length === 1 ? "" : "s"} the studio cannot read back.`,
+    }),
+  );
+  warn.appendChild(
+    document.createTextNode(
+      " Rust can tell the field is set but not recover the expression that set it — a function pointer or a reference to a static descriptor. Each is listed below and in the rendered file as a TODO; fill it in where it appears in the form (most sit under Advanced) to emit it.",
+    ),
+  );
+  const ul = el("ul", {});
+  for (const key of pending)
+    ul.appendChild(el("li", {}, [el("code", { text: lostLabel(draft, key) })]));
+  warn.appendChild(ul);
+}
+
+/// Whether the author has since supplied what `key` was missing.
+///
+/// Mirrors the renderer's own test, so the panel and the emitted `TODO` agree.
+function isLostResolved(draft: Record<string, Json>, key: unknown): boolean {
+  if (String(key) === "options.arity_hook") return unfilledHooks(draft).length === 0;
+  const value = draft[String(key)];
+  return typeof value === "string" && value.trim() !== "";
+}
+
+/// Option names whose arity is a hook with no expression supplied yet.
+function unfilledHooks(draft: Record<string, Json>): string[] {
+  const opts = Array.isArray(draft.options) ? draft.options : [];
+  return opts
+    .filter((o) => {
+      const arity = asRecord(asRecord(asRecord(o).value).arity);
+      return asString(arity.kind) === "Hook" && !asString(arity.hook).trim();
+    })
+    .map((o) => asString(asRecord(o).name))
+    .filter(Boolean);
 }
 
 /// Display text for one `__unrenderable` entry.
@@ -283,14 +318,7 @@ function loadDraft(draft: Draft, origin: string): void {
 function lostLabel(draft: Record<string, Json>, key: unknown): string {
   const name = String(key);
   if (name !== "options.arity_hook") return name;
-  const opts = Array.isArray(draft.options) ? draft.options : [];
-  const pending = opts
-    .filter((o) => {
-      const arity = asRecord(asRecord(asRecord(o).value).arity);
-      return asString(arity.kind) === "Hook" && !asString(arity.hook).trim();
-    })
-    .map((o) => asString(asRecord(o).name))
-    .filter(Boolean);
+  const pending = unfilledHooks(draft);
   return pending.length ? `options → ${pending.join(", ")} (arity hook)` : name;
 }
 
@@ -353,6 +381,7 @@ function onDraftChanged(): void {
 
 function renderOutputs(): void {
   if (!state.draft) return;
+  renderUnrenderableWarning(state.draft);
   try {
     const pack = byId<HTMLInputElement>("rsPack").value || "tcl";
     const rs = JSON.parse(wasm.render_rs(JSON.stringify(state.draft), pack)) as Rendered;
