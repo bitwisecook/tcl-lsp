@@ -82,6 +82,18 @@ Those fields use `FieldKind::RustExpr`: the value is a string emitted
 verbatim, so it carries its own `Some(…)` and type path. The schema's `hint`
 shows the exact expression shape expected.
 
+One unrecoverable expression is not a top-level field. `OptionArity::Hook`
+holds a function pointer inside an *option row*, so it gets a `hook fn` text
+box in that row rather than an entry under Advanced, and its
+`__unrenderable` key is `draft::OPTION_HOOK_KEY` (`options.arity_hook`)
+instead of a field name. Both the form's warning list and the renderer's
+`TODO` resolve that key against the `options` array, so they name the exact
+options still missing a hook — `return`'s `-errorstack` is the registry's
+live example — and both clear once every hook holds an expression. Before
+this, the whole `options` field was reported unreadable even though only one
+option's arity was, and the note could never clear because the filled-in
+check only understood string-valued fields.
+
 ## Renderer contract
 
 `render_rs::render` produces a complete `tcl-registry/src/commands/<pack>/`

@@ -85,7 +85,21 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
             // operator with its own tighter gate (a 9.0-only op → `TCL90_PLUS`)
             // keeps it.
             dialects: spec.dialects.or(Some(DialectSet::TCL85_PLUS)),
-            traits: Traits::OPERATOR_COMMAND,
+            // Every operator command is a pure value computation: it reads
+            // its operands and returns a result, touching no variable,
+            // channel, or interpreter state. That holds for all 27 —
+            // arithmetic, bitwise, numeric and string comparison, list
+            // membership (`in`/`ni`), and `!`. A bad operand (divide by zero,
+            // non-numeric) raises an error, which the registry models as
+            // control flow rather than as a side effect.
+            //
+            // The namespace spec (`mathop.rs`) already carried `PURE`; the
+            // commands generated under it did not, so `classify_side_effects`
+            // treated `[+ $a $b]` as impure and the GVN pass would not hoist
+            // or CSE it. Deliberately *not* `CSE_CANDIDATE` — that trait asks
+            // for a redundancy *diagnostic*, which is a policy call about
+            // user-visible noise rather than a fact about the command.
+            traits: Traits::OPERATOR_COMMAND.union(Traits::PURE),
             arity,
             hover: Some(HoverSnippet {
                 summary: spec.summary,

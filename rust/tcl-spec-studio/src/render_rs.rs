@@ -335,6 +335,27 @@ fn integer_domain_expr(value: &Value) -> Option<String> {
     }
 }
 
+/// The Rust expression supplied for a `Hook` arity, if the author filled it in.
+fn hook_expr(arity: &Value) -> Option<&str> {
+    arity
+        .get("hook")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|h| !h.is_empty())
+}
+
+/// Every option row still missing its arity hook, by option name.
+fn unfilled_option_hooks(draft: &Value) -> Vec<&str> {
+    as_array(draft.get("options").unwrap_or(&Value::Null))
+        .iter()
+        .filter(|opt| {
+            let arity = &opt["value"]["arity"];
+            as_str(&arity["kind"]) == "Hook" && hook_expr(arity).is_none()
+        })
+        .map(|opt| as_str(&opt["name"]))
+        .collect()
+}
+
 fn option_expr(entry: &Value, indent: &str) -> String {
     let inner = format!("{indent}    ");
     let mut parts = vec![format!(
@@ -349,7 +370,10 @@ fn option_expr(entry: &Value, indent: &str) -> String {
         let arity = &value["arity"];
         let arity_expr = match as_str(&arity["kind"]) {
             "Fixed" => Some(format!("OptionArity::Fixed({})", as_u64(&arity["n"]))),
-            "Hook" => None,
+            // The hook is a function pointer, so seeding cannot recover it —
+            // but the author can type it, and then it renders like any other
+            // arity. Empty still falls through to the TODO below.
+            "Hook" => hook_expr(arity).map(|h| format!("OptionArity::Hook({h})")),
             _ => Some("OptionArity::One".to_owned()),
         };
         match arity_expr {
@@ -651,6 +675,24 @@ fn unrenderable_notes(draft: &Value, indent: &str) -> Vec<String> {
         .iter()
         .filter_map(|key| {
             let key = key.as_str()?;
+            // Option-arity hooks live in an option row, not a top-level field,
+            // so they resolve against `options` and name the exact options
+            // still outstanding. Filling every one clears the note.
+            if key == crate::draft::OPTION_HOOK_KEY {
+                let pending = unfilled_option_hooks(draft);
+                if pending.is_empty() {
+                    return None;
+                }
+                return Some(format!(
+                    "{indent}// TODO: {} consumes a computed number of words \
+                     (OptionArity::Hook); supply the hook under that option.",
+                    pending
+                        .iter()
+                        .map(|n| format!("`{n}`"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ));
+            }
             // Only note a field the author has not since filled in.
             let filled = draft
                 .get(key)
@@ -848,6 +890,62 @@ pub fn suggested_path(name: &str, pack: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `return`'s `-errorstack` is the registry's real `OptionArity::Hook`.
+    ///
+    /// Seeding cannot recover `errorstack_value` from a function pointer, so
+    /// the arity seeds with an empty `hook` slot, the note names that one
+    /// option rather than the whole `options` field, and supplying the
+    /// expression both renders it and clears the note.
+    #[test]
+    fn option_arity_hook_round_trips_once_supplied() {
+        let reg = tcl_registry::registry::CommandRegistry::build_default();
+        let spec = reg.get("return").expect("return is a core command");
+        let mut d = draft::from_command_spec(spec);
+
+        // Seeded: the hook slot exists and is empty.
+        let opts = d["options"].as_array().expect("options array").clone();
+        let hooked: Vec<&str> = opts
+            .iter()
+            .filter(|o| as_str(&o["value"]["arity"]["kind"]) == "Hook")
+            .map(|o| as_str(&o["name"]))
+            .collect();
+        assert_eq!(
+            hooked,
+            vec!["-errorstack"],
+            "one option consumes via a hook"
+        );
+
+        // Unfilled: the TODO names the option, not the whole field.
+        let out = render(&d);
+        assert!(
+            out.contains("`-errorstack` consumes a computed number of words"),
+            "note must name the option, got:\n{out}"
+        );
+        assert!(
+            !out.contains("`options` is set on the source command"),
+            "the whole options field must not be reported unreadable:\n{out}"
+        );
+
+        // Supplied: it renders as a real arity and the note is gone.
+        let mut filled = opts;
+        for opt in &mut filled {
+            if as_str(&opt["value"]["arity"]["kind"]) == "Hook" {
+                opt["value"]["arity"]["hook"] = json!("errorstack_value");
+            }
+        }
+        d.insert("options".into(), Value::Array(filled));
+        let out = render(&d);
+        assert!(
+            out.contains("arity: OptionArity::Hook(errorstack_value),"),
+            "supplied hook must render:\n{out}"
+        );
+        assert!(
+            !out.contains("consumes a computed number of words"),
+            "note must clear once supplied:\n{out}"
+        );
+    }
+
     use serde_json::json;
     use tcl_registry::arg_role::ArgRole;
     use tcl_registry::arity::Arity;
